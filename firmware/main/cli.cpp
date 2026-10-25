@@ -403,6 +403,14 @@ static int s_bal_log_n = 0;
 static TickType_t s_bal_t0 = 0;
 static bool s_bal_log_odd = false;
 static bool s_bal_hold_said = false;
+// ABORT (roll_pi.h): the correction fades, then every joint of the stream returns
+// to s_traj_start (the pose the B move started from) -- from where its nominal
+// target was when the abort fired. Torque stays on throughout.
+static int32_t s_bal_from[obs::kNumBusJoints];      // nominal target at the abort tick
+static bool s_bal_from_set[obs::kNumBusJoints];
+static bool s_bal_landed_said = false;
+static long s_bal_abort_ms = -1;                    // ms since engage when it fired (-1 = not aborted)
+static long s_bal_landed_ms = -1;
 
 // Roll (rad) from the fused attitude and, when asked, the body roll rate: the
 // latest 4 ms gyro sample about the BODY x axis (imu::Sample::gyro is already
@@ -432,33 +440,55 @@ static void balStop(Sink out, const char* why) {
 
 static const int kBalDegX100 = 5730;    // 100 * 180/pi
 
-// One 50 Hz evaluation. Updates the PI and the two correction offsets.
+// One 50 Hz evaluation. Updates the PI and the two correction offsets; once
+// aborted, runs the open-loop abort sequence (the attitude is only read for the
+// log -- no decision depends on it, so a dead IMU lands the foot just the same).
 static void balTick(TickType_t now, Sink out) {
     if (!s_bal.engaged()) return;
+    long dt_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_last));
+    if (dt_ms < 10) dt_ms = 10;
+    if (dt_ms > 100) dt_ms = 100;
+    const float dt_s = static_cast<float>(dt_ms) / 1000.0f;
+    float roll = 0.0f;
+    float rate = 0.0f;
+    const bool have = balReadRoll(&roll, &rate);
+    if (have) {
+        s_bal_roll = roll;
+        s_bal_rate = rate;
+    }
     if (s_bal.state() == balance::State::kActive) {
-        float roll = 0.0f;
-        float rate = 0.0f;
-        if (balReadRoll(&roll, &rate)) {
-            long dt_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_last));
-            if (dt_ms < 10) dt_ms = 10;
-            if (dt_ms > 100) dt_ms = 100;
-            s_bal_roll = roll;
-            s_bal_rate = rate;
-            s_bal.update(roll, static_cast<float>(dt_ms) / 1000.0f, rate);
-        } else {
-            s_bal.imuFault();
-        }
+        if (have) s_bal.update(roll, dt_s, rate);
+        else s_bal.imuFault();
+    } else if (s_bal.aborted()) {
+        s_bal.abortTick(dt_s);
     }
     s_bal_last = now;
+    const long t_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_t0));
     if (s_bal.state() != s_bal_shown) {
         s_bal_shown = s_bal.state();
-        if (s_bal_shown != balance::State::kActive) {
-            say(out, "balance: %s -- correction held at %+.2f deg ankle / %+.2f deg hip, "
-                "torque stays ON; next pose or `balance off` ends it\r\n",
-                balance::stateName(s_bal_shown),
-                static_cast<double>(s_bal.ankle() * 57.29578f),
-                static_cast<double>(s_bal.hip() * 57.29578f));
+        if (s_bal.aborted()) {
+            s_bal_abort_ms = t_ms;
+            s_bal_landed_ms = -1;
+            s_bal_landed_said = false;
+            if (s_bal_shown == balance::State::kAbortTip) {
+                say(out, "balance ABORT (tip): roll err %+.2f deg past the %.1f deg limit, u was %+.2f deg\r\n",
+                    static_cast<double>(s_bal.abortErr() * 57.29578f),
+                    static_cast<double>(s_bal_cfg.abort_rad * 57.29578f),
+                    static_cast<double>(s_bal.abortU() * 57.29578f));
+            } else {
+                say(out, "balance ABORT (IMU): no usable attitude/rate, u was %+.2f deg\r\n",
+                    static_cast<double>(s_bal.abortU() * 57.29578f));
+            }
+            say(out, "balance abort: u fades over %.1f s, then the pose returns to the pre-lift pose over %.1f s; "
+                "torque stays ON\r\n", static_cast<double>(s_bal_cfg.abort_decay_s),
+                static_cast<double>(s_bal_cfg.abort_land_s));
         }
+    }
+    if (s_bal.landed() && !s_bal_landed_said) {
+        s_bal_landed_said = true;
+        s_bal_landed_ms = t_ms;
+        say(out, "balance: landed (pre-lift pose, %ld ms after the abort), u 0, torque ON; "
+            "next pose or `balance off` ends it\r\n", t_ms - s_bal_abort_ms);
     }
     s_bal_dta = balTicks(s_bal_ba, s_bal.ankle());
     s_bal_dth = balTicks(s_bal_bh, s_bal.hip());
@@ -701,6 +731,9 @@ void cmdPose(Sink out, int argc, char** argv) {
             s_bal_clamps = 0;
             s_bal_log_n = 0;
             s_bal_hold_said = false;
+            s_bal_landed_said = false;
+            s_bal_abort_ms = s_bal_landed_ms = -1;
+            memset(s_bal_from_set, 0, sizeof s_bal_from_set);
         }
         // optional tuning tokens after s<ms>: h<pct> speed headroom (servo
         // speed = profile speed x pct/100; <100 keeps the servo running
@@ -1577,7 +1610,7 @@ void cmdBalance(Sink out, int argc, char** argv) {
             return;
         }
         if (argc < 6) {
-            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] | default\r\n");
+            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] [decay_s] [land_s] | default\r\n");
             return;
         }
         c.kp = strtof(argv[2], nullptr);
@@ -1587,6 +1620,8 @@ void cmdBalance(Sink out, int argc, char** argv) {
         if (argc >= 7) c.clamp_rad = strtof(argv[6], nullptr) / 57.29578f;
         if (argc >= 8) c.abort_rad = strtof(argv[7], nullptr) / 57.29578f;
         if (argc >= 9) c.kd = strtof(argv[8], nullptr);
+        if (argc >= 10) c.abort_decay_s = strtof(argv[9], nullptr);
+        if (argc >= 11) c.abort_land_s = strtof(argv[10], nullptr);
         const char* bad = balance::validate(c);
         if (bad) {
             say(out, "balance set: refused (%s)\r\n", bad);
@@ -1602,6 +1637,15 @@ void cmdBalance(Sink out, int argc, char** argv) {
                 static_cast<int>(s_bal_log_roll[k]), static_cast<int>(s_bal_log_err[k]),
                 static_cast<int>(s_bal_log_u[k]), static_cast<int>(s_bal_log_rate[k]));
         }
+        if (s_bal_abort_ms >= 0) {
+            // the event, in the log's units (ms since engage, 0.01 deg): where the BAL rows above
+            // show u fading and the roll after it
+            say(out, "BALEVT abort %s %ld %d %d\r\n",
+                s_bal.state() == balance::State::kAbortImu ? "imu" : "tip", s_bal_abort_ms,
+                static_cast<int>(s_bal.abortErr() * static_cast<float>(kBalDegX100)),
+                static_cast<int>(s_bal.abortU() * static_cast<float>(kBalDegX100)));
+            if (s_bal_landed_ms >= 0) say(out, "BALEVT landed %ld\r\n", s_bal_landed_ms);
+        }
         out("balance log end\r\n");
         return;
     }
@@ -1610,6 +1654,8 @@ void cmdBalance(Sink out, int argc, char** argv) {
         static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
         static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
         static_cast<double>(s_bal_cfg.clamp_rad) * r2d, static_cast<double>(s_bal_cfg.abort_rad) * r2d);
+    say(out, "abort    u fades %.2f s, then back to the pre-lift pose over %.2f s (torque stays on)\r\n",
+        static_cast<double>(s_bal_cfg.abort_decay_s), static_cast<double>(s_bal_cfg.abort_land_s));
     float roll = 0.0f;
     if (balReadRoll(&roll)) {
         // g_line is 128 bytes: keep each say() to one short line
@@ -1628,6 +1674,13 @@ void cmdBalance(Sink out, int argc, char** argv) {
         static_cast<double>(s_bal.ref()) * r2d, static_cast<double>(s_bal.err()) * r2d,
         static_cast<double>(s_bal.rate()) * r2d, static_cast<double>(s_bal.integral()),
         static_cast<double>(s_bal.u()) * r2d);
+    if (s_bal.aborted()) {
+        say(out, "ABORT    %s at %.2f s: err %+.2f deg, u was %+.2f deg -> %s (%.2f s in, landing %.0f%%)\r\n",
+            s_bal.state() == balance::State::kAbortImu ? "IMU fault" : "tip",
+            static_cast<double>(s_bal_abort_ms) / 1000.0, static_cast<double>(s_bal.abortErr()) * r2d,
+            static_cast<double>(s_bal.abortU()) * r2d, balance::abortPhase(s_bal),
+            static_cast<double>(s_bal.abortSince()), static_cast<double>(s_bal.landFraction()) * 100.0);
+    }
     say(out, "correction  %c ankle roll %+.2f deg = %+ld ticks   %c hip roll %+.2f deg = %+ld ticks   "
              "(envelope clamped %lu writes)\r\n",
         s_bal_side, static_cast<double>(s_bal.ankle()) * r2d, static_cast<long>(s_bal_dta),
@@ -1724,6 +1777,16 @@ void poseTick(Sink out) {
         int32_t want = tau >= 1.0f
             ? s_traj_tgt[b]
             : s_traj_start[b] + static_cast<int32_t>(lroundf(sc * d));
+        if (s_bal.aborted()) {
+            // ABORT: the nominal target at the abort tick is where the landing
+            // starts; from there every joint returns to where this stream began
+            // (the double-support pre-lift pose). No attitude is consulted.
+            if (!s_bal_from_set[b]) {
+                s_bal_from[b] = want;
+                s_bal_from_set[b] = true;
+            }
+            want = balance::landTarget(s_bal_from[b], s_traj_start[b], s_bal.landFraction());
+        }
         if (s_bal.engaged() && (b == s_bal_ba || b == s_bal_bh)) {
             // the balance correction rides on the nominal target, inside the
             // calibrated envelope like every other bench write
@@ -1776,7 +1839,7 @@ void poseTick(Sink out) {
         if (s_bal.engaged()) {
             // the stream is over, the hold is not: keep ticking so the
             // feedback persists until the next command
-            if (!s_bal_hold_said) {
+            if (!s_bal_hold_said && !s_bal.aborted()) {
                 s_bal_hold_said = true;
                 say(out, "smooth pose done (%ld ms); balance holding on %c stance\r\n", el, s_bal_side);
             }

@@ -6,6 +6,7 @@
 #include "balance/roll_pi.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "test_util.h"
 
@@ -110,24 +111,24 @@ void testRateAndClampInteraction() {
     CHECK_NEAR(d.integral(), 0.05 * 0.02, 1e-7);
 }
 
-void testNonFiniteRateFreezes() {
+void testNonFiniteRateAborts() {
     RollBalance b;
     b.configure(goldenKd());
     b.engage(0.0f);
     b.update(0.05f, 0.02f, 0.1f);
     const float u = b.u();
-    CHECK(b.update(0.06f, 0.02f, NAN) == State::kFrozenImu);
+    CHECK(b.update(0.06f, 0.02f, NAN) == State::kAbortImu);
     CHECK_NEAR(b.u(), u, 1e-9);
     RollBalance c;
     c.configure(goldenKd());
     c.engage(0.0f);
     c.update(0.05f, 0.02f, 0.1f);
-    CHECK(c.update(0.06f, 0.02f, INFINITY) == State::kFrozenImu);
+    CHECK(c.update(0.06f, 0.02f, INFINITY) == State::kAbortImu);
     // the abort limit still wins on a finite rate
     RollBalance d;
     d.configure(goldenKd());
     d.engage(0.0f);
-    CHECK(d.update(0.7f, 0.02f, 0.1f) == State::kFrozenAbort);
+    CHECK(d.update(0.7f, 0.02f, 0.1f) == State::kAbortTip);
 }
 
 void testMirrorSymmetryWithRate() {
@@ -201,45 +202,203 @@ void testOutputMix() {
     CHECK_NEAR(b.hip(), -0.5 * b.u(), 1e-9);
 }
 
-void testAbortFreezesAtLastCorrection() {
-    RollBalance b;
-    b.configure(golden());                          // abort 30 deg
-    b.engage(0.0f);
-    b.update(0.05f, 0.02f);
-    const float u = b.u();
-    CHECK(b.state() == State::kActive);
-    CHECK(b.update(0.7f, 0.02f) == State::kFrozenAbort);     // 40 deg
-    CHECK_NEAR(b.u(), u, 1e-9);                     // held, not zeroed, not extrapolated
-    b.update(0.02f, 0.02f);                         // back inside the limit: stays frozen
-    CHECK(b.state() == State::kFrozenAbort);
-    CHECK_NEAR(b.u(), u, 1e-9);
-    CHECK(b.engaged());
+// -- the abort sequence (experiments/one-leg-stand/balance_abort.py, SEQ policy) ----------------
+
+void testAbortProfileMatchesSimTwin() {
+    // balance_abort.py golden: decay 0.3 s, land 1.0 s
+    const Config c;
+    struct Row { float t, us, lf; };
+    const Row rows[] = {
+        {0.0f, 1.000000f, 0.000000f}, {0.1f, 0.790123f, 0.000000f}, {0.3f, 0.000000f, 0.000000f},
+        {0.5f, 0.000000f, 0.057920f}, {1.0f, 0.000000f, 0.836920f}, {1.3f, 0.000000f, 1.000000f},
+        {2.0f, 0.000000f, 1.000000f},
+    };
+    for (const Row& r : rows) {
+        float us = -1.0f, lf = -1.0f;
+        balance::abortProfile(c, r.t, &us, &lf);
+        CHECK_NEAR(us, r.us, 2e-5);
+        CHECK_NEAR(lf, r.lf, 2e-5);
+    }
+    CHECK_NEAR(c.abort_decay_s, 0.3, 1e-6);
+    CHECK_NEAR(c.abort_land_s, 1.0, 1e-6);
 }
 
-void testImuFaultFreezes() {
-    RollBalance b;
-    b.configure(golden());
-    b.engage(0.0f);
-    b.update(0.05f, 0.02f);
-    const float u = b.u();
-    b.imuFault();
-    CHECK(b.state() == State::kFrozenImu);
-    b.update(0.01f, 0.02f);
-    CHECK_NEAR(b.u(), u, 1e-9);
+// Run an aborted controller at 50 Hz for `secs`; returns u's trace in `u` (size n).
+void runAbort(RollBalance& b, int n, float* u, float* land) {
+    for (int k = 0; k < n; ++k) {
+        b.abortTick(0.02f);
+        u[k] = b.u();
+        land[k] = b.landFraction();
+    }
+}
+
+void checkSequence(RollBalance& b, float u0) {
+    // fades monotonically to exactly 0 within abort_decay_s, lands only after that, reaches 1
+    float u[100], land[100];
+    runAbort(b, 100, u, land);                       // 2 s
+    float prev = u0;
+    for (int k = 0; k < 100; ++k) {
+        const float t = 0.02f * static_cast<float>(k + 1);
+        CHECK(fabsf(u[k]) <= fabsf(prev) + 1e-9f);   // never grows
+        CHECK(u[k] * u0 >= -1e-12f);                 // never changes sign
+        prev = u[k];
+        if (t >= 0.3f + 1e-4f) CHECK_NEAR(u[k], 0.0, 1e-9);
+        if (fabsf(u[k]) > 1e-9f) CHECK_NEAR(land[k], 0.0, 1e-9);     // no landing while u is still on
+        if (k > 0) CHECK(land[k] >= land[k - 1]);
+        if (t >= 1.3f + 1e-4f) CHECK_NEAR(land[k], 1.0, 1e-9);
+    }
+    CHECK(b.landed());
+    CHECK(b.engaged());                              // torque is never released: still engaged, not kOff
+    CHECK(b.state() != State::kOff);
+}
+
+void testAbortOnTipBothSides() {
+    // outward and inward are the same code: the error's sign only sets the sign of the frozen u
+    for (int side = -1; side <= 1; side += 2) {
+        RollBalance b;
+        b.configure(golden());                       // abort 30 deg
+        b.engage(0.0f);
+        b.update(0.05f * static_cast<float>(side), 0.02f);
+        const float u = b.u();
+        CHECK(b.state() == State::kActive);
+        CHECK(!b.aborted());
+        CHECK(b.update(0.7f * static_cast<float>(side), 0.02f) == State::kAbortTip);   // 40 deg
+        CHECK(b.aborted());
+        CHECK_NEAR(b.u(), u, 1e-9);                  // the abort tick itself still holds u
+        CHECK_NEAR(b.abortU(), u, 1e-9);
+        CHECK_NEAR(b.abortErr(), 0.7 * side, 1e-6);
+        CHECK_NEAR(b.landFraction(), 0.0, 1e-9);
+        // the roll coming back inside the limit (or a wild value) changes nothing: no decisions
+        b.update(0.01f, 0.02f);
+        b.update(-0.7f * static_cast<float>(side), 0.02f, 9.0f);
+        CHECK(b.state() == State::kAbortTip);
+        CHECK_NEAR(b.abortU(), u, 1e-9);
+        CHECK_NEAR(b.abortErr(), 0.7 * side, 1e-6);
+        RollBalance c = b;                           // continue from after those two ticks
+        checkSequence(c, u);
+    }
+}
+
+void testAbortOnImuFault() {
+    // a failed attitude read, and a non-finite rate: no attitude is needed to run the sequence
+    RollBalance a;
+    a.configure(golden());
+    a.engage(0.0f);
+    a.update(0.05f, 0.02f);
+    const float u = a.u();
+    a.imuFault();
+    CHECK(a.state() == State::kAbortImu);
+    CHECK_NEAR(a.abortU(), u, 1e-9);
+    CHECK(!a.landed());
+    checkSequence(a, u);
+    RollBalance r;
+    r.configure(golden());
+    r.engage(0.0f);
+    r.update(0.05f, 0.02f);
+    CHECK(r.update(0.05f, 0.02f, NAN) == State::kAbortImu);
+    CHECK_NEAR(r.abortU(), r.u(), 1e-9);
+    // update() with garbage after the fault only advances the sequence
+    for (int k = 0; k < 100; ++k) r.update(NAN, 0.02f, NAN);
+    CHECK(r.state() == State::kAbortImu);
+    CHECK(r.landed());
+    CHECK_NEAR(r.u(), 0.0, 1e-9);
     // a fault on an idle controller does not arm it
     RollBalance idle;
     idle.imuFault();
     CHECK(idle.state() == State::kOff);
+    CHECK(!idle.abort(State::kAbortTip));
+    CHECK(idle.state() == State::kOff);
 }
 
-void testNanFreezes() {
+void testAbortIsIdempotent() {
     RollBalance b;
     b.configure(golden());
     b.engage(0.0f);
     b.update(0.05f, 0.02f);
     const float u = b.u();
-    CHECK(b.update(NAN, 0.02f) == State::kFrozenAbort);
-    CHECK_NEAR(b.u(), u, 1e-9);
+    CHECK(b.abort(State::kAbortTip));
+    for (int k = 0; k < 10; ++k) b.abortTick(0.02f);
+    const float since = b.abortSince();
+    const float ucur = b.u();
+    CHECK(since > 0.15f);
+    // a second abort of either cause: refused, nothing restarts (the sequence does not rewind)
+    CHECK(!b.abort(State::kAbortTip));
+    CHECK(!b.abort(State::kAbortImu));
+    b.imuFault();
+    b.update(0.9f, 0.02f, NAN);
+    CHECK(b.state() == State::kAbortTip);            // the first cause stands
+    CHECK_NEAR(b.abortU(), u, 1e-9);
+    CHECK_NEAR(b.abortSince(), since + 0.02, 1e-6);  // only the update's tick advanced it
+    CHECK(fabsf(b.u()) <= fabsf(ucur) + 1e-9f);
+    // abortTick on a non-aborted controller is a no-op
+    RollBalance live;
+    live.configure(golden());
+    live.engage(0.0f);
+    live.update(0.05f, 0.02f);
+    const float ul = live.u();
+    live.abortTick(1.0f);
+    CHECK(live.state() == State::kActive);
+    CHECK_NEAR(live.u(), ul, 1e-9);
+    // disengage ends it; a re-engage starts a fresh active loop
+    b.disengage();
+    CHECK(b.state() == State::kOff);
+    CHECK(!b.engaged());
+    b.engage(0.0f);
+    CHECK(b.state() == State::kActive);
+    CHECK_NEAR(b.abortSince(), 0.0, 1e-12);
+    CHECK_NEAR(b.u(), 0.0, 1e-12);
+}
+
+void testLandingReachesStartPose() {
+    // what poseTick does per joint: landTarget(from, start, landFraction) every 20 ms
+    RollBalance b;
+    b.configure(golden());
+    b.engage(0.0f);
+    b.update(0.05f, 0.02f);
+    b.update(0.7f, 0.02f);
+    const int32_t from[3] = {2140, 1900, 2048};      // nominal targets at the abort (lift pose)
+    const int32_t start[3] = {2100, 2000, 2048};     // where the B stream began
+    int32_t last[3] = {from[0], from[1], from[2]};
+    int ticks = 0;
+    while (!b.landed() && ticks < 500) {
+        b.abortTick(0.02f);
+        ++ticks;
+        for (int j = 0; j < 3; ++j) {
+            const int32_t w = balance::landTarget(from[j], start[j], b.landFraction());
+            // monotone from `from` toward `start`, never past it
+            const int32_t dir = start[j] >= from[j] ? 1 : -1;
+            CHECK((w - last[j]) * dir >= 0);
+            CHECK((start[j] - w) * dir >= 0);
+            last[j] = w;
+        }
+    }
+    CHECK(b.landed());
+    CHECK(ticks >= 64 && ticks <= 66);              // 0.3 + 1.0 s at 50 Hz
+    for (int j = 0; j < 3; ++j) CHECK(balance::landTarget(from[j], start[j], b.landFraction()) == start[j]);
+    CHECK(last[0] == start[0] && last[1] == start[1] && last[2] == start[2]);
+    // the correction is gone when it lands: the joints sit exactly on the pre-lift pose
+    CHECK_NEAR(b.ankle(), 0.0, 1e-12);
+    CHECK_NEAR(b.hip(), 0.0, 1e-12);
+    // before the correction is gone the pose has not moved at all
+    CHECK(balance::landTarget(from[0], start[0], 0.0f) == from[0]);
+    // already at the start pose: stays there
+    CHECK(balance::landTarget(2100, 2100, 0.5f) == 2100);
+}
+
+void testAbortPhaseNames() {
+    RollBalance b;
+    b.configure(golden());
+    CHECK(strcmp(balance::abortPhase(b), "") == 0);
+    b.engage(0.0f);
+    CHECK(strcmp(balance::abortPhase(b), "") == 0);
+    b.update(0.7f, 0.02f);
+    CHECK(strcmp(balance::abortPhase(b), "fading") == 0);
+    for (int k = 0; k < 17; ++k) b.abortTick(0.02f);
+    CHECK(strcmp(balance::abortPhase(b), "landing") == 0);
+    for (int k = 0; k < 70; ++k) b.abortTick(0.02f);
+    CHECK(strcmp(balance::abortPhase(b), "landed") == 0);
+    CHECK(strstr(balance::stateName(State::kAbortTip), "ABORT") != nullptr);
+    CHECK(strstr(balance::stateName(State::kAbortImu), "IMU") != nullptr);
 }
 
 void testDisengageZeroes() {
@@ -317,6 +476,11 @@ void testValidate() {
     c = Config{}; c.clamp_rad = 15.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
     c = Config{}; c.clamp_rad = 15.5f / 57.29578f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_rad = 0.01f; CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.abort_decay_s = 0.0f; CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.abort_decay_s = 3.0f; CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.abort_land_s = 0.1f;  CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.abort_land_s = NAN;   CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.abort_land_s = 0.4f;  CHECK(balance::validate(c) == nullptr);
     c = Config{}; c.kp = NAN;         CHECK(balance::validate(c) != nullptr);
 }
 
@@ -327,15 +491,18 @@ int main() {
     testGyroMatchesSimTwin();
     testRateOnlyResponseAndSign();
     testRateAndClampInteraction();
-    testNonFiniteRateFreezes();
+    testNonFiniteRateAborts();
     testMirrorSymmetryWithRate();
     testReferenceIsCapturedNotAbsolute();
     testOutputClampAndAntiWindup();
     testIntegralRemovesSteadyError();
     testOutputMix();
-    testAbortFreezesAtLastCorrection();
-    testImuFaultFreezes();
-    testNanFreezes();
+    testAbortProfileMatchesSimTwin();
+    testAbortOnTipBothSides();
+    testAbortOnImuFault();
+    testAbortIsIdempotent();
+    testLandingReachesStartPose();
+    testAbortPhaseNames();
     testDisengageZeroes();
     testMirrorSymmetry();
     testRollFromUp();

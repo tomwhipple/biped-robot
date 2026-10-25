@@ -12,7 +12,35 @@ const char* validate(const Config& c) {
     if (!(fabsf(c.kh) <= 3.0f)) return "hip mix must be within +-3";
     if (!(c.clamp_rad > 0.0f && c.clamp_rad <= 0.26180f + 1e-5f)) return "clamp must be 0..15 deg";
     if (!(c.abort_rad >= 0.05236f && c.abort_rad <= 0.34907f)) return "abort must be 3..20 deg";
+    if (!(c.abort_decay_s >= 0.05f && c.abort_decay_s <= 2.0f)) return "abort decay must be 0.05..2 s";
+    if (!(c.abort_land_s >= 0.2f && c.abort_land_s <= 5.0f)) return "abort land must be 0.2..5 s";
     return nullptr;
+}
+
+static float minJerk(float t) {
+    if (!(t > 0.0f)) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    const float t2 = t * t, t3 = t2 * t;
+    const float v = 10.0f * t3 - 15.0f * t3 * t + 6.0f * t3 * t2;
+    return v > 1.0f ? 1.0f : v;      // float rounding can overshoot a hair near t = 1
+}
+
+void abortProfile(const Config& c, float since_s, float* u_scale, float* land_frac) {
+    *u_scale = 1.0f - minJerk(since_s / c.abort_decay_s);
+    *land_frac = minJerk((since_s - c.abort_decay_s) / c.abort_land_s);
+}
+
+int32_t landTarget(int32_t from, int32_t start, float land_frac) {
+    if (!(land_frac > 0.0f)) return from;
+    if (land_frac >= 1.0f) return start;
+    return from + static_cast<int32_t>(lroundf(land_frac * static_cast<float>(start - from)));
+}
+
+float RollBalance::landFraction() const {
+    if (!aborted()) return 0.0f;
+    float us, lf;
+    abortProfile(cfg_, since_, &us, &lf);
+    return lf;
 }
 
 bool rollFromUp(const float up[3], float* roll_rad) {
@@ -28,6 +56,7 @@ void RollBalance::engage(float roll_ref_rad) {
     i_ = 0.0f;
     u_ = 0.0f;
     rate_ = 0.0f;
+    since_ = u_abort_ = err_abort_ = 0.0f;
     state_ = State::kActive;
 }
 
@@ -37,19 +66,41 @@ void RollBalance::disengage() {
     i_ = 0.0f;
     u_ = 0.0f;
     rate_ = 0.0f;
+    since_ = u_abort_ = err_abort_ = 0.0f;
+}
+
+bool RollBalance::abort(State why) {
+    if (state_ != State::kActive) return false;
+    state_ = (why == State::kAbortImu) ? State::kAbortImu : State::kAbortTip;
+    u_abort_ = u_;
+    err_abort_ = err_;
+    since_ = 0.0f;
+    return true;
+}
+
+void RollBalance::abortTick(float dt_s) {
+    if (!aborted()) return;
+    if (isfinite(dt_s) && dt_s > 0.0f) since_ += dt_s;
+    float us, lf;
+    abortProfile(cfg_, since_, &us, &lf);
+    u_ = u_abort_ * us;
 }
 
 State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
+    if (aborted()) {
+        abortTick(dt_s);                       // no decisions: the sequence is open loop
+        return state_;
+    }
     if (state_ != State::kActive) return state_;
     if (!isfinite(roll_rate_rad_s)) {
-        state_ = State::kFrozenImu;
+        abort(State::kAbortImu);
         return state_;
     }
     rate_ = roll_rate_rad_s;
     const float err = roll_rad - ref_;
     if (!isfinite(err) || fabsf(err) > cfg_.abort_rad) {
-        state_ = State::kFrozenAbort;
-        err_ = err;
+        if (isfinite(err)) err_ = err;         // else the last finite error is the one worth reporting
+        abort(State::kAbortTip);
         return state_;
     }
     err_ = err;
@@ -64,17 +115,23 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
 }
 
 void RollBalance::imuFault() {
-    if (state_ == State::kActive) state_ = State::kFrozenImu;
+    abort(State::kAbortImu);
 }
 
 const char* stateName(State s) {
     switch (s) {
         case State::kOff: return "off";
         case State::kActive: return "ACTIVE";
-        case State::kFrozenAbort: return "FROZEN (roll error past the abort limit)";
-        case State::kFrozenImu: return "FROZEN (IMU read failed)";
+        case State::kAbortTip: return "ABORTED (roll error past the abort limit)";
+        case State::kAbortImu: return "ABORTED (IMU read failed)";
     }
     return "?";
+}
+
+const char* abortPhase(const RollBalance& b) {
+    if (!b.aborted()) return "";
+    if (b.landed()) return "landed";
+    return b.abortSince() < b.config().abort_decay_s ? "fading" : "landing";
 }
 
 }  // namespace balance

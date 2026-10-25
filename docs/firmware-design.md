@@ -441,14 +441,30 @@ bench write. The swing leg is untouched. The correction persists through the
 hold after the min-jerk move ends, and ends at the next `pose`, `move`, `home`,
 `release`/`torque`, or when the loop is armed (the next move then starts from
 where the servos are). Safety: if the roll error passes the abort limit, or
-the attitude read fails or is older than 100 ms, the correction **freezes** at
-its last value, a message prints, and torque stays on. `balance` prints the
-gains, the live roll, and the active correction in degrees and ticks;
-`balance log` dumps the last 24 s at 25 Hz (`BAL ms roll err u` in 0.01 deg,
-then the roll rate in 0.1 deg/s); `balance set <kp> <ki> <ankle> <hip>
-[clamp_deg] [abort_deg] [kd]` changes the gains (refused while engaged; the
-defaults are kp 0.3, ki 1.0, kd 0.03, mixes +1/-1, clamp 10 deg, abort 12 deg).
-A non-finite gyro rate freezes the correction like a failed attitude read. The sim twin and the gain sweep are in
+the attitude read fails or is older than 100 ms, or the gyro rate is not
+finite, the loop **aborts**: it stops making decisions and runs a fixed
+open-loop sequence, chosen in sim ([2026-10-25-abort-policy-sim.md](../experiments/one-leg-stand/2026-10-25-abort-policy-sim.md)).
+The correction u fades to zero over 0.3 s (min-jerk), then every joint of the
+stream returns to the pose the `B` move started from (`s_traj_start`, the
+double-support pre-lift pose) over 1.0 s, from wherever its nominal target
+was at the abort: the lifted foot is put back down. Torque stays on
+throughout and no step of the sequence reads the IMU, so a dead IMU lands the
+foot the same way. The abort is idempotent: the first cause and its numbers
+stand. A message prints at the abort and at the landing; the loop then holds
+the pre-lift pose until the next `pose` or `balance off`. `balance` prints
+the gains, the live roll, the active correction in degrees and ticks and,
+once aborted, the cause, the time, the error and u at the abort and the
+phase (fading, landing, landed); `balance log` dumps the last 24 s at 25 Hz
+(`BAL ms roll err u` in 0.01 deg, then the roll rate in 0.1 deg/s) followed,
+after an abort, by `BALEVT abort <tip|imu> <ms> <err> <u>` and
+`BALEVT landed <ms>`; `balance set <kp> <ki> <ankle> <hip>
+[clamp_deg] [abort_deg] [kd] [decay_s] [land_s]` changes the gains and the
+abort times (refused while engaged; the defaults are kp 0.3, ki 1.0,
+kd 0.03, mixes +1/-1, clamp 10 deg, abort 12 deg, decay 0.3 s, land 1.0 s).
+The pure sequence (`balance::abortProfile`, `landTarget`) is host-tested and
+pinned to the sim twin `balance_abort.py`. An impulsive tip that is already
+past a few rad/s at 12 deg falls under any policy; the sequence is for the
+controller-caused and sensor-caused aborts. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
 
 ### 5.7 Position-loop gains (Plan B)
