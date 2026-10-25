@@ -11,7 +11,8 @@ const char* validate(const Config& c) {
     if (!(fabsf(c.ka) <= 3.0f)) return "ankle mix must be within +-3";
     if (!(fabsf(c.kh) <= 3.0f)) return "hip mix must be within +-3";
     if (!(c.clamp_rad > 0.0f && c.clamp_rad <= 0.26180f + 1e-5f)) return "clamp must be 0..15 deg";
-    if (!(c.abort_rad >= 0.05236f && c.abort_rad <= 0.34907f)) return "abort must be 3..20 deg";
+    // the CLI converts degrees with /57.29578f: allow float rounding at both ends (3.0 and 20.0 must pass)
+    if (!(c.abort_rad >= 0.05236f - 1e-5f && c.abort_rad <= 0.34907f + 1e-5f)) return "abort must be 3..20 deg";
     if (!(c.abort_decay_s >= 0.05f && c.abort_decay_s <= 2.0f)) return "abort decay must be 0.05..2 s";
     if (!(c.abort_land_s >= 0.2f && c.abort_land_s <= 5.0f)) return "abort land must be 0.2..5 s";
     return nullptr;

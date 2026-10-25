@@ -476,6 +476,10 @@ void testValidate() {
     c = Config{}; c.clamp_rad = 15.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
     c = Config{}; c.clamp_rad = 15.5f / 57.29578f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_rad = 0.01f; CHECK(balance::validate(c) != nullptr);
+    // what the CLI produces for `balance set ... <abort> 3` and `... 20` (deg / 57.29578f): the ends pass
+    c = Config{}; c.abort_rad = 3.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.abort_rad = 20.0f / 57.29578f; CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.abort_rad = 2.9f / 57.29578f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_decay_s = 0.0f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_decay_s = 3.0f; CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_land_s = 0.1f;  CHECK(balance::validate(c) != nullptr);
