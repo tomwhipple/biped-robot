@@ -11,8 +11,15 @@ readings, in the one `bimo_gui` window, and all of it saved for sim playback.
 **One model, two sources.** The console's bench panel is fed by the datagram
 schema below, not by the serial port. Any producer of those samples fills it:
 the serial bridge today; a Wi-Fi-side producer later, once the beacon carries
-balance and servo readings. The beacon already feeds the one field both
-share, the IMU `up` vector, directly in the console. Nothing in the panel
+balance and servo readings. The Wi-Fi beacon is the primary source and the bridge the fallback, in one
+sample model: `BenchModel::applyBeaconServo` takes a beacon SERVO-block entry
+(pos, spd, load, cur, volt, temp, status, age) and a beacon reading fresher
+than 2 s outranks the bridge's `joint` sample for the same servo; when the
+beacon is quiet or carries no block the bridge fills in. The beacon's IMU `up`
+vector is already fed this way. The decoder that calls it waits on the
+beacon's SERVO block (branch `firmware/bench-servo-telemetry`); balance and
+IMU blocks, when they exist, map onto the `bal_*` / `imu_*` samples the same
+way. Nothing in the panel
 depends on the CLI's text.
 
 ```

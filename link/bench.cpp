@@ -214,10 +214,15 @@ bool BenchModel::apply(const char* data, size_t n, double now_ms) {
         }
         BenchJoint& b = joints[id];
         b.id = id;
+        if (!strcmp(k, "joint") && b.from_beacon &&
+            now_ms - b.t_ms < kBeaconPreferMs) {
+            return true;         // heard (counts for live()), but outranked
+        }
         const char* nm = j.str("name");
         if (nm != nullptr && nm[0]) cpy(b.name, sizeof b.name, nm);
         if (!strcmp(k, "joint")) {
             b.have = true;
+            b.from_beacon = false;
             b.pos = static_cast<int>(j.numOr("pos", 0));
             b.spd = static_cast<int>(j.numOr("spd", 0));
             b.load = static_cast<int>(j.numOr("load", 0));
@@ -304,6 +309,24 @@ bool BenchModel::apply(const char* data, size_t n, double now_ms) {
     // Unknown kinds are counted as heard (the bridge is alive) and ignored:
     // a newer bridge may send more than this console knows.
     return true;
+}
+
+void BenchModel::applyBeaconServo(int id, int pos, int spd, int load, int cur,
+                                  int volt_dv, int temp, int status,
+                                  int age_ms, double now_ms) {
+    if (id < 0 || id >= kBenchMaxId || age_ms >= 255) return;
+    BenchJoint& b = joints[id];
+    b.id = id;
+    b.have = true;
+    b.from_beacon = true;
+    b.pos = pos;
+    b.spd = spd;
+    b.load = load;
+    b.cur = cur;
+    b.volt = static_cast<float>(volt_dv) / 10.0f;
+    b.temp = temp;
+    b.err = status;
+    b.t_ms = now_ms - age_ms;
 }
 
 int BenchModel::jointsSeen() const {

@@ -881,6 +881,27 @@ void test_bench_model_applies_samples() {
     CHECK(m.datagrams == before && m.last_rx_ms == 2000 && m.rejected >= 5);
 }
 
+// One sample model, two sources: the beacon outranks the bridge while fresh,
+// the bridge fills in when it is not.
+void test_beacon_servo_outranks_bridge_then_yields() {
+    BenchModel m;
+    const char* j = "{\"v\":1,\"k\":\"joint\",\"id\":52,\"pos\":2000,\"spd\":0,"
+                    "\"load\":1,\"volt\":12.0,\"temp\":24,\"err\":0}";
+    m.apply(j, strlen(j), 1000);
+    CHECK(m.joints[52].pos == 2000 && !m.joints[52].from_beacon);
+    m.applyBeaconServo(52, 2082, 3, -16, 40, 119, 25, 0, 20, 2000);
+    CHECK(m.joints[52].pos == 2082 && m.joints[52].from_beacon && m.joints[52].cur == 40);
+    CHECK_NEAR(m.joints[52].volt, 11.9, 1e-4);
+    CHECK_NEAR(m.joints[52].t_ms, 1980.0, 1e-6);       // reading's own instant
+    m.apply(j, strlen(j), 2500);                         // beacon fresh: outranked
+    CHECK(m.joints[52].pos == 2082);
+    m.apply(j, strlen(j), 4500);                         // beacon silent: fallback
+    CHECK(m.joints[52].pos == 2000 && !m.joints[52].from_beacon);
+    m.applyBeaconServo(7, 1, 1, 1, 1, 120, 20, 0, 255, 5000);   // unfitted
+    m.applyBeaconServo(99, 1, 1, 1, 1, 120, 20, 0, 0, 5000);    // out of range
+    CHECK(!m.joints[7].have);
+}
+
 void test_timeseries_resample() {
     TimeSeries s;
     float out[30];
@@ -1063,6 +1084,7 @@ int main() {
     test_json_rejects_garbage();
     test_bench_model_applies_samples();
     test_timeseries_resample();
+    test_beacon_servo_outranks_bridge_then_yields();
     test_bench_link_subscribes_and_receives();
     return testutil::report("client");
 }

@@ -75,6 +75,8 @@ struct BenchJoint {
     int pos = 0, spd = 0, load = 0, temp = 0, err = 0;
     float volt = 0.0f;
     double t_ms = 0.0;
+    int cur = 0;                 // 6.5 mA/LSB; beacon only (serial `pos` has none)
+    bool from_beacon = false;    // which source supplied this reading
     bool have_cal = false;
     int zero = 0, dir = 1;
     bool fitted = true;
@@ -85,6 +87,8 @@ constexpr double kBenchWindowMs = 30000.0;
 // Heartbeats come at 1 Hz; this long without ANY datagram is a dead bridge,
 // a dead tunnel or a lease that lapsed -- and must say so.
 constexpr double kBenchStaleMs = 3500.0;
+// A beacon servo reading this fresh outranks the serial bridge's.
+constexpr double kBeaconPreferMs = 2000.0;
 
 struct BenchModel {
     BenchJoint joints[kBenchMaxId];
@@ -140,6 +144,17 @@ struct BenchModel {
         up[0] = x; up[1] = y; up[2] = z;
         t_up = now_ms;
     }
+    // One servo from the Wi-Fi beacon's SERVO block (17 x 12 B in bus order:
+    // pos/spd/load/cur i16, volt 0.1 V, temp C, status, age ms before the
+    // frame). The beacon is the PRIMARY source: while its reading of a servo is
+    // fresher than kBeaconPreferMs a bridge sample for the same servo is
+    // ignored, so the table never flickers between two sources; when the
+    // beacon goes quiet (or has no block) the serial bridge is the fallback.
+    // `age_ms` 255 = no reading / unfitted: skipped. Call with the frame's
+    // receive time; the reading's own instant is now - age.
+    void applyBeaconServo(int id, int pos, int spd, int load, int cur,
+                          int volt_dv, int temp, int status, int age_ms,
+                          double now_ms);
     // The bridge: has it been heard from lately?
     bool live(double now_ms) const {
         return datagrams > 0 && now_ms - last_rx_ms < kBenchStaleMs;
