@@ -114,8 +114,9 @@ the two starts converge before the roll.
    night 1), then pushes (`--push-prob`), then the residual scale; one at a
    time. *(night 2: friction DR — confounded by the handover, see 10-23;
    night 3: `--rise-ref-hold`, with and without friction DR; night 4: the
-   centred crouch hold — held, w0k 46/48; night 5: friction DR and the
-   residual scale on it)*
+   centred crouch hold — held, w0k 46/48; night 5: friction DR (dropped,
+   third loss) and the residual scale — w2k 0.15 47/48; night 6: its seed
+   spread and 0.075)*
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
@@ -175,10 +176,13 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_v1k_s1 | 10-23 | v1k | seed 1 | replicate (5th: likely starts tomorrow night) | 0/8 | 8/8 | 5/8 (35.6 s) | 5/8 (35.6 s) | capped at 442M steps. 0.05: 3/8, 3/8; 0.5: 7/8, 5/8 = 31/48, the best of the night |
 | robot_getup_w0k | 10-24 | v0k (t3k) | ref prone_ik → prone_ikc | the crouch tip-back goes: ≥ 7/8 both starts at 0.35, ≥ 43/48 over the sweep (its replay) | 0/8 | 8/8 | 8/8 (35.4 s) | 8/8 (35.3 s) | **held**: no crouch failure left. 0.05: 7/8, 7/8; 0.5: 8/8, 8/8 = **46/48** (replay 43/48, v0k 23/48), the best get-up trained with hold |
 | robot_getup_w0k_fb1024s1 | 10-24 | w0k | seed 101 (ensure_queue's fallback top-up) | replicate | 0/8 | 0/8 | 8/8 (35.6 s) | 6/8 (35.6 s) | replicate **does not hold** w0k: stands 0.40 m upright at ~23 s from supine ph, tips to 0.29 m / up-z 0.5 at 26 – 29 s in every seed (no fall counted). 0.05: 0/8, 0/8; 0.5: 0/8, 8/8 = 14/48 |
-| robot_getup_w1k | 10-25 | v1k (t3k) | ref prone_ik → prone_ikc (= w0k + friction DR) | ≥ 44/48 and a narrower seed spread than w0k's (46 vs 14/48) | | | | | |
-| robot_getup_w0k_s1 | 10-25 | w0k | seed 1 | replicate: which of 46/48 and 14/48 is typical (may be capped at ~520M) | | | | | |
-| robot_getup_w2k | 10-25 | w0k (t3k) | `--rise-ref-residual` 0.3 → 0.15 | less authority keeps the policy near its reference: ≥ 43/48, no stand-then-tip | | | | | |
-| robot_getup_w1k_s1 | — | w1k | seed 1 | replicate | | | | | held (10-25): re-queue once w1k is worth replicating |
+| robot_getup_w1k | 10-25 | v1k (t3k) | ref prone_ik → prone_ikc (= w0k + friction DR) | ≥ 44/48 and a narrower seed spread than w0k's (46 vs 14/48) | 0/8 | 6/8 | 3/8 (35.2 s) | 4/8 (35.2 s) | **failed**. 0.05: 1/8, 0/8; 0.5: 8/8, 5/8 = 24/48. Friction DR lost for the third time (u1k, v1k): dropped |
+| robot_getup_w0k_s1 | 10-25 | w0k | seed 1 | replicate: which of 46/48 and 14/48 is typical (may be capped at ~520M) | 0/8 | 1/8 | 8/8 (34.9 s) | 8/8 (34.9 s) | replicate **does not hold** w0k (capped at 592M): stands at ~23 s from supine ph, then sits at 0.31 m (end height; w0k 0.39). 0.05: 0/8, 0/8; 0.5: 7/8, 8/8 = 24/48. Recipe over 3 seeds: 46, 14, 24 |
+| robot_getup_w2k | 10-25 | w0k (t3k) | `--rise-ref-residual` 0.3 → 0.15 | less authority keeps the policy near its reference: ≥ 43/48, no stand-then-tip | 0/8 | 8/8 | 8/8 (35.4 s) | 8/8 (35.4 s) | **held**: 0.05: 8/8, 7/8; 0.5: 8/8, 8/8 = **47/48**, the best get-up so far; end height 0.39 m in every seed; one seed so far |
+| robot_getup_w1k_s1 | — | w1k | seed 1 | replicate | | | | | held: w1k failed (24/48), not worth replicating |
+| robot_getup_w2k_s1 | 10-26 | w2k | seed 1 | replicate: residual 0.15 narrows the seed spread (≥ 40/48, no stand-then-tip) | | | | | |
+| robot_getup_w3k | 10-26 | w2k (t3k) | `--rise-ref-residual` 0.15 → 0.075 | brackets the authority down: ≥ 44/48 if nearness to the reference is the lever, else toward the replay's 43/48 | | | | | |
+| robot_getup_w2k_s2 | 10-26 | w2k | seed 2 | replicate (may be capped ~590M) | | | | | |
 
 ## Nights
 
@@ -493,3 +497,105 @@ penalty cost line_1m / square_return. Next legs candidates: bal1's recipe
 initialised from a walker on the same plant (`--init-from robot_legs_walk1`,
 for bal1's 49 % falls and 180 W stand), and the winner of walk3/walk4 with a
 seed replicate.
+
+### Night of 2026-10-25 (evaluated 2026-10-26)
+
+All six jobs trained (three legs-track jobs, then w1k, w2k, w0k_s1; w0k_s1
+capped at 592M by the runner) and were refereed on main `1db2851`. Upstream
+since the last plan: firmware one-leg balance (gyro damping, abort policy,
+#155/#158/#160), the arms print plate, the results page. No plant, servo or env
+change for either track, so tonight's comparisons hold.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5 (CPU referee,
+8 seeds each):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | compare |
+|---|---|---|---|---|---|
+| w2k (residual 0.15) | 8/8 7/8 | 8/8 8/8 | 8/8 8/8 | **47/48** | w0k 46/48; prone_ikc replayed 43/48 |
+| w1k (w0k + friction DR) | 1/8 0/8 | 6/8 4/8 | 8/8 5/8 | 24/48 | w0k 46/48 |
+| w0k_s1 (seed 1) | 0/8 0/8 | 1/8 8/8 | 7/8 8/8 | 24/48 | w0k 46/48, fb1024s1 14/48 |
+
+- **Less authority won.** w2k is the best get-up so far and ends at 0.39 m
+  in every supine-ph and prone-fall seed; even 0.05, where the reference
+  replayed falls after straightening, is 15/16. One seed, so not yet a
+  recipe result.
+- **The w0k recipe's 46/48 was the lucky seed.** Three seeds: 46, 14, 24/48.
+  w0k_s1 fails the same way as fb1024s1: it stands from supine ph at ~23 s,
+  then sits at 0.31 m (mean end height; w0k and w2k 0.39). The reference
+  itself stands 216/216 open loop and replays 43/48, so the tip after standing
+  comes from the residual policy, not the reference's ending; I did not re-run
+  `verify` (plant and npz unchanged since it passed).
+- **Friction DR lost for the third time** (u1k 20/48 with hold, v1k 25/48,
+  w1k 24/48, each below its no-DR sibling). The 0.05 end is reached better by
+  staying near the reference (w2k) than by training across friction. The
+  friction-DR line is dropped; w1k_s1 stays held.
+
+**Decision.** Arc step 2 continues on w2k's recipe (prone_ikc, hold, residual
+0.15). Two replicates (seeds 1 and 2) measure whether 0.15 narrows the seed
+spread, the question the w0k recipe failed; w3k halves the residual again
+(0.075) to bracket it. If the w2k replicates hold (≥ 40/48 each), the next
+hardening variable is pushes (`--push-prob`), then arc step 4 (handover,
+distil).
+
+#### One-leg stands and short walks (as-built legs-only plant)
+
+| run | parent | the one variable | key rows | overall | verdict |
+|---|---|---|---|---|---|
+| robot_legs_bal2 | bal1 | + `--w-mirror-loss 1.0` | balance_L 5/8 (clear 74 %), **balance_R 0/8** (clear 35 %), march_in_place 7/8, hip_sway 8/8, weight_shift 3/8, stand_10s 8/8 | 31/96 (bal1 25), falls 24 % (49 %), 154 W | **not held** (balance_R ≥ 6/8): fewer falls, still one-sided |
+| robot_legs_walk3 | walk2 | + `--w-low-swing 5` | line_1m 8/8, backward 2/8, square_return 8/8, goal_home 7/8; walk_steps_L/R 2/8, 0/8 (min peak 1.6 / 1.5 cm) | 77/160 (walk2 68), falls 18 %, gait asym 9 % (30 %) | **not held** (≥ 6/8 each), but the best walker on this plant |
+| robot_legs_walk4 | walk2 | + `--w-low-swing 15` | line_1m 6/8, square_return 6/8, goal_home 5/8; walk_steps_L/R 0/8, 1/8 | 70/160, falls 20 % | **not held**; costs the walk rows |
+
+- **The mirror loss was on and the asymmetry stayed.** bal2's
+  `training/sym_loss` sits at 0.0045 – 0.0052 for the whole run (the policy's
+  pre-tanh mean action is near-equivariant on the training distribution), yet
+  balance_R is 0/8 and balance_L fell to 5/8. The plant is mirror-exact in
+  what matters: joint ranges, axes, actuators and ctrlranges mirror, segment
+  CoMs mirror within 2 – 3.6 mm laterally (tens of grams each), whole-body
+  CoM y 0.25 mm. bal1 and bal2 both plateau within the first third of their
+  steps, from scratch. Not yet explained; tonight tests the from-scratch start.
+- **The penalty fixed the first step, not the stop step.** Per-step peaks of
+  the referee's walk_steps episodes (16 per run, same seeds; `walk_steps_swings`
+  wrapped to print each step):
+
+  | run | first step: median, episodes < 3 cm | steady steps: min, median | stop step: median, episodes < 3 cm |
+  |---|---|---|---|
+  | walk2 | 1.6 cm, 14/16 | 1.0, 6.4 cm | 1.3 cm, 14/16 |
+  | walk3 (w 5) | 2.6 cm, 9/16 | 3.2, 5.8 cm | 1.5 cm, 11/16 |
+  | walk4 (w 15) | 3.0 cm, 8/16 | 2.9, 6.1 cm | 0.9 cm, 13/16 |
+
+  The stop step (a closing shuffle that begins 0.06 – 0.36 s after the stop
+  command) did not move between weight 5 and 15, so weight is not the lever.
+  Either the transition is too rare in training (commands resample every
+  2.5 – 4.5 s; a walk → stand switch is ~13 % of resamples) or the stand
+  rewards pay more for closing the stance than the penalty costs. Tonight's
+  walk5 tests the first.
+
+**Decision.** walk3 is the walk line's parent. walk5 doubles the start/stop
+transitions (`--cmd-resample-s 1.0,2.5`); walk3_s1 says whether walk3 vs walk4
+is seed noise. bal3 starts bal2's recipe from walk3, a policy that already
+alternates single support on both feet. If walk5's stop step stays low, the
+next variable is the stand reward after a stop (or a referee question for Tom:
+whether a closing step must clear 3 cm).
+
+#### Tonight (night 6)
+
+Legs track first (Tom 2026-10-24), then get-up; ends ~05:40 (the last job may
+be capped near 590M).
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_bal3 | bal2 (walk3) | + `--init-from robot_legs_walk3` | balance_R ≥ 6/8 with balance_L ≥ 6/8, falls ≤ 24 % |
+| 2 | robot_legs_walk5 | walk3 (c13) | `--cmd-resample-s` 2.5,4.5 → 1.0,2.5 | stop step graded more often: walk_steps_L/R ≥ 4/8 each, walk rows within 1/8 of walk3 |
+| 3 | robot_legs_walk3_s1 | walk3 | seed 1 | replicate |
+| 4 | robot_getup_w2k_s1 | w2k | seed 1 | ≥ 40/48, no stand-then-tip |
+| 5 | robot_getup_w3k | w2k (t3k) | residual 0.15 → 0.075 | ≥ 44/48 if nearness to the reference is the lever |
+| 6 | robot_getup_w2k_s2 | w2k | seed 2 | replicate |
+
+Preflight: PASS 6/6. Fallback: the w2k recipe.
+
+**Tomorrow's evaluation:** get-up sweep at 0.05 / 0.5 for all three; the w2k
+recipe's spread over 3 seeds decides whether pushes come next. Legs: bal3's
+balance_L/R against bal2; walk5's per-step table (first / steady / stop)
+against walk3, and walk3_s1 against walk3.
