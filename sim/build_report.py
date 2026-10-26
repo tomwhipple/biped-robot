@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-26 card: night 5 -- a smaller residual (0.15) gives the best get-up
+# so far (w2k 47/48) and keeps the stand; the w0k recipe's 46/48 was one lucky
+# seed of three; friction DR lost again. Legs: the low-swing penalty lifts the
+# first step but not the stop step; the mirror loss leaves balance one-sided.
+fig_1026 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w2k', ['recover_supine_ph'],
+                 'robot_getup_w2k_supine_ph',
+                 'residual 0.3 -> 0.15: stands from the back and stays up in every seed, '
+                 '47/48 over friction 0.05 - 0.5, the best get-up so far'),
+    video_figure('robot_getup_w0k_s1', ['recover_supine_ph'],
+                 'robot_getup_w0k_s1_supine_ph',
+                 'the w0k recipe (residual 0.3), seed 1: stands at ~23 s, then sinks to a seat '
+                 'at 0.31 m (1/8; 24/48 over friction)'),
+    video_figure('robot_legs_walk3', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk3_walk_steps',
+                 'per-step penalty, weight 5: steady steps 3.2 - 8 cm, the first step '
+                 'higher than walk2, the stop step still 0.3 - 1.9 cm (2/8, 0/8)'),
+    video_figure('robot_legs_bal2', ['balance_L', 'balance_R'],
+                 'robot_legs_bal2_balance',
+                 'mirror-symmetry loss on: half the falls of bal1, still stands on one foot '
+                 'only one way round (balance_L 5/8, balance_R 0/8)'),
+] if f)
 # 2026-10-25 card: night 4 -- the centred crouch hold works (w0k 46/48 over
 # friction, above its reference's replay) but its seed replicate stands and
 # then tips; the first legs-only runs balance one way round only and walk with
@@ -697,6 +719,33 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·26 · night 5: get-up + the as-built legs</span></p>
+    <p><b>Less authority, better get-up: w2k scores 47/48 over joint friction and stays standing.</b>
+    w2k is w0k's recipe with the policy's correction around the reference
+    halved (residual 0.3 → 0.15). From the back and from face-down it scores
+    8/8 and 7/8 at friction 0.05, and 8/8 for both at 0.35 and at 0.5, ending
+    upright at 0.39 m in every seed. w0k's own 46/48 turned out to be the lucky
+    seed: its replicates score 14/48 and 24/48, standing and then sinking onto a
+    seat. Friction randomisation lost for the third time (w1k 24/48) and is
+    dropped. Tonight: two more seeds of w2k to see whether the spread narrows,
+    and residual 0.075 (w3k).</p>
+    <p><b>The as-built legs: the first step got higher, the stop step did not.</b>
+    With the per-step penalty, walk3 is the best walker on this plant (77/160;
+    line 8/8, square 8/8, gait asymmetry 9 %), but it passes "every step ≥ 3 cm"
+    only 2/8 and 0/8. Logged per step: the first step rose (median 1.6 → 2.6 cm),
+    the steady steps all clear 3 cm, and the closing step after "stop" stays at
+    ~1.5 cm, the same at weight 5 and 15. Tonight: twice as many start/stop
+    transitions in training (walk5), and a seed replicate of walk3. Balance with
+    the mirror-symmetry loss halves the falls (49 → 24 %) but still stands on
+    one foot only one way round, though the loss was active and the plant
+    mirrors; tonight starts it from the walker instead of from scratch (bal3).
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1026}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·25 · night 4: get-up + the as-built legs</span></p>
