@@ -44,7 +44,8 @@ def test_nominal_grade_has_no_pushes_even_under_stress_flags():
 def test_trainer_passes_push_force_to_the_env():
     import train_mjx as T
     base = ["--robot", "--robot-arms", "--precision", "--family", "getup"]
-    assert "push_force" not in T.build_env_kw(T.make_parser().parse_args(base))
+    kw0 = T.build_env_kw(T.make_parser().parse_args(base))
+    assert "push_force" not in kw0 and kw0["push_kick"]      # the preset kicks
     kw = T.build_env_kw(T.make_parser().parse_args(
         base + ["--push-prob", "0.02", "--push-force", "15"]))
-    assert (kw["push_force"], kw["push_prob"]) == (15.0, 0.02)
+    assert (kw["push_force"], kw["push_prob"], kw["push_kick"]) == (15.0, 0.02, False)
