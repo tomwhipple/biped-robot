@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-27 card: night 6 -- the residual 0.15 recipe holds over three seeds
+# (47, 47, 43/48) and 0.075 sweeps 48/48, but harder shoves (15 N @ 2 %) knock
+# them down half the time; legs: starting balance from the walker makes it
+# two-sided (bal3), the stop step stays ~1 cm whatever the variable.
+fig_1027 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w3k', ['recover_prone_fall'],
+                 'robot_getup_w3k_prone_fall',
+                 'residual 0.075: up from face-down in every seed at every friction, '
+                 '48/48 over 0.05 - 0.5, the first clean sweep'),
+    video_figure('robot_getup_w2k_s2', ['recover_supine_ph'],
+                 'robot_getup_w2k_s2_supine_ph',
+                 'the 0.15 recipe, seed 2: 43/48 over friction; its misses still stand, '
+                 'then sink (the old stand-then-tip, now 1 - 2 seeds of 8)'),
+    video_figure('robot_legs_bal3', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_balance',
+                 'balance started from the walker: a foot up ~8.6 s of 10 on EITHER side '
+                 '(bal2: right side 0/8), still 2/8 each on brief touchdowns'),
+    video_figure('robot_legs_walk5', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk5_walk_steps',
+                 'twice the start/stop transitions: steady steps 5 - 8 cm, the closing step '
+                 'after "stop" still ~0.7 cm (0/8, 0/8)'),
+] if f)
 # 2026-10-26 card: night 5 -- a smaller residual (0.15) gives the best get-up
 # so far (w2k 47/48) and keeps the stand; the w0k recipe's 46/48 was one lucky
 # seed of three; friction DR lost again. Legs: the low-swing penalty lifts the
@@ -719,6 +741,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·27 · night 6: get-up + the as-built legs</span></p>
+    <p><b>The get-up recipe holds over three seeds, and residual 0.075 sweeps clean. Harder shoves still knock it over.</b>
+    The residual 0.15 recipe scores 47, 47 and 43/48 over joint friction 0.05 /
+    0.35 / 0.5 on three seeds (the old 0.3 recipe: 46, 14, 24). Halving the
+    correction again to 0.075 (w3k) passes all 48. The referee's standard shoves
+    (5 N, 1 % of ticks) do not separate these policies; graded with harder ones,
+    at 15 N on 2 % of ticks they stand 8 – 12 of 16, and at 30 N 1 – 2 of 16. No
+    get-up run has trained with pushes since the campaign began. Tonight: w2k's
+    recipe trained with 15 N shoves (w4k, plus a seed), and a second seed of
+    w3k.</p>
+    <p><b>The as-built legs: balance is now two-sided; the stop step has not moved.</b>
+    Started from the walker instead of from scratch, bal3 holds a foot up for
+    about 8.6 s of 10 on either side (bal2's right side: 0/8). It still scores
+    only 2/8 each, failing on brief touchdowns, and it stands at 64 W (bal2
+    188 W). The closing step after "stop" stays at 0.7 – 1.5 cm whatever we
+    change: twice the start/stop transitions (walk5) and a new seed (walk3_s1)
+    both left it there. Tonight: a charge on joint motion at a plain stand
+    (<code>--w-still</code> 0.1 and 0.3) and a seed of bal3.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1027}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·26 · night 5: get-up + the as-built legs</span></p>
