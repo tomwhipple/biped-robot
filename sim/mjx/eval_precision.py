@@ -200,8 +200,11 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     # trained with strong velocity kicks and inheriting those into the eval
     # made their scorecards incomparably harsher than v1-v6 (falls 88% under
     # inherited 1 m/s kicks vs 0% nominal, found 2026-07-22)
-    kw.update(push_kick=False, push_force=5.0 if not nominal else 0.0,
-              push_prob=0.01 if not nominal else 0.0)
+    # (--push-force/--push-prob replace it on purpose: a push-stress grade,
+    # written to its own scorecard_push<N>x<p>)
+    kw.update(push_kick=False,
+              push_force=cfg.get("_referee_push_force", 5.0) if not nominal else 0.0,
+              push_prob=cfg.get("_referee_push_prob", 0.01) if not nominal else 0.0)
     env = BimoWalkerEnv(**kw)
     env.rise_ref_npz = cfg.get("rise_ref_npz")   # recover_supine_ph picks its phase from it
     return env
@@ -2215,6 +2218,13 @@ def main():
                         "of the run's own (config.json joint_frictionloss): "
                         "the friction-robustness sweep of the get-up "
                         "campaign. Writes scorecard_fl<value>.{md,json}")
+    p.add_argument("--push-force", type=float, default=None,
+                   help="push-stress grade: torso shoves of this force (N, held one "
+                        "control step) instead of the hardware-claim 5 N. Writes "
+                        "scorecard_push<N>x<p>.{md,json}")
+    p.add_argument("--push-prob", type=float, default=None,
+                   help="push-stress grade: per-control-step shove probability "
+                        "instead of the hardware-claim 0.01 (see --push-force)")
     p.add_argument("--rise-ref-hold", action="store_true",
                    help="grade with rise_ref_hold on (no handover from the residual "
                         "reference map at recovered) whatever the run trained with: "
@@ -2231,6 +2241,9 @@ def main():
         suffix = f"{suffix}_lag"
     if args.joint_frictionloss is not None:
         suffix = f"{suffix}_fl{args.joint_frictionloss:g}"
+    if args.push_force is not None or args.push_prob is not None:
+        suffix = (f"{suffix}_push{5.0 if args.push_force is None else args.push_force:g}"
+                  f"x{0.01 if args.push_prob is None else args.push_prob:g}")
     if args.rise_ref_hold:
         suffix = f"{suffix}_hold"
     if args.ref_replay:
@@ -2258,6 +2271,10 @@ def main():
         cfg = json.load(f)
     if args.joint_frictionloss is not None:
         cfg["joint_frictionloss"] = args.joint_frictionloss
+    if args.push_force is not None:
+        cfg["_referee_push_force"] = args.push_force
+    if args.push_prob is not None:
+        cfg["_referee_push_prob"] = args.push_prob
     if args.rise_ref_hold:
         cfg["rise_ref_hold"] = True
     if args.ref_replay:
@@ -2363,6 +2380,9 @@ def main():
                  "(3-stage act-lag cascade)")
     if args.joint_frictionloss is not None:
         cond += f"; joint frictionloss {args.joint_frictionloss:g} N*m (not the run's own)"
+    if args.push_force is not None or args.push_prob is not None:
+        cond += (f"; push stress {cfg.get('_referee_push_force', 5.0):g} N "
+                 f"@ {cfg.get('_referee_push_prob', 0.01):g}/tick (not the hardware claim)")
     if args.ref_replay:
         cond += f"; REFERENCE REPLAY {os.path.basename(args.ref_replay)} (zero action, hold)"
     if args.act_delay_ticks > 0:

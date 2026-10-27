@@ -267,6 +267,10 @@ def make_parser():
                    help="velocity-kick magnitudes, e.g. 0.05,0.3 (m/s)")
     p.add_argument("--push-prob", type=float, default=None,
                    help="per-step perturbation probability")
+    p.add_argument("--push-force", type=float, default=None,
+                   help="torso shove force (N, held one control step; the "
+                        "default 5 N with DR). The referee's push-stress grade "
+                        "is eval_precision.py --push-force/--push-prob")
     p.add_argument("--walk-submix", default=None,
                    help="backward,sidestep fractions of walk commands, "
                         "e.g. 0.25,0.30")
@@ -715,6 +719,8 @@ def build_env_kw(args):
             float(x) for x in args.kick_range.split(","))
     if args.push_prob is not None:
         env_kw["push_prob"] = args.push_prob
+    if args.push_force is not None:
+        env_kw["push_force"] = args.push_force
     if args.terrain:
         env_kw["terrain"] = True
     if args.mimic_knee_w != 1.0:
