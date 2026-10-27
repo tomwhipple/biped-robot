@@ -366,7 +366,11 @@ freeze them.
   bias U(±0.03 rad/s), and per-step noise (σ 0.01 on `up`, 0.03 rad/s on the
   gyro);
 - velocity kicks U(0.1, 1.0) m/s at 1 % per tick (`--kick-range`,
-  `--push-prob`);
+  `--push-prob`), or with kicks off, torso shoves of `--push-force` N (5 by
+  default) held for one control step; the referee pins 5 N at 1 % whatever a
+  run trained with, and grades harder shoves on their own card
+  (`eval_precision.py --push-force 15 --push-prob 0.02` →
+  `scorecard_push15x0.02`);
 - start-pose jitter ±1.7° per joint (`--init-pose-deg`);
 - the gait-clock frequency and the command draws (§3, §4).
 
