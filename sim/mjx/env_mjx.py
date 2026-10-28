@@ -810,6 +810,11 @@ class BimoMJXEnv:
                                     # phase -- joint-only tracking let a hunched half-stand (up_z ~0.6) pay
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
+        rise_ref_et_hold: bool = False,  # get-up campaign 2026-10-28: with rise_ref_hold, keep the
+                                    # early termination after the held stand too (vs the reference's
+                                    # last, standing frame). Without it a stand that sinks to a ~0.27 m
+                                    # crouch after the latch is never ended and keeps partial tracking
+                                    # income: under 15 N shoves the w2k/w4k policies stand, then sink.
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
         w_low_swing: float = 0.0,   # per-step clearance penalty: on touchdown
                                     # of a >= 3-tick swing, w x its shortfall
@@ -1338,6 +1343,9 @@ class BimoMJXEnv:
         self.rise_ref_hold = bool(rise_ref_hold)
         if self.rise_ref_hold and self._rr is None:
             raise ValueError("rise_ref_hold needs rise_ref_npz")
+        self.rise_ref_et_hold = bool(rise_ref_et_hold)
+        if self.rise_ref_et_hold and not (self.rise_ref_hold and self.rise_ref_et > 0.0):
+            raise ValueError("rise_ref_et_hold needs rise_ref_hold and rise_ref_et > 0")
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -3081,7 +3089,9 @@ class BimoMJXEnv:
                                      * self.control_dt) / self._rr["dt"]
                                     ).astype(jp.int32), 0, self._rr["T"] - 1)
             stray = jp.abs(data.qpos[2] - self._rr["qpos"][k_rr, 2]) > self.rise_ref_et
-            et = stray & (state.recover_slot > 0.5) & (recovered < 0.5)
+            # rise_ref_et_hold: also after the latch (the held stand)
+            et = (stray & (state.recover_slot > 0.5)
+                  & ((recovered < 0.5) | self.rise_ref_et_hold))
             done_flag = jp.maximum(done_flag, et.astype(jp.float32))
 
         # resample AFTER the reward graded the command the policy saw
