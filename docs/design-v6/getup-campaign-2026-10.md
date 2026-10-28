@@ -117,7 +117,9 @@ the two starts converge before the roll.
    centred crouch hold — held, w0k 46/48; night 5: friction DR (dropped,
    third loss) and the residual scale — w2k 0.15 47/48; night 6: its seed
    spread (47, 47, 43) and 0.075 (48/48); night 7: pushes, graded by the
-   referee's push-stress card at 15 and 30 N)*
+   referee's push-stress card at 15 and 30 N — training shoves did not help,
+   the failure is a sink after the stand; night 8: the early termination
+   after the latch, `--rise-ref-et-hold`)*
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
@@ -184,9 +186,12 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w2k_s1 | 10-26 | w2k | seed 1 | replicate: residual 0.15 narrows the seed spread (≥ 40/48, no stand-then-tip) | 0/8 | 8/8 | 8/8 (35.5 s) | 8/8 (35.5 s) | **held**: 0.05: 7/8, 8/8; 0.5: 8/8, 8/8 = **47/48**. Push stress (0.35) 15 N @ 2 %: 8/16; 30 N: 2/16 |
 | robot_getup_w3k | 10-26 | w2k (t3k) | `--rise-ref-residual` 0.15 → 0.075 | brackets the authority down: ≥ 44/48 if nearness to the reference is the lever, else toward the replay's 43/48 | 0/8 | 8/8 | 8/8 (35.4 s) | 8/8 (35.4 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**, the first clean sweep; one seed. Push stress 15 N: 8/16; 30 N: 1/16 |
 | robot_getup_w2k_s2 | 10-26 | w2k | seed 2 | replicate (may be capped ~590M) | 0/8 | 8/8 | 7/8 (35.5 s) | 7/8 (35.6 s) | **held** (≥ 40): 0.05: 6/8, 7/8; 0.5: 8/8, 7/8 = 43/48; the misses stand, then sink (stand-then-tip). Recipe over 3 seeds: 47, 47, 43 |
-| robot_getup_w4k | 10-27 | w2k (t3k) | training pushes: `--push-prob` 0 → 0.02 with `--push-force 15` (shoves, not kicks) | 15 N @ 2 % stress ≥ 15/16 (w2k 12/16), 30 N above 2/16, sweep ≥ 43/48 | | | | | |
-| robot_getup_w3k_s1 | 10-27 | w3k | seed 1 | replicate: 0.075 is a recipe (≥ 44/48) | | | | | |
-| robot_getup_w4k_s1 | 10-27 | w4k | seed 1 | replicate (may be capped ~590M) | | | | | |
+| robot_getup_w4k | 10-27 | w2k (t3k) | training pushes: `--push-prob` 0 → 0.02 with `--push-force 15` (shoves, not kicks) | 15 N @ 2 % stress ≥ 15/16 (w2k 12/16), 30 N above 2/16, sweep ≥ 43/48 | 0/8 | 8/8 | 7/8 (35.2 s) | 8/8 (35.1 s) | **failed**: 15 N 7/16, 30 N 0/16; 0.05: 4/8, 6/8; 0.5: 7/8, 8/8 = 41/48. Under shoves 7/8 supine seeds stand, then sink to ~0.27 m |
+| robot_getup_w3k_s1 | 10-27 | w3k | seed 1 | replicate: 0.075 is a recipe (≥ 44/48) | 0/8 | 8/8 | 8/8 (34.9 s) | 8/8 (34.9 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48** (w3k 48/48). 15 N 11/16, 30 N 1/16 |
+| robot_getup_w4k_s1 | 10-27 | w4k | seed 1 | replicate (capped at 585M) | 0/8 | 8/8 | 8/8 (35.3 s) | 8/8 (35.3 s) | sweep 48/48 (0.05 and 0.5 8/8 each), 15 N 13/16, 30 N 2/16: within the no-push recipe's 15 N spread (w2k 12, w2k_s1 8) |
+| robot_getup_w5k | 10-28 | w4k (t3k) | + `--rise-ref-et-hold` (#163: early termination after the latch) | the post-stand sink goes: 15 N ≥ 14/16, 30 N above 2/16, sweep ≥ 43/48 | | | | | |
+| robot_getup_w6k | 10-28 | w2k (t3k) | + `--rise-ref-et-hold` (no pushes) | control for w5k: sweep ≥ 47/48, 15 N above w2k's 12/16 | | | | | |
+| robot_getup_w5k_s1 | 10-28 | w5k | seed 1 | replicate (may be capped ~590M) | | | | | |
 
 ## Nights
 
@@ -721,3 +726,118 @@ recover_supine_ph,recover_prone_fall --push-force 15 --push-prob 0.02`, and
 30) for all three, compared with w2k (12/16, 2/16) and w3k (8/16, 1/16).
 Legs: the per-step table for walk6/walk7 against walk3; bal3_s1's
 balance_L/R against bal3.
+
+### Night of 2026-10-27 (evaluated 2026-10-28)
+
+All six jobs trained (three legs-track jobs, then w4k, w3k_s1, w4k_s1; the
+runner capped w4k_s1 at 585M; the night ended 05:40) and were refereed on
+main `e502e18`. Upstream since the last plan: only the ledger and the results
+page. No plant, servo or env change on either track, so the comparisons
+hold. This morning's #163 (`--rise-ref-et-hold`) is training-only and off by
+default; it changes nothing a past run trained or was graded with.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35 (CPU referee, 8 seeds each):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| w4k (15 N training shoves) | 4/8 6/8 | 8/8 8/8 | 7/8 8/8 | 41/48 | 7/16 | 0/16 | w2k 47/48, 12/16, 2/16 |
+| w4k_s1 (seed 1) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 13/16 | 2/16 | w2k_s1 47/48, 8/16, 2/16 |
+| w3k_s1 (residual 0.075, seed 1) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 11/16 | 1/16 | w3k 48/48, 8/16, 1/16 |
+
+- **Training with 15 N shoves did not harden the get-up.** The 15 N grade
+  is 7 and 13/16 with training pushes against 12 and 8/16 without (w2k,
+  w2k_s1), and 30 N stays at 0 – 2/16. One of the two push seeds also lost
+  the 0.05 end (41/48). Hypothesis not held.
+- **0.075 is a recipe:** 48/48 on both seeds, the only recipe with two clean
+  sweeps. Its push grade (8 and 11/16) is no better than 0.15's.
+- **Where the shoves win: after the stand, not during the rise.** Per-seed
+  push-grade episodes (the referee's evaluate wrapped to print stand time,
+  end height and the first drop below 0.8 of standing height after the
+  stand):
+
+  | policy, 15 N | stood | misses that stood, then sank | misses that never stood |
+  |---|---|---|---|
+  | w2k (supine ph / prone fall) | 8/8, 7/8 | 1, 1 (end ~0.28 m, 3 s after the stand) | 0, 1 (flat, 0.05 m: shoved off the roll) |
+  | w4k | 8/8, 8/8 | 7, 2 (end ~0.28 m, 3.5 – 7 s after) | 0, 0 |
+
+  Every sunk seed stands, then settles 3 – 7 s later into a ~0.27 m crouch
+  and stays there with no fall counted. That is the same stand-then-sink the
+  unlucky seeds showed without pushes (w0k_s1, w0k_fb1024s1, w2k_s2), so the
+  shoves only expose it. The env explains why it is a stable place to end:
+  the DeepMimic early termination (`--rise-ref-et 0.1`) only fires before
+  the stand latch, and under `--rise-ref-hold` the joint and root tracking
+  keep paying after it. A crouch 12 cm below the reference's standing frame
+  is never ended and keeps partial income, and training shoves (w4k) pushed
+  the policy into it more often (7/8 supine seeds against w2k's 1/8).
+
+**Decision.** #163 adds `--rise-ref-et-hold`: with hold on, the termination
+also runs after the latch (vs the reference's standing frame, 0.1 m), so
+sinking out of the stand ends the episode. w5k = w4k + the flag (pushes on),
+w6k = w2k + the flag (no pushes, a control: does the termination alone fix
+the seed misses and lift the push grade?), w5k_s1 a replicate. The parent
+stays w2k/w4k (residual 0.15) rather than 0.075: the authority to catch a
+shove is the point tonight. If the post-latch termination holds, the next
+step is arc step 4 (handover to the walker): in deployment, the standing
+balance under shoves is the walker's job.
+
+#### One-leg stands and short walks (as-built legs-only plant)
+
+| run | parent | the one variable | key rows | overall | verdict |
+|---|---|---|---|---|---|
+| robot_legs_bal3_s1 | bal3 | seed 1 | **balance_L 7/8 (clear 98 %), balance_R 8/8 (clear 99 %)**, march_in_place 8/8, hip_sway 8/8, weight_shift 2/8, stand_10s 8/8 | 41/96 (bal3 28), falls 34 %, 82 W | **held**, and the first policy that passes one-leg balance on both feet (≥ 6/8 each). bal3 was the unlucky seed |
+| robot_legs_walk6 | walk3 | + `--w-still 0.1` | line_1m 3/8, backward 8/8, square_return 7/8, goal_home 7/8; walk_steps_L/R 0/8, 0/8 (min peak 0.7 / 0.5 cm) | 77/160 (walk3 77), falls 19 % | **not held**; line_1m fell 8/8 → 3/8 |
+| robot_legs_walk7 | walk3 | + `--w-still 0.3` | line_1m 6/8, backward 7/8, square_return 8/8, goal_home 7/8; walk_steps_L/R 1/8, 0/8 (min peak 1.3 / 0.7 cm) | 79/160, falls 15 %, gait asym 14 % | **not held** (stop step unmoved) |
+
+Per-step peaks of the walk_steps episodes (16 per run, same seeds;
+`walk_steps_swings` wrapped to print each step):
+
+| run | first step: median, episodes < 3 cm | steady steps: min, median | stop step: median, episodes < 3 cm |
+|---|---|---|---|
+| walk3 | 2.6 cm, 9/16 | 3.2, 5.8 cm | 1.5 cm, 11/16 |
+| walk6 (w_still 0.1) | 2.1 cm, 12/16 | 0.4, 6.1 cm | 0.7 cm, 14/16 |
+| walk7 (w_still 0.3) | 2.3 cm, 12/16 | 2.1, 6.0 cm | 0.6 cm, 14/16 |
+
+- **Charging motion at the stand did not stop the shuffle either.** Five
+  reward-side variables (low-swing 5 and 15, 2× transitions, w_still 0.1 and
+  0.3) and a seed have left the stop step at 0.6 – 1.5 cm. Reading the env:
+  at a plain stand every gait-shaping term is off (feet phase, mimic, feet
+  air, symmetry are gated on `cmd_moving`) and `w_single_support` pays double
+  support every tick, while the gait clock keeps running (the legs recipe
+  does not set `--clock-freeze-stand`). A closing shuffle starting 0.06 –
+  0.36 s after the stop is when that clock swings the trailing foot.
+- The first step got worse in both (12/16 < 3 cm vs 9/16).
+
+**Decision.** Balance: bal3_s2 decides whether bal3_s1's two-sided pass is
+the recipe (2 of 3 seeds ≥ 6/8 each) before the next balance variable. Walk:
+walk8 = walk3 + `--clock-freeze-stand` (an existing flag, the deployed loco
+lineage's 2026-08-12 stand fix, mirrored in the referee's env): if the
+running clock drives the shuffle, holding it at a stand removes it. If walk8
+also leaves the stop step, the next lever is env work, a short "finish the
+step" window after a stop in which the gait terms stay on. Tom's referee
+question (must the closing step after a stop clear 3 cm?) is still open
+after three days. Even if it is waived, the first step still fails (walk3
+9/16, walk6/7 12/16).
+
+#### Tonight (night 8)
+
+Legs track first (Tom 2026-10-24), then get-up; expected end ~06:30 (the
+last job may be capped).
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_bal3_s2 | bal3 (walk3) | seed 2 | balance_L/R ≥ 6/8 each |
+| 2 | robot_legs_walk8 | walk3 (c13) | + `--clock-freeze-stand` | stop-step episodes < 3 cm ≤ 6/16; walk_steps_L/R ≥ 3/8 each; walk rows within 1/8 of walk3 |
+| 3 | robot_getup_w5k | w4k (t3k) | + `--rise-ref-et-hold` | 15 N ≥ 14/16, 30 N above 2/16, sweep ≥ 43/48 |
+| 4 | robot_getup_w6k | w2k (t3k) | + `--rise-ref-et-hold` | sweep ≥ 47/48; 15 N above 12/16 without training pushes |
+| 5 | robot_getup_w5k_s1 | w5k | seed 1 | replicate |
+
+Preflight: PASS 5/5 (preflight now maps `--rise-ref-et-hold` into the env
+it constructs). Fallback: the w2k recipe.
+
+**Tomorrow's evaluation:** get-up: the friction sweep and the push grade at
+15 and 30 N for all three, plus the per-seed sink check (stood, then below
+0.8 of standing height). Legs: bal3_s2's balance_L/R against bal3 and
+bal3_s1; walk8's per-step table against walk3.
