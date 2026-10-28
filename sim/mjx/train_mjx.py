@@ -326,6 +326,10 @@ def make_parser():
     p.add_argument("--rise-ref-hold", action="store_true",
                    help="no handover at recovered: the residual reference map and the rise-ref/"
                         "root tracking keep running after the held stand (get-up campaign 2026-10-23)")
+    p.add_argument("--rise-ref-et-hold", action="store_true",
+                   help="with --rise-ref-hold and --rise-ref-et: keep the early termination after "
+                        "the held stand, so sinking out of the stand ends the episode (get-up "
+                        "campaign 2026-10-28)")
     p.add_argument("--w-rise-root", type=float, default=None,
                    help="DeepMimic root tracking while down: kernel on pelvis height + torso up-z vs "
                         "the recorded reference (needs --rise-ref)")
@@ -813,6 +817,8 @@ def build_env_kw(args):
         env_kw["w_rise_root"] = args.w_rise_root
     if args.rise_ref_hold:
         env_kw["rise_ref_hold"] = True
+    if args.rise_ref_et_hold:
+        env_kw["rise_ref_et_hold"] = True
     if args.ctrl_physical:
         env_kw["ctrl_physical"] = True
     if args.gravity_scale is not None:
