@@ -436,6 +436,27 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-28 card: night 7 -- training with 15 N shoves did not harden the
+# get-up; the shoves win AFTER the stand (a sink into a ~0.27 m crouch that the
+# early termination never ends, #163); 0.075 sweeps 48/48 on a second seed;
+# legs: bal3_s1 balances on either foot (7/8, 8/8), the stop step is unmoved.
+fig_1028 = "\n    ".join(f for f in [
+    video_figure('robot_legs_bal3_s1', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_s1_balance',
+                 'bal3, seed 2 of the recipe: one-leg balance passes on BOTH feet '
+                 '(7/8 left, 8/8 right, foot clear 98 - 99 %), bal3 was 2/8 each'),
+    video_figure('robot_legs_walk7', ['walk_steps_R'],
+                 'robot_legs_walk7_walk_steps_R',
+                 'a charge on joint motion at the stand (w_still 0.3): steady steps clear '
+                 '~6 cm, the closing step after "stop" is still a ~0.6 cm shuffle'),
+    video_figure('robot_getup_w4k', ['recover_supine_ph'],
+                 'robot_getup_w4k_supine_ph',
+                 'trained with 15 N shoves: 8/8 here, but under 15 N it stands in every '
+                 'seed and 7/8 then sink to a ~0.27 m crouch'),
+    video_figure('robot_getup_w3k_s1', ['recover_prone_fall'],
+                 'robot_getup_w3k_s1_prone_fall',
+                 'residual 0.075, second seed: 48/48 over friction 0.05 - 0.5 again'),
+] if f)
 # 2026-10-27 card: night 6 -- the residual 0.15 recipe holds over three seeds
 # (47, 47, 43/48) and 0.075 sweeps 48/48, but harder shoves (15 N @ 2 %) knock
 # them down half the time; legs: starting balance from the walker makes it
@@ -741,6 +762,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·28 · night 7: get-up + the as-built legs</span></p>
+    <p><b>The as-built legs balance on either foot.</b> A second seed of the
+    balance recipe (bal3_s1) holds the left foot up 7/8 and the right 8/8, with
+    the lifted foot clear 98 – 99 % of the time. It is the first policy to pass
+    one-leg balance on both feet; the first seed (bal3) was 2/8 each. Walking:
+    charging joint motion at a plain stand (<code>--w-still</code> 0.1, 0.3) left
+    the closing step after "stop" at a 0.6 – 0.7 cm shuffle, the sixth variable
+    that has not moved it. Tonight: a third balance seed, and the walker with its
+    gait clock held at a stand (<code>--clock-freeze-stand</code>), since the
+    shuffle starts when the still-running clock swings the trailing foot.</p>
+    <p><b>Get-up: training with shoves did not help. The shoves win after the stand, not during the rise.</b>
+    Trained with 15 N shoves, w4k stands 7/16 under them and its seed 13/16 (no
+    training pushes: 12 and 8/16). Per seed, nearly every miss stands first, then
+    settles 3 – 7 s later into a ~0.27 m crouch and stays there. The early
+    termination only runs before the stand, so the crouch was never ended in
+    training and still earned part of the tracking reward. #163 keeps the
+    termination on after the stand; tonight trains it with and without
+    shoves. Residual 0.075 swept 48/48 again on a second seed.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1028}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·27 · night 6: get-up + the as-built legs</span></p>
