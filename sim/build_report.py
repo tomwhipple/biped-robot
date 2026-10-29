@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-29 card: night 8 -- shoves + the early termination after the latch
+# hold the stand (w5k 48/48, 15 N 14 and 16/16 on two seeds); the termination
+# alone does not (w6k 11/16); 30 N fails on the prone roll. Legs: the balance
+# recipe is one-sided in 2 of 3 seeds; holding the clock left the stop step.
+fig_1029 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w5k_s1', ['recover_prone_fall'],
+                 'robot_getup_w5k_s1_prone_fall',
+                 'trained with 15 N shoves and the termination kept on after the stand: '
+                 '48/48 over friction, and 16/16 under 15 N shoves (no sink)'),
+    video_figure('robot_getup_w6k', ['recover_supine_ph'],
+                 'robot_getup_w6k_supine_ph',
+                 'the control, termination without shoves: 48/48 over friction, but '
+                 'under 15 N shoves 11/16 (4 stand, then sink)'),
+    video_figure('robot_legs_bal3_s2', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_s2_balance',
+                 'the balance recipe, third seed: left 6/8, right 0/8 (clear 24 %): '
+                 'one-sided again, bal3_s1 stays the only two-sided pass'),
+    video_figure('robot_legs_walk8', ['walk_steps_L'],
+                 'robot_legs_walk8_walk_steps_L',
+                 'gait clock held at the stand: steady steps ~6 cm, the closing step '
+                 'after "stop" still ~0.9 cm, the first step ~1.9 cm'),
+] if f)
 # 2026-10-28 card: night 7 -- training with 15 N shoves did not harden the
 # get-up; the shoves win AFTER the stand (a sink into a ~0.27 m crouch that the
 # early termination never ends, #163); 0.075 sweeps 48/48 on a second seed;
@@ -762,6 +784,30 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·29 · night 8: get-up + the as-built legs</span></p>
+    <p><b>Get-up: shoves in training plus the early termination after the stand hold it up under 15 N shoves.</b>
+    w5k (15 N training shoves, termination kept on after the stand, #163) sweeps
+    48/48 over joint friction 0.05 – 0.5 on two seeds. Under 15 N shoves it stands
+    14/16 and 16/16, against 7 and 13/16 with shoves alone and 12 and 8/16 with
+    neither. The termination without shoves (w6k) also sweeps 48/48, but holds
+    only 11/16 under shoves. At 30 N it is 4/16. Most misses are shoved off the
+    prone roll and never stand (11 of 16 prone episodes). Tonight trains at 30
+    and 22 N.</p>
+    <p><b>Legs: balance on both feet is one seed in three; the closing step is unmoved.</b>
+    A third balance seed (bal3_s2) holds the left foot 6/8 and the right 0/8, so
+    bal3_s1 stays the only policy that passes on both feet. Tonight trains on from
+    it (bal4). Holding the gait clock at a stand (walk8) left the closing step after
+    "stop" at ~0.9 cm, the seventh variable that has not moved it. At a stand the
+    reward pays double support and turns the step shaping off, so a quick low
+    shuffle is the cheapest way to close the stance. #164 keeps the walk shaping
+    on for 0.4 s after a stop (<code>--stop-grace-s</code>); walk9 and a replicate
+    train with it tonight. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1029}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·28 · night 7: get-up + the as-built legs</span></p>
