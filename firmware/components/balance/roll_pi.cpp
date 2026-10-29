@@ -37,6 +37,15 @@ int32_t landTarget(int32_t from, int32_t start, float land_frac) {
     return from + static_cast<int32_t>(lroundf(land_frac * static_cast<float>(start - from)));
 }
 
+bool continues(State s, char active_side, char new_side, const bool* was_on,
+               const bool* now_on, int n) {
+    if (s != State::kActive || active_side != new_side) return false;
+    for (int b = 0; b < n; ++b) {
+        if (now_on[b] && !was_on[b]) return false;
+    }
+    return true;
+}
+
 float RollBalance::landFraction() const {
     if (!aborted()) return 0.0f;
     float us, lf;

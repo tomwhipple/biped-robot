@@ -75,6 +75,18 @@ void abortProfile(const Config& c, float since_s, float* u_scale, float* land_fr
 // exactly `start` at 1. Monotone in between.
 int32_t landTarget(int32_t from, int32_t start, float land_frac);
 
+// Whether a new `pose ... B<side>` CONTINUES the running balance instead of
+// re-engaging it: the controller is ACTIVE (not off, not aborting) on the same
+// stance side, and every joint the new pose moves was in the stream already.
+// Continuing keeps the integrator, u and the reference roll, starts the new move
+// from the previous NOMINAL targets (u keeps riding on top), and keeps the landing
+// target at the pose where the B chain began. A restart instead drops u to 0 and
+// re-bases the move on the read-back positions -- on a loaded stance leg that
+// lets go of both the I term and the servo's sag (hw 2026-10-29: u +8 deg on L
+// stance, reset at the swing pose, tipped -12 deg 1.6 s later).
+bool continues(State s, char active_side, char new_side, const bool* was_on,
+               const bool* now_on, int n);
+
 // Torso roll (rad, + = leans toward the robot's right) from imu::Sample::up,
 // the torso z axis in the world frame: roll = atan2(-up_y, up_z). false when
 // the vector is unusable (not finite, or tilted past ~60 deg).

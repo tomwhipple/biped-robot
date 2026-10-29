@@ -385,6 +385,23 @@ void testLandingReachesStartPose() {
     CHECK(balance::landTarget(2100, 2100, 0.5f) == 2100);
 }
 
+void testContinues() {
+    using balance::continues;
+    const bool all[4] = {true, true, true, true};
+    const bool some[4] = {true, false, true, true};
+    // same side, still active, same joints: the chain goes on (I and u kept)
+    CHECK(continues(State::kActive, 'L', 'L', all, all, 4));
+    CHECK(continues(State::kActive, 'R', 'R', all, all, 4));
+    // a subset of the stream is fine; a joint the stream was not moving is not
+    CHECK(continues(State::kActive, 'L', 'L', all, some, 4));
+    CHECK(!continues(State::kActive, 'L', 'L', some, all, 4));
+    // the other stance, an idle controller or one already aborting: fresh engage
+    CHECK(!continues(State::kActive, 'L', 'R', all, all, 4));
+    CHECK(!continues(State::kOff, 0, 'L', all, all, 4));
+    CHECK(!continues(State::kAbortTip, 'L', 'L', all, all, 4));
+    CHECK(!continues(State::kAbortImu, 'R', 'R', all, all, 4));
+}
+
 void testAbortPhaseNames() {
     RollBalance b;
     b.configure(golden());
@@ -507,6 +524,7 @@ int main() {
     testAbortIsIdempotent();
     testLandingReachesStartPose();
     testAbortPhaseNames();
+    testContinues();
     testDisengageZeroes();
     testMirrorSymmetry();
     testRollFromUp();

@@ -363,6 +363,7 @@ static TickType_t s_trace_until = 0;
 static bool s_traj_on[obs::kNumBusJoints];
 static int32_t s_traj_start[obs::kNumBusJoints];
 static int32_t s_traj_tgt[obs::kNumBusJoints];
+static int32_t s_traj_nom[obs::kNumBusJoints];      // nominal target at the last tick (no balance, no abort)
 static int32_t s_traj_sent[obs::kNumBusJoints];     // last goal written per joint
 static uint16_t s_traj_spd[obs::kNumBusJoints];     // ... and its speed
 static TickType_t s_traj_tsent[obs::kNumBusJoints]; // ... and when
@@ -374,7 +375,8 @@ static TickType_t s_traj_tsent[obs::kNumBusJoints]; // ... and when
 // STANCE leg's ankle-roll and hip-roll targets -- through the calibrated
 // envelope clamp and the per-joint dir, exactly like the nominal targets. The
 // swing leg is untouched. It rides on the streamer, so it persists through the
-// hold after the min-jerk move ends, and it stops at the next pose, `move`,
+// hold after the min-jerk move ends, and it stops at the next pose (except a
+// same-side `pose ... B`, which CONTINUES it: balance::continues), `move`,
 // `home`, `release`/`torque`, or when the loop is armed. Same code for either
 // stance: no side-specific gains or offsets (the sim's roll joints mirror).
 //
@@ -404,9 +406,11 @@ static TickType_t s_bal_t0 = 0;
 static bool s_bal_log_odd = false;
 static bool s_bal_hold_said = false;
 // ABORT (roll_pi.h): the correction fades, then every joint of the stream returns
-// to s_traj_start (the pose the B move started from) -- from where its nominal
-// target was when the abort fired. Torque stays on throughout.
+// to s_bal_home (where the B CHAIN began: the first `pose ... B` of a run of
+// same-side continuations, i.e. the double-support pre-lift pose) -- from where
+// its nominal target was when the abort fired. Torque stays on throughout.
 static int32_t s_bal_from[obs::kNumBusJoints];      // nominal target at the abort tick
+static int32_t s_bal_home[obs::kNumBusJoints];      // landing target: start of the B chain
 static bool s_bal_from_set[obs::kNumBusJoints];
 static bool s_bal_landed_said = false;
 static long s_bal_abort_ms = -1;                    // ms since engage when it fired (-1 = not aborted)
@@ -508,12 +512,22 @@ static void balTick(TickType_t now, Sink out) {
 
 // Start the smooth streamer (poseTick) for the joints in `on`, from their
 // CURRENT positions to tgt over dur_ms, with the default tuning. false = a
-// servo did not answer (nothing written).
+// servo did not answer (nothing written). With `from`, the move starts there
+// instead (a balance continuation: the previous nominal targets, so the live
+// correction keeps riding on top) and the last goal written is kept as is.
 bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
-                 long dur_ms, Sink out, const char* who) {
+                 long dur_ms, Sink out, const char* who,
+                 const int32_t* from = nullptr) {
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         s_traj_on[b] = false;
         if (!on[b]) continue;
+        if (from != nullptr) {
+            s_traj_on[b] = true;
+            s_traj_start[b] = from[b];
+            s_traj_tgt[b] = tgt[b];
+            s_traj_nom[b] = from[b];
+            continue;
+        }
         int32_t cur = tgt[b];
         if (bus->readPosition(obs::kBusServoId[b], cur) != scsbus::Status::kOk) {
             say(out, "%s: id %u did not answer -- no move\r\n", who,
@@ -524,6 +538,7 @@ bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
         s_traj_on[b] = true;
         s_traj_start[b] = cur;
         s_traj_tgt[b] = tgt[b];
+        s_traj_nom[b] = cur;
         s_traj_sent[b] = cur;
         s_traj_spd[b] = 15;
         s_traj_tsent[b] = xTaskGetTickCount();
@@ -650,6 +665,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // B<L|R>: closed-loop roll balance on that STANCE leg (see balTick). Parsed
     // and checked BEFORE anything moves; any problem refuses the whole pose.
     int bal_side = 0, bal_idx = -1;
+    bool bal_cont = false;      // same-side B on an active balance: continue it (balance::continues)
     float bal_ref = 0.0f;
     for (int k = 1 + ntgt; k < argc; ++k) {
         if (argv[k][0] == 'B') bal_idx = k;
@@ -679,6 +695,12 @@ void cmdPose(Sink out, int argc, char** argv) {
             say(out, "pose B%c: balance gains refused (%s) -- fix with `balance set`\r\n", bal_side, bad);
             return;
         }
+        s_bal_ba = ba;      // unchanged on a continuation (same side)
+        s_bal_bh = bh;
+        bal_cont = balance::continues(s_bal.state(), s_bal_side, static_cast<char>(bal_side),
+                                      s_traj_on, on, obs::kNumBusJoints);
+    }
+    if (bal_idx >= 0 && !bal_cont) {
         // reference roll = mean of a few fresh samples at the pose the robot is IN
         float sum = 0.0f;
         for (int i = 0; i < 5; ++i) {
@@ -691,8 +713,6 @@ void cmdPose(Sink out, int argc, char** argv) {
             vTaskDelay(pdMS_TO_TICKS(6));
         }
         bal_ref = sum / 5.0f;
-        s_bal_ba = ba;
-        s_bal_bh = bh;
     }
     if (smooth) {
         long ms = 0;
@@ -716,9 +736,19 @@ void cmdPose(Sink out, int argc, char** argv) {
             out("pose s<ms>: duration must be 200-20000 ms\r\n");
             return;
         }
-        balStop(out, "new pose");
-        if (!startSmooth(bus, tgt, on, ms, out, "pose")) return;
-        if (bal_idx >= 0) {
+        if (bal_cont) {
+            // the previous stream's nominal targets as of its last tick (mid-move
+            // or holding), copied before startSmooth overwrites them
+            int32_t from[obs::kNumBusJoints];
+            memcpy(from, s_traj_nom, sizeof from);
+            if (!startSmooth(bus, tgt, on, ms, out, "pose", from)) return;
+            s_bal_hold_said = false;
+        } else {
+            balStop(out, "new pose");
+            if (!startSmooth(bus, tgt, on, ms, out, "pose")) return;
+        }
+        if (bal_idx >= 0 && !bal_cont) {
+            memcpy(s_bal_home, s_traj_start, sizeof s_bal_home);
             s_bal.configure(s_bal_cfg);
             s_bal.engage(bal_ref);
             s_bal_side = static_cast<char>(bal_side);
@@ -781,7 +811,13 @@ void cmdPose(Sink out, int argc, char** argv) {
             nmove, ms, static_cast<double>(s_traj_headroom),
             static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
             s_traj_minint_ms, s_traj_zv_ms);
-        if (bal_idx >= 0) {
+        if (bal_cont) {
+            say(out, "balance CONTINUES, %c stance: ref roll %+.2f deg kept, I %+.4f, u %+.2f deg riding on the "
+                "new move (from the last nominal targets); an abort lands on the pose the chain began from\r\n",
+                bal_side, static_cast<double>(s_bal.ref() * 57.29578f),
+                static_cast<double>(s_bal.integral()),
+                static_cast<double>(s_bal.u() * 57.29578f));
+        } else if (bal_idx >= 0) {
             say(out, "balance ON, %c stance: ref roll %+.2f deg, kp %.2f ki %.2f kd %.3f ankle x%+.2f hip x%+.2f, "
                 "clamp %.1f deg, abort %.1f deg -- holds after the move; any other command ends it\r\n",
                 bal_side, static_cast<double>(bal_ref * 57.29578f),
@@ -1777,6 +1813,7 @@ void poseTick(Sink out) {
         int32_t want = tau >= 1.0f
             ? s_traj_tgt[b]
             : s_traj_start[b] + static_cast<int32_t>(lroundf(sc * d));
+        s_traj_nom[b] = want;
         if (s_bal.aborted()) {
             // ABORT: the nominal target at the abort tick is where the landing
             // starts; from there every joint returns to where this stream began
@@ -1785,7 +1822,7 @@ void poseTick(Sink out) {
                 s_bal_from[b] = want;
                 s_bal_from_set[b] = true;
             }
-            want = balance::landTarget(s_bal_from[b], s_traj_start[b], s_bal.landFraction());
+            want = balance::landTarget(s_bal_from[b], s_bal_home[b], s_bal.landFraction());
         }
         if (s_bal.engaged() && (b == s_bal_ba || b == s_bal_bh)) {
             // the balance correction rides on the nominal target, inside the
