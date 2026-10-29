@@ -219,6 +219,8 @@ class State(NamedTuple):
                               # (gait-symmetry penalty compares L vs R)
     swing_peak: jax.Array     # (2,) per-foot sole peak (m above standing) of
                               # the swing in progress (w_low_swing)
+    since_move: jax.Array     # ()  seconds since the last moving command
+                              # (stop_grace_s); large at reset
     gait_freq: jax.Array      # ()  per-episode gait-clock frequency (Hz)
     gait_phase: jax.Array     # ()  running clock phase in [-pi, pi)
     obs_hist: jax.Array       # (hist-1, frame) previous obs frames (newest
@@ -559,6 +561,8 @@ class BimoMJXEnv:
         stand_knee_sigma: float = 0.06,
         clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
         # plain stand so the obs stop oscillating (see step(); 2026-08-12)
+        stop_grace_s: float = 0.0,  # gait shaping stays on this long after a
+        # walk -> stand stop (the closing step; see step(), 2026-10-29)
         w_pitch_hinge: float = 0.0,
         pitch_deadband_deg: float = 5.0,
         w_power: float = 0.0,
@@ -1201,6 +1205,7 @@ class BimoMJXEnv:
         self.stand_knee_target = stand_knee_target
         self.stand_knee_sigma = stand_knee_sigma
         self.clock_stand_freeze = clock_stand_freeze
+        self.stop_grace_s = float(stop_grace_s)
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
         # sidestep gaits legitimately roll). Default 0 -> the term is not
@@ -2324,6 +2329,7 @@ class BimoMJXEnv:
                      last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+                     since_move=jp.full((), 1e3),
                      gait_freq=gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist, cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
@@ -2401,7 +2407,7 @@ class BimoMJXEnv:
             prev_action=prev_action,
             last_target=self._sdefault.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
-            gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
+            since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             crouch_slot=first.crouch_slot, crouch_c=first.crouch_c,
@@ -2766,6 +2772,22 @@ class BimoMJXEnv:
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
             cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > 0.05)) & ~lifted
+        # the clock freeze (mirrored in walker_env, so referee obs match)
+        # keeps the raw command; only the reward sees the stop grace
+        cmd_moving_raw = cmd_moving
+        since_move = jp.where(cmd_moving_raw, 0.0,
+                              state.since_move + self.control_dt)
+        if self.stop_grace_s > 0.0:
+            # stop grace (legs track, 2026-10-29): the referee counts a step
+            # that begins within 0.4 s of the stop (walk_steps), but at a
+            # plain stand every gait term is off and double support is paid,
+            # so the cheapest way to close the stance was a ~1 cm shuffle
+            # (seven reward variables left it there). For stop_grace_s after
+            # a moving command the gait shaping (feet air, swing height,
+            # cadence, symmetry, single support) and the stand terms gated on
+            # ~cmd_moving keep treating the command as a walk.
+            cmd_moving = cmd_moving | ((state.since_move < self.stop_grace_s)
+                                       & ~lifted)
         landed = con & (state.air_time > 0.0)
         if self.w_feet_air:
             reward += jp.where(cmd_moving, self.w_feet_air * jp.sum(
@@ -2792,7 +2814,7 @@ class BimoMJXEnv:
                 # the drive. Freeze is gated exactly like w_still: no
                 # locomotion command, no lift (marches/balances keep their
                 # clock). Mirrored in walker_env so referee obs match.
-                plain_stand = ((~cmd_moving)
+                plain_stand = ((~cmd_moving_raw)
                                & (~lifted if self.ext_cmd else True))
                 gait_phase = jp.where(plain_stand, state.gait_phase,
                                       gait_phase)
@@ -3192,7 +3214,7 @@ class BimoMJXEnv:
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
-                     gait_freq=state.gait_freq, gait_phase=gait_phase,
+                     since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,

@@ -391,6 +391,12 @@ def make_parser():
                         "sin/cos obs stop oscillating, removing the rhythmic "
                         "drive the policy otherwise must ignore to stand "
                         "still (2026-08-12)")
+    p.add_argument("--stop-grace-s", type=float, default=None,
+                   help="keep the gait shaping on this many seconds after a "
+                        "walk -> stand stop, so the closing step is shaped "
+                        "like a walking step (the referee's walk_steps counts "
+                        "steps that begin within 0.4 s of the stop; "
+                        "2026-10-29). Reward only: obs and clock unchanged")
     p.add_argument("--w-still", type=float, default=None,
                    help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
                         "while commanded to plain-stand): pays for stillness "
@@ -871,6 +877,8 @@ def build_env_kw(args):
         env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
+    if args.stop_grace_s is not None:
+        env_kw["stop_grace_s"] = args.stop_grace_s
     if args.mimic_crouch_gate:
         env_kw["mimic_crouch_gate"] = True
     if args.mimic_crouch_gate_knee:
