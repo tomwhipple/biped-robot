@@ -30,26 +30,26 @@ from pbsim.pack import Pack3S
 from pbsim.tps48111 import RailState, Tps48111
 
 
-# R30/R31 on EN/UVLO (C3): rising 7.79 V, falling 7.39 V
-R30_OHM = 560e3
+# R29 + R30 / R31 on EN/UVLO (C3, audit F3): rising 7.79 V, falling 7.39 V
+R30_OHM = 549e3
 R31_OHM = 100e3
 
 # R32/R33 on INP (C7's divider check: 3.27 V at INP from 3.3 V SERVO_EN)
 R32_OHM = 1e3
 R33_OHM = 100e3
 
-# R38/R39 on RAIL_V (C7: 12.6 V → 2.21 V at GPIO 34)
-R38_OHM = 47e3
-R39_OHM = 10e3
+# R38/R39 on RAIL_V (C7: 12.6 V → 2.21 V at GPIO 34; 4.7k/1k also bleed the rail, F-1)
+R38_OHM = 4.7e3
+R39_OHM = 1e3
 
 # R12/R11 on KILL: 3.3 V ESP32 high → ≈ 3.0 V at RST_SHUT
 R12_OHM = 1e3
 R11_OHM = 10e3
 
-# E-stop feed chain: ESTOP_FEED (PACK+ through 1 kΩ) — J11 contact A.
-ESTOP_FEED_SERIES_OHM = 1000.0
+# E-stop feed chain: ESTOP_FEED (PACK+ through R29, 10 kΩ) — J11 contact A.
+ESTOP_FEED_SERIES_OHM = 10e3
 
-# TS2 wake button: pulls TS2 low through R9 (10 kΩ) and D2 (BAT54C, ~0.25 V)
+# TS2 wake button: pulls TS2 low through R9 (10 kΩ) and D2 (BAV70, ~0.6 V)
 R9_OHM = 10e3
 
 TICK_S = 1e-3     # 1 ms tick, matching the servo tick the firmware runs
@@ -122,14 +122,15 @@ class PowerBoard:
 
     def _ts2_pin_v(self, buttons: Buttons, esp: Esp32Stub) -> float:
         """TS2 pin: floats to ~5.5 V (REG18 domain) in SHUTDOWN; the POWER
-        button holds it low through R9 + D2 (BAT54C) when pressed. With the
+        button holds it low through R9 + D2 (BAV70) when pressed. With the
         button unpressed and the ESP32 not driving TS2 (it's a wake pin,
         not a driven pin in rev A), the pin returns to its float state.
         """
         if buttons.power_pressed:
-            # D2 drops ~0.25 V; R9 pulls down to well below the 0.7 V
-            # wake threshold (C7 verified 0.15 V at the pin).
-            return 0.15
+            # D2 (silicon) drops ~0.4 V; the whole-board simulation gives at
+            # most 0.42 V at the pin from -20 to 85 °C, under the 0.7 V
+            # minimum wake threshold.
+            return 0.42
         return 5.5
 
     def _rst_shut_v(self, esp: Esp32Stub) -> float:
@@ -140,10 +141,10 @@ class PowerBoard:
     def _en_divider_v(self, buttons: Buttons, packplus_v: float) -> float:
         """EN/UVLO pin voltage.
 
-        The EN path: +BATT (PACK+) → ESTOP_FEED (1 kΩ) → J11 contact A
-        (normally closed) → R30 (560 kΩ) → EN pin → R31 (100 kΩ) → GND.
+        The EN path: +BATT (PACK+) → ESTOP_FEED (R29, 10 kΩ) → J11 contact A
+        (normally closed) → R30 (549 kΩ) → EN pin → R31 (100 kΩ) → GND.
 
-        Unpressed: pin = packplus × (R31 / (R30+R31)) ≈ pack × 0.1515.
+        Unpressed: pin = packplus × (R31 / (R29+R30+R31)) ≈ pack × 0.1517.
         Pressed (contact A latched open): R30 sees no feed; the pin falls
         to 0 V through the R31 pulldown.
         Contact A stuck-closed: pin follows the divider regardless.
@@ -152,7 +153,7 @@ class PowerBoard:
         if buttons.estop_broken_wire or (
                 buttons.estop_latched and not buttons.estop_a_stuck_closed):
             return 0.0
-        return packplus_v * R31_OHM / (R30_OHM + R31_OHM)
+        return packplus_v * R31_OHM / (ESTOP_FEED_SERIES_OHM + R30_OHM + R31_OHM)
 
     def _estop_n_v(self, buttons: Buttons) -> float:
         """Contact B: ESTOP_N to ESP32 IO4. Pulled-up via R37 (10k) to
@@ -164,9 +165,10 @@ class PowerBoard:
         return 0.0      # contact closed: ESP32 sees GND
 
     def _pwr_int_n_v(self, buttons: Buttons) -> float:
-        """PWR_INT_N to ESP32 GPIO 35. Wired through D2 (BAT54C): pressed
-        pulls it low, unpressed floats to 3.3 V pull-up."""
-        return 0.25 if buttons.power_pressed else 3.3
+        """PWR_INT_N to ESP32 GPIO 35. Wired through D2 (BAV70): pressed
+        pulls it low (at most 0.54 V through the silicon diode, under the
+        ESP32's 0.83 V V(IL)); unpressed floats to the 3.3 V pull-up."""
+        return 0.54 if buttons.power_pressed else 3.3
 
     def _inp_pin_v(self, esp32_servo_en_v: float) -> float:
         """SERVO_EN through R32 (series 1 kΩ) / R33 (pulldown 100 kΩ) at

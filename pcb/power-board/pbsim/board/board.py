@@ -243,8 +243,8 @@ class Board:
                 L += devices.diode_lines("D2b", pins["2"], pins["3"], "1N4148W",
                                          sc.temp_c, sc.leak)
                 continue
-            if kind == "R":
-                L.append(f"r{ref} {pins['1']} {pins['2']} {si(part.value):.6g}")
+            if kind == "R":       # a 0 R jumper as 0.1 mΩ: ngspice takes no zero resistor
+                L.append(f"r{ref} {pins['1']} {pins['2']} {max(si(part.value), 1e-4):.6g}")
             elif kind == "RT":
                 t = sc.rt1_temp_c if sc.rt1_temp_c is not None else sc.temp_c
                 L.append(f"r{ref} {pins['1']} {pins['2']} "
@@ -263,10 +263,10 @@ class Board:
                          f"{pins['2']})*v({ctl})/{r}")
                 L.append(f"r{ref}_open {pins['1']} {pins['2']} 1e9")
             elif kind == "D":
-                mpn = {"BAT54C": "BAT54C", "PMEG4002EJ": "PMEG4002EJ",
-                       "16V": "MMSZ5246B", "1N4148W": "1N4148W",
+                mpn = {"BAT54C": "BAT54C", "BAV70": "BAV70", "PMEG4002EJ": "PMEG4002EJ",
+                       "16V": "MMSZ5246B", "15V": "MMSZ5245B", "1N4148W": "1N4148W",
                        "SMBJ15A": "SMBJ15A"}[part.value]
-                if mpn == "BAT54C":   # KiCad Diode:BAT54C: 1, 2 anodes; 3 cathode
+                if mpn in ("BAT54C", "BAV70"):   # KiCad symbols: 1, 2 anodes; 3 cathode
                     L += devices.diode_lines(f"{ref}a", pins["1"], pins["3"],
                                              mpn, sc.temp_c, sc.leak)
                     L += devices.diode_lines(f"{ref}b", pins["2"], pins["3"],

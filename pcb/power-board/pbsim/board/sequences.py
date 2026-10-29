@@ -252,31 +252,11 @@ SEQ["shutdown_rail_on_at_kill"] = _shutdown(
 SEQ["shutdown_no_servos_bench"] = _shutdown(
     "shutdown_no_servos_bench", drop_servo_en=True, servos=False, t_stop=12.0,
     power_again=8.0)
-SEQ["shutdown_no_servos_fix_bleed"] = _shutdown(
-    "shutdown_no_servos_fix_bleed", drop_servo_en=True, servos=False,
-    t_stop=12.0, power_again=8.0, patch={"R38": "4.7k", "R39": "1k"})
 SEQ["shutdown_servos_resistive_lowv"] = _shutdown(
     "shutdown_servos_resistive_lowv", drop_servo_en=True, lowv_ohms=2000.0)
 SEQ["shutdown_rail_dropped_first_gd_iq100u"] = _shutdown(
     "shutdown_rail_dropped_first_gd_iq100u", drop_servo_en=True, gd_iq=100e-6)
 
-
-def _pk_bleed(b):
-    """What-if: 4.7 kΩ from PACK+ to GND (2.7 mA, 34 mW while on; nothing in
-    SHUTDOWN, where PACK+ is at 0 V)."""
-    return [f"r_fix_pkbleed {b.net('PACK+')} 0 4.7k"]
-
-
-BLEED = {"R38": "4.7k", "R39": "1k"}
-SEQ["shutdown_no_servos_fix_both"] = _shutdown(
-    "shutdown_no_servos_fix_both", drop_servo_en=True, servos=False,
-    t_stop=12.0, power_again=8.0, patch=BLEED, extra=[_pk_bleed])
-SEQ["shutdown_rail_dropped_first_fix_both"] = _shutdown(
-    "shutdown_rail_dropped_first_fix_both", drop_servo_en=True, patch=BLEED,
-    extra=[_pk_bleed])
-SEQ["shutdown_rail_on_at_kill_fix_both"] = _shutdown(
-    "shutdown_rail_on_at_kill_fix_both", drop_servo_en=False, patch=BLEED,
-    extra=[_pk_bleed])
 
 
 @seq
@@ -378,14 +358,6 @@ def estop_stuck_rail_bench_no_servos():
                         f"{fired[0] - 1.0:.2f} s after the press: SERVO+ had "
                         f"not fallen below 70 % of the pack (it bleeds slowly)")
         return fail, m
-    return sc, check
-
-
-@seq
-def estop_stuck_rail_bench_fix_bleed():
-    sc, check = estop_stuck_rail_bench_no_servos()
-    sc = replace(sc, name="estop_stuck_rail_bench_fix_bleed", patch=dict(BLEED),
-                 esp=Esp32(servo_en=steps((0, 1)), firmware=FwStuckRail()))
     return sc, check
 
 
@@ -650,8 +622,7 @@ def ocd_trip_otp_time_recovery():
     return sc, check2
 
 
-# ---- OTP options for F-3 and F-6, each on rev B's F-1 fix (so SHUTDOWN can
-# complete; F-3's also with F-5's zener), POWER pressed again at 6 s ---------
+# ---- OTP options for F-3 and F-6, on the board as drawn, POWER pressed again at 6 s --
 
 _POWER_AGAIN = steps((0, 0), (T_WAKE, 1), (T_WAKE + 0.05, 0), (6.0, 1), (6.1, 0))
 
@@ -681,8 +652,7 @@ def _restart_check(r, b, fault=False):
 def _weak_cell_otp(name, otp):
     def build():
         sc, _ = cuv_weak_cell_under_load()
-        return replace(sc, name=name, t_stop=9.0, otp=otp, power_btn=_POWER_AGAIN,
-                       patch=dict(BLEED), extra=[_pk_bleed]), _restart_check
+        return replace(sc, name=name, t_stop=9.0, otp=otp, power_btn=_POWER_AGAIN), _restart_check
     return build
 
 
@@ -713,13 +683,6 @@ def otp_f6_getup_shutcell_cuv_0s():
     return sc, check2
 
 
-def _q3_zener(b):
-    """15 V zener gate→source on Q3 (MMSZ5245B, the same family as D3/D5)."""
-    g, s = b.node("Q3", 4), b.node("Q3", 1)
-    return [".model d_mmsz5245b d (is=1e-14 n=1 rs=1 bv=15 ibv=8.5m nbv=1.2 cjo=60p)",
-            f"d_fix_q3z {s} {g} d_mmsz5245b"]
-
-
 def _pack_fault(t_on, ohms):
     """A persistent resistive fault from PACK+ to GND from t_on: above OCD1,
     below SCD's 150 A."""
@@ -734,8 +697,8 @@ def _pack_fault(t_on, ohms):
 
 def _pack_fault_otp(name, otp):
     def build():
-        sc = on(name, 9.0, otp=otp, power_btn=_POWER_AGAIN, patch=dict(BLEED),
-                extra=[_pk_bleed, _q3_zener, _pack_fault(1.0, 0.3)], record_every=4,
+        sc = on(name, 9.0, otp=otp, power_btn=_POWER_AGAIN,
+                extra=[_pack_fault(1.0, 0.3)], record_every=4,
                 fine=[(0.99, 1.1, 20e-6)])
         return sc, lambda r, b: _restart_check(r, b, fault=True)
     return build
@@ -829,7 +792,7 @@ def low_battery_ramp():
     the BQ76922's own backstops (design §7) end in SHUTDOWN."""
     ramp = [(0, 3.4), (1.0, 3.4)] + [(1.0 + k * 0.25, 3.4 - k * 0.5 / 24)
                                       for k in range(1, 25)]
-    sc = on("low_battery_ramp", 9.0, cells=(ramp, ramp, ramp), record_every=4)
+    sc = on("low_battery_ramp", 16.0, cells=(ramp, ramp, ramp), record_every=4)
 
     def check(r, b):
         t_sd = r.first("u1_mode", lambda x: x == 1, 1.0)
@@ -837,14 +800,6 @@ def low_battery_ramp():
         fail = [] if t_sd is not None else ["did not reach SHUTDOWN on a flat pack"]
         return fail, m
     return sc, check
-
-
-@seq
-def low_battery_ramp_fix_both():
-    sc, check = low_battery_ramp()
-    return replace(sc, name="low_battery_ramp_fix_both", t_stop=16.0,
-                   patch=dict(BLEED),
-                   extra=[_pk_bleed]), check
 
 
 @seq
