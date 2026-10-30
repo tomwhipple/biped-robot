@@ -433,12 +433,48 @@ void testArmedWatchesOnlyThenStarts() {
     CHECK(off.state() == State::kOff);
 }
 
+void testArmedStartsOnARealLean() {
+    // both sides: a lean past arm_start_rad starts the PI there, the next tick corrects
+    const float sides[2] = {1.0f, -1.0f};
+    for (float s : sides) {
+        RollBalance b;
+        Config c = golden();
+        c.arm_start_rad = 4.0f * kDeg;
+        b.configure(c);
+        b.arm(0.0f);
+        b.update(s * 3.9f * kDeg, 0.02f);
+        CHECK(b.armed());
+        CHECK_NEAR(b.u(), 0.0, 1e-12);
+        CHECK(b.update(s * 4.2f * kDeg, 0.02f) == State::kActive);
+        CHECK_NEAR(b.ref(), s * 4.2f * kDeg, 1e-6);
+        CHECK_NEAR(b.u(), 0.0, 1e-12);
+        CHECK_NEAR(b.integral(), 0.0, 1e-12);
+        b.update(s * 5.0f * kDeg, 0.02f);
+        CHECK(b.u() * s > 0.0f);                    // pushes back against the lean
+        CHECK(!b.start(0.0f));                      // already running: the move end does not re-reference
+    }
+    // 0 = only at the move end
+    RollBalance n;
+    Config c = golden();
+    c.arm_start_rad = 0.0f;
+    n.configure(c);
+    n.arm(0.0f);
+    n.update(0.3f, 0.02f);
+    CHECK(n.armed());
+    // must stay below the abort
+    c = Config{}; c.arm_start_rad = 0.4f;   CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.arm_start_rad = -0.01f; CHECK(balance::validate(c) != nullptr);
+    CHECK(balance::validate(Config{}) == nullptr);
+}
+
 void testArmedAborts() {
     // tip: past the limit from the pre-lift roll, both sides, u was 0
     const float sides[2] = {1.0f, -1.0f};
     for (float s : sides) {
         RollBalance b;
-        b.configure(golden());                      // abort 30 deg
+        Config c = golden();                        // abort 30 deg
+        c.arm_start_rad = 0.0f;                     // stays armed up to the abort
+        b.configure(c);
         b.arm(0.0f);
         b.update(s * 0.3f, 0.02f);
         CHECK(b.armed());
@@ -585,6 +621,7 @@ int main() {
     testContinues();
     testArmedWatchesOnlyThenStarts();
     testArmedAborts();
+    testArmedStartsOnARealLean();
     testDisengageZeroes();
     testMirrorSymmetry();
     testRollFromUp();
