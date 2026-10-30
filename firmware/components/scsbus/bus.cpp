@@ -92,6 +92,18 @@ Status Bus::writeU8(uint8_t id, uint8_t addr, uint8_t value) {
 Status Bus::syncReadFeedback(const uint8_t* ids, size_t n, Feedback* out,
                              bool* ok) {
     if (n == 0 || n > kMaxServos) return Status::kBadArg;
+    bool any = false;
+    for (size_t i = 0; i < n; i += kSyncChunk) {
+        const size_t m = n - i < kSyncChunk ? n - i : kSyncChunk;
+        const Status st = syncReadBurst(ids + i, m, out + i, ok + i);
+        if (st == Status::kOk) any = true;
+        else if (st != Status::kTimeout) return st;
+    }
+    return any ? Status::kOk : Status::kTimeout;
+}
+
+Status Bus::syncReadBurst(const uint8_t* ids, size_t n, Feedback* out,
+                          bool* ok) {
     const size_t txn = buildSyncRead(tx_, sizeof tx_, kRegPresentPosition,
                                      kFeedbackLen, ids, n);
     if (txn == 0) return Status::kBadArg;

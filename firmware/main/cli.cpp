@@ -582,6 +582,56 @@ bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
 // `reg <id> <addr> [1|2]` -- READ a servo register (EEPROM or RAM), never
 // write. Added 2026-09-03 to inspect PosP/PosD/PosI (21-23), dead zones
 // (26/27) and acceleration (41) while chasing bench oscillation.
+// `sread [reps] [id ...]` -- run the feedback SYNC READ `reps` times (default 50) over the
+// given ids, in that order (default: every fitted servo, bus order), and report how often each
+// id answered and the read time. Read-only. Added 2026-10-30: the flight recorder's 12-servo
+// read waited out its full deadline (~37 ms) because id 11 missed about half the replies,
+// although single reads of it never fail -- this finds out what the burst order does.
+void cmdSread(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    long reps = argc >= 2 ? num(argv[1], 50) : 50;
+    if (reps < 1) reps = 1;
+    if (reps > 500) reps = 500;
+    uint8_t ids[obs::kNumBusJoints];
+    size_t n = 0;
+    if (argc >= 3) {
+        for (int k = 2; k < argc && n < obs::kNumBusJoints; ++k) {
+            const long id = num(argv[k], 0);
+            if (id >= 1 && id <= 253) ids[n++] = static_cast<uint8_t>(id);
+        }
+    } else {
+        const obs::Calibration& cal = robot::calibration();
+        for (int b = 0; b < obs::kNumBusJoints; ++b)
+            if (cal.fitted[b]) ids[n++] = obs::kBusServoId[b];
+    }
+    if (n == 0) { out("sread: no ids\r\n"); return; }
+    scsbus::Feedback fb[obs::kNumBusJoints];
+    bool ok[obs::kNumBusJoints];
+    uint32_t cnt[obs::kNumBusJoints] = {};
+    int64_t tsum = 0, tmax = 0;
+    long full = 0;
+    for (long r = 0; r < reps; ++r) {
+        const int64_t t0 = esp_timer_get_time();
+        bus->syncReadFeedback(ids, n, fb, ok);
+        const int64_t dt = esp_timer_get_time() - t0;
+        tsum += dt;
+        if (dt > tmax) tmax = dt;
+        bool all = true;
+        for (size_t i = 0; i < n; ++i) {
+            if (ok[i]) ++cnt[i]; else all = false;
+        }
+        if (all) ++full;
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    say(out, "sread %ld x %u ids: all answered %ld/%ld, read mean %lld us max %lld us\r\n", reps,
+        static_cast<unsigned>(n), full, reps, static_cast<long long>(tsum / reps),
+        static_cast<long long>(tmax));
+    for (size_t i = 0; i < n; ++i)
+        say(out, "  #%u id %3u answered %lu/%ld\r\n", static_cast<unsigned>(i), ids[i],
+            static_cast<unsigned long>(cnt[i]), reps);
+}
+
 void cmdReg(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
@@ -3072,6 +3122,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
     else if (!strcmp(c, "balance")) cmdBalance(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
+    else if (!strcmp(c, "sread")) cmdSread(out, argc, argv);
     else if (!strcmp(c, "gains")) cmdGains(out, argc, argv);
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
