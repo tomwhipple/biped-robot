@@ -35,10 +35,14 @@ import sys
 import time
 
 BASE = "/home/claw/code/robot"
+# The runner trains from the night clone (synced to the job's branch right before pre-flight), so
+# env construction, the venv, --init-from and --rise-ref are checked THERE -- the shared checkout
+# can lag main (2026-10-30: it lacked #172 and pre-flight refused jobs the clone could run).
+CODE = os.environ.get("PREFLIGHT_CODE", "/home/claw/code/robot-mjx")
 Q = os.environ.get("NIGHT_DIR", "/home/claw/code/robot-mjx") + "/night/queue"
 NOTIFY = os.environ.get("NO_NOTIFY", "") == ""
 TOM = "mattermost:xhtnq11nhjn1jpytz1sj4zzimr"
-VENV = os.path.join(BASE, ".venv/bin/python")
+VENV = os.path.join(CODE, ".venv/bin/python")
 LOG = os.environ.get("PREFLIGHT_LOG", "/home/claw/code/robot-mjx/night/preflight.log")
 
 
@@ -174,7 +178,7 @@ def check_cmd_job(jf, cmd, seen_outs, queued):
     elif os.path.exists(os.path.join(NIGHT_RUNS, teacher, "params.pkl")) and os.path.exists(tcfg):
         amap = json.load(open(tcfg)).get("action_map", "legacy")
         r = subprocess.run([VENV, "-c", DISTILL_ENV_TEST, tcfg],
-                           capture_output=True, text=True, cwd=BASE, timeout=600)
+                           capture_output=True, text=True, cwd=CODE, timeout=600)
         if "OK obs=" in r.stdout:
             e["env"] = "teacher exists; " + r.stdout.strip().splitlines()[-1]
         else:
@@ -222,12 +226,12 @@ def check_job(jf, seen_outs, queued=None):
             e["errors"].append(f"--out {out} already exists in {d}")
     # 3) checkpoint
     if init:
-        p = os.path.join(BASE, "sim", "runs", init, "params.pkl")
+        p = os.path.join(CODE, "sim", "runs", init, "params.pkl")     # train_mjx loads ../runs/<init>
         if not os.path.exists(p):
             e["errors"].append(f"missing --init-from checkpoint {p}")
     # 4) npz as the env resolves it
     if npz:
-        p = os.path.join(BASE, "sim", npz)
+        p = os.path.join(CODE, "sim", npz)
         if not os.path.exists(p):
             e["errors"].append(f"missing --rise-ref npz {p}")
     # extra flags the env would reject without their dependencies
@@ -282,7 +286,7 @@ def check_job(jf, seen_outs, queued=None):
     payload = {"xml": xml, "servo_3250": fget("--servo-3250", str),
                "robot_arms": "--robot-arms" in args, "env_kw": env_kw}
     r = subprocess.run([VENV, "-c", ENV_TEST, json.dumps(payload)],
-                       capture_output=True, text=True, cwd=BASE, timeout=600)
+                       capture_output=True, text=True, cwd=CODE, timeout=600)
     if "OK nq=" in r.stdout:
         e["env"] = r.stdout.strip().splitlines()[-1]
         e["ok"] = not e["errors"]
