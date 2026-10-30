@@ -34,10 +34,13 @@ JF_FB_OK, JF_NOM_VALID, JF_GOAL_VALID, JF_WRITTEN, JF_DRIVEN = 1, 2, 4, 8, 16
 
 EV_CMD, EV_OUT, EV_ARM_EDGE, EV_HOME_EDGE, EV_REC = 1, 2, 3, 4, 5
 EV_MODE, EV_BAL_STATE, EV_LINK_STATE, EV_FB_BACKOFF = 6, 7, 8, 9
+EV_WCLI = 10
 EVENT_NAMES = {EV_CMD: "cmd", EV_OUT: "out", EV_ARM_EDGE: "arm_edge",
                EV_HOME_EDGE: "home_edge", EV_REC: "rec", EV_MODE: "mode",
                EV_BAL_STATE: "bal_state", EV_LINK_STATE: "link_state",
-               EV_FB_BACKOFF: "fb_backoff"}
+               EV_FB_BACKOFF: "fb_backoff", EV_WCLI: "wcli"}
+# cmd / out events: `a` is the channel the line came in / went out on.
+CHAN_TETHER, CHAN_WIFI = 0, 1     # cmd over Wi-Fi: b = the Wi-Fi CLI seq
 
 # balance::State (firmware/components/balance/include/balance/roll_pi.h)
 BAL_STATES = {0: "OFF", 1: "ACTIVE", 2: "ABORT_TIP", 3: "ABORT_IMU", 4: "ARMED"}

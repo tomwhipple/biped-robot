@@ -24,7 +24,8 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/imu/include \
             -I$(COMPONENTS)/battguard/include \
             -I$(COMPONENTS)/balance/include \
-            -I$(COMPONENTS)/flightrec/include
+            -I$(COMPONENTS)/flightrec/include \
+            -I$(COMPONENTS)/wcli/include
 
 # Kept before the sanitizers are folded in: the SIL shared library cannot use
 # them (see the `sil` target below).
@@ -56,12 +57,18 @@ SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
+SRC_WCLI  = $(COMPONENTS)/wcli/sha256.cpp $(COMPONENTS)/wcli/wcli.cpp \
+            $(COMPONENTS)/wcli/policy.cpp
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
 TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi \
-        test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec
+        test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec \
+        test_wcli
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
+# Not a test: the Wi-Fi CLI's robot half on a host UDP socket, which
+# tests/test_wcli.py drives with the real Python client (wcli_twin.cpp).
+WCLI_TWIN = $(BUILD)/wcli_twin
 
 # The software-in-the-loop library (docs/sil-harness.md): the same component
 # sources the tests use, plus the C boundary python loads with ctypes.
@@ -71,7 +78,7 @@ SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
 .PHONY: all test clean vectors deploy-headers sil tui gui deps check check-gui
-all: $(BINS) $(SIL_LIB)
+all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
 # 7-wide intent, the arm-sync rule and the short-vs-long frame decision. Only
@@ -250,6 +257,18 @@ $(BUILD)/test_flightrec: test_flightrec.cpp $(SRC_FREC) vectors/flightrec_vector
                          test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
+# The Wi-Fi CLI's pure half: SHA-256/HMAC against the published vectors,
+# the wire format against link/wcliproto.py (`make vectors`), the session's
+# auth/replay/at-most-once logic and the Wi-Fi allowlist.
+$(BUILD)/test_wcli: test_wcli.cpp $(SRC_WCLI) vectors/wcli_vectors.h \
+                    test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The same session logic on a real UDP socket (sanitizers ON: it parses
+# untrusted datagrams), for the end-to-end client tests in tests/.
+$(WCLI_TWIN): wcli_twin.cpp $(SRC_WCLI) $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(CXXFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS) -lpthread
+
 # The fusion filter is the half of the IMU driver that has no hardware in it,
 # which is exactly why it lives in components/imu/ next to the pure maths
 # rather than beside the I2C code. Its attitude assertions are cross-checked
@@ -311,7 +330,7 @@ $(SIL_LIB): $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) \
 $(BUILD):
 	mkdir -p $(BUILD)
 
-test: $(BINS) $(SIL_LIB)
+test: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
 	@rc=0; for t in $(BINS); do ./$$t || rc=1; done; \
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN"; else echo "FAILURES"; fi; \
 	 exit $$rc

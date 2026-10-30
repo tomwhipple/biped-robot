@@ -3,15 +3,18 @@
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
 FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
+WCLI_VECTORS := firmware/host/vectors/wcli_vectors.h
 
-host: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
+host: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
 	$(MAKE) -C firmware/host -j1 check
 
-vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) ## the protocol and flight-recorder test vectors, from link/protocol.py and tools/flightrec.py
+vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors, from link/protocol.py, tools/flightrec.py and link/wcliproto.py
 $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)
 	$(PY) tools/gen_protocol_vectors.py
 $(FLIGHTREC_VECTORS): $(PYDEPS_tools/gen_flightrec_vectors.py)
 	$(PY) tools/gen_flightrec_vectors.py
+$(WCLI_VECTORS): $(PYDEPS_tools/gen_wcli_vectors.py)
+	$(PY) tools/gen_wcli_vectors.py
 
 # Only when somebody names the run: the headers re-point the firmware at a policy.
 deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, SIL golden files

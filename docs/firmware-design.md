@@ -149,7 +149,8 @@ Also:
 | `wifi_link` | 0 | 5 | UDP command frames in on 4210; the 10 Hz telemetry beacon out on 4211 |
 | `imu` | 0 | 4 | the 250 Hz IMU sampler and fusion |
 | `flightrec` | 0 | 3 | drains the flight recorder's two rings to UDP 4220, 1 Hz hello ([flight-recorder.md](flight-recorder.md)) |
-| `housekeeping` | 0 | 2 | the CLI, arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
+| `housekeeping` | 0 | 2 | the CLI (tether and Wi-Fi lines, one queue), arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
+| `wcli` | 0 | 1 | the authenticated Wi-Fi CLI's socket on UDP 4213: authenticates, queues lines for `housekeeping`, sends their output ([wifi-cli.md](wifi-cli.md)). Lowest on purpose: a datagram flood can starve only this task |
 
 The WiFi/LwIP tasks stay on core 0 (IDF default), so nothing they do can
 preempt `ctrl`. All tasks are created once at init, and the control loop is

@@ -390,7 +390,7 @@ void event(Ev code, const char* text, int32_t a, int32_t b) {
     noteMax(g_max_push_house, static_cast<uint32_t>(esp_timer_get_time() - t_in));
 }
 
-void outputText(const char* text) {
+void outputText(const char* text, int32_t chan) {
     if (!enabled() || text == nullptr || !onHouseTask()) return;
     // One event per line; empty lines are dropped.
     const char* p = text;
@@ -401,7 +401,7 @@ void outputText(const char* text) {
             const size_t m = n < sizeof line - 1 ? n : sizeof line - 1;
             memcpy(line, p, m);
             line[m] = 0;
-            event(Ev::kOut, line);
+            event(Ev::kOut, line, chan);
         }
         p += n;
         while (*p == '\r' || *p == '\n') ++p;
