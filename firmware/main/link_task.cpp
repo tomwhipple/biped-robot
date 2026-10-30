@@ -26,7 +26,7 @@ namespace robot {
 namespace {
 
 constexpr int kLinkStackWords = 3072;
-constexpr int kHouseStackWords = 4096;
+constexpr int kHouseStackWords = 8192;   // bytes on ESP-IDF; 4096 left 1264 B free once the flight recorder encoded from here (10-30)
 constexpr size_t kCliLineMax = linkproto::kMaxCliLine + 1;
 constexpr int kCliQueueLen = 4;
 
