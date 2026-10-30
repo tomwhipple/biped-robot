@@ -15,6 +15,7 @@ const char* validate(const Config& c) {
     if (!(c.abort_rad >= 0.05236f - 1e-5f && c.abort_rad <= 0.34907f + 1e-5f)) return "abort must be 3..20 deg";
     if (!(c.abort_decay_s >= 0.05f && c.abort_decay_s <= 2.0f)) return "abort decay must be 0.05..2 s";
     if (!(c.abort_land_s >= 0.2f && c.abort_land_s <= 5.0f)) return "abort land must be 0.2..5 s";
+    if (!(c.arm_start_rad >= 0.0f && c.arm_start_rad <= 0.34907f)) return "arm start must be 0..20 deg";
     return nullptr;
 }
 
@@ -125,7 +126,13 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
         return state_;
     }
     err_ = err;
-    if (state_ == State::kArmed) return state_;    // watching only: u stays 0, I stays 0
+    if (state_ == State::kArmed) {
+        // watching only: u stays 0, I stays 0 -- unless the lean is real (see ARMED)
+        if (!(cfg_.arm_start_rad > 0.0f && fabsf(err) > cfg_.arm_start_rad)) return state_;
+        engage(roll_rad);                      // reference here; the PI acts from the next tick
+        rate_ = roll_rate_rad_s;
+        return state_;
+    }
     const float unsat = cfg_.kp * err + cfg_.ki * i_ + cfg_.kd * roll_rate_rad_s;
     float u = unsat;
     if (u > cfg_.clamp_rad) u = cfg_.clamp_rad;

@@ -27,7 +27,11 @@
 // I) and the robot falls outward over the stance foot -- 3/3 on the bench's
 // second step. So a fresh engage only ARMS: u stays 0 and nothing integrates,
 // but the abort watches |roll - pre-lift roll|. start() at the end of the move
-// takes the reference there and runs the PI from zero.
+// takes the reference there and runs the PI from zero. ARMED is not blind: the
+// lean is sometimes REAL (hw 10-30, the same s1 lift leaned 3 deg one run and
+// tipped past 12 deg the next), so past arm_start_rad from the pre-lift roll
+// the PI starts at once, its reference taken there -- a small false tilt never
+// winds the integrator, a real fall is caught early.
 //
 // ABORT. Past |err| > abort_rad, or with no usable attitude/rate, the loop stops
 // making decisions and runs a fixed, open-loop sequence (chosen in sim,
@@ -60,6 +64,8 @@ struct Config {
     float abort_rad = 0.20944f;   // |err| beyond this aborts, 12 deg
     float abort_decay_s = 0.3f;   // abort: u -> 0 over this ...
     float abort_land_s = 1.0f;    // ... then the pose returns to the pre-lift pose over this
+    float arm_start_rad = 0.06981f;   // ARMED: |err| past this starts the PI there, 4 deg (0 = only at
+                                      // move end; at or past the abort the abort wins)
 };
 
 // nullptr when the config is usable, else why not. Bounds are wide enough for
