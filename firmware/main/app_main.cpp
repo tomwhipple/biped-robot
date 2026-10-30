@@ -212,10 +212,14 @@ extern "C" void app_main(void) {
                                             "until `gains` is clean");
     ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
              g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
-    ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",
+    // cppcheck-suppress knownConditionTrueFalse -- generated per build
+    ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, "
+             "policy %s%s [%s, profile %s]",
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,
-             policy::kWeightsArePlaceholder ? "PLACEHOLDER" : obs::kRunName);
+             policy::kWeightsArePlaceholder ? "PLACEHOLDER " : "",
+             obs::kRunName, obs::kPlantXml,
+             obs::kPolicyProfile[0] ? obs::kPolicyProfile : "deployed");
     startLinkTask();
 
     // After startLinkTask (the mailbox must exist), before the log silence

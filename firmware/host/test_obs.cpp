@@ -11,19 +11,42 @@
 #include <string.h>
 
 #include "test_util.h"
-#include "vectors/obs_vectors.h"
+// <> not "": a policy profile build (POLICY=...) puts its own vectors/
+// first on the include path, ahead of this directory.
+#include <vectors/obs_vectors.h>
 
 namespace {
+
+// Policy index of the joint called `name`, or -1.
+int jointIndex(const char* name) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (strcmp(obs::kJointNames[j], name) == 0) return j;
+    }
+    return -1;
+}
+
+// The servo ID of the policy joint called `name`, or 0 when the policy does
+// not drive it.
+int servoIdOf(const char* name) {
+    const int j = jointIndex(name);
+    return j < 0 ? 0 : obs::kServoId[j];
+}
 
 void testSpecMatchesVectors() {
     CHECK_EQ(obs::kNumJoints, obs_vectors::kNumJoints);
     CHECK_EQ(obs::kNumCmd, obs_vectors::kNumCmd);
     CHECK_EQ(obs::kFrameDim, obs_vectors::kFrameDim);
     CHECK_EQ(obs::kObsDim, obs::kFrameDim * obs::kHistLen);
-    // The deployed plant is the 10-DOF v3yaw one (MEMORY: all sims on
-    // bimo_biped_v3yaw.xml), so the joint count is 10, not 8.
-    CHECK_EQ(obs::kNumJoints, 10);
+    // The joint count is the plant's: five per leg on the 10-DOF prototype
+    // (the deployed v5body policy), six -- ankle roll included -- on the v6
+    // robot's legs (the v6legs profile). Never 8: hip yaw is on both.
+    const bool ankle_roll = jointIndex("L_ankle_roll") >= 0;
+    CHECK_EQ(obs::kNumJoints, ankle_roll ? 12 : 10);
+    CHECK_EQ(jointIndex("R_ankle_roll") >= 0, ankle_roll);
     CHECK(obs::kImuObs);
+    // action_map "full" is the only map actionToAngles implements (the
+    // generator and the exporter both refuse anything else).
+    CHECK(strcmp(obs::kActionMap, "full") == 0);
 }
 
 void testServoIdMapIsAPermutation() {
@@ -37,11 +60,24 @@ void testServoIdMapIsAPermutation() {
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 9);      // L_hip_yaw
-    CHECK_EQ(obs::kServoId[1], 51);     // L_hip_roll (STS3250)
-    CHECK_EQ(obs::kServoId[5], 10);     // R_hip_yaw
-    CHECK_EQ(obs::kServoId[6], 52);     // R_hip_roll (STS3250)
-    CHECK_EQ(obs::kServoId[9], 8);      // R_ankle
+    // The sim's action order: left leg then right, proximal to distal, hip
+    // yaw first -- on every plant.
+    CHECK(strcmp(obs::kJointNames[0], "L_hip_yaw") == 0);
+    CHECK(strcmp(obs::kJointNames[obs::kNumJoints / 2], "R_hip_yaw") == 0);
+    CHECK_EQ(servoIdOf("L_hip_yaw"), 9);
+    CHECK_EQ(servoIdOf("L_hip_roll"), 51);    // STS3250
+    CHECK_EQ(servoIdOf("L_hip_pitch"), 2);
+    CHECK_EQ(servoIdOf("L_knee"), 3);
+    CHECK_EQ(servoIdOf("L_ankle"), 4);
+    CHECK_EQ(servoIdOf("R_hip_yaw"), 10);
+    CHECK_EQ(servoIdOf("R_hip_roll"), 52);    // STS3250
+    CHECK_EQ(servoIdOf("R_hip_pitch"), 6);
+    CHECK_EQ(servoIdOf("R_knee"), 7);
+    CHECK_EQ(servoIdOf("R_ankle"), 8);
+    if (jointIndex("L_ankle_roll") >= 0) {
+        CHECK_EQ(servoIdOf("L_ankle_roll"), 12);
+        CHECK_EQ(servoIdOf("R_ankle_roll"), 11);
+    }
 }
 
 void testFramesMatchTheSim() {

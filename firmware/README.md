@@ -57,6 +57,15 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 The pre-push hook (`.githooks/pre-push`) also runs the target build; it finds
 ESP-IDF through `idf.py` on `PATH` or `$IDF_PATH`.
 
+**Which policy.** The image carries the deployed policy unless a **policy
+profile** is named: `idf.py -C firmware -B build/firmware-v6legs
+-DBIMO_POLICY=v6legs build` (or `make firmware POLICY=v6legs`) builds the v6
+legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
+profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
+`v6legs` profile currently holds an untrained test net, and the firmware
+refuses to arm on it ([training.md §9](../docs/training.md), "Policy
+profiles").
+
 ## On-target bring-up
 
 [docs/bringup.md](../docs/bringup.md) is the procedure, from a bare board to
@@ -68,7 +77,7 @@ the tick timing and fault counters along the way.
 ## Host tests (the hardware-free gate)
 
 ```sh
-make -C firmware/host test     # 10 suites under ASan/UBSan, plus libctrl_sil
+make -C firmware/host test     # 11 suites under ASan/UBSan, plus libctrl_sil -- the deployed policy, then each profile
 make -C firmware/host check    # test + the bimo_tui build (+ bimo_gui on macOS)
 ```
 
@@ -83,7 +92,7 @@ hardware-touching files are excluded by construction.
 | `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
-| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder |
+| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
@@ -104,10 +113,13 @@ make -C firmware/host tui       # build/bimo_tui
 make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + stb into third_party/)
 make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
 make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h (+ vectors) from one run
+make -C firmware/host test POLICY=v6legs   # one policy profile's build (`test` alone runs every profile too)
+make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs   # into policies/v6legs/
 ```
 
-`obs_spec.h`, `weights.h` and the files in `host/vectors/` are generated
-(AGENTS.md lists the generators); never hand-edit them. The two deployed
+`obs_spec.h`, `weights.h`, the files in `host/vectors/` and everything under
+`policies/` are generated (AGENTS.md lists the generators); never hand-edit
+them. The two deployed
 headers change only together, and only because somebody named the run to
 deploy.
 
@@ -120,6 +132,7 @@ firmware/
                         1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings,
                         the custom partition table
   partitions.csv        nvs + phy_init at the stock offsets, a 3 MB app partition
+  policies/<profile>/   a second compiled-in policy's generated headers (BIMO_POLICY)
   main/                 everything that touches ESP-IDF
     board.h             the pinout, from the vendor schematic
     app_main.cpp        NVS, UARTs, IMU, calibration restore, torque off, start tasks

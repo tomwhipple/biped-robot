@@ -206,6 +206,11 @@ enum class ArmResult : uint8_t {
     // (scsbus::checkPositionGains) and refuses on any difference from the
     // compiled expected table (main/servo_gains.h).
     kRefusedGains = 10,  // arm refused: a servo's P/D is not the expected value
+    // A policy profile (firmware/policies/, BIMO_POLICY) can compile in an
+    // UNTRAINED test net while its plant has no deployable policy
+    // (policy::kWeightsArePlaceholder). It exists to golden-test the
+    // firmware path; driving servos with it is never what anyone meant.
+    kRefusedPolicy = 11, // arm refused: the compiled-in net is not a policy
 };
 
 // True for every verdict a kFlagHome request can produce. A console that

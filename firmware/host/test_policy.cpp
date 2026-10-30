@@ -10,7 +10,9 @@
 #include "policy/mlp.h"
 #include "obs/obs_spec.h"
 #include "test_util.h"
-#include "vectors/policy_vectors.h"
+// <> not "": a policy profile build (POLICY=...) puts its own vectors/
+// first on the include path, ahead of this directory.
+#include <vectors/policy_vectors.h>
 
 namespace {
 
@@ -67,7 +69,14 @@ void testWeightsAreTheDeployedPolicy() {
     // The v1 blocker (firmware-design section 6) closing: the compiled-in net
     // is a real, refereed, distilled policy -- not the scaffold. Regenerating
     // the placeholder (`--placeholder`) turns this red on purpose.
+    //
+    // A policy PROFILE (firmware/policies/<name>, BIMO_POLICY) may carry an
+    // untrained test net instead (tools/make_test_policy_run.py) while its
+    // plant has no deployable policy: its golden vectors still pin the
+    // arithmetic, and the firmware refuses to arm on it (cli.cpp armRefused).
+#ifndef BIMO_POLICY_OVERLAY
     CHECK(!policy::kWeightsArePlaceholder);
+#endif
     // ... and it is the SAME run the obs spec was generated from, so the
     // observation the assembler builds is the one the net was trained on.
     CHECK(strcmp(policy::kWeightsRun, obs::kRunName) == 0);

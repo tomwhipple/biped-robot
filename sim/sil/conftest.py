@@ -9,6 +9,10 @@ import os
 import sys
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
+# The suite is the DEPLOYED policy's: harness.py sizes its ABI from
+# $BIMO_POLICY's spec at import, so a stray one in the shell must not re-point
+# it. The profile tests (test_sil_profiles.py) run theirs in subprocesses.
+os.environ.pop("BIMO_POLICY", None)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = os.path.dirname(HERE)

@@ -267,8 +267,8 @@ int32_t clampTicks(uint8_t id, int32_t ticks, bool* hit) {
     const int b = obs::busIndexOfId(id);
     if (b < 0) return ticks;    // not a bus servo: encoder range only
     const obs::Calibration& cal = robot::calibration();
-    const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
-    const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
+    const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
+    const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
     const int32_t lo = a < c ? a : c, hi = a < c ? c : a;
     if (ticks < lo || ticks > hi) {
         if (hit) *hit = true;
@@ -283,8 +283,8 @@ int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
     if (hit) {
         const int b = obs::busIndexOfId(id);
         const obs::Calibration& cal = robot::calibration();
-        const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
-        const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
+        const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
+        const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
         say(out, "id %d: %ld is outside %s's range [%ld..%ld]%s, clamped to "
             "%ld\r\n", id, static_cast<long>(ticks), obs::kBusJointNames[b],
             static_cast<long>(a < c ? a : c), static_cast<long>(a < c ? c : a),
@@ -1343,6 +1343,19 @@ void cmdGains(Sink out, int argc, char** argv) {
 // (re-arming a running loop re-reads nothing: the bus is ctrl's). Stores the
 // verdict and returns true when the arm is refused.
 bool armRefused(Sink out) {
+    // The compiled-in net must be a policy. A policy profile (BIMO_POLICY,
+    // firmware/policies/) may carry an untrained test net while its plant has
+    // no deployable one -- it exists to golden-test this path, and it drives
+    // every joint across its full range at random.
+    // cppcheck-suppress knownConditionTrueFalse -- generated per build.
+    if (policy::kWeightsArePlaceholder) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedPolicy));
+        say(out, "REFUSED: the compiled-in net (%s) is a placeholder / "
+            "untrained test net, not a policy -- build and flash real "
+            "weights (docs/training.md section 9)\r\n", policy::kWeightsRun);
+        return true;
+    }
     // Every joint the policy drives must be fitted: the loop reads and writes
     // fitted servos only, and a policy joint that is not on the wire would be
     // fed a stale angle forever.

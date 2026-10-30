@@ -11,18 +11,21 @@ $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)
 	$(PY) tools/gen_protocol_vectors.py
 
 # Only when somebody names the run: the headers re-point the firmware at a policy.
-deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, SIL golden files
+deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, SIL golden files (POLICY=<profile>: into that profile's set)
 	@test -n "$(RUN)" || { echo "name the run: make deploy RUN=<run under sim/runs>" >&2; exit 2; }
-	$(PY) tools/export_policy_weights.py --run $(RUN)
-	$(MAKE) -C firmware/host -j1 deploy-headers RUN=$(RUN)
+	$(PY) tools/export_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	$(MAKE) -C firmware/host -j1 deploy-headers RUN=$(RUN) $(if $(POLICY),POLICY=$(POLICY))
 
 IDF_PATH ?= $(firstword $(wildcard $(HOME)/esp/esp-idf $(HOME)/.espressif/frameworks/esp-idf-v5.4))
-firmware: ## the ESP32 image (ESP-IDF), in build/firmware
+# POLICY=<profile> builds the image with firmware/policies/<profile>'s policy
+# instead of the deployed one (tools/policy_profile.py), in its own build dir.
+FW_BUILD = build/firmware$(if $(POLICY),-$(POLICY))
+firmware: ## the ESP32 image (ESP-IDF), in build/firmware (POLICY=<profile>: build/firmware-<profile>)
 	@if ! command -v idf.py > /dev/null; then \
 	  test -f "$(IDF_PATH)/export.sh" || { echo "no ESP-IDF: put idf.py on PATH or set IDF_PATH" >&2; exit 1; }; \
 	  . "$(IDF_PATH)/export.sh" > /dev/null; \
 	fi; \
-	idf.py -C firmware -B build/firmware build
+	idf.py -C firmware -B $(FW_BUILD) -DBIMO_POLICY=$(POLICY) build
 
 # Static analysis. A missing tool is a visible SKIP, never a silent pass.
 lint: ## cmake-check, tidy, tidy-gui and cppcheck
