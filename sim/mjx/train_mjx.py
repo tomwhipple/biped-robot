@@ -239,8 +239,13 @@ def make_parser():
                         "recovery slots. Explicit flags below still override")
     p.add_argument("--servo-kp-scale", default=None,
                    help="per-servo position-loop stiffness multiplier on kp "
-                        "and kd: a preset (planb, stock) or role/actuator="
-                        "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
+                        "and kd: a preset (stock, planb, robot, asbuilt) or "
+                        "role/actuator=factor pairs, e.g. "
+                        "'hip_roll=4,ankle_roll=4,knee=4'. asbuilt = the gains "
+                        "the robot arms with (firmware/main/servo_gains.h: "
+                        "factory P 32 / D 32, measured at 2.8x the model on "
+                        "the STS3215s and 4x on the STS3250 hip rolls) -- the "
+                        "only preset a deployable legs policy may train on. "
                         "config.json records the resolved {actuator: factor}")
     p.add_argument("--mimic-lift", type=float, default=0.0,
                    help="imitation reference: the swing sole rises this high (m, IK "
@@ -336,6 +341,11 @@ def make_parser():
     p.add_argument("--ctrl-physical", action="store_true",
                    help="the policy commands the joints' whole mechanical stops (the CAD "
                         "envelope) instead of the plant's ctrlrange training range (get-up)")
+    p.add_argument("--ctrl-within-stops", action="store_true",
+                   help="clip the policy range (the plant's ctrlrange) to the joints' "
+                        "mechanical stops: the v6 ankle's ctrlrange is +-45 deg, its "
+                        "stop +-40, so a full-map +-1 would drive it 5 deg into the "
+                        "stop on hardware (2026-10-30). config.json records it")
     p.add_argument("--gravity-scale", type=float, default=None,
                    help="scale gravity in the TRAINING env (curriculum: learn a get-up under "
                         "reduced gravity, then anneal to 1.0); the referee always grades at 1.0")
@@ -827,6 +837,8 @@ def build_env_kw(args):
         env_kw["rise_ref_et_hold"] = True
     if args.ctrl_physical:
         env_kw["ctrl_physical"] = True
+    if args.ctrl_within_stops:
+        env_kw["ctrl_within_stops"] = True
     if args.gravity_scale is not None:
         env_kw["gravity_scale"] = args.gravity_scale
     if args.rise_ref_rsi_window is not None:
