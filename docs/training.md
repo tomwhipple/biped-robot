@@ -440,7 +440,7 @@ Training runs **at night only**; days belong to the box's owner.
 - **Queue.** Jobs run in sorted order; the queue is rescanned after every job.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
-  say) through the same GPU gate. `--steps` is capped to what the remaining
+  `infra/night_distill.sh`, §9) through the same GPU gate. `--steps` is capped to what the remaining
   window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). Lines
   starting `#` are notes (parent, variable, hypothesis), never arguments.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
@@ -666,7 +666,37 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
   a 24-round student scored 41/144 under lag against 28/144 for 12 rounds
   (teacher 46). Name students `<teacher>_s128r24`.
 - The student is saved as a brax PPO network (`params.pkl` + `config.json`), so
-  all three referee columns score it with no shim.
+  all three referee columns score it with no shim. It is written after **every
+  round** (atomically), so a kill leaves the last finished round's student;
+  `config.json["distill"]` records `rounds_done` and `complete`.
+- **On the robot's plant** (`--robot --xml bimo_biped_v6legs.xml`) the same
+  script distills a legs teacher: 12 joints with the ankle rolls, frame 55,
+  net 165 → 128 → 128 → 24, ≈ 41k parameters (≈ 160 KB fp32). The teacher's
+  physics is reused (`mjx_impl: warp`, contact pool re-sized to the distill
+  batch); `--mjx-impl jax` distills a Warp teacher on the CPU. The student
+  inherits the teacher's action map, and the exporter takes `full` only: a
+  deployable student needs a teacher trained with `--action-map full`
+  (`--require-full-map` refuses any other).
+- **As a night job**, right after its teacher (§7): `infra/night_distill.sh
+  <teacher> [<student>]` distills 24 rounds inside a wall-clock budget that ends
+  at 06:45 less a referee reserve (`--time-budget-s`: no round starts that
+  would not finish), referees the student on the CPU on `walk_steps_L/R`
+  (the clearance gate) and `stand_10s` into `scorecard_partial.md`, and hands
+  it to the morning collector (`night/state.done.<student>`), which grades it
+  with the full card and the reel like any run. The queue file sorts after the
+  teacher's:
+
+  ```
+  BRANCH=main
+  CMD=infra/night_distill.sh robot_legs_walk11_full robot_legs_walk11_full_s128r24
+  OUT=robot_legs_walk11_full_s128r24
+  ```
+
+  `infra/night/preflight.sh.py` checks a distill job at 22:00: the student name
+  is new and equals `OUT=`, the teacher exists in the night clone or is the
+  `--out` of an earlier queued job, its action map is `full`
+  (`DISTILL_ALLOW_LEGACY=1` in the `CMD` for a referee-only student), and the
+  wrapper is on the job's branch.
 
 **Deployment**, in order:
 
