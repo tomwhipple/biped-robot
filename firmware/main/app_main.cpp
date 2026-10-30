@@ -19,6 +19,7 @@
 #include "nvs_flash.h"
 
 #include "cal_store.h"
+#include "flight_rec.h"
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
 #include "shared.h"
@@ -229,6 +230,10 @@ extern "C" void app_main(void) {
                  creds ? ssid : "");
     }
     startWifiLink();
+    // The flight recorder (flight_rec.h): its NVS config and sender task.
+    // Producers check enabled() themselves, so the order against the tasks
+    // below does not matter; it only has to follow the WiFi bring-up.
+    flight::start();
     esp_log_level_set("*", ESP_LOG_NONE);
 
     startHousekeepingTask();

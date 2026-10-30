@@ -28,7 +28,8 @@ include_directories(
     ${COMPONENTS}/policy/include
     ${COMPONENTS}/imu/include
     ${COMPONENTS}/battguard/include
-    ${COMPONENTS}/balance/include)
+    ${COMPONENTS}/balance/include
+    ${COMPONENTS}/flightrec/include)
 
 enable_testing()
 
@@ -79,6 +80,9 @@ bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
 bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
+
+# The flight recorder's wire format, against vectors from tools/flightrec.py.
+bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)
 
 # The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
 bimo_test(test_obsdump test_obsdump.cpp

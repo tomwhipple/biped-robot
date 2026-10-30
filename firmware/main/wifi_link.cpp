@@ -351,6 +351,8 @@ bool wifiApply(const char* ssid, const char* psk) {
     return true;
 }
 
+bool wifiConnected() { return g_connected.load(); }
+
 void wifiGetStatus(WifiStatus& out) {
     out.driver_up = g_driver_up.load();
     char ssid[33], psk[65];

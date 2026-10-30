@@ -15,6 +15,7 @@
 #include "scsbus/gains.h"
 #include "board.h"
 #include "cal_store.h"
+#include "flight_rec.h"
 #include "imu_sampler.h"
 #include "mech_envelope.h"
 #include "servo_gains.h"
@@ -369,6 +370,14 @@ static int32_t s_traj_nom[obs::kNumBusJoints];      // nominal target at the las
 static int32_t s_traj_sent[obs::kNumBusJoints];     // last goal written per joint
 static uint16_t s_traj_spd[obs::kNumBusJoints];     // ... and its speed
 static TickType_t s_traj_tsent[obs::kNumBusJoints]; // ... and when
+// Flight recorder hand-off (cli::recorderTick, flight_rec.h): set by the
+// stream tick that just ran, consumed by recorderTick in the same housekeeping
+// iteration. Housekeeping task only.
+static bool s_rec_ticked = false;
+static int64_t s_rec_t0 = 0;
+static uint32_t s_rec_work_us = 0;
+static bool s_rec_wrote = false;
+static bool s_rec_written[obs::kNumBusJoints];
 
 // -- stance-leg IMU roll balance (`pose ... B<L|R>`, `balance`) -------------
 // Closed-loop roll on top of the open-loop streamer, for a one-leg stand: each
@@ -1807,6 +1816,7 @@ void poseTick(Sink out) {
     const TickType_t now = xTaskGetTickCount();
     if (now - s_traj_last < pdMS_TO_TICKS(20)) return;     // ~50 Hz evaluation
     s_traj_last = now;
+    const int64_t rec_t0 = esp_timer_get_time();
     scsbus::Bus* bus = claimBus(out);
     if (!bus) { s_traj_active = false; balStop(out, "no bus"); return; }
     const long el = static_cast<long>(pdTICKS_TO_MS(now - s_traj_t0));
@@ -1842,6 +1852,7 @@ void poseTick(Sink out) {
     uint16_t spds[obs::kNumBusJoints];
     int n = 0;
     bool changed = false;
+    memset(s_rec_written, 0, sizeof s_rec_written);
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         if (!s_traj_on[b]) continue;
         const float d = static_cast<float>(s_traj_tgt[b] - s_traj_start[b]);
@@ -1900,6 +1911,7 @@ void poseTick(Sink out) {
         s_traj_sent[b] = want;
         s_traj_spd[b] = spds[n];
         s_traj_tsent[b] = now;
+        s_rec_written[b] = true;
         ++n;
     }
     if (changed && n > 0) {
@@ -1907,6 +1919,12 @@ void poseTick(Sink out) {
                                 s_traj_acc);
     }
     traceTick(bus, now);
+    // The recorder reads the servos AFTER the write (cli::recorderTick), so
+    // it never sits between the attitude read and the goals going out.
+    s_rec_ticked = true;
+    s_rec_t0 = rec_t0;
+    s_rec_work_us = static_cast<uint32_t>(esp_timer_get_time() - rec_t0);
+    s_rec_wrote = changed && n > 0;
     if (tau >= 1.0f) {
         if (s_bal.armed()) {
             // the lift is done: the reference is the roll the robot settled at, the PI starts from zero
@@ -2014,6 +2032,56 @@ void homeVerify(Sink out) {
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
     }
+}
+
+uint32_t recorderTick() {
+    const bool ticked = s_rec_ticked;
+    s_rec_ticked = false;
+    robot::flight::houseTick();
+    if (!robot::flight::enabled()) return 0;
+    // Armed: ctrl records every tick itself, and the bus is not ours.
+    if (robot::g_ctrl_owns_bus.load() ||
+        robot::g_mode_request.load() == robot::Mode::kRun) {
+        return 0;
+    }
+    robot::flight::BenchView v;
+    if (ticked) {
+        v.source = flightrec::Source::kBenchPose;
+        v.t0_us = s_rec_t0;
+        v.work_us = s_rec_work_us;
+        v.traj_active = true;
+        v.wrote = s_rec_wrote;
+        v.on = s_traj_on;
+        v.nominal = s_traj_nom;
+        v.goal = s_traj_sent;
+        v.speed = s_traj_spd;
+        v.written = s_rec_written;
+    } else if (!s_traj_active && robot::flight::idleDue()) {
+        v.source = flightrec::Source::kBenchIdle;
+        v.t0_us = esp_timer_get_time();
+    } else {
+        return 0;
+    }
+    v.home_pending = s_home_pending;
+    v.home_stage = static_cast<uint8_t>(s_home_stage);
+    v.bal_engaged = s_bal.engaged();
+    flightrec::Balance& b = v.bal;
+    b.state = static_cast<uint8_t>(s_bal.state());
+    b.side = s_bal.engaged() ? static_cast<uint8_t>(s_bal_side) : 0;
+    b.ankle_bus = static_cast<int8_t>(s_bal_ba);
+    b.hip_bus = static_cast<int8_t>(s_bal_bh);
+    b.ref = s_bal.ref();
+    b.err = s_bal.err();
+    b.integral = s_bal.integral();
+    b.u = s_bal.u();
+    b.rate = s_bal.rate();
+    b.roll = s_bal_roll;
+    b.ankle_rad = s_bal.ankle();
+    b.hip_rad = s_bal.hip();
+    b.ankle_ticks = flightrec::sat16(s_bal_dta);
+    b.hip_ticks = flightrec::sat16(s_bal_dth);
+    b.clamps = s_bal_clamps;
+    return robot::flight::recordBench(robot::g_bus, v);
 }
 
 // -- imu -------------------------------------------------------------------
@@ -2757,6 +2825,82 @@ void cmdNtp(Sink out, int argc, char**) {
 // are bench-only for the same reason `cal save` is: an NVS commit is a flash
 // write, a flash write stalls both cores' cache, and a stalled control tick
 // past 2x budget trips the torque release.
+// `rec` -- the flight recorder (flight_rec.h, docs/flight-recorder.md).
+void cmdRec(Sink out, int argc, char** argv) {
+    // NVS writes stall the control tick (see `wifi clear`): armed, a change
+    // applies in RAM only and says so.
+    const bool save = robot::g_mode_request.load() == robot::Mode::kBench;
+    const char* nosave = save ? "" : " (armed: NOT saved to NVS)";
+    if (argc >= 2 && !strcmp(argv[1], "off")) {
+        robot::flight::event(flightrec::Ev::kRec, "rec off");
+        robot::flight::setEnabled(false, save);
+        say(out, "rec: off%s\r\n", nosave);
+        return;
+    }
+    if (argc >= 2 && !strcmp(argv[1], "on")) {
+        robot::flight::setEnabled(true, save);
+        if (!robot::flight::enabled()) {
+            out("rec: no collector address yet -- `rec <ip>[:port]`\r\n");
+            return;
+        }
+        robot::flight::event(flightrec::Ev::kRec, "rec on");
+        say(out, "rec: on%s\r\n", nosave);
+        return;
+    }
+    if (argc >= 3 && !strcmp(argv[1], "idle")) {
+        robot::flight::setIdleHz(static_cast<int>(num(argv[2], 0)), save);
+        robot::flight::Status st;
+        robot::flight::getStatus(st);
+        say(out, "rec: idle sample %d Hz while benched and not streaming%s\r\n",
+            st.idle_hz, nosave);
+        return;
+    }
+    if (argc >= 2 && strcmp(argv[1], "status") != 0) {
+        unsigned a = 0, b = 0, c = 0, d = 0, port = flightrec::kDefaultPort;
+        const int got = sscanf(argv[1], "%u.%u.%u.%u:%u", &a, &b, &c, &d, &port);
+        if (got < 4 || a > 255 || b > 255 || c > 255 || d > 255 || port == 0 ||
+            port > 65535) {
+            out("usage: rec [status] | rec <a.b.c.d>[:port] | rec on | rec off | "
+                "rec idle <hz>\r\n");
+            return;
+        }
+        const uint32_t ip = (a << 24) | (b << 16) | (c << 8) | d;
+        robot::flight::configure(ip, static_cast<uint16_t>(port), save);
+        char msg[48];
+        snprintf(msg, sizeof msg, "rec -> %u.%u.%u.%u:%u", a, b, c, d, port);
+        robot::flight::event(flightrec::Ev::kRec, msg);
+        say(out, "rec: on -> %u.%u.%u.%u:%u%s\r\n", a, b, c, d, port, nosave);
+        return;
+    }
+    robot::flight::Status st;
+    robot::flight::getStatus(st);
+    say(out, "rec %s -> %lu.%lu.%lu.%lu:%u  wifi %s  utc %s  boot %08lx\r\n",
+        st.enabled ? "ON" : "off", static_cast<unsigned long>(st.ip >> 24),
+        static_cast<unsigned long>((st.ip >> 16) & 0xFF),
+        static_cast<unsigned long>((st.ip >> 8) & 0xFF),
+        static_cast<unsigned long>(st.ip & 0xFF), static_cast<unsigned>(st.port),
+        st.wifi ? "up" : "DOWN", st.utc ? "synced" : "NOT synced",
+        static_cast<unsigned long>(st.boot_id));
+    say(out, "  records ctrl %lu  bench %lu  idle %lu  events %lu  (seq %lu)\r\n",
+        static_cast<unsigned long>(st.ctrl_records), static_cast<unsigned long>(st.bench_records),
+        static_cast<unsigned long>(st.idle_records), static_cast<unsigned long>(st.events),
+        static_cast<unsigned long>(st.seq));
+    say(out, "  sent %lu  dropped: ring %lu  net %lu  wrong-task %lu\r\n",
+        static_cast<unsigned long>(st.sent), static_cast<unsigned long>(st.drop_ring),
+        static_cast<unsigned long>(st.drop_net), static_cast<unsigned long>(st.drop_task));
+    say(out, "  push cost max: ctrl %lu us  house %lu us;  bench read last %lu max %lu us "
+        "(%lu reads, %lu backoffs)\r\n",
+        static_cast<unsigned long>(st.max_push_ctrl_us),
+        static_cast<unsigned long>(st.max_push_house_us),
+        static_cast<unsigned long>(st.bench_read_us),
+        static_cast<unsigned long>(st.bench_read_max_us),
+        static_cast<unsigned long>(st.bench_reads),
+        static_cast<unsigned long>(st.bench_backoffs));
+    say(out, "  idle sample %d Hz;  free heap %lu B;  housekeeping stack free %lu B\r\n",
+        st.idle_hz, static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
+        static_cast<unsigned long>(uxTaskGetStackHighWaterMark(nullptr)));
+}
+
 void cmdWifi(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "clear")) {
         if (robot::g_mode_request.load() != robot::Mode::kBench) {
@@ -2858,6 +3002,7 @@ void banner(Sink out) {
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
+    out("  rec [status|<ip>[:port]|on|off|idle <hz>]   flight recorder -> UDP collector\r\n");
     out("  stat                 tick timing and fault counters\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 }
@@ -2939,6 +3084,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "stream")) cmdStream(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
+    else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
     else if (!strcmp(c, "obsdump")) cmdObsDump(out, argc, argv);
     else out("? (try `help`)\r\n");

@@ -90,6 +90,7 @@ hardware-touching files are excluded by construction.
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
 | `sil_golden` | the firmware against the sim's own numbers in `sim/sil/golden/*.json`. The obs cases always run; the policy cases run only when the golden run's `.silw` is present and are skipped otherwise |
+| `flightrec` | the flight recorder's tick/event/hello encoders byte-for-byte against vectors from `tools/flightrec.py` (the collector's decoder), decode round trips and rejects, the producer ring |
 | `client` | the console core in `link/`: intent, frame-length rule, keymap file, MJPEG parser, recorder, the servo-fault ID list |
 
 The Python half of software-in-the-loop is [sim/sil/README.md](../sim/sil/README.md);
@@ -134,6 +135,7 @@ firmware/
     servo_gains.h       expected position-loop P/D per servo ID (the arm gate)
     mech_envelope.h     per-bus-joint mechanical limits for bench moves
     obs_dump.cpp        the observation dump (`obsdump`)
+    flight_rec.cpp      the flight recorder: rings, UDP sender, `rec` config (docs/flight-recorder.md)
     joint_pose.h        measured pose, core 1 -> the beacon (mirror mode)
     scs_port_idf.cpp    scsbus::Port over UART1 -- the one servo-bus hardware seam
     shared.h            the only cross-core state, and the rules for it
@@ -147,10 +149,12 @@ firmware/
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
-  host/                 host build: Makefile + CMakeLists, 10 test suites, the SIL
+    flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
+  host/                 host build: Makefile + CMakeLists, 12 test suites, the SIL
                         library (sil.h, sil_lib.cpp, sil_net.cpp), vectors/
 tools/
   gen_protocol_vectors.py   link/protocol.py -> host/vectors/protocol_vectors.h
+  gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
   gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h
 ```
@@ -184,6 +188,7 @@ write NVS are bench-only because a flash write stalls the control tick.
 | `imu [scan\|raw [n]\|ring [ms]\|avg [on\|off]\|gscale [x y z]\|reinit\|bias\|mount\|forget\|ae]` | IMU status, I²C scan, raw axes, ringing meter, calibration |
 | `wifi [<ssid> <psk>\|clear]` | link status and counters; credentials in NVS |
 | `ntp` | SNTP sync state and server |
+| `rec [status\|<ip>[:port]\|on\|off\|idle <hz>]` | the flight recorder: one record per control tick to the UDP collector on mira ([docs/flight-recorder.md](../docs/flight-recorder.md)); address, on/off and idle rate in NVS |
 | `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy |
 | `obsdump [on\|off\|once]` | stream the policy observation as CSV (armed only) |
 

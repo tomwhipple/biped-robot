@@ -12,6 +12,7 @@
 
 #include "board.h"
 #include "cli.h"
+#include "flight_rec.h"
 #include "driver/uart.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -52,6 +53,15 @@ char g_obs_line[kObsDumpLineMax];
 
 void uartSay(const char* s) {
     uart_write_bytes(board::kHostUart, s, strlen(s));
+}
+
+// The housekeeping task's CLI sink: the tether, and -- when the flight
+// recorder is on -- one EVENT per printed line, so every verdict the CLI
+// gives (balance ON/ARMED/ABORT/landed, refusals, home readbacks) is in the
+// recording with its timestamp, not only in whatever caught the serial port.
+void houseSay(const char* s) {
+    uartSay(s);
+    flight::outputText(s);
 }
 
 void linkTask(void*) {
@@ -98,6 +108,7 @@ void linkTask(void*) {
 }
 
 void houseTask(void*) {
+    flight::bindHouseTask();
     cli::banner(&uartSay);
     TickType_t next_tlm = xTaskGetTickCount();
     uint32_t arm_edges_seen = g_link_arm_edges.load();
@@ -109,7 +120,8 @@ void houseTask(void*) {
     for (;;) {
         CliLine line;
         while (xQueueReceive(g_cli_queue, &line, 0) == pdTRUE) {
-            cli::execute(line.text, &uartSay);
+            flight::event(flightrec::Ev::kCmd, line.text);
+            cli::execute(line.text, &houseSay);
         }
 
         // Wireless arm/disarm (shared.h g_link_arm_*): consumed here, between
@@ -118,7 +130,9 @@ void houseTask(void*) {
         const uint32_t edges = g_link_arm_edges.load();
         if (edges != arm_edges_seen) {
             arm_edges_seen = edges;
-            cli::linkMode(g_link_arm_level.load(), &uartSay);
+            flight::event(flightrec::Ev::kArmEdge, nullptr,
+                          g_link_arm_level.load() ? 1 : 0);
+            cli::linkMode(g_link_arm_level.load(), &houseSay);
         }
 
         // Wireless "reset the servos" (shared.h g_link_home_edges). Consumed
@@ -129,13 +143,19 @@ void houseTask(void*) {
         const uint32_t homes = g_link_home_edges.load();
         if (homes != home_edges_seen) {
             home_edges_seen = homes;
-            cli::linkHome(&uartSay);
+            flight::event(flightrec::Ev::kHomeEdge, nullptr);
+            cli::linkHome(&houseSay);
         }
         // The home's readback, once its slew deadline has passed (typed
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
-        cli::homeVerify(&uartSay);
-        cli::poseTick(&uartSay);
+        cli::homeVerify(&houseSay);
+        cli::poseTick(&houseSay);
+        // The flight recorder's bench half (flight_rec.h). What it spends on
+        // the bus comes back out of this iteration's sleep below, so the
+        // stream's tick phase -- and the bench balance loop riding on it --
+        // is the same with the recorder on as off.
+        const uint32_t rec_us = cli::recorderTick();
 
         // 10 Hz telemetry, back up the same tether the commands came down.
         //
@@ -221,7 +241,9 @@ void houseTask(void*) {
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        const TickType_t sleep = pdMS_TO_TICKS(10);
+        const TickType_t give_back = pdMS_TO_TICKS(rec_us / 1000u);
+        vTaskDelay(give_back < sleep ? sleep - give_back : 1);
     }
 }
 
