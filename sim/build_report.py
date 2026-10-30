@@ -436,6 +436,29 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-30 card: night 9 -- 30/22 N training shoves barely move the 30 N
+# grade (the misses are shoves off the time-indexed prone roll); the analytic
+# reference stands open loop on the as-built STS3215 knees (#147). Legs: the
+# stop window (#164) fixes the closing step on two seeds; balance drifts
+# one-sided when trained on from the two-sided pass.
+fig_1030 = "\n    ".join(f for f in [
+    video_figure('robot_legs_walk9', ['walk_steps_L'],
+                 'robot_legs_walk9_walk_steps_L',
+                 'walk shaping kept on for 0.4 s after "stop": the closing step clears '
+                 '3 cm in 12 of 16 episodes (walk8 4/16); the first step is the gate now'),
+    video_figure('robot_legs_walk9_s1', ['line_1m'],
+                 'robot_legs_walk9_s1_line_1m',
+                 'the replicate: the stop step holds (10/16 clear), but the 1 m line '
+                 'drifts sideways, 1/8 (y 25 cm at 1 m; walk3 7 cm)'),
+    video_figure('robot_legs_bal4', ['balance_L', 'balance_R'],
+                 'robot_legs_bal4_balance',
+                 'trained on from the only two-sided balance: left 7/8, right 1/8 '
+                 '(bal3_s1 8/8): the recipe has a one-sided optimum'),
+    video_figure('robot_getup_w7k_s1', ['recover_prone_fall'],
+                 'robot_getup_w7k_s1_prone_fall',
+                 'trained with 30 N shoves: 48/48 over friction, 15 N 16/16, but 30 N '
+                 'only 6/16, mostly shoved off the prone roll and never standing'),
+] if f)
 # 2026-10-29 card: night 8 -- shoves + the early termination after the latch
 # hold the stand (w5k 48/48, 15 N 14 and 16/16 on two seeds); the termination
 # alone does not (w6k 11/16); 30 N fails on the prone roll. Legs: the balance
@@ -784,6 +807,35 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·30 · night 9: get-up + the as-built legs</span></p>
+    <p><b>Get-up: harder training shoves did not harden it further; tonight it trains on the robot's own knee servos.</b>
+    Training at 30 N (w7k, two seeds) and 22 N (w8k) keeps the clean friction
+    sweep (48/48 each) and 15 – 16/16 under 15 N shoves. The 30 N grade only goes
+    from 4 to 5 and 6/16, and to 3/16 at 22 N. Half the face-down episodes are
+    shoved off the 11 s roll and never stand. The time-indexed reference moves on
+    without them, and a harder shove in training cannot teach a retry. The w5k
+    recipe stays the get-up. New this morning: every get-up so far trains with
+    STS3250 knees, but the robot has STS3215 (#147). With the robot's servos, the
+    analytic reference stands open loop in 144 of 216 robustness conditions:
+    every one at friction 0.35 and 0.5. At 0.05 it rises to 0.39 m and then tips
+    back during the final straightening. Tonight's three get-up jobs train the
+    w5k recipe on the as-built servos.</p>
+    <p><b>Legs: the closing step after "stop" now clears 3 cm; the first step is the gate.</b>
+    Keeping the walk shaping on for 0.4 s after a stop (walk9, #164) lifted the
+    closing step: it clears 3 cm in 12 and 10 of 16 episodes on two seeds, against
+    5 before. Seven reward variables had not moved it. walk_steps passes 5/16 on
+    both seeds, the best of the line. Now the first step fails (a ~2.5 cm lead step
+    in 7 and 10 of 16), and the 1 m line drifts sideways (4/8, 1/8). Training on
+    from the only two-sided balance policy (bal4) lost the right foot (1/8), so
+    bal3_s1 stays the balance policy. Tonight: a third walk9 seed, and walk10 with
+    the low-swing penalty doubled for the first step. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1030}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·29 · night 8: get-up + the as-built legs</span></p>
