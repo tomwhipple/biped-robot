@@ -2,13 +2,16 @@
 .PHONY: host vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
+FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
 
-host: $(PROTOCOL_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
+host: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
 	$(MAKE) -C firmware/host -j1 check
 
-vectors: $(PROTOCOL_VECTORS) ## the protocol test vectors, from link/protocol.py
+vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) ## the protocol and flight-recorder test vectors, from link/protocol.py and tools/flightrec.py
 $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)
 	$(PY) tools/gen_protocol_vectors.py
+$(FLIGHTREC_VECTORS): $(PYDEPS_tools/gen_flightrec_vectors.py)
+	$(PY) tools/gen_flightrec_vectors.py
 
 # Only when somebody names the run: the headers re-point the firmware at a policy.
 deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, SIL golden files

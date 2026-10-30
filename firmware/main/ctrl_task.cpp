@@ -12,6 +12,7 @@
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
+#include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "imu_sampler.h"
@@ -215,6 +216,44 @@ void publish(linkproto::LinkState st, uint32_t faults, const float up[3],
         g_ticks ? (100u * g_late) / g_ticks : 0u));
 }
 
+// Flight recorder hook (flight_rec.h): one record per armed tick, built from
+// what this tick already holds -- the SYNC READ above is the feedback, so the
+// recorder adds no bus traffic. Off, it is one relaxed load; on, an encode
+// into a lock-free ring (max cost: `rec` status, max push ctrl).
+void recordFlight(int64_t t0, int64_t t_read0, int64_t t_read1,
+                  linkproto::LinkState st, const imu::Sample& s, int nwr,
+                  const obs::Inputs* in, uint8_t vbat_dv) {
+    if (!flight::enabled()) return;
+    flight::CtrlView v;
+    v.t0_us = t0;
+    v.tick = g_ticks;
+    v.read0_us = t_read0;
+    v.read1_us = t_read1;
+    v.link_state = static_cast<uint8_t>(st);
+    v.torque_on = g_torque_on;
+    v.fallen = g_fallen;
+    v.imu = &s;
+    v.nfit = g_nfit;
+    v.fit_bus = g_fit_bus;
+    v.fit_pol = g_fit_pol;
+    v.fb = g_fb;
+    v.fb_ok = g_fb_ok;
+    v.nwr = nwr;
+    v.wr_id = g_wr_id;
+    v.wr_steps = g_wr_steps;
+    v.wr_speed = g_shape_hz.load() > 0.0f ? g_wr_speed : nullptr;
+    if (in) {
+        v.action = g_action;
+        v.cmd = in->cmd;
+        v.ncmd = obs::kNumCmd;
+        v.phase = in->phase;
+    }
+    v.vbat_mv = static_cast<uint16_t>(vbat_dv * 100u);
+    v.batt = g_batt.torqueMustRelease() ? 2 : (g_batt.latched() ? 1 : 0);
+    v.cal = &g_cal;
+    flight::recordCtrl(v);
+}
+
 void ctrlTask(void*) {
     esp_task_wdt_add(nullptr);
     uint8_t vbat_dv = 0;
@@ -400,6 +439,7 @@ void ctrlTask(void*) {
             // operator put them; the shaper must reseed from MEASURED q on
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
+            recordFlight(t0, t_read0, t_read1, rep_state, s, 0, nullptr, vbat_dv);
             publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
             continue;
@@ -578,6 +618,7 @@ void ctrlTask(void*) {
         // load; on it is ~350 bytes of copy, which lands in `us_other` rather
         // than in any of the budgeted phase lines above.
         if (g_obs_dump.enabled()) g_obs_dump.publish(in, g_frame, g_ticks);
+        recordFlight(t0, t_read0, t_read1, rep_state, s, nwr, &in, vbat_dv);
 
         // -- account -------------------------------------------------------
         const uint32_t took =

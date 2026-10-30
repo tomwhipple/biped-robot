@@ -53,6 +53,11 @@ bool StubImu::read(Sample& out) {
     applyMount(mount_, gyro_, out.gyro);
     out.t_us = t_us_;
     out.valid = true;
+    // Level and still: gravity's specific force straight up the body z.
+    const float g_body[3] = {0.0f, 0.0f, 9.80665f};
+    applyMount(mount_, g_body, out.accel);
+    out.quat[0] = 1.0f;
+    out.quat[1] = out.quat[2] = out.quat[3] = 0.0f;
     return true;
 }
 

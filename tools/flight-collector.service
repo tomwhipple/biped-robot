@@ -1,0 +1,18 @@
+# Optional: the flight-recorder collector as a user service on mira.
+# NOT installed. To use it:
+#   cp tools/flight-collector.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now flight-collector
+# Each session goes to /home/claw/code/robot/hw_sessions/<local date>/.
+[Unit]
+Description=bimo flight recorder collector (UDP 4220 -> hw_sessions)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/claw/code/robot
+ExecStart=/home/claw/code/robot/.venv/bin/python /home/claw/code/robot/tools/flight_collector.py --port 4220 --status-every 60
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
