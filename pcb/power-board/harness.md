@@ -21,7 +21,7 @@ done before the board is ordered (see the end of this page).
 | J9 | General Driver P1 (I²C, 3V3) | JST B4B-PH-K-S | PHR-4 ↔ PHR-4 lead | mA |
 | J12 | General Driver P3, H3, H2 (control) | JST B8B-PH-K-S | PHR-8 to three housings | mA |
 | J10 | POWER button | JST B2B-PH-K-S | PHR-2 lead to the button | mA |
-| J11 | E-STOP button | JST B4B-PH-K-S | PHR-4 lead to the button | ≤ 12.6 mA |
+| J11 | E-STOP button | JST B4B-ZR (ZH, 1.5 mm) | ZHR-4 lead to the button | ≤ 1.3 mA |
 
 ## J1: the pack
 
@@ -160,15 +160,17 @@ sees none: it keeps Q2 open and shuts itself down 1.25 s later (simulated,
 **J10, POWER.** JST B2B-PH-K-S. A momentary normally-open button between pin 1 (`PWR_BTN`)
 and pin 2 (GND). The part is still to be chosen, from a maker with a datasheet.
 
-**J11, E-STOP.** JST B4B-PH-K-S. A **latching** button with **two normally-closed
-contacts**; the part is still to be chosen.
+**J11, E-STOP.** JST B4B-ZR (ZH, 1.5 mm pitch; 1 A, 50 V). No other lead on the board is a
+ZH, so neither the I²C lead (PH 4-pin) nor the balance lead (XH 4-pin) can go in here. The
+lead is a ZHR-4 housing with pre-crimped SZH leads (AWG 26–32). A **latching** button with
+**two normally-closed contacts**; the part is still to be chosen.
 
 | contact | pins | function |
 |---|---|---|
-| A | 1 (`ESTOP_FEED`, PACK+ through 1 kΩ) – 2 (`ESTOP_RET`) | feeds the servo switch's EN; open = servo rail off |
+| A | 1 (`ESTOP_FEED`, PACK+ through 10 kΩ) – 2 (`ESTOP_RET`) | feeds the servo switch's EN; open = servo rail off |
 | B | 3 (`ESTOP_N`) – 4 (GND) | open = E-stop pressed, read by the ESP32 |
 
-Pins 1–2 are at pack voltage behind 1 kΩ (12.6 mA if shorted).
+Pins 1–2 are at pack voltage behind 10 kΩ (1.26 mA, 16 mW if shorted).
 
 ## Checks before ordering
 

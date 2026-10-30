@@ -106,6 +106,12 @@ SHORT_PLACES = {
     "J7": ("br7", 10e-3, 100e-9),
 }
 
+# PACK+'s bulk pairs (C24–C27, 10 µF X7R) carry 5 mΩ of ESR, as rev A's F-7
+# what-if did: without it, a hard short behind the supply tether's inductance
+# leaves ngspice 47 no timestep. Their capacitance is the rated value, as C22's
+# is (no DC-bias derating). (derate, ESR) by reference.
+BULK_MLCC = {ref: (1.0, 5e-3) for ref in ("C24", "C25", "C26", "C27")}
+
 FUSE = {  # cold resistance (record C13), melting I²t (A²s), rating (A)
     "F1": (4.58e-3, 135.0, 15.0),
     "F2": (33.75e-3, 9.4, 3.0),
@@ -250,10 +256,14 @@ class Board:
                 L.append(f"r{ref} {pins['1']} {pins['2']} "
                          f"{devices.ntc_ohms(t):.6g}")
             elif kind == "C":
-                c = si(part.value) * sc.cap_derate.get(ref, 1.0)
+                derate, esr = BULK_MLCC.get(ref, (1.0, 0.0))
+                c = si(part.value) * sc.cap_derate.get(ref, derate)
                 if ref == "C21":   # aluminium electrolytic: ESR
                     L.append(f"c{ref} {pins['1']} c21_esr {c:.6g}")
                     L.append(f"r{ref}_esr c21_esr {pins['2']} 0.025")
+                elif esr:
+                    L.append(f"c{ref} {pins['1']} c_{ref.lower()}_esr {c:.6g}")
+                    L.append(f"r{ref}_esr c_{ref.lower()}_esr {pins['2']} {esr:.6g}")
                 else:
                     L.append(f"c{ref} {pins['1']} {pins['2']} {c:.6g}")
             elif kind == "F":
