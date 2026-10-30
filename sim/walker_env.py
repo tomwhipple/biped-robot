@@ -96,7 +96,7 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 _TICK_DIR = 1.0
 
 
-def policy_range(m, physical=False):
+def policy_range(m, physical=False, within_stops=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
     sim/mjx/env_mjx.py -- keep the two identical.
 
@@ -133,9 +133,17 @@ def policy_range(m, physical=False):
         # mechanical stop (the CAD envelope) -- for the get-up, which needs
         # hip roll / knee travel the walking range never used
         return lo, hi
+    jlo, jhi = lo.copy(), hi.copy()
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
+    if within_stops:
+        # ctrl_within_stops (2026-10-30): never a policy range past the
+        # mechanical stop. The v6 plants' ankle ctrlrange is +-45 deg, its stop
+        # +-40: a full-map action of +-1 drives the servo 5 deg into the stop
+        # on hardware. Opt-in (config.json records it), so no older run's
+        # action scaling moves.
+        lo, hi = np.maximum(lo, jlo), np.minimum(hi, jhi)
     return lo, hi
 
 
@@ -249,6 +257,21 @@ SERVO_KP_PRESETS = {
     # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
     # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
     "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
+    # the robot AS BUILT AND AS RUN (2026-10-30): every leg servo at the
+    # factory P 32 / D 32 the robot runs (firmware/main/servo_gains.h; tests/
+    # test_servo_gains_asbuilt.py pins the two equal), in the model's units.
+    # The model's kp 12 N*m/rad is soft for a real P 32: the bench's bottle
+    # midpoints measured 34 +- 3 N*m/rad on an STS3215 at P 32 (2.8x;
+    # plan-b-bench 2026-10-01), and the legs-only robot at P 32 reads its
+    # stance ankle-roll encoder 1.0-1.5 deg in the one-leg lift where this
+    # model gives 1.3 at 2.8x and 4.5 at 1x (sim/roll_compliance.py, hw
+    # 2026-10-24). The STS3250 hip roll reads 0.7-0.9 deg there: 0.74 at 4x,
+    # 1.45 at 2x, 2.65 at 1x -- the 4x the model already credited it with.
+    # No P is raised: the STS3250 limit-cycles from P 96 and P 64's stiffness
+    # is unmeasured (plan-b-bench 2026-10-23), and a value is modelled only
+    # once measured. Leg roles only (a key must match an actuator).
+    "asbuilt": {"hip_yaw": 2.8, "hip_roll": 4.0, "hip_pitch": 2.8,
+                "knee": 2.8, "ankle": 2.8, "ankle_roll": 2.8},
 }
 
 
@@ -415,6 +438,7 @@ class BimoWalkerEnv(gym.Env):
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
         servo_types=None,              # {actuator or role: "sts3250"}: per-servo stall/speed envelope
         ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
+        ctrl_within_stops=False,       # policy range = ctrlrange clipped to the mechanical stops
         servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
         # None, a number, a per-actuator sequence, {actuator | role: factor},
         # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
@@ -1218,8 +1242,10 @@ class BimoWalkerEnv(gym.Env):
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
-        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical)
+        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical,
+                                          within_stops=ctrl_within_stops)
         self.ctrl_physical = bool(ctrl_physical)
+        self.ctrl_within_stops = bool(ctrl_within_stops)
         # recorded get-up reference (mirror of env_mjx rise_ref_npz)
         self._rr = None
         if rise_ref_npz:
