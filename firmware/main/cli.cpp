@@ -690,13 +690,16 @@ void cmdPose(Sink out, int argc, char** argv) {
     // and checked BEFORE anything moves; any problem refuses the whole pose.
     int bal_side = 0, bal_idx = -1;
     bool bal_cont = false;      // same-side B on an active balance: continue it (balance::continues)
-    bool bal_live = false;      // token `l`: PI live through the move (pre-ARMED behaviour)
-    float bal_arm_deg = -1.0f;  // token `A<deg>`: ARMED lean that starts the PI early (0 = only at the end)
+    // Default: the PI is LIVE through the move (hw 10-30: the lift-phase lean is real -- the 10-25 one-leg-stand
+    // protocol held 6/6 live, while ARMED let the robot roll onto the lifted foot). `A<deg>` opts into ARMED
+    // (roll_pi.h) with that early-start lean (A0 = only at the move end); `l` is accepted and means live.
+    bool bal_live = true;
+    float bal_arm_deg = -1.0f;
     float bal_ref = 0.0f;
     for (int k = 1 + ntgt; k < argc; ++k) {
         if (argv[k][0] == 'B') bal_idx = k;
         if (argv[k][0] == 'l' && argv[k][1] == 0) bal_live = true;
-        if (argv[k][0] == 'A') bal_arm_deg = strtof(argv[k] + 1, nullptr);
+        if (argv[k][0] == 'A') { bal_arm_deg = strtof(argv[k] + 1, nullptr); bal_live = false; }
     }
     if (bal_idx >= 0) {
         bal_side = argv[bal_idx][1];
@@ -864,7 +867,7 @@ void cmdPose(Sink out, int argc, char** argv) {
                 static_cast<double>(s_bal_cfg.clamp_rad * 57.29578f),
                 static_cast<double>(s_bal_cfg.abort_rad * 57.29578f));
             if (bal_live) {
-                out("balance LIVE through the move (`l`)\r\n");
+                out("balance LIVE through the move (default; `A<deg>` = ARMED)\r\n");
             } else {
                 say(out, "balance ARMED: u 0 until the move ends or the lean passes %.1f deg, then the PI starts there\r\n",
                     static_cast<double>(s_bal.config().arm_start_rad * 57.29578f));
