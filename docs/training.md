@@ -705,6 +705,44 @@ the squat reference (`--crouch-rsi-mix`). Plant `bimo_biped_v5body.xml`; net
 stand freeze and the speed clock (×0.7–1.25). Its scorecards and reels are on
 the results page.
 
+### Policy profiles: a second plant's policy
+
+The firmware compiles in exactly one policy, chosen at build time. The
+deployed one's generated files are the ones above; a **policy profile** is a
+complete second set for another plant (`tools/policy_profile.py`):
+`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, vectors/*.h}`
+and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
+
+| | deployed | profile `v6legs` |
+|---|---|---|
+| headers | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
+| host tests | `make -C firmware/host test` runs the deployed build, then every profile's | `make -C firmware/host test POLICY=v6legs` (into `build/policy-v6legs/`) |
+| ESP32 image | `make firmware` → `build/firmware` | `make firmware POLICY=v6legs` → `build/firmware-v6legs` (`idf.py -DBIMO_POLICY=v6legs`) |
+| SIL | `eval_precision.py --sil` and `sim/sil_twin.py` pick the profile whose `kPlantXml` is the run's plant (`$BIMO_POLICY` for `sim/sil/harness.py`), build its `libctrl_sil`, and refuse a run whose joints or obs layout differ from the compiled spec | |
+
+The profile's directory goes first on the include path, and every generated
+header carries an `#error` guard against the other kind of build, so an
+include-order mistake cannot compile the wrong policy. Nothing outside the
+generated headers names a joint count: the assembler, the MLP, the actuation
+map, the control loop and the SIL ABI are sized by `obs_spec.h`.
+
+**`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
+`--robot`, action map `full`. 12 policy joints in the sim's actuator order —
+`L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
+same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
+(`q 0, dq 12, up 24, linvel 27, gyro 30, prev_action 33, height 45, phase 46,
+cmd 48`, 7 command channels), 3 frames, network 165 → … → 24. No trained net
+exists in the deployable map yet, so the profile carries an **untrained test
+net** (`tools/make_test_policy_run.py --out v6legs_fullmap_testnet`: the
+trainer's own `build_env_kw` over the legs-walk recipe for `config.json`, flax
+initialisation under a fixed seed for `params.pkl`), put through the real
+exporter and generators. Its golden vectors pin the firmware's arithmetic to
+brax's; `kWeightsArePlaceholder` is true, and the firmware refuses to arm on a
+placeholder (`REFUSED_POLICY`). When a real v6 legs run is distilled:
+`make deploy RUN=<student> POLICY=v6legs`, then the same gates as above. Its
+`config.json` carries the stiffness it trained with, and `main/servo_gains.h`
+must then raise P on exactly those servos or the image does not build.
+
 ---
 
 ## 10. The results page
@@ -822,8 +860,8 @@ the obs-spec generator rebuild the same robot:
 | measured plant | the masses weighed (#82) replacing the CAD inertials; the stiffness factor from the bench (#73) replacing the nominal × 4 |
 | free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. Still open: the play per joint (one lumped value for the four roll joints), and the shaft/link split in the observation (the sim's encoders read the link) |
 | referee thresholds | the absolute thresholds (distances, drifts, the torque-off stand's unmeasured passive friction) are the prototype's; re-derive them for the taller, heavier robot. The plant-measured targets (nominal height, knee height, crouch depth) already follow the plant; the crouch-depth limit (`crouch_theta_max_deg` 39°) and the rise and fallen-start poses are the prototype's numbers |
-| firmware headers | `tools/gen_obs_spec.py` builds the env and the golden frames from a robot run as it stands, but has no servo IDs for the robot (`ID_BY_ROLE`; none is assigned yet, [servo-map.md](servo-map.md), #77) and emits neither the held servos' IDs and targets nor the per-servo P the firmware must check at boot (#81); `weights.h` and the golden vectors regenerate with it |
-| SIL twin | `libctrl_sil`, its ABI and calibration files, and `sim/sil_twin.py` for the 17-servo layout; `eval_precision.py --sil` refuses the robot's plant until then |
+| a deployable policy | the legs-only body has the firmware path (§9, "Policy profiles": the `v6legs` profile, golden-tested on an untrained net) but no trained net in the `full` action map; the `robot_legs_walk*` runs train in `legacy` |
+| the robot's bench envelope | `main/mech_envelope.h` `kMech*V6Legs`: the v6 legs plant's policy range, never probed. Its ankle-pitch ctrlrange (±45°) is wider than the plant's own joint stops (±40°) |
 
 **When.** The design is validated in stages (DESIGN.md, "Validation method"):
 kinematics, actuator margins and contact realism first, then the scripted

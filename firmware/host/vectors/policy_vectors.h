@@ -4,6 +4,9 @@
 // obs = mean + std * z for a sampled normalized z, so every case
 // sits where the policy actually lives.
 #pragma once
+#ifdef BIMO_POLICY_OVERLAY
+#error "this is the DEPLOYED policy_vectors.h, but the build selected a policy profile (BIMO_POLICY): its firmware/policies/<profile> directory must come first on the include path"
+#endif
 #include <stddef.h>
 
 namespace policy_vectors {

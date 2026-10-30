@@ -14,9 +14,43 @@ CXX      ?= c++
 ROOT      = ..
 COMPONENTS= $(ROOT)/components
 
+# -- policy profile (tools/policy_profile.py) --------------------------------
+# Empty: the DEPLOYED policy, whose generated headers live in the components.
+# POLICY=<name>: the complete second set in ../policies/<name>/ (obs spec,
+# weights, golden vectors), first on the include path, built into
+# build/policy-<name>/. `make test` with no POLICY runs every profile after
+# the deployed build; the headers' #error guards make a wrong include order a
+# compile error rather than the wrong policy.
+POLICY   ?=
+PROFILES  = $(sort $(notdir $(patsubst %/obs/obs_spec.h,%,$(wildcard $(ROOT)/policies/*/obs/obs_spec.h))))
+ifeq ($(POLICY),)
+  POLICY_FLAGS =
+  BUILD        = build
+  SPEC_H       = $(COMPONENTS)/obs/include/obs/obs_spec.h
+  WEIGHTS_H    = $(COMPONENTS)/policy/include/policy/weights.h
+  OBS_VEC_H    = vectors/obs_vectors.h
+  POL_VEC_H    = vectors/policy_vectors.h
+  GOLDEN_ENV   =
+else
+  PROFILE_DIR  = $(ROOT)/policies/$(POLICY)
+  ifeq ($(wildcard $(PROFILE_DIR)/obs/obs_spec.h),)
+    $(error POLICY=$(POLICY): no $(PROFILE_DIR)/obs/obs_spec.h (profiles: $(PROFILES)))
+  endif
+  POLICY_FLAGS = -I$(PROFILE_DIR) -DBIMO_POLICY_OVERLAY \
+                 -DBIMO_POLICY_PROFILE_$(shell echo $(POLICY) | tr a-z A-Z)
+  BUILD        = build/policy-$(POLICY)
+  SPEC_H       = $(PROFILE_DIR)/obs/obs_spec.h
+  WEIGHTS_H    = $(PROFILE_DIR)/policy/weights.h
+  OBS_VEC_H    = $(PROFILE_DIR)/vectors/obs_vectors.h
+  POL_VEC_H    = $(PROFILE_DIR)/vectors/policy_vectors.h
+  # test_sil_golden reads the profile's own sim/sil/golden/<profile>/
+  GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
+endif
+
 CXXFLAGS  = -std=c++17 -O1 -g \
             -Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-conversion \
             -fno-exceptions -fno-rtti \
+            $(POLICY_FLAGS) \
             -I. -I$(COMPONENTS)/scsbus/include \
             -I$(COMPONENTS)/linkproto/include \
             -I$(COMPONENTS)/obs/include \
@@ -32,8 +66,6 @@ CXXFLAGS_NOSAN := $(CXXFLAGS)
 SAN      ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 CXXFLAGS += $(SAN)
 LDFLAGS  += $(SAN)
-
-BUILD = build
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -68,7 +100,7 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp
 
-.PHONY: all test clean vectors deploy-headers sil tui gui deps check check-gui
+.PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
@@ -198,9 +230,8 @@ $(GUI): ../../link/gui.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
 TESTFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS))
 
 # Generated headers are prerequisites, not just includes: regenerating the
-# golden vectors must relink the tests (this bit us once already).
-SPEC_H    = $(COMPONENTS)/obs/include/obs/obs_spec.h
-WEIGHTS_H = $(COMPONENTS)/policy/include/policy/weights.h
+# golden vectors must relink the tests (this bit us once already). SPEC_H,
+# WEIGHTS_H, OBS_VEC_H and POL_VEC_H are the selected policy's (POLICY, top).
 # ... and so is every component header (2026-08-02: editing a constant in
 # obs/actuation.h left libctrl_sil.dylib stale and the gate green against the
 # OLD value -- a false pass this line makes impossible).
@@ -229,11 +260,11 @@ $(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) ../main/servo_gains.h $(SPEC_H)
 # calibration blob is covered by the hardware-free gate like everything else.
 $(BUILD)/test_obs: test_obs.cpp $(SRC_OBS) ../main/cal_store.cpp \
                    ../main/cal_store.h ../main/asbuilt_cal.h $(SPEC_H) \
-                   vectors/obs_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
+                   $(OBS_VEC_H) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_policy: test_policy.cpp $(SRC_POL) $(SPEC_H) $(WEIGHTS_H) \
-                      vectors/policy_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
+                      $(POL_VEC_H) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_battguard: test_battguard.cpp $(SRC_BATT) test_util.h $(COMP_HDRS) | $(BUILD)
@@ -304,9 +335,20 @@ $(BUILD):
 	mkdir -p $(BUILD)
 
 test: $(BINS) $(SIL_LIB)
-	@rc=0; for t in $(BINS); do ./$$t || rc=1; done; \
-	 if [ $$rc -eq 0 ]; then echo "ALL GREEN"; else echo "FAILURES"; fi; \
+	@rc=0; for t in $(BINS); do $(GOLDEN_ENV) ./$$t || rc=1; done; \
+	 if [ $$rc -eq 0 ]; then echo "ALL GREEN$(if $(POLICY), (policy profile $(POLICY)))"; \
+	 else echo "FAILURES$(if $(POLICY), (policy profile $(POLICY)))"; fi; \
 	 exit $$rc
+ifeq ($(POLICY),)
+	@$(MAKE) --no-print-directory test-profiles
+endif
+
+# Every policy profile's build of the same suites (POLICY, top of file).
+test-profiles:
+	@for p in $(PROFILES); do \
+	   echo "== policy profile $$p =="; \
+	   $(MAKE) --no-print-directory test POLICY=$$p || exit 1; \
+	 done
 
 # -- the fast local gate (single source of truth with CI) -------------------
 #
@@ -355,10 +397,15 @@ vectors:
 #
 #   make -C firmware/host deploy-headers RUN=loco_v41rsi_b_s128r24
 #
+#
+# ... or, for a policy profile's set in ../policies/<name>/ (a second plant):
+#
+#   make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs
+#
 deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
-	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN)
-	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN)
+	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 
 clean:
 	rm -rf $(BUILD)

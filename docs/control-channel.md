@@ -230,6 +230,7 @@ a false fault.)
 | 8 `HOME_PENDING` | home written, joints moving, readback not done |
 | 9 `HOME_NOT_REACHED` | home failed: readback found joints off their zeros |
 | 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
+| 11 `REFUSED_POLICY` | arm refused: the compiled-in net is a placeholder or an untrained test net, not a policy (a policy profile's, [training.md §9](training.md)) |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a

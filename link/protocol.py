@@ -219,6 +219,10 @@ class ArmResult(Enum):
     # The robot reads registers 21/22 back before every arm and refuses on
     # any difference from its compiled expected table.
     REFUSED_GAINS = 10   # arm refused: a servo's P/D (reg 21/22) is not the expected value
+    # A policy profile (firmware/policies/) can compile in an UNTRAINED test
+    # net while its plant has no deployable policy; the robot will not drive
+    # servos with it.
+    REFUSED_POLICY = 11  # arm refused: the compiled-in net is not a policy
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -280,6 +284,10 @@ def diag_reason(diag: int) -> str:
         return ("arm REFUSED -- a servo's position-loop gains (reg 21/22) "
                 "are not the expected values, or did not read back (run "
                 "`gains`)")
+    if r is ArmResult.REFUSED_POLICY:
+        return ("arm REFUSED -- this firmware's compiled-in net is a "
+                "placeholder/untrained test net, not a policy (flash a build "
+                "with real weights)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")

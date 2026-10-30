@@ -37,18 +37,25 @@
 
 namespace {
 
-// The ABI's fixed widths are the contract with python's ctypes. If a retrain
-// regenerates obs_spec.h with different dimensions, this file must be looked
-// at rather than silently reinterpreting the harness's bytes.
-static_assert(obs::kNumBusJoints == 17, "SilSensors/goal arrays are 17 wide");
-static_assert(obs::kActDim == 10, "SilTargets.action is 10 wide");
-static_assert(obs::kNumCmd == 7, "SilSensors.cmd is 7 wide");
-static_assert(obs::kObsDim == 147, "SilTargets.obs is 147 wide");
+// The ABI's widths are the compiled spec's (sil.h); sil_spec() reports each
+// one and the python harness refuses a library whose widths are not the ones
+// it sized its ctypes structs from. These pin the struct to the spec.
+static_assert(sizeof(SilSensors::pos_ticks) ==
+                  sizeof(uint16_t) * obs::kNumBusJoints,
+              "SilSensors arrays are bus-wide");
+static_assert(sizeof(SilSensors::cmd) == sizeof(float) * obs::kNumCmd,
+              "SilSensors.cmd is kNumCmd wide");
+static_assert(sizeof(SilTargets::action) == sizeof(float) * obs::kActDim,
+              "SilTargets.action is kActDim wide");
+static_assert(sizeof(SilTargets::obs) == sizeof(float) * obs::kObsDim,
+              "SilTargets.obs is kObsDim wide");
+static_assert(obs::kActDim == obs::kNumJoints,
+              "one action per policy joint (action_map full)");
 static_assert(obs::kFrameDim * obs::kHistLen == obs::kObsDim,
               "obs is hist_len frames");
 
 // Slot in the servo-ID-ordered arrays for a given policy joint: its bus
-// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h: slot = bus_id - 1.
+// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h.
 inline int slotOf(int joint) { return obs::policyToBus(joint); }
 
 // The goal of a bus slot the policy does not drive: the position sensed on
@@ -116,8 +123,10 @@ void buildSpec() {
     g_spec = "{";
     snprintf(buf, sizeof buf,
              "\"sil_abi\":3,\"run\":\"%s\",\"plant\":\"%s\","
-             "\"action_map\":\"%s\",\"spec_hash\":\"0x%016llx\",",
+             "\"action_map\":\"%s\",\"policy_profile\":\"%s\","
+             "\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
+             obs::kPolicyProfile,
              static_cast<unsigned long long>(specHash()));
     g_spec += buf;
     // sil_abi 2: what the python side needs to replicate the C2 command

@@ -482,6 +482,10 @@ against a scripted port:
   broadcast, and again inside `cmdMode()` before every arm. A difference or a
   silent servo refuses the arm with `ArmResult::kRefusedGains`, and a failed
   boot check puts that verdict on the `BENCH` beacon before anyone asks.
+- **The policy gate** comes first in the same arm path: a build whose
+  compiled-in net is not a policy (`policy::kWeightsArePlaceholder` -- the
+  scaffold, or a policy profile's untrained test net) refuses every arm with
+  `ArmResult::kRefusedPolicy`.
 - **The write** (`gains <id> <P> <D>`, `writePositionGains`): bench mode, one
   servo by ID, and only if that servo reports torque off. It unlocks the
   EEPROM (55 ← 0), writes 21/22 in one frame, locks it again (also on every
