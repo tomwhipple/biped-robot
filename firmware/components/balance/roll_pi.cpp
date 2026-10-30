@@ -39,7 +39,7 @@ int32_t landTarget(int32_t from, int32_t start, float land_frac) {
 
 bool continues(State s, char active_side, char new_side, const bool* was_on,
                const bool* now_on, int n) {
-    if (s != State::kActive || active_side != new_side) return false;
+    if ((s != State::kActive && s != State::kArmed) || active_side != new_side) return false;
     for (int b = 0; b < n; ++b) {
         if (now_on[b] && !was_on[b]) return false;
     }
@@ -70,6 +70,17 @@ void RollBalance::engage(float roll_ref_rad) {
     state_ = State::kActive;
 }
 
+void RollBalance::arm(float roll_ref_rad) {
+    engage(roll_ref_rad);
+    state_ = State::kArmed;
+}
+
+bool RollBalance::start(float roll_ref_rad) {
+    if (state_ != State::kArmed) return false;
+    engage(roll_ref_rad);
+    return true;
+}
+
 void RollBalance::disengage() {
     state_ = State::kOff;
     err_ = 0.0f;
@@ -80,7 +91,7 @@ void RollBalance::disengage() {
 }
 
 bool RollBalance::abort(State why) {
-    if (state_ != State::kActive) return false;
+    if (state_ != State::kActive && state_ != State::kArmed) return false;
     state_ = (why == State::kAbortImu) ? State::kAbortImu : State::kAbortTip;
     u_abort_ = u_;
     err_abort_ = err_;
@@ -101,7 +112,7 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
         abortTick(dt_s);                       // no decisions: the sequence is open loop
         return state_;
     }
-    if (state_ != State::kActive) return state_;
+    if (state_ != State::kActive && state_ != State::kArmed) return state_;
     if (!isfinite(roll_rate_rad_s)) {
         abort(State::kAbortImu);
         return state_;
@@ -114,6 +125,7 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
         return state_;
     }
     err_ = err;
+    if (state_ == State::kArmed) return state_;    // watching only: u stays 0, I stays 0
     const float unsat = cfg_.kp * err + cfg_.ki * i_ + cfg_.kd * roll_rate_rad_s;
     float u = unsat;
     if (u > cfg_.clamp_rad) u = cfg_.clamp_rad;
@@ -134,6 +146,7 @@ const char* stateName(State s) {
         case State::kActive: return "ACTIVE";
         case State::kAbortTip: return "ABORTED (roll error past the abort limit)";
         case State::kAbortImu: return "ABORTED (IMU read failed)";
+        case State::kArmed: return "ARMED (PI starts when the move ends; abort live)";
     }
     return "?";
 }
