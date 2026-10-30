@@ -20,6 +20,15 @@
 // are no per-side constants. experiments/one-leg-stand/balance.py is the sim
 // twin of this file; the host test pins the C++ to numbers that file produced.
 //
+// ARMED (hw 2026-10-29/30, sim experiments/one-leg-stand/2026-10-30-s2-lift-sim.md):
+// during the LIFT the torso tilts 2-4 deg toward the lifting foot with no CoM
+// shift behind it (roll play loaded in double support, released at foot-off).
+// A PI running through the lift answers it with 7-8 deg of outward push (mostly
+// I) and the robot falls outward over the stance foot -- 3/3 on the bench's
+// second step. So a fresh engage only ARMS: u stays 0 and nothing integrates,
+// but the abort watches |roll - pre-lift roll|. start() at the end of the move
+// takes the reference there and runs the PI from zero.
+//
 // ABORT. Past |err| > abort_rad, or with no usable attitude/rate, the loop stops
 // making decisions and runs a fixed, open-loop sequence (chosen in sim,
 // experiments/one-leg-stand/2026-10-25-abort-policy-sim.md): the correction u
@@ -62,6 +71,7 @@ enum class State : uint8_t {
     kActive,
     kAbortTip,       // |err| passed abort_rad: correction fades, then the foot lands
     kAbortImu,       // the attitude/rate read failed or was not finite: the same sequence
+    kArmed,          // engaged, u held at 0 and no integration; the abort is live (see ARMED)
 };
 
 // The open-loop abort sequence at `since_s` after the abort: the fraction of the
@@ -76,7 +86,7 @@ void abortProfile(const Config& c, float since_s, float* u_scale, float* land_fr
 int32_t landTarget(int32_t from, int32_t start, float land_frac);
 
 // Whether a new `pose ... B<side>` CONTINUES the running balance instead of
-// re-engaging it: the controller is ACTIVE (not off, not aborting) on the same
+// re-engaging it: the controller is ACTIVE or ARMED (not off, not aborting) on the same
 // stance side, and every joint the new pose moves was in the stream already.
 // Continuing keeps the integrator, u and the reference roll, starts the new move
 // from the previous NOMINAL targets (u keeps riding on top), and keeps the landing
@@ -99,6 +109,11 @@ class RollBalance {
 
     // Start regulating around `roll_ref_rad`. Clears the integrator and u.
     void engage(float roll_ref_rad);
+    // Engage ARMED: u 0, no integration, abort against `roll_ref_rad`.
+    void arm(float roll_ref_rad);
+    // ARMED -> ACTIVE with the reference taken at `roll_ref_rad` (the roll now),
+    // integrator and u from zero. false (and no change) when not armed.
+    bool start(float roll_ref_rad);
     // Stop; the correction goes to zero (the next move starts from where the
     // servos are, so it does not jump).
     void disengage();
@@ -118,6 +133,7 @@ class RollBalance {
 
     State state() const { return state_; }
     bool engaged() const { return state_ != State::kOff; }
+    bool armed() const { return state_ == State::kArmed; }
     bool aborted() const { return state_ == State::kAbortTip || state_ == State::kAbortImu; }
     float abortSince() const { return since_; }           // s since the abort
     float abortU() const { return u_abort_; }             // u when it fired, rad

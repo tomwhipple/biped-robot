@@ -392,6 +392,8 @@ void testContinues() {
     // same side, still active, same joints: the chain goes on (I and u kept)
     CHECK(continues(State::kActive, 'L', 'L', all, all, 4));
     CHECK(continues(State::kActive, 'R', 'R', all, all, 4));
+    CHECK(continues(State::kArmed, 'L', 'L', all, all, 4));      // a new move before the lift ended
+    CHECK(!continues(State::kArmed, 'L', 'R', all, all, 4));
     // a subset of the stream is fine; a joint the stream was not moving is not
     CHECK(continues(State::kActive, 'L', 'L', all, some, 4));
     CHECK(!continues(State::kActive, 'L', 'L', some, all, 4));
@@ -400,6 +402,62 @@ void testContinues() {
     CHECK(!continues(State::kOff, 0, 'L', all, all, 4));
     CHECK(!continues(State::kAbortTip, 'L', 'L', all, all, 4));
     CHECK(!continues(State::kAbortImu, 'R', 'R', all, all, 4));
+}
+
+void testArmedWatchesOnlyThenStarts() {
+    RollBalance b;
+    b.configure(golden());
+    b.arm(0.01f);
+    CHECK(b.state() == State::kArmed);
+    CHECK(b.engaged() && b.armed() && !b.aborted());
+    // the lift's false tilt: no correction, no integration
+    for (int i = 0; i < 100; ++i) b.update(0.01f + 0.06f, 0.02f, 0.1f);
+    CHECK_NEAR(b.u(), 0.0, 1e-12);
+    CHECK_NEAR(b.integral(), 0.0, 1e-12);
+    CHECK_NEAR(b.err(), 0.06, 1e-6);                // reported against the pre-lift roll
+    CHECK(b.state() == State::kArmed);
+    // the move ends: the reference is taken there and the PI runs from zero
+    CHECK(b.start(0.07f));
+    CHECK(b.state() == State::kActive);
+    CHECK_NEAR(b.ref(), 0.07, 1e-6);
+    CHECK_NEAR(b.u(), 0.0, 1e-12);
+    b.update(0.07f, 0.02f);
+    CHECK_NEAR(b.u(), 0.0, 1e-9);                   // sitting at the new reference: nothing to do
+    b.update(0.09f, 0.02f);
+    CHECK(b.u() > 0.0f);
+    // start() only from ARMED
+    CHECK(!b.start(0.0f));
+    CHECK_NEAR(b.ref(), 0.07, 1e-6);
+    RollBalance off;
+    CHECK(!off.start(0.0f));
+    CHECK(off.state() == State::kOff);
+}
+
+void testArmedAborts() {
+    // tip: past the limit from the pre-lift roll, both sides, u was 0
+    const float sides[2] = {1.0f, -1.0f};
+    for (float s : sides) {
+        RollBalance b;
+        b.configure(golden());                      // abort 30 deg
+        b.arm(0.0f);
+        b.update(s * 0.3f, 0.02f);
+        CHECK(b.armed());
+        CHECK(b.update(s * 0.6f, 0.02f) == State::kAbortTip);
+        CHECK_NEAR(b.abortU(), 0.0, 1e-12);
+        CHECK(!b.start(0.0f));                      // an aborted loop never starts
+        int n = 0;
+        while (!b.landed() && n < 500) { b.abortTick(0.02f); ++n; }
+        CHECK(b.landed());
+    }
+    RollBalance i;
+    i.configure(golden());
+    i.arm(0.0f);
+    i.imuFault();
+    CHECK(i.state() == State::kAbortImu);
+    RollBalance r;
+    r.configure(golden());
+    r.arm(0.0f);
+    CHECK(r.update(0.0f, 0.02f, NAN) == State::kAbortImu);
 }
 
 void testAbortPhaseNames() {
@@ -525,6 +583,8 @@ int main() {
     testLandingReachesStartPose();
     testAbortPhaseNames();
     testContinues();
+    testArmedWatchesOnlyThenStarts();
+    testArmedAborts();
     testDisengageZeroes();
     testMirrorSymmetry();
     testRollFromUp();

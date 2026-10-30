@@ -295,10 +295,12 @@ int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
 }
 
 static void balStop(Sink out, const char* why);
+static bool balLanding(Sink out);
 
 void cmdMove(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
+    if (balLanding(out)) return;
     if (argc < 3) { out("usage: move <id> <ticks> [ms]\r\n"); return; }
     const long id = num(argv[1]);
     const long ticks = num(argv[2], 2048);
@@ -434,6 +436,14 @@ static int32_t balTicks(int bus, float rad) {
     return obs::busAngleToStepsRaw(bus, rad, cal) - obs::busAngleToStepsRaw(bus, 0.0f, cal);
 }
 
+// true (and says so) while a balance abort is landing the lifted foot: a new
+// goal now would cut the landing short, so `pose` and `move` refuse it.
+static bool balLanding(Sink out) {
+    if (!s_bal.aborted() || s_bal.landed()) return false;
+    out("refused: a balance abort is landing -- wait for `balance: landed`\r\n");
+    return true;
+}
+
 static void balStop(Sink out, const char* why) {
     if (!s_bal.engaged()) return;
     s_bal.disengage();
@@ -460,7 +470,7 @@ static void balTick(TickType_t now, Sink out) {
         s_bal_roll = roll;
         s_bal_rate = rate;
     }
-    if (s_bal.state() == balance::State::kActive) {
+    if (s_bal.state() == balance::State::kActive || s_bal.armed()) {
         if (have) s_bal.update(roll, dt_s, rate);
         else s_bal.imuFault();
     } else if (s_bal.aborted()) {
@@ -595,6 +605,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // Targets for servos not fitted in `cal` are ignored, never sent.
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
+    if (balLanding(out)) return;
     int nnum = 0;
     while (1 + nnum < argc && isNumber(argv[1 + nnum])) ++nnum;
     int ntgt = 0;
@@ -666,9 +677,11 @@ void cmdPose(Sink out, int argc, char** argv) {
     // and checked BEFORE anything moves; any problem refuses the whole pose.
     int bal_side = 0, bal_idx = -1;
     bool bal_cont = false;      // same-side B on an active balance: continue it (balance::continues)
+    bool bal_live = false;      // token `l`: PI live through the move (pre-ARMED behaviour)
     float bal_ref = 0.0f;
     for (int k = 1 + ntgt; k < argc; ++k) {
         if (argv[k][0] == 'B') bal_idx = k;
+        if (argv[k][0] == 'l' && argv[k][1] == 0) bal_live = true;
     }
     if (bal_idx >= 0) {
         bal_side = argv[bal_idx][1];
@@ -713,6 +726,11 @@ void cmdPose(Sink out, int argc, char** argv) {
             vTaskDelay(pdMS_TO_TICKS(6));
         }
         bal_ref = sum / 5.0f;
+        if (fabsf(bal_ref) > 0.5f * s_bal_cfg.abort_rad) {
+            say(out, "pose B: torso roll %+.1f deg is more than half the abort limit from level -- not engaging\r\n",
+                static_cast<double>(bal_ref * 57.29578f));
+            return;
+        }
     }
     if (smooth) {
         long ms = 0;
@@ -750,11 +768,12 @@ void cmdPose(Sink out, int argc, char** argv) {
         if (bal_idx >= 0 && !bal_cont) {
             memcpy(s_bal_home, s_traj_start, sizeof s_bal_home);
             s_bal.configure(s_bal_cfg);
-            s_bal.engage(bal_ref);
+            if (bal_live) s_bal.engage(bal_ref);
+            else s_bal.arm(bal_ref);        // the PI starts when this move ends (roll_pi.h ARMED)
             s_bal_side = static_cast<char>(bal_side);
             s_bal_last = xTaskGetTickCount();
             s_bal_t0 = s_bal_last;
-            s_bal_shown = balance::State::kActive;
+            s_bal_shown = s_bal.state();
             s_bal_roll = bal_ref;
             s_bal_rate = 0.0f;
             s_bal_dta = s_bal_dth = 0;
@@ -825,6 +844,8 @@ void cmdPose(Sink out, int argc, char** argv) {
                 static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
                 static_cast<double>(s_bal_cfg.clamp_rad * 57.29578f),
                 static_cast<double>(s_bal_cfg.abort_rad * 57.29578f));
+            say(out, "balance %s\r\n", bal_live ? "LIVE through the move (`l`)"
+                                                  : "ARMED: u 0 until the move ends, then the PI starts there");
         }
         return;
     }
@@ -1873,6 +1894,13 @@ void poseTick(Sink out) {
     }
     traceTick(bus, now);
     if (tau >= 1.0f) {
+        if (s_bal.armed()) {
+            // the lift is done: the reference is the roll the robot settled at, the PI starts from zero
+            s_bal.start(s_bal_roll);
+            s_bal_shown = s_bal.state();
+            say(out, "balance: move done, PI starts, ref roll %+.2f deg\r\n",
+                static_cast<double>(s_bal_roll * 57.29578f));
+        }
         if (s_bal.engaged()) {
             // the stream is over, the hold is not: keep ticking so the
             // feedback persists until the next command
