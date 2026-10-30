@@ -121,7 +121,13 @@ the two starts converge before the roll.
    the failure is a sink after the stand; night 8: the early termination
    after the latch, `--rise-ref-et-hold` — held with shoves: 48/48 and
    15 N 14 and 16/16 on two seeds; night 9: training shove force 30 and
-   22 N, for the 30 N grade)*
+   22 N, for the 30 N grade — barely moved it (5, 6 and 3/16): closed on
+   force, the 30 N misses are shoves off a time-indexed roll)*
+   **On the as-built servos** (#147, from night 10): the w5k recipe on
+   STS3215 knees, the robot's set. The analytic reference stands open loop
+   on them (144/216; it fails only at friction 0.05, tipping back at the
+   final straightening), unlike the hand-tuned rise #147's evidence was
+   taken on.
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
@@ -194,9 +200,12 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w5k | 10-28 | w4k (t3k) | + `--rise-ref-et-hold` (#163: early termination after the latch) | the post-stand sink goes: 15 N ≥ 14/16, 30 N above 2/16, sweep ≥ 43/48 | 0/8 | 8/8 | 8/8 (35.5 s) | 8/8 (35.5 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N **14/16** (w4k 7), 30 N 4/16 (w4k 0). One post-stand sink at 15 N (w4k 9) |
 | robot_getup_w6k | 10-28 | w2k (t3k) | + `--rise-ref-et-hold` (no pushes) | control for w5k: sweep ≥ 47/48, 15 N above w2k's 12/16 | 0/8 | 8/8 | 8/8 (35.4 s) | 8/8 (35.4 s) | sweep **48/48** (w2k 47); 15 N 11/16, 30 N 1/16: **not held** on the push grade (4 post-stand sinks at 15 N). The termination alone does not harden; with shoves it does |
 | robot_getup_w5k_s1 | 10-28 | w5k | seed 1 | replicate (may be capped ~590M) | 0/8 | 8/8 | 8/8 (35.9 s) | 8/8 (35.9 s) | trained the full 600M. **Held**: sweep **48/48**, 15 N **16/16** (no sink), 30 N 4/16. Recipe over 2 seeds: 48, 48; 15 N 14, 16 |
-| robot_getup_w7k | 10-29 | w5k (t3k) | `--push-force` 15 → 30 | the 30 N misses (11/16 prone episodes never stand, plus sinks) are trainable: 30 N ≥ 8/16, 15 N ≥ 14/16, sweep ≥ 43/48 | | | | | |
-| robot_getup_w8k | 10-29 | w5k (t3k) | `--push-force` 15 → 22 | brackets w7k: 30 N above 4/16, 15 N ≥ 14/16, sweep ≥ 43/48 | | | | | |
-| robot_getup_w7k_s1 | 10-29 | w7k | seed 1 | replicate (may be capped) | | | | | |
+| robot_getup_w7k | 10-29 | w5k (t3k) | `--push-force` 15 → 30 | the 30 N misses (11/16 prone episodes never stand, plus sinks) are trainable: 30 N ≥ 8/16, 15 N ≥ 14/16, sweep ≥ 43/48 | 0/8 | 8/8 | 8/8 (34.5 s) | 8/8 (34.6 s) | **not held**: sweep 48/48, 15 N 15/16, 30 N **5/16** (w5k 4). 5 of 8 prone episodes at 30 N still never stand |
+| robot_getup_w8k | 10-29 | w5k (t3k) | `--push-force` 15 → 22 | brackets w7k: 30 N above 4/16, 15 N ≥ 14/16, sweep ≥ 43/48 | 0/8 | 8/8 | 8/8 (34.8 s) | 8/8 (34.8 s) | **not held**: sweep 48/48, 15 N 16/16, 30 N 3/16 |
+| robot_getup_w7k_s1 | 10-29 | w7k | seed 1 | replicate (may be capped) | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | capped at 592M. Sweep 48/48, 15 N 16/16, 30 N 6/16. Training force over 2 seeds: 30 N 5, 6 vs w5k's 4, 4 |
+| robot_getup_w9k | 10-30 | w5k (t3k) | knee servos STS3250 → STS3215 (the as-built set; `--servo-3250 knee` dropped) | the get-up does not need STS3250 knees on the analytic reference (as-built open-loop verify 144/216): sweep ≥ 40/48, 15 N ≥ 12/16, graded on as-built servos | | | | | |
+| robot_getup_w10k | 10-30 | w9k (w5k_s1) | init t3k → w5k_s1 | the best design-servo policy adapts to the softer knees at least as well as t3k: sweep ≥ w9k's, 15 N ≥ 12/16 | | | | | |
+| robot_getup_w9k_s1 | 10-30 | w9k | seed 1 | replicate | | | | | |
 
 ## Nights
 
@@ -961,3 +970,139 @@ also parses through `train_mjx.make_parser`). Fallback: the w5k recipe.
 15 and 30 N for all three, with the per-seed trace (never stood / sank / fell)
 at 30 N. Legs: the per-step table for walk9/walk9_s1 against walk3; bal4's
 balance_L/R against bal3_s1.
+
+### Night of 2026-10-29 (evaluated 2026-10-30)
+
+All six jobs trained (walk9, walk9_s1, bal4, then w7k, w8k, w7k_s1; the
+runner capped w7k_s1 at 592M; the night ended 05:42) and were refereed on
+main `85c6c84`. Upstream since the last plan: #165 (firmware: a same-side
+`pose ... B` continues the running balance), the ledger and the results page.
+No plant, servo or env change on either track, so the comparisons hold.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35 (CPU referee, 8 seeds each):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| w7k (30 N training shoves) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 15/16 | 5/16 | w5k 48/48, 14/16, 4/16 |
+| w7k_s1 (seed 1) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 16/16 | 6/16 | w5k_s1 48/48, 16/16, 4/16 |
+| w8k (22 N) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 16/16 | 3/16 | w5k 48/48, 14/16, 4/16 |
+
+Per-seed trace of the 30 N grade (the referee's evaluate wrapped to print
+the stand time, the first drop below 0.8 of the stand height after it, and
+the end height; 16 episodes per run):
+
+| policy, 30 N | pass | never stood (of them prone) | stood, then down flat | stood, then sank to ~0.28 m |
+|---|---|---|---|---|
+| w5k + w5k_s1 (night 8) | 8/32 | 13 (11) | 4 | 7 |
+| w7k + w7k_s1 | 11/32 | 11 (8) | 6 | 4 |
+| w8k | 3/16 | 7 (5) | 3 | 3 |
+
+- **Training at the grade's force barely moved the grade.** 30 N goes from
+  4 and 4/16 to 5 and 6/16 (w7k, w7k_s1); 22 N gives 3/16. Hypothesis
+  (≥ 8/16) not held on either. Nothing else moved: all three sweep 48/48,
+  15 N is 15 – 16/16, and the MJX curves end lower than w5k's
+  (`eval/episode_recovered` ~360 – 400 at 30 N, ~710 at 22 N) because
+  training shoves end more episodes, not because the policies got worse.
+- **The misses are structural.** Half the prone episodes at 30 N still never
+  stand. They end flat at 0.05 m: shoved off the 11 s roll, while the
+  time-indexed reference moves on to the seat push. There is no state to
+  return to, and the 45 s episode has no time for a second attempt. A
+  bigger shove in training cannot teach a retry. The real fix would be a
+  restart of the reference from the IMU's lying orientation, which belongs
+  to the deployment's phase choice (arc step 3). 30 N @ 2 % is a shove a
+  second for 45 s, six times the hardware claim's force, so arc step 2
+  stops here: **the w5k recipe stays the get-up** (w7k is equal within
+  seeds and not worth its extra force).
+- **#147: the analytic reference stands on the as-built knees.**
+  `getup_ref_analytic.py verify --seq prone_ikc` with the as-built servo set
+  (STS3250 at the hip rolls only, STS3215 knees; `G.PJ_DEFAULT` swapped,
+  nothing else) stands **144/216** open loop: 72/72 at friction 0.35 and
+  0.5, 0/72 at 0.05 (with the design's STS3250 knees it is 216/216). The
+  0.05 trace runs the whole roll, the seat push and the rise to 0.39 m
+  upright, then tips backwards during the final 1 s "straight" key. That is
+  the same failure `rise_keys` documents for faster rises at 0.05, and it
+  happens after the stand, where the ET-after-latch policies already hold
+  where their replay does not. The rise's static load explains it: along the
+  analytic rise the knee's gravity torque is 0.2 – 0.3 of the STS3215's
+  stall (0.27 at the centred crouch hold), so the softer knee is not
+  stall-bound. #147's evidence (STS3215 knees stall at a 0.27 m crouch;
+  g4 0/8) was taken on the hand-tuned, torque-marginal rise of 10-11 – 10-13.
+  The servo envelope is the only thing changed here, not the knee servo's
+  mass in the plant.
+
+**Decision.** Get-up tonight trains the w5k recipe on the as-built servos
+(drop `--servo-3250 knee`; the referee inherits the run's servo set): w9k
+from t3k, w10k from w5k_s1 (does the best design-servo policy adapt in one
+budget?), w9k_s1 a replicate. If they hold, the robot's get-up needs no new
+knee servos, and #147 can close the other way. Arc step 4 (distil, SIL)
+then goes on the as-built body. Fallback stays the w5k recipe.
+
+#### One-leg stands and short walks (as-built legs-only plant)
+
+| run | parent | the one variable | key rows | overall | verdict |
+|---|---|---|---|---|---|
+| robot_legs_walk9 | walk3 | + `--stop-grace-s 0.4` | line_1m 4/8, backward 6/8, square_return 8/8, goal_home 8/8, sidestep 8/8 8/8; walk_steps_L/R **3/8, 2/8** (min peak 2.5 / 1.8 cm) | 80/160 (walk3 77), falls 15 % | **held on the stop step** (4/16 low vs 11/16); walk rows not: line_1m 8/8 → 4/8 |
+| robot_legs_walk9_s1 | walk9 | seed 1 | line_1m 1/8, backward 5/8, square_return 8/8, goal_home 7/8, sidestep 7/8 8/8; walk_steps_L/R 2/8, 3/8 (min peak 2.3 / 2.6 cm) | 71/160, falls 16 %, gait asym 17 % | stop step **replicates** (6/16 low); line_1m worse |
+| robot_legs_bal4 | bal3_s1 | init walk3 → bal3_s1 | balance_L 7/8 (clear 98 %), **balance_R 1/8 (clear 56 %)**, march_in_place 8/8, hip_sway 6/8, weight_shift 4/8, stand_10s 8/8 | 34/96 (bal3_s1 41), falls 33 % | **not held**: training on from the two-sided pass turned it one-sided |
+
+Per-step peaks of the walk_steps episodes (16 per run, same seeds;
+`walk_steps_swings` wrapped to print each step; the tool reproduces the
+ledger's walk3 row exactly):
+
+| run | first step: median, episodes < 3 cm | steady steps: min, median | stop step: median, episodes < 3 cm |
+|---|---|---|---|
+| walk3 | 2.6 cm, 9/16 | 3.2, 5.8 cm | 1.5 cm, 11/16 |
+| walk9 (stop grace 0.4 s) | 3.0 cm, 7/16 | 2.8, 6.3 cm | **4.6 cm, 4/16** |
+| walk9_s1 | 2.4 cm, 10/16 | 3.8, 6.5 cm | **3.8 cm, 6/16** |
+
+- **The stop window worked where seven reward variables had not.** The
+  closing step clears 3 cm in 10 – 12 of 16 episodes on both seeds (walk3
+  5/16), and walk_steps is 5/16 on both seeds, the best of the line. Tom's
+  open question (must the closing step clear 3 cm?) is now less pressing:
+  the policy can be trained to do it.
+- **The first step is the gate now** (7 and 10/16 below 3 cm). A
+  counterfactual on the CPU referee: the walk_steps scenario jumps the gait
+  clock to the lead foot's swing at the walk command. Leaving the clock
+  running instead moves walk9 only to 6/16 (median 3.8 cm) and walk3 to
+  8/16. The jump is a small part of it, so a training-side phase reset is
+  not worth an env change.
+- **line_1m drifts sideways**: 4/8 and 1/8 (walk3 8/8, walk3_s1 7/8), no
+  falls; the misses cross 1 m with y 15 – 41 cm (pass < 15 cm; walk3's mean
+  7 cm). It shows on both seeds, so it is probably the window's, but two
+  seeds are not enough to say so. walk9_s2 tonight.
+- **Balance has a one-sided optimum.** A second 600M from bal3_s1, the only
+  two-sided pass, lost balance_R (8/8 → 1/8) while weight_shift and
+  hip_sway rose. Over six balance runs balance_R is the weak side in five.
+  The asymmetry is not in the DR: the torso-CoM offset is ± in both envs
+  (`env_mjx.domain_randomize`, `walker_env`), and so are the IMU mount and
+  the roll lash. It needs a diagnosis by day, not another GPU night.
+  bal3_s1 stays the balance policy for a floor test (Tom's call).
+
+**Decision.** Walk: walk9 is the walk line's parent. walk9_s2 gives a third
+seed for the stop step and the line_1m drift. walk10 = walk9 with
+`--w-low-swing` 5 → 10, the one lever with a dose response on the first
+step (w 0 / 5 / 15: 14, 9, 8 of 16 low). walk4's cost on the walk rows came
+before the stop window existed. No balance job tonight.
+
+#### Tonight (night 10)
+
+Legs track first (Tom 2026-10-24), then get-up; expected end ~04:50.
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk9_s2 | walk9 (c13) | seed 2 | stop-step episodes < 3 cm ≤ 6/16; line_1m says whether the drift is the recipe's |
+| 2 | robot_legs_walk10 | walk9 (c13) | `--w-low-swing` 5 → 10 | first-step episodes < 3 cm ≤ 4/16; walk_steps_L/R ≥ 4/8 each; walk rows within 1/8 of walk9 |
+| 3 | robot_getup_w9k | w5k (t3k) | knee servos STS3250 → STS3215 (as built) | sweep ≥ 40/48, 15 N ≥ 12/16 on the as-built servos |
+| 4 | robot_getup_w10k | w9k (w5k_s1) | init t3k → w5k_s1 | sweep ≥ w9k's, 15 N ≥ 12/16 |
+| 5 | robot_getup_w9k_s1 | w9k | seed 1 | replicate |
+
+Preflight: PASS 5/5. Fallback: the w5k recipe (unchanged).
+
+**Tomorrow's evaluation:** get-up: the friction sweep and the 15 / 30 N
+grades for w9k, w10k and w9k_s1 against w5k / w5k_s1. If the 0.05 end fails,
+look at where (the final straightening, as in the open-loop replay?).
+Legs: the per-step table for walk9_s2 and walk10 against walk9, and
+line_1m's y at 1 m.
