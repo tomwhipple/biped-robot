@@ -69,8 +69,12 @@ class Bus {
     // whether servo i answered; the transaction as a whole still returns kOk
     // if at least one did, because a single dead servo must not blind the
     // control loop to the other nine.
+    // Reads more than kSyncChunk servos as several back-to-back SYNC READs:
+    // on the v6 legs (2026-10-30, `sread`) one 12-servo burst lost the 11th
+    // reply ~60 % of the time while every burst of <= 11 answered 100/100.
     Status syncReadFeedback(const uint8_t* ids, size_t n, Feedback* out,
                             bool* ok);
+    static constexpr size_t kSyncChunk = 6;
     // One SYNC WRITE of position targets. Broadcast: no replies, no waiting.
     Status syncWritePositions(const uint8_t* ids, const int32_t* steps,
                               size_t n, uint16_t time_ms = 0,
@@ -110,6 +114,7 @@ class Bus {
   private:
     // Send `tx`, then collect exactly one status packet. `expect_id` of
     // kBroadcastId accepts whatever answers first.
+    Status syncReadBurst(const uint8_t* ids, size_t n, Feedback* out, bool* ok);
     Status transact(const uint8_t* tx, size_t txlen, uint8_t expect_id,
                     Response& out, uint8_t* store, size_t store_cap);
 
