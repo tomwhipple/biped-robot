@@ -92,6 +92,7 @@ hardware-touching files are excluded by construction.
 | `sil_golden` | the firmware against the sim's own numbers in `sim/sil/golden/*.json`. The obs cases always run; the policy cases run only when the golden run's `.silw` is present and are skipped otherwise |
 | `flightrec` | the flight recorder's tick/event/hello encoders byte-for-byte against vectors from `tools/flightrec.py` (the collector's decoder), decode round trips and rejects, the producer ring |
 | `client` | the console core in `link/`: intent, frame-length rule, keymap file, MJPEG parser, recorder, the servo-fault ID list |
+| `wcli` | the Wi-Fi CLI ([docs/wifi-cli.md](../docs/wifi-cli.md)): SHA-256/HMAC against FIPS/RFC 4231 vectors, the wire format against vectors from `link/wcliproto.py`, the session's authentication, replay and cross-session replay, at-most-once execution, cancel, busy, the output window, and the Wi-Fi allowlist |
 
 The Python half of software-in-the-loop is [sim/sil/README.md](../sim/sil/README.md);
 `pytest sim/sil` runs in the pre-push hook after `check` (it needs the library
@@ -104,6 +105,7 @@ make -C firmware/host sil       # build/libctrl_sil.{dylib,so} only
 make -C firmware/host tui       # build/bimo_tui
 make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + stb into third_party/)
 make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
+make -C firmware/host build/wcli_twin   # the Wi-Fi CLI's robot half on a localhost socket (tests/test_wcli.py)
 make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h (+ vectors) from one run
 ```
 
@@ -127,6 +129,7 @@ firmware/
     ctrl_task.cpp       core 1, 50 Hz: sense, guard, observe, act (owns the bus when armed)
     link_task.cpp       core 0: UART0 reader (`link`) and the `housekeeping` task
     wifi_link.cpp       core 0: WiFi station, UDP commands in, telemetry beacon out
+    wifi_cli.cpp        core 0: the authenticated Wi-Fi CLI on UDP 4213 (docs/wifi-cli.md)
     imu_sampler.cpp     core 0: 250 Hz IMU read + fusion, tick-averaged gyro
     timesync.cpp        SNTP wall clock for telemetry timestamps
     cli.cpp             the bench CLI
@@ -150,20 +153,25 @@ firmware/
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
     flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
-  host/                 host build: Makefile + CMakeLists, 12 test suites, the SIL
-                        library (sil.h, sil_lib.cpp, sil_net.cpp), vectors/
+    wcli/               the Wi-Fi CLI: SHA-256/HMAC, wire codec, session logic, allowlist
+  host/                 host build: Makefile + CMakeLists, 13 test suites, the SIL
+                        library (sil.h, sil_lib.cpp, sil_net.cpp), wcli_twin, vectors/
 tools/
   gen_protocol_vectors.py   link/protocol.py -> host/vectors/protocol_vectors.h
   gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
+  gen_wcli_vectors.py       link/wcliproto.py -> host/vectors/wcli_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
   gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h
 ```
 
 ## The CLI
 
-USB serial at 115200 on the `USB` port. `help` prints the list. Commands that
-touch the bus work only while benched (`run` refuses them); commands that
-write NVS are bench-only because a flash write stalls the control tick.
+USB serial at 115200 on the `USB` port, and the same commands over Wi-Fi
+through the authenticated Wi-Fi CLI (`tools/wcli.py`; bench only, and the
+NVS/EEPROM writers stay tether-only -- [docs/wifi-cli.md](../docs/wifi-cli.md)
+has the list). `help` prints the list. Commands that touch the bus work only
+while benched (`run` refuses them); commands that write NVS are bench-only
+because a flash write stalls the control tick.
 
 | command | does |
 |---|---|
@@ -187,6 +195,7 @@ write NVS are bench-only because a flash write stalls the control tick.
 | `run` / `bench` | hand the bus to the control loop / take it back; `run` refuses without an NVS calibration or with any servo's gains off the expected table |
 | `imu [scan\|raw [n]\|ring [ms]\|avg [on\|off]\|gscale [x y z]\|reinit\|bias\|mount\|forget\|ae]` | IMU status, I²C scan, raw axes, ringing meter, calibration |
 | `wifi [<ssid> <psk>\|clear]` | link status and counters; credentials in NVS |
+| `wcli [key <64 hex>\|key clear\|drop]` | the Wi-Fi CLI: key fingerprint, session, counters; the shared key in NVS (tether only, bench) |
 | `ntp` | SNTP sync state and server |
 | `rec [status\|<ip>[:port]\|on\|off\|idle <hz>]` | the flight recorder: one record per control tick to the UDP collector on mira ([docs/flight-recorder.md](../docs/flight-recorder.md)); address, on/off and idle rate in NVS |
 | `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy |

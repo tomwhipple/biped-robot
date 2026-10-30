@@ -186,7 +186,11 @@ EVENT body: u8 code, u8 src (0 housekeeping, 1 ctrl), u16 len, i32 a, i32 b,
 then `len` ≤ 180 bytes of text. Codes: 1 cmd, 2 out, 3 arm edge (a = level),
 4 home edge, 5 rec, 6 mode (a = run|ctrl-owns-bus<<1, b = ArmResult),
 7 balance state (a = old, b = new), 8 link state (a = old, b = new),
-9 feedback backoff (a = µs the read took).
+9 feedback backoff (a = µs the read took), 10 Wi-Fi CLI session (a = peer
+IPv4, b = peer port; text says). On cmd and out events `a` is the channel:
+0 the tether, 1 the Wi-Fi CLI (docs/wifi-cli.md), and a Wi-Fi cmd's `b` is
+its command seq. Logged command text has `wcli key <hex>` and the PSK of
+`wifi <ssid> <psk>` redacted -- the recorder sends in clear.
 
 HELLO body, 116 B + 5 B × 17: fw[32], utc_synced, enabled, idle_hz, cal_ok,
 19 × u32 (produced, sent, drop_ring, drop_net, max push ctrl/house µs, last

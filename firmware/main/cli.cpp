@@ -13,6 +13,7 @@
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
 #include "scsbus/gains.h"
+#include "wcli/wcli.h"
 #include "board.h"
 #include "cal_store.h"
 #include "flight_rec.h"
@@ -21,6 +22,7 @@
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "wifi_cli.h"
 #include "timesync.h"
 
 #include "driver/i2c_master.h"
@@ -33,6 +35,22 @@ namespace cli {
 namespace {
 
 char g_line[128];      // one owner (the housekeeping task), no heap
+
+// True while execute() runs a line that came over the Wi-Fi CLI
+// (wifi_cli.cpp). Housekeeping task only, like everything here.
+bool g_remote = false;
+
+// The second lock on the Wi-Fi CLI's door. The allowlist (components/wcli
+// policy.cpp) already refuses these lines over Wi-Fi; this refuses them again
+// at the write itself, so a slip in one table is not enough to reach NVS,
+// servo EEPROM or a safety latch from the air. True = refused (and said).
+bool tetherOnly(Sink out, const char* what) {
+    if (!g_remote) return false;
+    out("refused over Wi-Fi (tether only): ");
+    out(what);
+    out("\r\n");
+    return true;
+}
 
 // Settle time between writing an ID and re-checking it.
 //
@@ -180,6 +198,7 @@ void cmdPing(Sink out, int argc, char** argv) {
 }
 
 void cmdId(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`id` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 3) { out("usage: id <old> <new>\r\n"); return; }
@@ -1177,6 +1196,7 @@ void cmdTorque(Sink out, int argc, char** argv, bool on) {
 }
 
 void cmdMiddle(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`middle` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 2) { out("usage: middle <id>\r\n"); return; }
@@ -1216,6 +1236,7 @@ void cmdVolt(Sink out) {
 void cmdBatt(Sink out, int argc, char** argv) {
     battguard::Guard& g = robot::battGuard();
     if (argc >= 2 && !strcmp(argv[1], "reset")) {
+        if (tetherOnly(out, "`batt reset` clears the pack-guard latch")) return;
         // Bench-mode gate, same rule as the mutating `cal` subcommands: this
         // WRITES state the control task owns, and only in bench mode is ctrl
         // guaranteed to return before touching it. Checked directly rather
@@ -1353,6 +1374,7 @@ void cmdGains(Sink out, int argc, char** argv) {
         out("usage: gains | gains <id> | gains <id> <P 1-254> <D 0-254>\r\n");
         return;
     }
+    if (tetherOnly(out, "`gains <id> <P> <D>` writes servo EEPROM")) return;
     const long p = num(argv[2], -1), d = num(argv[3], -1);
     if (p < 1 || p > 254 || d < 0 || d > 254) {
         out("gains: P must be 1-254 and D 0-254 (factory 32/32)\r\n");
@@ -1434,6 +1456,7 @@ bool armRefused(Sink out) {
 }
 
 void cmdMode(Sink out, bool run) {
+    if (run && tetherOnly(out, "arming is the commander's ARM edge")) return;
     if (run) balStop(out, "arming");
     // No valid as-built calibration, no run. The default Calibration (zero
     // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
@@ -1492,6 +1515,7 @@ void cmdCal(Sink out, int argc, char** argv) {
                                 : "DEFAULTS -- nothing stored (cal save)");
         return;
     }
+    if (tetherOnly(out, "`cal` changes the calibration")) return;
     if (!strcmp(argv[1], "zero")) {
         scsbus::Bus* bus = claimBus(out);
         if (!bus) return;
@@ -2475,6 +2499,7 @@ void cmdStream(Sink out, int argc, char** argv) {
         return;
     }
     if (s_srun) { out("stream: already running\r\n"); return; }
+    if (tetherOnly(out, "`stream` has no torque gate or envelope clamp")) return;
     if (!claimBus(out)) return;
     s_scfg = StreamCfg{static_cast<uint8_t>(atol(argv[1])), atol(argv[2]), atol(argv[3]),
                        static_cast<int>(atol(argv[4])), static_cast<int>(atol(argv[5])),
@@ -2556,6 +2581,7 @@ void cmdImu(Sink out, int argc, char** argv) {
         // per-axis gyro scale (SENSOR frame). `imu gscale` prints; three
         // numbers set + save to NVS. Measured with tools/imu_scale_check.py.
         if (argc >= 5) {
+            if (tetherOnly(out, "`imu gscale` saves to NVS")) return;
             float gs[3];
             for (int i = 0; i < 3; ++i) gs[i] = static_cast<float>(atof(argv[2 + i]));
             for (int i = 0; i < 3; ++i) {
@@ -2615,6 +2641,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "bias")) {
+        if (tetherOnly(out, "`imu bias` saves to NVS")) return;
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
             robot::g_ctrl_owns_bus.load()) {
             out("busy: `bench` first -- bias calibration writes driver state\r\n");
@@ -2684,6 +2711,7 @@ void cmdImu(Sink out, int argc, char** argv) {
             out("  so the nominal from CAD is ~90 deg about y: 0.7071 0 0.7071 0\r\n");
             return;
         }
+        if (tetherOnly(out, "`imu mount` saves to NVS")) return;
         float q[4];
         for (int i = 0; i < 4; ++i) q[i] = strtof(argv[2 + i], nullptr);
         const float n = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
@@ -2756,6 +2784,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "forget")) {
+        if (tetherOnly(out, "`imu forget` erases NVS")) return;
         say(out, "%s\r\n", robot::imuCalErase() ? "erased" : "erase failed");
         robot::g_imu_cal_from_nvs = false;
         return;
@@ -2882,8 +2911,12 @@ void cmdNtp(Sink out, int argc, char**) {
 void cmdRec(Sink out, int argc, char** argv) {
     // NVS writes stall the control tick (see `wifi clear`): armed, a change
     // applies in RAM only and says so.
-    const bool save = robot::g_mode_request.load() == robot::Mode::kBench;
-    const char* nosave = save ? "" : " (armed: NOT saved to NVS)";
+    // Over Wi-Fi a change is RAM-only too: NVS writers stay tether-only.
+    const bool save = robot::g_mode_request.load() == robot::Mode::kBench &&
+                      !g_remote;
+    const char* nosave = save ? ""
+                         : g_remote ? " (Wi-Fi: NOT saved to NVS)"
+                                    : " (armed: NOT saved to NVS)";
     if (argc >= 2 && !strcmp(argv[1], "off")) {
         robot::flight::event(flightrec::Ev::kRec, "rec off");
         robot::flight::setEnabled(false, save);
@@ -2955,6 +2988,7 @@ void cmdRec(Sink out, int argc, char** argv) {
 }
 
 void cmdWifi(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`wifi` credentials live in NVS")) return;
     if (argc >= 2 && !strcmp(argv[1], "clear")) {
         if (robot::g_mode_request.load() != robot::Mode::kBench) {
             out("busy: NVS writes stall the control tick -- `bench` first\r\n");
@@ -3025,6 +3059,78 @@ void cmdWifi(Sink out, int argc, char** argv) {
     }
 }
 
+// `wcli` -- the authenticated Wi-Fi CLI (wifi_cli.h, docs/wifi-cli.md).
+// Status anywhere; the key and the session are managed from the TETHER only.
+void cmdWcli(Sink out, int argc, char** argv) {
+    if (argc >= 2) {
+        if (tetherOnly(out, "`wcli key` manages the Wi-Fi CLI key itself")) return;
+        if (!strcmp(argv[1], "drop") && argc == 2) {
+            robot::wcliDropSession();
+            out("wcli: session dropped (the client must pair again)\r\n");
+            return;
+        }
+        if (!strcmp(argv[1], "key") && argc == 3) {
+            // NVS write: bench only, like every other NVS writer here.
+            if (robot::g_mode_request.load() != robot::Mode::kBench) {
+                out("busy: NVS writes stall the control tick -- `bench` first\r\n");
+                return;
+            }
+            if (!strcmp(argv[2], "clear")) {
+                out(robot::wcliKeyClear()
+                        ? "wcli: key erased -- the Wi-Fi CLI is off\r\n"
+                        : "wcli: erase FAILED\r\n");
+                return;
+            }
+            char fp[9] = {};
+            // The key itself is never printed, here or anywhere.
+            if (!robot::wcliKeySet(argv[2], fp)) {
+                out("wcli: key must be 64 hex digits (32 bytes) -- or NVS "
+                    "failed; nothing changed\r\n");
+                return;
+            }
+            say(out, "wcli: key stored in NVS, fingerprint %s -- any session "
+                "dropped\r\n", fp);
+            return;
+        }
+        out("usage: wcli | wcli key <64 hex> | wcli key clear | wcli drop   "
+            "(tether, bench)\r\n");
+        return;
+    }
+    robot::WcliStatus w;
+    robot::wcliGetStatus(w);
+    if (!w.have_key) {
+        say(out, "wcli: no key -- the Wi-Fi CLI is off (`wcli key <64 hex>` on "
+            "the tether; tools/wcli.py --keygen)  port %u\r\n",
+            static_cast<unsigned>(wcli::kPort));
+        return;
+    }
+    say(out, "wcli: key %s  port %u  ", w.fingerprint,
+        static_cast<unsigned>(wcli::kPort));
+    if (w.session) {
+        say(out, "session %lu.%lu.%lu.%lu:%u  seq %lu (%s)  heard %lu ms ago\r\n",
+            static_cast<unsigned long>(w.peer_ip >> 24),
+            static_cast<unsigned long>((w.peer_ip >> 16) & 0xFF),
+            static_cast<unsigned long>((w.peer_ip >> 8) & 0xFF),
+            static_cast<unsigned long>(w.peer_ip & 0xFF),
+            static_cast<unsigned>(w.peer_port), static_cast<unsigned long>(w.last_seq),
+            w.state == 1 ? "queued" : w.state == 2 ? "running" : w.state == 3 ? "done"
+            : w.state == 4 ? "cancelled" : "none",
+            static_cast<unsigned long>(w.heard_ms_ago));
+    } else {
+        out("no session\r\n");
+    }
+    say(out, "  rx ok %lu  bad %lu  stale %lu  wrong-peer %lu  replays %lu\r\n",
+        static_cast<unsigned long>(w.rx_ok), static_cast<unsigned long>(w.rx_bad),
+        static_cast<unsigned long>(w.rx_stale),
+        static_cast<unsigned long>(w.rx_wrong_peer),
+        static_cast<unsigned long>(w.replays));
+    say(out, "  sessions %lu  cmds %lu  busy %lu  out %lu (oldest held %lu, lost %lu)\r\n",
+        static_cast<unsigned long>(w.sessions), static_cast<unsigned long>(w.cmds),
+        static_cast<unsigned long>(w.busy), static_cast<unsigned long>(w.out_next),
+        static_cast<unsigned long>(w.oldest),
+        static_cast<unsigned long>(w.lost_chunks));
+}
+
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
@@ -3054,6 +3160,7 @@ void banner(Sink out) {
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
+    out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
     out("  rec [status|<ip>[:port]|on|off|idle <hz>]   flight recorder -> UDP collector\r\n");
     out("  stat                 tick timing and fault counters\r\n");
@@ -3097,7 +3204,14 @@ void linkHome(Sink out) {
         static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
 }
 
-void execute(const char* line, Sink out) {
+void execute(const char* line, Sink out, bool remote) {
+    // Scoped to this one line, whichever way it returns.
+    struct RemoteScope {
+        explicit RemoteScope(bool r) { g_remote = r; }
+        ~RemoteScope() { g_remote = false; }
+        RemoteScope(const RemoteScope&) = delete;
+        RemoteScope& operator=(const RemoteScope&) = delete;
+    } scope(remote);
     char buf[linkproto::kMaxCliLine + 1];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
@@ -3137,6 +3251,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
     else if (!strcmp(c, "stream")) cmdStream(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
+    else if (!strcmp(c, "wcli")) cmdWcli(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);

@@ -72,7 +72,11 @@ enum class Ev : uint8_t {
     kBalState = 7,    // balance state change: a = old, b = new (balance::State)
     kLinkState = 8,   // ctrl's reported LinkState changed: a = old, b = new
     kFbBackoff = 9,   // bench feedback read too slow (a servo silent): a = us it took
+    kWcli = 10,       // Wi-Fi CLI session event (text says): a = peer IPv4, b = peer port
 };
+// kCmd / kOut `a`: which channel the line came in on / went back out on.
+constexpr int32_t kChanTether = 0;
+constexpr int32_t kChanWifi = 1;   // kCmd b = the Wi-Fi CLI command seq
 
 constexpr int kMaxJoints = 17;      // == obs::kNumBusJoints (static_assert in main)
 constexpr int kMaxText = 180;       // event text, bytes (a CLI line is <= 128)

@@ -24,6 +24,7 @@
 #include "scs_port_idf.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "wifi_cli.h"
 
 namespace robot {
 
@@ -230,6 +231,9 @@ extern "C" void app_main(void) {
                  creds ? ssid : "");
     }
     startWifiLink();
+    // The authenticated Wi-Fi CLI (wifi_cli.h): after the CLI queue and the
+    // network stack. Inert until `wcli key` has provisioned a key.
+    startWifiCli();
     // The flight recorder (flight_rec.h): its NVS config and sender task.
     // Producers check enabled() themselves, so the order against the tasks
     // below does not matter; it only has to follow the WiFi bring-up.
