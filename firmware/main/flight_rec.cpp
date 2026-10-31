@@ -36,11 +36,14 @@ constexpr const char* kKeyOn = "rec_on";
 constexpr const char* kKeyIdle = "rec_idle";
 
 constexpr int kDefaultIdleHz = 10;
-// A bench read slower than this means a servo is silent and the SYNC READ is
-// sitting out its per-servo timeouts (3 ms each): stop reading for a second
-// rather than stall the pose stream.
+// A bench read slower than this WITH a servo missing means a servo is silent and
+// the SYNC READ is sitting out its timeouts: after kSlowReadsToBackoff such reads in
+// a row, pause reads for kBackoffUs rather than stall the pose stream. A slow read
+// where every servo answered is a scheduling stall, not a silent servo: no back-off
+// (10-30: the old 1 s back-off on any slow read blanked ~20-40 % of a stand's ticks).
 constexpr uint32_t kBenchReadSlowUs = 8000;
-constexpr int64_t kBackoffUs = 1000000;
+constexpr int kSlowReadsToBackoff = 2;
+constexpr int64_t kBackoffUs = 250000;
 constexpr int kSenderPeriodMs = 4;
 constexpr int64_t kHelloPeriodUs = 1000000;
 
@@ -74,6 +77,7 @@ std::atomic<uint32_t> g_events{0};
 
 // Housekeeping-only state.
 int64_t g_backoff_until = 0;
+int g_slow_missing = 0;         // consecutive slow reads with a servo missing
 int64_t g_next_idle = 0;
 uint32_t g_house_ticks = 0;
 uint8_t g_last_bal_state = 0;
@@ -472,11 +476,15 @@ uint32_t recordBench(scsbus::Bus* bus, const BenchView& v) {
         g_bench_read_us.store(spent);
         noteMax(g_bench_read_max, spent);
         g_bench_reads.fetch_add(1, std::memory_order_relaxed);
-        if (spent > kBenchReadSlowUs) {
+        bool all = true;
+        for (int k = 0; k < nfit; ++k) all = all && ok[k];
+        g_slow_missing = (spent > kBenchReadSlowUs && !all) ? g_slow_missing + 1 : 0;
+        if (g_slow_missing >= kSlowReadsToBackoff) {
+            g_slow_missing = 0;
             g_backoff_until = r1 + kBackoffUs;
             g_bench_backoffs.fetch_add(1, std::memory_order_relaxed);
-            event(Ev::kFbBackoff, "bench feedback read too slow (a servo silent?): "
-                  "reads paused 1 s", static_cast<int32_t>(spent));
+            event(Ev::kFbBackoff, "bench feedback: a servo silent on 2 slow reads in a row; "
+                  "reads paused 250 ms", static_cast<int32_t>(spent));
         }
     }
     int n = 0;
