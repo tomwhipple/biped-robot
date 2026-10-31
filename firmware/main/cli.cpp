@@ -1743,7 +1743,7 @@ void cmdBalance(Sink out, int argc, char** argv) {
             return;
         }
         if (argc < 6) {
-            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] [decay_s] [land_s] | default\r\n");
+            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] [decay_s] [land_s] [ilim_deg] | default\r\n");
             return;
         }
         c.kp = strtof(argv[2], nullptr);
@@ -1755,6 +1755,7 @@ void cmdBalance(Sink out, int argc, char** argv) {
         if (argc >= 9) c.kd = strtof(argv[8], nullptr);
         if (argc >= 10) c.abort_decay_s = strtof(argv[9], nullptr);
         if (argc >= 11) c.abort_land_s = strtof(argv[10], nullptr);
+        if (argc >= 12) c.i_lim_rad = strtof(argv[11], nullptr) / 57.29578f;   // 0 = no I limit
         const char* bad = balance::validate(c);
         if (bad) {
             say(out, "balance set: refused (%s)\r\n", bad);
@@ -1787,6 +1788,8 @@ void cmdBalance(Sink out, int argc, char** argv) {
         static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
         static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
         static_cast<double>(s_bal_cfg.clamp_rad) * r2d, static_cast<double>(s_bal_cfg.abort_rad) * r2d);
+    say(out, "I limit  |ki*I| <= %.1f deg%s\r\n", static_cast<double>(s_bal_cfg.i_lim_rad) * r2d,
+        s_bal_cfg.i_lim_rad > 0.0f ? "" : " (off)");
     say(out, "abort    u fades %.2f s, then back to the pre-lift pose over %.2f s (torque stays on)\r\n",
         static_cast<double>(s_bal_cfg.abort_decay_s), static_cast<double>(s_bal_cfg.abort_land_s));
     float roll = 0.0f;

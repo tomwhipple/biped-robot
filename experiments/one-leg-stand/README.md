@@ -88,6 +88,7 @@ sim's roll joints mirror and the output is odd in the error.
 | kd | 0.03 rad per rad/s | gyro roll-rate damping; good to about 2x alone, a cliff between 0.05 and 0.07 (dead time) |
 | ankle / hip mix | +1 / -1 | |
 | output clamp | 10 deg | the robot needed 9.2-9.7 deg (see the hardware section); the sweep is the same at 6 and 10 |
+| I limit | \|ki·I\| <= 3 deg | since 2026-10-30: the integral's share of u. The L stance's outer edge sits ~1 deg of u past its equilibrium, and an unlimited I wound to 6.5 deg and tipped the robot outward ([2026-10-30-sim-fit.md](2026-10-30-sim-fit.md)); `balance set ... <ilim_deg>`, 0 = off |
 | abort | 12 deg roll error, or a dead IMU: u fades over 0.3 s, then the pose returns to the pre-lift pose over 1.0 s | [2026-10-25-abort-policy-sim.md](2026-10-25-abort-policy-sim.md); `balance_abort.py` |
 
 `balance_sweep.py` runs 34 cases per stance (torso mass 0.6-1.4x, play 3-5 deg,
@@ -101,6 +102,17 @@ CoM margin >= 10 mm, no abort. Results are in
 transient spec and the retuned gains). `balance_sweep.py gyro` runs the transient
 sweep: 20 cases x 2 stances x lift over 2 s and 4 s straight to 30 mm, gyro noise
 0.0075 rad/s, one tick of gyro delay, bias residual +-0.01 rad/s.
+
+## The fitted plant (2026-10-30)
+
+`simfit_*.py` replay the recorded bench stands (flight recorder) on the training plant tick
+for tick, with the firmware's streamer and PI in the loop, fit the plant to them and retune the
+loop in the fitted plant: [2026-10-30-sim-fit.md](2026-10-30-sim-fit.md).
+
+```bash
+CUDA_VISIBLE_DEVICES= .venv/bin/python experiments/one-leg-stand/simfit_compare.py --set roll_lash=0.963 ... --png out.png
+CUDA_VISIBLE_DEVICES= .venv/bin/python experiments/one-leg-stand/simfit_tune.py grid i_lim_deg=0,3,4,5
+```
 
 ## Hardware
 
