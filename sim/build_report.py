@@ -436,6 +436,24 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-10-31 card: night 10 -- the get-up stands on the as-built STS3215
+# knees (w9k, w9k_s1, w10k: sweep 48/48, 15 N 15-16/16; #147). Legs, the
+# deploy-first recipe on the fitted plant: the (128,128) students lose 10-15
+# seed-passes to their teachers and double the power (the distil underfits).
+fig_1031 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w9k', ['recover_prone_fall'],
+                 'robot_getup_w9k_prone_fall',
+                 'the get-up on the robot\'s own STS3215 knees: 48/48 over friction '
+                 '0.05-0.5, 16/16 under 15 N shoves (the STS3250-knee w5k: 48, 14)'),
+    video_figure('robot_legs_walk13_fit_s1', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk13_fit_s1_walk_steps',
+                 'the best deployable-recipe teacher (full map, P32, fitted plant): '
+                 'walk_steps left 4/8, right 1/8; 70/160 overall'),
+    video_figure('robot_legs_walk13_fit_s128r24', ['walk_steps_R', 'stand_10s'],
+                 'robot_legs_walk13_fit_s128r24_steps_stand',
+                 'its firmware-sized student: 52/160 (teacher 67), 213 W at a plain '
+                 'stand (teacher 80 W): the student hunts around the teacher\'s targets'),
+] if f)
 # 2026-10-30 card: night 9 -- 30/22 N training shoves barely move the 30 N
 # grade (the misses are shoves off the time-indexed prone roll); the analytic
 # reference stands open loop on the as-built STS3215 knees (#147). Legs: the
@@ -807,6 +825,34 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·31 · night 10: get-up + the deployable legs</span></p>
+    <p><b>Get-up: it stands on the robot's own STS3215 knees, so no STS3250 knees are needed.</b>
+    Every get-up before night 10 trained with STS3250 knees, but the robot has
+    STS3215 (#147). The best recipe, trained on the as-built servos, gives the
+    same result on three runs (two seeds, plus one started from the best STS3250
+    policy): 48/48 across joint friction 0.05 – 0.5 and 15 – 16/16 under 15 N
+    shoves, the same as with STS3250 knees. The open-loop reference tipped back
+    at friction 0.05; the trained policies hold that stand. Tonight the get-up
+    trains on the gains the robot really runs (factory P32 on every leg servo),
+    then with the rest of the deploy contract (encoder quantizer, targets within
+    the stops). The first get-up distil into the firmware-sized network also
+    runs tonight.</p>
+    <p><b>Legs: the deployable teachers walk; their firmware-sized students are the gate.</b>
+    The walk now trains on the plant fitted to the 10-30 flight-recorder stands,
+    with the gains the ESP32 runs. The best teacher (walk13_fit_s1) passes 70/160,
+    with walk_steps 4/8 on the left foot and 1/8 on the right. Every
+    (128, 128) student loses 10 – 15 seed-passes to its teacher and draws about
+    twice the power: 213 W at a plain stand, against the teacher's 80 W. The
+    distil underfits: its error ends 6 – 12× higher than the v5 students' on the
+    same recipe. Tonight tests 4× more SGD and 4× more data per round, continues
+    the teacher from walk13_fit_s1 on two seeds, and distils every teacher.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1031}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·30 · night 9: get-up + the as-built legs</span></p>
