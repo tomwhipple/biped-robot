@@ -1,0 +1,92 @@
+{
+ "plant": {
+  "kp_scale": 1.0,
+  "roll_lash": 0.963,
+  "roll_lash_hip": 1.552,
+  "backlash": 0.074,
+  "sole_w": 0.0814,
+  "sole_out_dL": 0.0137,
+  "floor_tc": 0.0334,
+  "torso_scale": 0.702,
+  "torso_com_y": -0.0068,
+  "zoff_La": -2.12,
+  "lag_hz": 12.0
+ },
+ "band": {
+  "lash06": {
+   "roll_lash": 0.6
+  },
+  "lash125": {
+   "roll_lash": 1.25
+  },
+  "lashhip11": {
+   "roll_lash_hip": 1.1
+  },
+  "lashhip17": {
+   "roll_lash_hip": 1.7
+  },
+  "backlash02": {
+   "backlash": 0.2
+  },
+  "sole79": {
+   "sole_w": 0.079
+  },
+  "sole85": {
+   "sole_w": 0.085
+  },
+  "edgeL0": {
+   "sole_out_dL": 0.0
+  },
+  "edgeL175": {
+   "sole_out_dL": 0.0175
+  },
+  "zoffLm08": {
+   "zoff_La": -0.8
+  },
+  "zoffL03": {
+   "zoff_La": 0.3
+  },
+  "comR10": {
+   "torso_com_y": -0.01
+  },
+  "comR4": {
+   "torso_com_y": -0.004
+  },
+  "floor015": {
+   "floor_tc": 0.015
+  },
+  "floor045": {
+   "floor_tc": 0.045
+  },
+  "torso06": {
+   "torso_scale": 0.6
+  },
+  "torso075": {
+   "torso_scale": 0.75
+  },
+  "kp08": {
+   "kp_scale": 0.8
+  },
+  "kp12": {
+   "kp_scale": 1.2
+  },
+  "sym": {
+   "sole_out_dL": 0.0,
+   "zoff_La": 0.0,
+   "torso_com_y": 0.0
+  },
+  "Lhw_z1_e12": {
+   "zoff_La": 1.0,
+   "sole_out_dL": 0.012
+  },
+  "Lhw_z15_e9": {
+   "zoff_La": 1.5,
+   "sole_out_dL": 0.009
+  },
+  "Lhw_z0_e12": {
+   "zoff_La": 0.0,
+   "sole_out_dL": 0.012
+  }
+ },
+ "source": "fit10_train (kp_scale fixed 1.0; train 214513+222031, held-out 222727); lag_hz 12 from the joint tracking (sim 125 ms / hw 95 ms goal->pos delay)"
+}
