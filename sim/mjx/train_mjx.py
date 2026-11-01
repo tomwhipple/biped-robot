@@ -509,6 +509,11 @@ def make_parser():
                    help="warm-start from sim/runs/<name>/params.pkl (same "
                         "objective only -- objective changes need from-"
                         "scratch, a lesson learned three times over)")
+    p.add_argument("--policy-hidden", default=None,
+                   help="policy MLP hidden widths, comma list (default "
+                        "512,256,128 with --precision, else 128,128); "
+                        "128,128 trains the firmware-sized net directly, no "
+                        "distill (the value net keeps its size)")
     p.add_argument("--hip-flex", type=float, default=None,
                    help="widen hip flexion to this many degrees (study: >=95)")
     p.add_argument("--getup-mix", default="1,0,0",
@@ -1054,8 +1059,10 @@ def main():
         network_factory=functools.partial(
             ppo_networks.make_ppo_networks,
             # plan-v2: Playground's proven biped sizes for precision runs
-            policy_hidden_layer_sizes=((512, 256, 128) if args.precision
-                                       else (128, 128)),
+            policy_hidden_layer_sizes=(
+                tuple(int(x) for x in args.policy_hidden.split(","))
+                if args.policy_hidden else
+                (512, 256, 128) if args.precision else (128, 128)),
             value_hidden_layer_sizes=((512, 256, 128) if args.precision
                                       else (256, 256))),
         seed=args.seed,
