@@ -297,11 +297,12 @@ int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
 
 static void balStop(Sink out, const char* why);
 static bool balLanding(Sink out);
+static bool fallLocked(Sink out);
 
 void cmdMove(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
-    if (balLanding(out)) return;
+    if (balLanding(out) || fallLocked(out)) return;
     if (argc < 3) { out("usage: move <id> <ticks> [ms]\r\n"); return; }
     const long id = num(argv[1]);
     const long ticks = num(argv[2], 2048);
@@ -668,7 +669,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // Targets for servos not fitted in `cal` are ignored, never sent.
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
-    if (balLanding(out)) return;
+    if (balLanding(out) || fallLocked(out)) return;
     int nnum = 0;
     while (1 + nnum < argc && isNumber(argv[1 + nnum])) ++nnum;
     int ntgt = 0;
@@ -1108,9 +1109,103 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 }
 
 
+// -- bench fall guard (always on while benched; ctrl_task has its own) ------
+// Tom 2026-11-01, after a turn-in-place step fell over with nothing watching
+// (balance only runs inside `pose ... B`): "in the firmware, we should have
+// fall detection. Once a fall is detected, motion should stop. After a fall
+// when the robot is picked up it should home the servos." Every housekeeping
+// tick, from the fused attitude:
+//  - FALL: torso tilt past 30 deg (up_z < cos 30) for 100 ms. Stands peak at the
+//    12 deg balance abort, so this is a backstop for every phase balance does
+//    not cover (shifts, centring, lowering, home). It stops the pose stream, the
+//    balance and any home, and turns torque OFF -- the armed loop's kFallen rule
+//    (a downed robot must not grind its servos into the floor). `pose`/`move`
+//    are refused while fallen.
+//  - PICKED UP: within 10 deg of upright AND |gyro| < 0.35 rad/s for 2 s
+//    continuously (being carried or a moment upright mid-fall does not count),
+//    then `home` runs by itself (2.5 s smooth, play take-up, readback, release)
+//    and the latch clears. History: the armed loop's auto-CLEAR re-armed torque
+//    in the operator's hands (2026-08-30/31) and was removed; this is a slow home
+//    that ends released, at Tom's request, and `fall autohome off` restores
+//    "wait for a typed `home`".
+constexpr float kBenchFallUpZ = 0.866f;      // cos 30 deg
+constexpr long kBenchFallDebounceMs = 100;
+constexpr float kPickupUpZ = 0.985f;         // cos 10 deg
+constexpr float kPickupGyro = 0.35f;         // rad/s, |w|
+constexpr long kPickupHoldMs = 2000;
+static bool s_fall_on = true;
+static bool s_fall_autohome = true;
+static bool s_fallen = false;
+static bool s_fall_cand = false, s_up_cand = false;
+static TickType_t s_fall_since = 0, s_up_since = 0;
+static float s_fall_tilt_deg = 0.0f;
+static uint32_t s_falls = 0;
+
+static bool fallLocked(Sink out) {
+    if (!s_fallen) return false;
+    out("refused: FALLEN -- motion locked until the robot is upright and homed (`fall` for status)\r\n");
+    return true;
+}
+
+void fallTickImpl(Sink out) {
+    if (!s_fall_on) return;
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
+        s_fall_cand = s_up_cand = false;
+        return;
+    }
+    imu::Sample smp{};
+    uint32_t age = 0;
+    if (!robot::peekImu(smp, &age) || !smp.valid || age > kBalStaleMs) return;   // no decision on no data
+    const TickType_t now = xTaskGetTickCount();
+    const float uz = smp.up[2];
+    if (!s_fallen) {
+        if (!(uz < kBenchFallUpZ)) { s_fall_cand = false; return; }
+        if (!s_fall_cand) { s_fall_cand = true; s_fall_since = now; }
+        if (static_cast<long>(pdTICKS_TO_MS(now - s_fall_since)) < kBenchFallDebounceMs) return;
+        s_fallen = true;
+        s_fall_cand = s_up_cand = false;
+        ++s_falls;
+        s_fall_tilt_deg = acosf(fminf(fmaxf(uz, -1.0f), 1.0f)) * 57.29578f;
+        s_traj_active = false;
+        s_home_pending = false;
+        balStop(out, "FALL");
+        if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+        say(out, "FALL: torso tilted %.0f deg -- motion stopped, torque OFF. Pick it up and hold it upright "
+            "and still: %s\r\n", static_cast<double>(s_fall_tilt_deg),
+            s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+        return;
+    }
+    const float w = sqrtf(smp.gyro[0] * smp.gyro[0] + smp.gyro[1] * smp.gyro[1] + smp.gyro[2] * smp.gyro[2]);
+    if (!(uz > kPickupUpZ && w < kPickupGyro)) { s_up_cand = false; return; }
+    if (!s_up_cand) { s_up_cand = true; s_up_since = now; }
+    if (!s_fall_autohome || static_cast<long>(pdTICKS_TO_MS(now - s_up_since)) < kPickupHoldMs) return;
+    s_up_cand = false;
+    out("FALL cleared: upright and still for 2 s -- homing\r\n");
+    s_fallen = false;
+    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+        s_fallen = true;
+        out("home did not start -- still FALLEN (`home` to retry)\r\n");
+    }
+}
+
+// `fall` status | on | off | autohome on|off | clear
+void cmdFall(Sink out, int argc, char** argv) {
+    if (argc >= 2 && !strcmp(argv[1], "on")) s_fall_on = true;
+    else if (argc >= 2 && !strcmp(argv[1], "off")) { s_fall_on = false; s_fall_cand = s_up_cand = false; }
+    else if (argc >= 3 && !strcmp(argv[1], "autohome")) s_fall_autohome = !strcmp(argv[2], "on");
+    else if (argc >= 2 && !strcmp(argv[1], "clear")) { s_fallen = false; s_fall_cand = s_up_cand = false; }
+    say(out, "fall guard %s (tilt > 30 deg for 100 ms -> stop + torque off), autohome %s (upright < 10 deg "
+        "and still 2 s), %s, %lu fall(s) since boot, last %.0f deg\r\n", s_fall_on ? "ON" : "OFF",
+        s_fall_autohome ? "ON" : "OFF", s_fallen ? "FALLEN (motion locked)" : "not fallen",
+        static_cast<unsigned long>(s_falls), static_cast<double>(s_fall_tilt_deg));
+}
+
 // The tethered `home`. 0 steps/s asks for the servo's maximum, same
-// convention as `move` and `pose`.
+// convention as `move` and `pose`. It also clears a fall latch (a deliberate
+// `home` after a fall is the manual form of autohome).
 void cmdHome(Sink out, int argc, char** argv) {
+    s_fallen = false;
+    s_fall_cand = s_up_cand = false;
     homeAll(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
                            : kHomeStepsPerSec);
 }
@@ -1848,6 +1943,8 @@ void traceDump(Sink out) {
     }
     out("trace end\r\n");
 }
+
+void fallTick(Sink out) { fallTickImpl(out); }
 
 void poseTick(Sink out) {
     if (!s_traj_active) {
@@ -3138,7 +3235,8 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
-    else if (!strcmp(c, "stream")) cmdStream(out, argc, argv);
+    else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
+    else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);

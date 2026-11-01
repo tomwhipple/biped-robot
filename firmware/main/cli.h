@@ -55,6 +55,8 @@ void homeVerify(Sink out);
 // both ends, so nothing rings (Tom 2026-09-03: unison constant-speed moves
 // made the crouch oscillation WORSE). No-op when idle.
 void poseTick(Sink out);
+// Bench fall guard (cli.cpp): every housekeeping tick, before poseTick.
+void fallTick(Sink out);
 // Flight recorder, bench side (main/flight_rec.h): call right after poseTick
 // every housekeeping iteration. Records the stream tick that just ran (one
 // SYNC READ of the fitted servos, after the goal write), or an idle sample
