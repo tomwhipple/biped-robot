@@ -125,15 +125,15 @@ RY_ROLL_WALL = np.array([(1, 0, 0), (0, 0, -1), (0, 1, 0)], float)   # model +Y 
 PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls up"),
                 "shoulder_cheek_v6_L": (RY_YDOWN, "flat, outer (+y) face down"),
                 "shoulder_cheek_v6_R": (RY_ROLL_WALL, "flat, outer (-y) face down")}
-# OrcaSlicer supports (Tom, 2026-09-24: support work is the slicer's job
-# wherever it can do it). What needs them, base down: the four trapezius-web
-# window tops (34 mm spans), the servo bays' relief/pocket roofs and the neck
-# tube's aft window top. All are open to the plate, so supports come out.
-SUPPORT_NOTE = ("manual supports inside the enforcer boxes only (support_enforcers()): "
-                "the trapezius-web windows and the neck tube's aft window")
-BRIDGE_OK = 8.0        # check_printability: a ceiling this wide bridges with no support
-ENF_INSET = 0.25       # an enforcer box keeps this far inside a window's faces (torso_v8's)
-ENF_INTO = 0.3         # ... and reaches this far into its ceiling
+# NO SUPPORTS (Tom, 2026-11-01: "let's get rid of the windows front and back.
+# Instead let's just put a thin wall there so we don't have to worry about
+# print supports"). The four trapezius-web windows were 34 mm flat-topped
+# spans, supported inside enforcer boxes; they are thin walls now, the neck
+# tube's aft window is gone, and every other roof on the part -- the web
+# recesses behind those walls, the platform detents -- is a 50 deg slope.
+SUPPORT_NOTE = None
+ROOF_RISE = 1.2   # a self-supporting roof rises 1.2 mm per mm it overhangs: 50 deg, clear of
+                  # the 45 deg line check_printability calls one way or the other on rounding
 
 # ---------------------------------------------------------------------------
 # derived, local to this module (everything dimensional lives in dimensions_v6)
@@ -165,8 +165,9 @@ CLAV_HY = 58.0                        # 3 mm inside the deck edge (61.26)
 CLAV_H = 12.0
 TIE_X = (-36.0, -31.0)                # aft tie: a bridge, no bolts (see below)
 TIE_H = 10.0
-WEB_WIN_Y = (22.0, 56.0)              # trapezius-web window (|y| band)
-WEB_WIN_Z = (7.0, 25.5)               # ...and its z band
+WEB_T = 1.6                           # the trapezius web's thin wall, flush with the band's OUTER face
+WEB_REC_Y = (22.0, 56.0)              # the lightening recess behind it (|y| band) ...
+WEB_REC_TOP = 25.5                    # ... from the beam's top up to here at the open (inner) face
 # 45 deg underside chamfer on the pod's outboard edge (the shoulder flare).
 # Its size is set by the LOWEST case screw, not by eye: the chamfer must stay
 # clear of that screw's countersink MOUTH, whose bottom edge sits at
@@ -201,7 +202,6 @@ NCX0, NCX1 = V.NECK_WELL_X                    # -35.41, +10.41
 NC_HY = V.NECK_WELL_HW[0]                     # 12.66
 NC_WALL = D.WALL
 COLLAR_TOP = V.NECK_AXIS_Z + D.SV_TOPFACE + 1.0       # 33.10, 2.1 short of the horn disc
-AFT_WIN = (12.0, 10.0)
 
 # deck pilots -- EVERY one of these is verified against the real torso solid
 # by check_deck_pilots() below. Under the girdle the deck is cut by the battery
@@ -273,6 +273,11 @@ def _pod(sgn, pads=True):
     _bz = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
     _by = V.ARM_SERVO_MID_Y + D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
     p -= parts.box(_bx[0], _bx[1], y(_by), y(WY1 + 0.01), _AZ - _bz, _AZ + _bz)
+    # its roof rises ROOF_RISE from the back of the detent to the seat face, so
+    # the 2 mm it overhangs the bay prints unsupported
+    _top, _dep = _AZ + _bz, WY1 + 0.01 - _by
+    p -= parts.wedge_x([(y(_by), _top - 0.01), (y(WY1 + 0.01), _top - 0.01),
+                        (y(WY1 + 0.01), _top + ROOF_RISE * _dep)], _bx[0], _bx[1])
     return p + crush_pads(sgn) if pads else p
 
 
@@ -385,14 +390,23 @@ def shoulder_girdle_v6(pads=True):
     # moment actually acts, instead of only at the deck. Visually it is the
     # whole point: without it the girdle reads as three separate lumps (a box,
     # a tube, a box) rather than one shoulder line running out of the neck.
-    # Fenestrated because a solid panel is 8 g of nothing, and because the
-    # window repeats the rounded-rectangle opening used everywhere else.
-    for x0, x1, h in ((CLAV_X[0], CLAV_X[1], CLAV_H), (TIE_X[0], TIE_X[1], TIE_H)):
+    # It was fenestrated, and the 34 mm flat window tops needed supports; now
+    # (Tom, 2026-11-01) the window is a WEB_T wall flush with the band's OUTER
+    # face (front for the clavicle, back for the tie), with a recess behind it
+    # that keeps the weight down. The recess sits above the beam, so the beam
+    # stays whole, and its roof is a ROOF_RISE slope rising from the thin wall
+    # to the open inner face, so nothing on it needs support.
+    for x0, x1, h, outer in ((CLAV_X[0], CLAV_X[1], CLAV_H, +1), (TIE_X[0], TIE_X[1], TIE_H, -1)):
         p += parts.box(x0, x1, -CLAV_HY, CLAV_HY, 0, h)
+        x_mem = x1 - WEB_T if outer > 0 else x0 + WEB_T     # the thin wall's inner face
+        x_open = x0 if outer > 0 else x1                    # the band's inner face, where the recess opens
+        d = abs(x_mem - x_open)
+        x_out = x_open - outer * 1.0
+        recess = [(x_mem, h), (x_out, h), (x_out, WEB_REC_TOP), (x_open, WEB_REC_TOP),
+                  (x_mem, WEB_REC_TOP - ROOF_RISE * d)]
         for sgn in (1, -1):
             p += parts.box(x0, x1, sgn * (NC_HY + NC_WALL), sgn * WY1, 0, POD_TOP)
-            p -= parts.box(x0 - 1, x1 + 1, sgn * WEB_WIN_Y[0], sgn * WEB_WIN_Y[1],
-                           WEB_WIN_Z[0], WEB_WIN_Z[1])
+            p -= parts.wedge_y(recess, sgn * WEB_REC_Y[0], sgn * WEB_REC_Y[1])
 
     # --- the neck tube: the head's mount, rising BETWEEN the pods
     p += parts.box(NCX0 - NC_WALL, NCX1 + NC_WALL, -(NC_HY + NC_WALL),
@@ -403,9 +417,9 @@ def shoulder_girdle_v6(pads=True):
     # depth (issue #90). It is its own print because it hangs below this
     # part's print plane.
     p -= parts.box(NCX0, NCX1, -NC_HY, NC_HY, -1.0, COLLAR_TOP + 1.0)
-    # aft window at the case's cable end
-    p -= parts.box(NCX0 - NC_WALL - 1.0, NCX0 + 1.0, -AFT_WIN[0] / 2, AFT_WIN[0] / 2,
-                   0.0, AFT_WIN[1])
+    # no aft window (Tom, 2026-11-01): the neck's leads leave through the neck
+    # floor's window toward +y and rise beside the tube (docs/assembly.md 12),
+    # so the tube's aft wall is closed.
     boss_add, boss_cut = NF.tube_bosses()
     p += boss_add
     p -= boss_cut
@@ -427,21 +441,6 @@ def shoulder_girdle_v6(pads=True):
         p -= _flare(sgn, LUG_X[0] - 1, LUG_X[1] + 1)
     # edges stay square: rounding them buys nothing (Tom, 2026-10-24)
     return p
-
-
-def support_enforcers():
-    """The girdle's support-enforcer boxes, model frame (the print frame: it
-    prints base down), rounded as cad/v6/print_settings.json carries them:
-    every flat-topped window whose top spans more than a bridge -- the four
-    trapezius-web windows and the neck tube's aft window -- each box ENF_INSET
-    inside the window's faces and ENF_INTO into its top (torso_v8's method).
-    With manual supports nothing else on the girdle is supported."""
-    wins = [(x0, x1, *sorted((s * WEB_WIN_Y[0], s * WEB_WIN_Y[1])), *WEB_WIN_Z)
-            for x0, x1 in (CLAV_X, TIE_X) for s in (1, -1)]
-    wins.append((NCX0 - NC_WALL, NCX0, -AFT_WIN[0] / 2, AFT_WIN[0] / 2, 0.0, AFT_WIN[1]))
-    return [[round(v, 2) for v in (x0 + ENF_INSET, x1 - ENF_INSET, y0 + ENF_INSET, y1 - ENF_INSET,
-                                   z0, z1 + ENF_INTO)]
-            for x0, x1, y0, y1, z0, z1 in wins if y1 - y0 > BRIDGE_OK]
 
 
 # ===========================================================================

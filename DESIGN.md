@@ -455,7 +455,7 @@ target.
 
 ### 5.4 Arms and shoulder girdle
 
-- **`shoulder_girdle_v6`** (one print, 89 g, 200 × 62 × 33 mm, square-edged)
+- **`shoulder_girdle_v6`** (one print, 98 g, 200 × 62 × 33 mm, square-edged, no supports)
   sits on the deck and holds both shoulder servos in pods open at the top and
   outboard, plus the neck servo's tube, whose side walls carry four bosses for
   the neck floor (§5.5). Ten M2.5 × 8 flat-heads into deck pilots on two edge
@@ -558,7 +558,7 @@ The robot as drawn, from the CAD-inertial plant
 |---|---|
 | robot | ≈ 2.37 kg (the plant: 2.375 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 89 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards + wiring | 205 g (weighed) / ≈ 180 g |
 

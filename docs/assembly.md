@@ -651,8 +651,7 @@ is no current budget.
   (neck, shoulders) and the camera's ribbon (from the Pi's top edge) leave up
   through the deck opening between the boards.
 - **Neck:** the leads leave the plugs through the neck floor's window, toward
-  +Y, and rise through the deck aperture beside the tube; the tube also has a
-  window at the servo's cable end.
+  +Y, and rise through the deck aperture beside the tube.
 
 **Rules:**
 

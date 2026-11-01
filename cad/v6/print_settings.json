@@ -74,7 +74,7 @@
         "shoulder_cheek_v6_L",
         "shoulder_cheek_v6_R"
       ],
-      "note": "the shoulder girdle (support in its windows only), the neck floor and the two shoulder cheeks (no supports) on one plate"
+      "note": "the shoulder girdle, the neck floor and the two shoulder cheeks on one plate, no supports"
     }
   },
   "variants": {
@@ -260,33 +260,20 @@
     },
     "neck_floor": {
       "orient": "IDENT",
-      "supports": true,
-      "note": "flat, bottom face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
-      "settings": {
-        "support_type": "normal(manual)",
-        "support_style": "snug",
-        "support_on_build_plate_only": "0"
-      }
+      "supports": false,
+      "note": "flat, bottom face down, no supports."
     },
     "shoulder_cheek_v6_L": {
       "orient": "RY_YDOWN",
-      "supports": true,
-      "note": "flat, outer (+y) face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
-      "settings": {
-        "support_type": "normal(manual)",
-        "support_style": "snug",
-        "support_on_build_plate_only": "0"
-      }
+      "supports": false,
+      "note": "flat, outer (+y) face down, no supports.",
+      "spin": 90
     },
     "shoulder_cheek_v6_R": {
       "orient": "RY_ROLL_WALL",
-      "supports": true,
-      "note": "flat, outer (-y) face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
-      "settings": {
-        "support_type": "normal(manual)",
-        "support_style": "snug",
-        "support_on_build_plate_only": "0"
-      }
+      "supports": false,
+      "note": "flat, outer (-y) face down, no supports.",
+      "spin": 90
     },
     "pelvis_v8": {
       "orient": "RX180",
@@ -315,65 +302,8 @@
     },
     "shoulder_girdle_v6": {
       "orient": "IDENT",
-      "supports": true,
-      "note": "base down. Supports in its wide windows only: manual supports, snug, from the part, inside the enforcer boxes (shoulder_girdle_v6.support_enforcers(): the four trapezius-web windows and the neck tube's aft window, each box 0.25 inside the window's faces and 0.3 into its top). Everything else prints unsupported.",
-      "settings": {
-        "support_type": "normal(manual)",
-        "support_style": "snug",
-        "support_on_build_plate_only": "0"
-      },
-      "support_enforcers": [
-        {
-          "box": [
-            10.86,
-            15.75,
-            22.25,
-            55.75,
-            7.0,
-            25.8
-          ]
-        },
-        {
-          "box": [
-            10.86,
-            15.75,
-            -55.75,
-            -22.25,
-            7.0,
-            25.8
-          ]
-        },
-        {
-          "box": [
-            -35.75,
-            -31.25,
-            22.25,
-            55.75,
-            7.0,
-            25.8
-          ]
-        },
-        {
-          "box": [
-            -35.75,
-            -31.25,
-            -55.75,
-            -22.25,
-            7.0,
-            25.8
-          ]
-        },
-        {
-          "box": [
-            -37.76,
-            -35.66,
-            -5.75,
-            5.75,
-            0.0,
-            10.3
-          ]
-        }
-      ]
+      "supports": false,
+      "note": "base down, no supports: the trapezius webs are thin walls (no windows) and the neck tube's aft wall is closed, and every roof on the part -- the web recesses, the platform detents -- rises at 50 deg (shoulder_girdle_v6.ROOF_RISE)."
     },
     "torso_v8": {
       "orient": "RX180",
