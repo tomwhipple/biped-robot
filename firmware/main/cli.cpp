@@ -602,6 +602,65 @@ bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
 // id answered and the read time. Read-only. Added 2026-10-30: the flight recorder's 12-servo
 // read waited out its full deadline (~37 ms) because id 11 missed about half the replies,
 // although single reads of it never fail -- this finds out what the burst order does.
+// `stepresp <id> <delta_ticks> [ms] [spd]` -- one servo's position step response, measured
+// directly (Tom 2026-11-01, after the first policy stand flailed and the roll sweep showed the
+// servos far slower/softer than the sim's): write ONE goal step (spd 0 = the servo's maximum, as
+// the armed loop's goal writes are, minus its shaper), then read that servo's feedback block as
+// fast as single reads allow for `ms` (default 300); then step back to where it started and record
+// that too. No pose stream may be running; the other joints keep their last goals. Prints
+// "SR <phase 0=out 1=back> <t_us> <pos - start> <speed> <load>".
+void cmdStepResp(Sink out, int argc, char** argv) {
+    if (fallLocked(out)) return;
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 3) { out("usage: stepresp <id> <delta_ticks> [ms 50-800] [spd steps/s, 0 = max]\r\n"); return; }
+    const long id = num(argv[1], 0);
+    long delta = num(argv[2], 0);
+    long ms = argc >= 4 ? num(argv[3], 300) : 300;
+    const long spd = argc >= 5 ? num(argv[4], 0) : 0;
+    if (id < 1 || id > 253 || delta == 0) { out("stepresp: bad id/delta\r\n"); return; }
+    if (delta > 80) delta = 80;
+    if (delta < -80) delta = -80;           // <= 7 deg
+    if (ms < 50) ms = 50;
+    if (ms > 800) ms = 800;
+    if (s_traj_active) { out("stepresp: a pose stream is running -- wait for it to finish\r\n"); return; }
+    if (!torqueGate(bus, out, static_cast<uint8_t>(id))) return;
+    balStop(out, "stepresp");
+    scsbus::Feedback fb{};
+    if (bus->readFeedback(static_cast<uint8_t>(id), fb) != scsbus::Status::kOk) {
+        say(out, "stepresp: id %ld did not answer\r\n", id);
+        return;
+    }
+    const int32_t p0 = fb.position;
+    constexpr int kMax = 500;
+    static int32_t s_t[2][kMax], s_p[2][kMax], s_v[2][kMax], s_l[2][kMax];
+    int n[2] = {0, 0};
+    const uint8_t ids[1] = {static_cast<uint8_t>(id)};
+    for (int ph = 0; ph < 2; ++ph) {
+        const int32_t tgt[1] = {clampToJointRange(static_cast<uint8_t>(id), ph == 0 ? p0 + static_cast<int32_t>(delta) : p0, out)};
+        const int64_t t0 = esp_timer_get_time();
+        bus->syncWritePositions(ids, tgt, 1, 0, static_cast<uint16_t>(spd), 0);
+        while (n[ph] < kMax) {
+            const int64_t t = esp_timer_get_time() - t0;
+            if (t > ms * 1000) break;
+            if (bus->readFeedback(static_cast<uint8_t>(id), fb) == scsbus::Status::kOk) {
+                s_t[ph][n[ph]] = static_cast<int32_t>(t);
+                s_p[ph][n[ph]] = fb.position - p0;
+                s_v[ph][n[ph]] = fb.speed;
+                s_l[ph][n[ph]] = fb.load;
+                ++n[ph];
+            }
+        }
+    }
+    say(out, "stepresp id %ld: start %ld, step %+ld ticks, %ld ms, spd %ld; %d + %d samples\r\n", id,
+        static_cast<long>(p0), delta, ms, spd, n[0], n[1]);
+    for (int ph = 0; ph < 2; ++ph)
+        for (int k = 0; k < n[ph]; ++k)
+            say(out, "SR %d %ld %ld %ld %ld\r\n", ph, static_cast<long>(s_t[ph][k]), static_cast<long>(s_p[ph][k]),
+                static_cast<long>(s_v[ph][k]), static_cast<long>(s_l[ph][k]));
+    out("stepresp end\r\n");
+}
+
 void cmdSread(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
@@ -3367,6 +3426,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "balance")) cmdBalance(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
     else if (!strcmp(c, "sread")) cmdSread(out, argc, argv);
+    else if (!strcmp(c, "stepresp")) cmdStepResp(out, argc, argv);
     else if (!strcmp(c, "gains")) cmdGains(out, argc, argv);
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
