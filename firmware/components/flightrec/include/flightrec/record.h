@@ -72,6 +72,8 @@ enum class Ev : uint8_t {
     kBalState = 7,    // balance state change: a = old, b = new (balance::State)
     kLinkState = 8,   // ctrl's reported LinkState changed: a = old, b = new
     kFbBackoff = 9,   // bench feedback read too slow (a servo silent): a = us it took
+    kFall = 10,       // fall guard (fallguard.h): a = Motion it fell in (0 bench, 1 policy),
+                      // b = fallguard::Event (1 fell, 2 picked up -> home, 3 cleared); text says
 };
 
 constexpr int kMaxJoints = 17;      // == obs::kNumBusJoints (static_assert in main)

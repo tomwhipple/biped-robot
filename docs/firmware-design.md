@@ -219,7 +219,7 @@ graph LR
     OBS --> NET[policy MLP<br/>147-128-128-20]
     NET --> SHP[command shaper<br/>+ takeover ramp]
     SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
-    SAFE[link watchdog, fall latch,<br/>pack guard, overrun => torque off] --- LOOP
+    SAFE[link watchdog, fall latch fallguard,<br/>pack guard, overrun => torque off] --- LOOP
   end
   CAL[NVS: servo cal, IMU cal] --> OBS
   LOOP -->|telemetry, pose, obsdump| HK[housekeeping + beacon<br/>core 0]
@@ -234,6 +234,7 @@ graph LR
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
 | `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
+| `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
 
 ### 5.1 Observation
@@ -402,12 +403,15 @@ In the order the tick applies them:
    (`VSAFE`), latched until `batt reset` (bench only, after a pack swap) or a
    power cycle. A tick with no servo reply is "no data", never 0 V.
    Thresholds and the power path: [wiring.md](wiring.md).
-2. **Fall latch.** `up_z` below 0.4 (walker_env's `fall_up_z`) for 200 ms:
+2. **Fall latch** (`components/fallguard`, shared with the bench path; see
+   "Fall guard" below). Torso tilt past 45 deg (`up_z` < 0.707) for 200 ms:
    report `FALLEN`, release torque, record `DISARMED_FALL` and bench the loop.
-   Past that line the policy is outside anything it trained on, and holding
-   torque only grinds the servos against the floor. There is no auto-clear;
-   re-arming is a fresh ARM edge or `run`. `StubImu` pins `up_z` at 1, so an
-   IMU-less board never trips it.
+   This is tighter than walker_env's `fall_up_z` = 0.4 (66 deg), which stays
+   the sim's episode end (`linkproto::kFallUpZ`): holding torque from 45 down
+   to 66 deg only grinds the servos into the floor. Nothing here auto-clears
+   or re-arms; the bench half takes the latch over and homes the robot (ends
+   released) once it is picked up. Re-arming is a fresh ARM edge or `run`.
+   `StubImu` pins `up_z` at 1, so an IMU-less board never trips it.
 3. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
    250 ms without a valid frame (the command decays to the trained stand),
    `RELAX` after 5 s (torque off), `ESTOP` on the operator's flag (torque
@@ -471,6 +475,38 @@ pinned to the sim twin `balance_abort.py`. An impulsive tip that is already
 past a few rad/s at 12 deg falls under any policy; the sequence is for the
 controller-caused and sensor-caused aborts. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
+
+**Fall guard** (`components/fallguard`, `fall`). One module, one table of
+limits, used by both control paths (Tom 2026-11-01: work towards one
+policy-driven system, not a bench system and a policy system):
+
+| path | owner | fall | on a fall |
+|---|---|---|---|
+| armed policy loop | `ctrl_task.cpp`, `Motion::kPolicy` | tilt > 45 deg (`up_z` < 0.707) for 200 ms | `FALLEN`, limp, `DISARMED_FALL`, bench the loop; hand the fall to the bench guard |
+| bench (scripted `pose`/`home`, idle) | `cli.cpp` `fallTick`, `Motion::kBench` | tilt > 30 deg (`up_z` < 0.866) for 100 ms | stop the pose stream, balance and any home; torque off |
+
+`linkproto::kFallUpZ` = 0.4 (66 deg) stays the **sim's** episode end and is no
+longer used on the robot. The bench line is tighter because scripted motion
+never leans on purpose (one-leg stands peak at the 12 deg balance abort).
+
+Recovery is the same whichever path fell: while latched, `pose`/`move` are
+refused; within 10 deg of upright **and** |gyro| < 0.35 rad/s continuously for
+2 s (carried, or upright for a moment mid-tumble, does not count) runs `home`
+by itself (2.5 s smooth, hip play take-up, readback, torque **released**) and
+clears the latch. It never arms. An armed fall reaches the bench guard through
+`g_armed_falls` (ctrl stores the tilt, then bumps the counter; housekeeping
+latches its own `Detector` on a new count, before its mode gate, so the latch
+is in place while ctrl is still handing the bus back; ctrl has already
+released torque, so the hand-over writes nothing to the bus). From then on the
+bench guard's pick-up rule drives the autohome exactly as after a bench fall
+(host-tested: `test_fallguard` `testArmedFallHandsOverToBenchAutohome`). A
+typed `home`, the wireless home, `fall clear` and a fresh arm each clear the
+latch (a person deciding, looking at the robot). `fall` prints both limits,
+the latch and which path it came from; `fall off` / `fall autohome off` turn
+the bench guard / its autohome off (the armed latch is not switchable). Every
+step is a flight-recorder `fall` event (code 10: a = motion, b = fell / picked
+up / cleared), next to the `out` lines that say the same in words. A get-up
+policy (which works lying down) will need its own rule when it is deployed.
 
 ### 5.7 Position-loop gains (Plan B)
 

@@ -95,7 +95,9 @@ Events: every CLI line executed (`pose` with all its arguments, `home`,
 `balance set`, …), every line the CLI printed (balance ON / CONTINUES /
 ARMED / PI starts / ABORT / landed, refusals, home readbacks), wireless ARM
 and home edges, bench/run handovers with the arm verdict, balance state
-changes, `ctrl` link-state changes, and a bench read that backed off.
+changes, `ctrl` link-state changes, a bench read that backed off, and every
+fall-guard step (fall on the bench, an armed fall handed over, pick-up ->
+autohome, a clear).
 HELLO, 1 Hz: firmware version, NTP state, the calibration (servo ID, fitted,
 dir, zero per bus joint), recorder counters and the `ctrl` tick budget
 (`us_read` … `us_other`, overruns, worst tick).
@@ -186,7 +188,9 @@ EVENT body: u8 code, u8 src (0 housekeeping, 1 ctrl), u16 len, i32 a, i32 b,
 then `len` ≤ 180 bytes of text. Codes: 1 cmd, 2 out, 3 arm edge (a = level),
 4 home edge, 5 rec, 6 mode (a = run|ctrl-owns-bus<<1, b = ArmResult),
 7 balance state (a = old, b = new), 8 link state (a = old, b = new),
-9 feedback backoff (a = µs the read took).
+9 feedback backoff (a = µs the read took), 10 fall (a = the motion it fell
+in: 0 bench, 1 policy; b = 1 fell, 2 picked up -> autohome, 3 cleared;
+`components/fallguard`).
 
 HELLO body, 116 B + 5 B × 17: fw[32], utc_synced, enabled, idle_hz, cal_ok,
 19 × u32 (produced, sent, drop_ring, drop_net, max push ctrl/house µs, last

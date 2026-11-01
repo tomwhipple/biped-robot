@@ -155,7 +155,8 @@ class LinkState(Enum):
     # the operator sends clears these -- only a pack swap and a reboot.
     VLAND = "vland"        # confirmed flat pack: crouching down under control
     VSAFE = "vsafe"        # crouch finished, torque off, and it stays off
-    # Torso down (up_z below the sim's own fall threshold, debounced),
+    # Torso down (tilt past 45 deg for 200 ms, firmware components/fallguard;
+    # tighter than the sim's own fall_up_z = 0.4, which stays the episode end),
     # robot-latched: torque off so a downed robot does not grind its servos
     # against the floor. A fall DISARMS the robot (firmware ctrl_task): this
     # state is reported for the fall tick, then the robot benches. Re-arming
