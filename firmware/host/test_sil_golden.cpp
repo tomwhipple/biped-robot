@@ -20,7 +20,15 @@
 //
 // The .silw is found from the golden file's "weights" key if it has one, else
 // from "run" in a sibling weights/ directory, else as the only *.silw beside
-// the vectors.
+// the vectors. The .silw is gitignored (regenerable), so when none is found
+// and the golden's "run" is the net compiled into this build
+// (policy::kWeightsRun -- generated from that same .silw by
+// tools/gen_policy_weights.py), the vectors are checked against the
+// compiled-in weights instead: brax's own actions against the firmware's
+// flash-resident net, from committed files alone.
+//
+// $SIL_GOLDEN_DIR names the directory; a policy profile build points it at
+// sim/sil/golden/<profile>/ (firmware/host/Makefile POLICY).
 #include <dirent.h>
 #include <math.h>
 #include <stdio.h>
@@ -32,6 +40,7 @@
 
 #include "obs/assembler.h"
 #include "obs/obs_spec.h"
+#include "policy/weights.h"
 #include "sil_json.h"
 #include "sil_net.h"
 #include "test_util.h"
@@ -249,14 +258,20 @@ void runObsFile(const std::string& path, const siljson::Value& root,
 void runPolicyFile(const std::string& path, const siljson::Value& root,
                    const siljson::Value& cases) {
     const std::string wpath = resolveWeights(path, root);
-    if (wpath.empty()) {
-        printf("  skip %s: no .silw named or found beside it\n", path.c_str());
+    const siljson::Value* run = root.isObj() ? root.get("run") : nullptr;
+    const bool compiled_in = run && run->isStr() &&
+                             run->str == policy::kWeightsRun;
+    if (wpath.empty() && !compiled_in) {
+        printf("  skip %s: no .silw named or found beside it, and its run is "
+               "not the compiled-in %s\n", path.c_str(), policy::kWeightsRun);
         ++g_skipped;
         return;
     }
     sil::LoadedNet net;
     std::string err;
-    if (!net.load(wpath.c_str(), err)) {
+    if (wpath.empty()) {
+        net.loadBuiltin();
+    } else if (!net.load(wpath.c_str(), err)) {
         // Once a golden file names weights, an unreadable blob IS the
         // exporter/reader disagreement this test exists to catch.
         fprintf(stderr, "FAIL %s: %s\n", path.c_str(), err.c_str());
@@ -273,7 +288,10 @@ void runPolicyFile(const std::string& path, const siljson::Value& root,
 
     ++g_files;
     printf("  %s: %zu policy cases vs %s (atol %g)\n", path.c_str(),
-           cases.arr.size(), wpath.c_str(), atol);
+           cases.arr.size(),
+           wpath.empty() ? "the compiled-in weights (policy/weights.h)"
+                         : wpath.c_str(),
+           atol);
 
     CHECK_EQ(net.obsDim(), obs::kObsDim);
     CHECK_EQ(net.actDim(), obs::kActDim);

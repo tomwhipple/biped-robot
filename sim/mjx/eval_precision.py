@@ -42,6 +42,7 @@ import json
 import math
 import os
 import pickle
+import re
 import subprocess
 import sys
 
@@ -231,8 +232,90 @@ def _run(cmd, what, cwd=None, env=None):
     return p.stdout or ""
 
 
-def sil_setup(run_name, run_dir, verbose=True):
+def sil_profile_for(xml):
+    """The policy profile whose compiled spec is this plant's
+    (tools/policy_profile.py): None for the deployed set, else the name under
+    firmware/policies/. Chosen by the spec's kPlantXml, and exported as
+    $BIMO_POLICY so sim/sil/harness.py sizes its ABI from that spec -- which
+    is why this runs BEFORE the harness is first imported."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import policy_profile
+    plant = os.path.basename(xml)
+    found = []
+    for prof in [None] + policy_profile.list_profiles():
+        try:
+            txt = open(policy_profile.files(prof)["spec_h"]).read()
+        except OSError:
+            continue
+        m = re.search(r'kPlantXml\s*=\s*"([^"]+)"', txt)
+        if m and m.group(1) == plant:
+            found.append(prof)
+    if not found:
+        # an older plant scored against the deployed spec, as always; a layout
+        # it does not share is refused by sil_check_spec
+        print(f"[sil] WARNING: no compiled policy spec is for plant {plant}; "
+              "using the deployed one (a new plant gets its own: "
+              "`tools/gen_obs_spec.py --run <a run on it> --profile <name>`)",
+              file=sys.stderr)
+        found = [None]
+    prof = found[0]
+    loaded = sys.modules.get("harness")
+    if loaded is not None and getattr(loaded, "POLICY_PROFILE", None) != prof:
+        raise SystemExit(
+            f"[sil] the SIL harness is already loaded for profile "
+            f"{loaded.POLICY_PROFILE!r}; this plant needs {prof!r} -- one "
+            "profile per process")
+    if prof:
+        os.environ["BIMO_POLICY"] = prof
+    else:
+        os.environ.pop("BIMO_POLICY", None)
+    return prof
+
+
+def sil_check_spec(H, env):
+    """The compiled spec must be the scored run's observation and action
+    layout: one library serves every run on its plant, so a run trained with
+    another joint table or obs layout would be graded through the wrong
+    firmware. Dims and joints are fatal; ranges and clock settings warn."""
+    sp = H.SPEC
+    nj = int(env._nq_act)
+    hard = []
+    if list(sp.joint_names) != list(env._act_names):
+        hard.append(f"joints {list(sp.joint_names)} vs run {env._act_names}")
+    for what, got, want in (("frame", sp.frame_dim, env.obs_frame),
+                            ("hist", sp.hist_len, env.obs_hist_len),
+                            ("num_cmd", sp.num_cmd, env._ncmd),
+                            ("num_joints", sp.num_joints, nj)):
+        if int(got) != int(want):
+            hard.append(f"{what} {got} vs run {want}")
+    if hard:
+        raise SystemExit("[sil] the compiled spec (%s) is not this run's "
+                         "layout: %s -- regenerate it from a run of this "
+                         "recipe (tools/gen_obs_spec.py)"
+                         % (os.path.relpath(H.SPEC_H, ROOT), "; ".join(hard)))
+    soft = []
+    for what, got, want in (("kJointLo", H.JOINT_LO, env._lo),
+                            ("kJointHi", H.JOINT_HI, env._hi),
+                            ("kJointDefault", H.JOINT_DEFAULT, env._default)):
+        if np.max(np.abs(np.asarray(got) - np.asarray(want))) > 1e-5:
+            soft.append(what)
+    txt = open(H.SPEC_H).read()
+    for key, attr in (("kClockStandFreeze", "clock_stand_freeze"),
+                      ("kSpeedClock", "speed_clock")):
+        m = re.search(key + r"\s*=\s*(true|false)", txt)
+        if m and (m.group(1) == "true") != bool(getattr(env, attr, False)):
+            soft.append(key)
+    if soft:
+        print(f"[sil] WARNING: {', '.join(soft)} in "
+              f"{os.path.relpath(H.SPEC_H, ROOT)} differ from this run's: "
+              "the SIL column runs the compiled spec's", file=sys.stderr)
+
+
+def sil_setup(run_name, run_dir, verbose=True, profile=None):
     """Import the SIL harness with its prerequisites satisfied.
+
+    profile: the policy profile (sil_profile_for), whose library is built
+    with `make -C firmware/host sil POLICY=<profile>`.
 
     (a) libctrl_sil missing        -> `make -C firmware/host sil`
     (b) <run>.silw missing/stale   -> tools/export_policy_weights.py --run <run>
@@ -248,9 +331,13 @@ def sil_setup(run_name, run_dir, verbose=True):
         raise SystemExit(f"[sil] cannot import sim/sil/harness.py: {e}")
 
     # (a) the shared library -------------------------------------------
+    if (H.POLICY_PROFILE or None) != (profile or None):
+        raise SystemExit(f"[sil] harness profile {H.POLICY_PROFILE!r} but "
+                         f"the run needs {profile!r}")
     lib_path = H.find_lib()
     if lib_path is None:
-        _run(["make", "-C", os.path.join(ROOT, "firmware", "host"), "sil"],
+        _run(["make", "-C", os.path.join(ROOT, "firmware", "host"), "sil"]
+             + ([f"POLICY={profile}"] if profile else []),
              "building libctrl_sil")
         lib_path = H.find_lib()
         if lib_path is None:
@@ -2323,9 +2410,7 @@ def main():
     names = [n for n in names if n not in not_applicable]
     for n, why in not_applicable.items():
         print(f"[n/a on the robot plant] {n}: {why}")
-    if robot and args.sil:
-        raise SystemExit("the SIL column is not ported to the robot's plant "
-                         "(docs/training.md, 'Porting to the robot')")
+    sil_prof = sil_profile_for(xml) if args.sil else None
 
     # one env per distinct (episode length, scenario override) pair
     env_cache = {}
@@ -2352,7 +2437,9 @@ def main():
     # is identical, which is what makes the two columns comparable.
     sil_info = None
     if args.sil:
-        H, sil_lib, sil_info = sil_setup(args.run_name, run_dir)
+        H, sil_lib, sil_info = sil_setup(args.run_name, run_dir,
+                                         profile=sil_prof)
+        sil_check_spec(H, get_env(12.0))
         act = None
 
         def act_for(env):

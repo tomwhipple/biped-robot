@@ -325,7 +325,9 @@ void testColumnCountMatchesTheSpec() {
     CHECK_EQ(robot::kObsDumpCols,
              1 + 2 * obs::kNumJoints + 3 + 3 + 1 + obs::kNumCmd +
                  obs::kFrameDim);
-    CHECK_EQ(robot::kObsDumpCols, 84);       // 10-DOF, 7 cmd, 49-wide frame
+    // 10-DOF, 7 cmd, 49-wide frame (deployed v5body); 12-DOF, 55 (v6legs)
+    // cppcheck-suppress knownConditionTrueFalse -- generated per build
+    CHECK_EQ(robot::kObsDumpCols, obs::kNumJoints == 10 ? 84 : 94);
     CHECK_EQ(robot::kObsDumpPeriodMs, 200);
 }
 

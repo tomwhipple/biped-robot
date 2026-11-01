@@ -200,6 +200,14 @@ void testTickRoundTrip() {
 // SIL slots are bus indices (sil_lib.cpp), found by servo ID -- not ID - 1.
 int slotOf(int joint) { return obs::policyToBus(joint); }
 
+// Policy index of the joint called `name`, or -1.
+int jointIndex(const char* name) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (strcmp(obs::kJointNames[j], name) == 0) return j;
+    }
+    return -1;
+}
+
 void testServoPermutationEndToEnd() {
     const std::string nom = g_tmp_prefix + "cal_nominal.json";
     CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.5f), 0);
@@ -244,8 +252,12 @@ void testServoPermutationEndToEnd() {
     }
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
     CHECK_EQ(slotOf(0), 9);         // L_hip_yaw: bus index 9, servo ID 9
-    CHECK_EQ(slotOf(5), 8);         // R_hip_yaw: bus index 8, servo ID 10
+    CHECK_EQ(slotOf(jointIndex("R_hip_yaw")), 8);   // bus index 8, servo ID 10
     CHECK_EQ(slotOf(1), 4);         // L_hip_roll: bus index 4, servo ID 51
+    if (jointIndex("L_ankle_roll") >= 0) {          // the v6 legs' 6th joint
+        CHECK_EQ(slotOf(jointIndex("R_ankle_roll")), 10);   // servo ID 11
+        CHECK_EQ(slotOf(jointIndex("L_ankle_roll")), 11);   // servo ID 12
+    }
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
