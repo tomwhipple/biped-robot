@@ -149,6 +149,7 @@ void houseTask(void*) {
         // The home's readback, once its slew deadline has passed (typed
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
+        cli::fallTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);
         // The flight recorder's bench half (flight_rec.h). What it spends on
