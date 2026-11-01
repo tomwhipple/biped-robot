@@ -44,11 +44,17 @@ def band_plants(base, band):
     return out
 
 
+PROTO = os.environ.get("SIMFIT_PROTO", "194709")     # the session whose timing/poses the protocol replays (clr.sh)
+
+
 def run_one(job):
-    side, pname, pl, ctl, seed = job
-    own, moves = H.protocol_moves(side)
-    r = S.Replay(own, pl, ctl, seed=seed, imu_noise_deg=0.05 if seed else 0.0,
+    side, pname, pl, ctl, seed = job[:5]
+    floor = job[5] if len(job) > 5 else "carpet"
+    own, moves = H.protocol_moves(side, PROTO)
+    plf = pl.on(floor)
+    r = S.Replay(own, plf, ctl, seed=seed, imu_noise_deg=0.05 if seed else 0.0,
                  gyro_noise=0.0075 if seed else 0.0, moves=moves).run()
+    pl = plf
     m = {mv.name: mv for mv in moves}
     t = r["t"]
     l10, l30, lo30 = m["l10"], m["l30"], m["lower30"]
@@ -59,9 +65,16 @@ def run_one(job):
     hold = (t >= l30.t0 + l30.dur) & (t < lo30.t0)
     w30 = (t >= l30.t0) & (t < lo30.t0)
     W = pl.sole_w / 2
+    W_out = W - (pl.sole_out_dL if side == "L" else pl.sole_out_dR)
+    W_in = W - (pl.sole_in_dL if side == "L" else pl.sole_in_dR)
     comy = r["comy"]
-    marg_out = 1e3 * float(np.min(W - comy[w30]))
-    marg_in = 1e3 * float(np.min(W + comy[w30]))
+    marg_out = 1e3 * float(np.min(W_out - comy[w30]))
+    marg_in = 1e3 * float(np.min(W_in + comy[w30]))
+    # the roll mode in the hold: band-passed (0.8-4 Hz) roll rms over the last 8 s of the hold (deg)
+    import simfit_osc as O
+    hh = (t >= lo30.t0 - 8.0) & (t < lo30.t0)
+    tg, xb = O.bandpass(t[hh], r["roll"][hh] * R2D) if hh.sum() > 50 else (None, np.array([0.0]))
+    osc = float(np.sqrt(np.mean(xb[50:-50] ** 2))) if len(xb) > 120 else float("nan")
     weight = np.median(r["fz_st"][hold] + r["fz_sw"][hold]) if hold.any() else 1.0
     off = float(np.mean(r["fz_sw"][hold] < 0.03 * weight)) if hold.any() else 0.0
     sg = 1.0 if side == "L" else -1.0
@@ -71,30 +84,31 @@ def run_one(job):
     errout = R2D * float(np.max(-sg * r["err"][w30])) if w30.any() else float("nan")   # toward the stance foot
     u_end = R2D * sg * float(r["u"][hold][-1]) if hold.any() else float("nan")
     w10 = (t >= l10.t0) & (t < m["lower10"].t0)
-    marg10 = 1e3 * float(np.min(W - comy[w10]))
-    ok = (not ab10) and (not ab30) and (not fell) and off >= 0.9
-    return dict(side=side, plant=pname, seed=seed, ok=ok, ab10=ab10, ab30=ab30, fell=fell, off=off,
+    marg10 = 1e3 * float(np.min(W_out - comy[w10]))
+    ok = (not ab10) and (not ab30) and (not fell) and off >= 0.9 and not (osc > 0.5)
+    return dict(side=side, floor=floor, plant=pname, seed=seed, ok=ok, osc=osc, ab10=ab10, ab30=ab30, fell=fell, off=off,
                 marg_out=marg_out, marg_in=marg_in, marg10=marg10, err5=err5, errpk=errpk, errout=errout, u_end=u_end)
 
 
 POOL = None
 
 
-def evaluate(ctls, plants, seeds=(0, 1, 2), sides=("R", "L")):
+def evaluate(ctls, plants, seeds=(0, 1, 2), sides=("R", "L"), floors=("carpet", "hard")):
     global POOL
     if POOL is None:
-        POOL = ProcessPoolExecutor(max_workers=os.cpu_count())
-    jobs = [(sd, pn, pl, c, s) for c in ctls for (pn, pl) in plants for sd in sides for s in seeds]
+        POOL = ProcessPoolExecutor(max_workers=int(os.environ.get("SIMFIT_WORKERS", os.cpu_count())))
+    jobs = [(sd, pn, pl, c, s, fl) for c in ctls for (pn, pl) in plants for fl in floors for sd in sides for s in seeds]
     out = list(POOL.map(run_one, jobs))
-    n = len(plants) * len(sides) * len(seeds)
+    n = len(plants) * len(sides) * len(seeds) * len(floors)
     return [(c, out[i * n:(i + 1) * n]) for i, c in enumerate(ctls)]
 
 
 def summarise(c, rows):
     s = {}
-    for side in ("R", "L"):
-        rr = [r for r in rows if r["side"] == side]
-        s[side] = dict(ok=sum(r["ok"] for r in rr), n=len(rr),
+    for key in sorted({(r["floor"], r["side"]) for r in rows}):
+        rr = [r for r in rows if (r["floor"], r["side"]) == key]
+        side = key[0][0] + key[1]          # "cR", "hL", ...
+        s[side] = dict(ok=sum(r["ok"] for r in rr), n=len(rr), osc=max(r["osc"] for r in rr),
                        marg_out=min(r["marg_out"] for r in rr), marg_in=min(r["marg_in"] for r in rr),
                        marg_out_nom=next((r["marg_out"] for r in rr if r["plant"] == "nominal" and r["seed"] == 0), float("nan")),
                        err5=max(r["err5"] for r in rr), errpk=max(r["errpk"] for r in rr),
@@ -109,8 +123,8 @@ def ctl_label(c):
 
 def fmt(c, s):
     return (f"{ctl_label(c):58s} " + "  ".join(
-        f"{sd}: {v['ok']}/{v['n']} out>={v['marg_out']:5.1f} (nom {v['marg_out_nom']:5.1f}) in>={v['marg_in']:5.1f} "
-        f"err5<={v['err5']:.2f} pk<={v['errpk']:.1f} u {v['u_end']:+.1f}" for sd, v in s.items()))
+        f"{sd}: {v['ok']}/{v['n']} out>={v['marg_out']:4.1f} in>={v['marg_in']:4.1f} osc<={v['osc']:.2f} "
+        f"pk<={v['errpk']:.1f} u {v['u_end']:+.1f}" for sd, v in s.items()))
 
 
 def parse_grid(specs):
@@ -142,12 +156,13 @@ if __name__ == "__main__":
     ap.add_argument("--fitted", default=os.path.join(HERE, "simfit_plant.json"))
     ap.add_argument("--nominal-only", action="store_true")
     ap.add_argument("--seeds", default="0,1,2")
+    ap.add_argument("--floors", default="carpet,hard")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
     pl, band = load_fitted(a.fitted)
     plants = band_plants(pl, {} if a.nominal_only else band)
     ctls = parse_grid(a.specs) if a.specs else [S.Ctl()]
-    res = evaluate(ctls, plants, seeds=tuple(int(x) for x in a.seeds.split(",")))
+    res = evaluate(ctls, plants, seeds=tuple(int(x) for x in a.seeds.split(",")), floors=tuple(a.floors.split(",")))
     rows = []
     for c, rr in sorted(res, key=lambda x: -sum(r["ok"] for r in x[1])):
         s = summarise(c, rr)

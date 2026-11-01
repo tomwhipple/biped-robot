@@ -66,20 +66,58 @@ class Plant:
     roll_lash_dLhip: float = 0.0     # extra play on the LEFT hip roll only (hw 2026-09-02: L hip roll ~3 deg)
     roll_lash_hip: float = -1.0      # the two HIP rolls' play when >= 0 (else roll_lash, as walker_env)
     backlash: float = 0.75
+    kp_hr: float = 1.0               # x the hip-roll servos' stiffness on top of kp_scale (STS3250, asbuilt 4x)
+    kp_ar: float = 1.0               # x the ankle-roll servos' stiffness on top of kp_scale (asbuilt 2.8x)
+    d3215_ms: float = 0.0            # EXTRA dead time of every STS3215 (all but the hip rolls), ms -> whole 24 ms ticks
+    lag3250: float = 1.0             # x the act-lag pole on the STS3250 hip rolls (they rise ~3x faster)
     sole_w: float = 0.084
     sole_out_dL: float = 0.0         # the LEFT foot's outer edge pulled in by this much (m): an L-only soft outer edge
+    sole_out_dR: float = 0.0         # the same for the RIGHT foot
+    sole_in_dL: float = 0.0          # the LEFT foot's INNER edge pulled in (m): less margin toward the raised foot
+    sole_in_dR: float = 0.0          # the RIGHT foot's inner edge pulled in (m) (inside tip test, hw 2026-11-01)
     floor_tc: float = 0.02
     floor_dr: float = 1.0
     floor_dmin: float = 0.9
     mu: float = 1.0
     torso_scale: float = 1.0
     torso_com_y: float = 0.0
+    torso_com_z: float = 0.0         # torso CoM height offset (m)
+    tilt_roll_deg: float = 0.0       # floor slope about the robot's x: the roll a plumb robot reads (+ = toward its right)
+    h_tilt_roll_deg: float = -0.5    # the hard floor's (heading-flip test 2026-11-01: -0.50 deg in the runs' heading)
     lag_hz: float = 5.0
     latency_ms: float = 4.0
     friction: float = 0.35
     imu_mount_deg: float = 0.0       # roll offset of the IMU (only absolute roll sees it)
     zoff_La: float = 0.0             # calibration zero error, deg: the L ankle roll / hip roll sit this far
     zoff_Lh: float = 0.0             # from where the robot believes (sim joint frame, + like +u on L)
+    # ---- the hard floor (2026-11-01): the foot/floor contact on the "hard" stands; < 0 = the carpet value.
+    # Plant.on("hard") swaps these into floor_tc / floor_dr / floor_dmin / mu. Everything else is shared.
+    h_tc: float = -1.0
+    h_dr: float = -1.0
+    h_dmin: float = -1.0
+    h_mu: float = -1.0
+    # direct contact stiffness / damping (MuJoCo negative solref: a_ref = -b*v - k*imp*r, per pad contact,
+    # in 1/s^2 and 1/s); > 0 replaces floor_tc/floor_dr. The tc/dr form ties the damping to the
+    # stiffness (b = 2/(dmax*tc)), which cannot express a soft but lossy carpet next to a stiff, lively
+    # hard floor. floor_tc 0.0334 dr 1 is k ~ 1.1e3, b ~ 63.
+    floor_k: float = 0.0
+    floor_b: float = 0.0
+    h_k: float = -1.0
+    h_b: float = -1.0
+    # ---- loop dynamics the floor fit can add (0 / 1 = the 10-30 plant)
+    kd_scale: float = 1.0            # x the servo model's D (0.25 N*m*s/rad x the asbuilt map)
+    jdamp: float = -1.0              # joint viscous damping on the servo dofs (walker_env default 0.1), < 0 = default
+    imu_delay_ms: float = 0.0        # roll and gyro reach the balance this late (interpolated between ticks)
+    gyro_lpf_hz: float = 0.0         # first-order low-pass on the gyro rate the balance sees (0 = raw)
+
+    def on(self, floor):
+        """this plant on `floor` ("carpet" | "hard"): only the contact differs."""
+        if floor != "hard":
+            return self
+        pick = lambda h, c: c if h < 0 else h
+        return replace(self, tilt_roll_deg=self.h_tilt_roll_deg, floor_tc=pick(self.h_tc, self.floor_tc), floor_dr=pick(self.h_dr, self.floor_dr),
+                       floor_dmin=pick(self.h_dmin, self.floor_dmin), mu=pick(self.h_mu, self.mu),
+                       floor_k=pick(self.h_k, self.floor_k), floor_b=pick(self.h_b, self.floor_b))
 
     def label(self):
         d = asdict(self)
@@ -109,6 +147,11 @@ class Ctl:
     ff_deg: float = 0.0
     i_leak: float = 0.0
     i_rate_gate: float = 0.0          # freeze I while err*rate < 0 and |rate| > this (rad/s): err already shrinking
+    rate_lpf_hz: float = 0.0          # candidate: first-order low-pass on the gyro rate inside the PI (0 = raw)
+    u_slew: float = 0.0               # candidate: |du/dt| limit on the output (rad/s), 0 = none
+    dither_deg: float = 0.0           # identification: a sinusoid added to u (deg) ...
+    dither_hz: float = 1.9            # ... at this frequency ...
+    dither_t0: float = 6.0            # ... from this long after a B move's start (s)
 
 
 def minjerk(x):
@@ -135,6 +178,7 @@ class RollPIfw:
         self.ref, self.err, self.i, self.u = ref, 0.0, 0.0, 0.0
         self.state = "active"
         self.since = 0.0
+        self.rf = None
 
     def disengage(self):
         self.state = "off"
@@ -159,6 +203,10 @@ class RollPIfw:
             self.since = 0.0
             return
         self.err = err
+        if c.rate_lpf_hz > 0:
+            a = 1.0 - math.exp(-2 * math.pi * c.rate_lpf_hz * dt)
+            self.rf = rate if self.rf is None else self.rf + a * (rate - self.rf)
+            rate = self.rf
         unsat = c.kp * err + c.ki * self.i + c.kd * rate + ff
         u = max(-self.clamp, min(self.clamp, unsat))
         pushing = (u != unsat) and ((err > 0) == (u > 0))
@@ -175,20 +223,34 @@ class RollPIfw:
             self.i -= c.i_leak * self.i * dt
         if c.i_max > 0:
             self.i = max(-c.i_max, min(c.i_max, self.i))
+        if c.u_slew > 0:
+            u = max(self.u - c.u_slew * dt, min(self.u + c.u_slew * dt, u))
         self.u = u
 
 
 def make_env(pl: Plant, seed=0):
     kw = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
     kp = dict(W.SERVO_KP_PRESETS["asbuilt"])
-    kw["servo_kp_scale"] = {k: v * pl.kp_scale for k, v in kp.items()}
+    kp = {k: v * pl.kp_scale for k, v in kp.items()}
+    kp["hip_roll"] *= pl.kp_hr          # the roll path's own stiffness (P and D scale together, as walker_env)
+    kp["ankle_roll"] *= pl.kp_ar
+    kw["servo_kp_scale"] = kp
+    lat_ticks = int(pl.latency_ms // (1e3 * CTRL_DT))              # whole control ticks of dead time ...
+    lat_ms = pl.latency_ms - 1e3 * CTRL_DT * lat_ticks             # ... plus the sub-step remainder
+    if pl.jdamp >= 0:
+        kw["servo_joint_damping"] = pl.jdamp
     kw.update(actuator_model="sts3215", supply_voltage=11.1, control_hz=1.0 / CTRL_DT, action_map="full",
-              domain_rand=False, quantize_ticks=True, latency_ms=pl.latency_ms, backlash_deg=pl.backlash,
+              act_delay_ticks=lat_ticks,
+              act_delay_extra={r: int(round(pl.d3215_ms / (1e3 * CTRL_DT))) for r in
+                               ("hip_yaw", "hip_pitch", "knee", "ankle", "ankle_roll")} if pl.d3215_ms else None,
+              act_lag_scale={"hip_roll": pl.lag3250} if pl.lag3250 != 1.0 else None,
+              domain_rand=False, quantize_ticks=True, latency_ms=lat_ms, backlash_deg=pl.backlash,
               roll_lash_deg=pl.roll_lash, joint_frictionloss=pl.friction, joint_armature=0.028,
               act_lag_hz=pl.lag_hz, push_prob=0.0, push_force=0.0, fall_up_z=-2.0, fall_height=-1.0,
               episode_seconds=1e4, imu_obs=False)
     env = W.BimoWalkerEnv(**kw)
     m = env.model
+    env._kd_prof = env._kd_prof * pl.kd_scale
     # per-joint roll play: walker_env applies roll_lash x _roll_mask; the mask carries the
     # hip/ankle split and the left/right difference as ratios to a reference width
     lash = {}
@@ -210,27 +272,37 @@ def make_env(pl: Plant, seed=0):
         yc = 0.5 * (ys.max() + ys.min())
         half = 0.5 * (ys.max() - ys.min())
         outer = 1.0 if side == "L" else -1.0           # +y is outboard for the left foot
+        d_out = pl.sole_out_dL if side == "L" else pl.sole_out_dR
+        d_in = pl.sole_in_dL if side == "L" else pl.sole_in_dR
         for g in ps:
             m.geom_pos[g][1] = yc + (m.geom_pos[g][1] - yc) * (0.5 * pl.sole_w) / half
-            if side == "L" and pl.sole_out_dL and (m.geom_pos[g][1] - yc) * outer > 0:
-                m.geom_pos[g][1] -= outer * pl.sole_out_dL * (m.geom_pos[g][1] - yc) * outer / (0.5 * pl.sole_w)
+            rel = (m.geom_pos[g][1] - yc) * outer / (0.5 * pl.sole_w)     # +1 outer edge, -1 inner edge
+            if d_out and rel > 0:
+                m.geom_pos[g][1] -= outer * d_out * rel
+            if d_in and rel < 0:
+                m.geom_pos[g][1] -= outer * d_in * rel                       # rel < 0: moves outward = edge pulled in
     for g in pads + [floor]:
-        m.geom_solref[g] = [pl.floor_tc, pl.floor_dr]
+        m.geom_solref[g] = [-pl.floor_k, -pl.floor_b] if pl.floor_k > 0 else [pl.floor_tc, pl.floor_dr]
         m.geom_solimp[g][0] = pl.floor_dmin
         m.geom_friction[g][0] = pl.mu
     b = env._torso_bid
     m.body_mass[b] *= pl.torso_scale
     m.body_inertia[b] *= pl.torso_scale
     m.body_ipos[b][1] += pl.torso_com_y
+    m.body_ipos[b][2] += pl.torso_com_z
+    th = math.radians(pl.tilt_roll_deg)
+    m.opt.gravity[:] = [0.0, 9.81 * math.sin(th), -9.81 * math.cos(th)]
     env.reset(seed=seed)
     return env
 
 
 class Replay:
     def __init__(self, stand: H.Stand, pl: Plant, ctl: Ctl, seed=0, imu_noise_deg=0.0, gyro_noise=0.0,
-                 t_end=None, moves=None):
+                 t_end=None, moves=None, kick=None, extra=None):
         self.st, self.pl, self.ctl = stand, pl, ctl
         self.moves = moves if moves is not None else stand.moves
+        self.kick = kick                 # (t, roll torque N*m, duration s): a disturbance on the free joint's roll dof
+        self.extra = extra               # t -> 12 bus-order tick offsets added to the goal (the firmware `sweep`)
         self.rng = np.random.default_rng(seed)
         self.imu_noise = math.radians(imu_noise_deg)
         self.gyro_noise = gyro_noise
@@ -269,7 +341,7 @@ class Replay:
     def roll_rate(self):
         e = self.env
         R = e.data.site_xmat[self.imu].reshape(3, 3)
-        roll = math.atan2(-R[1, 2], R[2, 2]) + math.radians(self.pl.imu_mount_deg)
+        roll = math.atan2(-R[1, 2], R[2, 2]) + math.radians(self.pl.imu_mount_deg + self.pl.tilt_roll_deg)
         rate = float(e.data.qvel[3])
         return roll, rate
 
@@ -319,8 +391,20 @@ class Replay:
                 for s in "LR"}
         f6 = np.zeros(6)
         stall = None
+        hist_t, hist_roll, hist_rate = [], [], []
+        lpf_rate = None
+        a_lpf = 1.0 - math.exp(-2 * math.pi * self.pl.gyro_lpf_hz * CTRL_DT) if self.pl.gyro_lpf_hz > 0 else 1.0
         for k in range(nT):
             roll, rate = self.roll_rate()
+            if self.pl.imu_delay_ms > 0:
+                hist_t.append(t); hist_roll.append(roll); hist_rate.append(rate)
+                if len(hist_t) > 40:
+                    del hist_t[0], hist_roll[0], hist_rate[0]
+                td = t - 1e-3 * self.pl.imu_delay_ms
+                roll = float(np.interp(td, hist_t, hist_roll))
+                rate = float(np.interp(td, hist_t, hist_rate))
+            lpf_rate = rate if lpf_rate is None else lpf_rate + a_lpf * (rate - lpf_rate)
+            rate = lpf_rate
             if self.imu_noise:
                 roll += float(self.rng.normal(0, self.imu_noise))
             if self.gyro_noise:
@@ -352,6 +436,8 @@ class Replay:
                 if c.ff_deg:
                     t0f, df = self.ff_move
                     ff = math.radians(c.ff_deg) * minjerk((t - t0f) / df) * (1.0 if side == "L" else -1.0)
+                if c.dither_deg and t - self.ff_move[0] >= c.dither_t0:
+                    ff += math.radians(c.dither_deg) * math.sin(2 * math.pi * c.dither_hz * (t - self.ff_move[0] - c.dither_t0))
                 pi.update(roll, CTRL_DT, rate, ff)
                 if pi.state == "abort":
                     if abort_from is None:
@@ -360,8 +446,13 @@ class Replay:
                     want = abort_from + np.rint(lf * (home - abort_from)) if lf > 0 else abort_from.copy()
                 want[ba] += np.rint(dirs[ba] * c.ka * pi.u / TICK)
                 want[bh] += np.rint(dirs[bh] * c.kh * pi.u / TICK)
+            if self.extra is not None:
+                want = want + np.rint(self.extra(t))
             q_bus = self.ticks_to_rad(want)
             tgt_servo[self.jidx] = q_bus + self.zoff
+            if self.kick is not None:
+                kt, kq, kd_ = self.kick
+                e.data.qfrc_applied[3] = kq if kt <= t < kt + kd_ else 0.0
             e.step(np.zeros(e._nq_act, np.float32))
             t += CTRL_DT
             if t < -0.05:

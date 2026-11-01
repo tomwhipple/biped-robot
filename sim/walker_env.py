@@ -308,6 +308,37 @@ def servo_envelope_vectors(names, spec):
     return stall, w0
 
 
+def role_vector(names, spec, default, what):
+    """{actuator | role: value} (or None) -> per-actuator vector, `default` elsewhere."""
+    n = len(names)
+    out = np.full(n, float(default))
+    if not spec:
+        return out
+    roles = [joint_role(nm) for nm in names]
+    known = set(names) | {r for r in roles if r is not None}
+    bad = [k for k in spec if k not in known]
+    if bad:
+        raise ValueError(f"{what} keys {bad} match no actuator of this plant ({list(names)})")
+    for i, (nm, r) in enumerate(zip(names, roles)):
+        if nm in spec:
+            out[i] = float(spec[nm])
+        elif r is not None and r in spec:
+            out[i] = float(spec[r])
+    return out
+
+
+# Per-servo-type actuator response (2026-11-01 loaded step responses + the double-support roll
+# sweep, experiments/one-leg-stand/2026-11-01-floors-fit.md): the STS3215s sit ~60 ms of dead
+# time behind the STS3250 hip rolls. As control ticks (20 ms) of EXTRA dead time and as a
+# multiplier on the act-lag pole, per role. Used by --actuator-model sts2026.
+ACT_DELAY_EXTRA_PRESETS = {
+    "sts2026": {"hip_yaw": 3, "hip_pitch": 3, "knee": 3, "ankle": 3, "ankle_roll": 3, "hip_roll": 0},
+}
+ACT_LAG_SCALE_PRESETS = {
+    "sts2026": {"hip_roll": 3.0},
+}
+
+
 def servo_kp_scale_vector(names, spec):
     """Per-actuator stiffness multiplier (mirror of env_mjx)."""
     n = len(names)
@@ -761,6 +792,11 @@ class BimoWalkerEnv(gym.Env):
         # act_delay_ticks control steps ago (20 ms each), applied BEFORE the
         # lag cascade like the deploy path. 0 = pass-through.
         act_delay_ticks: int = 0,
+        # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
+        # (or a ACT_DELAY_EXTRA_PRESETS name), and a per-actuator multiplier on the act-lag
+        # pole ({actuator | role: x} or a ACT_LAG_SCALE_PRESETS name); mirror of env_mjx
+        act_delay_extra=None,
+        act_lag_scale=None,
         # -- explicit squat reference (2026-09-11, mirror of env_mjx) -----------
         crouch_pose_ref: bool = False,
         crouch_theta_max_deg: float = 39.0,   # 1 deg inside the +-40 ankle limit (bench max was 40)
@@ -945,6 +981,11 @@ class BimoWalkerEnv(gym.Env):
                             else np.radians(np.asarray(crouch_deep_ref, dtype=np.float32)))
         self._leg_len_cache = None    # (thigh, shank), computed on first use
         assert 0 <= self.act_delay_ticks <= 10, "act_delay_ticks (20 ms each)"
+        if isinstance(act_delay_extra, str):
+            act_delay_extra = ACT_DELAY_EXTRA_PRESETS[act_delay_extra]
+        if isinstance(act_lag_scale, str):
+            act_lag_scale = ACT_LAG_SCALE_PRESETS[act_lag_scale]
+        self._act_delay_extra_spec, self._act_lag_scale_spec = act_delay_extra, act_lag_scale
         self._act_hist = None    # target ring for the dead-time delay
         self.cmd_crouch_range = tuple(cmd_crouch_range)
         # feature flag: (1,1) draws no RNG at all, so runs with the default
@@ -1035,6 +1076,10 @@ class BimoWalkerEnv(gym.Env):
         self._sqpos = slice(self._jq0, self._jq1)
         self._sqvel = slice(self._jv0, self._jv1)
         self._servo_names = [self.model.joint(int(j)).name for j in _jnt]
+        self._act_delay_vec = (self.act_delay_ticks + role_vector(
+            self._servo_names, self._act_delay_extra_spec, 0, "act_delay_extra")).astype(int)
+        assert self._act_delay_vec.max() <= 12, "dead time ring holds 12 ticks"
+        self._act_lag_scale = role_vector(self._servo_names, self._act_lag_scale_spec, 1.0, "act_lag_scale")
         self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
         self._roll_mask = np.array([n[2:] in ("hip_roll", "ankle_roll")
                                     for n in self._servo_names], dtype=np.float64)
@@ -2118,14 +2163,16 @@ class BimoWalkerEnv(gym.Env):
         # policy targets onto the servo vector (held joints at their hold);
         # everything downstream is per servo
         target = self._to_servo(self._action_to_ctrl(action))
-        if self.act_delay_ticks > 0:
-            # servo dead time: serve the target from act_delay_ticks ago,
-            # BEFORE the lag cascade -- matching env_mjx's act_hist order
+        nd = int(self._act_delay_vec.max())
+        if nd > 0:
+            # servo dead time: serve the target from act_delay_ticks (+ the actuator's
+            # act_delay_extra) ago, BEFORE the lag cascade -- matching env_mjx's act_hist order
             if self._act_hist is None:
-                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)
-                                  ] * self.act_delay_ticks
+                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)] * nd
             self._act_hist.append(target.astype(np.float64))
-            target = self._act_hist.pop(0)
+            hist = np.stack(self._act_hist)              # oldest first, newest (this tick) last
+            target = hist[nd - self._act_delay_vec, np.arange(hist.shape[1])]
+            self._act_hist.pop(0)
         if self._act_lag_ep > 0.0:
             # action-chain lag (3 cascaded first-order stages, the firmware C2
             # shaper's structure) BEFORE quantization, matching env_mjx and
@@ -2134,7 +2181,7 @@ class BimoWalkerEnv(gym.Env):
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
                     [np.asarray(self._sdefault, dtype=np.float64)] * 3)
-            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self.control_dt)
+            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self._act_lag_scale * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
