@@ -79,6 +79,8 @@ void linkTask(void*) {
                         linkproto::Err::kOk) {
                         break;    // CRC did its job; drop it silently
                     }
+                    // Out of band, as over WiFi (shared.h g_op_stops).
+                    if (takeOperatorStop(pkt)) break;
                     CommandMsg msg;
                     msg.cmd = pkt;
                     msg.rx_ms =
@@ -150,6 +152,7 @@ void houseTask(void*) {
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
         cli::fallTick(&houseSay);
+        cli::flailTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);
         // The flight recorder's bench half (flight_rec.h). What it spends on

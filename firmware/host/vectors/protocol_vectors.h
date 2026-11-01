@@ -135,6 +135,8 @@ inline const DiagCase kDiag[] = {
     {0, 1, 3, 0x32, "disarmed -- FALL latch tripped; re-arm deliberately (ARM edge or run)"},
     {0, 1, 10, 0xA2, "arm REFUSED -- a servo's position-loop gains (reg 21/22) are not the expected values, or did not read back (run `gains`)"},
     {0, 1, 11, 0xB2, "arm REFUSED -- this firmware's compiled-in net is a placeholder/untrained test net, not a policy (flash a build with real weights)"},
+    {0, 1, 12, 0xC2, "disarmed -- FLAIL guard: the policy misbehaved, so it was stopped and the joints HELD stiff; it homes once upright and still (`flail` on the tether says why)"},
+    {0, 1, 13, 0xD2, "disarmed -- operator STOP (tools/estop.py): run ended; re-arm deliberately (ARM edge or run)"},
 };
 inline constexpr size_t kNumDiag = sizeof kDiag / sizeof kDiag[0];
 

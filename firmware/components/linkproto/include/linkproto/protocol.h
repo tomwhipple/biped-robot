@@ -103,6 +103,32 @@ constexpr uint8_t kFlagHome = 1u << 4;
 // short again. It requests telemetry and commands nothing.
 constexpr uint8_t kFlagAtt = 1u << 5;
 
+// OPERATOR STOP, out of band (2026-11-01). A frame carrying this bit comes
+// from a stop button (tools/estop.py), not from a commander, and the robot
+// acts on it the moment it is decoded, in EVERY mode -- including a tethered
+// `run` with no commander at all, which is how the first armed policy stand
+// was run (and flailed, with no way to stop it but a grab).
+//
+// Out of band means it is NEVER fed to the ArmLatch, the HomeLatch or the
+// Watchdog. A second sender's frames would otherwise interleave with a
+// running commander's: its ARM level would make arm/bench edges against the
+// commander's (each re-arm a fresh Watchdog, so a fresh run), its seq could be
+// rejected as stale, and the commander's next ENABLE-off frame would clear a
+// plain ESTOP latch. None of that can happen to a frame nobody else reads.
+//
+// What it does is a LEVEL (every such frame asks again; repeats are harmless):
+//   with kFlagEstop: HARD stop -- torque released now (ctrl's tick, <= 20 ms
+//     after the frame), the run ends (disarmed to bench, kDisarmedStop);
+//     benched, any bench motion stops and torque is released;
+//   without: SOFT stop -- the policy stops and every servo holds its present
+//     position, torque ON, the run ends (kDisarmedStop) and the bench homes
+//     the robot once it is upright and still -- the flail guard's own stop;
+//     benched, any bench motion stops where it is.
+// Re-arming is a fresh ARM edge or `run`, as after a fall. An old firmware
+// ignores the bit, so the stop tool also sets kFlagEstop with ARM clear on a
+// hard stop: the old meaning (watchdog ESTOP latch) still releases torque.
+constexpr uint8_t kFlagStop = 1u << 6;
+
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
 constexpr float kStaleMs = 250.0f;         // -> decay to the trained stand
@@ -212,6 +238,15 @@ enum class ArmResult : uint8_t {
     // (policy::kWeightsArePlaceholder). It exists to golden-test the
     // firmware path; driving servos with it is never what anyone meant.
     kRefusedPolicy = 11, // arm refused: the compiled-in net is not a policy
+    // (2026-11-01) The armed loop's flail guard (components/flailguard) found
+    // the policy doing something clearly wrong for its command -- targets far
+    // from the stand, the torso thrashing or tilting, the targets chattering
+    // -- stopped it, froze every servo where it was with torque ON, and ended
+    // the run. The bench homes it once it is upright and still.
+    kDisarmedFlail = 12,
+    // An operator stop (kFlagStop) ended the run: torque released (hard) or
+    // held where it was (soft).
+    kDisarmedStop = 13,
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -265,6 +300,7 @@ struct Command {
     bool pose() const { return (flags & kFlagPose) != 0; }
     bool home() const { return (flags & kFlagHome) != 0; }
     bool att() const { return (flags & kFlagAtt) != 0; }
+    bool stop() const { return (flags & kFlagStop) != 0; }
 };
 
 struct Telemetry {

@@ -510,7 +510,8 @@ def test_diag_values_are_append_only():
         ("DISARMED_FALL", 3), ("DISARMED_HOME", 4), ("HOME_NO_CAL", 5),
         ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7),
         ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9),
-        ("REFUSED_GAINS", 10), ("REFUSED_POLICY", 11)]
+        ("REFUSED_GAINS", 10), ("REFUSED_POLICY", 11),
+        ("DISARMED_FLAIL", 12), ("DISARMED_STOP", 13)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 
@@ -777,3 +778,66 @@ def test_vbat_saturates():
                         loop_late_pct=0)
         (on_wire,) = struct.unpack_from("<H", P.encode_telemetry(t), 8)
         assert on_wire == want
+
+
+# -- operator stop (2026-11-01) ---------------------------------------------
+# FLAG_STOP: a stop button's frames, out of band -- no latch or watchdog sees
+# them, so a second sender can stop the robot without fighting a commander.
+
+def test_stop_flag_is_bit_6_and_disturbs_no_other():
+    assert P.FLAG_STOP == 64
+    assert P.FLAG_STOP not in (FLAG_ENABLE, FLAG_ESTOP, FLAG_ARM, P.FLAG_POSE,
+                               FLAG_HOME, P.FLAG_ATT)
+    c = decode_command(encode_command(1, 0.0, 0.0, P.FLAG_STOP | FLAG_ESTOP))
+    assert c.stop and c.estop and not c.arm and not c.enabled and not c.home
+    assert not decode_command(encode_command(2, 0.0, 0.0, FLAG_ESTOP)).stop
+
+
+def test_hard_stop_ends_a_tethered_run_with_no_commander():
+    # The first policy stand: armed by the tethered `run`, no radio sender,
+    # so the latch has never seen a frame. A stop button's first frame ends
+    # the run and torque goes off.
+    sup = Supervisor(armed=True)
+    assert sup.torque_on(0.0)
+    sup.accept(live(seq=0, flags=P.FLAG_STOP | FLAG_ESTOP), 1.0)
+    assert sup.state(1.0) is LinkState.BENCH and not sup.torque_on(1.0)
+    assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_STOP
+    assert "operator STOP" in diag_reason(sup.diag())
+
+
+def test_soft_stop_ends_the_run_holding_torque():
+    sup = Supervisor(armed=True)
+    sup.accept(live(seq=0, flags=P.FLAG_STOP), 1.0)
+    assert sup.state(1.0) is LinkState.BENCH
+    assert sup.torque_on(1.0)                       # held, not limp
+    assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_STOP
+
+
+def test_stop_does_not_fight_a_running_commander():
+    # A commander holds ARM=1 at 20 Hz; the stop button sends ARM=0 frames
+    # between them. Were those fed to the ArmLatch, every pair would be a
+    # bench edge then an ARM edge -- a re-arm, a fresh watchdog, a fresh run.
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
+    assert sup.state(1.0) is LinkState.LIVE
+    seq = 3
+    for k in range(20):
+        sup.accept(live(seq=seq, flags=FLAG_ARM | FLAG_ENABLE), 2.0 + k)
+        seq += 1
+        sup.accept(live(seq=k, flags=P.FLAG_STOP | FLAG_ESTOP), 2.5 + k)
+        assert sup.state(3.0 + k) is LinkState.BENCH, k
+        assert not sup.torque_on(3.0 + k)
+    # The commander's level never changed, so it made no edge: still benched
+    # until that operator deliberately drops and raises ARM again.
+    assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_STOP
+    sup.accept(live(seq=seq, flags=0), 30.0)
+    sup.accept(live(seq=seq + 1, flags=FLAG_ARM), 31.0)
+    assert sup.state(31.0) is LinkState.LIVE
+
+
+def test_flail_and_stop_reasons_name_themselves():
+    f = diag_reason(pack_diag(False, True, ArmResult.DISARMED_FLAIL))
+    assert "FLAIL" in f and "HELD" in f and "REFUSED" not in f
+    s = diag_reason(pack_diag(False, True, ArmResult.DISARMED_STOP))
+    assert "STOP" in s and "REFUSED" not in s

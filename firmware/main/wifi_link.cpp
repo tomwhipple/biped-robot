@@ -149,10 +149,16 @@ void wifiLinkTask(void*) {
                  n == static_cast<int>(linkproto::kCmdLenExt)) &&
                 linkproto::decodeCommand(rx, static_cast<size_t>(n), pkt) ==
                     linkproto::Err::kOk) {
-                CommandMsg msg;
-                msg.cmd = pkt;
-                msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
-                if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
+                // An operator stop (kFlagStop) is out of band: counted for
+                // ctrl and housekeeping, never put in the mailbox, so no latch
+                // or watchdog sees it (shared.h g_op_stops). It still takes
+                // the beacon below, so the stop tool can hear the verdict.
+                if (!takeOperatorStop(pkt)) {
+                    CommandMsg msg;
+                    msg.cmd = pkt;
+                    msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
+                    if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
+                }
                 g_rx_frames.fetch_add(1);
                 // Latest commander wins, same rule as latest command -- and
                 // {address, pose} are replaced as one value from this frame.
