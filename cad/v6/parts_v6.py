@@ -123,9 +123,9 @@ if ARMS:
     PARTS += [
         ("shoulder_girdle_v6", _lazy("shoulder_girdle_v6", "shoulder_girdle_v6"), 1,
          "ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)"),
-        ("shoulder_cheek_v6_L", _lazy("shoulder_girdle_v6", "shoulder_cheek_v6", "L"), 1,
-         "the left pod's outboard grip plate, screwed on once the servo is in (flat, outer face down)"),
-        ("shoulder_cheek_v6_R", _lazy("shoulder_girdle_v6", "shoulder_cheek_v6", "R"), 1, "mirror of _L"),
+        ("shoulder_cheek_v6", _lazy("shoulder_girdle_v6", "shoulder_cheek_v6", "L"), 2,
+         "each pod's outboard grip plate, screwed on once the servo is in; one part for both pods "
+         "(turned over for the right), flat, outer face down"),
         ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow servo grip, 160 mm (on its back)"),
         ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
         ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow fork -> hand knuckle, 160 mm (on its back)"),

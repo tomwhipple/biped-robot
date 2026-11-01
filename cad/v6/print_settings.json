@@ -71,10 +71,10 @@
       "parts": [
         "shoulder_girdle_v6",
         "neck_floor",
-        "shoulder_cheek_v6_L",
-        "shoulder_cheek_v6_R"
+        "shoulder_cheek_v6",
+        "shoulder_cheek_v6"
       ],
-      "note": "the shoulder girdle, the neck floor and the two shoulder cheeks on one plate, no supports"
+      "note": "the shoulder girdle, the neck floor and the two shoulder cheeks (one part, twice) on one plate, no supports"
     }
   },
   "variants": {
@@ -263,16 +263,10 @@
       "supports": false,
       "note": "flat, bottom face down, no supports."
     },
-    "shoulder_cheek_v6_L": {
+    "shoulder_cheek_v6": {
       "orient": "RY_YDOWN",
       "supports": false,
-      "note": "flat, outer (+y) face down, no supports.",
-      "spin": 90
-    },
-    "shoulder_cheek_v6_R": {
-      "orient": "RY_ROLL_WALL",
-      "supports": false,
-      "note": "flat, outer (-y) face down, no supports.",
+      "note": "flat, outer face down, no supports. One part for both pods (turned over for the right): two on the girdle_neck plate.",
       "spin": 90
     },
     "pelvis_v8": {

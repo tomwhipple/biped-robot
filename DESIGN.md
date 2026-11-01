@@ -462,7 +462,8 @@ target.
   rails. The neck is built into the girdle on the bench first: the neck floor's
   screws are under it once it is on the deck.
 - **Each pod's outboard grip plate is its own print, the cheek**
-  (`shoulder_cheek_v6_L` / `_R`, a mirror pair, 3.3 g, 58 × 31 × 2.4 mm).
+  (`shoulder_cheek_v6`, 3.3 g, 58 × 30 × 2.4 mm, square-edged). It is
+  symmetric about the shoulder axis, so one part fits both pods.
   Every feature on the servo's two big faces stands proud along the shoulder
   axis into a pocket in the pod's walls: the Ø19.6 output boss and the
   horn-side rib outboard, the back-cover platform and the free-hub post

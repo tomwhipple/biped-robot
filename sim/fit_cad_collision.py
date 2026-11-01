@@ -40,9 +40,12 @@ import build_v6_inertia as B
 
 
 @functools.lru_cache(maxsize=None)
-def _aabb(path, off_mm):
-    """(centre m, half extents m) of an STL placed at off_mm, in its body frame."""
+def _aabb(path, off_mm, flip_x=False):
+    """(centre m, half extents m) of an STL placed at off_mm, in its body frame
+    (flip_x: turned 180 deg about X first, add_cad_meshes.parts' option)."""
     lo, hi = trimesh.load(path, force="mesh").bounds
+    if flip_x:
+        lo, hi = np.array([lo[0], -hi[1], -hi[2]]), np.array([hi[0], -lo[1], -lo[2]])
     off = np.array(off_mm, float)
     lo, hi = lo + off, hi + off
     return tuple((lo + hi) / 2e3), tuple((hi - lo) / 2e3)
@@ -58,8 +61,9 @@ def part_boxes(arms=True, head=True):
     """body -> {label: (centre, half)}: every CAD part's box in its body frame."""
     out = {}
     for body, items in M.parts(arms, head).items():
-        for stl, off, _ in items:
-            out.setdefault(body, {})[stl] = _aabb(B.stl(stl), tuple(off))
+        for stl, off, _, *opt in items:
+            opts = opt[0] if opt else {}
+            out.setdefault(body, {})[opts.get("name", stl)] = _aabb(B.stl(stl), tuple(off), opts.get("flip_x", False))
     for body, keys in M.SERVOS.items():
         for k in keys:
             if k.startswith(("shoulder", "elbow")) and not arms:

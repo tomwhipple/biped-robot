@@ -121,10 +121,8 @@ OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 IDENT = np.eye(3)
 RY_YDOWN = np.array([(1, 0, 0), (0, 0, 1), (0, -1, 0)], float)       # model +Y -> print -Z
-RY_ROLL_WALL = np.array([(1, 0, 0), (0, 0, -1), (0, 1, 0)], float)   # model +Y -> print +Z
 PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls up"),
-                "shoulder_cheek_v6_L": (RY_YDOWN, "flat, outer (+y) face down"),
-                "shoulder_cheek_v6_R": (RY_ROLL_WALL, "flat, outer (-y) face down")}
+                "shoulder_cheek_v6": (RY_YDOWN, "flat, outer face down (the left pod's pose; x2)")}
 # NO SUPPORTS (Tom, 2026-11-01: "let's get rid of the windows front and back.
 # Instead let's just put a thin wall there so we don't have to worry about
 # print supports"). The four trapezius-web windows were 34 mm flat-topped
@@ -168,20 +166,18 @@ TIE_H = 10.0
 WEB_T = 1.6                           # the trapezius web's thin wall, flush with the band's OUTER face
 WEB_REC_Y = (22.0, 56.0)              # the lightening recess behind it (|y| band) ...
 WEB_REC_TOP = 25.5                    # ... from the beam's top up to here at the open (inner) face
-# 45 deg underside chamfer on the pod's outboard edge (the shoulder flare).
-# Its size is set by the LOWEST case screw, not by eye: the chamfer must stay
-# clear of that screw's countersink MOUTH, whose bottom edge sits at
-# axis - CASE_HOLE_LAT - CASE_CS_D/2 above the deck.
-_CSK_BOT_Z = _AZ - D.CASE_HOLE_LAT - D.CASE_CS_D / 2      # 3.01
-GIRDLE_FLARE = 3.0
-assert GIRDLE_FLARE <= _CSK_BOT_Z, \
-    "the pod flare would eat the lowest case screw's countersink"
+# No flare under the pod's outboard edge any more (Tom, 2026-11-01): it was
+# a 45 deg chamfer for the one-piece girdle, which printed that edge base-down;
+# the cheek prints flat, and the edges stay square.
 
 # the cheek and the lugs it screws to. The cheek's four screws sit on the case
-# screws' own two rows (so the flare clears them for the same reason), just
-# outboard of each end of the bay; the cheek stops GIRDLE_CHEEK_EDGE past their
-# countersinks, and the lugs carry a rim past that, so the cheek drops into a
-# rebate and is boxed fore-aft by the pod.
+# screws' own two rows, just outboard of each end of the bay; the cheek stops
+# GIRDLE_CHEEK_EDGE past their countersinks, and the lugs carry a rim past
+# that, so the cheek drops into a rebate and is boxed fore-aft by the pod.
+# Its height is centred on the shoulder axis (top flush with the pod top),
+# and every feature on it is symmetric about the axis, so the right pod's
+# cheek is the left's turned over: ONE part, printed twice. The 1.4 mm under
+# it is a ledge on the floor, which it sits on.
 CSK_MOUTH_R = (D.CASE_SCREW_CLEAR / 2
                + (D.CASE_CS_D / 2 + 0.3 - D.CASE_SCREW_CLEAR / 2) * D.CASE_CS_DEPTH / (D.CASE_CS_DEPTH + 0.3))  # 2.70
 CHEEK_SCREW_X = (BAY_X[0] - V.GIRDLE_CHEEK_SCREW_DX, BAY_X[1] + V.GIRDLE_CHEEK_SCREW_DX)   # -38.41, +13.41
@@ -191,6 +187,9 @@ CHEEK_X = (CHEEK_SCREW_X[0] - CSK_MOUTH_R - V.GIRDLE_CHEEK_EDGE,
 REBATE_X = (CHEEK_X[0] - V.GIRDLE_CHEEK_CLR, CHEEK_X[1] + V.GIRDLE_CHEEK_CLR)
 LUG_X = (REBATE_X[0] - V.GIRDLE_RIM_W, REBATE_X[1] + V.GIRDLE_RIM_W)                   # -43.51, +18.51
 LUG_Y0 = GRIP_Y0 - V.GIRDLE_LUG_D                                                       # 90.25
+CHEEK_Z = (2 * _AZ - POD_TOP, POD_TOP)                                                  # 1.40, 31.32
+assert CHEEK_Z[0] + 1.5 <= _AZ - D.CASE_HOLE_LAT - CSK_MOUTH_R, \
+    "the cheek's bottom edge would come within 1.5 mm of its lowest countersinks"
 CHEEK_PILOT_DEPTH = V.GIRDLE_CHEEK_PILOT_DEPTH
 assert CHEEK_SCREW_X[0] + V.ARM_PILOT_D / 2 + 1.5 <= BAY_X[0] and \
     CHEEK_SCREW_X[1] - V.ARM_PILOT_D / 2 - 1.5 >= BAY_X[1], \
@@ -241,6 +240,9 @@ def _pod(sgn, pads=True):
     p += parts.box(LUG_X[0], BAY_X[0], y(LUG_Y0), y(GRIP_Y1), 0, POD_TOP)
     p += parts.box(BAY_X[1], LUG_X[1], y(LUG_Y0), y(GRIP_Y1), 0, POD_TOP)
     p -= parts.box(REBATE_X[0], REBATE_X[1], y(GRIP_Y0), y(GRIP_Y1 + 1), -1, POD_TOP + 1)
+    # --- the ledge the cheek sits on: the floor run out to the outer face
+    # under it, GIRDLE_CHEEK_CLR short of the cheek's bottom edge
+    p += parts.box(REBATE_X[0], REBATE_X[1], y(GRIP_Y0 - 0.01), y(GRIP_Y1), 0, CHEEK_Z[0] - V.GIRDLE_CHEEK_CLR)
     # --- the cheek's four pilots, along the axis into the lugs' seat faces.
     # Horizontal in print (base down), so teardropped like every other bore.
     for x, z in cheek_screw_xz():
@@ -293,13 +295,6 @@ def cheek_screw_xz():
     return [(x, z) for x in CHEEK_SCREW_X for z in CHEEK_SCREW_Z]
 
 
-def _flare(sgn, x0, x1):
-    """The 45 deg chamfer under a pod's OUTBOARD edge (see shoulder_girdle_v6),
-    as the void to cut, over [x0, x1]."""
-    return parts.wedge_x([(sgn * GRIP_Y1, 0.0), (sgn * GRIP_Y1, GIRDLE_FLARE),
-                          (sgn * (GRIP_Y1 - GIRDLE_FLARE), 0.0)], x0, x1)
-
-
 # crush pads on the inboard wall's seat face, two on each band of bare case
 # face the wall can reach: the strip between the cable end and the platform
 # detent, and the strip between the hub hole and the output end. They are
@@ -332,11 +327,19 @@ def shoulder_cheek_v6(side="L"):
     four case screws through it into the servo's horn-side face. It goes on
     along the shoulder axis once the servo is home, over the output boss,
     into the rebate between the end lugs' rims, and four corner screws hold
-    it to the lugs. Pelvis frame, like the girdle; a mirrored pair (the flare
-    and the rib pocket are handed)."""
-    sgn = 1 if side == "L" else -1
+    it to the lugs, its bottom edge on the floor's ledge. Pelvis frame, like
+    the girdle. ONE part for both pods: it is built for the left pod and
+    turned over (180 deg about the shoulder axis) for the right, which is the
+    left's mirror image because everything on it is symmetric about the axis
+    (check_cheek_one_part)."""
+    c = _cheek_left()
+    return c if side == "L" else Pos(0, 0, _AZ) * Rot(180, 0, 0) * Pos(0, 0, -_AZ) * c
+
+
+def _cheek_left():
+    sgn = 1
     y = lambda v: sgn * v  # noqa: E731
-    c = parts.box(CHEEK_X[0], CHEEK_X[1], y(GRIP_Y0), y(GRIP_Y1), 0, POD_TOP)
+    c = parts.box(CHEEK_X[0], CHEEK_X[1], y(GRIP_Y0), y(GRIP_Y1), *CHEEK_Z)
     # --- relief: the O19.6 case boss stands proud of the horn face and the
     # horn disc TURNS inside it, so the plate is opened to D.GRIP_HORN_RELIEF,
     # leg_link's own number for this same joint. It is also the hole the
@@ -359,7 +362,7 @@ def shoulder_cheek_v6(side="L"):
     c -= parts.box(_rx[0], _rx[1], y(GRIP_Y0 - 0.01),
                    y(GRIP_Y0 + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR),
                    _AZ - _rz, _AZ + _rz)
-    return c - _flare(sgn, CHEEK_X[0] - 1, CHEEK_X[1] + 1)
+    return c
 
 
 def shoulder_girdle_v6(pads=True):
@@ -429,17 +432,9 @@ def shoulder_girdle_v6(pads=True):
         p -= parts.cyl_z(D.CASE_SCREW_CLEAR / 2, -1, BASE_T + 1, hx, hy)
         p -= parts.csk_z(hx, hy, BASE_T, +1)
 
-    # --- the flare. A 45 deg chamfer under each pod's OUTBOARD edge, so the
-    # shoulder grows out of the torso instead of stepping off it: the torso
-    # skin is 61.26 wide and the pod reaches 100.15, and without this the
-    # front view is a hard T. 45 deg because the part prints base-down and an
-    # underside shallower than that is an unsupported overhang. GIRDLE_FLARE
-    # is capped by the LOWEST case screw (z 6.11): the chamfer must not eat
-    # its countersink. Here it runs under the lugs' rims; the cheek carries
-    # the same chamfer across its own width.
-    for sgn in (1, -1):
-        p -= _flare(sgn, LUG_X[0] - 1, LUG_X[1] + 1)
-    # edges stay square: rounding them buys nothing (Tom, 2026-10-24)
+    # edges stay square: rounding them buys nothing (Tom, 2026-10-24), and the
+    # 45 deg flare under each pod's outboard edge went with the one-piece
+    # grip plate (Tom, 2026-11-01)
     return p
 
 
@@ -712,6 +707,24 @@ def check_cheek_lugs(verbose=True):
     return ok
 
 
+def check_cheek_one_part(verbose=True):
+    """The right pod is the left's mirror image, so its cheek must be the
+    left cheek's mirror -- and the right cheek is BUILT as the left one turned
+    over. They agree only if everything on the cheek is symmetric about the
+    shoulder axis, which is what makes it one part printed twice."""
+    left, right = shoulder_cheek_v6("L"), shoulder_cheek_v6("R")
+    want = mirror(left, Plane.XZ)
+    try:
+        diff = (want - right).volume + (right - want).volume
+    except Exception:  # noqa: BLE001
+        diff = float("nan")
+    good = diff < 0.05
+    if verbose:
+        print(f"  {'PASS' if good else 'FAIL'}  left cheek mirrored vs left cheek turned over: "
+              f"{diff:.3f} mm3 apart")
+    return good
+
+
 def check_arm_clearance(verbose=True):
     """The girdle's outer face must stay clear of the plane the arm's horn
     plate bolts to, or the arm grinds on the torso every time it swings."""
@@ -765,6 +778,8 @@ def run_checks():
     ok &= check_insertion()
     print("\n== cheek screws: pilots buried in the lugs ==")
     ok &= check_cheek_lugs()
+    print("\n== one cheek part for both pods ==")
+    ok &= check_cheek_one_part()
     print("\n== arm vs girdle clearance ==")
     ok &= check_arm_clearance()
     print("\n== head above the shoulders ==")
@@ -788,13 +803,12 @@ def main():
           f"{mass_g(p):5.1f} g   {'BED-OK' if max(bb.size.X, bb.size.Y, bb.size.Z) <= D.BED else '** TOO BIG **'}")
     export_stl(p, os.path.join(OUT_STL, "shoulder_girdle_v6.stl"))
     export_step(p, os.path.join(OUT_STEP, "shoulder_girdle_v6.step"))
-    for side in ("L", "R"):
-        c = shoulder_cheek_v6(side)
-        bb = c.bounding_box()
-        print(f"shoulder_cheek_v6_{side} {bb.size.X:6.2f} x {bb.size.Y:6.2f} x {bb.size.Z:6.2f} mm   "
-              f"{mass_g(c):5.1f} g")
-        export_stl(c, os.path.join(OUT_STL, f"shoulder_cheek_v6_{side}.stl"))
-        export_step(c, os.path.join(OUT_STEP, f"shoulder_cheek_v6_{side}.step"))
+    c = shoulder_cheek_v6("L")      # the one cheek part, in the left pod's pose; x2
+    bb = c.bounding_box()
+    print(f"shoulder_cheek_v6    {bb.size.X:6.2f} x {bb.size.Y:6.2f} x {bb.size.Z:6.2f} mm    "
+          f"{mass_g(c):5.1f} g   x2 (both pods)")
+    export_stl(c, os.path.join(OUT_STL, "shoulder_cheek_v6.stl"))
+    export_step(c, os.path.join(OUT_STEP, "shoulder_cheek_v6.step"))
     print("wrote stl + step")
     if a.checks:
         ok = run_checks()

@@ -555,7 +555,7 @@ the neck is built into the girdle before the girdle goes onto the robot.
 ### 11c. Shoulder servos and cheeks
 
 Each pod's outboard wall is a separate print, the **cheek**
-(`shoulder_cheek_v6_L` / `_R`). The servo cannot drop in from above: its
+(`shoulder_cheek_v6`, the same part for both pods). The servo cannot drop in from above: its
 output boss and horn-side rib (outboard), and its back-cover platform and
 free-hub post (inboard), all stand proud along the shoulder axis into
 pockets in the pod's walls. So the servo goes in along that axis, from
@@ -573,9 +573,10 @@ outboard, with the cheek off.
    ![Shoulder servos in from outboard](assembly/v6_16_shoulder_servos.png)
 
 3. **Put the cheek on along the same axis.** Thread its large hole over the
-   output boss and drop it into the rebate between the two end lugs' rims, its
-   rib pocket against the case's horn-side rib. The left and right cheeks are a
-   mirror pair: the 45° flare goes at the bottom, outboard.
+   output boss and drop it into the rebate between the two end lugs' rims,
+   onto the floor's ledge, countersinks outboard and its rib pocket against the
+   case's horn-side rib. Both cheeks are the same part: it is symmetric top to
+   bottom about the shoulder axis, so either way up fits.
 4. **Drive the 4 corner screws** (M2.5 × 8 flat-heads, from outboard, into
    the end lugs). They push the case the last 0.25 mm home onto the crush
    pads, so it ends up clamped between the inboard wall and the cheek.
