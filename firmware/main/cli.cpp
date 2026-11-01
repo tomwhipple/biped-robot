@@ -338,6 +338,18 @@ void cmdMove(Sink out, int argc, char** argv) {
 
 // Smooth-pose streamer state (poseTick). Housekeeping task only.
 static bool s_traj_active = false;
+// `sweep` (cmdSweep): a lateral-roll sine riding on the held double-support pose, for system
+// identification (2026-11-01: the one-leg balance oscillates at ~1.9 Hz on a hard floor). Any new
+// stream (startSmooth) ends it.
+struct RollSweep {
+    bool on = false;
+    int32_t amp = 0;               // ticks, same sign on all four roll joints (= lateral pelvis shift)
+    int nf = 0;
+    float f[12] = {};
+    TickType_t t0 = 0;
+    float roll0 = 0.0f;
+};
+static RollSweep s_sw;
 static TickType_t s_traj_t0 = 0, s_traj_last = 0;
 static long s_traj_ms = 0;
 static float s_traj_headroom = 1.0f;    // servo speed = (gap to the next sub-target) / tick x this
@@ -543,6 +555,7 @@ static void balTick(TickType_t now, Sink out) {
 bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
                  long dur_ms, Sink out, const char* who,
                  const int32_t* from = nullptr) {
+    s_sw.on = false;                       // a new move ends a sweep
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         s_traj_on[b] = false;
         if (!on[b]) continue;
@@ -1979,6 +1992,56 @@ void traceDump(Sink out) {
 
 void fallTick(Sink out) { fallTickImpl(out); }
 
+constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
+              kSwRA = obs::busIndexOfName("R_ankle_roll"), kSwLA = obs::busIndexOfName("L_ankle_roll");
+
+// `sweep [amp_ticks] [f1 f2 ...]` -- system identification: with both feet down and the last pose
+// held, add amp*sin(2 pi f t) (same ticks on all four roll joints = lateral pelvis shift) at each
+// frequency in turn (default 0.5 1 1.5 2 2.5 3 4 Hz, >= 4 cycles / 3 s each, 0.4 s cosine tapers).
+// Stops by itself if the roll moves > 6 deg from the start; any new pose/move/home ends it; the
+// fall guard stays on. The flight recorder carries goal/present/IMU for the frequency response.
+void cmdSweep(Sink out, int argc, char** argv) {
+    if (fallLocked(out)) return;
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc >= 2 && !strcmp(argv[1], "stop")) { s_sw.on = false; out("sweep stopped\r\n"); return; }
+    if (s_bal.engaged()) { out("sweep: single-stance balance is engaged -- double support only\r\n"); return; }
+    bool any = false;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) any = any || s_traj_on[b];
+    if (!any || !s_traj_on[kSwRH] || !s_traj_on[kSwLH] || !s_traj_on[kSwRA] || !s_traj_on[kSwLA]) {
+        out("sweep: send a full-body pose first (the sweep rides on the held pose)\r\n");
+        return;
+    }
+    long amp = argc >= 2 ? num(argv[1], 11) : 11;
+    if (amp < 1) amp = 1;
+    if (amp > 34) amp = 34;                 // <= 3 deg
+    RollSweep sw;
+    sw.amp = static_cast<int32_t>(amp);
+    for (int k = 2; k < argc && sw.nf < 12; ++k) {
+        const float f = strtof(argv[k], nullptr);
+        if (f >= 0.1f && f <= 8.0f) sw.f[sw.nf++] = f;
+    }
+    if (sw.nf == 0) {
+        const float d[] = {0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f, 4.0f};
+        for (float f : d) sw.f[sw.nf++] = f;
+    }
+    if (!balReadRoll(&sw.roll0)) { out("sweep: no fresh IMU attitude -- not moving\r\n"); return; }
+    if (!s_traj_active) {                   // re-open the stream holding the last targets
+        int32_t tgt[obs::kNumBusJoints];
+        memcpy(tgt, s_traj_tgt, sizeof tgt);
+        bool on[obs::kNumBusJoints];
+        memcpy(on, s_traj_on, sizeof on);
+        if (!startSmooth(bus, tgt, on, 300, out, "sweep")) return;
+    }
+    float total = 0.0f;
+    for (int k = 0; k < sw.nf; ++k) total += fmaxf(3.0f, 4.0f / sw.f[k]) + 0.8f;
+    sw.t0 = xTaskGetTickCount();
+    sw.on = true;
+    s_sw = sw;
+    say(out, "sweep: +-%ld ticks (+-%.1f deg) on both hip+ankle rolls, %d freqs, %.0f s, stops if roll moves > 6 deg\r\n",
+        amp, static_cast<double>(amp) * 0.0879, sw.nf, static_cast<double>(total));
+}
+
 void poseTick(Sink out) {
     if (!s_traj_active) {
         // trace tail after the stream: keep sampling until s_trace_until
@@ -2031,6 +2094,34 @@ void poseTick(Sink out) {
     // interval it will take -- the servo GLIDES between updates instead of
     // being poked one tick every 20 ms against its dead zone.
     balTick(now, out);
+    // `sweep`: this tick's offset (ticks) and its roll guard
+    float sw_off = 0.0f;
+    if (s_sw.on) {
+        const float t = static_cast<float>(pdTICKS_TO_MS(now - s_sw.t0)) / 1000.0f;
+        float ts = 0.0f;
+        int k = 0;
+        for (; k < s_sw.nf; ++k) {
+            const float dur = fmaxf(3.0f, 4.0f / s_sw.f[k]) + 0.8f;    // >= 4 cycles, + 0.4 s tapers
+            if (t < ts + dur) {
+                const float u = t - ts;
+                const float env = fminf(1.0f, fminf(u, dur - u) / 0.4f);
+                const float e = 0.5f - 0.5f * cosf(3.14159265f * fmaxf(0.0f, env));
+                sw_off = static_cast<float>(s_sw.amp) * e * sinf(6.2831853f * s_sw.f[k] * u);
+                break;
+            }
+            ts += dur;
+        }
+        float r = 0.0f;
+        if (k >= s_sw.nf) {
+            s_sw.on = false;
+            out("sweep done\r\n");
+        } else if (balReadRoll(&r) && fabsf(r - s_sw.roll0) > 6.0f / 57.29578f) {
+            s_sw.on = false;
+            sw_off = 0.0f;
+            say(out, "sweep STOPPED at %.1f Hz: roll %+.1f deg moved > 6 deg from the start\r\n",
+                static_cast<double>(s_sw.f[k]), static_cast<double>(r * 57.29578f));
+        }
+    }
     const int32_t kBigStep = s_traj_bigstep;
     const long kMinIntervalMs = s_traj_minint_ms;
     uint8_t ids[obs::kNumBusJoints];
@@ -2055,6 +2146,10 @@ void poseTick(Sink out) {
                 s_bal_from_set[b] = true;
             }
             want = balance::landTarget(s_bal_from[b], s_bal_home[b], s_bal.landFraction());
+        }
+        if (s_sw.on && (b == kSwRH || b == kSwLH || b == kSwRA || b == kSwLA)) {
+            bool hit = false;
+            want = clampTicks(obs::kBusServoId[b], want + static_cast<int32_t>(lroundf(sw_off)), &hit);
         }
         if (s_bal.engaged() && (b == s_bal_ba || b == s_bal_bh)) {
             // the balance correction rides on the nominal target, inside the
@@ -2126,6 +2221,8 @@ void poseTick(Sink out) {
                 s_bal_hold_said = true;
                 say(out, "smooth pose done (%ld ms); balance holding on %c stance\r\n", el, s_bal_side);
             }
+        } else if (s_sw.on) {
+            // the sweep rides on the held pose: keep streaming
         } else {
             s_traj_active = false;
             say(out, "smooth pose done (%ld ms)\r\n", el);
@@ -3271,6 +3368,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
     else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
     else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
+    else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
