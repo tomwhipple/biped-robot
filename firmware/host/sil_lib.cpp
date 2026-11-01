@@ -320,14 +320,20 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     // [4]=lift. Training's plain_stand gate (env_mjx): no locomotion
     // command AND no lift -- marches/balances keep their clock. Must stay
     // bit-identical to ctrl_task.cpp's gate.
-    const float sil_vy = obs::kNumCmd > 1 ? in->cmd[1] : 0.0f;
-    const float sil_lift = obs::kNumCmd > 4 ? in->cmd[4] : 0.0f;
+    // Frozen command channels pinned to their trained value, as ctrl_task.cpp
+    // does (policy/mlp.h pinFrozen), before the clock gate reads them -- from
+    // the LOADED net's normaliser, so a .silw of another run pins its own.
+    float cmd[obs::kNumCmd];
+    memcpy(cmd, in->cmd, sizeof cmd);
+    policy::pinFrozenNet(g_net.net(), obs::kOffCmd, obs::kNumCmd, cmd);
+    const float sil_vy = obs::kNumCmd > 1 ? cmd[1] : 0.0f;
+    const float sil_lift = obs::kNumCmd > 4 ? cmd[4] : 0.0f;
     if (!obs::kClockStandFreeze
-        || fabsf(in->cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
-        || fabsf(in->cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
+        || fabsf(cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
+        || fabsf(cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
         // speed clock: same scale as ctrl_task.cpp (kSpeedClock)
         g_clock.advanceSpeedClock(obs::kControlDt,
-                                  sqrtf(in->cmd[0] * in->cmd[0] + sil_vy * sil_vy));
+                                  sqrtf(cmd[0] * cmd[0] + sil_vy * sil_vy));
     }
 
     obs::Inputs inp{};
@@ -337,7 +343,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     memcpy(inp.gyro, in->gyro, sizeof inp.gyro);
     memcpy(inp.prev_action, g_prev_action, sizeof g_prev_action);
     inp.phase = g_clock.phase();
-    memcpy(inp.cmd, in->cmd, sizeof(float) * obs::kNumCmd);
+    memcpy(inp.cmd, cmd, sizeof cmd);
 
     obs::assembleFrame(inp, g_frame);
     if (!g_primed) {

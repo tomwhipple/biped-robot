@@ -229,6 +229,16 @@ Numbered because code cites them.
    out, so for this policy it must stay at 0. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
    the deployed run.
+   Since the v6 legs deployment the firmware enforces this itself:
+   `policy::pinFrozen` (policy/mlp.h) feeds every frozen **command** channel
+   its trained value (the normaliser mean) in `ctrl_task.cpp` and
+   `sil_lib.cpp`, whatever the link or the pack guard asks for. The exporter
+   refuses a run with a frozen slot that is neither a command channel nor
+   one the assembler hard-zeroes (linvel, height). `test_policy` checks the
+   compiled-in net's set, and `test_sil_profiles.py` checks it against the
+   training env's own command sampler. The v6 legs walk students freeze
+   linvel, height and `cmd[3..6]`: crouch is fixed at 1, and lift and foot
+   are 0.
 3. **The policy takes its weights as a parameter.** `policy::Net` /
    `forwardNet` run an exported `.silw` through exactly the on-target
    arithmetic; `forward()` binds the same code to the generated header.

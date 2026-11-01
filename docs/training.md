@@ -761,17 +761,20 @@ map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
 same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
 (`q 0, dq 12, up 24, linvel 27, gyro 30, prev_action 33, height 45, phase 46,
-cmd 48`, 7 command channels), 3 frames, network 165 → … → 24. No trained net
-exists in the deployable map yet, so the profile carries an **untrained test
-net** (`tools/make_test_policy_run.py --out v6legs_fullmap_testnet`: the
-trainer's own `build_env_kw` over the legs-walk recipe for `config.json`, flax
-initialisation under a fixed seed for `params.pkl`), put through the real
-exporter and generators. Its golden vectors pin the firmware's arithmetic to
-brax's; `kWeightsArePlaceholder` is true, and the firmware refuses to arm on a
-placeholder (`REFUSED_POLICY`). When a real v6 legs run is distilled:
-`make deploy RUN=<student> POLICY=v6legs`, then the same gates as above. Its
-`config.json` carries the stiffness it trained with, and `main/servo_gains.h`
-must then raise P on exactly those servos or the image does not build.
+cmd 48`, 7 command channels), 3 frames, network 165 → 128 → 128 → 24. The
+profile carries **`robot_legs_walk14_s1_s128r24`**, the (128, 128) student of
+`robot_legs_walk14_s1`, trained at the as-built factory gains (servo_kp_scale
+2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its static check passes)
+with the ankle pitch inside its stops (policy range ±40 deg). It was chosen
+for the first armed test, a stand at zero command started standing on the
+floor, by `sim/mjx/eval_stand_arm.py` on the training plant and the fitted
+plant. The comparison, the closed-loop SIL parity and the hardware procedure
+are in [first-policy-stand.md](first-policy-stand.md). Its frozen command
+channels (crouch 1, lift and foot 0) are pinned by the firmware
+(sil-harness.md finding 2). `tools/make_test_policy_run.py` still makes the
+untrained test net for exercising the path on a new plant. A placeholder
+compiles as `kWeightsArePlaceholder` and the firmware refuses to arm on it
+(`REFUSED_POLICY`); an exported net arms.
 
 ---
 

@@ -38,7 +38,14 @@ void testNormalizer() {
         o[i] = policy::kNormMean[i] + policy::kNormStd[i];
     }
     policy::normalize(o, n);
-    for (int i = 0; i < policy::kObsDim; ++i) CHECK_NEAR(n[i], 1.0, 1e-5);
+    // A frozen slot's std is 1e-6, below float resolution next to a mean of
+    // order 1 (mean + std rounds): expect what float arithmetic gives there.
+    for (int i = 0; i < policy::kObsDim; ++i) {
+        const float want = policy::isFrozen(i)
+                               ? (o[i] - policy::kNormMean[i]) / policy::kNormStd[i]
+                               : 1.0f;
+        CHECK_NEAR(n[i], want, 1e-5);
+    }
 }
 
 void testGoldenVectors() {
@@ -112,6 +119,50 @@ void testTheNetIsNotDegenerate() {
     for (int i = 0; i < policy::kObsDim; ++i) CHECK(policy::kNormStd[i] > 0.0f);
 }
 
+void testFrozenChannels() {
+    // docs/sil-harness.md finding 2 / policy/mlp.h pinFrozen. A frozen slot
+    // (normaliser std at brax's 1e-6 floor) must be one the firmware can feed
+    // its trained value EXACTLY: a command channel (pinned by pinFrozen) or a
+    // slot the assembler hard-zeroes (linvel, height -- trained value 0).
+    // A frozen sensor slot (q, dq, up, gyro, prev_action, phase) could not be
+    // fed it and must not exist.
+    using namespace obs;
+    for (int s = 0; s < kFrameDim; ++s) {
+        // the same set in every history frame (each frame is one frame)
+        for (int h = 1; h < kHistLen; ++h) {
+            CHECK(policy::isFrozen(h * kFrameDim + s) == policy::isFrozen(s));
+        }
+        if (!policy::isFrozen(s)) continue;
+        const bool is_cmd = s >= kOffCmd && s < kOffCmd + kNumCmd;
+        const bool is_zero = (s >= kOffLinVel && s < kOffLinVel + 3) || s == kOffHeight;
+        CHECK(is_cmd || is_zero);
+        if (is_zero) {
+            for (int h = 0; h < kHistLen; ++h) {
+                CHECK(policy::kNormMean[h * kFrameDim + s] == 0.0f);
+            }
+        }
+    }
+    // pinFrozen: frozen command channels come back at their trained value
+    // (the normaliser mean), every other channel untouched, and the mask
+    // names exactly the frozen channels that differed.
+    float cmd[kNumCmd];
+    for (int i = 0; i < kNumCmd; ++i) cmd[i] = 0.37f + 0.01f * static_cast<float>(i);
+    const uint32_t m = policy::pinFrozen(kOffCmd, kNumCmd, cmd);
+    for (int i = 0; i < kNumCmd; ++i) {
+        const int k = kOffCmd + i;
+        const float was = 0.37f + 0.01f * static_cast<float>(i);
+        if (policy::isFrozen(k)) {
+            CHECK(cmd[i] == policy::kNormMean[k]);
+            CHECK(((m >> i) & 1u) == (was != policy::kNormMean[k] ? 1u : 0u));
+        } else {
+            CHECK(cmd[i] == was);
+            CHECK(((m >> i) & 1u) == 0u);
+        }
+    }
+    // pinned twice: nothing left to change
+    CHECK(policy::pinFrozen(kOffCmd, kNumCmd, cmd) == 0u);
+}
+
 }  // namespace
 
 int main() {
@@ -121,5 +172,6 @@ int main() {
     testForwardIsPure();
     testWeightsAreTheDeployedPolicy();
     testTheNetIsNotDegenerate();
+    testFrozenChannels();
     return testutil::report("policy");
 }

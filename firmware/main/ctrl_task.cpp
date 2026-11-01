@@ -452,10 +452,36 @@ void ctrlTask(void*) {
         // extras at trained defaults, so nothing changes for old senders.
         float cmd7[7];
         g_dog.commandExt(now_ms, cmd7);
-        const float vx = g_batt.latched() ? 0.0f : cmd7[0];
-        const float vy = g_batt.latched() ? 0.0f : cmd7[1];
-        const float wz = g_batt.latched() ? 0.0f : cmd7[2];
-        const float lift = g_batt.latched() ? 0.0f : cmd7[4];
+        obs::Inputs in{};
+        // ext_cmd channel layout (walker_env.set_command): vx, vy, wz, crouch,
+        // lift, foot_dx, foot_dz -- defaults (0,0,0,1,0,0,0).
+        in.cmd[0] = g_batt.latched() ? 0.0f : cmd7[0];
+        if (obs::kNumCmd > 1) in.cmd[1] = g_batt.latched() ? 0.0f : cmd7[1];
+        in.cmd[2] = g_batt.latched() ? 0.0f : cmd7[2];
+        // Crouch height: the LOWER of the link's command and the pack
+        // guard's ramp -- the guard trips toward walker_env's
+        // crouch_range[0], the lowest stance the policy trained to hold,
+        // and a link asking for a deeper crouch than the guard allows is
+        // still inside the trained band (both clamp at kCrouchMin).
+        if (obs::kNumCmd > 3) {
+            const float bg = g_batt.crouch();
+            in.cmd[3] = cmd7[3] < bg ? cmd7[3] : bg;
+        }
+        if (obs::kNumCmd > 4) in.cmd[4] = g_batt.latched() ? 0.0f : cmd7[4];
+        if (obs::kNumCmd > 5) in.cmd[5] = g_batt.latched() ? 0.0f : cmd7[5];
+        if (obs::kNumCmd > 6) in.cmd[6] = g_batt.latched() ? 0.0f : cmd7[6];
+        // Frozen command channels (policy/mlp.h pinFrozen; docs/sil-harness.md
+        // finding 2): a channel the deployed run never saw move -- e.g. the
+        // crouch of a run trained at crouch 1 only, or lift/foot on a walk
+        // policy -- is fed exactly its trained value, whatever the link or
+        // the pack guard's landing ramp asks for. Anything else would land
+        // ~1e6 sigma out at the first layer. Before the clock gate, so the
+        // gate sees what the policy sees. Mirrored in sil_lib.cpp.
+        policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        const float vx = in.cmd[0];
+        const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
+        const float wz = in.cmd[2];
+        const float lift = obs::kNumCmd > 4 ? in.cmd[4] : 0.0f;
         // clock_stand_freeze runs generated per-policy: a policy trained
         // with the frozen-at-stand clock must see it here too, or the
         // stand obs oscillate in a way training never produced. Training's
@@ -471,7 +497,6 @@ void ctrlTask(void*) {
             g_clock.advanceSpeedClock(obs::kControlDt, sqrtf(vx * vx + vy * vy));
         }
 
-        obs::Inputs in{};
         memcpy(in.q, g_q, sizeof g_q);
         memcpy(in.dq, g_dq, sizeof g_dq);
         memcpy(in.up, s.up, sizeof in.up);
@@ -486,23 +511,6 @@ void ctrlTask(void*) {
         }
         memcpy(in.prev_action, g_prev_action, sizeof g_prev_action);
         in.phase = g_clock.phase();
-        // ext_cmd channel layout (walker_env.set_command): vx, vy, wz, crouch,
-        // lift, foot_dx, foot_dz -- defaults (0,0,0,1,0,0,0).
-        in.cmd[0] = vx;
-        if (obs::kNumCmd > 1) in.cmd[1] = vy;
-        in.cmd[2] = wz;
-        // Crouch height: the LOWER of the link's command and the pack
-        // guard's ramp -- the guard trips toward walker_env's
-        // crouch_range[0], the lowest stance the policy trained to hold,
-        // and a link asking for a deeper crouch than the guard allows is
-        // still inside the trained band (both clamp at kCrouchMin).
-        if (obs::kNumCmd > 3) {
-            const float bg = g_batt.crouch();
-            in.cmd[3] = cmd7[3] < bg ? cmd7[3] : bg;
-        }
-        if (obs::kNumCmd > 4) in.cmd[4] = lift;
-        if (obs::kNumCmd > 5) in.cmd[5] = g_batt.latched() ? 0.0f : cmd7[5];
-        if (obs::kNumCmd > 6) in.cmd[6] = g_batt.latched() ? 0.0f : cmd7[6];
         const int64_t t_obs0 = esp_timer_get_time();
         obs::assembleFrame(in, g_frame);
         if (!g_primed) {

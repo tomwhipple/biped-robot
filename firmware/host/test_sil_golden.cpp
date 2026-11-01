@@ -126,7 +126,15 @@ std::string resolveWeights(const std::string& json_path,
         }
     }
     // Last resort: exactly one .silw nearby is unambiguous, more than one
-    // is not.
+    // is not -- but only for a golden file that names no run. One that does
+    // and whose .silw is absent falls back to the compiled-in net (or skips):
+    // another run's blob (e.g. a policy profile's export, which lands in the
+    // same sim/sil/weights/) is not "its" weights.
+    if (root.isObj()) {
+        if (const siljson::Value* r = root.get("run")) {
+            if (r->isStr() && !r->str.empty()) return std::string();
+        }
+    }
     for (const std::string& d : dirs) {
         std::vector<std::string> silw;
         listFiles(d, ".silw", silw);

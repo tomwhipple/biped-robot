@@ -380,11 +380,38 @@ def main():
     # constant or the policy sees a 1e5-magnitude input.
     frozen = np.where(std <= 1e-5)[0]
     if frozen.size:
-        slots = sorted(set(int(i) % int(env.obs_frame) for i in frozen))
+        fw = int(env.obs_frame)
+        slots = sorted(set(int(i) % fw for i in frozen))
         print(f"  WARNING: {frozen.size} frozen obs channels (std == std_eps) "
               f"-> frame slots {slots}")
         print("           the firmware MUST feed these their training value "
               "exactly; a deviation of d becomes d/1e-6 after normalisation")
+        # The firmware can do that for exactly two kinds of slot (policy/mlp.h
+        # pinFrozen, obs/assembler.cpp): a command channel, which ctrl_task
+        # pins to the trained value (the normaliser mean), and the linvel /
+        # height slots the assembler hard-zeroes (trained value 0). Anything
+        # else -- a frozen sensor slot -- it cannot feed, so refuse.
+        nq = int(env._nq_act)
+        off_lin, off_h = 2 * nq + 3, 3 * nq + 9
+        off_cmd = 3 * nq + 12
+        zero_slots = {off_lin, off_lin + 1, off_lin + 2, off_h}
+        cmd_slots = set(range(off_cmd, off_cmd + int(env._ncmd)))
+        bad = [s for s in slots if s not in zero_slots | cmd_slots]
+        if bad:
+            raise SystemExit(f"frozen obs slots {bad} are neither command "
+                             "channels nor the assembler's hard zeros: the "
+                             "firmware cannot feed them their training value")
+        if sorted(set(int(i) % fw for i in frozen)) != slots or \
+                frozen.size != len(slots) * hist:
+            raise SystemExit("frozen obs slots differ between history frames")
+        nz = [s for s in slots if s in zero_slots and mean[s] != 0.0]
+        if nz:
+            raise SystemExit(f"frozen linvel/height slots {nz} trained at a "
+                             "nonzero value; the assembler feeds 0")
+        pin = {s - off_cmd: float(mean[s]) for s in slots if s in cmd_slots}
+        if pin:
+            print("           command channels the firmware pins (cmd index: "
+                  f"trained value): {pin}")
 
     n_params = sum(w.size + b.size for w, b in layers)
     print(f"{run_name}: {' -> '.join(str(s) for s in sizes)}  swish")

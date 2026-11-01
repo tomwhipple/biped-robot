@@ -24,6 +24,7 @@
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "obs/obs_spec.h"
+#include "policy/mlp.h"
 #include "scsbus/registers.h"
 #include "sil.h"
 #include "sil_json.h"
@@ -461,8 +462,12 @@ void testZeroedSmoke() {
                             : kTwoPi * obs::kControlDt * 1.5f;
     CHECK_NEAR(out.obs[obs::kOffPhase + 0], sinf(phase), 1e-6);
     CHECK_NEAR(out.obs[obs::kOffPhase + 1], cosf(phase), 1e-6);
+    // The command is all zero, except where the compiled-in net has a frozen
+    // command channel: that one is pinned to its trained value
+    // (policy/mlp.h pinFrozen) -- e.g. the crouch of a run trained at 1 only.
     for (int i = 0; i < obs::kNumCmd; ++i) {
-        CHECK_NEAR(out.obs[obs::kOffCmd + i], 0.0, 0.0);
+        const int k = obs::kOffCmd + i;
+        CHECK_NEAR(out.obs[k], policy::isFrozen(k) ? policy::kNormMean[k] : 0.0f, 0.0);
     }
     // First tick after a reset: every history slot is this frame (env.reset()).
     for (int h = 1; h < obs::kHistLen; ++h) {

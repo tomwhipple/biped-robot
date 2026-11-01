@@ -13,10 +13,10 @@ Per profile, against the run its spec was generated from:
     against the training obs stacking to the tick quantiser's size.
 
 The run's artifacts are gitignored (sim/runs/, *.silw): absent, these SKIP
-with what to regenerate -- for the v6legs test net,
-`tools/make_test_policy_run.py --out v6legs_fullmap_testnet` then
-`tools/export_policy_weights.py --run v6legs_fullmap_testnet --profile v6legs
---no-golden`.
+with what to regenerate -- for the v6legs policy, fetch its run
+(sim/runs/robot_legs_walk14_s1_s128r24) then `tools/export_policy_weights.py
+--run robot_legs_walk14_s1_s128r24 --profile v6legs --no-golden`; for an
+untrained test net, `tools/make_test_policy_run.py --out <name>` first.
 """
 import json
 import os
@@ -104,3 +104,55 @@ def test_profile_closed_loop_parity(profile):
     # end to end vs the training obs: only the tick quantiser differs
     assert r["q_err"] < 2e-3, r
     assert r["train_err"] < 5e-2, r
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_profile_frozen_commands_are_the_training_values(profile):
+    """The command channels the firmware pins (policy/mlp.h pinFrozen: every
+    channel whose normaliser std sits at brax's 1e-6 floor, pinned to the
+    normaliser mean) are exactly the channels the TRAINING env never varied
+    for this run's config, at exactly the value it fed them -- checked against
+    the env's own command sampler, not just the normaliser."""
+    run = _run_name(profile)
+    run_dir = os.path.join(ROOT, "sim", "runs", run)
+    if not os.path.exists(os.path.join(run_dir, "config.json")):
+        pytest.skip(f"sim/runs/{run}/config.json absent (gitignored)")
+    silw = os.path.join(HERE, "weights", run + ".silw")
+    if not os.path.exists(silw):
+        pytest.skip(f"sim/sil/weights/{run}.silw absent (gitignored)")
+    import inspect
+    import numpy as np
+    sys.path.insert(0, os.path.join(ROOT, "sim"))
+    import gen_policy_weights as G   # tools/, on the path above
+    from walker_env import BimoWalkerEnv
+    cfg = json.load(open(os.path.join(run_dir, "config.json")))
+    if cfg.get("test_net"):
+        pytest.skip(f"{run} is an untrained test net")
+    mean, std, _, info = G.read_silw(silw)
+    params = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
+    kw = {k: v for k, v in cfg.items() if k in params}
+    kw.update(xml_path=os.path.join(ROOT, "sim", cfg["xml_path"]),
+              command_mode=True, render_mode=None)
+    env = BimoWalkerEnv(**kw)
+    fd, nc = int(env.obs_frame), int(env._ncmd)
+    off = fd - nc
+    frozen = [i for i in range(nc) if std[off + i] <= 1e-5]
+    draws = []
+    for seed in range(40):
+        env.reset(seed=seed)
+        for _ in range(50):
+            env._sample_command()
+            draws.append(np.array(env._cmd, dtype=np.float32))
+    draws = np.array(draws)
+    for i in range(nc):
+        if i in frozen:
+            assert np.all(draws[:, i] == mean[off + i]), (
+                f"cmd[{i}] is frozen in the normaliser at {mean[off + i]} but "
+                f"the training sampler draws {np.unique(draws[:, i])[:5]}")
+        else:
+            assert np.ptp(draws[:, i]) > 0.0, (
+                f"cmd[{i}] varies in the normaliser but not in the sampler")
+    # the walk policy's stand command is the trained one in every channel
+    env.set_command(0.0, 0.0, 0.0, 1.0)
+    for i in frozen:
+        assert np.float32(env._cmd[i]) == mean[off + i]

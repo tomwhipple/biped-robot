@@ -53,6 +53,30 @@ void forwardNet(const Net& net, const float* obs, float* action) {
     for (int i = 0; i < net.act_dim; ++i) action[i] = tanhf(src[i]);
 }
 
+uint32_t pinFrozenNet(const Net& net, int off, int n, float* v) {
+    uint32_t changed = 0;
+    for (int i = 0; i < n && i < 32; ++i) {
+        const int k = off + i;
+        if (k < 0 || k >= net.obs_dim) continue;
+        if (!(net.norm_std[k] <= kFrozenStdMax)) continue;
+        if (v[i] != net.norm_mean[k]) changed |= 1u << i;
+        v[i] = net.norm_mean[k];
+    }
+    return changed;
+}
+
+uint32_t pinFrozen(int off, int n, float* v) {
+    Net net;
+    net.obs_dim = kObsDim;
+    net.norm_mean = kNormMean;
+    net.norm_std = kNormStd;
+    return pinFrozenNet(net, off, n, v);
+}
+
+bool isFrozen(int i) {
+    return i >= 0 && i < kObsDim && kNormStd[i] <= kFrozenStdMax;
+}
+
 void forward(const float* obs, float* action) {
     // cppcheck-suppress knownConditionTrueFalse -- a compile-time guarantee,
     // not a runtime check: the scratch buffer is sized to the widest layer.
