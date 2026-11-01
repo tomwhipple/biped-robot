@@ -59,6 +59,7 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/battguard/include \
             -I$(COMPONENTS)/balance/include \
             -I$(COMPONENTS)/fallguard/include \
+            -I$(COMPONENTS)/flailguard/include \
             -I$(COMPONENTS)/flightrec/include
 
 # Kept before the sanitizers are folded in: the SIL shared library cannot use
@@ -89,11 +90,12 @@ SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
+SRC_FLAIL = $(COMPONENTS)/flailguard/flailguard.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_fallguard \
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_fallguard test_flailguard \
         test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
 
@@ -278,6 +280,12 @@ $(BUILD)/test_roll_pi: test_roll_pi.cpp $(SRC_BAL) test_util.h $(COMP_HDRS) | $(
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_fallguard: test_fallguard.cpp $(SRC_FALL) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The flail guard, replayed against the 2026-11-01 policy-stand failure
+# (vectors/flail_vectors.h, tools/gen_flail_vectors.py).
+$(BUILD)/test_flailguard: test_flailguard.cpp $(SRC_FLAIL) vectors/flail_vectors.h \
+                          test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The flight recorder's wire format against vectors from tools/flightrec.py

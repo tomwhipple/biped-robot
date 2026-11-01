@@ -290,6 +290,23 @@ def now_us() -> int:
     return time.time_ns() // 1000
 
 
+def note_robot_addr(ip: str) -> None:
+    """Remember where the robot is: hw_sessions/robot_addr in the main checkout.
+
+    tools/estop.py reads it, so the operator's E-stop needs no --host while a
+    collector is running. Written only when the address changes, atomically.
+    """
+    d = os.path.join(repo_root(), "hw_sessions")
+    try:
+        os.makedirs(d, exist_ok=True)
+        tmp = os.path.join(d, ".robot_addr.tmp")
+        with open(tmp, "w") as f:
+            f.write(ip + "\n")
+        os.replace(tmp, os.path.join(d, "robot_addr"))
+    except OSError as e:
+        print(f"note: could not record the robot address: {e}", flush=True)
+
+
 def serve(args) -> int:
     col = Collector(args.out, args.label, args.split_gap, not args.no_split_on_boot,
                     args.port, log=lambda m: print(m, flush=True))
@@ -313,6 +330,7 @@ def serve(args) -> int:
           f"{args.out or default_out_dir() + ' (per-session date)'}", flush=True)
     t_end = time.monotonic() + args.duration if args.duration else None
     next_status = time.monotonic() + args.status_every
+    robot_ip = None
     while not stop["now"]:
         if t_end is not None and time.monotonic() >= t_end:
             break
@@ -320,11 +338,15 @@ def serve(args) -> int:
             stop["rotate"] = False
             col.rotate("SIGHUP")
         try:
-            data, _ = sock.recvfrom(2048)
+            data, src = sock.recvfrom(2048)
         except socket.timeout:
             data = None
         if data:
             col.handle(data, now_us())
+            # Loopback is a test or a replay, never the robot.
+            if src[0] != robot_ip and not src[0].startswith("127."):
+                robot_ip = src[0]
+                note_robot_addr(robot_ip)
         if args.status_every and time.monotonic() >= next_status:
             next_status = time.monotonic() + args.status_every
             print("status: " + col.status(), flush=True)

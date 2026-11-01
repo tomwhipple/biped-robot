@@ -8,6 +8,7 @@
 
 #include "balance/roll_pi.h"
 #include "fallguard/fallguard.h"
+#include "flailguard/flailguard.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
 #include "obs/obs_spec.h"
@@ -1025,6 +1026,11 @@ void cmdPose(Sink out, int argc, char** argv) {
 // Touched only by the housekeeping task (typed `home`, linkHome and
 // homeVerify all run there), so plain statics.
 static bool s_home_pending = false;
+// Benched with torque HELD after an armed-loop hold (the flail guard or a
+// soft operator stop; shared.h g_armed_holds), waiting for the robot to be
+// upright and still to home it (flailTickImpl). Any deliberate operator move
+// -- a home, a torque/release, a pose, a run -- takes it over and clears this.
+static bool s_hold_pending = false;
 static TickType_t s_home_deadline = 0;
 static int32_t s_home_tgt[obs::kNumBusJoints];
 static bool s_home_on[obs::kNumBusJoints];
@@ -1042,6 +1048,7 @@ static_assert(kBusLRoll >= 0 && kBusRRoll >= 0, "hip rolls must be on the bus");
 
 linkproto::ArmResult homeAll(Sink out, long spd) {
     s_home_pending = false;
+    s_hold_pending = false;          // a home IS the way out of a hold
     balStop(out, "home");
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return linkproto::ArmResult::kHomeBusFailed;
@@ -1224,6 +1231,153 @@ void fallTickImpl(Sink out) {
     fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 2 s, autohome started");
 }
 
+// -- flail guard + operator stop, bench half (shared.h g_armed_holds,
+//    g_op_stops; ctrl_task runs the armed half) ------------------------------
+// After the first armed policy stand flailed (2026-11-01, flailguard.h):
+//  - HOLD handed over from the armed loop -- its flail guard tripped, or a soft
+//    operator stop arrived: ctrl froze every servo where it was, torque ON, and
+//    benched without releasing. This logs why (flight event kFlail), then waits
+//    until the robot is within the flail tilt line (20 deg) and still
+//    (|gyro| < 0.35 rad/s) for 1 s -- standing on its own, or held upright --
+//    and runs the bench `home` (2.5 s smooth, play take-up, readback, release).
+//    `fall autohome off` (the same switch as the fall pick-up) leaves it held
+//    for a typed `home`. Past the bench fall line (30 deg / 100 ms) the bench
+//    fall guard takes it from here and goes limp, as for any bench fall.
+//  - OPERATOR STOP (tools/estop.py) while benched: any bench motion -- pose
+//    stream, balance, home -- stops where it is; a HARD stop also releases
+//    torque. Armed, ctrl has already acted; this only logs (kStop), once per
+//    burst (the tool repeats its frame for a second).
+static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0;
+static bool s_hold_cand = false;
+static uint32_t s_hold_since = 0;
+static TickType_t s_stop_logged = 0;
+static bool s_stop_logged_any = false;
+constexpr uint32_t kHoldSettleMs = 1000u;
+
+static const char* holdWhy(uint8_t trip) {
+    if (trip == robot::kHoldTripOperator) return "operator soft STOP";
+    return flailguard::tripName(static_cast<flailguard::Trip>(trip));
+}
+
+void flailTickImpl(Sink out) {
+    // -- operator stops ---------------------------------------------------
+    const uint32_t stops = robot::g_op_stops.load();      // stops, then estops (shared.h)
+    const uint32_t estops = robot::g_op_estops.load();
+    if (stops != s_stops_seen) {
+        const bool hard = estops != s_estops_seen;
+        s_stops_seen = stops;
+        s_estops_seen = estops;
+        const bool benched = robot::g_mode_request.load() == robot::Mode::kBench &&
+                             !robot::g_ctrl_owns_bus.load();
+        if (benched) {
+            s_traj_active = false;
+            s_home_pending = false;
+            balStop(out, "STOP");
+            if (hard) {
+                if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+                s_hold_pending = false;     // limp: nothing left to home from
+            } else {
+                // A soft stop leaves a hold holding (it may be this very
+                // stop's, handed over by ctrl mid-burst) and restarts its
+                // settle: no autohome until 1 s still after the last frame.
+                s_hold_cand = false;
+            }
+        }
+        const TickType_t now = xTaskGetTickCount();
+        if (!s_stop_logged_any || now - s_stop_logged > pdMS_TO_TICKS(2000)) {
+            s_stop_logged_any = true;
+            s_stop_logged = now;
+            const char* what = hard ? (benched ? "operator HARD STOP (bench): motion stopped, torque OFF"
+                                               : "operator HARD STOP (armed): torque OFF, run ended")
+                                    : (benched ? "operator soft STOP (bench): motion stopped where it is"
+                                               : "operator soft STOP (armed): policy stopped, joints HELD, run ended");
+            robot::flight::event(flightrec::Ev::kStop, what, hard ? 1 : 0, benched ? 0 : 1);
+            say(out, "%s\r\n", what);
+        }
+    }
+
+    // -- a hold handed over from the armed loop ---------------------------
+    const uint32_t holds = robot::g_armed_holds.load();
+    if (holds != s_holds_seen) {
+        s_holds_seen = holds;
+        const uint8_t trip = robot::g_armed_hold_trip.load();
+        const float value = robot::g_armed_hold_value.load();
+        const int joint = robot::g_armed_hold_joint.load();
+        const bool held = robot::g_armed_hold_torque.load();
+        char msg[160];
+        const bool is_tilt_or_pose = trip == static_cast<uint8_t>(flailguard::Trip::kPose) ||
+                                     trip == static_cast<uint8_t>(flailguard::Trip::kTilt);
+        if (trip == robot::kHoldTripOperator) {
+            snprintf(msg, sizeof msg, "HOLD: operator soft STOP -- policy stopped, joints %s, disarmed",
+                     held ? "HELD stiff" : "were already limp");
+        } else {
+            snprintf(msg, sizeof msg, "FLAIL guard: %s %.2f%s%s%s -- policy stopped, joints %s, disarmed",
+                     holdWhy(trip), static_cast<double>(value), is_tilt_or_pose ? " deg" : " rad/s",
+                     joint >= 0 && joint < obs::kNumJoints ? " at " : "",
+                     joint >= 0 && joint < obs::kNumJoints ? obs::kJointNames[joint] : "",
+                     held ? "HELD stiff" : "were already limp");
+        }
+        robot::flight::event(flightrec::Ev::kFlail, msg, trip, held ? 1 : 0);
+        say(out, "%s\r\n", msg);
+        s_hold_pending = held && s_fall_on && s_fall_autohome;
+        s_hold_cand = false;
+        if (held) {
+            say(out, "  %s\r\n", s_hold_pending
+                    ? "holding; once it is upright (< 20 deg) and still for 1 s it homes itself (`bench` = limp now)"
+                    : "holding (autohome off): `home` to re-zero, `release` or `bench` to go limp");
+        }
+    }
+    if (!s_hold_pending) return;
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) return;
+    if (s_fall.fallen()) {            // the bench fall guard went limp: its recovery now
+        s_hold_pending = false;
+        return;
+    }
+    imu::Sample smp{};
+    uint32_t age = 0;
+    const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;
+    const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
+    const float w = sqrtf(smp.gyro[0] * smp.gyro[0] + smp.gyro[1] * smp.gyro[1] + smp.gyro[2] * smp.gyro[2]);
+    if (!(valid && fallguard::tiltDeg(smp.up) < flailguard::kLimits.tilt_deg && w < fallguard::kPickupGyroRadS)) {
+        s_hold_cand = false;
+        return;
+    }
+    if (!s_hold_cand) {
+        s_hold_cand = true;
+        s_hold_since = now_ms;
+    }
+    if (static_cast<uint32_t>(now_ms - s_hold_since) < kHoldSettleMs) return;
+    out("HOLD: upright and still for 1 s -- homing\r\n");
+    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+        out("home did not start -- still HOLDING (`home` to retry, `release` to go limp)\r\n");
+        s_hold_pending = true;
+        s_hold_cand = false;
+        return;
+    }
+    robot::flight::event(flightrec::Ev::kFlail, "hold: upright and still 1 s, autohome started", 0, 2);
+}
+
+// `flail` status | on | off
+void cmdFlail(Sink out, int argc, char** argv) {
+    if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_flail_on.store(true);
+    else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
+    const flailguard::Limits& L = flailguard::kLimits;
+    say(out, "flail guard (flailguard.h) %s: trips -> policy stopped, joints HELD, disarmed (kDisarmedFlail)\r\n",
+        robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
+    say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
+        static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
+    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s\r\n", static_cast<double>(L.rate_tau_s),
+        static_cast<double>(L.rate_rad_s));
+    say(out, "  tilt    > %.0f deg for %lu ms (the fall guard, limp, stays at 45)\r\n",
+        static_cast<double>(L.tilt_deg), static_cast<unsigned long>(L.tilt_hold_ms));
+    say(out, "  chatter mean |d raw target/dt| EMA(%.1f s) > %.1f rad/s\r\n", static_cast<double>(L.chatter_tau_s),
+        static_cast<double>(L.chatter_rad_s));
+    say(out, "  %lu hold(s) since boot%s%s; %s\r\n", static_cast<unsigned long>(robot::g_armed_holds.load()),
+        robot::g_armed_holds.load() ? ", last: " : "",
+        robot::g_armed_holds.load() ? holdWhy(robot::g_armed_hold_trip.load()) : "",
+        s_hold_pending ? "HOLDING now, homes when upright and still" : "not holding");
+}
+
 // `fall` status | on | off | autohome on|off | clear
 void cmdFall(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "on")) s_fall_on = true;
@@ -1309,6 +1463,7 @@ void cmdTorque(Sink out, int argc, char** argv, bool on) {
     const uint8_t id = one ? static_cast<uint8_t>(num(argv[1]))
                            : scsbus::kBroadcastId;
     balStop(out, on ? "torque" : "release");
+    s_hold_pending = false;          // the operator has taken the hold over
     const scsbus::Status st = bus->torqueEnable(id, on);
     say(out, "%s %s: %s\r\n", on ? "torque" : "release",
         one ? argv[1] : "all", statusName(st));
@@ -1586,6 +1741,15 @@ bool armRefused(Sink out) {
 
 void cmdMode(Sink out, bool run) {
     if (run) balStop(out, "arming");
+    // A typed or wireless `bench` while HOLDING after a flail/soft stop means
+    // "limp, now" -- every other way out of a run releases torque, and the
+    // docs teach `bench` as the tethered E-stop.
+    if (!run && s_hold_pending && robot::g_mode_request.load() == robot::Mode::kBench &&
+        !robot::g_ctrl_owns_bus.load() && robot::g_bus) {
+        robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+        out("hold released: torque OFF\r\n");
+    }
+    s_hold_pending = false;
     // No valid as-built calibration, no run. The default Calibration (zero
     // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
     // 2026-08-02, and a stored blob measured under a different servo map is
@@ -2004,6 +2168,7 @@ void traceDump(Sink out) {
 }
 
 void fallTick(Sink out) { fallTickImpl(out); }
+void flailTick(Sink out) { flailTickImpl(out); }
 
 constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
               kSwRA = obs::busIndexOfName("R_ankle_roll"), kSwLA = obs::busIndexOfName("L_ankle_roll");
@@ -3295,6 +3460,7 @@ void banner(Sink out) {
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
+    out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
@@ -3353,6 +3519,12 @@ void execute(const char* line, Sink out) {
     const int argc = split(buf, argv, 40);
     if (argc == 0) return;
     const char* c = argv[0];
+    // A deliberate bench move takes over a flail/soft-stop hold: the autohome
+    // must not start under the operator's own motion (flailTickImpl).
+    if (!strcmp(c, "pose") || !strcmp(c, "move") || !strcmp(c, "balance") ||
+        !strcmp(c, "sweep") || !strcmp(c, "stream") || !strcmp(c, "middle")) {
+        s_hold_pending = false;
+    }
 
     if (!strcmp(c, "help") || !strcmp(c, "?")) banner(out);
     else if (!strcmp(c, "scan")) cmdScan(out);
@@ -3381,6 +3553,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
     else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
     else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
+    else if (!strcmp(c, "flail")) cmdFlail(out, argc, argv);
     else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
