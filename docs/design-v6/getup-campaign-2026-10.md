@@ -129,14 +129,18 @@ the two starts converge before the roll.
    final straightening), unlike the hand-tuned rise #147's evidence was
    taken on. *(night 10: held, sweep 48/48 on three runs, 15 N 15 – 16/16;
    night 11: the robot's own gains, `--servo-kp-scale asbuilt`, then the
-   deploy action contract `--quantize --ctrl-within-stops`)*
+   deploy action contract `--quantize --ctrl-within-stops` — held, w12k
+   48/48, 15 N 14/16: the get-up trains on the full deploy contract)*
 3. **One policy for both starts**: largely solved without env work (night
    1). The prone reference's roll ends on the back and the supine seat push
    follows, so the prone policy gets up from supine when it starts at that
    phase (`recover_supine_ph`); the robot picks the phase from the IMU.
    Left: a side start, and the deployment choosing the phase.
 4. **Hand over to the walker** (the reference ends arms forward: a 2 s ramp
-   today), distil, SIL — the deployment path of training.md §9.
+   today), distil, SIL — the deployment path of training.md §9. *(night 11:
+   the first get-up student, w9k → (128, 128), loses 16/48 of the sweep and
+   10/16 at 15 N; night 12: distil data, and training the (128, 128) policy
+   directly with PPO, `--policy-hidden`)*
 
 Throughout: when the referee shows a phase failing, fix the reference first
 (`getup_ref_analytic.py verify` / `rise` / `search-roll`), then the RL.
@@ -208,10 +212,16 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w9k | 10-30 | w5k (t3k) | knee servos STS3250 → STS3215 (the as-built set; `--servo-3250 knee` dropped) | the get-up does not need STS3250 knees on the analytic reference (as-built open-loop verify 144/216): sweep ≥ 40/48, 15 N ≥ 12/16, graded on as-built servos | 0/8 | 8/8 | 8/8 (35.4 s) | 8/8 (35.4 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N **16/16**, 30 N 3/16 (w5k 48, 14, 4). The get-up needs no STS3250 knees |
 | robot_getup_w10k | 10-30 | w9k (w5k_s1) | init t3k → w5k_s1 | the best design-servo policy adapts to the softer knees at least as well as t3k: sweep ≥ w9k's, 15 N ≥ 12/16 | 0/8 | 8/8 | 8/8 (35.1 s) | 8/8 (35.2 s) | **held**, and no better than from t3k: sweep 48/48, 15 N 16/16, 30 N 2/16. The init does not matter |
 | robot_getup_w9k_s1 | 10-30 | w9k | seed 1 | replicate | 0/8 | 8/8 | 8/8 (35.3 s) | 8/8 (35.3 s) | **replicates**: sweep 48/48, 15 N 15/16, 30 N 4/16 |
-| robot_getup_w9k_s128r24 | 10-31 | w9k | (distil) the stock 24-round (128, 128) student | arc step 4: the residual get-up survives distillation, supine ph + prone fall ≥ 14/16 at 0.35 | | | | | |
-| robot_getup_w11k | 10-31 | w9k (t3k) | `--servo-kp-scale robot` → `asbuilt` (factory P32: hip pitch, hip yaw, ankle 1× → 2.8×) | the get-up holds on the gains the robot runs: sweep ≥ 46/48, 15 N ≥ 14/16 | | | | | |
-| robot_getup_w12k | 10-31 | w11k (t3k) | + `--quantize --ctrl-within-stops` (the rest of the legs deploy contract) | no loss vs w11k: the deployable get-up recipe | | | | | |
-| robot_getup_w11k_s1 | 10-31 | w11k | seed 1 | replicate (may be capped) | | | | | |
+| robot_getup_w9k_s128r24 | 10-31 | w9k | (distil) the stock 24-round (128, 128) student | arc step 4: the residual get-up survives distillation, supine ph + prone fall ≥ 14/16 at 0.35 | 0/8 | 8/8 | 6/8 (36.4 s) | 6/8 (36.5 s) | gate **held at the edge** (14/16), the rest **lost**: 0.05: 1/8, 7/8; 0.5: 8/8, 2/8 = 32/48 (teacher 48); 15 N 6/16 (16), 30 N 0/16. Sinks after standing at 0.05, never stands from prone at 0.5 and under shoves. bc 0.001 vs val 0.016: overfit |
+| robot_getup_w11k | 10-31 | w9k (t3k) | `--servo-kp-scale robot` → `asbuilt` (factory P32: hip pitch, hip yaw, ankle 1× → 2.8×) | the get-up holds on the gains the robot runs: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 7/8 | 8/8 (35.3 s) | 8/8 (35.2 s) | **held** at the edge: 0.05: 8/8, 8/8; 0.5: 7/8, 8/8 = 46/48; 15 N 14/16, 30 N 3/16 (w9k 48, 16, 3) |
+| robot_getup_w12k | 10-31 | w11k (t3k) | + `--quantize --ctrl-within-stops` (the rest of the legs deploy contract) | no loss vs w11k: the deployable get-up recipe | 0/8 | 8/8 | 8/8 (34.3 s) | 8/8 (34.3 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N 14/16, 30 N 5/16. The first get-up on the full deploy contract |
+| robot_getup_w11k_s1 | 10-31 | w11k | seed 1 | replicate (may be capped) | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | trained the full 600M; **replicates**: 0.05: 8/8, 8/8; 0.5: 7/8, 8/8 = 47/48; 15 N 15/16, 30 N 5/16 |
+| robot_getup_w12k_s128r24 | 11-01 | w12k | (distil) stock student of the deploy-contract teacher | the deployable teacher's baseline student (expect the w9k student's 32/48) | | | | | |
+| robot_getup_w12k_s128r24n1024 | 11-01 | w12k_s128r24 | distil `--envs` 512 → 1024 | the get-up student overfits: more data, val_mse < 0.008, sweep ≥ 40/48 | | | | | |
+| robot_getup_w13k | 11-01 | w12k (fresh) | policy net (512, 256, 128) → (128, 128) (`--policy-hidden`, #180; forces a fresh init) | the residual policy needs no big net: sweep ≥ 44/48, 15 N ≥ 12/16, deployable with no distil | | | | | |
+| robot_getup_w14k | 11-01 | w12k (fresh) | no `--init-from` (from scratch, (512, 256, 128)) | control for w13k: the reference carries a fresh policy, sweep ≥ 44/48 | | | | | |
+| robot_getup_w12k_s1 | 11-01 | w12k | seed 1 | replicate of the deploy-contract recipe | | | | | |
+| robot_getup_w13k_s1 | 11-01 | w13k | seed 1 | replicate (likely capped) | | | | | |
 
 ## Nights
 
@@ -1239,3 +1249,132 @@ student (val_mse, watts, overall); walk14 / walk14_s1 against walk13_fit_s1;
 the per-step table (first / steady / stop) for walk_steps_R. Get-up: the
 sweep and the 15 / 30 N grades for w11k, w12k and w11k_s1 against w9k; the
 w9k student's sweep against w9k.
+
+### Night of 2026-10-31 (evaluated 2026-11-01)
+
+All eleven jobs ran (legs 22:00 – 23:56, get-up 23:56 – 04:14; DST ended at
+02:00, so w12k's 01:46 → 02:30 is 1 h 44 min) and were refereed on main
+`62db430`. Upstream since the last plan: nothing but the planner's own
+commits. The plants, servos and envs did not change, so every comparison
+below holds. No new moving flight-recorder data (the last session is still
+the 10-31 idle ticks), so the fitted legs flags stay.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35 (CPU referee, 8 seeds each; as-built servos):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| w11k (`asbuilt` gains) | 8/8 8/8 | 7/8 8/8 | 7/8 8/8 | 46/48 | 14/16 | 3/16 | w9k 48, 16, 3 |
+| w12k (+ quantizer, clip within stops) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 14/16 | 5/16 | w11k 46, 14, 3 |
+| w11k_s1 (seed 1) | 8/8 8/8 | 8/8 8/8 | 7/8 8/8 | 47/48 | 15/16 | 5/16 | w11k 46, 14, 3 |
+| w9k_s128r24 (stock student of w9k) | 1/8 7/8 | 8/8 6/8 | 8/8 2/8 | 32/48 | 6/16 | 0/16 | teacher 48, 16, 3 |
+
+- **The get-up holds on the full deploy contract.** On the robot's factory
+  P32 gains (w11k, w11k_s1: 46 and 47/48) and with the quantizer and the
+  clip to the stops on top (w12k: 48/48) it loses at most two sweep trials
+  and one or two at 15 N. The clip at the hip pitch −120°, knee −130° and
+  ankle −40° stops costs nothing. Times are a second faster (supine ph
+  22.0 s, prone 33.4 – 35.3 s). 30 N stays at 3 – 5/16, the structural miss.
+  **w12k is the deployable get-up teacher** and the new parent.
+- **The first get-up student does not survive distillation.** w9k →
+  (128, 128) passes its in-job gate at the edge (14/16 at 0.35) but loses
+  16 of 48 sweep trials and 10 of 16 at 15 N. It fails in the two places
+  the teacher learned beyond the reference: at 0.05 it stands and then
+  sinks (end height 0.29 m mean, the post-stand sink that the
+  ET-after-latch training removed from the teachers), and at 0.5 and under
+  shoves it never stands from prone (end height 0.14 / 0.11 m). Unlike the
+  legs students it does not underfit: bc_loss 0.0010, val_mse 0.0162. It
+  fits its buffer and does not generalise, which is the signature of too
+  little or too narrow data, not too small a net.
+
+**Decision.** Arc step 4 is the get-up's gate now. Two routes, tested
+tonight. (1) Better distillation: the stock student of w12k (baseline) and
+the same with 2× fresh data per round (`--envs 1024`, the env count the
+teacher trains at, so the all-floor contact pool is known to fit the GPU;
+4× was not risked). (2) No distillation: train the (128, 128) firmware net
+directly with PPO (`--policy-hidden 128,128`, PR #180). The policy is a
+0.15 residual around a reference that replays at 43/48 on its own, so a
+small net may be enough. The shapes force a fresh init, so w14k (the w12k
+recipe from scratch at (512, 256, 128)) is the control that separates net
+size from init. Then w12k_s1 and w13k_s1 as replicates. The body question
+(every get-up trains on the arms body; the as-built robot has none) is
+still Tom's.
+
+#### One-leg stands and short walks (as-built legs-only plant, deploy-first)
+
+| run | parent | the one variable | key rows | overall | verdict |
+|---|---|---|---|---|---|
+| robot_legs_walk14 | walk13_fit_s1 (init) | init walk12_full → walk13_fit_s1 (second 400M on the fitted plant) | line_1m 3/8, backward 6/8, square_return 7/8, goal_home 7/8, sidestep 7/8 8/8, stand 8/8, stand_off 6/8; walk_steps_L/R **5/8, 3/8** (min peak 2.9 / 2.6 cm) | **79/160**, falls 21 %, 94 W | **held** (≥ 75, R ≥ 3/8): the best deployable teacher |
+| robot_legs_walk14_s1 | walk14 | seed 1 | walk_steps 1/8, 1/8; stand 8/8, stand_off 5/8 | 67/160, falls 22 %, 102 W | replicate does not hold: seed spread 79 / 67 |
+| walk13_fit_s1_s128r24 | walk13_fit_s1 | (stock distil) | walk_steps 1/8, 0/8; stand 8/8 | 41/160 (teacher 70), 133 W (97) | student |
+| walk13_fit_s128r24e24 | walk13_fit_s128r24 | `--epochs` 6 → 24 | walk_steps 0/8, 2/8; stand 7/8 | 46/160 (stock 52), val_mse 0.0066 (0.0071) | **not held**: 4× SGD barely moves the fit |
+| walk13_fit_s128r24n2048 | walk13_fit_s128r24 | `--envs` 512 → 2048 | walk_steps 1/8, 1/8; stand 8/8 | 43/160 (stock 52), val_mse **0.0101** | **not held**: 4× data fits worse (the 2M FIFO buffer then holds only ~4 rounds) |
+| walk14_s128r24 | walk14 | (stock distil) | walk_steps 1/8, 1/8; stand 8/8, goal_home 1/8 | 37/160 (teacher 79), falls 55 % (21 %), 143 W (94) | student loses 42 |
+| walk14_s1_s128r24 | walk14_s1 | (stock distil) | walk_steps 1/8, 1/8 | 41/160 (teacher 67), 154 W | student |
+
+Per-step peaks of the walk_steps episodes (16 per run, the referee's
+seeds; `walk_steps_swings` wrapped, as on 10-26):
+
+| run | first step: median, episodes < 3 cm | steady steps: min, median, < 3 cm | stop step: median, episodes < 3 cm |
+|---|---|---|---|
+| walk13_fit_s1 | 2.5 cm, 10/16 | 0.4, 6.0 cm, 4/75 | 4.6 cm, 3/16 |
+| walk14 | 3.0 cm, 8/16 | 3.0, 6.1 cm, 1/74 | 4.6 cm, 1/15 |
+| walk14_s1 | 3.2 cm, 7/16 | 0.5, 5.5 cm, 3/76 | 3.5 cm, 6/14 |
+| walk14_s128r24 | 2.1 cm, 11/16 | 0.6, 5.5 cm, 2/74 | 4.6 cm, 3/16 |
+
+- **The first step is the walk gate now, not the stop step.** On the fitted
+  deploy plant the stop step clears 3 cm in all but 1 of walk14's 15
+  episodes (the 10-26 pre-fit runs: 11 – 14 of 16 failed it). The first
+  step from standing fails in half the episodes, on both feet (walk14: 4 L,
+  4 R). Seed 1's misses are its stop step (6/14), mostly the right foot.
+  The right-foot weakness of 10-30 is gone in walk14.
+- **The legs students are not limited by the SGD or the data.** 4× epochs
+  moved val_mse 0.0071 → 0.0066 and the score 52 → 46. 4× envs made it worse
+  (0.0101, 43). Both stay at bc ≈ val, an underfit. In every round about 330
+  of 512 student-driven slots fall. What is left is capacity, or the DAgger
+  recipe feeding the student its own falls. Tonight's bracket on walk14:
+  (256, 256) and the teacher's own (512, 256, 128). If the teacher-sized
+  student also loses, the recipe is the problem and capacity is not.
+  (256, 256) is ~115k parameters, ~460 KB fp32. Whether the ESP32 holds it
+  is a firmware question for Tom and the robot session, and it only matters
+  if it wins.
+
+**Decision.** One teacher tonight: walk15 continues walk14 (a third 400M,
+since the second added 9 seed-passes on that seed), with its stock student.
+The legs night is mostly the capacity bracket. The first-step miss is the
+next teacher variable once the student route is known.
+
+#### Tonight (night 12)
+
+Legs first (Tom 2026-10-24 / 10-30), then get-up. Expected: walk15
+22:00 – 22:50, three legs distils and two get-up distils to ~23:20, then
+four 600M get-up jobs at ~1.75 h each (the fourth starts ~04:35 and is capped
+by the guards).
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk15 | walk14 (walk14) | init walk13_fit_s1 → walk14 | still converging: ≥ 82/160, first-step lows ≤ 6/16, walk_steps_R ≥ 4/8 |
+| 2 | robot_legs_walk14_s256r24 | walk14_s128r24 | distil `--hidden` 128,128 → 256,256 | capacity-bound: val_mse well below 0.005, ≥ 55/160 |
+| 3 | robot_legs_walk14_s512r24 | walk14_s128r24 | distil `--hidden` → 512,256,128 (teacher size) | top of the bracket: ≥ 70/160, val_mse < 0.002; if not, the DAgger recipe is the limit |
+| 4 | robot_legs_walk15_s128r24 | walk15 | (stock distil) | |
+| 5 | robot_getup_w12k_s128r24 | w12k | (stock distil) | baseline student of the deployable teacher (~32/48 like w9k's) |
+| 6 | robot_getup_w12k_s128r24n1024 | w12k_s128r24 | distil `--envs` 512 → 1024 | the get-up student overfits: val_mse < 0.008, sweep ≥ 40/48 |
+| 7 | robot_getup_w13k | w12k (fresh) | policy (512,256,128) → (128,128) | deployable with no distil: sweep ≥ 44/48, 15 N ≥ 12/16 |
+| 8 | robot_getup_w14k | w12k (fresh) | no `--init-from` | control for w13k: sweep ≥ 44/48 |
+| 9 | robot_getup_w12k_s1 | w12k | seed 1 | replicate |
+| 10 | robot_getup_w13k_s1 | w13k | seed 1 | replicate (capped) |
+
+Preflight: PASS 10/10. Every training job's arg list also parses with
+`train_mjx.py`'s own parser on main `6f86441`; preflight does not run that
+parser, which matters for a new flag. Fallback: the w12k recipe (the
+deploy-contract get-up).
+
+**Tomorrow's evaluation:** legs: the capacity bracket (val_mse, watts,
+overall, walk_steps) against walk14_s128r24; walk15 against walk14 with the
+per-step table. Get-up: the sweep and the 15 / 30 N grades for w13k, w14k,
+w12k_s1 and w13k_s1 against w12k. Read w13k's MJX curve against w14k's
+(`eval/episode_recovered`): a small net that stalls early is a different
+failure from one that is still climbing. The two w12k students' sweeps go
+against the w9k student's 32/48.
