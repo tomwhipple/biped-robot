@@ -570,6 +570,15 @@ def make_parser():
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
+    p.add_argument("--act-delay-types", default=None,
+                   help="per-servo dead time DR by servo type, ticks: "
+                        "'sts3215=lo:hi,sts3250=lo:hi' (2026-11-01 robot stepresp: "
+                        "STS3215 63-84 ms dead, STS3250 12-18 ms), e.g. 'sts3215=2:4,sts3250=0:1'")
+    p.add_argument("--servo-kd-range", default=None,
+                   help="per-episode servo damping multiplier DR 'lo,hi' (2026-11-01 fit: "
+                        "~0.17x the modelled kd at stand amplitudes), e.g. 0.1,1.0")
+    p.add_argument("--servo-kp-range", default=None,
+                   help="per-episode servo stiffness multiplier DR 'lo,hi', e.g. 0.6,1.2")
     p.add_argument("--init-pose-deg", type=float, default=None,
                    help="episode start-pose jitter half-width per joint, deg "
                         "(unset = the historical 1.7 deg); served target starts "
@@ -790,6 +799,13 @@ def build_env_kw(args):
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
+    if getattr(args, "act_delay_types", None):
+        env_kw["act_delay_types"] = {k: tuple(int(x) for x in v.split(":"))
+                                     for k, v in (kv.split("=") for kv in args.act_delay_types.split(","))}
+    if getattr(args, "servo_kd_range", None):
+        env_kw["servo_kd_range"] = tuple(float(x) for x in args.servo_kd_range.split(","))
+    if getattr(args, "servo_kp_range", None):
+        env_kw["servo_kp_range"] = tuple(float(x) for x in args.servo_kp_range.split(","))
     if args.init_pose_deg is not None:
         env_kw["init_pose_deg"] = float(args.init_pose_deg)
     if args.walk_submix is not None:

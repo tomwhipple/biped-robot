@@ -1,0 +1,6 @@
+=== Sun Nov  1 03:08:49 PM MST 2026 rca_gpu start ===
+repo @ main 70cb615
+15:08 paused camera-watcher-classifier-1
+unloaded nomic-embed-text:latest
+unloaded qwen2.5:7b-instruct-ctx16k
+15:08 teacher robot_legs_walk14_s1_gg start (timeout 2400s): --steps 200000000 --num-evals 10 --gyro-gain-range 0.5,3.0 --gyro-delay-max 1

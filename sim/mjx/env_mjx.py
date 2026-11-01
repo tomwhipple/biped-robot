@@ -903,6 +903,15 @@ class BimoMJXEnv:
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
+        # per-SERVO dead time by servo type, ticks: {"sts3215": (lo, hi), "sts3250": (lo, hi)}
+        # (2026-11-01 robot stepresp, loaded: STS3215 63-84 ms dead + tau ~57 ms, STS3250
+        # 12-18 ms + ~19 ms). Each servo draws its own integer delay per episode; overrides
+        # the scalar act_delay_max draw (whose history it reuses). None = off.
+        act_delay_types: dict | None = None,
+        # per-episode servo DAMPING multiplier U(lo, hi) on top of gain_range (2026-11-01 fit:
+        # the stance servos act ~0.17x the modelled kd at stand amplitudes). None = off.
+        servo_kd_range: tuple | None = None,
+        servo_kp_range: tuple | None = None,    # same for the stiffness
         init_pose_deg: float | None = None,     # start-pose jitter half-width per
                                                 # joint (deg). None keeps the
                                                 # historical +-0.03 rad (1.7 deg).
@@ -1404,6 +1413,22 @@ class BimoMJXEnv:
         self.gyro_delay_max = int(gyro_delay_max)
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
         self.act_delay_max = int(act_delay_max)
+        self.act_delay_types = ({k: (int(v[0]), int(v[1])) for k, v in act_delay_types.items()}
+                                if act_delay_types else None)
+        if self.act_delay_types:
+            types = {n: "sts3215" for n in self._servo_names}
+            for k, v in (self.servo_types or {}).items():
+                for n in self._servo_names:
+                    if n == k or joint_role(n) == k:
+                        types[n] = v
+            lo = np.array([self.act_delay_types.get(types[n], (0, 0))[0] for n in self._servo_names])
+            hi = np.array([self.act_delay_types.get(types[n], (0, 0))[1] for n in self._servo_names])
+            assert np.all((0 <= lo) & (lo <= hi)), "act_delay_types wants 0 <= lo <= hi ticks"
+            self._ad_lo = jp.asarray(lo, dtype=jp.int32)
+            self._ad_hi = jp.asarray(hi, dtype=jp.int32)
+            self.act_delay_max = max(self.act_delay_max, int(hi.max()))
+        self.servo_kd_range = tuple(servo_kd_range) if servo_kd_range else None
+        self.servo_kp_range = tuple(servo_kp_range) if servo_kp_range else None
         assert 0 <= self.act_delay_max <= 10, "act_delay_max in ticks (20 ms each)"
         self.init_pose_deg = (None if init_pose_deg is None
                               else float(init_pose_deg))
@@ -1988,6 +2013,14 @@ class BimoMJXEnv:
                                    minval=1 - self.servo_range,
                                    maxval=1 + self.servo_range)])
             servo = self._nom_servo * sf
+            if self.servo_kp_range is not None:
+                servo = servo.at[0].multiply(jax.random.uniform(
+                    jax.random.fold_in(r_servo, 21), minval=self.servo_kp_range[0],
+                    maxval=self.servo_kp_range[1]))
+            if self.servo_kd_range is not None:
+                servo = servo.at[1].multiply(jax.random.uniform(
+                    jax.random.fold_in(r_servo, 22), minval=self.servo_kd_range[0],
+                    maxval=self.servo_kd_range[1]))
         else:
             servo = self._nom_servo
         if self.imu_obs and self.domain_rand and self.imu_noise > 0.0:
@@ -2047,6 +2080,11 @@ class BimoMJXEnv:
     def _draw_act_delay(self, rng: jax.Array):
         """Per-episode servo dead time in control ticks (fold_in 4473 so the
         other draws keep their streams). 0 when the feature is off."""
+        if self.act_delay_types:
+            u = jax.random.uniform(jax.random.fold_in(rng, 4474), (self._n_servo,))
+            span = (self._ad_hi - self._ad_lo + 1).astype(jp.float32)
+            return self._ad_lo + jp.minimum(jp.floor(u * span).astype(jp.int32),
+                                            self._ad_hi - self._ad_lo)
         if self.act_delay_max > 0:
             return jax.random.randint(
                 jax.random.fold_in(rng, 4473), (), 0, self.act_delay_max + 1)
@@ -2478,7 +2516,10 @@ class BimoMJXEnv:
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
         # the lag cascade, as the real bus write precedes the servo's response.
         act_hist = jp.concatenate([target[None, :], state.act_hist[:-1]], axis=0)
-        target = jp.take(act_hist, state.act_delay, axis=0)
+        if self.act_delay_types:
+            target = jp.take_along_axis(act_hist, state.act_delay[None, :], axis=0)[0]
+        else:
+            target = jp.take(act_hist, state.act_delay, axis=0)
         # action-chain lag (3 cascaded first-order stages, the firmware C2
         # shaper's structure) BEFORE quantization, matching the deploy path's
         # shaper -> angleToSteps order. Per-episode pole from _draw_episode;
