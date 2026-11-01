@@ -70,9 +70,11 @@
     "girdle_neck": {
       "parts": [
         "shoulder_girdle_v6",
-        "neck_floor"
+        "neck_floor",
+        "shoulder_cheek_v6_L",
+        "shoulder_cheek_v6_R"
       ],
-      "note": "the shoulder girdle (support in its windows only) and the neck floor (no supports) on one plate"
+      "note": "the shoulder girdle (support in its windows only), the neck floor and the two shoulder cheeks (no supports) on one plate"
     }
   },
   "variants": {
@@ -260,6 +262,26 @@
       "orient": "IDENT",
       "supports": true,
       "note": "flat, bottom face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
+    },
+    "shoulder_cheek_v6_L": {
+      "orient": "RY_YDOWN",
+      "supports": true,
+      "note": "flat, outer (+y) face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
+    },
+    "shoulder_cheek_v6_R": {
+      "orient": "RY_ROLL_WALL",
+      "supports": true,
+      "note": "flat, outer (-y) face down. It prints on the girdle_neck plate, whose manual supports go only inside enforcer boxes: it has none, so it prints unsupported.",
       "settings": {
         "support_type": "normal(manual)",
         "support_style": "snug",

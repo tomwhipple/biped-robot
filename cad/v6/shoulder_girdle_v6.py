@@ -37,12 +37,30 @@ WHY IT IS NOT BRITTLE ANY MORE
 ------------------------------
 Round 4's load path was: arm moment -> 4x M2.5 self-tap in tension -> a 5 mm
 deck plate, with the bracket hanging off the edge. Here it is: arm moment ->
-4x M2.5 into the servo's HORN-side face -> a grip plate that is one wall of a
-closed pod box (floor + two end walls + inboard wall) -> a 4 mm rail bolted to
-the deck at four stations along its length -> and, across the robot, a forward
-clavicle beam tying the two pods together. The couple is reacted over the
-girdle's own 31 mm depth and the rail's 54 mm length instead of by screw
-tension in a thin plate.
+4x M2.5 into the servo's HORN-side face -> the CHEEK, a grip plate that closes
+the pod box (floor + two end walls + inboard wall), nested in a rebate between
+the end lugs' rims and screwed to them at its four corners -> a 4 mm rail
+bolted to the deck at four stations along its length -> and, across the robot,
+a forward clavicle beam tying the two pods together. The case itself is boxed
+by the pod: its platform and free-hub post sit in the inboard wall, its boss
+in the cheek, so the cheek's screws locate a plate, they do not carry the arm
+alone. The couple is reacted over the girdle's own 31 mm depth and the rail's
+54 mm length instead of by screw tension in a thin plate.
+
+THE SERVO GOES IN ALONG ITS OWN AXIS, SO THE GRIP PLATE IS ITS OWN PRINT
+------------------------------------------------------------------------
+Tom, 2026-11-01: "It is currently impossible to insert a servo into their
+slots due to the conformal features." The one-piece girdle had all four pod
+walls full height and the servo dropping in from above, but every feature the
+case has on its two big faces stands proud ALONG THE AXIS: the O19.6 output
+boss (3.1 proud, through the grip plate) and the horn-side rib (1.13) outboard,
+the back-cover platform (1.9) and the free-hub post (2.6) inboard. Each sat in
+a closed pocket of a full-height wall, so a vertical drop met wall above the
+axis on both sides (check_insertion measures it). Every one of those features
+engages ALONG the axis, so that is the path: the servo is pushed in from
+OUTBOARD onto the inboard wall, then the cheek (shoulder_cheek_v6, the old
+grip plate) goes on along the same axis over the boss, is screwed to the end
+lugs, and the four case screws go in through it. INSERT carries both paths.
 
 THE GRIP PLATE IS ON THE HORN SIDE, AND THAT IS AN ACCESS RESULT
 ----------------------------------------------------------------
@@ -54,8 +72,9 @@ OUTBOARD, through a plate with D.GRIP_HORN_RELIEF around the O19.6 case boss
 -- exactly leg_link's own horn-side grip plate. The inboard wall carries no
 screws, so it holds the case by fit alone: the shoulder servos go in WITHOUT
 their idler disc (the hip-yaw rule), the wall bears on the bare case face
-with a hole for the free-hub post, and crush ribs on its seat face press the
-case outboard onto the grip plate (dimensions_v6 GIRDLE_RIB_*).
+with a hole for the free-hub post, and four crush pads on its seat face are
+squashed as the cheek's screws push the case home (dimensions_v6
+GIRDLE_PAD_*), so the case is clamped between the wall and the cheek.
 
 PRINT: BASE DOWN, AND NOTHING HANGS BELOW z = 0
 -----------------------------------------------
@@ -65,12 +84,13 @@ HEIGHT: the servo bay's floor cannot dip below the bed plane, so the axis sits
 GIRDLE_FLOOR + SV_WID/2 = 16.36 above the deck top and no lower. A low-slung
 pod straddling the deck plane was drawn first and thrown away for exactly this
 reason (it bridges 125 mm of air between its two skirts).
-Every bay is open UPWARD: all four pod walls are full height, which does not
-block a servo dropped straight down, and a roof would (a flat 32 mm ceiling is
-unprintable and a 45 deg vault over the same span is 32 mm tall). The servos
-drop in, then their screws go in from outboard.
+Every bay is open UPWARD (a flat 32 mm ceiling is unprintable and a 45 deg
+vault over the same span is 32 mm tall) and, with its cheek off, OUTBOARD.
+The cheeks print flat, outer face down (PRINT_ORIENT), so their eight bores
+are vertical and need no teardrops.
 
-    .venv/bin/python cad/v6/shoulder_girdle_v6.py          # STL + STEP + checks + render
+    .venv/bin/python cad/v6/shoulder_girdle_v6.py          # STL + STEP (girdle + both cheeks)
+    .venv/bin/python cad/v6/shoulder_girdle_v6.py --checks # + printability, fits, insertion paths
 """
 from __future__ import annotations
 
@@ -100,7 +120,11 @@ OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
 IDENT = np.eye(3)
-PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls up")}
+RY_YDOWN = np.array([(1, 0, 0), (0, 0, 1), (0, -1, 0)], float)       # model +Y -> print -Z
+RY_ROLL_WALL = np.array([(1, 0, 0), (0, 0, -1), (0, 1, 0)], float)   # model +Y -> print +Z
+PRINT_ORIENT = {"shoulder_girdle_v6": (IDENT, "base down on the deck face, walls up"),
+                "shoulder_cheek_v6_L": (RY_YDOWN, "flat, outer (+y) face down"),
+                "shoulder_cheek_v6_R": (RY_ROLL_WALL, "flat, outer (-y) face down")}
 # OrcaSlicer supports (Tom, 2026-09-24: support work is the slicer's job
 # wherever it can do it). What needs them, base down: the four trapezius-web
 # window tops (34 mm spans), the servo bays' relief/pocket roofs and the neck
@@ -152,6 +176,26 @@ GIRDLE_FLARE = 3.0
 assert GIRDLE_FLARE <= _CSK_BOT_Z, \
     "the pod flare would eat the lowest case screw's countersink"
 
+# the cheek and the lugs it screws to. The cheek's four screws sit on the case
+# screws' own two rows (so the flare clears them for the same reason), just
+# outboard of each end of the bay; the cheek stops GIRDLE_CHEEK_EDGE past their
+# countersinks, and the lugs carry a rim past that, so the cheek drops into a
+# rebate and is boxed fore-aft by the pod.
+CSK_MOUTH_R = (D.CASE_SCREW_CLEAR / 2
+               + (D.CASE_CS_D / 2 + 0.3 - D.CASE_SCREW_CLEAR / 2) * D.CASE_CS_DEPTH / (D.CASE_CS_DEPTH + 0.3))  # 2.70
+CHEEK_SCREW_X = (BAY_X[0] - V.GIRDLE_CHEEK_SCREW_DX, BAY_X[1] + V.GIRDLE_CHEEK_SCREW_DX)   # -38.41, +13.41
+CHEEK_SCREW_Z = (_AZ - D.CASE_HOLE_LAT, _AZ + D.CASE_HOLE_LAT)                          # 6.11, 26.61
+CHEEK_X = (CHEEK_SCREW_X[0] - CSK_MOUTH_R - V.GIRDLE_CHEEK_EDGE,
+           CHEEK_SCREW_X[1] + CSK_MOUTH_R + V.GIRDLE_CHEEK_EDGE)                         # -41.71, +16.71
+REBATE_X = (CHEEK_X[0] - V.GIRDLE_CHEEK_CLR, CHEEK_X[1] + V.GIRDLE_CHEEK_CLR)
+LUG_X = (REBATE_X[0] - V.GIRDLE_RIM_W, REBATE_X[1] + V.GIRDLE_RIM_W)                   # -43.51, +18.51
+LUG_Y0 = GRIP_Y0 - V.GIRDLE_LUG_D                                                       # 90.25
+CHEEK_PILOT_DEPTH = V.GIRDLE_CHEEK_PILOT_DEPTH
+assert CHEEK_SCREW_X[0] + V.ARM_PILOT_D / 2 + 1.5 <= BAY_X[0] and \
+    CHEEK_SCREW_X[1] - V.ARM_PILOT_D / 2 - 1.5 >= BAY_X[1], \
+    "a cheek pilot would leave less than 1.5 mm of lug between it and the bay"
+assert CHEEK_PILOT_DEPTH < V.GIRDLE_LUG_D - 1.0, "the cheek pilots would break out of the lugs' inboard face"
+
 # neck tube -- the same footprint neck_collar.py builds, fused in here
 NCX0, NCX1 = V.NECK_WELL_X                    # -35.41, +10.41
 NC_HY = V.NECK_WELL_HW[0]                     # 12.66
@@ -177,45 +221,30 @@ def pilot_xy():
 # ===========================================================================
 # the part
 # ===========================================================================
-def _pod(sgn):
-    """One shoulder pod, on the +y side then mirrored. Open UPWARD (the servo
-    drops in) and open OUTBOARD above the grip plate (the arm swings there)."""
+def _pod(sgn, pads=True):
+    """One shoulder pod, on the +y side then mirrored. Open UPWARD and, until
+    its cheek (shoulder_cheek_v6) is screwed on, OUTBOARD: the servo goes in
+    along its own axis from outboard, the one direction every feature on its
+    two faces can engage from."""
     y = lambda v: sgn * v  # noqa: E731
 
-    # --- floor under the case, from the rail out to the grip plate
-    p = parts.box(POD_X[0], POD_X[1], y(RAIL_Y0), y(GRIP_Y1), 0, BASE_T)
+    # --- floor under the case, from the rail out to the cheek's seat plane
+    p = parts.box(POD_X[0], POD_X[1], y(RAIL_Y0), y(GRIP_Y0), 0, BASE_T)
     # --- inboard wall: locates the case, ties floor to top, carries no screws
     p += parts.box(POD_X[0], POD_X[1], y(WY0), y(WY1), 0, POD_TOP)
-    # --- outboard grip plate: THE structural wall, 4x case screws from +y
-    p += parts.box(POD_X[0], POD_X[1], y(GRIP_Y0), y(GRIP_Y1), 0, POD_TOP)
     # --- two end walls wrapping the case fore and aft
-    p += parts.box(POD_X[0], BAY_X[0], y(WY0), y(GRIP_Y1), 0, POD_TOP)
-    p += parts.box(BAY_X[1], POD_X[1], y(WY0), y(GRIP_Y1), 0, POD_TOP)
-
-    # --- grip-plate relief: the O19.6 case boss stands proud of the horn face
-    # and the horn disc TURNS inside it, so the plate is opened to
-    # D.GRIP_HORN_RELIEF, leg_link's own number for this same joint.
-    p -= parts.cyl_y(D.GRIP_HORN_RELIEF, y(GRIP_Y0 - 1), y(GRIP_Y1 + 1), _AX, _AZ)
-    # --- the four case screws, driven from OUTBOARD into the horn-side face.
-    # Rows run from the axis toward the CABLE end, which is -x here; the
-    # lateral pair is across the case width, which is z here.
-    for xrow in D.CASE_HOLES_TOP:
-        for lz in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-            p -= parts.teardrop_y(D.CASE_SCREW_CLEAR / 2, y(GRIP_Y0 - 1), y(GRIP_Y1 + 1),
-                                  _AX - xrow, _AZ + lz, roll=0)
-            p -= parts.csk_y(_AX - xrow, _AZ + lz, y(GRIP_Y1), sgn)
-
-    # --- relief for the moulded HORN-side rib. The case has a 1.13 mm rib
-    # standing proud of its horn face along most of its length; a flat plate
-    # lands on the rib instead of the face and the servo sits crooked. Pocket,
-    # not window: the four screws all land outside the rib's band (rows at
-    # z +-10.25 vs the rib's +-7.82), so they still bear on full plate.
-    _rx = (_AX - D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
-           _AX - D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
-    _rz = D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR
-    p -= parts.box(_rx[0], _rx[1], y(GRIP_Y0 - 0.01),
-                   y(GRIP_Y0 + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR),
-                   _AZ - _rz, _AZ + _rz)
+    p += parts.box(POD_X[0], BAY_X[0], y(WY0), y(GRIP_Y0), 0, POD_TOP)
+    p += parts.box(BAY_X[1], POD_X[1], y(WY0), y(GRIP_Y0), 0, POD_TOP)
+    # --- the cheek's lugs: each end wall thickened outward over its last
+    # GIRDLE_LUG_D, full height, and carried out to the girdle's outer face as
+    # a rim, so the cheek nests in a rebate between the two rims.
+    p += parts.box(LUG_X[0], BAY_X[0], y(LUG_Y0), y(GRIP_Y1), 0, POD_TOP)
+    p += parts.box(BAY_X[1], LUG_X[1], y(LUG_Y0), y(GRIP_Y1), 0, POD_TOP)
+    p -= parts.box(REBATE_X[0], REBATE_X[1], y(GRIP_Y0), y(GRIP_Y1 + 1), -1, POD_TOP + 1)
+    # --- the cheek's four pilots, along the axis into the lugs' seat faces.
+    # Horizontal in print (base down), so teardropped like every other bore.
+    for x, z in cheek_screw_xz():
+        p -= parts.teardrop_y(PILOT_D / 2, y(GRIP_Y0 - CHEEK_PILOT_DEPTH), y(GRIP_Y0 + 0.5), x, z, roll=0)
 
     # --- inboard wall openings. ONE keyhole, for the same reason round 4's
     # cradle used one: cut separately, the hub hole and the connector window
@@ -225,7 +254,8 @@ def _pod(sgn):
     #   * the connector TRENCH is where the servo's own lead plugs in. Lying
     #     down, that trench faces INBOARD, so the window is cut OPEN TO THE TOP
     #     of the wall: the leads leave the plugs and go straight UP out of the
-    #     notch.
+    #     notch, and as the servo is pushed in from outboard they slide into
+    #     the notch through its open face.
     opening = parts.teardrop_y(D.SV_IDLER_HUB_HW + V.GIRDLE_HUB_CLR, y(WY0 - 1), y(WY1 + 1), _AX, _AZ)
     # the notch runs to the axis, so its edge meets the hub hole square at its
     # top and bottom and leaves no cusp; it also gives both bus leads room.
@@ -243,44 +273,98 @@ def _pod(sgn):
     _bz = D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR
     _by = V.ARM_SERVO_MID_Y + D.SV_IDLER_BOSS_Y - D.RIB_RELIEF_DEPTH_CLR
     p -= parts.box(_bx[0], _bx[1], y(_by), y(WY1 + 0.01), _AZ - _bz, _AZ + _bz)
-    return p + crush_ribs(sgn)
+    return p + crush_pads(sgn) if pads else p
 
 
-# crush ribs on the inboard wall's seat face, one on each band of bare case
+def case_screw_xz():
+    """The four case screws, (x, z): rows from the axis toward the CABLE end,
+    which is -x here; the lateral pair across the case width, which is z."""
+    return [(_AX - xrow, _AZ + lz) for xrow in D.CASE_HOLES_TOP
+            for lz in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT)]
+
+
+def cheek_screw_xz():
+    """The cheek's four corner screws, (x, z), into the end lugs."""
+    return [(x, z) for x in CHEEK_SCREW_X for z in CHEEK_SCREW_Z]
+
+
+def _flare(sgn, x0, x1):
+    """The 45 deg chamfer under a pod's OUTBOARD edge (see shoulder_girdle_v6),
+    as the void to cut, over [x0, x1]."""
+    return parts.wedge_x([(sgn * GRIP_Y1, 0.0), (sgn * GRIP_Y1, GIRDLE_FLARE),
+                          (sgn * (GRIP_Y1 - GIRDLE_FLARE), 0.0)], x0, x1)
+
+
+# crush pads on the inboard wall's seat face, two on each band of bare case
 # face the wall can reach: the strip between the cable end and the platform
-# detent, and the strip between the hub hole and the output end.
+# detent, and the strip between the hub hole and the output end. They are
+# squashed ALONG the axis -- by the cheek's screws pushing the case home -- so
+# they are short pads, not the long ribs a case pushed down past them needs.
 _PLAT_AFT_X = _AX + D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR               # -29.91
 _HUB_R = D.SV_IDLER_HUB_HW + V.GIRDLE_HUB_CLR                             # 3.54
-RIB_X = ((CASE_X0 + _PLAT_AFT_X) / 2, (_AX + _HUB_R + CASE_X1) / 2)       # -32.51, +6.83
-RIB_Z = (BASE_T, CASE_Z[1] - 2.0, POD_TOP - 2.0)   # foot, top of the full section, tip of the lead-in
+PAD_X = ((CASE_X0 + _PLAT_AFT_X) / 2, (_AX + _HUB_R + CASE_X1) / 2)       # -32.51, +6.83
+PAD_Z = (_AZ - 8.0, _AZ + 8.0)                                            # 8.36, 24.36
 
 
-def crush_ribs(sgn):
-    """The pod's crush ribs, +y side (sgn +1) or -y: vertical, along the drop-in
-    direction, a trapezoid GIRDLE_RIB_W at the wall and 0.3 at the crest, which
-    stands GIRDLE_RIB_H off the seat face. The top ramps back into the wall so
-    the case's lower edge rides onto them; the tip stops 2 mm under the pod top."""
-    w, h, crest = V.GIRDLE_RIB_W, V.GIRDLE_RIB_H, 0.3
+def crush_pads(sgn):
+    """The pod's four crush pads, +y side (sgn +1) or -y: a trapezoid
+    GIRDLE_PAD_W at the wall and 0.4 at the crest, which stands GIRDLE_PAD_H
+    off the seat face, GIRDLE_PAD_L tall."""
+    w, h, crest = V.GIRDLE_PAD_W, V.GIRDLE_PAD_H, 0.4
     y0, y1 = sgn * (WY1 - 0.3), sgn * (WY1 + h)
     out = None
-    for rx in RIB_X:
-        r = parts.wedge_z([(rx - w / 2, y0), (rx + w / 2, y0),
-                           (rx + crest / 2, y1), (rx - crest / 2, y1)], RIB_Z[0], RIB_Z[2])
-        ramp = (RIB_Z[2] - RIB_Z[1]) / h
-        r -= parts.wedge_x([(sgn * WY1, RIB_Z[2]),
-                            (sgn * (WY1 + h + 0.5), RIB_Z[2] - ramp * (h + 0.5)),
-                            (sgn * (WY1 + h + 0.5), RIB_Z[2] + 1.0)],
-                           rx - w, rx + w)
-        out = r if out is None else out + r
+    for px in PAD_X:
+        for pz in PAD_Z:
+            r = parts.wedge_z([(px - w / 2, y0), (px + w / 2, y0),
+                               (px + crest / 2, y1), (px - crest / 2, y1)],
+                              pz - V.GIRDLE_PAD_L / 2, pz + V.GIRDLE_PAD_L / 2)
+            out = r if out is None else out + r
     return out
 
 
-def shoulder_girdle_v6():
+def shoulder_cheek_v6(side="L"):
+    """The pod's outboard wall as its own print: THE structural wall, the
+    four case screws through it into the servo's horn-side face. It goes on
+    along the shoulder axis once the servo is home, over the output boss,
+    into the rebate between the end lugs' rims, and four corner screws hold
+    it to the lugs. Pelvis frame, like the girdle; a mirrored pair (the flare
+    and the rib pocket are handed)."""
+    sgn = 1 if side == "L" else -1
+    y = lambda v: sgn * v  # noqa: E731
+    c = parts.box(CHEEK_X[0], CHEEK_X[1], y(GRIP_Y0), y(GRIP_Y1), 0, POD_TOP)
+    # --- relief: the O19.6 case boss stands proud of the horn face and the
+    # horn disc TURNS inside it, so the plate is opened to D.GRIP_HORN_RELIEF,
+    # leg_link's own number for this same joint. It is also the hole the
+    # cheek is threaded over the boss through.
+    c -= parts.cyl_y(D.GRIP_HORN_RELIEF, y(GRIP_Y0 - 1), y(GRIP_Y1 + 1), _AX, _AZ)
+    # --- the four case screws and the four corner screws, all driven from
+    # OUTBOARD; flat heads, countersunk flush (the arm's horn plate turns
+    # GIRDLE_ARM_CLR off this face). Vertical in print: plain bores.
+    for x, z in case_screw_xz() + cheek_screw_xz():
+        c -= parts.cyl_y(D.CASE_SCREW_CLEAR / 2, y(GRIP_Y0 - 1), y(GRIP_Y1 + 1), x, z)
+        c -= parts.csk_y(x, z, y(GRIP_Y1), sgn)
+    # --- relief for the moulded HORN-side rib. The case has a 1.13 mm rib
+    # standing proud of its horn face along most of its length; a flat plate
+    # lands on the rib instead of the face and the servo sits crooked. Pocket,
+    # not window: the four case screws all land outside the rib's band (rows
+    # at z +-10.25 vs the rib's +-7.82), so they still bear on full plate.
+    _rx = (_AX - D.SV_HORN_RIB_L[1] - D.RIB_RELIEF_CLR,
+           _AX - D.SV_HORN_RIB_L[0] + D.RIB_RELIEF_CLR)
+    _rz = D.SV_HORN_RIB_HW + D.RIB_RELIEF_CLR
+    c -= parts.box(_rx[0], _rx[1], y(GRIP_Y0 - 0.01),
+                   y(GRIP_Y0 + D.SV_HORN_RIB_H + D.RIB_RELIEF_DEPTH_CLR),
+                   _AZ - _rz, _AZ + _rz)
+    return c - _flare(sgn, CHEEK_X[0] - 1, CHEEK_X[1] + 1)
+
+
+def shoulder_girdle_v6(pads=True):
     """The whole girdle, in the PELVIS frame (deck top z = 0, robot forward
     +x, left +y) so it reads directly against torso_v8's own geometry.
-    Qty 1 -- it is symmetric, so it is NOT a mirror pair.
+    Qty 1 -- it is symmetric, so it is NOT a mirror pair. Its two outboard
+    walls are separate prints (shoulder_cheek_v6). pads=False leaves the crush
+    pads off, for the insertion check.
     """
-    p = _pod(+1) + _pod(-1)
+    p = _pod(+1, pads) + _pod(-1, pads)
 
     # --- the two rails: 4 mm plate on the deck's edge beam, carrying the
     # pod straight into the stiffest line the deck has.
@@ -337,12 +421,10 @@ def shoulder_girdle_v6():
     # front view is a hard T. 45 deg because the part prints base-down and an
     # underside shallower than that is an unsupported overhang. GIRDLE_FLARE
     # is capped by the LOWEST case screw (z 6.11): the chamfer must not eat
-    # its countersink.
+    # its countersink. Here it runs under the lugs' rims; the cheek carries
+    # the same chamfer across its own width.
     for sgn in (1, -1):
-        p -= parts.wedge_x([(sgn * GRIP_Y1, 0.0),
-                            (sgn * GRIP_Y1, GIRDLE_FLARE),
-                            (sgn * (GRIP_Y1 - GIRDLE_FLARE), 0.0)],
-                           POD_X[0] - 1, POD_X[1] + 1)
+        p -= _flare(sgn, LUG_X[0] - 1, LUG_X[1] + 1)
     # edges stay square: rounding them buys nothing (Tom, 2026-10-24)
     return p
 
@@ -393,13 +475,17 @@ def SCREWS():
                         kind="M2.5x8 self-tap, flat head (2.05 x 4.5 pilot in the deck)",
                         pos=(hx, hy, top), axis=(0, 0, -1), length=8.0))
     for side, sgn in (("L", 1), ("R", -1)):
-        for xrow in D.CASE_HOLES_TOP:
-            for lz in (D.CASE_HOLE_LAT, -D.CASE_HOLE_LAT):
-                out.append(dict(name=f"shoulder_case_{side}_{xrow:.0f}_{lz:+.0f}", frame="pelvis",
-                                kind="M2.5x8 self-tap, flat head (into the servo case's HORN-side face,"
-                                     " driven from OUTBOARD -- the inboard face is 1.24 mm off the skin)",
-                                pos=(_AX - xrow, sgn * GRIP_Y1, _AZ + lz),
-                                axis=(0, -sgn, 0), length=8.0))
+        for x, z in case_screw_xz():
+            out.append(dict(name=f"shoulder_case_{side}_{_AX - x:.0f}_{z - _AZ:+.0f}", frame="pelvis",
+                            kind="M2.5x8 self-tap, flat head (through the cheek into the servo case's"
+                                 " HORN-side face, driven from OUTBOARD -- the inboard face is 1.24 mm"
+                                 " off the skin)",
+                            pos=(x, sgn * GRIP_Y1, z), axis=(0, -sgn, 0), length=8.0))
+        for x, z in cheek_screw_xz():
+            out.append(dict(name=f"shoulder_cheek_{side}_{x:+.0f}_{z:.0f}", frame="pelvis",
+                            kind=f"M2.5x8 self-tap, flat head (cheek corner, driven from OUTBOARD into "
+                                 f"a {PILOT_D:.2f} x {CHEEK_PILOT_DEPTH:.1f} pilot in the end lug)",
+                            pos=(x, sgn * GRIP_Y1, z), axis=(0, -sgn, 0), length=8.0))
     return out
 
 
@@ -410,11 +496,19 @@ def SCREWS():
 # pack, so none of that is reachable once the girdle is on the deck. Then the
 # girdle is lowered onto the deck and screwed down
 # through its two rails; the rail pilots are clear of the bays, so the
-# shoulder servos can go in before or after.
+# shoulder servos can go in before or after. Each shoulder servo is pushed in
+# along its own axis from OUTBOARD (lead plugged in first: it rises out of the
+# inboard wall's notch) until its idler face lands on the crush pads, then its
+# cheek goes on along the same axis over the boss, the four corner screws push
+# the case home past the pads, and the four case screws go in through the
+# cheek. Vectors are the LEFT side's (the right's are mirrored in y) and point
+# where the part comes FROM, as animate_v6.INSERT's do.
 INSERT = {
     "shoulder_girdle_v6": (0, 0, 1),   # lowered onto the deck, screwed down through the rails
-    "servo_shoulder": (0, 0, 1),       # dropped into the open bay from above
+    "servo_shoulder": (0, 1, 0),       # in along the shoulder axis from outboard, cheek off
+    "shoulder_cheek": (0, 1, 0),       # then the cheek, on the same axis, over the output boss
 }
+INSERT_D = (0.0, 0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.6, 3.0, 4.0, 6.0, 10.0, 20.0, 40.0)  # mm back along the path
 
 
 # ===========================================================================
@@ -465,33 +559,50 @@ def check_deck_pilots(verbose=True):
     return ok
 
 
-def rib_crush_mm3(side="L"):
-    """The designed overlap of a shoulder servo with its pod's crush ribs:
-    the volume the ribs give up as the case is pushed past them."""
-    return (shoulder_servo_mock(side) & crush_ribs(1 if side == "L" else -1)).volume
+def pad_crush_mm3(side="L", back=0.0):
+    """The designed overlap of a shoulder servo with its pod's crush pads,
+    `back` mm short of home along its path: the volume the pads give up as
+    the cheek's screws push the case onto them."""
+    sgn = 1 if side == "L" else -1
+    return (Pos(0, sgn * back, 0) * shoulder_servo_mock(side) & crush_pads(sgn)).volume
+
+
+def _pod_crop(solid, sgn):
+    """`solid` cut down to one pod's neighbourhood, so the sweeps intersect a
+    small solid instead of the whole girdle."""
+    return solid & parts.box(LUG_X[0] - 5, LUG_X[1] + 5, sgn * 50.0, sgn * (GRIP_Y1 + 60), -5, POD_TOP + 60)
 
 
 def check_servo_fit(verbose=True):
     """The two shoulder servo mocks must sit INSIDE their bays touching the
-    girdle only through the inboard wall's crush ribs, by their designed
-    interference (and they must touch: a rib that misses the case leaves the
-    idler side loose); the girdle must not reach into the plane the rotating
-    arm plate occupies."""
+    girdle only through the inboard wall's crush pads, by their designed
+    interference (and they must touch: a pad that misses the case leaves the
+    idler side loose); the cheek must seat on the case's horn face and in its
+    rebate without overlapping either; the girdle must not reach into the
+    plane the rotating arm plate occupies."""
     p = shoulder_girdle_v6()
     ok = True
     for side in ("L", "R"):
         m = shoulder_servo_mock(side)
+        c = shoulder_cheek_v6(side)
         try:
             overlap = (m & p).volume
-            ribs = rib_crush_mm3(side)
+            pads = pad_crush_mm3(side)
+            cheek_servo = (c & m).volume
+            cheek_girdle = (c & p).volume
         except Exception:  # noqa: BLE001
-            overlap = ribs = float("nan")
-        good = 0.0 < ribs and overlap <= ribs + 0.5
+            overlap = pads = cheek_servo = cheek_girdle = float("nan")
+        good = 0.0 < pads and overlap <= pads + 0.5
         ok &= good
         if verbose:
             print(f"  {'PASS' if good else 'FAIL'}  shoulder servo {side} vs girdle: "
-                  f"{overlap:7.2f} mm3 of overlap, all of it the crush ribs ({ribs:.2f} mm3, "
-                  f"{V.GIRDLE_RIB_CRUSH:.2f} mm deep)")
+                  f"{overlap:7.2f} mm3 of overlap, all of it the crush pads ({pads:.2f} mm3, "
+                  f"{V.GIRDLE_PAD_CRUSH:.2f} mm deep)")
+        for what, v in (("servo", cheek_servo), ("girdle", cheek_girdle)):
+            good = v < 0.5
+            ok &= good
+            if verbose:
+                print(f"  {'PASS' if good else 'FAIL'}  cheek {side} vs {what}: {v:7.2f} mm3 of overlap")
     bb = p.bounding_box()
     wide = bb.size.Y
     good = wide <= D.BED
@@ -501,6 +612,104 @@ def check_servo_fit(verbose=True):
         print(f"  {'PASS' if bb.min.Z > -1e-6 else 'FAIL'}  nothing below the deck plane "
               f"(min z {bb.min.Z:+.3f})")
     ok &= bb.min.Z > -1e-6
+    return ok
+
+
+def _sweep(moving, static, vec):
+    """[(d, overlap mm3)] for `moving` backed off d mm along unit `vec`, for
+    every INSERT_D, against `static`."""
+    out = []
+    for d in INSERT_D:
+        try:
+            v = (Pos(*(np.asarray(vec, float) * d)) * moving & static).volume
+        except Exception:  # noqa: BLE001
+            v = float("nan")
+        out.append((d, v))
+    return out
+
+
+def check_insertion(verbose=True):
+    """Tom, 2026-11-01: the servo has to be able to get INTO its bay. Each
+    piece is backed off along its INSERT path, every INSERT_D, and must touch
+    nothing already there: the servo against the girdle (cheek off; the crush
+    pads are allowed their designed bite in the last GIRDLE_PAD_CRUSH and
+    nowhere else), then the cheek against the girdle and the seated servo.
+    The old path -- the servo dropped in from above into the one-piece pod,
+    i.e. girdle + cheek -- is measured too, and must be BLOCKED: that is the
+    defect this layout fixes, and the check says so if it ever stops being
+    true (a mock that lost its boss, say)."""
+    ok = True
+    g_bare, g_pads = shoulder_girdle_v6(pads=False), shoulder_girdle_v6()
+    for side, sgn in (("L", 1), ("R", -1)):
+        m, c = shoulder_servo_mock(side), shoulder_cheek_v6(side)
+        out = (0, sgn, 0)
+        bare = _pod_crop(g_bare, sgn)
+        steps = [
+            (f"servo {side} in from outboard, vs the girdle (no pads)", m, bare, 0.05),
+            (f"cheek {side} on over the boss, vs the girdle", c, _pod_crop(g_pads, sgn), 0.05),
+            (f"cheek {side} on over the boss, vs the seated servo", c, m, 0.05),
+        ]
+        for label, mov, st, tol in steps:
+            sw = _sweep(mov, st, out)
+            worst = max(sw, key=lambda t: t[1])
+            good = worst[1] <= tol
+            ok &= good
+            if verbose:
+                print(f"  {'PASS' if good else 'FAIL'}  {label:52s} worst {worst[1]:6.2f} mm3 "
+                      f"(at {worst[0]:g} mm back)")
+        # the pads: their bite only in the last GIRDLE_PAD_CRUSH, and none before
+        bites = [(d, pad_crush_mm3(side, d)) for d in INSERT_D]
+        early = [b for d, b in bites if d >= V.GIRDLE_PAD_CRUSH + 0.01]
+        good = bites[0][1] > 0 and max(early) <= 0.05
+        ok &= good
+        if verbose:
+            print(f"  {'PASS' if good else 'FAIL'}  servo {side} vs its crush pads: {bites[0][1]:.2f} mm3 "
+                  f"home, {max(early):.2f} mm3 once {V.GIRDLE_PAD_CRUSH + 0.01:.2f} mm back")
+        # approach clearance off the floor it slides on: end walls and inboard wall
+        try:
+            walls = bare - parts.box(POD_X[0] - 1, POD_X[1] + 1, sgn * RAIL_Y0, sgn * GRIP_Y1, -1, BASE_T)
+            clr = (Pos(0, sgn * 1.0, 0) * m).distance_to(walls)
+        except Exception:  # noqa: BLE001
+            clr = float("nan")
+        if verbose:
+            print(f"        servo {side} 1 mm short of home, sliding on the floor: {clr:.2f} mm "
+                  f"from the walls")
+        # the old path, for the record
+        one_piece = _pod_crop(g_pads, sgn) + c
+        drop = dict(_sweep(m, one_piece, (0, 0, 1)))
+        good = drop[3.0] > 1.0
+        ok &= good
+        if verbose:
+            print(f"  {'PASS' if good else 'FAIL'}  the OLD path, servo {side} dropped from above into the "
+                  f"one-piece pod: {drop[3.0]:.0f} mm3 in the way 3 mm up, {drop[10.0]:.0f} mm3 at 10 mm "
+                  f"(blocked, as built)")
+    return ok
+
+
+def check_cheek_lugs(verbose=True):
+    """Every cheek pilot must be BURIED in its lug: a 1.2 mm wall of girdle
+    round its whole depth (the teardrop's 8% overshoot excluded), and every
+    cheek screw's countersink inside the cheek's own face."""
+    p = shoulder_girdle_v6()
+    ok = True
+    for side, sgn in (("L", 1), ("R", -1)):
+        c = shoulder_cheek_v6(side)
+        for x, z in cheek_screw_xz():
+            ring = (parts.cyl_y(PILOT_D / 2 + 1.2, sgn * (GRIP_Y0 - CHEEK_PILOT_DEPTH), sgn * GRIP_Y0, x, z)
+                    - parts.cyl_y(PILOT_D / 2 * 1.1, sgn * (GRIP_Y0 - CHEEK_PILOT_DEPTH - 1),
+                                  sgn * (GRIP_Y0 + 1), x, z))
+            mouth = parts.cyl_y(CSK_MOUTH_R + 0.5, sgn * GRIP_Y0, sgn * GRIP_Y1, x, z)
+            try:
+                stray = (ring - p).volume
+                rim = (mouth - parts.box(CHEEK_X[0], CHEEK_X[1], sgn * GRIP_Y0, sgn * GRIP_Y1, 0, POD_TOP)).volume
+            except Exception:  # noqa: BLE001
+                stray = rim = float("nan")
+            good = stray < 0.5 and rim < 0.05
+            ok &= good
+            if verbose:
+                print(f"  {'PASS' if good else 'FAIL'}  cheek {side} screw ({x:+6.2f}, z {z:5.2f}): "
+                      f"{stray:5.2f} mm3 of its 1.2 mm pilot wall outside the lug, countersink "
+                      f"{'inside' if rim < 0.05 else 'OFF'} the cheek")
     return ok
 
 
@@ -533,17 +742,19 @@ def check_print(verbose=True):
     Anything the audit calls an overhang that OrcaSlicer can support goes in
     SUPPORT_NOTE and is left to the slicer -- nothing is modelled for it."""
     import check_printability as CP
-    rot, note = PRINT_ORIENT["shoulder_girdle_v6"]
     CP.STL = OUT_STL
-    CP.ORIENT["shoulder_girdle_v6"] = (rot, note)
-    CP.PRINT_STL["shoulder_girdle_v6"] = "shoulder_girdle_v6.stl"
-    if SUPPORT_NOTE:
-        CP.SUPPORTED["shoulder_girdle_v6"] = SUPPORT_NOTE
-    return not CP.audit("shoulder_girdle_v6")
+    fails = 0
+    for name, (rot, note) in PRINT_ORIENT.items():
+        CP.ORIENT[name] = (rot, note)
+        CP.PRINT_STL[name] = f"{name}.stl"
+        if SUPPORT_NOTE and name == "shoulder_girdle_v6":
+            CP.SUPPORTED[name] = SUPPORT_NOTE
+        fails += bool(CP.audit(name, verbose=verbose))
+    return not fails
 
 
 def run_checks():
-    print("\n== printability (base down) ==")
+    print("\n== printability (girdle base down, cheeks flat) ==")
     ok = check_print()
     print("\n== driver access to every deck pilot ==")
     ok &= check_pilot_access()
@@ -551,6 +762,10 @@ def run_checks():
     ok &= check_deck_pilots()
     print("\n== servo fit / print envelope ==")
     ok &= check_servo_fit()
+    print("\n== insertion paths: servo in along its axis, then the cheek ==")
+    ok &= check_insertion()
+    print("\n== cheek screws: pilots buried in the lugs ==")
+    ok &= check_cheek_lugs()
     print("\n== arm vs girdle clearance ==")
     ok &= check_arm_clearance()
     print("\n== head above the shoulders ==")
@@ -574,6 +789,13 @@ def main():
           f"{mass_g(p):5.1f} g   {'BED-OK' if max(bb.size.X, bb.size.Y, bb.size.Z) <= D.BED else '** TOO BIG **'}")
     export_stl(p, os.path.join(OUT_STL, "shoulder_girdle_v6.stl"))
     export_step(p, os.path.join(OUT_STEP, "shoulder_girdle_v6.step"))
+    for side in ("L", "R"):
+        c = shoulder_cheek_v6(side)
+        bb = c.bounding_box()
+        print(f"shoulder_cheek_v6_{side} {bb.size.X:6.2f} x {bb.size.Y:6.2f} x {bb.size.Z:6.2f} mm   "
+              f"{mass_g(c):5.1f} g")
+        export_stl(c, os.path.join(OUT_STL, f"shoulder_cheek_v6_{side}.stl"))
+        export_step(c, os.path.join(OUT_STEP, f"shoulder_cheek_v6_{side}.step"))
     print("wrote stl + step")
     if a.checks:
         ok = run_checks()

@@ -48,7 +48,8 @@ def parts(arms=True, head=True):
            + ([("power_cover_v8", (0, 0, zdeck), PLA), ("battery_door_v8", (0, 0, zdeck), PLA)] if head else [])
            + [("yaw_bearing_housing", (0, 0, zdeck), PLA)]
            + ([("neck_floor", (0, 0, zdeck), PLA)] if head else [])
-           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] if arms else
+           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA), ("shoulder_cheek_v6_L", (0, 0, zdeck), PLA),
+               ("shoulder_cheek_v6_R", (0, 0, zdeck), PLA)] if arms else
               [("neck_collar", (0, 0, zdeck), PLA)] if head else [])}
     if head:
         out["head"] = [("head", (0, 0, 0), PLA)]

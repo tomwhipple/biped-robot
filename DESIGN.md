@@ -455,18 +455,28 @@ target.
 
 ### 5.4 Arms and shoulder girdle
 
-- **`shoulder_girdle_v6`** (one print, 88 g, 200 × 58 × 33 mm, square-edged)
-  sits on the deck and holds both shoulder servos in open-top pods plus the
-  neck servo's tube, whose side walls carry four bosses for the neck floor
-  (§5.5). Ten M2.5 × 8 flat-heads into deck pilots on two edge rails. The neck
-  is built into the girdle on the bench first: the neck floor's screws are
-  under it once it is on the deck.
+- **`shoulder_girdle_v6`** (one print, 89 g, 200 × 62 × 33 mm, square-edged)
+  sits on the deck and holds both shoulder servos in pods open at the top and
+  outboard, plus the neck servo's tube, whose side walls carry four bosses for
+  the neck floor (§5.5). Ten M2.5 × 8 flat-heads into deck pilots on two edge
+  rails. The neck is built into the girdle on the bench first: the neck floor's
+  screws are under it once it is on the deck.
+- **Each pod's outboard grip plate is its own print, the cheek**
+  (`shoulder_cheek_v6_L` / `_R`, a mirror pair, 3.3 g, 58 × 31 × 2.4 mm).
+  Every feature on the servo's two big faces stands proud along the shoulder
+  axis into a pocket in the pod's walls: the Ø19.6 output boss and the
+  horn-side rib outboard, the back-cover platform and the free-hub post
+  inboard. A servo dropped in from above hits the walls on both sides. So it
+  goes in along the axis from outboard, and the cheek follows on the same
+  axis over the boss. The cheek nests in a rebate between rims on two end lugs
+  and takes four M2.5 × 8 flat-heads into them (assembly §11c).
 - **Shoulder servos** lie fore-aft in the pods, horn outboard, **without their
-  idler disc**. Their four case screws go into the horn-side face from
-  outboard; nothing reaches the inboard face, so the pod's inboard wall holds
-  that side by fit: it seats on the bare case face, with a hole for the
-  free-hub post, and two vertical crush ribs (0.55 mm proud, 0.40 mm
-  interference) press the case onto the outboard grip plate.
+  idler disc**. Their four case screws go through the cheek into the
+  horn-side face from outboard. Nothing reaches the inboard face, so the pod's
+  inboard wall holds that side by fit: it seats on the bare case face, with a
+  hole for the free-hub post and a detent for the platform. Four crush pads
+  (0.40 mm proud, 0.25 mm interference) are squashed as the cheek's screws
+  push the case home, so the case is clamped between the wall and the cheek.
 - **Shoulder axis in the hip plane** (x = 0), 16 mm above the deck top, arm
   planes at y = ±103.35 mm.
 - **Upper arm 160 mm, forearm 160 mm.** The 0.32 m reach is a measured
@@ -548,7 +558,7 @@ The robot as drawn, from the CAD-inertial plant
 |---|---|
 | robot | ≈ 2.37 kg (the plant: 2.375 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 88 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 89 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards + wiring | 205 g (weighed) / ≈ 180 g |
 

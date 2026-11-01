@@ -110,6 +110,17 @@ STATIC_PAIRS = [
     ("yaw_bearing_housing", "pi4_mock", "housing under the Pi 4B's bottom edge", 0.5),
     ("yaw_bearing_housing", "gd_mock", "the General Driver's bottom edge over the housing: must not intersect", None),
 ]
+# the shoulder pods (arms build): the servo clamped between the inboard wall's
+# crush pads and its cheek, the cheek in its rebate on the end lugs
+if A.arms_on():
+    STATIC_PAIRS += [
+        (f"servo_shoulder_{s}", "shoulder_girdle_v6", "shoulder servo on its inboard wall: the crush pads' bite", None)
+        for s in ("L", "R")] + [
+        (f"shoulder_cheek_{s}", f"servo_shoulder_{s}", "cheek on the case's horn face, over the boss: must not intersect", None)
+        for s in ("L", "R")] + [
+        (f"shoulder_cheek_{s}", "shoulder_girdle_v6", "cheek in its rebate, on the end lugs: must not intersect", None)
+        for s in ("L", "R")] + [
+        ("shoulder_cheek_L", "torso_v8", "cheek vs the torso skin", 10.0)]
 # pairs designed to touch at the standing pose (seat/disc contacts): checked
 # for intersection VOLUME only (must be ~0), the distance rule is waived
 TOUCHING = {("thigh_{s}", "servo_hip_pitch_{s}"), ("shin_{s}", "thigh_{s}"),
@@ -155,6 +166,8 @@ ARM_PAIRS = [
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the neck tube at the fold-up (shoulder 180)", None),
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the girdle it hangs off, whole sweep", None),
     ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
+    ("shoulder", "arm_upper_{s}", "shoulder_cheek_{s}", "upper arm vs the cheek it turns 0.7 mm off, whole sweep", None),
+    ("shoulder", "arm_fore_{s}", "shoulder_cheek_{s}", "forearm vs the cheek, FOLDED", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "torso_v8", "forearm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "battery_door_v8", "forearm vs the battery door, whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "head", "forearm vs the head, FOLDED (elbow -90, the sit-up pose)", {"{s}_elbow": -90.0}),
@@ -260,8 +273,14 @@ def _designed_press_fits():
     hz0 = V.YAW_HOUSING_Z[0] + zd
     seat_wall -= Pos(0, y, hz0 + H.LEAD_IN / 2 - 0.05) * Cone(V.YAW_BRG_RECESS_R + H.LEAD_IN + 0.05, V.YAW_BRG_RECESS_R,
                                                            H.LEAD_IN + 0.1)
-    return {("bearing_inner_L", "yaw_carrier_L"): (race_in & hub).volume,
+    fits = {("bearing_inner_L", "yaw_carrier_L"): (race_in & hub).volume,
             ("bearing_outer_L", "yaw_bearing_housing"): (race_out & seat_wall).volume}
+    if A.arms_on():
+        # the shoulder servo's idler face on the inboard wall's crush pads
+        import shoulder_girdle_v6 as SG
+        for s in ("L", "R"):
+            fits[(f"servo_shoulder_{s}", "shoulder_girdle_v6")] = SG.pad_crush_mm3(s)
+    return fits
 
 
 def active_pairs():
@@ -394,7 +413,17 @@ INSERT_STEPS = [
     ("7d carrier up through the bearing", ["yaw_carrier_L"], _HOUSED),
     ("7e roll servo up into the bay", ["servo_hip_roll_L"], _HOUSED + ["yaw_carrier_L"]),
 ]
-INSERT_D = (0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 30.0, 45.0, 60.0)   # mm below the seat
+# A 4th field is where the moving part comes FROM (unit vector, world), when
+# that is not straight below. The shoulder (docs/assembly.md 11b/11c): the
+# servo in along its own axis from outboard, then its cheek on the same axis
+# (shoulder_girdle_v6.INSERT; the L side, +y outboard).
+if A.arms_on():
+    _GIRDLE = ["shoulder_girdle_v6", "torso_v8", "battery_door_v8"]
+    INSERT_STEPS += [
+        ("11c shoulder servo in from outboard", ["servo_shoulder_L"], _GIRDLE, (0, 1, 0)),
+        ("11c cheek on over the boss", ["shoulder_cheek_L"], _GIRDLE + ["servo_shoulder_L"], (0, 1, 0)),
+    ]
+INSERT_D = (0.0, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0, 30.0, 45.0, 60.0)   # mm back along the path
 INSERT_CLEARANCE_D = (1.0, 5.0, 8.0, 20.0)     # where the approach clearance is measured
 # The only overlaps allowed along a path are the two press fits, up to their
 # designed volume (they engage as the part goes home).
@@ -408,14 +437,16 @@ def check_insertion(verbose=True):
     fit_in, fit_out = fits[("bearing_inner_L", "yaw_carrier_L")], fits[("bearing_outer_L", "yaw_bearing_housing")]
     allowed = {("bearing_inner_L", "yaw_carrier_L"): fit_in, ("bearing_inner_R", "yaw_carrier_R"): fit_in,
                ("bearing_outer_L", "yaw_bearing_housing"): fit_out}
+    allowed.update({k: v for k, v in fits.items() if k[0].startswith("servo_shoulder_")})
     allowed.update({(b, a): v for (a, b), v in list(allowed.items())})   # whichever side moves
     P0 = pieces_by_label(A.robot({}))
     fails = 0
-    for step, moving, static in INSERT_STEPS:
+    for step, moving, static, *frm in INSERT_STEPS:
+        vec = frm[0] if frm else (0, 0, -1)
         bad, bad_at, clr = 0.0, None, (1e9, None, None)
         for d in INSERT_D:
             for m in moving:
-                ms = Pos(0, 0, -d) * P0[m]
+                ms = Pos(vec[0] * d, vec[1] * d, vec[2] * d) * P0[m]
                 mbb = ms.bounding_box()
                 for st in static:
                     sbb = P0[st].bounding_box()

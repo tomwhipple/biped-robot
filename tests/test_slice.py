@@ -88,6 +88,8 @@ ORIENT_SOURCES = {
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),
     "shoulder_girdle_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_girdle_v6"),
+    "shoulder_cheek_v6_L": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_cheek_v6_L"),
+    "shoulder_cheek_v6_R": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_cheek_v6_R"),
     "pelvis_v8": ("torso_v8", "PRINT_ORIENT", "pelvis_v8"),
     "torso_v8": ("torso_v8", "PRINT_ORIENT", "torso_v8"),
     "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),

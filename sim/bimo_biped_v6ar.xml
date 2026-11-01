@@ -62,6 +62,8 @@
     <mesh name="cad_yaw_bearing_housing" file="cad/v6/stl/yaw_bearing_housing.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_neck_floor" file="cad/v6/stl/neck_floor.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_shoulder_girdle_v6" file="cad/v6/stl/shoulder_girdle_v6.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_shoulder_cheek_v6_L" file="cad/v6/stl/shoulder_cheek_v6_L.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_shoulder_cheek_v6_R" file="cad/v6/stl/shoulder_cheek_v6_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_yaw_L" file="sim/meshes/v6/servo_yaw_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_yaw_R" file="sim/meshes/v6/servo_yaw_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_neck" file="sim/meshes/v6/servo_neck.stl" scale="0.001 0.001 0.001"/>
@@ -80,7 +82,7 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0107 0.0001 0.0486" quat="0.5943 0.4006 0.3919 0.5769" mass="1.0432" diaginertia="1.7793e-03 2.8823e-03 3.0581e-03"/>
+        <inertial pos="-0.0107 0.0001 0.0489" quat="0.5919 0.4034 0.3950 0.5752" mass="1.0501" diaginertia="1.7971e-03 2.9508e-03 3.1320e-03"/>
         <geom name="torso_cad_pelvis_v8" class="cad" mesh="cad_pelvis_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_torso_v8" class="cad" mesh="cad_torso_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_front_cover_v8" class="cad" mesh="cad_front_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
@@ -89,6 +91,8 @@
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_neck_floor" class="cad" mesh="cad_neck_floor" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_shoulder_girdle_v6" class="cad" mesh="cad_shoulder_girdle_v6" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_shoulder_cheek_v6_L" class="cad" mesh="cad_shoulder_cheek_v6_L" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_shoulder_cheek_v6_R" class="cad" mesh="cad_shoulder_cheek_v6_R" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_servo_yaw_L" class="cad" mesh="servo_yaw_L" rgba="0.12 0.12 0.14 1"/>
         <geom name="torso_servo_yaw_R" class="cad" mesh="servo_yaw_R" rgba="0.12 0.12 0.14 1"/>
         <geom name="torso_servo_neck" class="cad" mesh="servo_neck" rgba="0.12 0.12 0.14 1"/>
@@ -273,7 +277,7 @@
         <geom type="box" pos="0.036 0 0.03" size="0.005 0.012 0.012" mass="0.003" rgba="0.1 0.1 0.1 1" group="3"/>
         <site name="camera" pos="0.041 0 0.03" size="0.003" rgba="0 1 0 0.6"/>
       </body>
-      <geom type="box" pos="-0.013 0 0.09035" size="0.029 0.10015 0.01655" name="girdle" class="fallcol" mass="0.084" rgba="0.82 0.84 0.87 1" group="3"/>
+      <geom type="box" pos="-0.0125 0 0.09035" size="0.03101 0.10015 0.01655" name="girdle" class="fallcol" mass="0.084" rgba="0.82 0.84 0.87 1" group="3"/>
       <geom type="box" pos="-0.0125 0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="L_arm" pos="0 0.10335 0.09016" euler="0 -15 0">
         <joint name="L_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->

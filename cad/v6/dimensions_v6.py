@@ -882,14 +882,32 @@ assert GIRDLE_WIDTH <= D.BED, "the girdle must fit the print bed in one piece"
 # is the case's only hold on that face. The shoulder servos go in WITHOUT their
 # idler disc (Tom, 2026-10-24; the hip-yaw rule, docs/assembly.md 2: nothing
 # rides that face), so the wall can bear on the bare case face: it keeps a hole
-# for the free-hub post, which turns with the shaft, and vertical CRUSH RIBS on
-# its seat face take up the bay's GRIP_SEAT_CLR and press the case outboard
-# onto its grip plate. The servo is pushed down past them; nothing rattles.
+# for the free-hub post, which turns with the shaft, and four CRUSH PADS on its
+# seat face take up the bay's GRIP_SEAT_CLR. The cheek's screws (below) push
+# the case home onto them, so the case is clamped between the wall and the
+# cheek and nothing rattles.
 GIRDLE_HUB_CLR = 0.3                     # free-hub post: radial air in its hole (the yaw ceiling's)
-GIRDLE_RIB_H = 0.55                      # crush rib, proud of the seat face
-GIRDLE_RIB_W = 1.2                       # its base along the case; 0.3 flat crest
-GIRDLE_RIB_CRUSH = GIRDLE_RIB_H - D.GRIP_SEAT_CLR        # 0.40 interference with the case face
-assert 0.2 <= GIRDLE_RIB_CRUSH <= 0.5, "crush ribs must bite, but not so far the servo cannot be pushed in"
+GIRDLE_PAD_H = 0.40                      # crush pad, proud of the seat face
+GIRDLE_PAD_W = 1.2                       # its base across the pad; 0.4 flat crest
+GIRDLE_PAD_L = 2.0                       # its length up the seat face
+GIRDLE_PAD_CRUSH = GIRDLE_PAD_H - D.GRIP_SEAT_CLR        # 0.25 interference with the case face
+assert 0.15 <= GIRDLE_PAD_CRUSH <= 0.35, \
+    "crush pads must bite, but the cheek's four screws have to be able to squash them"
+# The servo cannot DROP into its bay (Tom, 2026-11-01: "impossible to insert a
+# servo into their slots due to the conformal features"): everything it has on
+# both faces -- the O19.6 output boss and the horn-side rib outboard, the
+# back-cover platform and the free-hub post inboard -- stands proud ALONG THE
+# AXIS into a closed pocket of a full-height wall. So the servo goes in along
+# its own axis, from outboard, and the outboard grip plate is its own print,
+# the SHOULDER CHEEK, offered on the same axis once the servo is home and
+# screwed to four lugs on the pod's end walls.
+GIRDLE_CHEEK_SCREW_DX = 2.8      # cheek screw centre, outboard of the bay's end (x): 1.78 of lug
+                                 # between its pilot and the bay
+GIRDLE_CHEEK_EDGE = 0.6          # cheek edge past those screws' countersink mouths
+GIRDLE_CHEEK_CLR = 0.2           # cheek in its rebate, each end
+GIRDLE_RIM_W = 1.6               # the rebate's rims: the pod boxes the cheek in x, not its screws
+GIRDLE_LUG_D = 7.5               # lug depth inboard of the cheek's seat plane
+GIRDLE_CHEEK_PILOT_DEPTH = 6.0   # M2.5x8 flat head through the 2.4 cheek: 5.6 of thread in the lug
 # DEVIATION 2 (lateral): the plant hung the arm at 80.35. 103.35 here, +23.0.
 # Round 4 was +7.7 and it was forced by the Pi slot; this one is forced by the
 # deck edge (above) -- and it is ALSO what the walk gate wants once the

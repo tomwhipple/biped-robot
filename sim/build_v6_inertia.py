@@ -241,6 +241,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     if p.arms:
         t += [mesh_props(stl("shoulder_girdle_v6"), [0, 0, zdeck]),
+              mesh_props(stl("shoulder_cheek_v6_L"), [0, 0, zdeck]), mesh_props(stl("shoulder_cheek_v6_R"), [0, 0, zdeck]),
               servo("shoulder_L", g15), servo("shoulder_R", g15)]
     elif p.head:
         t.append(mesh_props(stl("neck_collar"), [0, 0, zdeck]))
