@@ -436,6 +436,25 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-01 card: night 11 -- the get-up holds on the full deploy contract
+# (w12k: asbuilt P32, quantizer, clip within stops: 48/48, 15 N 14/16); the
+# first get-up student (w9k -> (128,128)) loses 16/48. Legs: walk14 79/160 is
+# the best deployable teacher; its student loses 42; the first step is the
+# walk gate now.
+fig_1101 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w12k', ['recover_prone_fall'],
+                 'robot_getup_w12k_prone_fall',
+                 'the get-up on the robot\'s own gains, encoder quantizer and stop '
+                 'clip: 48/48 over friction 0.05-0.5, 14/16 under 15 N shoves'),
+    video_figure('robot_getup_w9k_s128r24', ['recover_prone_fall'],
+                 'robot_getup_w9k_s128r24_prone_fall',
+                 'the first firmware-sized get-up student: 32/48 over friction '
+                 '(teacher 48); it never stands from prone at friction 0.5'),
+    video_figure('robot_legs_walk14', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk14_walk_steps',
+                 'the best deployable legs teacher: 79/160, walk_steps 5/8 and 3/8; '
+                 'the misses are the first step from standing'),
+] if f)
 # 2026-10-31 card: night 10 -- the get-up stands on the as-built STS3215
 # knees (w9k, w9k_s1, w10k: sweep 48/48, 15 N 15-16/16; #147). Legs, the
 # deploy-first recipe on the fitted plant: the (128,128) students lose 10-15
@@ -825,6 +844,34 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·01 · night 11: the deployable get-up + the student gate</span></p>
+    <p><b>Get-up: it holds on everything the robot's firmware imposes.</b>
+    Trained on the factory P32 gains the robot runs (w11k, w11k_s1: 46 and
+    47/48), then with the encoder quantizer and targets clipped to the joint
+    stops as well (w12k: 48/48 across joint friction 0.05 – 0.5, 14/16 under
+    15 N shoves). Clipping at the stops cost nothing. w12k is the deployable
+    get-up teacher. Its weak point is the next step. The first get-up distilled
+    into the firmware-sized (128, 128) network loses 16 of 48 trials and 10 of
+    16 under shoves. It sinks after standing at low friction and never stands
+    from prone at high friction. Its fit error says it learned its training
+    data but does not generalise. Tonight tests more distillation data, and
+    also training the small network directly with PPO so there is no distil
+    step (with a from-scratch control).</p>
+    <p><b>Legs: a better teacher, and the student is still the gate.</b>
+    walk14 (a second 400M on the fitted plant) passes 79/160 with walk_steps
+    5/8 left and 3/8 right. The right-foot weakness is gone, and the stop step
+    now clears 3 cm in 14 of 15 episodes. The failing step is now the first
+    step from standing (8/16 below 3 cm). Its firmware-sized student passes
+    37/160. 4× more training steps or 4× more data per round did not help the
+    students. Tonight brackets network size (256, 256) and the teacher's own
+    size, to tell capacity from the distil recipe. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1101}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·31 · night 10: get-up + the deployable legs</span></p>
