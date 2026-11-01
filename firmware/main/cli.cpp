@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "balance/roll_pi.h"
+#include "fallguard/fallguard.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
 #include "obs/obs_spec.h"
@@ -1109,103 +1110,132 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 }
 
 
-// -- bench fall guard (always on while benched; ctrl_task has its own) ------
+// -- fall guard, bench half (fallguard.h; ctrl_task runs the armed half) ----
 // Tom 2026-11-01, after a turn-in-place step fell over with nothing watching
 // (balance only runs inside `pose ... B`): "in the firmware, we should have
 // fall detection. Once a fall is detected, motion should stop. After a fall
-// when the robot is picked up it should home the servos." Every housekeeping
-// tick, from the fused attitude:
-//  - FALL: torso tilt past 30 deg (up_z < cos 30) for 100 ms. Stands peak at the
-//    12 deg balance abort, so this is a backstop for every phase balance does
-//    not cover (shifts, centring, lowering, home). It stops the pose stream, the
-//    balance and any home, and turns torque OFF -- the armed loop's kFallen rule
-//    (a downed robot must not grind its servos into the floor). `pose`/`move`
+// when the robot is picked up it should home the servos." And, the same day:
+// one system, not a bench one and a policy one -- so this is the SAME module
+// ctrl_task uses (components/fallguard), with its one table of limits:
+//  - FALL while benched: Motion::kBench, tilt past 30 deg for 100 ms (stands
+//    peak at the 12 deg balance abort, so this is a backstop for every phase
+//    balance does not cover: shifts, centring, lowering, home). It stops the
+//    pose stream, the balance and any home, and turns torque OFF. `pose`/`move`
 //    are refused while fallen.
+//  - FALL while armed: ctrl's Detector (Motion::kPolicy, 45 deg / 200 ms) goes
+//    limp and disarms the loop; the fall arrives here through g_armed_falls and
+//    latches THIS Detector, so the recovery below is the same for both.
 //  - PICKED UP: within 10 deg of upright AND |gyro| < 0.35 rad/s for 2 s
 //    continuously (being carried or a moment upright mid-fall does not count),
 //    then `home` runs by itself (2.5 s smooth, play take-up, readback, release)
-//    and the latch clears. History: the armed loop's auto-CLEAR re-armed torque
-//    in the operator's hands (2026-08-30/31) and was removed; this is a slow home
-//    that ends released, at Tom's request, and `fall autohome off` restores
-//    "wait for a typed `home`".
-constexpr float kBenchFallUpZ = 0.866f;      // cos 30 deg
-constexpr long kBenchFallDebounceMs = 100;
-constexpr float kPickupUpZ = 0.985f;         // cos 10 deg
-constexpr float kPickupGyro = 0.35f;         // rad/s, |w|
-constexpr long kPickupHoldMs = 2000;
+//    and the latch clears. It never arms. History: the armed loop's auto-CLEAR
+//    re-armed torque in the operator's hands (2026-08-30/31) and was removed;
+//    this is a slow home that ends released, at Tom's request, and `fall
+//    autohome off` restores "wait for a typed `home`".
+// Every fall, hand-over, pick-up and clear is a flight-recorder Ev::kFall event.
 static bool s_fall_on = true;
 static bool s_fall_autohome = true;
-static bool s_fallen = false;
-static bool s_fall_cand = false, s_up_cand = false;
-static TickType_t s_fall_since = 0, s_up_since = 0;
-static float s_fall_tilt_deg = 0.0f;
-static uint32_t s_falls = 0;
+static fallguard::Detector s_fall;
+static uint32_t s_armed_falls_seen = 0;
+
+static void fallEvent(fallguard::Motion m, fallguard::Event e, const char* text) {
+    robot::flight::event(flightrec::Ev::kFall, text, static_cast<int32_t>(m), static_cast<int32_t>(e));
+}
 
 static bool fallLocked(Sink out) {
-    if (!s_fallen) return false;
+    if (!s_fall.fallen()) return false;
     out("refused: FALLEN -- motion locked until the robot is upright and homed (`fall` for status)\r\n");
     return true;
 }
 
+// An operator cleared the latch (typed `home`, the wireless home, `fall clear`,
+// or a fresh arm -- each is someone deciding, looking at the robot).
+static void fallClear(const char* why) {
+    if (!s_fall.fallen()) return;
+    const fallguard::Motion m = s_fall.fellIn();
+    s_fall.clear();
+    fallEvent(m, fallguard::Event::kCleared, why);
+}
+
 void fallTickImpl(Sink out) {
-    if (!s_fall_on) return;
-    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
-        s_fall_cand = s_up_cand = false;
-        return;
+    // The armed loop's falls first: they arrive while ctrl may still own the
+    // bus, so this only LATCHES (ctrl has already released torque) -- the
+    // pick-up below runs once the loop is benched.
+    const uint32_t af = robot::g_armed_falls.load();
+    if (af != s_armed_falls_seen) {
+        s_armed_falls_seen = af;
+        const float tilt = robot::g_armed_fall_tilt_deg.load();
+        char msg[96];
+        snprintf(msg, sizeof msg, "armed fall at %.0f deg: loop disarmed, torque off", static_cast<double>(tilt));
+        if (s_fall_on) {
+            s_fall.latch(fallguard::Motion::kPolicy, tilt);
+            fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
+            say(out, "FALL (armed loop): torso tilted %.0f deg -- disarmed, torque OFF\r\n", static_cast<double>(tilt));
+            say(out, "  pick it up, hold it upright and still: %s\r\n",
+                s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+        } else {
+            fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
+            say(out, "FALL (armed loop) at %.0f deg -- disarmed, torque OFF; bench fall guard is off, no autohome\r\n",
+                static_cast<double>(tilt));
+        }
     }
+    if (!s_fall_on) return;
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) return;
     imu::Sample smp{};
     uint32_t age = 0;
-    if (!robot::peekImu(smp, &age) || !smp.valid || age > kBalStaleMs) return;   // no decision on no data
-    const TickType_t now = xTaskGetTickCount();
-    const float uz = smp.up[2];
-    if (!s_fallen) {
-        if (!(uz < kBenchFallUpZ)) { s_fall_cand = false; return; }
-        if (!s_fall_cand) { s_fall_cand = true; s_fall_since = now; }
-        if (static_cast<long>(pdTICKS_TO_MS(now - s_fall_since)) < kBenchFallDebounceMs) return;
-        s_fallen = true;
-        s_fall_cand = s_up_cand = false;
-        ++s_falls;
-        s_fall_tilt_deg = acosf(fminf(fmaxf(uz, -1.0f), 1.0f)) * 57.29578f;
+    const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;   // no decision on no data
+    const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
+    const fallguard::Event ev = s_fall.update(fallguard::Motion::kBench, valid, smp.up, smp.gyro, now_ms);
+    if (ev == fallguard::Event::kFell) {
         s_traj_active = false;
         s_home_pending = false;
         balStop(out, "FALL");
         if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+        char msg[64];
+        snprintf(msg, sizeof msg, "bench fall at %.0f deg: motion stopped, torque off",
+                 static_cast<double>(s_fall.fallTiltDeg()));
+        fallEvent(fallguard::Motion::kBench, ev, msg);
         say(out, "FALL: torso tilted %.0f deg -- motion stopped, torque OFF. Pick it up and hold it upright "
-            "and still: %s\r\n", static_cast<double>(s_fall_tilt_deg),
+            "and still: %s\r\n", static_cast<double>(s_fall.fallTiltDeg()),
             s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
         return;
     }
-    const float w = sqrtf(smp.gyro[0] * smp.gyro[0] + smp.gyro[1] * smp.gyro[1] + smp.gyro[2] * smp.gyro[2]);
-    if (!(uz > kPickupUpZ && w < kPickupGyro)) { s_up_cand = false; return; }
-    if (!s_up_cand) { s_up_cand = true; s_up_since = now; }
-    if (!s_fall_autohome || static_cast<long>(pdTICKS_TO_MS(now - s_up_since)) < kPickupHoldMs) return;
-    s_up_cand = false;
+    if (ev != fallguard::Event::kPickedUp || !s_fall_autohome) return;
+    const fallguard::Motion m = s_fall.fellIn();
     out("FALL cleared: upright and still for 2 s -- homing\r\n");
-    s_fallen = false;
     if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
-        s_fallen = true;
         out("home did not start -- still FALLEN (`home` to retry)\r\n");
+        return;
     }
+    s_fall.clear();
+    fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 2 s, autohome started");
 }
 
 // `fall` status | on | off | autohome on|off | clear
 void cmdFall(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "on")) s_fall_on = true;
-    else if (argc >= 2 && !strcmp(argv[1], "off")) { s_fall_on = false; s_fall_cand = s_up_cand = false; }
+    else if (argc >= 2 && !strcmp(argv[1], "off")) s_fall_on = false;
     else if (argc >= 3 && !strcmp(argv[1], "autohome")) s_fall_autohome = !strcmp(argv[2], "on");
-    else if (argc >= 2 && !strcmp(argv[1], "clear")) { s_fallen = false; s_fall_cand = s_up_cand = false; }
-    say(out, "fall guard %s (tilt > 30 deg for 100 ms -> stop + torque off), autohome %s (upright < 10 deg "
-        "and still 2 s), %s, %lu fall(s) since boot, last %.0f deg\r\n", s_fall_on ? "ON" : "OFF",
-        s_fall_autohome ? "ON" : "OFF", s_fallen ? "FALLEN (motion locked)" : "not fallen",
-        static_cast<unsigned long>(s_falls), static_cast<double>(s_fall_tilt_deg));
+    else if (argc >= 2 && !strcmp(argv[1], "clear")) fallClear("fall clear");
+    const fallguard::Limits pl = fallguard::kPolicyLimits, bl = fallguard::kBenchLimits;
+    say(out, "fall guard (fallguard.h): armed policy tilt > %.0f deg for %lu ms; bench > %.0f deg for %lu ms\r\n",
+        static_cast<double>(acosf(pl.fall_up_z) * 57.29578f), static_cast<unsigned long>(pl.debounce_ms),
+        static_cast<double>(acosf(bl.fall_up_z) * 57.29578f), static_cast<unsigned long>(bl.debounce_ms));
+    say(out, "  bench guard %s, autohome %s (upright < %.0f deg, |gyro| < %.2f rad/s for %lu ms)\r\n",
+        s_fall_on ? "ON" : "OFF", s_fall_autohome ? "ON" : "OFF", static_cast<double>(fallguard::kPickupTiltDeg),
+        static_cast<double>(fallguard::kPickupGyroRadS), static_cast<unsigned long>(fallguard::kPickupHoldMs));
+    say(out, "  %s, %lu fall(s) since boot (bench + armed), last %.0f deg\r\n",
+        s_fall.fallen() ? (s_fall.fellIn() == fallguard::Motion::kPolicy ? "FALLEN in the armed loop (motion locked)"
+                                                                         : "FALLEN on the bench (motion locked)")
+                        : "not fallen",
+        static_cast<unsigned long>(s_fall.falls()), static_cast<double>(s_fall.fallTiltDeg()));
 }
 
 // The tethered `home`. 0 steps/s asks for the servo's maximum, same
 // convention as `move` and `pose`. It also clears a fall latch (a deliberate
 // `home` after a fall is the manual form of autohome).
 void cmdHome(Sink out, int argc, char** argv) {
-    s_fallen = false;
-    s_fall_cand = s_up_cand = false;
+    fallClear("typed home");
     homeAll(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
                            : kHomeStepsPerSec);
 }
@@ -1552,6 +1582,9 @@ void cmdMode(Sink out, bool run) {
     }
     robot::g_arm_result.store(
         static_cast<uint8_t>(linkproto::ArmResult::kAccepted));
+    // A fresh arm is the deliberate clear of a fall latch (ctrl resets its own
+    // at the handover; this is the bench Detector's, fallguard.h).
+    if (run) fallClear("armed");
     robot::g_mode_request.store(run ? robot::Mode::kRun : robot::Mode::kBench);
     out(run ? "control loop armed -- bus handed to core 1\r\n"
             : "benched -- control loop released torque and gave up the bus\r\n");
@@ -3193,6 +3226,7 @@ void linkHome(Sink out) {
     // and a reset that quietly did nothing -- no calibration, a latched pack,
     // a servo that did not answer -- must say which, or it looks exactly like
     // a dead button.
+    fallClear("wireless home");    // the wireless form of a typed `home`
     robot::g_arm_result.store(
         static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
 }

@@ -12,6 +12,7 @@
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
+#include "fallguard/fallguard.h"
 #include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -122,12 +123,10 @@ float g_ramp_hold[obs::kNumJoints];   // measured pose at the takeover tick
 int g_ramp_ticks = kArmRampTicks;     // >= kArmRampTicks == ramp done
 bool g_ramp_held = false;             // g_ramp_hold captured yet?
 
-// Fall latch (loop-owned). Thresholds and the rationale live in
-// linkproto/protocol.h next to the kFallen state they produce.
-constexpr int kFallDebounceTicks =
-    static_cast<int>(linkproto::kFallDebounceMs / (obs::kControlDt * 1000.0f));
-bool g_fallen = false;
-int g_fall_streak = 0;
+// Fall latch (loop-owned): the shared fallguard::Detector with the POLICY
+// limits (fallguard.h: tilt past 45 deg for 200 ms). The bench path runs the
+// same module (cli.cpp fallTick) and takes this latch over after the disarm.
+fallguard::Detector g_fall;
 
 // Rolling late-tick statistics for telemetry.
 uint32_t g_ticks = 0, g_late = 0;
@@ -231,7 +230,7 @@ void recordFlight(int64_t t0, int64_t t_read0, int64_t t_read1,
     v.read1_us = t_read1;
     v.link_state = static_cast<uint8_t>(st);
     v.torque_on = g_torque_on;
-    v.fallen = g_fallen;
+    v.fallen = g_fall.fallen();
     v.imu = &s;
     v.nfit = g_nfit;
     v.fit_bus = g_fit_bus;
@@ -294,8 +293,7 @@ void ctrlTask(void*) {
             // Fresh run, fresh fall latch: `bench` + `run` is the tethered
             // clear (and a disarm + arm the wireless one), and the operator
             // doing it is looking at the robot.
-            g_fallen = false;
-            g_fall_streak = 0;
+            g_fall.clear();
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
             // that actually writes targets (the link may sit RELAX for a
@@ -390,28 +388,34 @@ void ctrlTask(void*) {
         g_batt.update(fresh_dv, now_ms);
 
         // -- fall detection ------------------------------------------------
-        // The sim terminates an episode below fall_up_z (walker_env); the
-        // hardware analogue of "episode over" is torque off. Past that line
-        // the policy is outside anything training produced, and holding
-        // torque only grinds servos against the floor. Debounced so a
-        // footfall transient cannot trip it; the StubImu pins up_z to 1.0,
-        // so an IMU-less bench board can never false-trigger.
+        // fallguard::Detector, Motion::kPolicy: up_z below cos 45 deg for
+        // 200 ms (fallguard.h has the table and why). The hardware analogue of
+        // the sim's "episode over" is torque off -- but earlier than the sim's
+        // own line (linkproto::kFallUpZ = 0.4, 66 deg, which stays the training
+        // episode end): holding torque from 45 down to 66 deg only grinds the
+        // servos into the floor. Debounced so a footfall transient cannot trip
+        // it; the StubImu pins up_z to 1.0, so an IMU-less bench board can
+        // never false-trigger.
         //
         // A fall ends the run OUTRIGHT: the latch trips, this tick still
         // reports FALLEN and goes limp below, and the mode request benches
-        // the loop from the next tick. There is no auto-clear any more --
-        // the old one (righted ~2 s + ENABLE off) re-engaged torque while
-        // the robot was in the operator's hands on 2026-08-30 and twice on
-        // 08-31. Re-arming is deliberate: a fresh wireless ARM edge or a
-        // tethered `run`, both of which pass through the arm handover above,
-        // which is also where the latch resets (user directive 2026-08-31).
-        if (!g_fallen) {
-            g_fall_streak =
-                (s.up[2] < linkproto::kFallUpZ) ? g_fall_streak + 1 : 0;
-            if (g_fall_streak >= kFallDebounceTicks) {
-                g_fallen = true;
+        // the loop from the next tick. There is no auto-clear HERE -- the old
+        // one (righted ~2 s + ENABLE off) re-engaged torque while the robot was
+        // in the operator's hands on 2026-08-30 and twice on 08-31. Instead the
+        // fall is handed to the bench Detector (g_armed_falls): once benched,
+        // the same pick-up rule as a bench fall (upright < 10 deg and still for
+        // 2 s) runs a slow `home` that ENDS RELEASED -- never an arm. Re-arming
+        // is deliberate: a fresh wireless ARM edge or a tethered `run`, both of
+        // which pass through the arm handover above, where the latch resets
+        // (user directive 2026-08-31).
+        if (!g_fall.fallen()) {
+            const uint32_t now_ms32 = static_cast<uint32_t>(t0 / 1000);
+            if (g_fall.update(fallguard::Motion::kPolicy, s.valid, s.up, s.gyro, now_ms32) ==
+                fallguard::Event::kFell) {
                 g_arm_result.store(static_cast<uint8_t>(
                     linkproto::ArmResult::kDisarmedFall));
+                g_armed_fall_tilt_deg.store(g_fall.fallTiltDeg());
+                g_armed_falls.fetch_add(1);
                 g_mode_request.store(Mode::kBench);
             }
         }
@@ -429,8 +433,8 @@ void ctrlTask(void*) {
             g_batt.latched()
                 ? (batt_limp ? linkproto::LinkState::kLowBattSafe
                              : linkproto::LinkState::kLowBattLand)
-                : (g_fallen ? linkproto::LinkState::kFallen : state);
-        const bool limp = (batt_limp || g_fallen ||
+                : (g_fall.fallen() ? linkproto::LinkState::kFallen : state);
+        const bool limp = (batt_limp || g_fall.fallen() ||
                            state == linkproto::LinkState::kRelax ||
                            state == linkproto::LinkState::kEstop);
         if (limp) {

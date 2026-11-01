@@ -63,6 +63,15 @@ extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
 // "un-home"), so there is nothing for a level to say.
 extern std::atomic<uint32_t> g_link_home_edges;
 
+// -- armed-loop falls (core 1 -> core 0) ------------------------------------
+// ctrl's fall latch (fallguard::Detector, Motion::kPolicy) disarms the loop to
+// bench; the pick-up recovery is the BENCH Detector's (cli.cpp fallTick), so
+// the fall is handed over here: ctrl stores the tilt it latched at, then bumps
+// the counter; housekeeping latches its own Detector on a new count and the
+// same pick-up rule homes the robot. One writer each side, like the edges above.
+extern std::atomic<uint32_t> g_armed_falls;
+extern std::atomic<float> g_armed_fall_tilt_deg;
+
 // -- why the loop is (not) armed (core 0 -> the WiFi beacon) ---------------
 // cmdMode() is the ONE place that decides a mode request, and until 2026-08-30
 // its refusal only reached the UART sink: over WiFi the robot simply stayed

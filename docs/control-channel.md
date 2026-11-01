@@ -161,10 +161,14 @@ One line of reason per rule:
   the watchdog**; otherwise a reordered burst could hold the robot `LIVE` on
   a command from the past. A backwards jump of more than 1000 means the
   sender restarted, and the watchdog resyncs to it.
-- **`FALLEN` ends the run.** Below the sim's own `fall_up_z` the policy is
-  outside its training and holding torque only grinds the servos against the
-  floor. There is no auto-clear: re-arming is a fresh `ARM` edge or `run`,
-  by someone looking at the robot.
+- **`FALLEN` ends the run.** Past 45 deg of torso tilt for 200 ms
+  (`components/fallguard`; tighter than the sim's own `fall_up_z` = 0.4,
+  66 deg, which stays the training episode end) holding torque only grinds
+  the servos against the floor. Nothing re-arms by itself: re-arming is a
+  fresh `ARM` edge or `run`, by someone looking at the robot. Once the robot
+  is benched, the bench fall guard holds the latch and, when the robot is
+  picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
+  ends with torque released.
 - **The real E-stop is the inline battery switch.** No flag that has to
   arrive over a radio can be a safety guarantee.
 

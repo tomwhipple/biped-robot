@@ -32,6 +32,8 @@ std::atomic<Mode> g_mode_request{Mode::kBench};
 std::atomic<bool> g_ctrl_owns_bus{false};
 std::atomic<uint32_t> g_link_arm_edges{0};
 std::atomic<uint32_t> g_link_home_edges{0};
+std::atomic<uint32_t> g_armed_falls{0};
+std::atomic<float> g_armed_fall_tilt_deg{0.0f};
 std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};

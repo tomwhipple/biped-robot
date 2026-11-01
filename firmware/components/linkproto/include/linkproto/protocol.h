@@ -142,7 +142,8 @@ enum class LinkState : uint8_t {
     // above, these are decided by the ROBOT and no command clears them.
     kLowBattLand = 4,   // crouching down under control on a flat pack
     kLowBattSafe = 5,   // crouch finished, torque off, and it stays off
-    // Torso down (up_z below kFallUpZ, debounced), robot-latched: torque off
+    // Torso down (tilt past 45 deg for 200 ms: fallguard::kPolicyLimits, NOT
+    // kFallUpZ, which is the sim's episode end), robot-latched: torque off
     // so a downed robot does not grind its servos against the floor. A fall
     // DISARMS the robot (ctrl_task): the state is reported for the fall tick,
     // then the loop benches. Re-arming is deliberate -- a fresh wireless ARM
@@ -224,14 +225,16 @@ ArmResult diagArmResult(uint8_t diag);
 // a firmware newer than this client.
 const char* diagReason(uint8_t diag);
 
-// -- fall detection (robot-side, ctrl_task) --------------------------------
-// The threshold is walker_env's own fall_up_z: the sim terminates an episode
-// below it, so past this line the policy is operating outside anything it
-// trained on and holding torque only feeds the fall. Debounced over ticks
-// because a footfall transient dips up_z briefly; 200 ms of "down" is a
-// torso on the floor, not a wobble.
+// -- fall detection ----------------------------------------------------------
+// kFallUpZ is walker_env's own fall_up_z: the SIM terminates an episode below
+// it (66 deg). It stays here as the training contract's number, for the twin
+// and sim code. The HARDWARE no longer uses it: both control paths run
+// components/fallguard (fallguard.h has the one table), and the armed loop
+// trips at fallguard::kPolicyLimits = cos 45 deg (0.707) for 200 ms -- 21 deg
+// before the episode end, because torque held past 45 deg only grinds the
+// servos into the floor (Tom 2026-11-01).
 constexpr float kFallUpZ = 0.4f;
-constexpr float kFallDebounceMs = 200.0f;
+constexpr float kFallDebounceMs = 200.0f;   // the sim-side debounce; fallguard's policy debounce matches it
 // The firmware latch no longer auto-clears (a fall DISARMS the robot,
 // ctrl_task.cpp); these two remain for the python twin's Watchdog and any
 // host-side "is it righted yet" display.
