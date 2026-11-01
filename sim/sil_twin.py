@@ -108,14 +108,18 @@ class Mjpeg:
 
 
 def run(args):
-    from eval_precision import make_env, sil_setup          # noqa: E402
+    from eval_precision import (make_env, sil_check_spec,   # noqa: E402
+                                sil_profile_for, sil_setup)
 
     run_dir = os.path.join(HERE, "runs", args.run_name)
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     xml = args.xml or (HANG_XML if args.hang else None) \
         or cfg.get("xml_path") or None
-    H, lib, info = sil_setup(args.run_name, run_dir)
+    # the policy profile is the TRAINING plant's (a --hang override is a
+    # variant of the same body)
+    prof = sil_profile_for(cfg.get("xml_path") or "")
+    H, lib, info = sil_setup(args.run_name, run_dir, profile=prof)
     extra = {}
     if args.backlash_deg is not None:
         extra.update(backlash_deg=args.backlash_deg, backlash_deg_max=None)
@@ -141,6 +145,7 @@ def run(args):
     print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
           f"act_lag {env.act_lag_hz:g} Hz, dead time {getattr(env, 'act_delay_ticks', 0)} ticks, play {env.play_deg:g} deg "
           f"on {env.play_joints or 'all joints'}", flush=True)
+    sil_check_spec(H, env)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
