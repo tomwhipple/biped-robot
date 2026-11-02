@@ -23,6 +23,7 @@
 #include "flight_rec.h"
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
+#include "obs/assembler.h"
 #include "shared.h"
 #include "wifi_link.h"
 #include "wifi_cli.h"
@@ -55,6 +56,11 @@ std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+std::atomic<uint8_t> g_stand_clock{static_cast<uint8_t>(obs::StandClock::kRun)};
+// The kCoast target. pi/2, measured on the robot 2026-11-02 (walk16_act, fast servos):
+// pi/2 draws 0.88-1.11 W, pi 1.49-1.65 W (the sim's ranking does not hold); see
+// experiments/policy/stand-still/2026-11-02-stand-still.md.
+std::atomic<float> g_stand_phase{1.57079633f};
 std::atomic<uint32_t> g_obs_freeze{0};
 std::atomic<float> g_obs_gyro_gain{1.0f};
 QueueHandle_t g_cmd_mailbox = nullptr;

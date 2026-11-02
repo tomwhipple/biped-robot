@@ -592,20 +592,17 @@ void ctrlTask(void*) {
         const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
         const float wz = in.cmd[2];
         const float lift = obs::kNumCmd > 4 ? in.cmd[4] : 0.0f;
-        // clock_stand_freeze runs generated per-policy: a policy trained
-        // with the frozen-at-stand clock must see it here too, or the
-        // stand obs oscillate in a way training never produced. Training's
-        // gate (env_mjx plain_stand): no locomotion command AND no lift --
-        // marches/balances keep their clock.
-        if (!obs::kClockStandFreeze
-            || fabsf(vx) > 0.05f || fabsf(vy) > 0.05f || fabsf(wz) > 0.05f
-            || fabsf(lift) >= 0.5f) {
-            // speed clock (kSpeedClock, 2026-09-08): cadence follows the
-            // commanded planar speed exactly as in training; the base
-            // frequency alone ran the robot 7-25 % slow on every drive
-            // since loco_v32. Mirror of sil_lib.cpp.
-            g_clock.advanceSpeedClock(obs::kControlDt, sqrtf(vx * vx + vy * vy));
-        }
+        // The gait clock (obs::tickGaitClock, shared with sil_lib.cpp): the
+        // speed clock under a locomotion command (kSpeedClock, 2026-09-08:
+        // cadence follows the commanded planar speed exactly as in
+        // training). At a plain stand -- training's gate, no locomotion
+        // command AND no lift -- a clock_stand_freeze run always holds (it
+        // must see the frozen clock here too, or the stand obs oscillate in
+        // a way training never produced); any other run follows the
+        // `standclock` option (shared.h g_stand_clock; default: as trained).
+        obs::tickGaitClock(g_clock, in.cmd,
+                           static_cast<obs::StandClock>(g_stand_clock.load()),
+                           g_stand_phase.load());
 
         memcpy(in.q, g_q, sizeof g_q);
         memcpy(in.dq, g_dq, sizeof g_dq);

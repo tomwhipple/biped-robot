@@ -351,6 +351,68 @@ void testBusSyncReadFeedback() {
              static_cast<int>(Status::kTimeout));
 }
 
+// A feedback reply for `id` with position 100 * id.
+void queueFeedback(FakePort& p, uint8_t id) {
+    std::vector<uint8_t> b(kFeedbackLen, 0);
+    const uint16_t pos = toSignMag(100 * static_cast<int32_t>(id), 15);
+    b[0] = static_cast<uint8_t>(pos & 0xFF);
+    b[1] = static_cast<uint8_t>(pos >> 8);
+    b[6] = 120;
+    p.queueStatus(id, 0, b);
+}
+
+// The 2026-11-02 stand: id 11 (listed 11th of 12) missed its reply now and
+// then while id 12 after it answered on time, and the read sat out its whole
+// 18 ms deadline -- 16 ticks of 28-29 ms. The servos answer in list order, so
+// once the LAST listed servo has answered there is nothing left to wait for.
+void testSyncReadStopsAtTheLastListedServo() {
+    FakePort p;
+    Bus bus(p);
+    const uint8_t ids[12] = {52, 6, 7, 8, 51, 2, 3, 4, 10, 9, 11, 12};
+    for (uint8_t id : ids) {
+        if (id != 11) queueFeedback(p, id);
+    }
+    Feedback fb[12];
+    bool ok[12];
+    const uint64_t t0 = p.t_us;
+    CHECK_EQ(static_cast<int>(bus.syncReadFeedback(ids, 12, fb, ok)),
+             static_cast<int>(Status::kOk));
+    for (int i = 0; i < 12; ++i) CHECK_EQ(ok[i], i != 10);
+    CHECK_EQ(fb[11].position, 1200);
+    // No read ever waited on the silent servo: only wire time elapsed --
+    // 11 replies x 21 B + two requests at FakePort's 10 us/byte, ~2.6 ms
+    // (it charges a read's whole timeout when nothing is queued).
+    CHECK(p.t_us - t0 < 11u * kSyncReplyLen * 10u + 500u);
+    CHECK(p.rx.empty());
+}
+
+// A silent servo at the END of a burst can only be timed out -- but by the
+// burst deadline (kSyncBaseUs + kSyncPerServoUs * n), not 3 ms per servo.
+void testSyncReadDeadlineIsPerBurst() {
+    FakePort p;
+    Bus bus(p);
+    const uint8_t ids[6] = {3, 4, 10, 9, 11, 12};
+    for (uint8_t id : ids) {
+        if (id != 12) queueFeedback(p, id);
+    }
+    Feedback fb[6];
+    bool ok[6];
+    const uint64_t t0 = p.t_us;
+    CHECK_EQ(static_cast<int>(bus.syncReadFeedback(ids, 6, fb, ok)),
+             static_cast<int>(Status::kOk));
+    for (int i = 0; i < 6; ++i) CHECK_EQ(ok[i], i != 5);
+    const uint64_t took = p.t_us - t0;
+    CHECK(took <= Bus::kSyncBaseUs + 6 * Bus::kSyncPerServoUs + 500u);   // + the request on the wire
+    CHECK(took < 6u * 3000u);
+    // ... and a short per-servo transaction timeout still caps it.
+    FakePort p2;
+    Bus fast(p2, 200);
+    const uint64_t t1 = p2.t_us;
+    CHECK_EQ(static_cast<int>(fast.syncReadFeedback(ids, 6, fb, ok)),
+             static_cast<int>(Status::kTimeout));
+    CHECK(p2.t_us - t1 <= 6u * 200u + 500u);
+}
+
 void testBusErrorFlagsSurface() {
     FakePort p;
     Bus bus(p);
@@ -568,6 +630,8 @@ int main() {
     testBusSetIdLocksTheNewId();
     testBusSetMiddle();
     testBusSyncReadFeedback();
+    testSyncReadStopsAtTheLastListedServo();
+    testSyncReadDeadlineIsPerBurst();
     testBusErrorFlagsSurface();
     testTxFailureIsReported();
     testGainWriteHappyPath();
