@@ -135,6 +135,14 @@ extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 // tunable: changing the pole mid-run is continuous because the shaper's state
 // carries over; only the gain changes.
 extern std::atomic<float> g_shape_hz;
+// -- stand clock option (core 0 -> core 1) ---------------------------------
+// Written by the CLI (`standclock`), read by ctrl every tick: what the gait
+// clock does at a plain stand for a policy trained with it running
+// (obs::StandClock -- kRun as trained, kFreeze, kCoast to g_stand_phase).
+// Boot state kRun: not persistent, off until hardware-tested. A policy
+// trained with kClockStandFreeze holds the clock whatever this says.
+extern std::atomic<uint8_t> g_stand_clock;     // an obs::StandClock
+extern std::atomic<float> g_stand_phase;       // rad, the kCoast target
 // Bench diagnostic (2026-09-03): freeze parts of the policy OBSERVATION at
 // their nominal stand values while the loop runs, to find which sensor
 // closes the oscillation loop. Bits: 1 = up-vector -> (0,0,1), 2 = gyro -> 0,
