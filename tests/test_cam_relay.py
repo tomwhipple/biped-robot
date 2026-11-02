@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import sys
 import threading
@@ -137,12 +138,12 @@ def test_dead_source_goes_silent_not_frozen(relay):
     s = get(port, "/t")
     assert len(read_parts(s, 3)) >= 3
     seq0 = t.seq
-    t.proc.send_signal(19)                                # SIGSTOP: wedged, not dead
+    t.proc.send_signal(signal.SIGSTOP)                    # wedged, not dead
     time.sleep(0.6)
     seq1 = t.seq
     time.sleep(1.5)
     assert t.seq == seq1                                  # no frames invented
-    t.proc.send_signal(18)                                # SIGCONT
+    t.proc.send_signal(signal.SIGCONT)
     assert len(read_parts(s, 2)) >= 2
     # now kill it outright: the relay restarts it for the viewer still there
     starts = t.starts
