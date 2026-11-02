@@ -48,6 +48,8 @@ at frictionloss 0.35, μ 0.7, play 3° (the `--joint-frictionloss 0.35` plant).
 | `getup_ref_v6ar_prone.npz` (existing) | prone, arms 180° | `prone_roll()` + seat push | fails at 0.35 | — |
 | `getup_ref_v6ar_prone_ik.npz` | prone, arms idle (+15°) | searched roll + the analytic seat push | 216/216 | ~33 s |
 | `getup_ref_v6ar_prone_ikc.npz` | prone, arms idle (+15°) | as prone_ik, centred crouch hold (below) | 216/216 | ~33 s |
+| `getup_ref_v6ar_prone_ikh.npz` | prone, arms idle (+15°) | as prone_ikc, arms **hanging** (shoulder 0) through the rise, rise re-planned (below) | 216/216 | ~33 s |
+| `getup_ref_v6ar_prone_ikf.npz` | prone, arms idle (+15°) | as prone_ikc, arms **45° forward** through the rise, rise re-planned (below) | 216/216 | ~33 s |
 
 **The analytic rise.** Grid every symmetric sagittal pose (hip pitch, knee,
 ankle at 3°) with both soles levelled on the floor; keep the 2474 whose
@@ -85,6 +87,41 @@ half-length 65 mm), the worst arm pose there. `prone_ikc` / `supine_ikc`
 through the hold (CoM −12 mm) and move the arms to REST during the first rise
 waypoint; same keys and timing, so the referee's starts and phases are
 unchanged.
+
+**The arms through the rise (2026-10-24, Tom: "why does it always put its arms
+straight back when coming out of the crouch? … moving the CG aft").** Every
+reference so far holds REST (shoulder 60°, i.e. 60° back of hanging) from the
+crouch on: a leftover of the seat push's hands-behind push, not a choice. The
+static CoM (the reference's `_levelled_pose`, from the sole centre):
+
+| pose | arms REST (60° back) | hanging (0°) | 45° forward |
+|---|---|---|---|
+| crouch, ankle −25 (prone_ik) | −40 mm | −29 mm | −15 mm |
+| crouch, ankle −35 (prone_ikc's hold) | −14 mm | −6 mm | +8 mm |
+| the REST rise's waypoints | −11 … +4 mm | +5 … +15 mm | +19 … +28 mm |
+
+The REST rise is balanced *for* arms back (the legs lean forward to carry them).
+`rise_path(arms=…)` now re-plans the rise for another arm pose; with the default
+±12 mm band the torque-minimising DP parks the new rises at its back edge
+(−2 … −12 mm), so the new ones use a band of −4 … +12 mm (`RISE_DX`) and come out
+centred (−4 … +3 mm, as the REST rise). The crouch hold is prone_ikc's (hands
+down, ankle −35); the arms go to the new pose on the first rise waypoint and
+stay there standing. Referee replay, no RL (`--ref-replay`, the
+`diag_refreplay_prone_ik` zero-residual run), supine ph / prone fall:
+
+| reference | 0.05 | 0.35 | 0.5 | sweep | stands at 0.05 |
+|---|---|---|---|---|---|
+| prone_ikc (arms REST) | 5/8 6/8 | 8/8 8/8 | 8/8 8/8 | 43/48 | 22.6 / 34.0 s |
+| **prone_ikh** (hanging) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 22.0 / 33.2 s |
+| **prone_ikf** (45° forward) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 22.2 / 33.4 s |
+
+The 0.05 "stand, then fall backwards after straightening" misses — the ones
+the replay said need feedback, and w0k_fb1024s1's stand-then-tip at every
+friction (night 4) — are gone from the replay with either arm pose; ikh uses
+slightly less power (5.8 / 8.9 / 10.8 W vs 6.2 / 9.6 / 11.6). **Suggested
+next:** w0k's recipe with `--rise-ref getup_ref_v6ar_prone_ikh.npz` (and a
+seed replicate): its replay is already 48/48, so a policy can at best match it; the test
+is whether the stand-then-tip seed variance (46 vs 14/48) goes.
 
 **Grading a reference with no RL.** `eval_precision.py --ref-replay <npz>`
 replays a reference through the CPU referee (the run's plant and obs, every
