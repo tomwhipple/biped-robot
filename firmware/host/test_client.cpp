@@ -372,6 +372,15 @@ void test_keymap_file_round_trip() {
     CHECK_EQ(c.key[kActForward], kKeyUp);
 }
 
+// Replaces the file at `path` with `text`; an unopenable file fails the test.
+void writeFile(const char* path, const char* text) {
+    FILE* f = fopen(path, "w");
+    CHECK(f != nullptr);
+    if (f == nullptr) return;
+    fputs(text, f);
+    fclose(f);
+}
+
 // A bad line is refused loudly. A silently ignored binding is a key that does
 // nothing on a robot that is already moving.
 void test_keymap_rejects_a_bad_file() {
@@ -387,15 +396,11 @@ void test_keymap_rejects_a_bad_file() {
     CHECK(!k.load(path, err, sizeof err));
     CHECK(strstr(err, "unknown action") != nullptr);
 
-    f = fopen(path, "w");
-    fprintf(f, "forward = Sideways\n");
-    fclose(f);
+    writeFile(path, "forward = Sideways\n");
     CHECK(!k.load(path, err, sizeof err));
     CHECK(strstr(err, "unknown key") != nullptr);
 
-    f = fopen(path, "w");
-    fprintf(f, "forward Up\n");
-    fclose(f);
+    writeFile(path, "forward Up\n");
     CHECK(!k.load(path, err, sizeof err));
     CHECK(strstr(err, "expected") != nullptr);
     unlink(path);

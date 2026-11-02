@@ -157,7 +157,7 @@ extern std::atomic<float> g_obs_gyro_gain;
 // commands can never pile up behind a late tick.
 struct CommandMsg {
     linkproto::Command cmd;
-    float rx_ms;         // when the frame arrived, on ctrl's clock
+    float rx_ms = 0.0f;  // when the frame arrived, on ctrl's clock
 };
 extern QueueHandle_t g_cmd_mailbox;
 

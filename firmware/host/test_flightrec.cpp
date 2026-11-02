@@ -65,7 +65,8 @@ void tickCase(void (*build)(Header&, flightrec::Tick&), const uint8_t (&wire)[N]
     }
     // re-encode what was decoded: identical bytes
     uint8_t again[flightrec::kMaxPacket];
-    checkBytes(again, flightrec::encodeTick(again, sizeof again, h2, t2), wire);
+    const size_t n2 = flightrec::encodeTick(again, sizeof again, h2, t2);
+    checkBytes(again, n2, wire);
 }
 
 template <size_t N>
@@ -74,7 +75,8 @@ void eventCase(void (*build)(Header&, flightrec::Event&), const uint8_t (&wire)[
     flightrec::Event e;
     build(h, e);
     uint8_t buf[flightrec::kMaxPacket];
-    checkBytes(buf, flightrec::encodeEvent(buf, sizeof buf, h, e), wire);
+    const size_t n = flightrec::encodeEvent(buf, sizeof buf, h, e);
+    checkBytes(buf, n, wire);
     Header h2;
     flightrec::Event e2;
     CHECK(flightrec::decodeEvent(wire, N, h2, e2));

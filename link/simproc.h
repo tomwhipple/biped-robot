@@ -27,7 +27,7 @@ constexpr int kMaxRuns = 128;
 struct RunList {
     // Sized to hold a directory entry name (d_name is char[256]), so a long
     // run name cannot truncate (gcc -Wformat-truncation).
-    char name[kMaxRuns][256];
+    char name[kMaxRuns][256] = {};
     int n = 0;
     void scan(const char* repo);
     int indexOf(const char* want) const;
@@ -37,9 +37,9 @@ struct SimProc {
     pid_t pid = -1;
     int out_fd = -1;
     int in_fd = -1;
-    char log[kSimLogLines][kSimLogCols];
+    char log[kSimLogLines][kSimLogCols] = {};
     int log_n = 0;                     // total lines ever, for the ring
-    char partial[kSimLogCols];
+    char partial[kSimLogCols] = "";
     size_t partial_len = 0;
     // Sized to hold the largest message it carries: "no interpreter at " +
     // a full 512-byte path (python/script are char[512]), so a long repo
@@ -71,7 +71,7 @@ struct SimProc {
     void pushLine(const char* s);
     // A line down the child's stdin (sil_twin understands `reset`). False if
     // nothing is running to hear it.
-    bool tell(const char* line);
+    bool tell(const char* text);
 };
 
 // The repo root: <dir of argv[0]>/../../.. for firmware/host/build/bimo_gui.
