@@ -173,7 +173,53 @@ legs track had dropped them. The STS3215 dead-time draw is widened to
 settings. 300M steps, warm-started from walk16_act, then the stock 24-round distill to
 s128r24. Run in today's GPU window (`gpu/stand_gpu.sh`, runner lock).
 
-RESULTS_PLACEHOLDER
+**Result: `robot_legs_walk17_still_s128r24`.** Teacher 300M steps in 38 min, distill 8 min.
+The table below is `students_fast_*.md`: fast servos, stock firmware (gyro x1, shape 10)
+unless noted, 8 seeds, falls out of 8.
+
+| policy, stand clock | goal jitter mean / max (deg) | body rate x / y / z | power / hold (W proxy) | x1.25 | x1.5 | x2 | push 0.4 | push 0.5 | walk → stop |
+|---|---|---|---|---|---|---|---|---|---|
+| walk14_s1 + knobs, clock running (the robot today) | 0.200 / 0.342 | 0.028 / 0.016 / 0.010 | 1.70 / 0.61 | 0 | 0 | 8 | 0 | 8 | 0 |
+| **walk14_s1 + knobs, coast → π** | **0.050 / 0.116** | 0.002 / 0.004 / 0.003 | **1.05** / 0.87 | 0 | 0 | 8 | 0 | 8 | 1 |
+| walk14_s1, no knobs, clock running (robot: diverged < 1 s) | 0.229 / 0.366 | 0.033 / 0.021 / 0.014 | 1.82 / 0.46 | 1 | 8 | 8 | 0 | 0 | 0 |
+| walk16_act, clock running | 0.280 / 0.459 | 0.027 / 0.034 / 0.018 | 2.65 / 1.24 | 0 | **8** | 8 | 0 | 8 | 0 |
+| walk16_act, coast → π | 0.105 / 0.253 | 0.003 / 0.007 / 0.008 | 1.79 / 1.32 | 0 | **0** | 8 | 0 | 8 | 0 |
+| walk17_still, freeze at the arm phase (what the firmware does for a freeze-trained run) | 0.088 / 0.146 | 0.005 / 0.006 / 0.010 | 3.35 / 2.56 | 0 | 0 | 8 | **6** | 8 | 0 |
+| walk17_still, coast → π | 0.075 / 0.120 | 0.003 / 0.005 / 0.005 | 1.53 / 1.38 | 0 | 4 | 8 | 0 | 8 | 0 |
+
+As-trained referee (`night_distill`): stand_10s 7/8 (drift 11.8 cm, 137 W) and walk_steps
+0/8, about the same as walk16_act_s128r24 (stand_10s 6/8, 13.4 cm).
+
+**Verdict: not a hardware candidate.**
+
+- It does stand still: 0.075-0.088 deg against walk16_act's 0.280 with the clock running.
+- But it is no stiller than the current student with the firmware coast (0.050 deg), and
+  its margin is no better.
+- At the phase the firmware would hold it at (the arm phase, ≈ 0.2), push recovery drops
+  to 2/8 and the stand pose is the most expensive one.
+
+So training with the clock frozen does not, by itself, make the frozen phase irrelevant.
+Training freezes at the random phase where a stand began, and the student keeps
+phase-dependent poses.
+
+**Two side findings:**
+
+1. **The clock costs margin too.** walk16_act_s128r24, the candidate from the night of
+   11-01, passes x1.5 on slow servos. On the fast servos it falls 8/8 at x1.5 with the clock
+   running, but 0/8 with coast → π.
+2. **Possible firmware follow-up.** For a freeze-trained run, coasting to the stand phase
+   instead of holding the arm phase is in distribution: training's freeze phase is any
+   phase the running clock reached. That would let `standclock coast` apply to those runs
+   too. Today the option is ignored for them; changing that is not in this PR.
+
+**Night queue (prepared, not queued):** `night/1102stand0{1..4}-*`. They continue from
+walk17_still for 400M steps on the fast-servo dead time (`--act-delay-types
+sts3215=0:2,sts3250=0:1`), with `--w-still` 0.1 and 0.3, each with its distill. Grade with
+`SERVO=fast HARD=1 RUNS=... stand_candidates.py 8 out.json students`. Each student must pass
+x1.5, and push 0.4 at the coast phase, before it goes near the robot. Given the result above,
+the stand-phase dependence also needs a reward or reset change: start stand episodes at a
+fixed clock phase, or penalize stand power directly. Without one, more steps on the same
+recipe are unlikely to beat the firmware coast.
 
 ## 6. Late ticks
 
