@@ -1,0 +1,10 @@
+=== Mon Nov  2 09:18:50 AM MST 2026 stand_gpu start ===
+repo @ main ef1901a
+09:18 paused camera-watcher-classifier-1
+09:18 teacher robot_legs_walk17_still start (timeout 4200s): --steps 300000000 --num-evals 10 --clock-freeze-stand --w-still 0.1 --seed 3
+09:19 resumed camera-watcher-classifier-1
+=== Mon Nov  2 09:19:19 AM MST 2026 stand_gpu end (trap) ===
+=== Mon Nov  2 09:19:39 AM MST 2026 stand_gpu start ===
+repo @ main ef1901a
+09:19 paused camera-watcher-classifier-1
+09:19 teacher robot_legs_walk17_still start (timeout 4200s): --steps 300000000 --num-evals 10 --act-delay-types sts3215=0:5,sts3250=0:1 --clock-freeze-stand --w-still 0.1 --seed 3
