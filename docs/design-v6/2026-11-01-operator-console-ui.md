@@ -197,9 +197,10 @@ is reserved for the power board's block (#109) and `PWR_ESTOP` (#106).
 
 Today's SIM panel, moved to its own tab: policy run, plant, hang, Start / Stop /
 Reset, the ident line, the sim's ports, the `sil_twin` log (opens itself when the
-sim fails). New: **twin-in-the-loop** — every command frame sent to the robot is
-also sent to the sim on its own ports, and the sim's flight records drive the amber
-ghost and a second trace in Joints. This is AGENTS.md's "twin first" as a live view.
+sim fails). New: **twin-in-the-loop**, an option, off by default — every command
+frame sent to the robot is also sent to the sim on its own ports, and the sim's
+flight records drive the amber ghost and a second trace in Joints. This is
+AGENTS.md's "twin first" as a live view.
 
 ### Session
 
@@ -260,9 +261,10 @@ mouse hold buttons merge with the keys. Window focus loss releases everything.
 every role), left stick = vx / vy (vx through `stick_to_speed`'s trained band),
 right stick x = wz. The pad cannot ARM or RESET SERVOS. The procedure's advice
 for an operator who is also the spotter — the stop in one hand as a button
-([first-policy-stand.md](../first-policy-stand.md) §4) — is this. While the dead-man is held the pad drives and motion keys are ignored; the
-bar says which source drives. Labels follow the pad (the SN30 Pro prints "A" on the
-east button). A disconnected pad releases everything.
+([first-policy-stand.md](../first-policy-stand.md) §4) — is this. While the
+dead-man is held the pad drives and motion keys are ignored; the bar says which
+source drives. Labels follow the pad (the abxylute C6 uses the Xbox letters: RB,
+B). A disconnected pad releases everything.
 
 **The Bluetooth hazard.** A pad that goes out of range or flat while the dead-man
 is held leaves the console sending its last command — the link is fine, so the
@@ -373,24 +375,50 @@ Each phase is usable on its own and ends with its tests passing.
 
 ## 14. Gamepad hardware
 
-The design maps by position, so any SDL-recognised pad works. Two candidates:
+The design maps by position, so any SDL-recognised pad works.
 
-| pad | Mac | Linux | note |
-| --- | --- | --- | --- |
-| **8BitDo SN30 Pro** (Bluetooth) — the inexpensive pick | macOS 13.2+ ([8BitDo](https://www.8bitdo.com/sn30-pro-g-classic-or-sn30-pro-sn/)) | 8BitDo lists SteamOS and Raspberry Pi, not desktop Linux; community reports vary by mode and stack ([xpadneo](https://github.com/atar-axis/xpadneo)) | recently ~$28–45 on Amazon; verify on the Linux box; wired USB-C fallback |
-| **Sony DualSense** | Apple-supported, Bluetooth or USB ([Apple](https://support.apple.com/en-us/111100)) | `hid-playstation` in mainline since 5.12, USB and Bluetooth ([HID pull for 5.12](https://lkml.rescloud.iu.edu/hypermail/linux/kernel/2102.2/06092.html)) | the best-documented on both; its motion sensor streams reports, which may make the silent-pad check possible (§7, unverified) |
+**Chosen (Tom, 2026-11-01): abxylute C6** ([Amazon B0D9VRH5LH](https://www.amazon.com/dp/B0D9VRH5LH)).
+What is known comes from its listing and reviews; no manufacturer manual or
+product page was found online, so these are claims to verify on arrival, not specs:
 
-## 15. Open questions
+- Bluetooth, a USB dongle and a cable; Hall-effect sticks; 1000 Hz polling; an
+  Xbox-style layout; no gyroscope ([Notebookcheck](https://www.notebookcheck.com/abxylute-C6-Guenstiger-drahtloser-Controller-ist-ab-sofort-erhaeltlich.898922.0.html),
+  [TurboVS](https://www.turbovs.com/review/abxylute-c6-65979)).
+- The listing names Mac, Windows, Switch, Steam Deck, Android and iOS; one retailer
+  says Mac uses its XInput mode ([Newegg](https://www.newegg.com/p/232-019Z-000T0)).
+  Desktop Linux is not mentioned anywhere.
 
-1. Start as observer by default (today `bimo_gui` starts as driver with `--host`)?
-2. Checks: label ARM ("checks open") or block it until the list is clear?
-3. Abort watch: advisory only, or opt-in automatic E-stop per condition, as
-   `arm_script.py`'s guards do?
-4. Twin-in-the-loop: send every robot command frame to the sim as well?
-5. Retire `bimo_gui` at parity, or keep both?
-6. Which pad: the SN30 Pro (cheaper; Linux to verify) or the DualSense?
-7. HOLD's key: `f` in the mockups. `s` is soft stop in `tools/estop.py --button`
-   but a second STAND in `bimo_tui`; one meaning across the tools would be better.
+On arrival (phase 6): pair it on macOS over Bluetooth and through the dongle and
+record which mode SDL's GameController API recognises; the same on Linux; measure
+whether it streams reports while held still (it has no motion sensor to keep them
+coming), which decides whether the silent-pad check of §7 is possible or only the
+OS disconnect is; and keep the manual from the box in `docs/datasheets/`.
+
+Considered: the 8BitDo SN30 Pro (macOS 13.2+ per [8BitDo](https://www.8bitdo.com/sn30-pro-g-classic-or-sn30-pro-sn/),
+desktop Linux unlisted) and the Sony DualSense (Apple-supported; `hid-playstation`
+in mainline since 5.12, [HID pull for 5.12](https://lkml.rescloud.iu.edu/hypermail/linux/kernel/2102.2/06092.html)).
+
+## 15. Decisions and open questions
+
+Decided (Tom, 2026-11-01):
+
+1. The console starts as an observer.
+2. Twin-in-the-loop is an option, off by default.
+3. `bimo_gui` retires at feature parity (phase 8).
+4. The pad is the abxylute C6 (§14).
+5. HOLD is on `f`.
+
+Open, with the default this design carries until decided:
+
+1. **Checks: label ARM or block it?** Default: label ("ARM · checks open"). The
+   firmware already refuses the hard cases (no calibration, gains, placeholder
+   policy); blocking on rows the console cannot verify only trains the operator
+   to tick boxes. Revisit after the first wireless sessions.
+2. **Abort watch: advisory, or an opt-in automatic stop per condition** (as
+   `arm_script.py`'s guards do)? Default: advisory. The robot already judges itself
+   at 50 Hz with fresher data (the flail guard holds, the fall guard goes limp);
+   if an automatic console stop is ever added, it should be HOLD, not E-STOP, so
+   it never drops a robot nobody is holding.
 
 ## 16. How the mockups are made
 

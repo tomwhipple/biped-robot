@@ -447,9 +447,9 @@ def view_image(w, h, cmd=True, sim=False, camera="pip", hint=True):
 # -- safety bar --------------------------------------------------------------
 LIVE_STATE = dict(badge=("●  LIVE", GREEN), driver=True, armed=True, estop=False,
                   vbat="11.8 V", servos=("servos ok", GREEN, "loop late 0 %"),
-                  pad=("PAD  ● R held", GREEN, "drives · A (east) = E-STOP"),
+                  pad=("PAD  ● RB held", GREEN, "drives · B (east) = E-STOP"),
                   rec=True, lost=None, bench=None,
-                  note="arm sent → robot left BENCH, now LIVE · driving from the gamepad (R held)")
+                  note="arm sent → robot left BENCH, now LIVE · driving from the gamepad (RB held)")
 
 
 def safety_bar(s=LIVE_STATE):
@@ -551,8 +551,8 @@ def pad_widget():
                 p.drawEllipse(c + QtCore.QPointF(dx * 34, dy * 34), 11, 11)
                 p.setPen(QtGui.QColor(DIM))
                 p.drawText(QtCore.QPointF(cx - 34, 122), label)
-            for x, y, t, col, on in [(268, 16, "R  dead-man", GREEN, True),
-                                     (268, 50, "A (east)  E-STOP", RED, False),
+            for x, y, t, col, on in [(268, 16, "RB  dead-man", GREEN, True),
+                                     (268, 50, "B (east)  E-STOP", RED, False),
                                      (268, 84, "arm / reset: console only", FAINT, False)]:
                 r = QtCore.QRectF(x, y, 214, 26)
                 p.setPen(QtGui.QPen(QtGui.QColor(col), 1.5))
@@ -590,7 +590,7 @@ def drive_tab():
     wire.addWidget(lab("source: gamepad", GREEN, 11, True), 5, 0, 1, 4)
     wire.addWidget(lab("policy saw: flight recorder", DIM, 11), 6, 0, 1, 4)
     motion = group("MOTION   hold to move · release stands", hbox(grid, 14, wire, "stretch"))
-    gp = group("GAMEPAD   8BitDo SN30 Pro · Bluetooth", vbox(pad_widget()))
+    gp = group("GAMEPAD   abxylute C6 · Bluetooth", vbox(pad_widget()))
 
     ext = QtWidgets.QVBoxLayout()
     ext.addLayout(slider_row("crouch ", 0.6, 1.0, 0.90, "{:.2f}", "pinned"))
@@ -860,7 +860,7 @@ def sim_tab():
     form.addRow(lab("policy run", DIM), run)
     form.addRow(lab("plant", DIM), plant)
     form.addRow(lab("options", DIM), hbox(QtWidgets.QCheckBox("hang: weld the torso, feet free"),
-                                          colored_check("twin-in-the-loop", SIMC, True), "stretch",
+                                          colored_check("twin-in-the-loop (option, off by default)", SIMC, False), "stretch",
                                           spacing=20))
     form.addRow(lab("ports", DIM), lab("cmd 4310 · tlm 4311 · stream 8645 · flight rec 4320", mono=True))
     ctl = hbox(btn("Stop", None, 110, h=36), btn("Reset", None, 110, h=36), "stretch",
@@ -916,7 +916,7 @@ def session_tab():
           ["22:14:03.560", "robot", "arm edge", "level 1"],
           ["22:14:03.562", "robot", "mode", "run · ARMED"],
           ["22:14:04.571", "robot", "link", "STAND → LIVE"],
-          ["22:14:31.090", "console", "pad", "SN30 Pro: R held -- gamepad drives"],
+          ["22:14:31.090", "console", "pad", "abxylute C6: RB held -- gamepad drives"],
           ["22:15:12.430", "robot", "fault", "servo id 11: no reply (reading held)"],
           ["22:15:12.431", "console", "alarm", "servo fault id 11 -- abort condition (§5)"]]
     colors = {}
@@ -972,15 +972,15 @@ def setup_tab():
     keyg = group("KEYMAP   ~/.bimo/keymap.conf · click a binding, press a key",
                  vbox(keys, hbox(btn("restore defaults", None, 160, h=30), btn("save", None, 90, h=30),
                                  "stretch"), "stretch"))
-    pad = table(["control", "SDL name (by position)", "SN30 Pro label", "live"],
-                [["dead-man (hold)", "rightshoulder", "R", "● held"],
-                 ["E-STOP", "b (east)", "A", "○"],
+    pad = table(["control", "SDL name (by position)", "C6 label", "live"],
+                [["dead-man (hold)", "rightshoulder", "RB", "● held"],
+                 ["E-STOP", "b (east)", "B", "○"],
                  ["vx", "lefty", "left stick ↕", "−0.62"],
                  ["vy", "leftx", "left stick ↔", "+0.03"],
                  ["wz", "rightx", "right stick ↔", "+0.35"],
                  ["arm / reset servos", "—", "not on the pad", ""]],
                 {(0, 3): GREEN, (5, 2): FAINT}, stretch_col=0)
-    padg = group("GAMEPAD   8BitDo SN30 Pro · Bluetooth · connected", vbox(
+    padg = group("GAMEPAD   abxylute C6 · Bluetooth · connected", vbox(
         pad, form([("silent-pad timeout", hbox(edit("150", 70), lab("ms · pads that stream reports only", DIM), "stretch")),
                    ("stick dead zone", hbox(edit("0.15", 70), "stretch"))])))
     return wrap(hbox(vbox(link, data, "stretch", spacing=10), vbox(keyg, spacing=10),
@@ -1053,22 +1053,22 @@ def pose3d_sheet():
 
 BAR_STATES = [
     ("BENCH — arm refused: the policy is a placeholder net",
-     dict(LIVE_STATE, badge=("●  BENCH", BENCHC), armed=False, pad=("PAD  ○ R up", DIM, "connected"),
+     dict(LIVE_STATE, badge=("●  BENCH", BENCHC), armed=False, pad=("PAD  ○ RB up", DIM, "connected"),
           bench="arm REFUSED -- this firmware's compiled-in net is a placeholder/untrained test net, not a "
                 "policy (flash a build with real weights)",
           note="robot stayed BENCH after arm: see the BENCH line")),
     ("LIVE — driving", LIVE_STATE),
     ("E-STOP latched — STAND clears it", dict(LIVE_STATE, badge=("●  ESTOP", RED), estop=True,
-                                              pad=("PAD  ○ R up", DIM, "A (E-STOP) pressed 2 s ago"),
+                                              pad=("PAD  ○ RB up", DIM, "B (E-STOP) pressed 2 s ago"),
                                               note="E-STOP sent (latched until [space])")),
     ("OBSERVER — watching a tethered run through the flight recorder; HOLD and E-STOP still work",
-     dict(LIVE_STATE, badge=("●  STAND", AMBER), driver=False, pad=("PAD  stops only", DIM, "A (east) = E-STOP"),
+     dict(LIVE_STATE, badge=("●  STAND", AMBER), driver=False, pad=("PAD  stops only", DIM, "B (east) = E-STOP"),
           note="observing a tethered run: sends no commands; HOLD / E-STOP are operator-stop frames "
                "(tools/estop.py), which no latch or watchdog sees")),
     ("LINK LOST — no beacon for 3.4 s", dict(LIVE_STATE, badge=("(no beacon)", "#3a3f47"), lost="3.4",
                                             note="link lost: the robot stands after 250 ms and goes limp after 5 s")),
     ("FLAIL — the robot's flail guard stopped the policy and HELD the joints",
-     dict(LIVE_STATE, badge=("●  BENCH", BENCHC), armed=False, pad=("PAD  ○ R up", DIM, "connected"),
+     dict(LIVE_STATE, badge=("●  BENCH", BENCHC), armed=False, pad=("PAD  ○ RB up", DIM, "connected"),
           bench="disarmed -- FLAIL guard: the policy misbehaved, so it was stopped and the joints HELD "
                 "stiff; it homes once upright and still (`flail` on the tether says why)",
           note="flight rec event: flail (rate) at 3.31 s")),
