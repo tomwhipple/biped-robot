@@ -696,7 +696,7 @@ void testKeyChangeDropsSession() {
 // -- the allowlist ------------------------------------------------------------------
 void testPolicy() {
     using wcli::Verdict;
-    struct Row { const char* line; bool armed; Verdict want; };
+    struct Row { const char* line = nullptr; bool armed = false; Verdict want = Verdict::kAllow; };
     const Row rows[] = {
         // the bench work the Wi-Fi CLI exists for
         {"ping", false, Verdict::kAllow},

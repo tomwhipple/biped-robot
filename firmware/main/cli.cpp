@@ -3124,6 +3124,8 @@ float mjVel(float x) { if (x <= 0 || x >= 1) return 0; return 30 * x * x * (1 - 
 
 void streamTask(void*) {
     scsbus::Bus* bus = robot::g_bus;
+    // cppcheck-suppress redundantCopyLocalConst -- a snapshot on purpose: the
+    // sweep runs on its own config, never re-reading the CLI's global.
     const StreamCfg c = s_scfg;
     const float d = static_cast<float>(c.to - c.from), T = c.ms / 1000.0f;
     TickType_t last = xTaskGetTickCount();
