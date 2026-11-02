@@ -328,14 +328,14 @@ def role_vector(names, spec, default, what):
 
 
 # Per-servo-type actuator response (2026-11-01 loaded step responses + the double-support roll
-# sweep, experiments/one-leg-stand/2026-11-01-floors-fit.md): the STS3215s sit ~60 ms of dead
+# sweep, experiments/one-leg-stand/2026-11-01-floors-fit.md): the STS3215s sit ~60-75 ms of dead
 # time behind the STS3250 hip rolls. As control ticks (20 ms) of EXTRA dead time and as a
-# multiplier on the act-lag pole, per role. Used by --actuator-model sts2026.
+# multiplier on the act-lag pole, per role. Used as --act-delay-extra sts2026 --act-lag-scale sts2026.
 ACT_DELAY_EXTRA_PRESETS = {
     "sts2026": {"hip_yaw": 3, "hip_pitch": 3, "knee": 3, "ankle": 3, "ankle_roll": 3, "hip_roll": 0},
 }
 ACT_LAG_SCALE_PRESETS = {
-    "sts2026": {"hip_roll": 3.0},
+    "sts2026": {"hip_roll": 4.0},
 }
 
 

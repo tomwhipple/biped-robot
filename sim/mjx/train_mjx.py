@@ -316,7 +316,7 @@ def make_parser():
                         "2026-11-01 loaded step responses) or role/actuator=ticks pairs")
     p.add_argument("--act-lag-scale", default=None,
                    help="per-servo multiplier on the --act-lag pole: a preset (sts2026: hip_roll "
-                        "x3, the STS3250 rises ~3x faster) or role/actuator=x pairs")
+                        "x4, the STS3250 rises ~4x faster) or role/actuator=x pairs")
     p.add_argument("--servo-kd", type=float, default=None,
                    help="servo position-loop damping reference, N*m*s/rad (default 0.25; "
                         "--servo-kp-scale multiplies it with kp). The 2026-11-01 roll sweep "

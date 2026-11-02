@@ -88,6 +88,35 @@ def fig_frf(plants, path):
     plt.close(fig)
 
 
+def fig_sweep(plants, path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import simfit_sweep as W
+    hw = W.hw_response()
+    fig, axs = plt.subplots(1, 3, figsize=(15, 3.4))
+    f = [r[0] for r in hw]
+    axs[0].semilogy(f, [r[1] for r in hw], "k*-", ms=8, label="robot")
+    axs[1].plot(f, [r[2] for r in hw], "k*-", ms=8)
+    axs[2].plot(f, [r[3]["R_ankle_roll"][1] for r in hw], "k*-", ms=8, label="robot R ankle roll")
+    axs[2].plot(f, [r[3]["R_hip_roll"][1] for r in hw], "k*--", ms=8, label="robot R hip roll")
+    for (lab, pl), c in zip(plants, ("C0", "C1")):
+        sm = W.sim_response(pl)
+        axs[0].semilogy(f, [r[1] for r in sm], c + "o-", label=f"sim, {lab}")
+        axs[1].plot(f, [r[2] for r in sm], c + "o-")
+        axs[2].plot(f, [r[3]["R_ankle_roll"][1] for r in sm], c + "o-")
+        axs[2].plot(f, [r[3]["R_hip_roll"][1] for r in sm], c + "o--")
+    axs[0].set_ylabel("|body roll / commanded| (deg/deg)"); axs[1].set_ylabel("phase (deg)")
+    axs[2].set_ylabel("servo read-back / goal phase (deg)")
+    for a in axs:
+        a.set_xlabel("Hz"); a.grid(alpha=0.3)
+    axs[0].legend(fontsize=7); axs[2].legend(fontsize=7)
+    fig.suptitle("double-support lateral-roll sine, +-11 ticks on all four roll joints, hard floor", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path, dpi=70)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--plant", required=True)
@@ -106,4 +135,5 @@ if __name__ == "__main__":
     if a.frf_vs:
         p2 = load_plant(a.frf_vs if os.path.isabs(a.frf_vs) else os.path.join(HERE, a.frf_vs))
         fig_frf([("10-30 plant", p2), (a.tag, pl)], out + "-frf.png")
+        fig_sweep([("10-30 plant (real mass)", replace(p2, torso_scale=1.082)), (a.tag, pl)], out + "-sweep.png")
     print("wrote", out + "-*.png")

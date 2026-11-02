@@ -32,7 +32,7 @@ def test_preset_resolves_per_role():
     env = _walker(act_delay_extra="sts2026", act_lag_scale="sts2026")
     for n, d, s in zip(env._servo_names, env._act_delay_vec, env._act_lag_scale):
         if n.endswith("hip_roll"):
-            assert d == 0 and s == 3.0, n
+            assert d == 0 and s == 4.0, n
         elif n[2:] in ("hip_yaw", "hip_pitch", "knee", "ankle", "ankle_roll"):
             assert d == 3 and s == 1.0, n
 
@@ -56,8 +56,10 @@ def test_walker_per_servo_dead_time():
     env.step(a1)                                       # tick 1: the hip rolls move, the rest wait
     np.testing.assert_allclose(env.data.ctrl[hip], t1[hip], atol=1e-6)
     np.testing.assert_allclose(env.data.ctrl[other], env._sdefault[other], atol=1e-6)
-    for _ in range(3):
+    for _ in range(2):                                 # ticks 2, 3: the rest still wait (extra 3)
         env.step(a1)
+        np.testing.assert_allclose(env.data.ctrl[other], env._sdefault[other], atol=1e-6)
+    env.step(a1)
     np.testing.assert_allclose(env.data.ctrl, t1, atol=1e-6)   # tick 4 = 1 + 3: everyone
 
 
