@@ -44,7 +44,7 @@ def main() -> int:
                       (args.host, protocol.CMD_PORT))
             sent += 1
         try:
-            buf, _ = rx.recvfrom(64)
+            buf, _ = rx.recvfrom(protocol.TLM_RECV_BYTES)
         except socket.timeout:
             continue
         try:

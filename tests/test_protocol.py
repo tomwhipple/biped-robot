@@ -719,6 +719,13 @@ def test_attitude_block_is_additive():
             P.decode_telemetry(both[:bad_len])
 
 
+def test_receive_buffer_outsizes_every_telemetry_frame():
+    """A receiver sized to exactly the longest frame could not tell an
+    oversize datagram from a valid one: UDP truncates silently. One byte more
+    and an oversize datagram arrives oversize, and decode refuses it."""
+    assert P.TLM_RECV_BYTES > max(P.TLM_LENS)
+
+
 def test_att_flag_is_its_own_bit():
     c = P.decode_command(P.encode_command(1, 0.0, 0.0, P.FLAG_ATT))
     assert c.att and not c.pose and not c.arm and not c.home

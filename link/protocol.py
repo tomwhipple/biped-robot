@@ -84,6 +84,10 @@ TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
 TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
 # Every length a decoder accepts.
 TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+# recvfrom() size for every telemetry receiver. UDP truncates silently, so +1:
+# an oversize datagram then arrives oversize and is refused, never cut back to
+# a valid length. The C++ consoles' twin: link/client.cpp Link::poll.
+TLM_RECV_BYTES = max(TLM_LENS) + 1
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here

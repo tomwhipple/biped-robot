@@ -21,8 +21,9 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import sources                                                   # noqa: E402
-from protocol import (CMD_PORT, JOINT_NAMES, SEND_HZ, TLM_PORT, LinkState,  # noqa: E402
-                      ProtocolError, decode_telemetry, encode_command)
+from protocol import (CMD_PORT, JOINT_NAMES, SEND_HZ, TLM_PORT,  # noqa: E402
+                      TLM_RECV_BYTES, LinkState, ProtocolError,
+                      decode_telemetry, encode_command)
 
 
 def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
@@ -57,7 +58,7 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
 
             while True:  # drain to the freshest telemetry, never queue up
                 try:
-                    buf, _ = rx.recvfrom(64)
+                    buf, _ = rx.recvfrom(TLM_RECV_BYTES)
                 except BlockingIOError:
                     break
                 try:
