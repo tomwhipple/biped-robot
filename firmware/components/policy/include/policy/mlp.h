@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include "policy/dense.h"
+#include "policy/q8.h"
 #include "policy/weights.h"
 
 namespace policy {
@@ -56,11 +57,50 @@ struct Net {
     float* scratch_b = nullptr;
 };
 
+// Only the first act_dim outputs of the head are computed: the log-std half
+// is never read at inference (bit-identical to computing and dropping it).
 void forwardNet(const Net& net, const float* obs, float* action);
 
 // Run the deployed policy. `obs` is kObsDim wide, `action` is kActDim wide and
 // comes back in [-1, 1].
 void forward(const float* obs, float* action);
+
+// -- boot: placement and self-test (docs/firmware-design.md section 6.1) ---
+//
+// A float profile runs straight out of flash and init() only reports. A
+// QUANTIZED profile (weights.h defines POLICY_WEIGHTS_Q8) is set up here:
+//   * placement: layers are copied from flash into `alloc`ed internal RAM,
+//     largest first, while their total stays within `dram_budget` bytes --
+//     a layer in RAM is not streamed through the 32 KB flash cache every
+//     tick. The caller sizes the budget from the free heap minus a reserve
+//     for WiFi; whatever does not fit runs from flash, which is slower but
+//     identical arithmetic.
+//   * kernel: the MAC16 kernel must reproduce the C kernel bit for bit on
+//     the generator's self-test case, or forward() stays on C;
+//   * self-test: the forward pass must reproduce the generator's numpy
+//     action for that case (kSelfTestObs/kSelfTestAction) -- if not, the
+//     image is not the net it says it is and `run` refuses (cli.cpp).
+// Call once, before the control task starts. Never allocates afterwards.
+struct Status {
+    bool quantized = false;
+    Kernel kernel = Kernel::kC;     // what forward() runs
+    bool mac16_checked = false;     // MAC16 exists and was compared
+    bool mac16_matches = false;     // ... and agreed with C to the bit
+    bool selftest_ran = false;
+    bool selftest_ok = true;        // a float profile has no self-test case
+    float selftest_err = 0.0f;      // max |action - numpy action|
+    int num_layers = 0;
+    int layers_in_ram = 0;
+    uint32_t weight_bytes = 0;      // weights + scales + biases, all layers
+    uint32_t ram_bytes = 0;         // ... of which copied to RAM
+};
+void init(void* (*alloc)(size_t), size_t dram_budget);
+const Status& status();
+// The self-test tolerance against the numpy action. The q8 path is bit-exact
+// with tools/policy_q8.py up to the final tanhf (host: ~1e-7), so this only
+// leaves room for a target libm's last bits; a wrong net or a broken kernel
+// misses by 1e-2 and more.
+inline constexpr float kSelfTestTol = 1e-4f;
 
 // Normalise only -- exposed so the host tests can check the normaliser
 // separately from the layers when a golden vector disagrees.
