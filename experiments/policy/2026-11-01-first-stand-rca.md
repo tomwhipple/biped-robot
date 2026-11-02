@@ -226,6 +226,41 @@ continues from these checkpoints with the margin probes as the gate.
 which is what it was graded at. Either way: 10 s stages, spotter, fall guard, flail guard.
 
 
+#### Tonight's queue (2026-11-01 22:00), inserted first, pre-flight 14/14 PASS
+
+| job | recipe | warm start |
+|---|---|---|
+| `1101214001-robot_legs_walk16_act` | the flags above + `--w-action-rate 0.3`, 400M steps, seed 0 | robot_legs_walk14_s1_actar |
+| `1101214002-distill_robot_legs_walk16_act_s128r24` | stock 24-round distill | — |
+| `1101214003-robot_legs_walk16_actwide` | `--servo-kp-range 0.45,1.5 --servo-kd-range 0.05,1.0 --gyro-gain-range 0.7,2.0`, seed 1 | robot_legs_walk14_s1_actar |
+| `1101214004-distill_robot_legs_walk16_actwide_s128r24` | stock 24-round distill | — |
+
+All four are `BRANCH=policy-stand-rca`, because the flags live on this branch. The planner's
+jobs follow unchanged. The `actwide` variant targets the pessimistic sweep-only actuator and
+a more responsive plant. Morning grading: `ACT=meas` and `ACT=hard` `candidates.py`.
+
+#### Relation to PR #192 (floors/actuator fit, merged to main on 11-01)
+
+#192 adds its own actuator knobs:
+
+- `--act-delay-extra sts2026`: STS3215 +3 ticks; with `--act-delay-max 1` that is 3-4
+  ticks, and 0-1 for the STS3250s;
+- `--act-lag-scale`, `--servo-kd`, `--servo-joint-damping`, `--floor-contact`;
+- a fitted plant: kp 1.4x asbuilt, kd 0.068 (0.27x), joint damping 0.16, friction 0.0074.
+
+Its dead time matches this analysis: ~70 ms on the STS3215, ~15 ms on the STS3250, damping
+well below the old model. The two dead-time implementations overlap. This branch's
+`--act-delay-types` draws each servo's delay independently over a range (2-5 / 0-1 ticks).
+#192 uses a fixed +3 ticks plus a shared 0-1. Before #189 merges, rebase it onto main and keep
+one mechanism. The suggestion is main's flags plus a per-servo range option if the morning
+grading shows the spread matters. Tonight's jobs were trained and graded with this branch's
+flags, which is why they use them.
+
+Deploy caveat for #192-trained students: #192's `--servo-kp-scale hip_roll=5.6,...` is a sim
+calibration of the same factory P32/D32 servos, not a gain change. `servo_gains.h`'s
+`kSimKpScale` static check compares sim kp factors, so it must be updated to say so (or
+taught the calibration), or such a student will look like it needs raised gains.
+
 ## 6. Not the cause (checked)
 
 - **Floor:** no rigid-floor setting reproduces the 3 Hz body roll, and Tom confirms the board
