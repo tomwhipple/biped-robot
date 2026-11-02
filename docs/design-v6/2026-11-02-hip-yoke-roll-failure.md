@@ -135,6 +135,8 @@ Reading it:
 
 ## 4. The redesign
 
+![The failed glued yoke (top) and the redesign (bottom), roll piece orange, pitch piece blue, three views](figs/hip_yoke_before_after.png)
+
 Servo interfaces are byte-identical to the v5 clevises
 (`check_interfaces()`: 3806.571 mm³ both). Every change lies inside the swept
 clearance of the neighbours (§5).

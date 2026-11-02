@@ -56,6 +56,7 @@ PAIRS = [
     # the thigh's grip plates vs the pitch clevis's arms, and the thigh's front
     # wall vs the ROLL flange, the pair that sets ROM hip_pitch
     ("hip_pitch", "thigh_{s}", "hip_yoke_{s}", "thigh grip plates vs the yoke arms, front wall vs the roll flange (0.7 mm v5 rule; sets ROM hip_pitch)"),
+    ("hip_pitch", "servo_hip_pitch_{s}", "hip_yoke_{s}", "pitch servo case turning between the yoke's pitch arms, seated on its discs: must not intersect"),
     ("hip_pitch", "thigh_{s}", "servo_hip_pitch_{s}", "grip channel vs its own servo: seated, must not intersect"),
     ("hip_pitch", "thigh_{s}", "yaw_carrier_{s}", "thigh top vs the carrier at deep flexion"),
     ("hip_pitch", "thigh_{s}", "pelvis_v8", "thigh vs the pelvis at deep flexion"),
@@ -131,6 +132,7 @@ if A.arms_on():
 TOUCHING = {("thigh_{s}", "servo_hip_pitch_{s}"), ("shin_{s}", "thigh_{s}"),
             ("ankle_link_{s}", "shin_{s}"), ("foot_{s}", "ankle_link_{s}"),
             ("head", "servo_neck"), ("hip_yoke_{s}", "yaw_carrier_{s}"), ("hip_yoke_{s}", "servo_hip_roll_{s}"),
+            ("servo_hip_pitch_{s}", "hip_yoke_{s}"),
             ("servo_hip_roll_{s}", "pelvis_v8"), ("servo_ankle_roll_{s}", "ankle_link_{s}"),
             ("servo_knee_{s}", "thigh_{s}"), ("servo_ankle_pitch_{s}", "shin_{s}")}
 

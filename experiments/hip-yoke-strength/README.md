@@ -17,6 +17,7 @@ FEM needs gmsh and CalculiX (`ccx`) from FreeCAD.app's `bin/`; set
 | `interlayer.py <tag>...` | resolves each case's stress in each piece's print frame (roll piece: layers normal to Y; pitch piece: normal to X) and on the glue plane (peel, shear); bolt-hole walls excluded; hot spots 5 mm apart |
 | `compare.py <tag>...` | the worst values per case and measure, side by side, with locations (the record's table) |
 | `fig_interlayer.py <before> <after>` | the record's figure: worst interlayer stress per member over all five cases, two designs, with a `.csv` of the values |
+| `before_after.py <out.png>` | the record's render: the failed pair (`BEFORE_REF`, default `ab92371`) above the working tree's, three views |
 | `probe_space.py` | free-space probe around the roll horn arm: boxes tested against the neighbours that move relative to the yoke (roll servo and carrier over hip roll, thigh and pitch servo over hip pitch), overlap and minimum distance per angle |
 | `sweep_maps.py` | occupancy rasters of the swept neighbours around the front corner (the roll horn arm), written as `sweep_maps.png` and `.npz` |
 | `sweep_maps2.py` | the same for the idler side; `MAPNAME=sweep_idler` names its output |
