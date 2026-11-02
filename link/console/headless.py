@@ -73,11 +73,29 @@ def command(c: Controller, line: str) -> None:
         ext[arg] = float(args[1])
         c.set_ext(ext["crouch"], ext["lift"], ext["foot_dx"], ext["foot_dz"])
     elif verb == "sim":
-        if arg == "mirror":
-            c.set_mirror(not (len(args) > 1 and args[1] == "off"))
+        # The Start button, scriptable (bimo_gui's verbs): the spawn path is
+        # the part of the console a test cannot otherwise reach.
+        arg2 = args[1] if len(args) > 1 else None
+        if arg == "start":
+            # An unknown run starts nothing (bimo_gui started the current
+            # selection anyway: a typo ran a policy nobody named).
+            c.sim.start(arg2)
+            print(f"note: {c.sim.status}", flush=True)
+        elif arg == "stop":
+            c.sim.stop()
+        elif arg == "reset":
+            print(f"note: {'sim reset sent' if c.sim.reset() else 'no sim listening'}",
+                  flush=True)
+        elif arg == "hang":
+            c.sim.set_hang(not c.sim.hang)
+            print(f"note: hang {'on' if c.sim.hang else 'off'}", flush=True)
+        elif arg == "twin":
+            print(f"note: {c.sim.set_twin(arg2 != 'off')}", flush=True)
+        elif arg == "mirror":
+            c.set_mirror(arg2 != "off")
             print(f"note: {c.status_msg}", flush=True)
         else:
-            print("note: sim mirror [off]  (the Sim tab runs sil_twin)", flush=True)
+            print("note: sim start [run]|stop|reset|hang|twin [off]|mirror [off]", flush=True)
     elif verb in ("tab", "panel", "view", "cam"):
         pass                                  # window-only; harmless here
     elif not c.fire(verb):

@@ -14,6 +14,7 @@ import time
 
 from . import core
 from .core import Core
+from .simproc import SimControl
 from .stops import StopBurst, stop_host, targets
 
 
@@ -68,6 +69,7 @@ class Controller:
         self._last_note = ""
         self.listeners = []           # callables(st) per tick (the window)
         self.host = opts.host
+        self.sim = SimControl(self)   # sil_twin, its ports and the tee
 
     # -- start-up --------------------------------------------------------
     def start(self) -> bool:
@@ -115,6 +117,7 @@ class Controller:
             self._fed = st.tlm_count
             for b in self.stops:
                 b.feed(st.state, st.diag)
+        self.sim.poll()
         for b in list(self.stops):
             if b.done:
                 self.stops.remove(b)
@@ -321,6 +324,7 @@ class Controller:
         if st.rec_active:
             self.log("rec", f"{st.rec_cmd} cmd / {st.rec_tlm} tlm -> {self.core.rec_path}")
             self.core.rec_stop()
+        self.sim.stop()                 # after the disarm: a twin hears it too
         self.core.close()
         self.log("quit", f"sent disarm ({st.sent} frames total)"
                  if not st.readonly else "observer: sent nothing on the way out")
