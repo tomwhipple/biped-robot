@@ -47,7 +47,7 @@ else
   GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
 endif
 
-CXXFLAGS  = -std=c++17 -O1 -g \
+CXXFLAGS  = -std=c++17 -O1 -g -ffp-contract=off \
             -Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-conversion \
             -fno-exceptions -fno-rtti \
             $(POLICY_FLAGS) \
@@ -87,7 +87,7 @@ SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
             $(COMPONENTS)/linkproto/framing.cpp
 SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/imu/imu.cpp
-SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
+SRC_POL   = $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
@@ -111,7 +111,7 @@ WCLI_TWIN = $(BUILD)/wcli_twin
 SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
 SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
-            $(COMPONENTS)/policy/mlp.cpp
+            $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
 
 .PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
@@ -443,10 +443,13 @@ vectors:
 #
 #   make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs
 #
+# QUANT=int8 writes an int8 profile (policy/q8.h; an int8 profile stays int8
+# when regenerated without it).
+#
 deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
 	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
-	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 
 clean:
 	rm -rf $(BUILD)

@@ -62,9 +62,11 @@ profile** is named: `idf.py -C firmware -B build/firmware-v6legs
 -DBIMO_POLICY=v6legs build` (or `make firmware POLICY=v6legs`) builds the v6
 legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
 profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
-`v6legs` profile currently holds an untrained test net, and the firmware
-refuses to arm on it ([training.md §9](../docs/training.md), "Policy
-profiles").
+`v6legs` profile holds the (128, 128) walk14 student
+([training.md §9](../docs/training.md), "Policy profiles"). `v6legs256` holds an **int8** (256, 256) test net
+(`robot_legs_walk14_s256r24`, legacy: it is for the timing budget and parity,
+not a deploy candidate), the way a net wider than (128, 128) fits the tick
+([firmware-design.md §6.1](../docs/firmware-design.md)).
 
 ## On-target bring-up
 
@@ -153,6 +155,7 @@ firmware/
     servo_gains.h       expected position-loop P/D per servo ID (the arm gate)
     mech_envelope.h     per-bus-joint mechanical limits for bench moves
     obs_dump.cpp        the observation dump (`obsdump`)
+    net_bench.cpp       `nettime`: the policy forward pass timed every way the image can run it
     flight_rec.cpp      the flight recorder: rings, UDP sender, `rec` config (docs/flight-recorder.md)
     joint_pose.h        measured pose, core 1 -> the beacon (mirror mode)
     scs_port_idf.cpp    scsbus::Port over UART1 -- the one servo-bus hardware seam
@@ -163,7 +166,8 @@ firmware/
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux
     obs/                obs assembler, history, gait clock, actuation maps, shaper;
                         bus_map.h (the 17-servo bus); obs_spec.h (generated)
-    policy/             static MLP forward pass; weights.h (generated)
+    policy/             static MLP forward pass; weights.h (generated); q8.h/.cpp and
+                        q8_mac16.S, the int8 forward pass of a quantized profile
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
@@ -178,7 +182,9 @@ tools/
   gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
   gen_wcli_vectors.py       link/wcliproto.py -> host/vectors/wcli_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
-  gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h
+  gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h (--quant int8:
+                            GPTQ-rounded int8, policy_q8.py)
+  policy_q8.py              numpy mirror of the int8 forward pass; offline GPTQ rounding
 ```
 
 ## The CLI
@@ -215,7 +221,8 @@ because a flash write stalls the control tick.
 | `wcli [key <64 hex>\|key clear\|drop]` | the Wi-Fi CLI: key fingerprint, session, counters; the shared key in NVS (tether only, bench) |
 | `ntp` | SNTP sync state and server |
 | `rec [status\|<ip>[:port]\|on\|off\|idle <hz>]` | the flight recorder: one record per control tick to the UDP collector on mira ([docs/flight-recorder.md](../docs/flight-recorder.md)); address, on/off and idle rate in NVS |
-| `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy |
+| `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy (`net:` int8/float, layers in RAM, kernel, boot self-test) |
+| `nettime [n]` | benched: time the policy forward pass every way this image can run it (float/int8, flash/RAM, C/MAC16 kernel, per layer, swish), min/median/max µs over n passes on core 1 ([firmware-design.md §6.1](../docs/firmware-design.md)) |
 | `obsdump [on\|off\|once]` | stream the policy observation as CSV (armed only) |
 
 ## Known gaps, as they stand

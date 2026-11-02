@@ -30,7 +30,7 @@ if(BIMO_POLICY)
 endif()
 
 add_compile_options(-Wall -Wextra -Werror -Wshadow -Wconversion
-                    -Wsign-conversion -g -O1)
+                    -Wsign-conversion -g -O1 -ffp-contract=off)
 
 # The sanitizers are attached per target rather than globally: the SIL shared
 # library must NOT have them (see the ctrl_sil target at the bottom).
@@ -96,7 +96,8 @@ bimo_test(test_obs test_obs.cpp
           ${COMPONENTS}/imu/imu.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../main/cal_store.cpp)
 
-bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
+bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp
+          ${COMPONENTS}/policy/q8.cpp)
 
 bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
@@ -130,7 +131,8 @@ set(SIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/sil_lib.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp)
 set(SIL_DEPS ${COMPONENTS}/obs/assembler.cpp
              ${COMPONENTS}/obs/actuation.cpp
-             ${COMPONENTS}/policy/mlp.cpp)
+             ${COMPONENTS}/policy/mlp.cpp
+             ${COMPONENTS}/policy/q8.cpp)
 
 bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})
 bimo_test(test_sil_golden test_sil_golden.cpp
