@@ -9,10 +9,11 @@ and the fly-in animation (animate_v6.py) -- so a figure cannot show a
 placement the checker never tried.
 
 Parts come from the v6 part modules when they exist (leg_link_v6, ankle_link,
-foot_v6, torso_v8, head) and from v5 for the unchanged hip stack
-(yaw_carrier, yoke_roll, yoke_pitch); a missing v6 module falls back to a
-labelled envelope box so the chain, the export and the checks run while the
-parts are still being drawn.
+foot_v6, torso_v8, head); a missing v6 module falls back to a labelled
+envelope box so the chain, the export and the checks run while the parts are
+still being drawn. The hip stack's parts are v5's, reworked: yaw_carrier_v6
+(v5's carrier + the hip-yaw bearing hub) and hip_yoke_glued (the v5 clevises
+as two glued U-channels).
 
 Variants (env vars; the defaults are the robot to print):
     ARMS=1 (default) | 0        the two get-up arms: the shoulder girdle (both
@@ -22,9 +23,6 @@ Variants (env vars; the defaults are the robot to print):
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
                                 girdle, a torso without the pilots.
-    HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
-                                glued U-channel pair, or the legacy bolted
-                                yoke_roll + yoke_pitch pair.
     ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
                                 glued cradle + fork, carried as their union.
 
@@ -79,26 +77,6 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
-def hip_yoke_variant():
-    """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
-    builds: "single" (DEFAULT since 2026-09-24: cad/v6/hip_yoke_v6.py, the roll
-    and pitch clevises as one print, no flange bolts) or "split" (the legacy
-    v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
-    HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
-    exposed were resolved (hip-yoke-single-print.md section 6): the roll-
-    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim.
-    "glued" (cad/v6/hip_yoke_glued.py) is the same two clevises as two
-    support-free U-channels snapped and glued at the old bolted plane; the
-    assembly carries their glued union as one piece."""
-    return os.environ.get("HIP_YOKE_VARIANT", "single")
-
-
-def one_piece_yoke():
-    """True when link 2 is ONE solid in the assembly -- the one print, or the
-    glued pair -- and so is checked as hip_yoke_{s} with its seat zones."""
-    return hip_yoke_variant() in ("single", "glued")
-
-
 def arms_on():
     """Whether this build carries the two get-up arms (docs/design-v6/
     getup-decision-2026-09-17.md). ON by default -- the arms are the design;
@@ -107,23 +85,20 @@ def arms_on():
 
 
 def part_hip_yoke():
-    """The one-print hip yoke, or the glued pair's union (HIP_YOKE_VARIANT=
-    glued). No envelope fallback: a caller that opted in asked for this part,
-    and two bolted pieces are not a stand-in for one."""
-    if hip_yoke_variant() == "glued":
-        import hip_yoke_glued
-        return hip_yoke_glued.hip_yoke_glued()
-    import hip_yoke_v6
-    return hip_yoke_v6.hip_yoke_v6()
+    """The hip yoke (cad/v6/hip_yoke_glued.py): the roll and pitch U-channels'
+    glued union, carried as one piece. No envelope fallback: a box is not a
+    stand-in for the joint the checks sweep."""
+    import hip_yoke_glued
+    return hip_yoke_glued.hip_yoke_glued()
 
 
 def hip_yoke_seat_zone(side):
-    """World-frame (standing pose) solid of the one-print yoke's DESIGNED
-    contacts -- hip_yoke_v6.disc_seat_zones -- for check_assembly_v6's
-    "~seats" rows. Cached like the parts."""
-    import hip_yoke_v6
+    """World-frame (standing pose) solid of the hip yoke's DESIGNED contacts
+    -- hip_yoke_glued.disc_seat_zones -- for check_assembly_v6's "~seats"
+    rows. Cached like the parts."""
+    import hip_yoke_glued
     y = V.HIP_SEP / 2 * (1 if side == "L" else -1)
-    return cached(("hip_yoke_seats", side), lambda: Pos(0, y, V.HIP_ROLL_Z) * hip_yoke_v6.disc_seat_zones())
+    return cached(("hip_yoke_seats", side), lambda: Pos(0, y, V.HIP_ROLL_Z) * hip_yoke_glued.disc_seat_zones())
 
 
 def posed_hip_yoke_seats(side, pose):
@@ -142,16 +117,6 @@ def part_yaw_carrier():
     except Exception as e:  # noqa: BLE001
         print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
         return v5parts.yaw_carrier()
-
-
-def part_yoke_pitch():
-    """v6 clevis (flange chamfer for hip flexion 125); falls back to v5's."""
-    try:
-        import yoke_pitch_v6
-        return yoke_pitch_v6.yoke_pitch_v6()
-    except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yoke_pitch_v6 unavailable ({type(e).__name__}: {e}); v5 yoke_pitch")
-        return v5parts.yoke_pitch()
 
 
 def part_leg_link():
@@ -365,15 +330,10 @@ def _leg_chain(side):
 
 def hip_yoke_pieces(side, at):
     """Link 2 -- the hip universal joint between the roll servo (link 1) and
-    the pitch servo (link 3): the bolted pair (default) or the one print.
-    Both yokes' frames are the joint frames themselves (roll axis / pitch
-    axis at their origins), so the split parts are placed at HIP_ROLL_Z and
-    HIP_PITCH_Z; the single part carries the pitch clevis at -ROLL_TO_PITCH
-    in its own frame and is placed at HIP_ROLL_Z alone."""
-    if one_piece_yoke():
-        return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
-    return [(2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
-            (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]
+    the pitch servo (link 3): the hip yoke, one piece. Its frame is the roll
+    joint's (roll axis along X through the origin, the pitch axis along Y
+    at z -ROLL_TO_PITCH), so it is placed at HIP_ROLL_Z."""
+    return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
 
 
 def yaw_bearing_pieces(side, y):

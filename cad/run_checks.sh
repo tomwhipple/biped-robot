@@ -23,7 +23,7 @@
 #                           ** lines against the slice preview.
 #
 # The other parts audit themselves from their own module's __main__
-# (leg_link_v6, hip_yoke_v6, shoulder_girdle_v6, arm_v6) -- those rewrite
+# (leg_link_v6, hip_yoke_glued, shoulder_girdle_v6, arm_v6) -- those rewrite
 # their STL as they go, so they are run when the part changes, not here.
 set -u
 
