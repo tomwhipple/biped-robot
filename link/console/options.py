@@ -64,6 +64,8 @@ def parser() -> argparse.ArgumentParser:
     a("--cam-relay", metavar="HOST[:PORT]", help="tools/cam_relay.py")
     a("--cam", action="append", default=[], choices=CAM_NAMES + ("off",),
       help="camera to open at start (twice for both panes)")
+    a("--drive-view", action="store_true",
+      help="with the bench flags: start on Drive, not Bench (bimo_gui's flag)")
     a("--stop-host", help="where HOLD / E-STOP go when there is no --host "
       "(default: $BIMO_HOST, then the flight collector's robot_addr)")
     a("--no-broadcast", action="store_true",

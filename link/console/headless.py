@@ -1,7 +1,7 @@
 """--headless: the identical link loop with stdin instead of a window.
 
-The same verbs as `bimo_gui --headless` (press / release / set / sim / any
-keymap action name), and the same status line every 500 ms, so
+The same verbs as `bimo_gui --headless` (press / release / set / sim / cam /
+view / any keymap action name), and the same status line every 500 ms, so
 tests/test_gui_e2e.py runs against both consoles. EOF on stdin quits, and
 quitting disarms.
 """
@@ -12,7 +12,7 @@ import select
 import sys
 import time
 
-from . import core
+from . import bench, core
 from .controller import Controller, EventLog
 
 EXT_NAMES = ("crouch", "lift", "foot_dx", "foot_dz")
@@ -40,6 +40,9 @@ def status_line(c: Controller, st, now: float, t0: float) -> str:
             line += f"  BENCH: {core.diag_reason(st.diag)}"
     else:
         line += " | robot (no telemetry)"
+    b = getattr(c, "bench", None)
+    if b is not None:
+        line += b.status_text(now)
     if c.stopping():
         line += " | STOP sending"
     return line
@@ -78,7 +81,11 @@ def command(c: Controller, line: str) -> None:
             print(f"note: {c.status_msg}", flush=True)
         else:
             print("note: sim mirror [off]  (the Sim tab runs sil_twin)", flush=True)
-    elif verb in ("tab", "panel", "view", "cam"):
+    elif verb in ("cam", "view"):
+        note = bench.verb(getattr(c, "bench", None), verb, args)
+        if note:
+            print(f"note: {note}", flush=True)
+    elif verb in ("tab", "panel"):
         pass                                  # window-only; harmless here
     elif not c.fire(verb):
         print(f"note: unknown command `{verb}`", flush=True)
@@ -91,6 +98,7 @@ def run(opts) -> int:
     if not c.start():
         log.close()
         return 2
+    b = bench.attach(c) if opts.bench_telemetry or opts.cam_relay else None
     if opts.observe:
         print(f"bimo_console --headless: OBSERVER, no transmit socket; listening "
               f"for beacons on :{opts.tlm_port}", flush=True)
@@ -132,6 +140,8 @@ def run(opts) -> int:
             time.sleep(sleep / 1000.0)
         else:
             nxt = core.now_ms()
+    if b is not None:
+        b.close()
     c.shutdown()
     log.close()
     return 0
