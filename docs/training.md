@@ -767,10 +767,16 @@ that run's `.silw` (any other run runs float, and the spec's `policy.quant`
 says which). Several profiles can share a plant; `eval_precision.py --sil`
 takes the first, and `SIL_PROFILE=<name>` picks another.
 
-**`v6legs256`**: the `v6legs` plant and obs layout with the walk14 (256, 256)
-student `robot_legs_walk14_s256r24` as an int8 net (165 → 256 → 256 → 24,
-109 KB). It is a timing and parity test net for §6.1 of the firmware design,
-not a deploy candidate.
+**`v6legs256`**: the `v6legs` plant and obs layout with the walk16_act (256, 256)
+student `robot_legs_walk16_act_s256r24` as an int8 net (165 → 256 → 256 → 24,
+113 KB), a deploy candidate. It was distilled on the fast-servo dead time
+(`distill_student.py --hidden 256,256 --env-set
+'act_delay_types={"sts3215":[0,2],"sts3250":[0,1]}'`). On the fast measured actuator,
+run the way the robot runs it (coast to π/2, 12 Hz shaper), it holds x1.5 loop gain
+0/16, where `walk16_act_s128r24` falls 11/16
+([experiments/policy/int8-256](../experiments/policy/int8-256/2026-11-02-int8-256.md)).
+Until 2026-11-02 the profile held the walk14 (256, 256) student as a timing and parity
+test net (§6.1 of the firmware design); the timing does not depend on the weights.
 
 **`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
 `--robot`, action map `full`. 12 policy joints in the sim's actuator order —

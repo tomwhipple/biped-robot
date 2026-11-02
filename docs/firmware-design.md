@@ -773,10 +773,12 @@ every way this image can run its net:
 
 `stat` then gives the armed number (`net`) and the worst tick.
 
-The profile **`v6legs256`** carries the walk14 (256, 256) student
-`robot_legs_walk14_s256r24` as an int8 test net for this budget and the
-parity checks. It is a legacy run, not a deploy candidate. Its SIL golden
-(brax float vs firmware int8) holds to 0.08 (worst 0.066). The closed-loop
+The profile **`v6legs256`** carries the walk16_act (256, 256) student
+`robot_legs_walk16_act_s256r24` as an int8 net, a deploy candidate. Until
+2026-11-02 it carried the walk14 (256, 256) student as a test net, which gave
+the budget above (on the robot, `nettime 50`: 6.29 ms median, 6.6 ms max, MAC16, 1 of 3 layers in RAM); the timing does not depend on the weights. Its SIL golden
+(brax float vs firmware int8) holds to 0.08 (worst 0.049 at GPTQ damping 0.1;
+the walk14 net's was 0.066). The closed-loop
 SIL scorecard, float vs int8 through the firmware stack, is recorded in
 [design-v6/2026-11-02-esp32-int8-policy.md](design-v6/2026-11-02-esp32-int8-policy.md).
 
