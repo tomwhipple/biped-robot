@@ -61,7 +61,7 @@ def walk(vx):
 
 
 def stride(vx, t0=2.0, cyc=1.0 / S.CLOCK_HZ):
-    return [(0.0, STAND_CMD), (t0, walk(vx)), (round(t0 + cyc, 2), STAND_CMD)]
+    return [(0.0, STAND_CMD), (t0, walk(vx)), (t0 + cyc, STAND_CMD)]
 
 
 PROBES = {
@@ -69,6 +69,8 @@ PROBES = {
     "x1.5": dict(out_gain=1.5, run_s=20.0),
     "push 0.4": dict(push=0.4, run_s=12.0),
     "walk 0.3 -> stop": dict(cmd_schedule=[(0.0, walk(0.3)), (4.0, STAND_CMD)], run_s=14.0),
+    "walk 0.2 -> stop": dict(cmd_schedule=[(0.0, walk(0.2)), (4.0, STAND_CMD)], run_s=14.0),
+    "walk 0.15 -> stop": dict(cmd_schedule=[(0.0, walk(0.15)), (4.0, STAND_CMD)], run_s=14.0),
     "stride1 0.6": dict(cmd_schedule=stride(0.6), run_s=8.0),
     "stride1 0.4": dict(cmd_schedule=stride(0.4), run_s=8.0),
     "stride1 0.3": dict(cmd_schedule=stride(0.3), run_s=8.0),
@@ -82,10 +84,14 @@ class FlailGuard:
         self.rate = 0.0; self.chat = 0.0; self.prev_raw = None
         self.n_tilt = 0; self.n_pose = 0
         self.trip = None; self.peak_rate = 0.0; self.peak_chat = 0.0
+        self.rax = np.zeros(3); self.peak_rax = np.zeros(3)
+        self.first = {}                     # criterion -> (t_s, value): each one's first trip
 
     def __call__(self, i, raw, target, gyro, tilt_deg, stand_cmd, armed):
         a_r = 1 - math.exp(-DT / FG["rate_tau"]); a_c = 1 - math.exp(-DT / FG["chatter_tau"])
         self.rate += a_r * (float(np.linalg.norm(gyro)) - self.rate)
+        self.rax += a_r * (np.abs(gyro) - self.rax)          # per axis, for the report
+        self.peak_rax = np.maximum(self.peak_rax, self.rax)
         if self.prev_raw is not None:
             self.chat += a_c * (float(np.mean(np.abs(raw - self.prev_raw))) / DT - self.chat)
         self.prev_raw = raw.copy()
@@ -93,14 +99,14 @@ class FlailGuard:
         off = np.degrees(np.abs(target - self.stand)).max()
         self.n_pose = self.n_pose + 1 if (stand_cmd and armed and off > FG["pose_deg"]) else 0
         self.peak_rate = max(self.peak_rate, self.rate); self.peak_chat = max(self.peak_chat, self.chat)
-        if self.trip is None:
-            for name, hit, val in (("pose", self.n_pose >= FG["pose_ticks"], off),
-                                   ("rate", self.rate > FG["rate"], self.rate),
-                                   ("tilt", self.n_tilt >= FG["tilt_ticks"], tilt_deg),
-                                   ("chatter", self.chat > FG["chatter"], self.chat)):
-                if hit:
+        for name, hit, val in (("pose", self.n_pose >= FG["pose_ticks"], off),
+                               ("rate", self.rate > FG["rate"], self.rate),
+                               ("tilt", self.n_tilt >= FG["tilt_ticks"], tilt_deg),
+                               ("chatter", self.chat > FG["chatter"], self.chat)):
+            if hit and name not in self.first:
+                self.first[name] = (round(i * DT, 2), round(float(val), 3))
+                if self.trip is None:
                     self.trip = (name, round(i * DT, 2), round(float(val), 3))
-                    break
 
 
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
@@ -163,9 +169,8 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         if push > 0 and i in S.PUSHES:
             dx, dy = S.PUSHES[i]
             env.data.qvel[0] += push * dx; env.data.qvel[1] += push * dy
-        t_next = (i + 1) * DT
-        for ts, c in sched:
-            if abs(ts - t_next) < 1e-6:
+        for ts, c in sched:                     # on the tick grid (stride1's 0.667 s)
+            if int(round(ts / DT)) == i + 1:
                 env.set_command(*c)
         env._gait_phase = S.advance_clock(clk, clock, v, env._cmd, DT)
         obs, _, term, _, info = env.step(a)
@@ -182,10 +187,11 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
             break
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()),
-             trip=fg.trip, peak_rate=fg.peak_rate, peak_chatter=fg.peak_chat,
+             trip=fg.trip, trips_by=fg.first, peak_rate=fg.peak_rate, peak_rate_xyz=fg.peak_rax.tolist(), peak_chatter=fg.peak_chat,
              dx=float(X[-1]))
-    if sched and len(sched) > 1:
-        t_walk = sched[1][0]; i0 = int(round(t_walk / DT))
+    walks = [ts for ts, c in sched if not S.stand_gate(c)]
+    if walks:
+        t_walk = walks[0]; i0 = int(round(t_walk / DT))
         seg = slice(i0, min(len(TL), i0 + int(2.5 / DT)))
         m["walk_dx_2s5"] = float(X[min(len(X) - 1, i0 + int(2.5 / DT))] - X[i0]) if len(X) > i0 else float("nan")
         m["walk_tilt_max"] = float(TL[seg].max()) if len(TL) > i0 else float("nan")
@@ -241,6 +247,8 @@ def summarize(res, variants, probes):
             trips = [r["trip"] for r in e if r.get("trip")]
             row[pn] = dict(n=len(e), falls=sum(r["fell"] for r in e), trips=len(trips),
                            trip_kinds=sorted({t[0] for t in trips}),
+                           by_kind={k: sum(1 for r in e if k in (r.get("trips_by") or {}))
+                                    for k in ("rate", "pose", "tilt", "chatter")},
                            first_trip_s=min((t[1] for t in trips), default=None),
                            peak_rate=float(np.mean([r.get("peak_rate", np.nan) for r in e])),
                            peak_rate_max=float(np.max([r.get("peak_rate", np.nan) for r in e])))
@@ -266,6 +274,9 @@ def table(rows, probes):
                 continue
             c = r[p]
             txt = f"{c['falls']}/{c['trips']}"
+            bk = {k: n for k, n in c.get("by_kind", {}).items() if n}
+            if bk:
+                txt += " [" + " ".join(f"{k} {n}" for k, n in bk.items()) + "]"
             if p.startswith("stride1") or p.startswith("walk"):
                 txt += f" (rate {c['peak_rate']:.2f}/{c['peak_rate_max']:.2f}, dx {_f(c.get('walk_dx_2s5'), 2)})"
             cells.append(txt)
@@ -275,7 +286,8 @@ def table(rows, probes):
                  f"{_f(s.get('power_w'), 2)} / {_f(s.get('power_hold_w'), 2)} | "
                  f"{_f(s.get('squeeze_deg'), 2)} / {_f(s.get('squeeze_hold_deg'), 2)} | " + " | ".join(cells) + " |")
     L.append("")
-    L.append("Cells: falls/flail-guard trips out of the seeds; walk cells add the guard's peak "
+    L.append("Cells: falls/flail-guard trips out of the seeds [episodes in which each guard "
+             "criterion would trip, judged separately]; walk cells add the guard's peak "
              "EMA body rate (mean/max over seeds, trip at 1.5 rad/s) and the torso's forward "
              "travel over the 2.5 s after the walk command (m).")
     return "\n".join(L)
@@ -287,7 +299,13 @@ def main():
     which = sys.argv[3] if len(sys.argv) > 3 else "runs"
     hz = float(os.environ.get("SHAPE_HZ", "10"))
     runs = [r for r in os.environ.get("RUNS", "").split(",") if r]
-    variants = runs_set(runs, hz) if which == "runs" else {}
+    if which == "runs":
+        variants = runs_set(runs, hz)
+    elif which == "poles":      # does the sim reproduce the robot's shaper sweep (stand5-7)?
+        variants = {f"{r} @ shape {p:g}": dict(run=r, shaper_hz=p)
+                    for r in (runs or [W16]) for p in (0.0, 20.0, 15.0, 12.0, 10.0, 8.0)}
+    else:
+        raise SystemExit(f"unknown set {which}")
     only = os.environ.get("ONLY")
     probes = {k: p for k, p in PROBES.items() if not only or k in only.split(",")}
     jobs = [(vn, pn, s, v, p) for vn, v in variants.items() for pn, p in probes.items()

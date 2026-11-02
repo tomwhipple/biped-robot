@@ -625,6 +625,11 @@ def make_parser():
                    help="with --fw-shaper: the firmware's per-joint goal speed "
                         "(1.25 x |goal - present| per tick, 50..3400 steps/s): the "
                         "servo set point slews to each new goal within the tick")
+    p.add_argument("--loop-gain-range", default=None, metavar="LO,HI",
+                   help="loop-gain DR: per episode the served targets follow the action's "
+                        "0.5 s mean + g x its deviation, g ~ U(LO, HI); the policy sees its "
+                        "raw action. The stand-still loop-gain probe (the robot runs ~1.5x "
+                        "the sim's loop gain, 2026-11-02) as training DR, e.g. 1.0,1.6")
     p.add_argument("--act-lag-order", type=int, default=None, choices=(1, 3),
                    help="stages in the --act-lag cascade: 3 (default; the historical "
                         "stand-in for shaper + servo) or 1 (the servo's own "
@@ -847,6 +852,8 @@ def build_env_kw(args):
             env_kw["fw_shaper_hz_max"] = hz[1]
     if args.fw_goal_speed:
         env_kw["fw_goal_speed"] = True
+    if args.loop_gain_range is not None:
+        env_kw["loop_gain_range"] = tuple(float(x) for x in args.loop_gain_range.split(","))
     if args.roll_lash_deg is not None:
         lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
         env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)

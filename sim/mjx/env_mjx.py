@@ -299,6 +299,8 @@ class State(NamedTuple):
     lag_y: jax.Array          # (3, n_servo) cascaded lag filter state
     shp_hz: jax.Array         # ()  per-episode FIRMWARE shaper pole, Hz (fw_shaper_hz; 0 = off)
     shp_y: jax.Array          # (3, n_servo) firmware shaper (obs::CommandShaper) state
+    lg_gain: jax.Array        # ()  per-episode loop gain on the action deviation (1 = off)
+    lg_ema: jax.Array         # (n_act,) the action's 0.5 s mean, for lg_gain
     act_hist: jax.Array       # (_act_hist_len, n_servo) recent joint TARGETS,
                               # row 0 = this tick; servo j serves row
                               # act_delay[j] + act_delay_extra[j]. Servo DEAD TIME DR: 2026-09-05 bench
@@ -691,6 +693,11 @@ class BimoMJXEnv:
         # slews its set point at that speed: within the tick the PD target ramps from the last
         # one instead of stepping. Needs fw_shaper_hz (the firmware writes it only when shaping).
         fw_goal_speed: bool = False,
+        # LOOP-GAIN DR: per episode, the served targets follow mean + g x (action - mean),
+        # mean = the action's 0.5 s EMA, g ~ uniform(lo, hi); the policy still sees its own
+        # raw action. The stand-still study's loop-gain probe (x1.5 = the robot's measured
+        # margin vs the sim, 2026-11-02) as training DR. None = off.
+        loop_gain_range: tuple | None = None,
         tilt_max_deg: float = 0.0,   # batch-level gravity-tilt DR (un-level floor)
         push_prob: float | None = None,
         push_force: float | None = None,
@@ -1351,6 +1358,8 @@ class BimoMJXEnv:
                                  else float(fw_shaper_hz_max))
         self._fw_shaper = self.fw_shaper_hz > 0.0 or self.fw_shaper_hz_max is not None
         self.fw_goal_speed = bool(fw_goal_speed)
+        self.loop_gain_range = (None if loop_gain_range is None
+                                else (float(loop_gain_range[0]), float(loop_gain_range[1])))
         assert not self.fw_goal_speed or self._fw_shaper, \
             "fw_goal_speed needs fw_shaper_hz (the firmware writes it with shaped targets)"
         self.zero_offset_deg = float(zero_offset_deg)
@@ -2175,6 +2184,13 @@ class BimoMJXEnv:
                                       maxval=self.fw_shaper_hz_max)
         return jp.asarray(self.fw_shaper_hz, dtype=jp.float32)
 
+    def _draw_loop_gain(self, rng: jax.Array):
+        if self.loop_gain_range is None:
+            return jp.ones(())
+        return jax.random.uniform(jax.random.fold_in(rng, 4476),
+                                  minval=self.loop_gain_range[0],
+                                  maxval=self.loop_gain_range[1])
+
     def _act_hist0(self):
         # before the policy has acted the served target is the home pose
         return jp.tile(self._sdefault.astype(jp.float32)[None, :],
@@ -2494,6 +2510,8 @@ class BimoMJXEnv:
                      act_lag=act_lag,
                      lag_y=lag_y0,
                      shp_hz=self._draw_shaper(r_ep), shp_y=lag_y0,
+                     lg_gain=self._draw_loop_gain(r_ep),
+                     lg_ema=jp.zeros(self._nq_act, dtype=jp.float32),
                      act_hist=act_hist, act_delay=act_delay,
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
@@ -2571,6 +2589,8 @@ class BimoMJXEnv:
             lag_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
             shp_hz=self._draw_shaper(r_ep),
             shp_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
+            lg_gain=self._draw_loop_gain(r_ep),
+            lg_ema=jp.zeros(self._nq_act, dtype=jp.float32),
             act_hist=act_hist, act_delay=act_delay,
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
@@ -2581,12 +2601,23 @@ class BimoMJXEnv:
         rng, r_push_u, r_push_a, r_jit, r_obs, r_cmd = jax.random.split(
             state.rng, 6)
         action = jp.clip(action, -1.0, 1.0)
-        if self.action_map == "full":
-            span = jp.where(action >= 0.0, self._hi - self._default,
-                            self._default - self._lo)
-            target = self._default + span * action
+        # loop-gain DR (see ctor): the targets are driven by the action's deviation from
+        # its 0.5 s mean x this episode's gain; the policy's own action (prev_action,
+        # action rate) stays raw, as on the robot
+        if self.loop_gain_range is not None:
+            k_lg = 1.0 - float(np.exp(-self.control_dt / 0.5))
+            lg_ema = jp.where(state.step_i == 0, action,
+                              state.lg_ema + k_lg * (action - state.lg_ema))
+            a_t = jp.clip(lg_ema + state.lg_gain * (action - lg_ema), -1.0, 1.0)
         else:
-            target = jp.clip(self._default + self._scale * action,
+            lg_ema = state.lg_ema
+            a_t = action
+        if self.action_map == "full":
+            span = jp.where(a_t >= 0.0, self._hi - self._default,
+                            self._default - self._lo)
+            target = self._default + span * a_t
+        else:
+            target = jp.clip(self._default + self._scale * a_t,
                              self._lo, self._hi)
         if (self.rise_ref_residual > 0.0 and self.ext_cmd
                 and self.recover_mix > 0):
@@ -3453,6 +3484,7 @@ class BimoMJXEnv:
                      lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
                      shp_hz=state.shp_hz, shp_y=shp_y,
+                     lg_gain=state.lg_gain, lg_ema=lg_ema.astype(jp.float32),
                      act_hist=act_hist, act_delay=state.act_delay,
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias,

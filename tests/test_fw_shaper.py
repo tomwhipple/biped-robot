@@ -150,3 +150,21 @@ def test_squeeze_metric_and_goal_speed(gs):
     if gs:
         # the slewed set point never passes the shaped goal
         assert np.all(np.abs(np.asarray(s.last_target - s.shp_y[2])) < 0.2)
+
+
+def test_loop_gain_dr_amplifies_the_deviation_only():
+    """loop_gain_range: served target = mean + g x (action - mean), the probe's law
+    (stand-still stand_sim out_gain); prev_action stays the raw action."""
+    env = _mjx(loop_gain_range=(1.5, 1.5))
+    s = env.reset(jax.random.PRNGKey(6))
+    assert float(s.lg_gain) == 1.5
+    step = jax.jit(env.step)
+    k = 1.0 - math.exp(-env.control_dt / 0.5)
+    ema = None
+    for a in (0.1, 0.3, -0.2):
+        av = a * np.ones(env.action_size)
+        s = step(s, jp.asarray(av, jp.float32))
+        ema = av.copy() if ema is None else ema + k * (av - ema)
+        want = _targets(env, np.clip(ema + 1.5 * (av - ema), -1, 1))
+        np.testing.assert_allclose(np.asarray(s.last_target), want, rtol=0, atol=2e-5)
+        np.testing.assert_allclose(np.asarray(s.prev_action), av, rtol=0, atol=1e-6)
