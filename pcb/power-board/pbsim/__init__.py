@@ -31,6 +31,8 @@ Modules:
   (EN/UVLO, INP, soft start, CB/SC trips).
 - `sequencer_sim.py`       the §7 sequences: buttons + pack + BQ76922 +
   TPS48111 + ESP32 stub + loads, ticked at 1 ms.
+- `board/`                 the whole board: the drawn netlist in ngspice with pin
+  models of U1 and U2 (`make pbfull`; record 2026-10-24-power-board-full-simulation).
 - `tests/`                 the suite proper, one file per card-bullet.
 - `RESULTS.md`             per-test pass/fail and margins vs design limits
   (curated; not auto-generated).

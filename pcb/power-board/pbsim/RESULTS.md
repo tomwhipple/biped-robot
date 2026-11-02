@@ -248,6 +248,15 @@ Open:
    board can tell (pinned). A jammed POWER button keeps the board from
    staying off; the design's answer is unplugging the pack (§7 step 6).
 
+7. **The whole-board simulation contradicts three behaviours this suite's
+   models assume** ([record](../../../docs/design-v6/2026-10-24-power-board-full-simulation.md) §7):
+   - the BQ76922 wakes on any TS2 pull-down; the datasheet has no 280 ms hold, and a 2 ms
+     tap wakes the board in that simulation (`test_buttons`' 200 ms no-wake case);
+   - a jammed POWER holds the BQ76922 in soft shutdown (TRM §7.5), rather than
+     re-waking it every 282 ms;
+   - U2's soft start begins only once BST has charged (0.36 s after U2 becomes
+     active, TPS eq. 1).
+
 Any suspected schematic or design error goes here, not into the board
 files. None found: every round-3 change is to the models and tests.
 
@@ -273,3 +282,11 @@ run ngspice skip with the reason.
 - I²C framing, ALERT masking, coulomb counting (the BQ76922's register
   plane; only its protection state machine is modelled).
 - Whether the Pi halts on `gpio-poweroff` (#87).
+
+## The whole-board suite
+
+`pbsim/board/` simulates the drawn netlist (exported by kicad-cli) in ngspice, with pin
+models of U1 and U2 whose state machines run in Python at every time step. `make pbfull`
+runs the campaign (1152-case truth table, sequences, sweeps); `tests/test_whole_board.py`
+is the gate's sample, with the record's findings pinned as strict xfails. The results and
+findings are in [the record](../../../docs/design-v6/2026-10-24-power-board-full-simulation.md).
