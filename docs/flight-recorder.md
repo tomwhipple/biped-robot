@@ -8,7 +8,9 @@ Firmware: `firmware/main/flight_rec.{h,cpp}`, wire format
 `firmware/components/flightrec/`. Host: `tools/flightrec.py` (codec),
 `tools/flight_collector.py` (UDP service), `tools/flight_session.sh`
 (start/stop), `tools/flight_reader.py` (summary, CSV, video/serial alignment,
-plot). Data stays on mira; nothing here uploads anywhere.
+plot). The session files stay on mira; nothing here uploads anywhere. The
+collector can re-send the live stream to a console on the LAN
+([Forwarding](#forwarding)).
 
 ## Running it
 
@@ -53,6 +55,28 @@ and serial-log lines on one UTC axis). In Python, `flight_reader.load()` →
 `tick_rows()` gives per tick `<joint>.nom_rad / .goal_rad / .pos_rad /
 .err_rad` in the joint frame (steps converted with the calibration the robot
 itself sent in its HELLO), the IMU block and the balance block.
+
+### Forwarding
+
+```bash
+tools/flight_collector.py --forward 192.168.2.105:4221 [--forward HOST:PORT ...]
+FLIGHT_FORWARD="192.168.2.105:4221" tools/flight_session.sh start walk2
+```
+
+`--forward HOST:PORT` (repeatable) re-sends every datagram the collector
+receives — undecodable ones included — byte for byte and in arrival order,
+to each destination, right after writing it to the session file: mira keeps
+the file, a console gets the live stream and decodes it with
+`tools/flightrec.py`. The forward is best effort: a non-blocking send from
+the collector's own socket, so a refused port, an unreachable host or a full
+buffer costs one counted error and never delays or stops the file. The
+counts (sent, errors, the last error) are on the status line, in the
+`session closed` line and in the summary's `forward` block, per destination.
+A malformed spec is refused at argument parsing; each host is resolved once,
+at start, and an unresolvable one stops the collector before it listens.
+Nothing goes to the robot: a destination at the address a datagram came
+from is skipped (and counted as `skipped_sender`). The session file is the
+same with or without forwarding.
 
 ## What is recorded
 
