@@ -53,8 +53,8 @@ QPushButton#estop {{ background: {RED}; color: white; font-size: 19px; font-weig
                     border: 2px solid #ff6b60; border-radius: 8px; }}
 QPushButton#estop_latched {{ background: #ff2d20; color: white; font-size: 19px;
                             font-weight: 800; border: 3px solid #ffd0cc; border-radius: 8px; }}
-QPushButton#estop_observer {{ background: #3a2a2a; color: #b08a86; font-size: 17px;
-                             font-weight: 800; border: 2px solid #6b3a36; border-radius: 8px; }}
+QPushButton#hold {{ background: #9a4a10; color: #fff0e0; font-size: 16px; font-weight: 800;
+                   border: 2px solid {ORANGE}; border-radius: 8px; }}
 QPushButton#reset {{ background: #7d540c; color: #fff1d6; font-weight: 700;
                     border: 1px solid {AMBER}; }}
 QPushButton#reset:disabled {{ background: #2a2418; color: #6b5a3a; border-color: #3a3222; }}
@@ -463,15 +463,14 @@ def safety_bar(s=LIVE_STATE):
     badge.setStyleSheet(f"background:{col}; color:white; font-weight:800; font-size:19px;"
                         f" border-radius:8px; padding:4px 18px;")
     drv = s["driver"]
-    arm = btn("DISARM" if s["armed"] else "ARM", "a", 150, "arm", enabled=drv)
-    stand = btn("STAND", "space", 150, enabled=drv)
-    if not drv:
-        estop = btn("E-STOP (not yours)", None, 250, "estop_observer", h=46)
-    elif s["estop"]:
-        estop = btn("E-STOP LATCHED", "e", 250, "estop_latched", h=46)
+    arm = btn("DISARM" if s["armed"] else "ARM", "a", 132, "arm", enabled=drv)
+    stand = btn("STAND", "space", 132, enabled=drv)
+    hold = btn("HOLD", "f", 132, "hold", h=46)            # soft stop: out of band, any role
+    if s["estop"]:
+        estop = btn("E-STOP LATCHED", "e", 230, "estop_latched", h=46)
     else:
-        estop = btn("E-STOP", "e", 250, "estop", h=46)
-    reset = btn("RESET SERVOS", "h", 200, "reset", enabled=drv)
+        estop = btn("E-STOP", "e", 230, "estop", h=46)    # hard stop: out of band, any role
+    reset = btn("RESET SERVOS", "h", 190, "reset", enabled=drv)
     ctl = (btn("WATCH ONLY", None, 140, "watch", h=34) if drv
            else btn("TAKE CONTROL", None, 150, "take", h=34))
     sv_t, sv_c, sv_sub = s["servos"]
@@ -483,8 +482,8 @@ def safety_bar(s=LIVE_STATE):
     rec = vbox(lab("● REC" if s["rec"] else "○ not recording", "#ff5a50" if s["rec"] else DIM,
                    14, True), lab("02:41 · 3218 cmd / 1609 tlm" if s["rec"] else "", DIM, 11),
                spacing=2)
-    row1 = hbox(badge, 6, arm, stand, 6, estop, 26, reset, "stretch", vb, 24, sv, 24, pad, 24,
-                rec, 24, ctl, spacing=10)
+    row1 = hbox(badge, 6, arm, stand, 14, hold, estop, 22, reset, "stretch", vb, 20, sv, 20, pad, 20,
+                rec, 20, ctl, spacing=10)
 
     sep = "<span style='color:#4a5059'>&nbsp;&nbsp;│&nbsp;&nbsp;</span>"
     d = f"<span style='color:{DIM}'>"
@@ -492,7 +491,7 @@ def safety_bar(s=LIVE_STATE):
         tx = (f"{d}→</span> bimo.local:4210&nbsp;&nbsp;20&nbsp;Hz&nbsp;&nbsp;24&nbsp;B&nbsp;&nbsp;"
               f"{d}ARM ENABLE POSE ATT</span>")
     else:
-        tx = f"<span style='color:{AMBER}'>OBSERVER · sends nothing</span>"
+        tx = f"<span style='color:{AMBER}'>OBSERVER · no commands · stops are out of band</span>"
     if s["lost"]:
         rx = f"<span style='color:#ff5a50'>LINK LOST&nbsp;&nbsp;{s['lost']}&nbsp;s ago</span>"
     elif drv:
@@ -744,6 +743,9 @@ def checks_tab():
         ("8", "shaper 10 Hz (never 0)", "tether: shape", C, ""),
         ("9", "obsfreeze none", "tether: obsfreeze", C, ""),
         ("10", "fall guard on", "flight rec events · tether: fall", P, "guard ON · autohome on"),
+        ("10a", "flail guard on (15° / 300 ms, 1.5 rad/s, 20°, 7 rad/s)", "tether: flail", C, ""),
+        ("10b", "a stop button open for the run", "this console's HOLD / E-STOP (out of band)", P, "ready · robot addr known"),
+        ("10c", "a hand on the servo power switch", "the operator", C, ""),
         ("11", "recorder on, UTC synced, collector live", "flight rec HELLO + packets here", P, "rec ON · NTP synced · 50 Hz"),
         ("12", "home readback: all joints at zero", "flight rec CLI-output event", P, "12 s ago · arm within ~30 s"),
         ("13", "upright, floor clear 1 m, spotter's hands ready", "eyes", C, ""),
@@ -764,7 +766,7 @@ def checks_tab():
                                             "stretch", spacing=4, margins=(6, 0, 0, 0))))
     t.setColumnWidth(2, 150)
     head = hbox(pill("NO-GO", RED, True, 110), 12,
-                lab("4 tether / eye checks open · 1 failed: filming", "#f0c56a", 15, True),
+                lab("6 tether / eye checks open · 1 failed: filming", "#f0c56a", 15, True),
                 "stretch", lab("arm window after home readback", DIM), 8,
                 lab("18 s left", "#e8e8e8", 18, True, True), spacing=8)
     note = lab("PASS items are read from data the console already receives; CHECK items are typed on the "
@@ -777,8 +779,9 @@ def checks_tab():
                    ["joint chatter faster than ~3 Hz, larger than 1–2°", "goal/pos spectrum per joint", "none"],
                    ["a servo too hot to touch", "flight rec temp per joint", "max 41 °C (R knee)"],
                    ["servo fault bit or LOW-BATT", "beacon servo_err · pack guard", "id 11 faulted"],
+                   ["the robot's own flail guard tripped", "flight rec flail event · DISARMED_FLAIL", "not tripped"],
                    ["drift beyond 5 cm, steady rotation", "not observable (no odometry)", "eyes only"]],
-                  {(3, 2): RED, (4, 1): FAINT, (4, 2): FAINT}, stretch_col=1)
+                  {(3, 2): RED, (5, 1): FAINT, (5, 2): FAINT}, stretch_col=1)
     return wrap(vbox(group("PRE-ARM", vbox(head, t, note, spacing=10)),
                      group("ABORT WATCH   advisory: the console flags, the operator acts", vbox(abort)),
                      "stretch", spacing=10, margins=(12, 12, 12, 12)))
@@ -1058,14 +1061,20 @@ BAR_STATES = [
     ("E-STOP latched — STAND clears it", dict(LIVE_STATE, badge=("●  ESTOP", RED), estop=True,
                                               pad=("PAD  ○ R up", DIM, "A (E-STOP) pressed 2 s ago"),
                                               note="E-STOP sent (latched until [space])")),
-    ("OBSERVER — watching a tethered run through the flight recorder; sends nothing",
-     dict(LIVE_STATE, badge=("●  STAND", AMBER), driver=False, pad=("PAD  —", DIM, "inactive while observing"),
-          note="observing: the robot is armed on the tether -- a frame from here would take over its watchdog")),
+    ("OBSERVER — watching a tethered run through the flight recorder; HOLD and E-STOP still work",
+     dict(LIVE_STATE, badge=("●  STAND", AMBER), driver=False, pad=("PAD  stops only", DIM, "A (east) = E-STOP"),
+          note="observing a tethered run: sends no commands; HOLD / E-STOP are operator-stop frames "
+               "(tools/estop.py), which no latch or watchdog sees")),
     ("LINK LOST — no beacon for 3.4 s", dict(LIVE_STATE, badge=("(no beacon)", "#3a3f47"), lost="3.4",
                                             note="link lost: the robot stands after 250 ms and goes limp after 5 s")),
+    ("FLAIL — the robot's flail guard stopped the policy and HELD the joints",
+     dict(LIVE_STATE, badge=("●  BENCH", BENCHC), armed=False, pad=("PAD  ○ R up", DIM, "connected"),
+          bench="disarmed -- FLAIL guard: the policy misbehaved, so it was stopped and the joints HELD "
+                "stiff; it homes once upright and still (`flail` on the tether says why)",
+          note="flight rec event: flail (rate) at 3.31 s")),
     ("FALLEN — tilt past 45° for 200 ms: torque off, the loop benched",
      dict(LIVE_STATE, badge=("●  FALLEN", RED), armed=False, servos=("servos ok", GREEN, "loop late 0 %"),
-          bench="disarmed: FALLEN (tilt) -- pick the robot up and hold it still to autohome",
+          bench="disarmed -- FALL latch tripped; re-arm deliberately (ARM edge or run)",
           note="robot reports FALLEN")),
 ]
 

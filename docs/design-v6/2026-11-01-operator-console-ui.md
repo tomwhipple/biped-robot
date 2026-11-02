@@ -15,7 +15,7 @@ posed from synthetic angles. Nothing in them is a measurement.*
 
 **Goals**
 
-- One native window (AGENTS.md "Local tools are native tools", [AGENTS.md:221](../../AGENTS.md)),
+- One native window (AGENTS.md "Local tools are native tools", [AGENTS.md:222](../../AGENTS.md)),
   laid out in tabs, readable at a glance, with the safety controls on every tab.
 - The robot drawn in 3D from what it **measured**, with the **commanded** pose,
   the **sim twin** and the **bench camera** as optional, clearly separated overlays.
@@ -23,7 +23,7 @@ posed from synthetic angles. Nothing in them is a measurement.*
 - Drive from a Bluetooth gamepad as well as the keyboard, with a held dead-man.
 - Support the written bench procedure ([first-policy-stand.md](../first-policy-stand.md)):
   its go/no-go list (§2), its abort conditions (§5), and its warning that a console
-  started during a tethered run takes over the robot's watchdog (:81).
+  started during a tethered run takes over the robot's watchdog (:88).
 - Keep every safety rule `bimo_gui` learned (§3), single-sourced.
 
 **Non-goals**
@@ -39,7 +39,7 @@ posed from synthetic angles. Nothing in them is a measurement.*
 
 | workflow | today | in this console |
 | --- | --- | --- |
-| first policy stand, tethered `run` | console must not run ([first-policy-stand.md:81](../first-policy-stand.md)); data read afterwards from the `.frec` | starts as **observer**: sends nothing, watches the flight recorder live through mira's collector; Checks tab walks §2 |
+| first policy stand, tethered `run` | no commander may run ([first-policy-stand.md](../first-policy-stand.md) §3); the stop is `tools/estop.py --button` on mira; data read afterwards from the `.frec` | starts as **observer**: sends no commands, watches the flight recorder live through mira's collector, and its HOLD / E-STOP are the same out-of-band stop frames; Checks tab walks §2 |
 | wireless arm and drive | `bimo_gui` keys / `commander.py` gamepad / `arm_script.py` | one window: keys or gamepad, safety bar, Joints and 3D view live |
 | drive the sim twin | `bimo_gui` SIM panel spawns `sil_twin` | Sim tab; optionally twin-in-the-loop beside the robot |
 | watch someone else drive | `bimo_gui --readonly` + the driver's `--watch` relay | observer mode, beacon relay unchanged; flight recorder needs no relay from the driver |
@@ -56,8 +56,8 @@ posed from synthetic angles. Nothing in them is a measurement.*
   60/40 ghost blend was "part measurement and part guess" ([gui.cpp:490](../../link/gui.cpp));
   a stale view says FROZEN / STALE with its age; an observer shows no command traces.
 - **Text that moves has to be re-read**: fixed-width numeric fields ([gui.cpp:834](../../link/gui.cpp)).
-- **E-STOP is always red** — "a blue E-STOP is a lie" ([gui.cpp:968](../../link/gui.cpp)); an
-  observer's is a dimmed red "(not yours)".
+- **E-STOP is always red** — "a blue E-STOP is a lie" ([gui.cpp:968](../../link/gui.cpp)) —
+  and, being out of band, live in every role, an observer's included.
 - **The take-control key is unbound by default** (a stray key once turned a driving
   console into a watcher mid-arm, [keymap.cpp:137](../../link/keymap.cpp)).
 - **Record by default** ([gui.cpp:2005](../../link/gui.cpp)).
@@ -66,13 +66,20 @@ posed from synthetic angles. Nothing in them is a measurement.*
   "two copies of a rule drift the moment one side is reworked" ([client.h:9](../../link/client.h)).
 - **Handing over never drops the robot**: TAKE CONTROL adopts a running robot's
   arm level ([client.h:294](../../link/client.h)); WATCH ONLY sends no parting disarm.
+- **Stopping never needs control.** The operator stop (`kFlagStop`) is out of band:
+  the robot counts it and never puts it in the command mailbox, so no latch or
+  watchdog sees it and no commander can undo it
+  ([control-channel.md](../control-channel.md), [`tools/estop.py`](../../tools/estop.py)).
+  The console's HOLD and E-STOP are those frames, in every role.
 
 ## 4. Window layout
 
 Three regions, always in this order:
 
 1. **Safety bar** (top, every tab, never scrolls): the state badge (colour per
-   link state), ARM/DISARM, STAND, E-STOP, RESET SERVOS on its own amber, battery,
+   link state), ARM/DISARM, STAND, **HOLD** (soft stop: policy stopped, joints held
+   stiff, the robot homes once upright and still), **E-STOP** (hard stop: torque
+   off now), RESET SERVOS on its own amber, battery,
    servo health, gamepad state, recording, TAKE CONTROL / WATCH ONLY; a fixed-width
    link line (what is sent, the beacon, the flight recorder, the robot clock); the
    BENCH reason whenever the robot reports one; the last console note.
@@ -80,7 +87,7 @@ Three regions, always in this order:
    camera, or the sim's own render.
 3. **Tabs** (right): Checks · Drive · Joints · Telemetry · Sim · Session · Setup.
 
-ARM, STAND and E-STOP keys are application-level shortcuts, so they work on every
+ARM, STAND, HOLD and E-STOP keys are application-level shortcuts, so they work on every
 tab and whichever widget has focus (the `sim/joint_puppet.py` key-filter pattern);
 a focused text field still swallows motion keys, as `WantCaptureKeyboard` does today.
 
@@ -134,15 +141,20 @@ with where its value comes from. Rows the console can read from data it already
 receives turn PASS or FAIL by themselves: pack voltage, calibration and fitted
 joints (flight-recorder HELLO), every fitted servo answering, IMU up vector and
 gyro, the recorder and NTP state, the home readback (a CLI-output event) and the
-time left in the ~30 s arm window. Rows only the tether or the eyes can answer
-(gains, shaper, obsfreeze, the floor and the spotter) are ticked by the operator.
+time left in the ~30 s arm window, and whether a stop is ready (10b: this
+console's HOLD / E-STOP count, since they are the out-of-band frames). Rows only
+the tether or the eyes can answer (gains, shaper, obsfreeze, the flail guard's
+limits, a hand on the servo power switch, the floor and the spotter) are ticked
+by the operator.
 The console does **not** block ARM — the firmware's refusals are authoritative —
 but the ARM button reads "ARM · checks open" until the list is clear.
 
-The **abort watch** shows each §5 condition with what it is watched from. It is
-advisory: the console flags, the operator and the spotter act. Disarming does not
-lower the robot ([first-policy-stand.md §4](../first-policy-stand.md)), so an
-automatic E-stop drops a robot nobody is holding.
+The **abort watch** shows each §5 condition with what it is watched from, and
+whether the robot's own flail guard has tripped (a flight `flail` event,
+`DISARMED_FLAIL`). It is advisory: the console flags, the operator and the
+spotter act. The robot judges itself (the flail guard holds the joints; the fall
+guard goes limp); a console-side automatic E-stop would only add a limp robot
+nobody is holding ([first-policy-stand.md §4](../first-policy-stand.md)).
 
 ### Drive
 
@@ -210,21 +222,32 @@ the gamepad mapping with a live test.
 
 ## 7. Interaction and safety model
 
-**Roles.** The console **starts as an observer** and sends nothing until TAKE
+**Roles.** The console **starts as an observer** and sends no commands until TAKE
 CONTROL. An observer still sees the robot through the flight recorder, which mira
 forwards; the robot only beacons to its commander, so an observer without a
-driver gets no beacon. This makes opening the console during a tethered run safe
-by construction (first-policy-stand.md:81).
+driver gets no beacon. Opening the console during a tethered run is therefore
+safe by construction ([first-policy-stand.md](../first-policy-stand.md) §3: once
+any command frame arrives, the watchdog follows that sender).
 
-**Controls by state** (driver; an observer has none of them):
+**Stops are for everyone.** HOLD and E-STOP send `tools/estop.py`'s frames —
+`kFlagStop`, soft or hard, 100 Hz for 1 s, to the robot's address and the LAN
+broadcast — and read the confirmation from the beacon; an unconfirmed HOLD is
+escalated to a hard stop within 400 ms, as the tool does. They work in every
+role and state, a driver's E-STOP also sets the classic latched ESTOP level, and
+the console reuses the tool's code rather than a copy. A stop takes the beacon
+(the robot answers its last sender), so after an observer's stop the driver
+sees the beacon move until its next frame. The servo power switch stays the last
+word.
 
-| state | ARM | STAND | E-STOP | RESET SERVOS | motion |
+**Controls by state** (driver; an observer has only HOLD and E-STOP):
+
+| state | ARM | STAND | HOLD / E-STOP | RESET SERVOS | motion |
 | --- | --- | --- | --- | --- | --- |
 | BENCH | arm | — | yes | yes | refused: "not armed" |
 | STAND / LIVE | disarm | yes | yes | yes (benches) | yes |
-| ESTOP latched | disarm | clears the latch | latched | yes | refused until STAND |
-| FALLEN / VSAFE | arm (fresh edge) | — | yes | yes | refused |
-| link lost | — | — | yes (sent blind) | — | released |
+| ESTOP latched | disarm | clears the latch | yes | yes | refused until STAND |
+| FALLEN / FLAIL / STOP / VSAFE | arm (fresh edge) | — | yes | yes | refused |
+| link lost | — | — | yes (sent blind, unconfirmed) | — | released |
 
 The refusal texts follow the keymap (today they hard-code `[a]` and `[space]`).
 
@@ -233,9 +256,11 @@ mouse hold buttons merge with the keys. Window focus loss releases everything.
 
 **Gamepad.** SDL's GameController API, mapped by position, not by raw index
 (`link/sources.py` uses raw indices today, [sources.py:230-233](../../link/sources.py)):
-`rightshoulder` = dead-man (hold), east = E-STOP, left stick = vx / vy (vx through
-`stick_to_speed`'s trained band), right stick x = wz. The pad cannot ARM or RESET
-SERVOS. While the dead-man is held the pad drives and motion keys are ignored; the
+`rightshoulder` = dead-man (hold), east = E-STOP (the out-of-band hard stop, in
+every role), left stick = vx / vy (vx through `stick_to_speed`'s trained band),
+right stick x = wz. The pad cannot ARM or RESET SERVOS. The procedure's advice
+for an operator who is also the spotter — the stop in one hand as a button
+([first-policy-stand.md](../first-policy-stand.md) §4) — is this. While the dead-man is held the pad drives and motion keys are ignored; the
 bar says which source drives. Labels follow the pad (the SN30 Pro prints "A" on the
 east button). A disconnected pad releases everything.
 
@@ -274,7 +299,7 @@ the 10 Hz beacon was considered and dropped for it.
 2. **`tools/flight_collector.py --forward HOST:PORT`**: re-send every datagram
    verbatim, best-effort, after writing it — the `--watch` pattern. mira keeps the
    file; the console gets the stream. (`--port` is the only network option today,
-   [flight_collector.py:338](../../tools/flight_collector.py).)
+   [flight_collector.py:360](../../tools/flight_collector.py).)
 3. **`sim/sil_twin.py`** emits flight records (from its SIL targets and measured
    joints, through `tools/flightrec.py`) and sends the attitude block when asked
    (it never sends `up_xy` today).
@@ -296,7 +321,8 @@ No firmware change.
 - **Threads.** The link tick (a `QTimer`), beacon and flight-record sockets
   (`QSocketNotifier`), the gamepad poll and the 3D render all run on the GUI thread.
   MJPEG readers run on their own threads and hand over decoded frames.
-  Flight records decode with [`tools/flightrec.py`](../../tools/flightrec.py).
+  Flight records decode with [`tools/flightrec.py`](../../tools/flightrec.py); stops are
+  sent with [`tools/estop.py`](../../tools/estop.py)'s frame and confirmation code.
 - `--headless` with today's stdin verbs, so [`tests/test_gui_e2e.py`](../../tests/test_gui_e2e.py)
   runs against both consoles.
 
@@ -321,8 +347,9 @@ No firmware change.
 
 - **Headless end-to-end**: `tests/test_gui_e2e.py`'s scenarios against both consoles
   (arm, release stops on the next frame, home frames, observer refusals, EOF disarms).
-- **Safety, at the socket**: an observer emits no datagram, ever; focus loss and pad
-  loss release on the next frame; quit sends the disarm frames.
+- **Safety, at the socket**: an observer emits no command frame, ever — only operator-stop
+  frames, and only on HOLD / E-STOP; focus loss and pad loss release on the next frame;
+  quit sends the disarm frames; an unconfirmed HOLD escalates to a hard stop.
 - **Flight records**: decode against the golden vectors `tools/flightrec.py` already pins.
 - **Widgets**: offscreen Qt (`QT_QPA_PLATFORM=offscreen`) builds every tab; a screenshot
   per tab, as the mockups are made.
@@ -362,6 +389,8 @@ The design maps by position, so any SDL-recognised pad works. Two candidates:
 4. Twin-in-the-loop: send every robot command frame to the sim as well?
 5. Retire `bimo_gui` at parity, or keep both?
 6. Which pad: the SN30 Pro (cheaper; Linux to verify) or the DualSense?
+7. HOLD's key: `f` in the mockups. `s` is soft stop in `tools/estop.py --button`
+   but a second STAND in `bimo_tui`; one meaning across the tools would be better.
 
 ## 16. How the mockups are made
 
