@@ -1,0 +1,49 @@
+=== Mon Nov  2 11:39:46 AM MST 2026 shaper_gpu start, /home/claw/code/robot-shaper-train @ 9385311 ===
+11:39 paused camera-watcher-classifier-1
+11:39 teacher robot_legs_walk17_shp10 start (timeout 3300s): --steps 300000000 --init-from robot_legs_walk16_act --seed 7 --act-delay-types sts3215=0:2,sts3250=0:1 --fw-shaper 10 --fw-goal-speed --act-lag 2.65,8 --act-lag-order 1 --act-lag-scale sts2026 --clock-coast-stand 1.5708 --w-squeeze 0.5
+11:40 teacher robot_legs_walk17_shp10 exit 0
+no params for robot_legs_walk17_shp10
+=== Mon Nov  2 11:40:30 AM MST 2026 shaper_gpu done ===
+11:40 resumed camera-watcher-classifier-1
+=== Mon Nov  2 11:40:30 AM MST 2026 shaper_gpu end (trap) ===
+=== Mon Nov  2 11:41:40 AM MST 2026 shaper_gpu start, /home/claw/code/robot-shaper-train @ 9385311 ===
+11:41 paused camera-watcher-classifier-1
+11:41:40 unloaded qwen2.5vl:latest
+11:41:45 GPU free 11840 MiB
+11:41 teacher robot_legs_walk17_shp10 start (timeout 3300s): --steps 300000000 --init-from robot_legs_walk16_act --seed 7 --act-delay-types sts3215=0:2,sts3250=0:1 --fw-shaper 10 --fw-goal-speed --act-lag 2.65,8 --act-lag-order 1 --act-lag-scale sts2026 --clock-coast-stand 1.5708 --w-squeeze 0.5
+11:41:50 GPU free 11840 MiB
+12:18 teacher robot_legs_walk17_shp10 exit 0
+12:18:29 unloaded nomic-embed-text:latest
+12:18:34 GPU free 11840 MiB
+12:18 distill robot_legs_walk17_shp10_s128r24 start (budget 1200s)
+12:21 distill robot_legs_walk17_shp10_s128r24 exit 0
+=== Mon Nov  2 12:21:06 PM MST 2026 shaper_gpu done ===
+12:21 resumed camera-watcher-classifier-1
+=== Mon Nov  2 12:21:06 PM MST 2026 shaper_gpu end (trap) ===
+=== Mon Nov  2 12:21:06 PM MST 2026 shaper_gpu start, /home/claw/code/robot-shaper-train @ 3f8d27d ===
+12:21 paused camera-watcher-classifier-1
+12:21:12 GPU free 11840 MiB
+12:21 teacher robot_legs_walk18_shp10lg start (timeout 3300s): --steps 300000000 --init-from robot_legs_walk17_shp10 --seed 8 --act-delay-types sts3215=0:2,sts3250=0:1 --fw-shaper 10 --fw-goal-speed --act-lag 2.65,8 --act-lag-order 1 --act-lag-scale sts2026 --clock-coast-stand 1.5708 --w-squeeze 0.5 --loop-gain-range 1.0,1.6
+12:21:17 GPU free 11840 MiB
+=== Mon Nov  2 02:09:46 PM MST 2026 shaper_gpu start, /home/claw/code/robot-shaper-train @ df9672e ===
+14:09 paused camera-watcher-classifier-1
+14:09:51 GPU free 11840 MiB
+14:09:56 GPU free 11840 MiB
+14:09 distill robot_legs_walk18_shp10lg_s128r24 start (budget 1200s)
+14:12 distill robot_legs_walk18_shp10lg_s128r24 exit 0
+=== Mon Nov  2 02:12:35 PM MST 2026 shaper_gpu done ===
+14:12 resumed camera-watcher-classifier-1
+=== Mon Nov  2 02:12:35 PM MST 2026 shaper_gpu end (trap) ===
+=== Mon Nov  2 02:13:24 PM MST 2026 shaper_gpu start, /home/claw/code/robot-shaper-train @ dfbbbea ===
+14:13 paused camera-watcher-classifier-1
+14:13:30 GPU free 11840 MiB
+14:13 teacher robot_legs_walk18_shp10sq start (timeout 3300s): --steps 300000000 --init-from robot_legs_walk17_shp10 --seed 9 --act-delay-types sts3215=0:2,sts3250=0:1 --fw-shaper 10 --fw-goal-speed --act-lag 2.65,8 --act-lag-order 1 --act-lag-scale sts2026 --clock-coast-stand 1.5708 --w-squeeze 1.0
+14:13:35 GPU free 11840 MiB
+14:50 teacher robot_legs_walk18_shp10sq exit 0
+14:50:33 unloaded qwen2.5:7b-instruct-ctx16k
+14:50:38 GPU free 11840 MiB
+14:50 distill robot_legs_walk18_shp10sq_s128r24 start (budget 1200s)
+14:53 distill robot_legs_walk18_shp10sq_s128r24 exit 0
+=== Mon Nov  2 02:53:12 PM MST 2026 shaper_gpu done ===
+14:53 resumed camera-watcher-classifier-1
+=== Mon Nov  2 02:53:12 PM MST 2026 shaper_gpu end (trap) ===

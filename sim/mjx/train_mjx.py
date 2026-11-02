@@ -423,6 +423,19 @@ def make_parser():
                         "sin/cos obs stop oscillating, removing the rhythmic "
                         "drive the policy otherwise must ignore to stand "
                         "still (2026-08-12)")
+    p.add_argument("--clock-coast-stand", type=float, default=None, metavar="PHASE",
+                   help="at a plain stand the gait clock keeps its rate until the "
+                        "phase reaches PHASE (rad), then holds: the firmware's "
+                        "`standclock coast` (default target pi/2 = 1.5708, measured "
+                        "on the robot 2026-11-02). Exclusive with --clock-freeze-stand")
+    p.add_argument("--w-squeeze", type=float, default=None,
+                   help="stand-gated L1 penalty on the servo position error "
+                        "|served target - q| (rad, less the backlash band): the "
+                        "robot's armed stand drew ~1 W on targets the legs cannot "
+                        "reach vs 0.05-0.19 W for a static hold (2026-11-02)")
+    p.add_argument("--squeeze-lash-band", action="store_true",
+                   help="--w-squeeze ignores errors inside half the backlash (the sim PD's "
+                        "dead zone); default: the full error the servo's encoder sees")
     p.add_argument("--stop-grace-s", type=float, default=None,
                    help="keep the gait shaping on this many seconds after a "
                         "walk -> stand stop, so the closing step is shaped "
@@ -605,6 +618,25 @@ def make_parser():
                    help="episode start-pose jitter half-width per joint, deg "
                         "(unset = the historical 1.7 deg); served target starts "
                         "at the jittered pose when set")
+    p.add_argument("--fw-shaper", default=None, metavar="HZ[,HZ_MAX]",
+                   help="the firmware's C2 command shaper (obs::CommandShaper: 3 "
+                        "cascaded first-order lags) on the policy's targets, before "
+                        "the goal ticks and the servo; one pole per episode drawn "
+                        "uniform(HZ, HZ_MAX), or fixed at HZ. Deploy with `shape` = "
+                        "the trained pole (firmware default obs::kShaperPoleHz = 10)")
+    p.add_argument("--fw-goal-speed", action="store_true",
+                   help="with --fw-shaper: the firmware's per-joint goal speed "
+                        "(1.25 x |goal - present| per tick, 50..3400 steps/s): the "
+                        "servo set point slews to each new goal within the tick")
+    p.add_argument("--loop-gain-range", default=None, metavar="LO,HI",
+                   help="loop-gain DR: per episode the served targets follow the action's "
+                        "0.5 s mean + g x its deviation, g ~ U(LO, HI); the policy sees its "
+                        "raw action. The stand-still loop-gain probe (the robot runs ~1.5x "
+                        "the sim's loop gain, 2026-11-02) as training DR, e.g. 1.0,1.6")
+    p.add_argument("--act-lag-order", type=int, default=None, choices=(1, 3),
+                   help="stages in the --act-lag cascade: 3 (default; the historical "
+                        "stand-in for shaper + servo) or 1 (the servo's own "
+                        "first-order rise, pole = 1/(2 pi tau), with --fw-shaper)")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -814,6 +846,17 @@ def build_env_kw(args):
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
+    if args.act_lag_order is not None:
+        env_kw["act_lag_order"] = int(args.act_lag_order)
+    if args.fw_shaper is not None:
+        hz = [float(x) for x in args.fw_shaper.split(",")]
+        env_kw["fw_shaper_hz"] = hz[0]
+        if len(hz) > 1:
+            env_kw["fw_shaper_hz_max"] = hz[1]
+    if args.fw_goal_speed:
+        env_kw["fw_goal_speed"] = True
+    if args.loop_gain_range is not None:
+        env_kw["loop_gain_range"] = tuple(float(x) for x in args.loop_gain_range.split(","))
     if args.roll_lash_deg is not None:
         lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
         env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
@@ -946,6 +989,14 @@ def build_env_kw(args):
         env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
+    if args.clock_coast_stand is not None:
+        if args.clock_freeze_stand:
+            raise SystemExit("--clock-coast-stand and --clock-freeze-stand are exclusive")
+        env_kw["clock_stand_coast"] = float(args.clock_coast_stand)
+    if args.w_squeeze is not None:
+        env_kw["w_squeeze"] = args.w_squeeze
+    if args.squeeze_lash_band:
+        env_kw["squeeze_lash_band"] = True
     if args.stop_grace_s is not None:
         env_kw["stop_grace_s"] = args.stop_grace_s
     if args.mimic_crouch_gate:

@@ -1,0 +1,4 @@
+BRANCH=shaper-train
+# distill: robot_legs_walk19_shp10sq -> robot_legs_walk19_shp10sq_s128r24 (stock 24-round DAgger, the firmware-sized (128,128) student)
+CMD=infra/night_distill.sh robot_legs_walk19_shp10sq robot_legs_walk19_shp10sq_s128r24
+OUT=robot_legs_walk19_shp10sq_s128r24

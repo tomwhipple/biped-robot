@@ -1,0 +1,4 @@
+BRANCH=shaper-train
+# distill: robot_legs_walk19_shp8_12sq -> robot_legs_walk19_shp8_12sq_s128r24
+CMD=infra/night_distill.sh robot_legs_walk19_shp8_12sq robot_legs_walk19_shp8_12sq_s128r24
+OUT=robot_legs_walk19_shp8_12sq_s128r24
