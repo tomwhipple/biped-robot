@@ -26,8 +26,8 @@ from typing import NamedTuple
 MAGIC_CMD = b"BM"          # laptop -> robot ("BiMo")
 MAGIC_TLM = b"BT"          # robot -> laptop
 # Protocol version 2 (issue #81): the telemetry frame carries the robot's
-# 17-servo bus -- servo_err widens from one byte to a u32 (bit b = servo ID
-# b + 1) and the joint block is 17 angles in servo-ID order. The BASE block
+# 17-servo bus -- servo_err widens from one byte to a u32 (bit b = bus joint
+# b, obs/bus_map.h order) and the joint block is 17 angles in bus order. The BASE block
 # changed, which a length cannot say, so the version byte is 2 in BOTH
 # directions: a version-1 console and a version-2 robot refuse each other's
 # frames outright instead of one of them driving blind. Consoles and firmware
@@ -54,7 +54,7 @@ _TLM_BODY = "<2sBBIHhhhIB"
 _TLM_TIME_OFF = struct.calcsize(_TLM_BODY)          # 21: the u64 t_us
 TLM_LEN = _TLM_TIME_OFF + 8 + 2                     # 31
 # The JOINT block (mirror mode): one int16 milli-radian per bus joint, in
-# servo-ID order (JOINT_NAMES), for driving the real robot while a sim
+# bus order (JOINT_NAMES), for driving the real robot while a sim
 # follows its observed pose. The robot is the SENDER here and every client is
 # a decoder that rejects a length it does not know, so the long frame is
 # REQUESTED (FLAG_POSE), never volunteered: a client that asks is by
@@ -70,7 +70,7 @@ JOINT_NAMES = (
     "R_hip_yaw", "L_hip_yaw", "R_ankle_roll", "L_ankle_roll",
     "neck_yaw", "R_shoulder", "R_elbow", "L_shoulder", "L_elbow",
 )
-NUM_JOINTS = len(JOINT_NAMES)                       # 17; servo ID = index + 1
+NUM_JOINTS = len(JOINT_NAMES)                       # 17, bus order (servo IDs: bus_map.h kBusServoId)
 TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS              # 65
 
 # ATTITUDE: up_x and up_y appended after the joint block. up_z is in the base
@@ -84,6 +84,10 @@ TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
 TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
 # Every length a decoder accepts.
 TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+# recvfrom() size for every telemetry receiver. UDP truncates silently, so +1:
+# an oversize datagram then arrives oversize and is refused, never cut back to
+# a valid length. The C++ consoles' twin: link/client.cpp Link::poll.
+TLM_RECV_BYTES = max(TLM_LENS) + 1
 
 CMD_PORT = 4210            # robot listens here
 TLM_PORT = 4211            # laptop listens here
@@ -110,6 +114,16 @@ FLAG_HOME = 1 << 4
 # "Beacon the torso up vector too" -- a LEVEL, like FLAG_POSE. Requests
 # telemetry, commands nothing.
 FLAG_ATT = 1 << 5
+# OPERATOR STOP, out of band (2026-11-01): a frame from a stop button
+# (tools/estop.py), not from a commander. The robot acts on it on receipt in
+# every mode and NEVER feeds it to the ArmLatch, HomeLatch or Watchdog, so a
+# second sender cannot make arm/bench edges against a running commander's ARM
+# level, be dropped as a stale seq, or be undone by the commander's next
+# ENABLE-off frame. With FLAG_ESTOP: HARD stop (torque released, run ended).
+# Without: SOFT stop (policy stopped, joints held where they are with torque
+# on, run ended, the bench homes it). A level: repeats are harmless. Firmware
+# reference: linkproto::kFlagStop (protocol.h has the long form).
+FLAG_STOP = 1 << 6
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -155,7 +169,8 @@ class LinkState(Enum):
     # the operator sends clears these -- only a pack swap and a reboot.
     VLAND = "vland"        # confirmed flat pack: crouching down under control
     VSAFE = "vsafe"        # crouch finished, torque off, and it stays off
-    # Torso down (up_z below the sim's own fall threshold, debounced),
+    # Torso down (tilt past 45 deg for 200 ms, firmware components/fallguard;
+    # tighter than the sim's own fall_up_z = 0.4, which stays the episode end),
     # robot-latched: torque off so a downed robot does not grind its servos
     # against the floor. A fall DISARMS the robot (firmware ctrl_task): this
     # state is reported for the fall tick, then the robot benches. Re-arming
@@ -219,6 +234,18 @@ class ArmResult(Enum):
     # The robot reads registers 21/22 back before every arm and refuses on
     # any difference from its compiled expected table.
     REFUSED_GAINS = 10   # arm refused: a servo's P/D (reg 21/22) is not the expected value
+    # A policy profile (firmware/policies/) can compile in an UNTRAINED test
+    # net while its plant has no deployable policy; the robot will not drive
+    # servos with it.
+    REFUSED_POLICY = 11  # arm refused: the compiled-in net is not a policy
+    # (2026-11-01) The armed loop's flail guard (firmware components/
+    # flailguard) found the policy clearly misbehaving for its command,
+    # stopped it, froze the joints where they were with torque ON and ended
+    # the run; the bench homes it once upright and still.
+    DISARMED_FLAIL = 12
+    # An operator stop (FLAG_STOP) ended the run: torque released (hard) or
+    # held where it was (soft).
+    DISARMED_STOP = 13
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -280,6 +307,17 @@ def diag_reason(diag: int) -> str:
         return ("arm REFUSED -- a servo's position-loop gains (reg 21/22) "
                 "are not the expected values, or did not read back (run "
                 "`gains`)")
+    if r is ArmResult.REFUSED_POLICY:
+        return ("arm REFUSED -- this firmware's compiled-in net is a "
+                "placeholder/untrained test net, not a policy (flash a build "
+                "with real weights)")
+    if r is ArmResult.DISARMED_FLAIL:
+        return ("disarmed -- FLAIL guard: the policy misbehaved, so it was "
+                "stopped and the joints HELD stiff; it homes once upright "
+                "and still (`flail` on the tether says why)")
+    if r is ArmResult.DISARMED_STOP:
+        return ("disarmed -- operator STOP (tools/estop.py): run ended; "
+                "re-arm deliberately (ARM edge or run)")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")
@@ -331,6 +369,11 @@ class Command(NamedTuple):
         """"Beacon the up vector too" -- a level, like `pose`."""
         return bool(self.flags & FLAG_ATT)
 
+    @property
+    def stop(self) -> bool:
+        """An operator stop (FLAG_STOP): out of band, see the flag."""
+        return bool(self.flags & FLAG_STOP)
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -340,7 +383,7 @@ class Telemetry(NamedTuple):
     vx_est: float          # m/s, body-frame forward
     wz_est: float          # rad/s
     servo_err: int         # u32 bitmask, bit b = BUS joint b faulted, i.e.
-                           # servo ID b + 1 (JOINT_NAMES order); only fitted
+                           # bus joint b (JOINT_NAMES order); only fitted
                            # servos ever set a bit
     loop_late_pct: int     # % of control ticks that overran 20 ms
     # Measured joint angles, radians, bus order (JOINT_NAMES: servo ID =
@@ -719,6 +762,18 @@ class Supervisor:
     def accept(self, pkt: Command, now_ms: float) -> bool:
         """Feed one decoded frame. Returns the watchdog's verdict (always
         False while benched: nothing was applied)."""
+        # An operator stop is out of band: no latch, no watchdog sees it, so
+        # it can neither make edges against another sender's ARM level nor
+        # be undone by one. Armed, it ends the run -- torque off (hard, with
+        # FLAG_ESTOP) or held where it is (soft); benched it changes no mode.
+        if pkt.stop:
+            if self.armed:
+                self.armed = False
+                self.result = ArmResult.DISARMED_STOP
+                self.holding = not pkt.estop
+            elif pkt.estop:
+                self.holding = False
+            return False
         want = self.latch.update(pkt.flags)
         if want is not None and want != self.armed:
             if want and not self.arm_allowed:

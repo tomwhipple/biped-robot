@@ -44,6 +44,10 @@ SECS=${3:?seconds}
 LABEL=${4:-$(basename "$OUT")}
 SIZE=${SIZE:-640x480}
 FPS=${FPS:-30}
+# INPUT_FORMAT=mjpeg: the camera compresses, so two webcams, the A7 III and the
+# servo tether can share one USB 2 hub (raw YUYV from two webcams wedged the
+# A7 III and starved the tether, 2026-10-23).
+INPUT_FORMAT=${INPUT_FORMAT:-}
 
 # Fontconfig can find a monospace face on its own, but naming the file makes
 # the burn-in identical on every host that has the package.
@@ -67,7 +71,7 @@ if [[ "$DEV" == lavfi:* ]]; then
   INPUT=(-f lavfi -t "$SECS" -i "testsrc=size=$SIZE:rate=$FPS")
   PRE="settb=AVTB,setpts=PTS+${DEV#lavfi:}/TB,"
 else
-  INPUT=(-f v4l2 -ts mono2abs -framerate "$FPS" -video_size "$SIZE" -t "$SECS" -i "$DEV")
+  INPUT=(-f v4l2 -ts mono2abs ${INPUT_FORMAT:+-input_format "$INPUT_FORMAT"} -framerate "$FPS" -video_size "$SIZE" -t "$SECS" -i "$DEV")
   PRE=""
 fi
 

@@ -97,14 +97,15 @@ Around the PD loop:
 
 | effect | model | knob |
 |---|---|---|
-| per-servo stiffness | kp and kd × a factor per servo — the position-loop P raised on chosen IDs, modelled as N × the fitted stiffness on the same envelope, as the design gates model it. `robot` = × 4 on the hip rolls (the STS3250s, the model's credit) and × 2.8 on the ankle rolls and knees (the bench's P 96 / D 0); `planb` = × 4 on all six (DESIGN.md §4); config.json records the resolved `{actuator: factor}` | `servo_kp_scale`, `--servo-kp-scale`; `servo_kp` / `servo_kd` also take one value per actuator |
+| per-servo stiffness | kp and kd × a factor per servo — the position-loop P raised on chosen IDs, modelled as N × the fitted stiffness on the same envelope, as the design gates model it. `robot` = × 4 on the hip rolls (the STS3250s, the model's credit) and × 2.8 on the ankle rolls and knees (the bench's P 96 / D 0); `planb` = × 4 on all six (DESIGN.md §4); `asbuilt` = the gains the robot arms with (`firmware/main/servo_gains.h`: factory P 32 / D 32 everywhere, which the bench and the one-leg lift put at × 2.8 on every STS3215 and × 4 on the STS3250 hip rolls -- the model's kp 12 is soft for a real P 32; [servo-map.md](servo-map.md) §4), the only preset a deployable legs policy builds against; config.json records the resolved `{actuator: factor}` | `servo_kp_scale`, `--servo-kp-scale`; `servo_kp` / `servo_kd` also take one value per actuator |
 | floor contacts | `all`: the plant as drawn. `feet` (training only): only the sole pads touch the floor; the servo boxes, the fall colliders and the arms stop colliding with it, and the explicit self-collision pairs stay. Those contacts only matter in a fall, which ends the episode, but MJX reserves and solves their slots every step: on the robot plant `feet` cuts 182 contact slots to 56 and the physics step about 3.5× (laptop CPU). The referee always grades with `all` | `floor_contacts`, `--floor-contacts feet` |
 | bus latency | the first sub-steps of each tick still serve the previous target; 0–8 ms per episode, ±1 ms jitter per tick | `latency_ms`, `latency_ms_max`, `latency_jitter_ms` |
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
+| roll play | an EXTRA deadzone on the four roll joints (hip roll, ankle roll) only, on top of the backlash: the play downstream of the encoders. Calibrated on the legs-only body so a 30 mm one-foot lift tilts the torso ~5° with the stance encoders moving ~1° (`sim/roll_compliance.py`, [roll-compliance-2026-10-24](design-v6/roll-compliance-2026-10-24.md)); total roll deadzone ≈ 2.6°. 1.0–2.6° extra per episode in the legs-only runs, MJX and CPU | `--roll-lash-deg lo,hi` (`roll_lash_deg`, `roll_lash_deg_max`) |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
 | dead time | the servo serves the target from 0–N control ticks ago | `--act-delay-max N` |
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
-| free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not | `play_deg`, `play_joints` |
+| free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not (it gets the same steady-state effect from the roll-play deadzone above) | `play_deg`, `play_joints` |
 | rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
 The bench numbers behind these knobs: the servo's dead time measures ≈ 85 ms
@@ -274,6 +275,7 @@ flag:
 | costs | `w_energy` 0.002, `w_action_rate` 0.15, `w_power` 0.008, `w_pitch_rate` 0.1 (torso roll + pitch rate), `w_lateral` 0.5 (vy error) |
 | skills | `w_lift` 1 (correct one-foot contact with clearance), `w_track_foot` 1 (swing-foot target, σ 6 cm), `w_foot_cross` 0.5 (soles closer than sole width + 5 mm); optional `w_knee_high`, `w_com_stance`, `w_foot_under` |
 | gait shaping (moving commands; slip always) | `w_feet_air` 5 (air time toward 0.3 s), `w_single_support` 0.3 (single support while moving, double while standing), `w_feet_phase` 1 (swing height follows the clock, 6 cm peak), `w_feet_slip` 0.25, `w_symmetry` 1 (swing-duration mismatch at touchdown); optional `w_contact_sched` (stance/swing timing) |
+| per-step clearance (any command) | optional `w_low_swing` (`--w-low-swing`): on the touchdown of a swing of ≥ 3 ticks, w × its sole peak's shortfall below 3 cm, the `walk_steps` rule; it also grades the start and stop steps the moving-gated gait shaping never sees |
 | regularization | `w_orientation` 1 (up_x² + up_y²), `w_ang_vel_xy` 0.15, `w_pose` 0.3 (every policy joint toward home, plain stand/walk only), `w_dof_limits` 1 (past 90 % of the policy range) |
 | imitation | `w_mimic` 1.5 in the `loco` family |
 | stand, crouch | optional: `w_still`, `w_stand_home`, `w_stand_com`, `w_stand_knee`; `w_crouch_pull`, `w_crouch_track`, `--crouch-pose-ref`, `--crouch-deep-ref`, `--crouch-rsi-mix` |
@@ -347,7 +349,8 @@ robust to something the robot does not do and fragile to what it does.
 **Batch level** — one randomized model per parallel env, drawn once per batch
 size (`domain_randomize`, the standard MJX pattern):
 
-- body mass and inertia × U(0.85, 1.15), per body;
+- body mass and inertia × U(0.85, 1.15), per body; `--torso-mass-range r` draws the torso's scale from U(1−r, 1+r) instead (the legs-only runs use 0.4: the as-built torso is an unweighed estimate);
+- `--torso-com-y c`: the torso's CoM shifted laterally by U(−c, +c) m (±15 mm in the legs-only runs: the same model weight shift balanced ~3° better on one stance foot than the other);
 - floor friction × U(0.6, 1.4);
 - gravity tilted by U(0, `--tilt-max`)° about a random azimuth — an un-level
   floor, as the IMU sees it (off by default);
@@ -359,11 +362,15 @@ freeze them.
 
 - servo kp and kd × U(0.8, 1.2); stall torque and no-load speed × U(0.85, 1.15);
 - latency 0–8 ms (±1 ms per tick) and backlash 0.5–1.0° (§2);
-- IMU mounting misalignment (a rotation of N(0, 2°) about a random axis), gyro
+- IMU mounting misalignment (a rotation of N(0, `--imu-mount-deg`) about a random axis, 2° by default, 3° in the legs-only runs: the stored mount is from the old body), gyro
   bias U(±0.03 rad/s), and per-step noise (σ 0.01 on `up`, 0.03 rad/s on the
   gyro);
 - velocity kicks U(0.1, 1.0) m/s at 1 % per tick (`--kick-range`,
-  `--push-prob`);
+  `--push-prob`); `--push-force N` trains with torso shoves of N newtons held
+  for one control step instead of the kicks; the referee pins 5 N at 1 % whatever a
+  run trained with, and grades harder shoves on their own card
+  (`eval_precision.py --push-force 15 --push-prob 0.02` →
+  `scorecard_push15x0.02`);
 - start-pose jitter ±1.7° per joint (`--init-pose-deg`);
 - the gait-clock frequency and the command draws (§3, §4).
 
@@ -376,6 +383,7 @@ freeze them.
 | `--zero-offset-deg z` | per-joint zero offset U(±z): the served target is target + offset, the observation subtracts it | hardware zeros are set by eye and move by degrees after a mechanical disturbance |
 | `--gyro-gain-range lo,hi`, `--gyro-delay-max N` | gyro observation gain; delay ≤ 2 ticks | IMU scale and timing error |
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
+| `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |
 
 `--discovery` strips DR, payload, latency, backlash and pushes: a clean-physics
@@ -432,15 +440,27 @@ Training runs **at night only**; days belong to the box's owner.
 - **Queue.** Jobs run in sorted order; the queue is rescanned after every job.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
-  say) through the same GPU gate. `--steps` is capped to what the remaining
-  window allows.
+  `infra/night_distill.sh`, §9) through the same GPU gate. `--steps` is capped to what the remaining
+  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). Lines
+  starting `#` are notes (parent, variable, hypothesis), never arguments.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
   back to CPU is moved back onto the GPU.
 - **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
   finished run into the working checkout and referees it: the python column
-  with `--render`, and the SIL column. The lag column is run by hand (§8).
+  with `--render`, and the SIL column. The lag column is run by hand (§8). It
+  fast-forwards the checkout to `origin/main` first, so the references and
+  plants a run trained against are there to referee it.
+- **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
+  collection, then runs a headless Claude Code session on
+  `infra/night/planner_prompt.md`: it evaluates the night against the campaign
+  record (today the get-up, [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md)),
+  improves the references on the CPU if a phase is failing, queues the next
+  night, refreshes the results page and reports on the campaign's issue.
+  `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
+  from `night/fallback.job` with fresh seeds if the planner left it short.
+  Installed copies of both live beside the runner in `night/`.
 
 ### Training on the Mac (CPU physics + MPS)
 
@@ -584,6 +604,7 @@ Pass criteria, in addition to not falling:
 | `squat_reps` | loco, skills | 3 × (crouch 0.70 for 1.5 s, stand 1.5 s) | every rep within 3.5 cm of the crouch target and back to ≥ 92 % height; drift RMS < 0.10 m |
 | `weight_shift` | loco, skills | 1.5 s single-leg holds L, R, twice, at crouch 0.85 | ≥ 3 of 4 clean holds; drift RMS < 0.10 m |
 | `balance_L/R` | skills | lift one foot for 10 s | lifted-foot contact < 5 %; ≥ 3 cm clearance for ≥ 90 % of the window; drift RMS < 0.10 m |
+| `walk_steps_L/R` | on request (`--scenarios`, or `--eval-scenarios` at train time) | stand 1 s, vx 0.30 for 1.8 s starting with the L / R foot (the gait clock is set so that foot swings first), then stand | no fall; ≥ 4 steps and ≥ 2 per foot, a step being a swing of ≥ 3 ticks that begins between the command and 0.4 s after the stop; **every step lifts its own foot's sole ≥ 3 cm** above the standing sole height (the per-step minimum, not a fraction); ≥ 0.25 m forward; upright at the end; lateral drift < 0.25 m. Reports `lead_ok` (the requested foot went first), informational |
 | `circle_air_L/R` | skills | lift, then 2 circles of 4 cm with the foot | touchdown < 10 %; clearance ≥ 3 cm for ≥ 80 %; traced radius ≥ 3 cm and ≥ one full sweep |
 | `crouch_hold` | skills | crouch 0.7 for 3 s, then stand | height within 3.5 cm of target; recovers to ≥ 90 % |
 | `march_in_place` | skills | alternating lifts every 0.7 s | ≥ 3 clean lifts per leg (≥ 0.3 s at ≥ 3 cm); drift < 0.15 m |
@@ -593,7 +614,12 @@ Pass criteria, in addition to not falling:
 | `recover_fallen` | getup | start from a settled ragdoll | held stand within 6 s; ≥ 85 % height at the end |
 
 (Heights are fractions of the plant's nominal torso height.) `handover_stand`
-exists behind `--scenarios` only, so it never moves the comparable totals.
+and `walk_steps_L/R` exist behind `--scenarios` only, so they never move the comparable totals.
+A run can ask for extra scenarios on its own default card with `train_mjx.py
+--eval-scenarios walk_steps_L,walk_steps_R` (recorded in `config.json`); the card
+then has more rows than its family's, and its total is not comparable with the
+family's. `balance_L/R` also report `one_foot_s` and `one_foot_run_s` (time on one
+foot with the lifted sole ≥ 3 cm, total and longest unbroken); the pass rule is unchanged.
 
 **Metrics.** Pass/fail is a threshold view; every seed also records continuous
 metrics — endpoint and tracking errors, clearance fraction, drift RMS,
@@ -640,7 +666,37 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
   a 24-round student scored 41/144 under lag against 28/144 for 12 rounds
   (teacher 46). Name students `<teacher>_s128r24`.
 - The student is saved as a brax PPO network (`params.pkl` + `config.json`), so
-  all three referee columns score it with no shim.
+  all three referee columns score it with no shim. It is written after **every
+  round** (atomically), so a kill leaves the last finished round's student;
+  `config.json["distill"]` records `rounds_done` and `complete`.
+- **On the robot's plant** (`--robot --xml bimo_biped_v6legs.xml`) the same
+  script distills a legs teacher: 12 joints with the ankle rolls, frame 55,
+  net 165 → 128 → 128 → 24, ≈ 41k parameters (≈ 160 KB fp32). The teacher's
+  physics is reused (`mjx_impl: warp`, contact pool re-sized to the distill
+  batch); `--mjx-impl jax` distills a Warp teacher on the CPU. The student
+  inherits the teacher's action map, and the exporter takes `full` only: a
+  deployable student needs a teacher trained with `--action-map full`
+  (`--require-full-map` refuses any other).
+- **As a night job**, right after its teacher (§7): `infra/night_distill.sh
+  <teacher> [<student>]` distills 24 rounds inside a wall-clock budget that ends
+  at 06:45 less a referee reserve (`--time-budget-s`: no round starts that
+  would not finish), referees the student on the CPU on `walk_steps_L/R`
+  (the clearance gate) and `stand_10s` into `scorecard_partial.md`, and hands
+  it to the morning collector (`night/state.done.<student>`), which grades it
+  with the full card and the reel like any run. The queue file sorts after the
+  teacher's:
+
+  ```
+  BRANCH=main
+  CMD=infra/night_distill.sh robot_legs_walk11_full robot_legs_walk11_full_s128r24
+  OUT=robot_legs_walk11_full_s128r24
+  ```
+
+  `infra/night/preflight.sh.py` checks a distill job at 22:00: the student name
+  is new and equals `OUT=`, the teacher exists in the night clone or is the
+  `--out` of an earlier queued job, its action map is `full`
+  (`DISTILL_ALLOW_LEGACY=1` in the `CMD` for a referee-only student), and the
+  wrapper is on the job's branch.
 
 **Deployment**, in order:
 
@@ -679,6 +735,64 @@ the squat reference (`--crouch-rsi-mix`). Plant `bimo_biped_v5body.xml`; net
 stand freeze and the speed clock (×0.7–1.25). Its scorecards and reels are on
 the results page.
 
+### Policy profiles: a second plant's policy
+
+The firmware compiles in exactly one policy, chosen at build time. The
+deployed one's generated files are the ones above; a **policy profile** is a
+complete second set for another plant (`tools/policy_profile.py`):
+`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, vectors/*.h}`
+and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
+
+| | deployed | profile `v6legs` |
+|---|---|---|
+| headers | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
+| host tests | `make -C firmware/host test` runs the deployed build, then every profile's | `make -C firmware/host test POLICY=v6legs` (into `build/policy-v6legs/`) |
+| ESP32 image | `make firmware` → `build/firmware` | `make firmware POLICY=v6legs` → `build/firmware-v6legs` (`idf.py -DBIMO_POLICY=v6legs`) |
+| SIL | `eval_precision.py --sil` and `sim/sil_twin.py` pick the profile whose `kPlantXml` is the run's plant (`$BIMO_POLICY` for `sim/sil/harness.py`), build its `libctrl_sil`, and refuse a run whose joints or obs layout differ from the compiled spec | |
+
+The profile's directory goes first on the include path, and every generated
+header carries an `#error` guard against the other kind of build, so an
+include-order mistake cannot compile the wrong policy. Nothing outside the
+generated headers names a joint count: the assembler, the MLP, the actuation
+map, the control loop and the SIL ABI are sized by `obs_spec.h`.
+
+**Int8 profiles.** `make deploy RUN=<run> POLICY=<name> QUANT=int8`
+(`gen_policy_weights.py --quant int8`) writes the profile's net as int8
+(`policy/q8.h`): GPTQ-rounded on CPU-plant rollouts of the float net, which
+the generator runs itself (~10 s), and the head cut to its mean logits. A
+regeneration keeps an int8 profile int8. This is how a net wider than
+(128, 128) fits the 20 ms tick ([firmware-design.md §6.1](firmware-design.md)).
+The SIL library of an int8 build runs the compiled-in int8 net when given
+that run's `.silw` (any other run runs float, and the spec's `policy.quant`
+says which). Several profiles can share a plant; `eval_precision.py --sil`
+takes the first, and `SIL_PROFILE=<name>` picks another.
+
+**`v6legs256`**: the `v6legs` plant and obs layout with the walk14 (256, 256)
+student `robot_legs_walk14_s256r24` as an int8 net (165 → 256 → 256 → 24,
+109 KB). It is a timing and parity test net for §6.1 of the firmware design,
+not a deploy candidate.
+
+**`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
+`--robot`, action map `full`. 12 policy joints in the sim's actuator order —
+`L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
+same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
+(`q 0, dq 12, up 24, linvel 27, gyro 30, prev_action 33, height 45, phase 46,
+cmd 48`, 7 command channels), 3 frames, network 165 → 128 → 128 → 24. The
+profile carries **`robot_legs_walk16_act_s128r24`** (from 2026-11-02), the
+(128, 128) student of `robot_legs_walk16_act`, trained at the as-built factory
+gains (servo_kp_scale 2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its
+static check passes) plus actuator DR around them (per-servo dead time, kp/kd
+ranges; branch `policy-stand-rca`), with the ankle pitch inside its stops
+(policy range ±40 deg). It replaced `robot_legs_walk14_s1_s128r24`, the first
+armed test's policy, after the stand RCA (PR #189): 0/8 falls at ×1.5 loop
+gain on the measured actuator, where walk14_s1 fell from ×1.25. The comparison, the closed-loop SIL parity and the hardware procedure
+are in [first-policy-stand.md](first-policy-stand.md). Its frozen command
+channels (crouch 1, lift and foot 0) are pinned by the firmware
+(sil-harness.md finding 2). `tools/make_test_policy_run.py` still makes the
+untrained test net for exercising the path on a new plant. A placeholder
+compiles as `kWeightsArePlaceholder` and the firmware refuses to arm on it
+(`REFUSED_POLICY`); an exported net arms.
+
 ---
 
 ## 10. The results page
@@ -694,18 +808,31 @@ except `night_summary.html`; movies and clips are never committed.
 
 ## 11. Limits and the next layer
 
-- **Get-up is not trained.** An RL get-up is not pursued: across 12 rounds and
-  about 1.3 B steps, PPO reward shaping reached the kneel but could not bridge
-  kneel → balance-catch → held stand — including a clean-physics run with no
-  DR at all, which settled that the hardening was not the obstacle. The robot
-  gets up with a **scripted, arm-assisted sequence** instead ([DESIGN.md](../DESIGN.md),
-  "Get-up"). If an RL get-up is ever revived, the method is **phase-indexed
-  tracking** — a DeepMimic-style pose-and-velocity tracking objective at
-  dominant weight over a retimed kneel-corridor trajectory, with
-  reference-state initialization along it — not more shaping. The machinery
-  stays in the env: the `getup` family, recovery episodes (`recover_mix`,
-  `recover_start_mix`), the height ratchet and held-stand rule, `w_rise_ref`,
-  `--discovery`, and the two `recover_*` scenarios.
+- **Get-up is trained by tracking a reference, never by shaping.** Across 12
+  rounds and about 1.3 B steps, PPO reward shaping reached the kneel but could
+  not bridge kneel → balance-catch → held stand — including a clean-physics run
+  with no DR at all. The robot's get-up is the **scripted, arm-assisted
+  sequence** ([DESIGN.md](../DESIGN.md), "Get-up"); RL makes it robust by
+  **phase-indexed tracking** of that sequence's recorded open-loop rollout
+  (`--rise-ref`): a DeepMimic-style tracking term at dominant weight,
+  reference-state initialisation along it, residual actions around it and
+  early termination off it. A reference is only as good as the open-loop
+  sequence behind it — tracking one that cannot stand on the training plant
+  cannot work — so references are built and checked over a robustness grid by
+  `sim/getup_ref_analytic.py` (an analytic CoM-balanced rise, a searched prone
+  roll). The campaign and its nightly loop:
+  [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md), issue #137.
+  A reference is indexed by time from the episode start. The prone
+  reference's roll ends on the back and the supine seat push follows, so a
+  policy trained on it also gets up from supine when it starts at that phase
+  (`ref_back_phase`, ~11.3 s): the robot knows which way up it lies from the
+  IMU, so the start phase is its choice. `recover_supine` (phase 0),
+  `recover_supine_ph` (supine at the policy's on-the-back phase),
+  `recover_prone` and `recover_prone_fall` grade it; `recover_sit` and
+  `recover_fallen` do not apply to the robot. The joint friction is not
+  measured (0.05 BAM … 0.35 assumed), so `--joint-frictionloss-range lo,hi`
+  draws it per env in training, and `eval_precision.py --joint-frictionloss`
+  grades a run at another value (`scorecard_fl<value>.md`).
 - **Goals.** The planned next layer is **goal-conditioned locomotion**: a goal
   in the observation, and a policy judged on distance covered and goal
   reached, not on instantaneous velocity. Today the goal layer is an outer
@@ -766,14 +893,14 @@ the obs-spec generator rebuild the same robot:
 
 | piece | on the robot's plant |
 |---|---|
-| plant | `sim/bimo_biped_v6ar.xml`, generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries the 12 leg joints and the neck yaw; the arms (shoulder pitch + elbow per side) come with the CAD track's regeneration and need nothing here — every layout is read from the model, and `tests/test_robot_plant.py` runs a generated 17-servo plant today. No payload: the camera is in the head, which the plant models |
+| plant | `sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries the 12 leg joints and the neck yaw; the arms (shoulder pitch + elbow per side) come with the CAD track's regeneration and need nothing here — every layout is read from the model, and `tests/test_robot_plant.py` runs a generated 17-servo plant today. No payload: the camera is in the head, which the plant models |
 | policy joints | the 12 leg joints, 6 per leg with the ankle roll: frame 55, network input 165, action 12 |
 | neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, the arms at their folded rest pose (`dimensions_v6.ARM_REST`: shoulders 15° forward, elbows folded 95°; DESIGN.md §5.4), the pose that clears every leg joint's full range. A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
 | servo stiffness | per servo (`servo_kp_scale`, §2): the `robot` preset, × 4 on kp and kd of the hip rolls (STS3250) and × 2.8 on the ankle rolls and knees (STS3215 at P 96). The STS3250's larger stall and speed are not modelled: one STS3215 envelope for every servo |
 | hip pitch | policy range to −120° flexion (`hip_flex_deg`), the leg link's relief; the plant's stop stays at −125° |
 | reward roles | every policy joint must resolve to a role (`joint_role` in both envs: the six per-leg roles, neck, shoulder, elbow) or the env refuses to build — a joint a plant adds is held or named, never trained unregularized by accident. The posture, dof-limit and imitation terms sum over every policy joint, so the ankle roll is in them; the imitation reference keeps the sole level in pitch and roll (`mimic_sole_level`, §5) |
 | mirror | `mirror.py` maps over the policy joints (`joints=env._act_names`, as `--w-mirror-loss` passes them) and maps an unprefixed joint onto itself |
-| referee | `eval_precision.py` recognises the robot's plant by its ankle rolls and head camera: no pinned payload; `recover_sit` and `recover_fallen` are n/a (the robot gets up with the scripted arm sequence; legs alone cannot get this body up), `handover_stand` is n/a; every other scenario runs. n/a scenarios are listed in the scorecard and left out of the totals. `eval_ref.py` rebuilds the same world from `config.json` |
+| referee | `eval_precision.py` recognises the robot's plant by its ankle rolls and IMU (and the head camera where the plant has a head): no pinned payload; `recover_sit` and `recover_fallen` are n/a (the robot gets up with the scripted arm sequence; legs alone cannot get this body up), `handover_stand` is n/a; every other scenario runs. n/a scenarios are listed in the scorecard and left out of the totals. `eval_ref.py` rebuilds the same world from `config.json` |
 | parity | `sim/mjx/parity_test.py` blocks R1–R3 gate the CPU/MJX arithmetic on the robot's plant — Plan B, the held neck, a 17-servo plant with the arms held, the sole-level reference, quantization, airborne and in stance; `--robot-only` runs just those. `tests/test_robot_plant.py` is the smoke test |
 
 **Open before Gate E:**
@@ -781,10 +908,10 @@ the obs-spec generator rebuild the same robot:
 | piece | what remains |
 |---|---|
 | measured plant | the masses weighed (#82) replacing the CAD inertials; the stiffness factor from the bench (#73) replacing the nominal × 4 |
-| free play | modelled in the CPU plant only (`play_deg`, `play_joints`); the measured play per roll joint has to reach the training env and the referee's pinned conditions, since the walk's margins depend on it (DESIGN.md, "Walking") |
+| free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. Still open: the play per joint (one lumped value for the four roll joints), and the shaft/link split in the observation (the sim's encoders read the link) |
 | referee thresholds | the absolute thresholds (distances, drifts, the torque-off stand's unmeasured passive friction) are the prototype's; re-derive them for the taller, heavier robot. The plant-measured targets (nominal height, knee height, crouch depth) already follow the plant; the crouch-depth limit (`crouch_theta_max_deg` 39°) and the rise and fallen-start poses are the prototype's numbers |
-| firmware headers | `tools/gen_obs_spec.py` builds the env and the golden frames from a robot run as it stands, but has no servo IDs for the robot (`ID_BY_ROLE`; none is assigned yet, [servo-map.md](servo-map.md), #77) and emits neither the held servos' IDs and targets nor the per-servo P the firmware must check at boot (#81); `weights.h` and the golden vectors regenerate with it |
-| SIL twin | `libctrl_sil`, its ABI and calibration files, and `sim/sil_twin.py` for the 17-servo layout; `eval_precision.py --sil` refuses the robot's plant until then |
+| a deployable policy | the legs-only body has the firmware path (§9, "Policy profiles": the `v6legs` profile, golden-tested on an untrained net) but no trained net in the `full` action map; the `robot_legs_walk*` runs train in `legacy` |
+| the robot's bench envelope | `main/mech_envelope.h` `kMech*V6Legs`: the v6 legs plant's policy range, never probed. Its ankle-pitch ctrlrange (±45°) is wider than the plant's own joint stops (±40°) |
 
 **When.** The design is validated in stages (DESIGN.md, "Validation method"):
 kinematics, actuator margins and contact realism first, then the scripted

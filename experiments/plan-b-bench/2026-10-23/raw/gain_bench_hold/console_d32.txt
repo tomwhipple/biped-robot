@@ -1,0 +1,100 @@
+# 2026-10-23T13:11:33 hold_clamp.py id 31 LEVEL 230 DOWN 1254 A 23 ladder [(32, 32), (96, 32), (128, 32), (160, 32)]
+  start: pos 1256 (hanging)
+
+Arm hangs released. Put the CLAMP ON near the 100 mm notch (rigid, as before); press enter when it is on
+> 
+== P 32 D 32
+  gains 32/32: ok (already)
+
+NEXT MOTION: P 32: torque on hanging down; quiet hold + 4 smooth 2-deg moves; raise to straight out; quiet hold + 2 slow probes + 4 smooth 2-deg moves; lower and release
+  type go:
+>   travel 1256->1254: spd 0 (sd 0, 0..0), backward samples 0/0, load 8..16, end overshoot 0, residual range 0, err 0
+  DOWN quiet: pos +1.00, range 0, moving 0/152, load 8..8, err 0
+  DOWN step 1254->1277: overshoot 0, settle 0.3961, residual range 0, offset +0.0, moving in last 1 s 0, err 0
+  DOWN step 1277->1254: overshoot 0, settle 0.3964, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  DOWN step 1254->1231: overshoot 0, settle 0.4054, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  DOWN step 1231->1254: overshoot 0, settle 0.3955, residual range 0, offset +0.0, moving in last 1 s 0, err 0
+  travel 1254->230: spd 98 (sd 24, 50..150), backward samples 0/307, load 16..60, end overshoot 0, residual range 0, err 0
+  LEVEL quiet: pos +4.00, range 0, moving 0/150, load 32..32, err 0
+  LEVEL probes: above +4.0 (load 32), below +2.0 (load 16), midpoint +3.0
+  LEVEL step 230->253: overshoot 0, settle 0.4292, residual range 0, offset +2.0, moving in last 1 s 0, err 0
+  LEVEL step 253->230: overshoot 0, settle 0.3953, residual range 0, offset +4.0, moving in last 1 s 0, err 0
+  LEVEL step 230->207: overshoot 0, settle 0.4062, residual range 0, offset +4.0, moving in last 1 s 0, err 0
+  LEVEL step 207->230: overshoot 0, settle 0.4377, residual range 0, offset +2.0, moving in last 1 s 0, err 0
+  travel 232->1254: spd 100 (sd 28, 50..150), backward samples 0/305, load -20..8, end overshoot 0, residual range 0, err 0
+  released hanging: pos 1254
+
+== P 96 D 32
+  gains 96/32: ok
+
+NEXT MOTION: P 96: torque on hanging down; quiet hold + 4 smooth 2-deg moves; raise to straight out; quiet hold + 2 slow probes + 4 smooth 2-deg moves; lower and release
+  type go:
+>   travel 1254->1254: spd 0 (sd 0, 0..0), backward samples 0/0, load 0..0, end overshoot 0, residual range 0, err 0
+  DOWN quiet: pos +0.00, range 0, moving 0/147, load 0..0, err 0
+  DOWN step 1254->1277: overshoot 1, settle 0.405, residual range 0, offset +0.0, moving in last 1 s 0, err 0
+  DOWN step 1277->1254: overshoot 0, settle 0.3951, residual range 0, offset +0.0, moving in last 1 s 0, err 0
+  DOWN step 1254->1231: overshoot 0, settle 0.3957, residual range 1, offset +0.1, moving in last 1 s 5, err 0
+  DOWN step 1231->1254: overshoot 1, settle 0.3956, residual range 0, offset +0.0, moving in last 1 s 0, err 0
+  travel 1254->230: spd 100 (sd 28, 50..150), backward samples 0/312, load -4..76, end overshoot 0, residual range 0, err 0
+  LEVEL quiet: pos +1.00, range 0, moving 0/151, load 24..24, err 0
+  LEVEL probes: above +1.0 (load 24), below +1.0 (load 24), midpoint +1.0
+  LEVEL step 230->253: overshoot 0, settle 0.3946, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 253->230: overshoot 0, settle 0.3717, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 230->207: overshoot 0, settle 0.373, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 207->230: overshoot 0, settle 0.4056, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  travel 231->1254: spd 78 (sd 151, -400..400), backward samples 53/403, load -96..100, end overshoot 4, residual range 8, err 0
+  released hanging: pos 1277
+
+== P 128 D 32
+  gains 128/32: landed, ack lost
+
+NEXT MOTION: P 128: torque on hanging down; quiet hold + 4 smooth 2-deg moves; raise to straight out; quiet hold + 2 slow probes + 4 smooth 2-deg moves; lower and release
+  type go:
+>   travel 1277->1254: spd 61 (sd 21, 50..100), backward samples 0/9, load 0..32, end overshoot 0, residual range 0, err 0
+  DOWN quiet: pos +0.00, range 0, moving 0/150, load 0..0, err 0
+  DOWN step 1254->1277: overshoot 6, settle 2.0076, residual range 12, offset +0.2, moving in last 1 s 31, err 0
+  DOWN step 1277->1254: overshoot 5, settle None, residual range 10, offset +0.1, moving in last 1 s 27, err 0
+  DOWN step 1254->1231: overshoot 5, settle None, residual range 10, offset +0.4, moving in last 1 s 31, err 0
+  DOWN step 1231->1254: overshoot 6, settle None, residual range 10, offset +0.1, moving in last 1 s 29, err 0
+  travel 1259->230: spd 37 (sd 417, -600..800), backward samples 195/406, load -228..260, end overshoot 5, residual range 9, err 0
+  LEVEL quiet: pos +0.90, range 9, moving 148/150, load -128..164, err 0
+  LEVEL probes: above +1.0 (load 32), below +1.0 (load 32), midpoint +1.0
+  LEVEL step 230->253: overshoot 0, settle 0.3961, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 253->230: overshoot 0, settle 0.3619, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 230->207: overshoot 0, settle 0.3637, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  LEVEL step 207->230: overshoot 0, settle 0.3953, residual range 0, offset +1.0, moving in last 1 s 0, err 0
+  travel 231->1254: spd 77 (sd 222, -500..550), backward samples 64/404, load -224..196, end overshoot 6, residual range 10, err 0
+  released hanging: pos 1299
+
+== P 160 D 32
+  gains 160/32: ok
+
+NEXT MOTION: P 160: torque on hanging down; quiet hold + 4 smooth 2-deg moves; raise to straight out; quiet hold + 2 slow probes + 4 smooth 2-deg moves; lower and release
+  type go:
+>   travel 1299->1254: spd -5 (sd 474, -700..700), backward samples 58/116, load -284..284, end overshoot 7, residual range 14, err 0
+  DOWN quiet: pos +0.24, range 14, moving 143/147, load -284..284, err 0
+  DOWN step 1254->1277: overshoot 6, settle None, residual range 14, offset +0.5, moving in last 1 s 29, err 0
+  DOWN step 1277->1254: overshoot 7, settle None, residual range 14, offset +0.3, moving in last 1 s 28, err 0
+  DOWN step 1254->1231: overshoot 7, settle None, residual range 14, offset +0.4, moving in last 1 s 30, err 0
+  DOWN step 1231->1254: overshoot 7, settle None, residual range 14, offset +0.3, moving in last 1 s 30, err 0
+  travel 1251->230: spd 110 (sd 449, -650..900), backward samples 159/401, load -284..404, end overshoot 6, residual range 11, err 0
+  LEVEL quiet: pos +0.79, range 11, moving 149/150, load -200..244, err 0
+  LEVEL probes: above +0.8 (load 31), below +0.9 (load 36), midpoint +0.8
+  LEVEL step 230->253: overshoot 5, settle None, residual range 10, offset +1.0, moving in last 1 s 29, err 0
+  LEVEL step 253->230: overshoot 6, settle None, residual range 11, offset +0.5, moving in last 1 s 27, err 0
+  LEVEL step 230->207: overshoot 6, settle None, residual range 11, offset +0.8, moving in last 1 s 31, err 0
+  LEVEL step 207->230: overshoot 5, settle None, residual range 11, offset +0.8, moving in last 1 s 29, err 0
+  travel 233->1254: spd 94 (sd 500, -700..900), backward samples 185/389, load -324..320, end overshoot 6, residual range 14, err 0
+  released hanging: pos 1271
+  gains back to (32, 32)
+
+The arm hangs released. Take the CLAMP OFF; press enter when done
+> P  32 down : quiet range 0, moving 0/152; steps max overshoot 0, max residual range 0
+P  32 level: quiet range 0, moving 0/150; steps max overshoot 0, max residual range 0
+P  96 down : quiet range 0, moving 0/147; steps max overshoot 1, max residual range 1
+P  96 level: quiet range 0, moving 0/151; steps max overshoot 0, max residual range 0
+P 128 down : quiet range 0, moving 0/150; steps max overshoot 6, max residual range 12
+P 128 level: quiet range 9, moving 148/150; steps max overshoot 0, max residual range 0
+P 160 down : quiet range 14, moving 143/147; steps max overshoot 7, max residual range 14
+P 160 level: quiet range 11, moving 149/150; steps max overshoot 6, max residual range 11
+# end 2026-10-23T13:17:49

@@ -1,0 +1,13 @@
+=== boot
+=== id 31 51
+id 31 -> 51: ok, verified after commit -- safe to power down
+=== scan
+scanning IDs 0-253 ...
+  id  51  pos  1254  12.0 V  err 0x00  -
+1 servo(s)
+=== reg 51 5 1
+id 51 reg 5 = 51 (0x33)
+=== reg 51 55 1
+id 51 reg 55 = 1 (0x01)
+=== reg 51 40 1
+id 51 reg 40 = 0 (0x00)

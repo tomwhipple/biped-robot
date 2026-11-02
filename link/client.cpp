@@ -1,5 +1,7 @@
 #include "client.h"
 
+#include "obs/bus_map.h"
+
 #include <arpa/inet.h>
 #include <math.h>
 #include <stdio.h>
@@ -53,8 +55,13 @@ const char* faultIds(uint32_t servo_err, char* buf, size_t cap) {
     size_t at = 0;
     for (unsigned b = 0; b < 32; ++b) {
         if (!((servo_err >> b) & 1u)) continue;
-        const int n = snprintf(buf + at, cap - at, "%s%u", at ? " " : "",
-                               b + 1u);
+        // bit b is bus joint b; its servo ID is kBusServoId[b] (not b + 1
+        // since the v6 assembly). A bit past the bus prints as "?<b>".
+        const int n =
+            b < static_cast<unsigned>(obs::kNumBusJoints)
+                ? snprintf(buf + at, cap - at, "%s%u", at ? " " : "",
+                           static_cast<unsigned>(obs::kBusServoId[b]))
+                : snprintf(buf + at, cap - at, "%s?%u", at ? " " : "", b);
         if (n < 0 || static_cast<size_t>(n) >= cap - at) break;   // truncated
         at += static_cast<size_t>(n);
     }
@@ -287,7 +294,11 @@ void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
 }
 
 void Link::poll(double now_ms) {
-    uint8_t buf[64];
+    // Sized from the protocol: UDP truncates a datagram to the buffer without
+    // a word, so a buffer short of the longest frame drops it, and one exactly
+    // its size would cut an oversize datagram back to a valid length. One byte
+    // more and an oversize datagram arrives oversize and is refused.
+    uint8_t buf[kTlmLenMax + 1];
     for (;;) {
         const ssize_t n = recv(rx, buf, sizeof buf, MSG_DONTWAIT);
         if (n < 0) break;

@@ -19,7 +19,7 @@ with torque released, arms over the radio or the USB tether, and runs the
 block and the SIL arrays are all 17 wide. The **policy** is what the compiled
 network observes and commands, from the generated `obs_spec.h`: the
 prototype's 10 joints (`kNumJoints = 10`,
-`kServoId = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4}`, plant
+`kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}` — the v6 legs' IDs as assembled, plant
 `sim/bimo_biped_v5body.xml`), policy `loco_v41rsi_b_s128r24`. The loop drives
 the policy's joints and holds every other fitted servo; the prototype's
 calibration marks IDs 11–17 not fitted
@@ -57,6 +57,17 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 The pre-push hook (`.githooks/pre-push`) also runs the target build; it finds
 ESP-IDF through `idf.py` on `PATH` or `$IDF_PATH`.
 
+**Which policy.** The image carries the deployed policy unless a **policy
+profile** is named: `idf.py -C firmware -B build/firmware-v6legs
+-DBIMO_POLICY=v6legs build` (or `make firmware POLICY=v6legs`) builds the v6
+legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
+profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
+`v6legs` profile holds the (128, 128) walk14 student
+([training.md §9](../docs/training.md), "Policy profiles"). `v6legs256` holds an **int8** (256, 256) test net
+(`robot_legs_walk14_s256r24`, legacy: it is for the timing budget and parity,
+not a deploy candidate), the way a net wider than (128, 128) fits the tick
+([firmware-design.md §6.1](../docs/firmware-design.md)).
+
 ## On-target bring-up
 
 [docs/bringup.md](../docs/bringup.md) is the procedure, from a bare board to
@@ -68,7 +79,7 @@ the tick timing and fault counters along the way.
 ## Host tests (the hardware-free gate)
 
 ```sh
-make -C firmware/host test     # 10 suites under ASan/UBSan, plus libctrl_sil
+make -C firmware/host test     # 11 suites under ASan/UBSan, plus libctrl_sil -- the deployed policy, then each profile
 make -C firmware/host check    # test + the bimo_tui build (+ bimo_gui on macOS)
 ```
 
@@ -83,13 +94,18 @@ hardware-touching files are excluded by construction.
 | `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
-| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder |
+| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
+| `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
+| `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 2 s upright-and-still pick-up, the armed-to-bench hand-over -> autohome |
+| `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
 | `sil_golden` | the firmware against the sim's own numbers in `sim/sil/golden/*.json`. The obs cases always run; the policy cases run only when the golden run's `.silw` is present and are skipped otherwise |
+| `flightrec` | the flight recorder's tick/event/hello encoders byte-for-byte against vectors from `tools/flightrec.py` (the collector's decoder), decode round trips and rejects, the producer ring |
 | `client` | the console core in `link/`: intent, frame-length rule, keymap file, MJPEG parser, recorder, the servo-fault ID list |
+| `wcli` | the Wi-Fi CLI ([docs/wifi-cli.md](../docs/wifi-cli.md)): SHA-256/HMAC against FIPS/RFC 4231 vectors, the wire format against vectors from `link/wcliproto.py`, the session's authentication, replay and cross-session replay, at-most-once execution, cancel, busy, the output window, and the Wi-Fi allowlist |
 
 The Python half of software-in-the-loop is [sim/sil/README.md](../sim/sil/README.md);
 `pytest sim/sil` runs in the pre-push hook after `check` (it needs the library
@@ -102,11 +118,15 @@ make -C firmware/host sil       # build/libctrl_sil.{dylib,so} only
 make -C firmware/host tui       # build/bimo_tui
 make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + stb into third_party/)
 make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
+make -C firmware/host build/wcli_twin   # the Wi-Fi CLI's robot half on a localhost socket (tests/test_wcli.py)
 make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h (+ vectors) from one run
+make -C firmware/host test POLICY=v6legs   # one policy profile's build (`test` alone runs every profile too)
+make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs   # into policies/v6legs/
 ```
 
-`obs_spec.h`, `weights.h` and the files in `host/vectors/` are generated
-(AGENTS.md lists the generators); never hand-edit them. The two deployed
+`obs_spec.h`, `weights.h`, the files in `host/vectors/` and everything under
+`policies/` are generated (AGENTS.md lists the generators); never hand-edit
+them. The two deployed
 headers change only together, and only because somebody named the run to
 deploy.
 
@@ -119,12 +139,14 @@ firmware/
                         1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings,
                         the custom partition table
   partitions.csv        nvs + phy_init at the stock offsets, a 3 MB app partition
+  policies/<profile>/   a second compiled-in policy's generated headers (BIMO_POLICY)
   main/                 everything that touches ESP-IDF
     board.h             the pinout, from the vendor schematic
     app_main.cpp        NVS, UARTs, IMU, calibration restore, torque off, start tasks
     ctrl_task.cpp       core 1, 50 Hz: sense, guard, observe, act (owns the bus when armed)
     link_task.cpp       core 0: UART0 reader (`link`) and the `housekeeping` task
     wifi_link.cpp       core 0: WiFi station, UDP commands in, telemetry beacon out
+    wifi_cli.cpp        core 0: the authenticated Wi-Fi CLI on UDP 4213 (docs/wifi-cli.md)
     imu_sampler.cpp     core 0: 250 Hz IMU read + fusion, tick-averaged gyro
     timesync.cpp        SNTP wall clock for telemetry timestamps
     cli.cpp             the bench CLI
@@ -133,6 +155,8 @@ firmware/
     servo_gains.h       expected position-loop P/D per servo ID (the arm gate)
     mech_envelope.h     per-bus-joint mechanical limits for bench moves
     obs_dump.cpp        the observation dump (`obsdump`)
+    net_bench.cpp       `nettime`: the policy forward pass timed every way the image can run it
+    flight_rec.cpp      the flight recorder: rings, UDP sender, `rec` config (docs/flight-recorder.md)
     joint_pose.h        measured pose, core 1 -> the beacon (mirror mode)
     scs_port_idf.cpp    scsbus::Port over UART1 -- the one servo-bus hardware seam
     shared.h            the only cross-core state, and the rules for it
@@ -142,22 +166,35 @@ firmware/
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux
     obs/                obs assembler, history, gait clock, actuation maps, shaper;
                         bus_map.h (the 17-servo bus); obs_spec.h (generated)
-    policy/             static MLP forward pass; weights.h (generated)
+    policy/             static MLP forward pass; weights.h (generated); q8.h/.cpp and
+                        q8_mac16.S, the int8 forward pass of a quantized profile
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard
-  host/                 host build: Makefile + CMakeLists, 10 test suites, the SIL
-                        library (sil.h, sil_lib.cpp, sil_net.cpp), vectors/
+    balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
+    fallguard/          fall detection + pick-up recovery, one module for the armed loop and the bench
+    flailguard/         the armed loop's judge of the policy (pose, rate, tilt, chatter) -> hold + disarm
+    flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
+    wcli/               the Wi-Fi CLI: SHA-256/HMAC, wire codec, session logic, allowlist
+  host/                 host build: Makefile + CMakeLists, 15 test suites, the SIL
+                        library (sil.h, sil_lib.cpp, sil_net.cpp), wcli_twin, vectors/
 tools/
   gen_protocol_vectors.py   link/protocol.py -> host/vectors/protocol_vectors.h
+  gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
+  gen_wcli_vectors.py       link/wcliproto.py -> host/vectors/wcli_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
-  gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h
+  gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h (--quant int8:
+                            GPTQ-rounded int8, policy_q8.py)
+  policy_q8.py              numpy mirror of the int8 forward pass; offline GPTQ rounding
 ```
 
 ## The CLI
 
-USB serial at 115200 on the `USB` port. `help` prints the list. Commands that
-touch the bus work only while benched (`run` refuses them); commands that
-write NVS are bench-only because a flash write stalls the control tick.
+USB serial at 115200 on the `USB` port, and the same commands over Wi-Fi
+through the authenticated Wi-Fi CLI (`tools/wcli.py`; bench only, and the
+NVS/EEPROM writers stay tether-only -- [docs/wifi-cli.md](../docs/wifi-cli.md)
+has the list). `help` prints the list. Commands that touch the bus work only
+while benched (`run` refuses them); commands that write NVS are bench-only
+because a flash write stalls the control tick.
 
 | command | does |
 |---|---|
@@ -181,8 +218,11 @@ write NVS are bench-only because a flash write stalls the control tick.
 | `run` / `bench` | hand the bus to the control loop / take it back; `run` refuses without an NVS calibration or with any servo's gains off the expected table |
 | `imu [scan\|raw [n]\|ring [ms]\|avg [on\|off]\|gscale [x y z]\|reinit\|bias\|mount\|forget\|ae]` | IMU status, I²C scan, raw axes, ringing meter, calibration |
 | `wifi [<ssid> <psk>\|clear]` | link status and counters; credentials in NVS |
+| `wcli [key <64 hex>\|key clear\|drop]` | the Wi-Fi CLI: key fingerprint, session, counters; the shared key in NVS (tether only, bench) |
 | `ntp` | SNTP sync state and server |
-| `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy |
+| `rec [status\|<ip>[:port]\|on\|off\|idle <hz>]` | the flight recorder: one record per control tick to the UDP collector on mira ([docs/flight-recorder.md](../docs/flight-recorder.md)); address, on/off and idle rate in NVS |
+| `stat` | tick timing per phase, overruns, worst tick, IMU sampler, policy (`net:` int8/float, layers in RAM, kernel, boot self-test) |
+| `nettime [n]` | benched: time the policy forward pass every way this image can run it (float/int8, flash/RAM, C/MAC16 kernel, per layer, swish), min/median/max µs over n passes on core 1 ([firmware-design.md §6.1](../docs/firmware-design.md)) |
 | `obsdump [on\|off\|once]` | stream the policy observation as CSV (armed only) |
 
 ## Known gaps, as they stand

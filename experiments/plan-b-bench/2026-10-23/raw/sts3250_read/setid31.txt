@@ -1,0 +1,13 @@
+=== boot
+=== id 1 31
+id 1 -> 31: timeout
+=== scan
+scanning IDs 0-253 ...
+  id  31  pos  1254  12.0 V  err 0x00  -
+1 servo(s)
+=== reg 31 5 1
+id 31 reg 5 = 31 (0x1F)
+=== reg 31 55 1
+id 31 reg 55 = 0 (0x00)
+=== reg 31 18 1
+id 31 reg 18 = 12 (0x0C)

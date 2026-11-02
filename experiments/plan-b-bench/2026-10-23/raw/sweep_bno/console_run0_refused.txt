@@ -1,0 +1,3 @@
+# 2026-10-23T13:46:25 sweep_smooth.py id 31 LEVEL 230 DOWN 1254 gains [(32, 32), (64, 32), (96, 32), (96, 0), (128, 32)] profiles ['A', 'A300', 'A1500']
+!! STOPPED: Abort('start refused: pos 1365 is outside level..plumb (230..1254)')
+# end 2026-10-23T13:46:28

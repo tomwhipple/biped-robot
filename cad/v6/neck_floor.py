@@ -27,10 +27,14 @@ unchanged.
               with an M2.5 x 8 flat-head into a boss on the tube's side wall
               (tube_bosses(), 6 mm of bite). The load path is case -> stator
               screws -> pads -> plate -> lugs -> tube walls -> girdle.
-    lead      a window through the floor under the connector trench, open to
-              the robot's left (+y) past the tube wall, so the two bus leads
-              leave the plugs sideways at floor level (or straight down) and
-              rise through the aperture beside the tube.
+    rails     along both edges, under the tube walls, from the plate's top to
+              0.3 under the case face: they tie the fore and aft halves across
+              the lead window, so the plate is a closed ring, not a U.
+    lead      a window through the floor under the connector trench, running
+              out to the robot's left (+y) as a tunnel under the +y rail, so
+              the two bus leads leave the plugs sideways at floor level and
+              rise through the aperture beside the tube. The tunnel is open
+              underneath: the leads are laid into it from below.
 
 WHY A SEPARATE PRINT
 --------------------
@@ -105,6 +109,11 @@ def neck_floor():
     # --- stator pads, up to the case face
     for px, py in V.NECK_PAD_XY:
         p += cyl_z(V.NECK_PAD_R, Z1 - 0.01, CASE_Z, px, py)
+    # --- edge rails under the tube walls, full length (the lead window below
+    # would otherwise leave the plate a U, its halves tied by a 2 mm strip)
+    for s in (1, -1):
+        y0, y1 = sorted((s * V.NECK_RAIL_HY0, s * HY))
+        p += box(X0, X1, y0, y1, Z1 - 0.01, V.NECK_RAIL_TOP)
     # the pads and lugs stop at the plate's own outline in x (aperture edges)
     p &= box(X0, X1, -HY - 10, HY + 10, Z0 - 1, CASE_Z + 1)
     # --- reliefs for what stands proud of the idler face
@@ -117,13 +126,15 @@ def neck_floor():
     p -= box(D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR, D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR,
              -(D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR), D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR,
              Z1 + 0.01, CASE_Z + 1)
-    # --- the lead window under the connector trench, through the plate and
-    # out past the tube wall on +y, so the leads can leave sideways
-    p -= box(LX0, LX1, -(D.SV_CONN_HW + 0.5), HY + 10, Z0 - 1, CASE_Z + 1)
-    # --- the aft end sits over the pelvis's rear web (top at z -5, front edge
-    # x -35.41): a chamfer on the plate's aft-bottom edge keeps the plate
-    # 0.5 mm off it. 55 deg, not 45: steeper than the printability rule's
-    # overhang limit, so it is a wall in print, not a ledge.
+    # --- the lead window under the connector trench, through the plate, and
+    # on +y a tunnel through the plate alone, out past the tube wall under the
+    # +y rail, so the leads leave sideways and the rail still bridges the gap
+    hw = D.SV_CONN_HW + 0.5
+    p -= box(LX0, LX1, -hw, hw, Z0 - 1, CASE_Z + 1)
+    p -= box(LX0, LX1, hw - 0.01, HY + 10, Z0 - 1, Z1)
+    # --- a chamfer on the plate's aft-bottom edge, 55 deg: steeper than the
+    # printability rule's overhang limit, so it is a wall in print, not a
+    # ledge.
     p -= wedge_y([(X0 - 0.01, Z0 - 0.01), (X0 - 0.01, Z1), (X0 + 1.4, Z0 - 0.01)], -HY - 10, HY + 10)
     # --- stator screws: clearance up through plate + pad, countersunk from
     # below at the top of a 1 mm counterbore
@@ -222,11 +233,11 @@ def check_seat(verbose=True):
 
 def check_pack_clearance(verbose=True):
     """Floor vs the pack mock and the rest of what is under the aperture."""
-    import pelvis_v7 as PV
+    import torso_v8 as TV
     f = neck_floor()
     ok = True
-    for name, solid, need in (("pack", PV.mock_pack(), 4.0), ("buck", PV.mock_buck(), 4.0),
-                              ("Pi 4B", PV.mock_pi4(), 1.0), ("General Driver", PV.mock_gd(), 1.0)):
+    for name, solid, need in (("pack", TV.mock_pack(), 4.0), ("power board", TV.mock_pwrb(), 4.0),
+                              ("Pi 4B", TV.mock_pi4(), 1.0), ("General Driver", TV.mock_gd(), 1.0)):
         d = f.distance_to(solid)
         good = d >= need
         ok &= good
@@ -235,16 +246,16 @@ def check_pack_clearance(verbose=True):
     return ok
 
 
-def check_pelvis_clearance(verbose=True):
-    """The plate drops into the aperture: it must not touch the pelvis."""
-    import pelvis_v7 as PV
+def check_torso_clearance(verbose=True):
+    """The plate drops into the aperture: it must not touch the torso."""
+    import torso_v8 as TV
     f = neck_floor()
-    pel = PV.pelvis_v7(arm_mounts=True)
-    vol = (f & pel).volume
-    d = f.distance_to(pel)
+    tor = TV.torso_v8(arm_mounts=True)
+    vol = (f & tor).volume
+    d = f.distance_to(tor)
     good = vol < 0.01 and d >= 0.25
     if verbose:
-        print(f"  {'PASS' if good else 'FAIL'}  floor vs pelvis: overlap {vol:.3f} mm3, gap {d:.2f} mm (need >= 0.25)")
+        print(f"  {'PASS' if good else 'FAIL'}  floor vs torso: overlap {vol:.3f} mm3, gap {d:.2f} mm (need >= 0.25)")
     return good
 
 
@@ -274,7 +285,7 @@ def run_checks():
     ok = check_seat()
     print("\n== clearance under the aperture ==")
     ok &= check_pack_clearance()
-    ok &= check_pelvis_clearance()
+    ok &= check_torso_clearance()
     print("\n== screw bite ==")
     ok &= check_screw_bite()
     print("\n== printability (flat, bottom down) ==")

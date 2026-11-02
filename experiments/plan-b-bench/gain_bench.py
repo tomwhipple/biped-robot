@@ -84,7 +84,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))      # experiments/plan-b-bench/ -> repo
 sys.path.insert(0, os.path.join(ROOT, "tools"))             # bus_cal, shared with the bench tools
-from bus_cal import BUS, BusCalError, BusJoint, fetch_cal  # noqa: E402
+from bus_cal import BUS, BUS_IDS, BusCalError, BusJoint, fetch_cal  # noqa: E402
 
 TICKS_PER_RAD = 4096 / (2 * math.pi)
 TICKS_PER_DEG = 4096 / 360.0
@@ -772,10 +772,11 @@ def envelope_ticks(joint: BusJoint, lo_deg: float, hi_deg: float) -> Tuple[int, 
 
 def bus_envelope(board, sid: int) -> Optional[Tuple[int, int, str]]:
     """(lo, hi, label) for a bus-map ID on this board; None off the map."""
-    if not 1 <= sid <= len(BUS):
+    if sid not in BUS_IDS:
         return None
+    b = BUS_IDS.index(sid)                           # bus index (IDs are not b + 1)
     if isinstance(board, FakeBoard):                 # rehearsal: an uncalibrated joint
-        joint = BusJoint(BUS[sid - 1][0], sid - 1, sid, BUS[sid - 1][2], 2048, 1, False)
+        joint = BusJoint(BUS[b][0], b, sid, BUS[b][2], 2048, 1, False)
         src = "rehearsal defaults"
     else:
         try:
@@ -785,9 +786,9 @@ def bus_envelope(board, sid: int) -> Optional[Tuple[int, int, str]]:
             raise Abort(f"`cal show` did not parse ({e}): no envelope, no motion on id {sid}")
         joint = cal.by_id(sid)
     lo_deg, hi_deg = mech_envelope_deg()
-    lo, hi = envelope_ticks(joint, lo_deg[sid - 1], hi_deg[sid - 1])
+    lo, hi = envelope_ticks(joint, lo_deg[b], hi_deg[b])
     return lo, hi, (f"{joint.name} ({src}: zero {joint.zero_steps}, dir {joint.direction:+d}, "
-                    f"{lo_deg[sid - 1]:g}..{hi_deg[sid - 1]:g} deg)")
+                    f"{lo_deg[b]:g}..{hi_deg[b]:g} deg)")
 
 
 def check_room(sid: int, goal: int, lo_need: int, hi_need: int,
@@ -1333,7 +1334,7 @@ def run_scan(A, session: str, op: Operator, log) -> int:
         op.say(f"  id {f['id']:3d}  pos {f['pos']:5d}  {f['volt']:.1f} V  "
                f"status {status_names(f['err'])}  {f['joint']}")
     op.say(f"{len(found)} servo(s)")
-    on_map = [f["id"] for f in found if 1 <= f["id"] <= len(BUS)]
+    on_map = [f["id"] for f in found if f["id"] in BUS_IDS]
     if len(found) == 1 and on_map:
         op.say(f"  id {on_map[0]} is on the robot's bus map: re-ID it at the CLI before "
                f"stiffness/hold (`id {on_map[0]} 30`)")
@@ -1344,9 +1345,9 @@ def run_scan(A, session: str, op: Operator, log) -> int:
 def run_servo(A, session: str, op: Operator, log) -> int:
     """read / stiffness / hold: one servo on the bench."""
     sid = A.id
-    on_map = 1 <= sid <= len(BUS)
+    on_map = sid in BUS_IDS
     if on_map and A.cmd != "read" and not A.allow_bus_id:
-        raise Abort(f"id {sid} is the robot's {BUS[sid - 1][0]}: the firmware clamps a "
+        raise Abort(f"id {sid} is the robot's {BUS[BUS_IDS.index(sid)][0]}: the firmware clamps a "
                     f"`move` to that joint's calibrated envelope after sending it. Re-ID "
                     f"the spare (`id {sid} 30`), or pass --allow-bus-id to have every "
                     f"target checked against that envelope first.")

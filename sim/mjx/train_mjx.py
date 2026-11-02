@@ -98,7 +98,13 @@ class BatchedEnv(brax_base.Env):
                     payload_max=payload_max, payload_bid=payload_bid,
                     floor_gid=e._floor_gid, nom_mass=e._nom_mass,
                     nom_inertia=e._nom_inertia, nom_friction=e._nom_friction,
-                    tilt_max_deg=e.tilt_max_deg)
+                    tilt_max_deg=e.tilt_max_deg,
+                    joint_frictionloss_range=e.joint_frictionloss_range,
+                    nom_frictionloss=e._nom_frictionloss, jv=(e._jv0, e._jv1),
+                    torso_bid=e._torso_bid, torso_mass_range=e.torso_mass_range,
+                    torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos,
+                    floor_contact_range=e.floor_contact_range,
+                    contact_gids=e._contact_gids, nom_solref=e._nom_solref)
         return self._dr_cache[n]
 
     @property
@@ -235,8 +241,13 @@ def make_parser():
                         "recovery slots. Explicit flags below still override")
     p.add_argument("--servo-kp-scale", default=None,
                    help="per-servo position-loop stiffness multiplier on kp "
-                        "and kd: a preset (planb, stock) or role/actuator="
-                        "factor pairs, e.g. 'hip_roll=4,ankle_roll=4,knee=4'. "
+                        "and kd: a preset (stock, planb, robot, asbuilt) or "
+                        "role/actuator=factor pairs, e.g. "
+                        "'hip_roll=4,ankle_roll=4,knee=4'. asbuilt = the gains "
+                        "the robot arms with (firmware/main/servo_gains.h: "
+                        "factory P 32 / D 32, measured at 2.8x the model on "
+                        "the STS3215s and 4x on the STS3250 hip rolls) -- the "
+                        "only preset a deployable legs policy may train on. "
                         "config.json records the resolved {actuator: factor}")
     p.add_argument("--mimic-lift", type=float, default=0.0,
                    help="imitation reference: the swing sole rises this high (m, IK "
@@ -263,6 +274,11 @@ def make_parser():
                    help="velocity-kick magnitudes, e.g. 0.05,0.3 (m/s)")
     p.add_argument("--push-prob", type=float, default=None,
                    help="per-step perturbation probability")
+    p.add_argument("--push-force", type=float, default=None,
+                   help="torso shove force (N, held one control step), and "
+                        "shoves instead of the --precision preset's velocity "
+                        "kicks (--kick-range). The referee's push-stress grade "
+                        "is eval_precision.py --push-force/--push-prob")
     p.add_argument("--walk-submix", default=None,
                    help="backward,sidestep fractions of walk commands, "
                         "e.g. 0.25,0.30")
@@ -294,6 +310,31 @@ def make_parser():
                         "gearbox backdrive stiction measures ~0.35 N*m "
                         "(off_frictionloss) -- pass that for a plant whose "
                         "static pose-hold matches hardware")
+    p.add_argument("--act-delay-extra", default=None,
+                   help="per-servo EXTRA dead time in control ticks on top of the --act-delay-max "
+                        "(or per-servo --act-delay-types) per-episode draw: "
+                        "a preset (sts2026: the STS3215s +3 ticks behind the STS3250 hip rolls, "
+                        "2026-11-01 loaded step responses) or role/actuator=ticks pairs")
+    p.add_argument("--act-lag-scale", default=None,
+                   help="per-servo multiplier on the --act-lag pole: a preset (sts2026: hip_roll "
+                        "x4, the STS3250 rises ~4x faster) or role/actuator=x pairs")
+    p.add_argument("--servo-kd", type=float, default=None,
+                   help="servo position-loop damping reference, N*m*s/rad (default 0.25; "
+                        "--servo-kp-scale multiplies it with kp). The 2026-11-01 roll sweep "
+                        "fits the robot's servos far less damped than the model "
+                        "(experiments/one-leg-stand/2026-11-01-floors-fit.md)")
+    p.add_argument("--servo-joint-damping", type=float, default=None,
+                   help="viscous damping on every servo DOF, N*m*s/rad (default 0.1)")
+    p.add_argument("--floor-contact", default=None,
+                   help="k_lo,k_hi,b_lo,b_hi: per-env foot/floor contact DR, stiffness k "
+                        "(1/s^2) and damping b (1/s) drawn log-uniformly, solref=(-k,-b) on "
+                        "the floor and the sole pads; needs DR on (--precision). The carpet.."
+                        "hard range of experiments/one-leg-stand/2026-11-01-floors-fit.md")
+    p.add_argument("--joint-frictionloss-range", default=None,
+                   help="lo,hi N*m: per-env joint friction DR (one draw for "
+                        "every servo DOF), e.g. 0.05,0.5; needs DR on "
+                        "(--precision). The referee grades at "
+                        "--joint-frictionloss")
     p.add_argument("--servo-3250", default=None,
                    help="comma roles/actuators given the STS3250 stall/speed "
                         "envelope on top of the robot's (e.g. knee): a servo-set study")
@@ -309,12 +350,24 @@ def make_parser():
     p.add_argument("--rise-ref-residual", type=float, default=None,
                    help="rad: residual get-up -- while down, target = the recorded reference + "
                         "this x action (needs --rise-ref)")
+    p.add_argument("--rise-ref-hold", action="store_true",
+                   help="no handover at recovered: the residual reference map and the rise-ref/"
+                        "root tracking keep running after the held stand (get-up campaign 2026-10-23)")
+    p.add_argument("--rise-ref-et-hold", action="store_true",
+                   help="with --rise-ref-hold and --rise-ref-et: keep the early termination after "
+                        "the held stand, so sinking out of the stand ends the episode (get-up "
+                        "campaign 2026-10-28)")
     p.add_argument("--w-rise-root", type=float, default=None,
                    help="DeepMimic root tracking while down: kernel on pelvis height + torso up-z vs "
                         "the recorded reference (needs --rise-ref)")
     p.add_argument("--ctrl-physical", action="store_true",
                    help="the policy commands the joints' whole mechanical stops (the CAD "
                         "envelope) instead of the plant's ctrlrange training range (get-up)")
+    p.add_argument("--ctrl-within-stops", action="store_true",
+                   help="clip the policy range (the plant's ctrlrange) to the joints' "
+                        "mechanical stops: the v6 ankle's ctrlrange is +-45 deg, its "
+                        "stop +-40, so a full-map +-1 would drive it 5 deg into the "
+                        "stop on hardware (2026-10-30). config.json records it")
     p.add_argument("--gravity-scale", type=float, default=None,
                    help="scale gravity in the TRAINING env (curriculum: learn a get-up under "
                         "reduced gravity, then anneal to 1.0); the referee always grades at 1.0")
@@ -370,6 +423,12 @@ def make_parser():
                         "sin/cos obs stop oscillating, removing the rhythmic "
                         "drive the policy otherwise must ignore to stand "
                         "still (2026-08-12)")
+    p.add_argument("--stop-grace-s", type=float, default=None,
+                   help="keep the gait shaping on this many seconds after a "
+                        "walk -> stand stop, so the closing step is shaped "
+                        "like a walking step (the referee's walk_steps counts "
+                        "steps that begin within 0.4 s of the stop; "
+                        "2026-10-29). Reward only: obs and clock unchanged")
     p.add_argument("--w-still", type=float, default=None,
                    help="stand-gated joint-velocity penalty (-w*sum(dq^2) "
                         "while commanded to plain-stand): pays for stillness "
@@ -450,6 +509,11 @@ def make_parser():
     p.add_argument("--foot-cross-sep", type=float, default=None,
                    help="lateral sole separation (m) below which the "
                         "feet-crossing penalty pays (default 0.051)")
+    p.add_argument("--w-low-swing", type=float, default=0.0,
+                   help="per-step clearance penalty (Tom 2026-10-24: every foot "
+                        ">= 3 cm on every step): on touchdown of a >= 3-tick "
+                        "swing, w x (3 cm - sole peak) / 3 cm, under ANY command "
+                        "(the start and stop steps included); 0 = off")
     p.add_argument("--swing-height", type=float, default=None,
                    help="swing-foot peak height target for w_feet_phase (m; preset 0.06)")
     p.add_argument("--w-feet-phase", type=float, default=None,
@@ -467,6 +531,11 @@ def make_parser():
                    help="warm-start from sim/runs/<name>/params.pkl (same "
                         "objective only -- objective changes need from-"
                         "scratch, a lesson learned three times over)")
+    p.add_argument("--policy-hidden", default=None,
+                   help="policy MLP hidden widths, comma list (default "
+                        "512,256,128 with --precision, else 128,128); "
+                        "128,128 trains the firmware-sized net directly, no "
+                        "distill (the value net keeps its size)")
     p.add_argument("--hip-flex", type=float, default=None,
                    help="widen hip flexion to this many degrees (study: >=95)")
     p.add_argument("--getup-mix", default="1,0,0",
@@ -494,6 +563,24 @@ def make_parser():
     p.add_argument("--backlash-deg", default=None,
                    help="per-episode gear backlash draw 'lo,hi' deg, applied "
                         "AFTER the --precision block (which zeroes it)")
+    p.add_argument("--eval-scenarios", default="",
+                   help="comma list of referee scenarios graded on this run's "
+                        "default scorecard IN ADDITION to its family's "
+                        "(recorded in config.json['train']; eval_precision "
+                        "reads it), e.g. walk_steps_L,walk_steps_R")
+    p.add_argument("--roll-lash-deg", default=None,
+                   help="per-episode EXTRA deadzone draw 'lo,hi' deg on the four "
+                        "roll joints (hip_roll, ankle_roll) only: the play "
+                        "downstream of the encoders (hw 2026-10-24; "
+                        "docs/design-v6/roll-compliance-2026-10-24.md)")
+    p.add_argument("--torso-mass-range", type=float, default=None,
+                   help="torso mass/inertia DR +-fraction (replaces the generic "
+                        "--mass-range draw for the torso body)")
+    p.add_argument("--torso-com-y", type=float, default=None,
+                   help="lateral torso CoM offset DR +-m (the same weight shift "
+                        "balanced ~3 deg better on one stance, hw 2026-10-24)")
+    p.add_argument("--imu-mount-deg", type=float, default=None,
+                   help="1-sigma IMU mounting misalignment DR, deg (default 2)")
     p.add_argument("--zero-offset-deg", type=float, default=None,
                    help="per-episode per-joint zero-offset DR, +-deg (the "
                         "hardware zero is set by eye; moved 1-4.7 deg 2026-09-03)")
@@ -505,6 +592,15 @@ def make_parser():
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
+    p.add_argument("--act-delay-types", default=None,
+                   help="per-servo dead time DR by servo type, ticks: "
+                        "'sts3215=lo:hi,sts3250=lo:hi' (2026-11-01 robot stepresp: "
+                        "STS3215 63-84 ms dead, STS3250 12-18 ms), e.g. 'sts3215=2:4,sts3250=0:1'")
+    p.add_argument("--servo-kd-range", default=None,
+                   help="per-episode servo damping multiplier DR 'lo,hi' (2026-11-01 fit: "
+                        "~0.17x the modelled kd at stand amplitudes), e.g. 0.1,1.0")
+    p.add_argument("--servo-kp-range", default=None,
+                   help="per-episode servo stiffness multiplier DR 'lo,hi', e.g. 0.6,1.2")
     p.add_argument("--init-pose-deg", type=float, default=None,
                    help="episode start-pose jitter half-width per joint, deg "
                         "(unset = the historical 1.7 deg); served target starts "
@@ -612,6 +708,16 @@ def build_env_kw(args):
         # sim wobbles where the robot does not. Applied AFTER the family
         # block so any family recipe can be run with the measured level.
         env_kw["joint_frictionloss"] = args.joint_frictionloss
+    if getattr(args, "floor_contact", None) is not None:
+        v = [float(x) for x in args.floor_contact.split(",")]
+        if len(v) != 4 or not (0 < v[0] <= v[1] and 0 < v[2] <= v[3]):
+            raise SystemExit("--floor-contact wants k_lo,k_hi,b_lo,b_hi (all > 0, lo <= hi)")
+        env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
+    if args.joint_frictionloss_range is not None:
+        # get-up campaign 2026-10-22: friction DR (training only; the referee
+        # grades at joint_frictionloss, or eval_precision --joint-frictionloss)
+        env_kw["joint_frictionloss_range"] = tuple(
+            float(x) for x in args.joint_frictionloss_range.split(","))
     if args.xml:
         # accept a bare basename (resolved against sim/, where the plants
         # live) or an explicit path -- night-queue args use basenames
@@ -633,6 +739,15 @@ def build_env_kw(args):
         env_kw["recover_mix"] = 0.0
         if args.hip_flex is not None:
             env_kw["hip_flex_deg"] = args.hip_flex
+    for flag, key, cast in (("act_delay_extra", "act_delay_extra", int), ("act_lag_scale", "act_lag_scale", float)):
+        spec = getattr(args, flag, None)
+        if spec is not None:
+            env_kw[key] = (spec if "=" not in spec else
+                           {k.strip(): cast(float(v)) for k, v in (kv.split("=") for kv in spec.split(",") if kv.strip())})
+    if getattr(args, "servo_kd", None) is not None:
+        env_kw["servo_kd"] = float(args.servo_kd)
+    if getattr(args, "servo_joint_damping", None) is not None:
+        env_kw["servo_joint_damping"] = float(args.servo_joint_damping)
     if args.servo_kp_scale is not None:
         spec = args.servo_kp_scale
         if "=" in spec:
@@ -675,6 +790,10 @@ def build_env_kw(args):
             float(x) for x in args.kick_range.split(","))
     if args.push_prob is not None:
         env_kw["push_prob"] = args.push_prob
+    if args.push_force is not None:
+        # force shoves, as the referee grades them: --precision trains with
+        # velocity kicks (push_kick, --kick-range), which ignore push_force
+        env_kw.update(push_force=args.push_force, push_kick=False)
     if args.terrain:
         env_kw["terrain"] = True
     if args.mimic_knee_w != 1.0:
@@ -695,6 +814,15 @@ def build_env_kw(args):
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
+    if args.roll_lash_deg is not None:
+        lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
+        env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
+    if args.torso_mass_range is not None:
+        env_kw["torso_mass_range"] = args.torso_mass_range
+    if args.torso_com_y is not None:
+        env_kw["torso_com_y"] = args.torso_com_y
+    if args.imu_mount_deg is not None:
+        env_kw["imu_mount_deg"] = args.imu_mount_deg
     if args.backlash_deg is not None:
         lo, hi = (float(x) for x in args.backlash_deg.split(","))
         env_kw.update(backlash_deg=lo, backlash_deg_max=hi)
@@ -707,6 +835,13 @@ def build_env_kw(args):
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
+    if getattr(args, "act_delay_types", None):
+        env_kw["act_delay_types"] = {k: tuple(int(x) for x in v.split(":"))
+                                     for k, v in (kv.split("=") for kv in args.act_delay_types.split(","))}
+    if getattr(args, "servo_kd_range", None):
+        env_kw["servo_kd_range"] = tuple(float(x) for x in args.servo_kd_range.split(","))
+    if getattr(args, "servo_kp_range", None):
+        env_kw["servo_kp_range"] = tuple(float(x) for x in args.servo_kp_range.split(","))
     if args.init_pose_deg is not None:
         env_kw["init_pose_deg"] = float(args.init_pose_deg)
     if args.walk_submix is not None:
@@ -727,6 +862,8 @@ def build_env_kw(args):
         env_kw["w_action_rate"] = args.w_action_rate
     if args.w_symmetry is not None:
         env_kw["w_symmetry"] = args.w_symmetry
+    if args.w_low_swing:
+        env_kw["w_low_swing"] = args.w_low_swing
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:
@@ -751,8 +888,14 @@ def build_env_kw(args):
         env_kw["rise_ref_residual"] = args.rise_ref_residual
     if args.w_rise_root is not None:
         env_kw["w_rise_root"] = args.w_rise_root
+    if args.rise_ref_hold:
+        env_kw["rise_ref_hold"] = True
+    if args.rise_ref_et_hold:
+        env_kw["rise_ref_et_hold"] = True
     if args.ctrl_physical:
         env_kw["ctrl_physical"] = True
+    if args.ctrl_within_stops:
+        env_kw["ctrl_within_stops"] = True
     if args.gravity_scale is not None:
         env_kw["gravity_scale"] = args.gravity_scale
     if args.rise_ref_rsi_window is not None:
@@ -803,6 +946,8 @@ def build_env_kw(args):
         env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
+    if args.stop_grace_s is not None:
+        env_kw["stop_grace_s"] = args.stop_grace_s
     if args.mimic_crouch_gate:
         env_kw["mimic_crouch_gate"] = True
     if args.mimic_crouch_gate_knee:
@@ -966,8 +1111,10 @@ def main():
         network_factory=functools.partial(
             ppo_networks.make_ppo_networks,
             # plan-v2: Playground's proven biped sizes for precision runs
-            policy_hidden_layer_sizes=((512, 256, 128) if args.precision
-                                       else (128, 128)),
+            policy_hidden_layer_sizes=(
+                tuple(int(x) for x in args.policy_hidden.split(","))
+                if args.policy_hidden else
+                (512, 256, 128) if args.precision else (128, 128)),
             value_hidden_layer_sizes=((512, 256, 128) if args.precision
                                       else (256, 256))),
         seed=args.seed,

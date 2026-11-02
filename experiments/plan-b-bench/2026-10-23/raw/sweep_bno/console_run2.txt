@@ -1,0 +1,38 @@
+# 2026-10-23T13:55:44 sweep_smooth.py id 31 LEVEL 230 DOWN 1254 gains [(96, 0), (128, 32)] profiles ['A', 'A300', 'A1500']
+  bno: BNO08x at 0x4B, drained 32 start-up packet(s), Set Feature sent, 1 packet(s) after; READY a = 136 82 -1007 mg
+
+NEXT MOTION: the whole ladder [(96, 0), (128, 32)]: per gain, write at plumb, torque on, then per profile ['A', 'A300', 'A1500'] raise to level and lower to plumb (90 deg, ~10 s each way), release at plumb
+  type go:
+> 
+== P 96 D 0
+    accel >5 Hz rms x/y/z 77.07/93.9/31.18 mg, peak 100.8/14.3/14.3 Hz, 6397 samples @ 502.1 Hz
+  A raise: backward 0/296, jitter 1.50 ticks rms, track -, load 24..72, end +1.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 772.47/1021.79/151.76 mg, peak 37.5/18.8/18.8 Hz, 6395 samples @ 501.9 Hz
+  A lower: backward 8/298, jitter 1.52 ticks rms, track -, load -120..120, end +0.4 (range 10), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 1341.86/1544.48/237.08 mg, peak 35.5/17.8/17.8 Hz, 2978 samples @ 503.5 Hz
+  A300 raise: backward 25/99, jitter 7.89 ticks rms, track -, load -96..240, end +1.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 912.43/1269.35/166.98 mg, peak 37.7/18.8/18.8 Hz, 2977 samples @ 503.5 Hz
+  A300 lower: backward 0/98, jitter 7.29 ticks rms, track -, load -120..120, end +0.2 (range 10), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 1030.44/1095.13/169.09 mg, peak 36.1/18.2/18.2 Hz, 1603 samples @ 503.7 Hz
+  A1500 raise: backward 0/21, jitter 63.71 ticks rms, track -, load -48..456, end +1.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 139.1/98.55/62.12 mg, peak 127.2/24.8/126.6 Hz, 1611 samples @ 506.1 Hz
+  A1500 lower: backward 0/22, jitter 65.74 ticks rms, track -, load -288..24, end +0.0 (range 0), 30 Hz, err 0
+  released at plumb: pos 1254
+
+== P 128 D 32
+  gains 128/32: landed, ack lost
+    accel >5 Hz rms x/y/z 130.39/173.15/34.45 mg, peak 100.8/20.7/20.7 Hz, 6394 samples @ 501.9 Hz
+  A raise: backward 0/298, jitter 1.50 ticks rms, track -, load -4..96, end +1.0 (range 0), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 1017.42/2390.1/259.02 mg, peak 123.2/20.6/20.6 Hz, 6388 samples @ 501.4 Hz
+  A lower: backward 22/295, jitter 2.43 ticks rms, track -, load -196..192, end +0.3 (range 12), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 2106.58/3518.96/433.52 mg, peak 117.7/19.8/19.8 Hz, 2973 samples @ 502.6 Hz
+  A300 raise: backward 15/99, jitter 8.19 ticks rms, track -, load -164..356, end +1.1 (range 10), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 2053.02/4101.12/476.42 mg, peak 20.5/20.5/20.5 Hz, 2978 samples @ 503.5 Hz
+  A300 lower: backward 34/100, jitter 8.39 ticks rms, track -, load -292..196, end +0.5 (range 12), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 1892.87/3077.85/349.35 mg, peak 38.3/19.2/19.2 Hz, 1610 samples @ 505.9 Hz
+  A1500 raise: backward 0/21, jitter 68.64 ticks rms, track -, load -128..548, end +1.1 (range 10), 30 Hz, err 0
+    accel >5 Hz rms x/y/z 1868.31/4041.72/460.48 mg, peak 40.8/20.4/20.4 Hz, 1611 samples @ 506.2 Hz
+  A1500 lower: backward 0/22, jitter 54.00 ticks rms, track -, load -480..196, end +0.3 (range 12), 30 Hz, err 0
+  released at plumb: pos 1267
+  gains back to (32, 32)
+# end 2026-10-23T13:59:23

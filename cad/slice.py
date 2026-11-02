@@ -67,6 +67,7 @@ ROTATIONS = {
     "RY_XUP": ((0, 0, -1), (0, 1, 0), (1, 0, 0)),         # model +X -> print +Z
     "RY_XDOWN": ((0, 0, 1), (0, 1, 0), (-1, 0, 0)),
     "RY_ROLL_WALL": ((1, 0, 0), (0, 0, -1), (0, 1, 0)),   # model +Y -> print +Z
+    "RY_YDOWN": ((1, 0, 0), (0, 0, 1), (0, -1, 0)),       # model +Y -> print -Z
 }
 
 # Keys that name presets or describe the file, not the print.
@@ -527,6 +528,11 @@ def put_enforcers(files, boxes):
     model = files["3D/3dmodel.model"].decode()
     settings = files["Metadata/model_settings.config"].decode()
     added = {}                                  # (mesh file, box) -> its object id there
+    # object ids are one namespace across every .model file in the project (the
+    # CLI numbers a plate's parts 1..2n over their mesh files and the main
+    # model): a new enforcer object takes the next id after all of them
+    next_id = 1 + max(int(x) for name, data in files.items() if name.endswith(".model")
+                      for x in re.findall(rb'<object id="(\d+)"', data))
     for m in reversed(list(re.finditer(r'<object id="(\d+)">(.*?)</object>', settings, re.S))):
         name = re.search(r'<metadata key="name" value="([^"]*)"', m.group(2)).group(1)
         if name not in boxes:
@@ -538,7 +544,7 @@ def put_enforcers(files, boxes):
         for i, box in enumerate(boxes[name]):
             if (path, box) not in added:
                 mesh = files[path.lstrip("/")].decode()
-                eid = max(int(x) for x in re.findall(r'<object id="(\d+)"', mesh)) + 1
+                eid, next_id = next_id, next_id + 1
                 files[path.lstrip("/")] = mesh.replace(
                     "</resources>", _box_object(eid, box) + "</resources>", 1).encode()
                 added[(path, box)] = eid

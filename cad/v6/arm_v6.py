@@ -125,8 +125,11 @@ PRINT_ORIENT = {
 # slicer cannot clean up (small horizontal bores: teardropped) is designed in.
 SUPPORT_NOTE = {
     "arm_fore_v6": "supports on: the two elbow pads' undersides start 5 mm off the bed "
-                   "(the fork prints on its back); support touching the build plate only",
+                   "(the fork prints on its back); support touching the build plate only, "
+                   "inside one enforcer box per pad (support_enforcers())",
 }
+SUPPORT_ANGLE = 30.0   # print_settings.json supports.support_threshold_angle
+ENF_INTO = 0.3         # an enforcer box reaches this far into the solid (torso_v8's)
 # print-up for this orientation is model +X, so every horizontal bore's
 # teardrop peak points that way (teardrop_*'s roll=90). Named, not a bare 90,
 # for the same reason leg_link_v6 names its ROLL_UP=0.
@@ -144,6 +147,15 @@ def _mirrored(solid, side):
     if side == "L":
         return solid
     return mirror(solid, Plane.XZ)
+
+
+def _side_label(solid, side, y_face, z):
+    """``solid``, already mirrored for its side, with that side's letter
+    debossed in its outboard face (y = +y_face on the left, -y_face on the
+    right). Cut after the mirror, or the right arm's letter reads backwards."""
+    o = 1 if side == "L" else -1
+    return solid - parts.letter_y(side, o * y_face, o, V.ARM_LABEL_X, z,
+                                  V.ARM_LABEL_H, V.ARM_LABEL_DEPTH)
 
 
 # ===========================================================================
@@ -392,7 +404,7 @@ def arm_upper_v6(side="L"):
     for h in parts.bcd_y(boss_y0 - 1, py1 + 1, 0, 0, roll=ROLL_UP):
         p -= h
     p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
-    return _mirrored(p, side)
+    return _side_label(_mirrored(p, side), side, sy1, V.ARM_LABEL_Z_UPPER)
 
 
 # ===========================================================================
@@ -452,7 +464,25 @@ def arm_fore_v6(side="L"):
     _ramp = (-q - wx0) / 1.3                  # 1.3:1, comfortably inside 45 deg
     p += parts.wedge_y([(wx0, drop + q - _ramp), (-q, drop + q),
                         (-q, drop - q), (wx0, drop - q + _ramp)], -hy, hy)
-    return _mirrored(p, side)
+    return _side_label(_mirrored(p, side), side, hy, V.ARM_LABEL_Z_FORE)
+
+
+def support_enforcers(side="L"):
+    """arm_fore_v6's support-enforcer boxes, model frame, rounded as
+    cad/v6/print_settings.json carries them. Printed on its back, each elbow
+    pad's round end (past the axis, z > 0) hangs 5.16 mm over the bed, and its
+    underside is flatter than SUPPORT_ANGLE up to r cos(SUPPORT_ANGLE): one box
+    per pad, from the bed to there, across the tine and from ENF_INTO inside
+    it. The idler pad's box takes the idler boss's 0.6 mm taper beside it."""
+    r = D.PAD_D / 2
+    x0, x1 = V.ARM_WEB_X[0], -r * math.cos(math.radians(SUPPORT_ANGLE)) + ENF_INTO
+    s = 1 if side == "L" else -1
+    boxes = []
+    for a0, a1 in ((D.IDLER_ARM_INNER - D.PLATE, D.SV_IDLER_FACE),
+                   (D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)):
+        y0, y1 = sorted((s * a0, s * a1))
+        boxes.append([x0, x1, y0, y1, -ENF_INTO, r])
+    return [[round(v, 2) for v in b] for b in boxes]
 
 
 def elbow_servo_mock(side="L"):
@@ -514,7 +544,7 @@ def SCREWS():
 
 # where each piece is offered from, on the bench (fly-in / animate_v6)
 INSERT = {
-    "servo_shoulder": (0, 0, 1),     # dropped into the open cradle from above
+    "servo_shoulder": (0, 1, 0),     # in along its axis from outboard, cheek off (shoulder_girdle_v6.INSERT)
     "arm_upper": (0, 1, 0),          # offered straight in onto the horn, outboard->in
     "servo_elbow": (1, 0, 0),        # slid into the upper arm's grip channel from the front
     "arm_fore": (0, 0, -1),          # lifted up, its fork tines either side of the discs
@@ -586,9 +616,8 @@ def run_audits(built, verbose=True):
     print("\n== printability (cad/check_printability.py, declared orientations) ==")
     CP.STL = OUT_STL
     for name, path in built.items():
+        # the right-hand parts too: their letter is not the left's mirror image
         base = name[:-2] if name.endswith(("_L", "_R")) else name
-        if name.endswith("_R"):
-            continue                      # mirror image: same audit by symmetry
         rot, note = PRINT_ORIENT[base]
         CP.ORIENT[name] = (rot, note)
         CP.PRINT_STL[name] = os.path.basename(path)
@@ -656,6 +685,49 @@ def render(stl_path, png_path, px=560):
     return png_path
 
 
+def render_side_labels(png_path, stl_dir=OUT_STL, w=260):
+    """The four links as they hang, each seen from outboard (top row), over a
+    close-up of its letter (bottom row). A raking light, so the 0.6 mm groove
+    reads. Renders the committed STLs; exports nothing."""
+    import mujoco
+    import imageio.v2 as imageio
+
+    links = (("arm_upper_v6", V.ARM_SHAFT_Y[1], V.ARM_LABEL_Z_UPPER),
+             ("arm_fore_v6", V.ARM_FORE_SHAFT_HY, V.ARM_LABEL_Z_FORE))
+    top, bottom = [], []
+    for side in "LR":
+        o = 1 if side == "L" else -1
+        for name, y_face, z_label in links:
+            xml = f"""
+            <mujoco>
+              <asset><mesh name="part" file="{os.path.abspath(stl_dir)}/{name}_{side}.stl" scale="0.001 0.001 0.001"/></asset>
+              <visual><headlight ambient="0.25 0.25 0.25" diffuse="0.25 0.25 0.25" specular="0 0 0"/>
+                <global offwidth="{w}" offheight="{3 * w}"/></visual>
+              <worldbody>
+                <light directional="true" dir="0.45 {-o * 0.55} -0.70" diffuse="0.75 0.75 0.75"/>
+                <geom type="mesh" mesh="part" rgba="0.82 0.84 0.87 1"/>
+              </worldbody>
+            </mujoco>"""
+            model = mujoco.MjModel.from_xml_string(xml)
+            data = mujoco.MjData(model)
+            mujoco.mj_forward(model, data)
+            cam = mujoco.MjvCamera()
+            # the camera looks along (cos el cos az, cos el sin az, sin el): -o y, at the outboard face
+            cam.azimuth, cam.elevation = (-90 if o > 0 else 90), 0
+            for frame, (h, lookat, dist) in ((top, (3 * w, (0, o * y_face / 1e3, -0.078), 0.30)),
+                                             (bottom, (w, (V.ARM_LABEL_X / 1e3, o * y_face / 1e3,
+                                                           z_label / 1e3), 0.04))):
+                ren = mujoco.Renderer(model, h, w)
+                cam.lookat, cam.distance = lookat, dist
+                ren.update_scene(data, cam)
+                frame.append(ren.render().copy())
+                ren.close()
+    os.makedirs(os.path.dirname(png_path), exist_ok=True)
+    imageio.imwrite(png_path, np.concatenate([np.concatenate(top, axis=1),
+                                              np.concatenate(bottom, axis=1)], axis=0))
+    return png_path
+
+
 BUILDERS = {
     "arm_upper_v6_L": lambda: arm_upper_v6("L"),
     "arm_upper_v6_R": lambda: arm_upper_v6("R"),
@@ -669,7 +741,12 @@ def main(argv=None):
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--no-audit", action="store_true")
+    ap.add_argument("--labels-figure", metavar="PNG",
+                    help="only render the side-letter figure from the STLs, to PNG")
     a = ap.parse_args(argv)
+    if a.labels_figure:
+        print(render_side_labels(a.labels_figure))
+        return 0
     for d in (OUT_STL, OUT_STEP, OUT_REN):
         os.makedirs(d, exist_ok=True)
     built = {}

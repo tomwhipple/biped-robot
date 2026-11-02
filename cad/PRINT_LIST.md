@@ -5,19 +5,18 @@ needs, and how to slice and send it. The CAD is `cad/v6/`; its code map is
 [README.md](README.md). What to buy is [docs/bom.md](../docs/bom.md), and how it
 goes together is [docs/assembly.md](../docs/assembly.md).
 
-**The code's default build is the robot to print**: arms on, the pelvis with
+**The code's default build is the robot to print**: arms on, the torso with
 the girdle's deck pilots, 15 × STS3215 + 2 × STS3250 (the hip rolls) in the
 mass line. The `ARMS=0` variant
 (`neck_collar` for the neck, no girdle, no arm links, no pilots) exists for
-the CAD checks and is **not a print target**: the collar's flange screws have
-nothing to bite (their holes land in the Pi slide slot and the General Driver
-lead slot, and there is no deck under the rest of the flange).
+the CAD checks and is **not a print target**: the armless torso has no pilots
+for the collar's flange screws.
 
 ## Status
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v7`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -39,8 +38,12 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 | part | qty | g each | bbox | orientation on the bed | supports | notes |
 |---|---|---|---|---|---|---|
-| `pelvis_v7` | 1 | 173.8 | 99 × 124 × 72 | deck top down | **yes:** the two yaw-cell ceilings; the skin-window roofs near the housing floor | one print, the whole torso, with the girdle's ten deck pilots and the bearing housing's five pilot bosses; each yaw cell's ceiling has a hole for the servo's free-hub post and a relief for its back-cover platform |
-| `yaw_bearing_housing` | 1 | 24.5 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into the pelvis |
+| `pelvis_v8` | 1 | 56.4 | 114.5 × 56 × 36 | ceiling down, the cell walls rising | no | holds the legs: both yaw cells under one 2.6 mm ceiling (a hole for each servo's free-hub post, a window for its back-cover platform, a slit over its connector trench), the windows for the torso's snap fingers, and the bearing housing's five pilot bosses; glued into `torso_v8` ([assembly §7a](../docs/assembly.md)) |
+| `torso_v8` | 1 | 125.3 | 128.4 × 122.5 × 71.5 | deck top down | **in its wide windows only**: 26 enforcer boxes in `print_settings.json` (manual supports, snug) | the deck with the girdle's ten pilots, the skins, the battery layer, the bay for the Pi + General Driver stack forward, the power bay aft and the battery door's opening in the +y skin; the windows are flat-topped |
+| `front_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the board-stack bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
+| `power_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the power bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
+| `battery_door_v8` | 1 | 11.4 | 79.8 × 29.6 × 12.4 | outer face down | no | the +y skin over the pack and the power board's J1: a bevelled tab aft, one M2.5 × 8 flat-head forward, two ribs that stop the pack ([assembly §10](../docs/assembly.md)) |
+| `yaw_bearing_housing` | 1 | 25.2 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into `pelvis_v8`'s bosses. **A housing printed for `pelvis_v7` does not fit them: reprint it** |
 | `yaw_carrier_v6` | 2 | 27.3 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.48, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
 | `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
@@ -49,16 +52,33 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
-| `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no | a mirror pair; open-front U with two end walls; grips the elbow servo |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
+| `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
+| `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair, L / R debossed on the outboard rail; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair, L / R debossed on the outboard rail; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
-- **`pelvis_v7`**
-  - The yaw-cell ceilings need support because the servo fills its cell to
-    0.3 mm, so no support-free ceiling geometry exists.
-  - Check the slice preview at the window roofs and at the deck-slot edges.
+- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `battery_door_v8`**
+  - The torso is five prints (the pelvis, the torso, two covers and the
+    battery door) on two plates (`print_settings.json` `plates`, `make slice`):
+    `torso_frame` (the torso, the pelvis and the door: 6 h 26 m, 192 g) and
+    `torso_covers` (both covers: 1 h 12 m, 35 g). The covers do not fit beside
+    the torso. The pelvis, the covers and the door print without
+    supports: the pelvis's ceiling is on the bed, the covers' vent slots are
+    cut through flat plates, and the door's tab is bevelled 40° off vertical.
+  - The torso's windows have flat tops. Printed deck down, a window's bottom
+    edge is the top of its opening, so each one wider than an 8 mm bridge (26
+    of them, the door's opening among them) gets support inside it and
+    nowhere else: an enforcer box per window in `print_settings.json`
+    (`torso_v8.support_enforcers()`, pinned by `tests/test_slice.py`), the
+    yaw carrier's method. Each column stands on the window's other edge. Clear
+    them out of every window after the print.
+  - `torso_v8.py` audits the torso with those windows filled, as the support
+    fills them while they print; `cad/v6/audit_torso.py` reports them as
+    `[support]`.
+  - The pelvis is snapped into the torso and glued with CA or epoxy
+    ([assembly §7a](../docs/assembly.md)). The joint is permanent.
   - The deck does not seat the neck servo: its battery aperture runs under the
     whole servo. The seat is `neck_floor`.
 - **Yaw carrier**
@@ -73,8 +93,9 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - The hub is modelled 0.4 mm over (Ø50.48) to print at Ø50.08, +0.08 mm
     on the bearing's 50.0 bore. The printer prints it undersize though its
     STL and its sliced outer wall are on size. Test prints set the allowance:
-    modelled on size, the hub was loose, and modelled 0.5 mm over, it went in
-    only with great difficulty. Measure the hub; the allowance is
+    modelled on size, the hub was loose; modelled 0.5 mm over, it went in
+    only with great difficulty; modelled 0.4 mm over, it presses in with a
+    clamp. Measure the hub; the allowance is
     `YAW_BRG_BOSS_PRINT_ALLOW` in `cad/v6/dimensions_v6.py`.
   - The lip under the hub prints unsupported. It is a 0.9 mm ledge, inside
     what prints without support (`check_printability.py` `LEDGE_OK`). Its
@@ -95,12 +116,24 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 - **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
   print plane. Its counterbores and countersinks open onto the bed; the audit
   finds nothing to support.
+- **`arm_upper_v6_L/_R`, `arm_fore_v6_L/_R`:** all four print together on the
+  `arms` plate (3 h 54 m, 137 g). The girdle does not fit beside them.
+  - Each forearm pad's round end, past the elbow axis, hangs 5.16 mm over the
+    bed. It is supported from the plate up its underside to where the arc is
+    steeper than the 30° support threshold, and nowhere else: an enforcer box
+    per pad (`arm_v6.support_enforcers()`, pinned by `tests/test_slice.py`).
+  - The upper arms need no support. The plate's manual supports leave them
+    unsupported; auto supports would put a column under the shoulder head.
 - **`shoulder_girdle_v6`**
   - It is 200 mm long, so **centre it on the bed**.
-  - Supports go under the trapezius-web window tops (34 mm spans), the
-    grip-plate rib-relief roofs, and the bay disc-relief tops.
+  - **No supports.** The trapezius webs are thin walls (no windows), and every
+    roof on the part (the web recesses, the platform detents) rises at 50°; the
+    neck tube's aft wall is closed. The `girdle_neck` plate (the girdle, the neck
+    floor and the cheek twice, square in one row) prints with supports off: 3 h 00 m, 92 g.
+  - Print the two cheeks on the same plate (`girdle_neck`), outer face down:
+    no supports. Both are the same part, square-edged: it fits either pod.
 
-**Totals:** 22 prints, all PETG, from 16 STLs: ≈ 805 g before supports and
+**Totals:** 28 prints, all PETG, from 21 STLs: ≈ 880 g before supports and
 brims.
 
 **Not printed:**
@@ -279,7 +312,8 @@ python3 cad/slice.py --harvest               # only read saved projects back
        or a 3×3 matrix whose rows are the print axes in model coordinates;
      - supports, and copies;
      - overrides, in OrcaSlicer's own keys.
-  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`;
+     **`arms`** is the four arm links. One
      process slices a plate, so its parts must agree on supports and overrides
      (`slice.py` refuses a plate whose parts don't). A plate's copies are its
      own: `--copies 2` puts two of each foot on it.

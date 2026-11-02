@@ -1,0 +1,37 @@
+{
+ "id": 1,
+ "gains": [
+  32,
+  32,
+  0
+ ],
+ "regs": {
+  "model_number": 2825,
+  "fw_major": 3,
+  "fw_minor": 10,
+  "max_torque": 1000,
+  "min_start_force": 0,
+  "cw_dead_zone": 0,
+  "ccw_dead_zone": 0,
+  "protect_current": 310,
+  "mode": 0,
+  "protect_torque": 20,
+  "protect_time": 200,
+  "overload_torque": 80,
+  "speed_p": 10,
+  "overcurrent_time": 250,
+  "speed_i": 200,
+  "torque_enable": 0,
+  "torque_limit": 1000,
+  "status": 0
+ },
+ "pos": {
+  "pos": 1254,
+  "spd": 0,
+  "load": 0,
+  "volt": 12.1,
+  "temp": 24,
+  "err": 0
+ },
+ "saved": "2026-10-23T13:07:43"
+}

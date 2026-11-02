@@ -20,6 +20,8 @@ experiment is in this folder.
 | `2026-10-02/` | session 3's run scripts (`sweep_smooth.py`, `stream50.py`, `retarget_analysis.py`) and per-pass summaries, incl. the calibration and the accelerometer check |
 | `<date>/raw/` | **the raw measurements** of every run: `session.log` (every CLI line sent and received), `console*.txt` (the operator's view; its first line is the run's exact parameters), and the per-run JSON with every sampled window. Session 3's JSON includes the 500 Hz accelerometer traces. Videos and their `.pts` / `.camlog` sidecars are not in git |
 | `summarise_raw.py` | rewrites the summaries the run scripts did not write (session 1, runs A and B, the 10-02 calibration and accelerometer check) from `raw/`, with `gain_bench`'s own statistics |
+| [2026-10-23-plan-b-bench.md](2026-10-23-plan-b-bench.md) | session 4: the **STS3250** (ran as id 31, now 51) on the v3 rig, accelerometer, Sony A7 III video; limit-cycles at ~18–21 Hz from P 96 (1–4 g after moves); P 64 / D 32 the clean raised gain; stock shakes like the STS3215; D helps (unlike the 3215); stiffness not measured |
+| `2026-10-23/` | session 4's `direction_check.py` and `raw/` (the hold ladders there predate the accelerometer fix) |
 | [REPRODUCE.md](REPRODUCE.md) | **how to rebuild the bench and repeat all three sessions**: hardware, the two rigs, loads, firmware per session, calibration, safety rules, every run's command and parameters, and the metrics' definitions |
 
 Its offline tests are `tests/test_gain_bench.py`. They stay in `tests/`,
@@ -31,7 +33,9 @@ because the pre-push gate collects that folder.
   `<date>/raw/<run>/` here, and write any missing summary.
 - Each session's record goes here as `<date>-plan-b-bench.md`.
 
-## Status and open items (2026-10-06)
+## Status and open items (2026-10-06; STS3250 2026-10-23)
+
+**2026-10-23, the STS3250 (session 4):** it arrived and ran the ladder as planned (ran as id 31, now **id 51**; plumb 1254, level 230, weights at r 70 + 100). It limit-cycles from P 96, so the STS3215's P 96 / D 0 does not carry over; **P 64 / D 32** is its clean raised gain. Its stiffness ratio is not measured yet (bottles).
 
 **What the bench has shown** (details in the dated records):
 - Stiffness rises with P: **3.5 ± 0.4×** at P 128 and **4.8 ± 0.6×** at P 160,

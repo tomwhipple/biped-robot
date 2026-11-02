@@ -5,11 +5,17 @@
 // retrain that changes joint count, command width or history depth
 // regenerates this file; nothing downstream hardcodes 10 or 49.
 #pragma once
+#ifdef BIMO_POLICY_OVERLAY
+#error "this is the DEPLOYED obs_spec.h, but the build selected a policy profile (BIMO_POLICY): its firmware/policies/<profile> directory must come first on the include path"
+#endif
 #include <stdint.h>
 
 namespace obs {
 
 // -- deployed run ------------------------------------------------------
+// The policy profile this set belongs to (tools/policy_profile.py):
+// "" for the deployed set in the components, else the BIMO_POLICY name.
+inline constexpr const char* kPolicyProfile = "";
 inline constexpr const char* kRunName = "loco_v41rsi_b_s128r24";
 inline constexpr const char* kPlantXml = "bimo_biped_v5body.xml";
 inline constexpr const char* kActionMap = "full";
@@ -47,7 +53,7 @@ inline constexpr int kOffCmd = 42;   // 7 wide
 // from docs/wiring.md -- a real permutation on the 10-DOF plant, since
 // the yaw servos were appended as 9/10 after IDs 1-8 were assigned.
 inline constexpr const char* kJointNames[kNumJoints] = {"L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle"};
-inline constexpr uint8_t kServoId[kNumJoints] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
+inline constexpr uint8_t kServoId[kNumJoints] = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8};
 inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.436332313f, -1.91986218f, -1.65806279f, -0.698131701f, -0.785398163f, -0.959931089f, -1.91986218f, -1.65806279f, -0.698131701f};
 inline constexpr float kJointHi[kNumJoints] = {0.785398163f, 0.959931089f, 1.57079633f, 1.65806279f, 0.698131701f, 0.785398163f, 0.436332313f, 1.57079633f, 1.65806279f, 0.698131701f};
 inline constexpr float kJointDefault[kNumJoints] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
@@ -65,7 +71,7 @@ inline constexpr float kHeldTarget[1] = {0.0f};   // rad, sim joint frame
 // (servo_kp_scale): 1 = the servo's factory P. main/servo_gains.h must
 // raise P exactly where this is above 1.
 inline constexpr int kNumPlantServos = 10;
-inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {10, 5, 6, 7, 8, 9, 1, 2, 3, 4};
+inline constexpr uint8_t kPlantServoId[kNumPlantServos] = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8};
 inline constexpr float kServoKpScale[kNumPlantServos] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
 
 }  // namespace obs

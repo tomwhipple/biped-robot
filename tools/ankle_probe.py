@@ -10,7 +10,7 @@ the servo; a glide = play outside it), and the torso's peak rate.
 
 Calibration comes from the board's `cal show` (blob v3, 17-servo bus map);
 the asbuilt prototype table is the fallback. Pose strings are 17-wide in
-servo-ID order.
+bus order.
 """
 import serial, time, re, csv, math, sys, argparse, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

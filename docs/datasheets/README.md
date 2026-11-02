@@ -74,6 +74,6 @@ repo yet:
 |---|---|
 | Raspberry Pi 4 Model B | [product brief](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf), [datasheet](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf), [mechanical drawing](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf) |
 | Raspberry Pi Camera Module 3 (Wide) | [product brief](https://datasheets.raspberrypi.com/camera/camera-module-3-product-brief.pdf) |
-| Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The pelvis bosses wait on the hole pattern |
+| Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The torso has no mount for it: its power bay holds the custom power board (#112) |
 | 3S LiPo pack | the chosen pack's manufacturer spec sheet: dimensions, capacity, C rating, connector |
 | 3S protection board | the chosen board's manufacturer datasheet: continuous current, cut-off voltages, balance-lead pinout |

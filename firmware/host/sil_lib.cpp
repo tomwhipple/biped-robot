@@ -37,18 +37,25 @@
 
 namespace {
 
-// The ABI's fixed widths are the contract with python's ctypes. If a retrain
-// regenerates obs_spec.h with different dimensions, this file must be looked
-// at rather than silently reinterpreting the harness's bytes.
-static_assert(obs::kNumBusJoints == 17, "SilSensors/goal arrays are 17 wide");
-static_assert(obs::kActDim == 10, "SilTargets.action is 10 wide");
-static_assert(obs::kNumCmd == 7, "SilSensors.cmd is 7 wide");
-static_assert(obs::kObsDim == 147, "SilTargets.obs is 147 wide");
+// The ABI's widths are the compiled spec's (sil.h); sil_spec() reports each
+// one and the python harness refuses a library whose widths are not the ones
+// it sized its ctypes structs from. These pin the struct to the spec.
+static_assert(sizeof(SilSensors::pos_ticks) ==
+                  sizeof(uint16_t) * obs::kNumBusJoints,
+              "SilSensors arrays are bus-wide");
+static_assert(sizeof(SilSensors::cmd) == sizeof(float) * obs::kNumCmd,
+              "SilSensors.cmd is kNumCmd wide");
+static_assert(sizeof(SilTargets::action) == sizeof(float) * obs::kActDim,
+              "SilTargets.action is kActDim wide");
+static_assert(sizeof(SilTargets::obs) == sizeof(float) * obs::kObsDim,
+              "SilTargets.obs is kObsDim wide");
+static_assert(obs::kActDim == obs::kNumJoints,
+              "one action per policy joint (action_map full)");
 static_assert(obs::kFrameDim * obs::kHistLen == obs::kObsDim,
               "obs is hist_len frames");
 
 // Slot in the servo-ID-ordered arrays for a given policy joint: its bus
-// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h: slot = bus_id - 1.
+// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h.
 inline int slotOf(int joint) { return obs::policyToBus(joint); }
 
 // The goal of a bus slot the policy does not drive: the position sensed on
@@ -70,6 +77,8 @@ float g_gait_hz = 1.5f;
 // actually runs.
 obs::CommandShaper g_shaper;
 float g_shape_hz = obs::kShaperPoleHz;
+obs::StandClock g_stand_clock = obs::StandClock::kRun;   // ctrl_task g_stand_clock
+float g_stand_phase = 3.14159265f;
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 
@@ -116,8 +125,10 @@ void buildSpec() {
     g_spec = "{";
     snprintf(buf, sizeof buf,
              "\"sil_abi\":3,\"run\":\"%s\",\"plant\":\"%s\","
-             "\"action_map\":\"%s\",\"spec_hash\":\"0x%016llx\",",
+             "\"action_map\":\"%s\",\"policy_profile\":\"%s\","
+             "\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
+             obs::kPolicyProfile,
              static_cast<unsigned long long>(specHash()));
     g_spec += buf;
     // sil_abi 2: what the python side needs to replicate the C2 command
@@ -163,7 +174,7 @@ void buildSpec() {
                  obs::kJointNames[j]);
         g_spec += buf;
     }
-    // The bus map: every servo the arrays carry, servo-ID order.
+    // The bus map: every servo the arrays carry, bus order.
     g_spec += "],\"num_bus_joints\":";
     g_spec += std::to_string(obs::kNumBusJoints);
     g_spec += ",\"bus_servo_id\":[";
@@ -180,16 +191,16 @@ void buildSpec() {
     }
     // The one thing a harness cannot guess. Spelled out so the python side
     // asserts it instead of assuming an identity (see sil.h).
-    g_spec += "],\"sensor_index\":\"bus_id-1\",";
+    g_spec += "],\"sensor_index\":\"bus_index\",";
 
     snprintf(buf, sizeof buf,
              "\"ready\":%s,\"gait_freq_hz\":%.9g,"
              "\"policy\":{\"source\":\"%s\",\"builtin\":%s,"
-             "\"activation\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
+             "\"activation\":\"%s\",\"quant\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
              "\"placeholder_weights\":%s,\"layer_sizes\":[",
              g_ready ? "true" : "false", static_cast<double>(g_gait_hz),
              g_net.source().c_str(), g_net.builtin() ? "true" : "false",
-             g_net.activation().c_str(), g_net.obsDim(), g_net.actDim(),
+             g_net.activation().c_str(), g_net.quant(), g_net.obsDim(), g_net.actDim(),
              (g_net.builtin() && policy::kWeightsArePlaceholder) ? "true"
                                                                  : "false");
     g_spec += buf;
@@ -246,9 +257,17 @@ int sil_init(const char* weights_path, const char* cal_path,
     g_clock.setFrequency(g_gait_hz);
     // init == boot: shaping back to the firmware default (see sil.h).
     sil_set_shaper(obs::kShaperPoleHz);
+    sil_set_stand_clock(0, 3.14159265f);      // boot: as trained (ctrl_task g_stand_clock)
     g_ready = true;
     sil_reset();
     return 0;
+}
+
+void sil_set_stand_clock(int mode, float stand_phase) {
+    g_stand_clock = mode == 1   ? obs::StandClock::kFreeze
+                    : mode == 2 ? obs::StandClock::kCoast
+                                : obs::StandClock::kRun;
+    g_stand_phase = stand_phase;
 }
 
 void sil_set_shaper(float pole_hz) {
@@ -311,15 +330,16 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     // [4]=lift. Training's plain_stand gate (env_mjx): no locomotion
     // command AND no lift -- marches/balances keep their clock. Must stay
     // bit-identical to ctrl_task.cpp's gate.
-    const float sil_vy = obs::kNumCmd > 1 ? in->cmd[1] : 0.0f;
-    const float sil_lift = obs::kNumCmd > 4 ? in->cmd[4] : 0.0f;
-    if (!obs::kClockStandFreeze
-        || fabsf(in->cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
-        || fabsf(in->cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
-        // speed clock: same scale as ctrl_task.cpp (kSpeedClock)
-        g_clock.advanceSpeedClock(obs::kControlDt,
-                                  sqrtf(in->cmd[0] * in->cmd[0] + sil_vy * sil_vy));
-    }
+    // Frozen command channels pinned to their trained value, as ctrl_task.cpp
+    // does (policy/mlp.h pinFrozen), before the clock gate reads them -- from
+    // the LOADED net's normaliser, so a .silw of another run pins its own.
+    float cmd[obs::kNumCmd];
+    memcpy(cmd, in->cmd, sizeof cmd);
+    policy::pinFrozenNet(g_net.net(), obs::kOffCmd, obs::kNumCmd, cmd);
+    // THE clock rule, shared with ctrl_task.cpp (obs::tickGaitClock): speed
+    // clock under a command; at a plain stand a freeze-trained run holds and
+    // any other follows the stand-clock option (sil_set_stand_clock).
+    obs::tickGaitClock(g_clock, cmd, g_stand_clock, g_stand_phase);
 
     obs::Inputs inp{};
     memcpy(inp.q, q, sizeof q);
@@ -328,7 +348,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     memcpy(inp.gyro, in->gyro, sizeof inp.gyro);
     memcpy(inp.prev_action, g_prev_action, sizeof g_prev_action);
     inp.phase = g_clock.phase();
-    memcpy(inp.cmd, in->cmd, sizeof(float) * obs::kNumCmd);
+    memcpy(inp.cmd, cmd, sizeof cmd);
 
     obs::assembleFrame(inp, g_frame);
     if (!g_primed) {
@@ -348,7 +368,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     g_hist.build(g_frame, g_obs);
 
     // -- act ----------------------------------------------------------------
-    policy::forwardNet(g_net.net(), g_obs, g_action);
+    g_net.forward(g_obs, g_action);    // float, or the int8 net (sil_net.h)
     g_hist.push(g_frame);            // after the policy has been fed
     memcpy(g_prev_action, g_action, sizeof g_prev_action);
 

@@ -6,7 +6,7 @@ rollup and the per-segment masses the sim plant needs.
     .venv/bin/python cad/v6/parts_v6.py --only foot_L head_shell
 
 The defaults build THE ROBOT TO PRINT (issue #76):
-    ARMS=1 (default) | 0          the shoulder girdle + both arms, and the pelvis
+    ARMS=1 (default) | 0          the shoulder girdle + both arms, and the torso
                                   with the girdle's deck pilots; ARMS=0 is the
                                   armless variant (neck_collar, no pilots), which
                                   is not a print target (cad/PRINT_LIST.md).
@@ -69,14 +69,23 @@ def _lazy(mod, fn, *a, **k):
     return f
 
 
-# the armless pelvis exports under its own name, so it never overwrites the
-# robot's pelvis_v7.stl
-PELVIS = "pelvis_v7" + ("" if ARMS else "_armless")
+# the armless torso exports under its own name, so it never overwrites the
+# robot's torso_v8.stl
+TORSO = "torso_v8" + ("" if ARMS else "_armless")
 
 PARTS = [
     # name, builder, qty, note
-    (PELVIS, _lazy("pelvis_v7", "pelvis_v7", arm_mounts=ARMS), 1,
-     f"one print, deck-top-down; bearing-housing pilots{', girdle pilots' if ARMS else ''}"),
+    ("pelvis_v8", _lazy("torso_v8", "pelvis_v8"), 1,
+     "ceiling down, no supports; both yaw cells + the bearing housing's pilots; snaps + glues into the torso"),
+    (TORSO, _lazy("torso_v8", "torso_v8", arm_mounts=ARMS), 1,
+     f"deck down, support in its windows only; battery layer, Pi + General Driver bay, power bay, "
+     f"battery door opening{', girdle pilots' if ARMS else ''}"),
+    ("front_cover_v8", _lazy("torso_v8", "front_cover_v8"), 1,
+     "outer face down, no supports; the board-stack bay's front wall, 4 screws through the skins"),
+    ("power_cover_v8", _lazy("torso_v8", "power_cover_v8"), 1,
+     "outer face down, no supports; the power bay's aft wall, 4 screws through the skins"),
+    ("battery_door_v8", _lazy("torso_v8", "battery_door_v8"), 1,
+     "outer face down, no supports; the +y skin over the pack and J1: a bevelled tab aft, one screw forward"),
     ("yaw_bearing_housing", _lazy("yaw_bearing_housing", "yaw_bearing_housing"), 1,
      "one print, top face down; both 6810-2RS outer-race seats, screwed up under the pelvis"),
     ("head_shell", _lazy("head", "head_shell"), 1, "neck horn carrier + shell, base down"),
@@ -114,10 +123,13 @@ if ARMS:
     PARTS += [
         ("shoulder_girdle_v6", _lazy("shoulder_girdle_v6", "shoulder_girdle_v6"), 1,
          "ONE PRINT: both shoulder pods + the neck tube + the trapezius webs (base down)"),
+        ("shoulder_cheek_v6", _lazy("shoulder_girdle_v6", "shoulder_cheek_v6", "L"), 2,
+         "each pod's outboard grip plate, screwed on once the servo is in; one part for both pods "
+         "(turned over for the right), flat, outer face down"),
         ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow servo grip, 160 mm (on its back)"),
-        ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L"),
+        ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L, its own letter R"),
         ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow fork -> hand knuckle, 160 mm (on its back)"),
-        ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L"),
+        ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L, its own letter R"),
     ]
 else:
     PARTS.append(("neck_collar", _lazy("neck_collar", "neck_collar"), 1,

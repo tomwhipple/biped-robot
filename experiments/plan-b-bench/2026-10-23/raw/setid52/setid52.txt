@@ -1,0 +1,23 @@
+=== boot
+=== id 1 52
+id 1 -> 52: timeout
+=== scan
+scanning IDs 0-253 ...
+  id  52  pos  2667  12.1 V  err 0x00  -
+1 servo(s)
+=== reg 52 5 1
+id 52 reg 5 = 52 (0x34)
+=== reg 52 55 1
+id 52 reg 55 = 0 (0x00)
+=== reg 52 40 1
+id 52 reg 40 = 0 (0x00)
+=== gains 52 32 32
+id 52: writing P 32 D 32 to EEPROM (torque must be OFF; no goal is written) ...
+id 52: P 32 D 32, verified after commit -- safe to power down
+  note: id 52 has no row in servo_gains.h
+=== reg 52 55 1
+id 52 reg 55 = 1 (0x01)
+=== gains 52
+id 52  P 32  D 32  I 0   expected (no row in servo_gains.h)
+=== reg 52 5 1
+id 52 reg 5 = 52 (0x34)

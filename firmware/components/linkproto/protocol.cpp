@@ -148,6 +148,17 @@ const char* diagReason(uint8_t diag) {
             return "arm REFUSED -- a servo's position-loop gains (reg 21/22) "
                    "are not the expected values, or did not read back (run "
                    "`gains`)";
+        case ArmResult::kRefusedPolicy:
+            return "arm REFUSED -- this firmware's compiled-in net is a "
+                   "placeholder/untrained test net, not a policy (flash a "
+                   "build with real weights)";
+        case ArmResult::kDisarmedFlail:
+            return "disarmed -- FLAIL guard: the policy misbehaved, so it was "
+                   "stopped and the joints HELD stiff; it homes once upright "
+                   "and still (`flail` on the tether says why)";
+        case ArmResult::kDisarmedStop:
+            return "disarmed -- operator STOP (tools/estop.py): run ended; "
+                   "re-arm deliberately (ARM edge or run)";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

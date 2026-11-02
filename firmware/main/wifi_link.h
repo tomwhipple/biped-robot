@@ -51,4 +51,8 @@ bool wifiApply(const char* ssid, const char* psk);
 
 void wifiGetStatus(WifiStatus& out);
 
+// Associated and holding a lease. One atomic load -- unlike wifiGetStatus(),
+// which reads NVS -- so the flight recorder's sender can ask every send.
+bool wifiConnected();
+
 }  // namespace robot

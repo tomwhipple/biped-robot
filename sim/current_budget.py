@@ -64,20 +64,20 @@ SCENARIOS = [
     ("turn",    0.6,  0.6),
 ]
 
-# Proposed 17-servo ID map -> board port (docs/servo-map.md 2.1 and
-# firmware/components/obs/include/obs/bus_map.h kBusPort). Port A is H5
-# (right leg + neck + right arm, 9 servos), port B is H6 (left leg + left
-# arm, 8). PROPOSED, awaiting owner sign-off (issue #77).
-PORT_A_IDS = {1, 2, 3, 4, 9, 11, 13, 14, 15}     # R leg, neck, R arm
-PORT_B_IDS = {5, 6, 7, 8, 10, 12, 16, 17}        # L leg, L arm
+# The 17-servo ID map -> board port (docs/servo-map.md 2.1 and
+# firmware/components/obs/include/obs/bus_map.h kBusServoId / kBusPort): the
+# v6 legs as assembled (2026-10-23). Port A is H5 (right leg + neck + right
+# arm, 9 servos), port B is H6 (left leg + left arm, 8).
+PORT_A_IDS = {52, 6, 7, 8, 10, 11, 13, 14, 15}   # R leg, neck, R arm
+PORT_B_IDS = {51, 2, 3, 4, 9, 12, 16, 17}        # L leg, L arm
 
-# Sim actuator name -> servo ID under the proposed map. The 12 leg joints
-# and the extras appear here exactly once each; the 10-joint prototype is
-# the subset {1..10} and resolves by the same names.
+# Sim actuator name -> servo ID under the bus map. The 12 leg joints and the
+# extras appear here exactly once each; the 10-joint prototype resolves by the
+# same names.
 NAME_TO_ID = {
-    "R_hip_roll": 1, "R_hip_pitch": 2, "R_knee": 3, "R_ankle": 4,
-    "L_hip_roll": 5, "L_hip_pitch": 6, "L_knee": 7, "L_ankle": 8,
-    "R_hip_yaw": 9, "L_hip_yaw": 10,
+    "R_hip_roll": 52, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
+    "L_hip_roll": 51, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
+    "R_hip_yaw": 10, "L_hip_yaw": 9,
     "R_ankle_roll": 11, "L_ankle_roll": 12,
     "neck_yaw": 13, "R_shoulder": 14, "R_elbow": 15,
     "L_shoulder": 16, "L_elbow": 17,
@@ -86,7 +86,7 @@ NAME_TO_ID = {
 
 def port_masks(env):
     """Split the env's policy actuator indices (per `env._act_names`) into
-    (port A, port B) under the proposed ID map. Works on the 10-, 12-, 13-
+    (port A, port B) under the bus ID map. Works on the 10-, 12-, 13-
     and 17-joint plants: any name not in NAME_TO_ID raises (an unnamed
     actuator is a mapper bug, not a defaults case)."""
     ai, bi = [], []

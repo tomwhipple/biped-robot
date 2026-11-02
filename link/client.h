@@ -55,8 +55,8 @@ double nowMs();
 
 const char* stateName(LinkState s);
 
-// The servo-fault field (a u32, bit b = servo ID b + 1) as the IDs that are
-// faulted, "3 11 17", into `buf`. Returns buf. Both consoles print this: a
+// The servo-fault field (a u32, bit b = bus joint b) as the servo IDs that
+// are faulted (obs/bus_map.h kBusServoId), "7 11 17", into `buf`. Returns buf. Both consoles print this: a
 // 17-bit string is not something an operator can read at a glance.
 const char* faultIds(uint32_t servo_err, char* buf, size_t cap);
 

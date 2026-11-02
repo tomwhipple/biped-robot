@@ -69,8 +69,25 @@ class Bus {
     // whether servo i answered; the transaction as a whole still returns kOk
     // if at least one did, because a single dead servo must not blind the
     // control loop to the other nine.
+    // The servos answer in the order they are listed, so the burst ends as
+    // soon as the LAST listed servo has answered: a servo that missed its
+    // slot earlier in the list is not coming (the 2026-11-02 stand: id 11
+    // silent, id 12 after it answered on time, the read waited 18 ms).
+    // Reads more than kSyncChunk servos as several back-to-back SYNC READs:
+    // on the v6 legs (2026-10-30, `sread`) one 12-servo burst lost the 11th
+    // reply ~60 % of the time while every burst of <= 11 answered 100/100.
     Status syncReadFeedback(const uint8_t* ids, size_t n, Feedback* out,
                             bool* ok);
+    static constexpr size_t kSyncChunk = 6;
+    // A SYNC READ burst's deadline: kSyncBaseUs + kSyncPerServoUs per servo
+    // (never longer than reply_timeout_us per servo). The replies come back
+    // to back -- ~0.3 ms per servo at 1 Mbaud, a 6-servo chunk in 1.7-2.1 ms
+    // on the v6 legs -- so 3.9 ms for a chunk of 6 is ~2x margin. The old
+    // per-servo transaction timeout (3 ms x 6 = 18 ms) let ONE missed reply
+    // cost a whole tick: 16 late ticks of 6294, each 28.3-29.1 ms, in the
+    // 2026-11-02 policy stand (id 11, R ankle roll, missed its reply).
+    static constexpr uint32_t kSyncBaseUs = 1500;
+    static constexpr uint32_t kSyncPerServoUs = 400;
     // One SYNC WRITE of position targets. Broadcast: no replies, no waiting.
     Status syncWritePositions(const uint8_t* ids, const int32_t* steps,
                               size_t n, uint16_t time_ms = 0,
@@ -110,6 +127,7 @@ class Bus {
   private:
     // Send `tx`, then collect exactly one status packet. `expect_id` of
     // kBroadcastId accepts whatever answers first.
+    Status syncReadBurst(const uint8_t* ids, size_t n, Feedback* out, bool* ok);
     Status transact(const uint8_t* tx, size_t txlen, uint8_t expect_id,
                     Response& out, uint8_t* store, size_t store_cap);
 

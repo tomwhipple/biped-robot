@@ -35,6 +35,11 @@ export MUJOCO_GL=egl
 mkdir -p "$REPO/sim/runs"
 exec >> "$LOG" 2>&1
 echo "=== $(date) night_collect_local ==="
+# the referee loads what the run trained against (a --rise-ref npz, a plant)
+# from THIS checkout, which nothing else pulls: a reference added for last
+# night's run would be missing here and the scorecard would fail
+git -C "$REPO" pull -q --ff-only origin main \
+  || echo "!!! could not fast-forward $REPO to origin/main; refereeing on $(git -C "$REPO" rev-parse --short HEAD)"
 
 collect_one() {   # $1 = state file, $2 = OUT name
   local ST=$1 OUT=$2

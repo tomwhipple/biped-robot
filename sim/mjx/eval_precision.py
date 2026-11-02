@@ -42,6 +42,7 @@ import json
 import math
 import os
 import pickle
+import re
 import subprocess
 import sys
 
@@ -132,6 +133,15 @@ def is_robot_plant(xml):
     return robot_plant.is_robot_model(mujoco.MjModel.from_xml_path(xml))
 
 
+@functools.lru_cache(maxsize=None)
+def plant_has_arms(xml):
+    """True when the plant has shoulder joints (the legs-only as-built plant has
+    none, so a run on it has no get-up scenarios whatever held_joints says)."""
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(xml)
+    return any("shoulder" in m.joint(j).name for j in range(m.njnt))
+
+
 def referee_payload(xml):
     """The payload the referee pins: the prototype's 154 g GoPro, which its
     plant does not model; none on the robot, whose plant models the camera
@@ -191,9 +201,14 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
     # trained with strong velocity kicks and inheriting those into the eval
     # made their scorecards incomparably harsher than v1-v6 (falls 88% under
     # inherited 1 m/s kicks vs 0% nominal, found 2026-07-22)
-    kw.update(push_kick=False, push_force=5.0 if not nominal else 0.0,
-              push_prob=0.01 if not nominal else 0.0)
-    return BimoWalkerEnv(**kw)
+    # (--push-force/--push-prob replace it on purpose: a push-stress grade,
+    # written to its own scorecard_push<N>x<p>)
+    kw.update(push_kick=False,
+              push_force=cfg.get("_referee_push_force", 5.0) if not nominal else 0.0,
+              push_prob=cfg.get("_referee_push_prob", 0.01) if not nominal else 0.0)
+    env = BimoWalkerEnv(**kw)
+    env.rise_ref_npz = cfg.get("rise_ref_npz")   # recover_supine_ph picks its phase from it
+    return env
 
 
 # =====================================================================
@@ -217,8 +232,99 @@ def _run(cmd, what, cwd=None, env=None):
     return p.stdout or ""
 
 
-def sil_setup(run_name, run_dir, verbose=True):
+def sil_profile_for(xml):
+    """The policy profile whose compiled spec is this plant's
+    (tools/policy_profile.py): None for the deployed set, else the name under
+    firmware/policies/. Chosen by the spec's kPlantXml, and exported as
+    $BIMO_POLICY so sim/sil/harness.py sizes its ABI from that spec -- which
+    is why this runs BEFORE the harness is first imported."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import policy_profile
+    plant = os.path.basename(xml)
+    found = []
+    for prof in [None] + policy_profile.list_profiles():
+        try:
+            txt = open(policy_profile.files(prof)["spec_h"]).read()
+        except OSError:
+            continue
+        m = re.search(r'kPlantXml\s*=\s*"([^"]+)"', txt)
+        if m and m.group(1) == plant:
+            found.append(prof)
+    if not found:
+        # an older plant scored against the deployed spec, as always; a layout
+        # it does not share is refused by sil_check_spec
+        print(f"[sil] WARNING: no compiled policy spec is for plant {plant}; "
+              "using the deployed one (a new plant gets its own: "
+              "`tools/gen_obs_spec.py --run <a run on it> --profile <name>`)",
+              file=sys.stderr)
+        found = [None]
+    # Several profiles can share a plant (v6legs: the float (128,128) net and
+    # v6legs256, the int8 (256,256) one). The first is the default; $SIL_PROFILE
+    # names another -- e.g. to score a run through its int8 build.
+    want = os.environ.get("SIL_PROFILE")
+    if want:
+        if want not in [f or "" for f in found]:
+            raise SystemExit(f"[sil] SIL_PROFILE={want} is not a profile for "
+                             f"plant {plant} (those are {found})")
+        found = [want]
+    prof = found[0]
+    loaded = sys.modules.get("harness")
+    if loaded is not None and getattr(loaded, "POLICY_PROFILE", None) != prof:
+        raise SystemExit(
+            f"[sil] the SIL harness is already loaded for profile "
+            f"{loaded.POLICY_PROFILE!r}; this plant needs {prof!r} -- one "
+            "profile per process")
+    if prof:
+        os.environ["BIMO_POLICY"] = prof
+    else:
+        os.environ.pop("BIMO_POLICY", None)
+    return prof
+
+
+def sil_check_spec(H, env):
+    """The compiled spec must be the scored run's observation and action
+    layout: one library serves every run on its plant, so a run trained with
+    another joint table or obs layout would be graded through the wrong
+    firmware. Dims and joints are fatal; ranges and clock settings warn."""
+    sp = H.SPEC
+    nj = int(env._nq_act)
+    hard = []
+    if list(sp.joint_names) != list(env._act_names):
+        hard.append(f"joints {list(sp.joint_names)} vs run {env._act_names}")
+    for what, got, want in (("frame", sp.frame_dim, env.obs_frame),
+                            ("hist", sp.hist_len, env.obs_hist_len),
+                            ("num_cmd", sp.num_cmd, env._ncmd),
+                            ("num_joints", sp.num_joints, nj)):
+        if int(got) != int(want):
+            hard.append(f"{what} {got} vs run {want}")
+    if hard:
+        raise SystemExit("[sil] the compiled spec (%s) is not this run's "
+                         "layout: %s -- regenerate it from a run of this "
+                         "recipe (tools/gen_obs_spec.py)"
+                         % (os.path.relpath(H.SPEC_H, ROOT), "; ".join(hard)))
+    soft = []
+    for what, got, want in (("kJointLo", H.JOINT_LO, env._lo),
+                            ("kJointHi", H.JOINT_HI, env._hi),
+                            ("kJointDefault", H.JOINT_DEFAULT, env._default)):
+        if np.max(np.abs(np.asarray(got) - np.asarray(want))) > 1e-5:
+            soft.append(what)
+    txt = open(H.SPEC_H).read()
+    for key, attr in (("kClockStandFreeze", "clock_stand_freeze"),
+                      ("kSpeedClock", "speed_clock")):
+        m = re.search(key + r"\s*=\s*(true|false)", txt)
+        if m and (m.group(1) == "true") != bool(getattr(env, attr, False)):
+            soft.append(key)
+    if soft:
+        print(f"[sil] WARNING: {', '.join(soft)} in "
+              f"{os.path.relpath(H.SPEC_H, ROOT)} differ from this run's: "
+              "the SIL column runs the compiled spec's", file=sys.stderr)
+
+
+def sil_setup(run_name, run_dir, verbose=True, profile=None):
     """Import the SIL harness with its prerequisites satisfied.
+
+    profile: the policy profile (sil_profile_for), whose library is built
+    with `make -C firmware/host sil POLICY=<profile>`.
 
     (a) libctrl_sil missing        -> `make -C firmware/host sil`
     (b) <run>.silw missing/stale   -> tools/export_policy_weights.py --run <run>
@@ -234,9 +340,13 @@ def sil_setup(run_name, run_dir, verbose=True):
         raise SystemExit(f"[sil] cannot import sim/sil/harness.py: {e}")
 
     # (a) the shared library -------------------------------------------
+    if (H.POLICY_PROFILE or None) != (profile or None):
+        raise SystemExit(f"[sil] harness profile {H.POLICY_PROFILE!r} but "
+                         f"the run needs {profile!r}")
     lib_path = H.find_lib()
     if lib_path is None:
-        _run(["make", "-C", os.path.join(ROOT, "firmware", "host"), "sil"],
+        _run(["make", "-C", os.path.join(ROOT, "firmware", "host"), "sil"]
+             + ([f"POLICY={profile}"] if profile else []),
              "building libctrl_sil")
         lib_path = H.find_lib()
         if lib_path is None:
@@ -539,6 +649,16 @@ def scen_balance(side):
         # now (the training kernel targets it; threshold once we see the
         # achievable range).
         com_off = _mean(judge_win, "com_stance")
+        # time on ONE foot with the lifted sole >= 3 cm (informational: the
+        # pass rule above is unchanged): total, and the longest unbroken run
+        one_foot = [bool(r["foot_clear"] >= 0.03 and not r[_swing_key(side)]
+                         and r[_swing_key("R" if side == "L" else "L")]) for r in lift_win]
+        run = best = 0
+        for ok in one_foot:
+            run = run + 1 if ok else 0
+            best = max(best, run)
+        dt_row = rows[1]["t"] - rows[0]["t"] if len(rows) > 1 else 0.02
+        one_foot_s, one_foot_run_s = sum(one_foot) * dt_row, best * dt_row
         # sensible minimums (user 2026-07-19): balancing also means STAYING
         # put -- a hop-around that keeps the foot up is not a balance
         success = ((not fell) and contact < 0.05
@@ -547,7 +667,8 @@ def scen_balance(side):
         return dict(success=success,
                     metrics=dict(lifted_contact=contact, clear_frac=clear,
                                  drift_rms=drift, wobble=wob, watts=watts,
-                                 com_off=com_off),
+                                 com_off=com_off, one_foot_s=one_foot_s,
+                                 one_foot_run_s=one_foot_run_s),
                     headline=f"clear {clear*100:.0f}%")
     return build, evaluate
 
@@ -939,7 +1060,41 @@ def _supine_setup(env, drv):
     _ref_setup(env, drv, "getup_ref_v6ar.npz")
 
 
-def _ref_setup(env, drv, npz):
+SUPINE_NPZ = "getup_ref_v6ar.npz"
+
+
+def ref_back_phase(npz):
+    """Seconds into reference `npz` at which it lies on its back the way the
+    supine start does: the time of its first "sit up" keyframe minus that
+    of getup_ref_v6ar.npz (whose first frame IS the supine start). 0 for a
+    supine reference, ~11.3 s for getup_ref_v6ar_prone_ik.npz (the roll ends
+    on the back and the same seat push follows), 0 when there is no
+    reference or no "sit up" keyframe."""
+    def situp(p):
+        z = np.load(_rise_ref_path(p))
+        lab = [str(x) for x in z["label"]]
+        return float(z["t"][lab.index("sit up")]) if "sit up" in lab else None
+    if not npz:
+        return 0.0
+    t_run, t_sup = situp(npz), situp(SUPINE_NPZ)
+    if t_run is None or t_sup is None:
+        return 0.0
+    return max(0.0, t_run - t_sup)
+
+
+def _supine_phase_setup(env, drv):
+    """recover_supine_ph start: the supine start, with the policy's reference
+    phase set to where ITS reference lies on its back (ref_back_phase). A
+    reference is indexed by time from the episode start, so a policy trained
+    on the prone reference replays the roll from a supine start and fails
+    recover_supine; the robot knows which way up it lies (the IMU), so the
+    phase it starts the get-up at is a choice it can make. Get-up campaign
+    2026-10-22: robot_getup_t3k does recover_supine 0/8, this 8/8."""
+    _ref_setup(env, drv, SUPINE_NPZ,
+               t0=ref_back_phase(getattr(env, "rise_ref_npz", None)))
+
+
+def _ref_setup(env, drv, npz, t0=0.0):
     import mujoco
     z = np.load(_rise_ref_path(npz))
     d = env.data
@@ -954,7 +1109,7 @@ def _ref_setup(env, drv, npz):
     env._best_h = float(d.qpos[2])
     env._recovered = False
     env._recover_ep = True
-    env._rise_t0 = 0.0
+    env._rise_t0 = float(t0)
     env._last_target = tgt.copy()
     env._ctrl_buf = [tgt.copy() for _ in range(env.action_latency + 1)]
     env._prev_action[:] = 0.0
@@ -969,12 +1124,13 @@ def _ref_setup(env, drv, npz):
     drv._prev_sole = [d.geom_xpos[g][:2].copy() for g in env._sole_gids]
 
 
-def scen_recover_supine(deadline=28.0):
+def scen_recover_supine(deadline=28.0, phase=False):
     """Get up from lying on the back (the elbow-arm seat push's start): stand
     command; success = first stand within the deadline AND still tall over the
-    last 3 s of the 32 s episode."""
+    last 3 s of the 32 s episode. phase=True: recover_supine_ph, the same
+    start at the policy's own on-the-back reference phase (_supine_phase_setup)."""
     def build():
-        ev = {"_setup": _supine_setup}
+        ev = {"_setup": _supine_phase_setup if phase else _supine_setup}
 
         def ctrl(t, gt, ev):
             return (0, 0, 0, 1, 0)
@@ -995,14 +1151,17 @@ def scen_recover_supine(deadline=28.0):
     return build, evaluate
 
 
-def scen_recover_prone(deadline=41.0, secs=45.0):
-    """Get up from lying FACE DOWN (arms folded up): the recorded prone get-up's
-    first frame (getup_ref_v6ar_prone.npz: legs roll the body onto its back,
-    then the elbow-arm seat push; the reference stands at ~33 s). Stand
-    command; success = first stand within the deadline AND still tall over
-    the last 3 s of the 45 s episode."""
+def scen_recover_prone(deadline=41.0, secs=45.0, npz="getup_ref_v6ar_prone.npz"):
+    """Get up from lying FACE DOWN: a recorded prone get-up's first frame.
+    recover_prone: getup_ref_v6ar_prone.npz (arms folded up before the fall;
+    legs roll the body onto its back, then the elbow-arm seat push; the
+    reference stands at ~33 s). recover_prone_fall: getup_ref_v6ar_prone_ik.npz
+    (arms at the walk's idle pose, where a forward fall leaves them;
+    getup_ref_analytic.py's searched roll + analytic seat push; get-up
+    campaign 2026-10-21). Stand command; success = first stand within the
+    deadline AND still tall over the last 3 s of the 45 s episode."""
     def build():
-        ev = {"_setup": _ref_start_setup("getup_ref_v6ar_prone.npz")}
+        ev = {"_setup": _ref_start_setup(npz)}
 
         def ctrl(t, gt, ev):
             return (0, 0, 0, 1, 0)
@@ -1822,6 +1981,103 @@ def scen_weight_shift():
     return build, evaluate
 
 
+# Short walk, every step graded (Tom 2026-10-24: single-leg stands and short
+# walks, "EVERY foot lifts off the ground by a few cm (>= 3 cm) on every
+# step"). The sole heights are read per tick from the env (they are not in the
+# shared rows), so this is the one place a swing is attributed to a FOOT and
+# checked against the clearance rule individually.
+WALK_STEPS_V = 0.30       # commanded vx, m/s
+WALK_STEPS_S = 1.8        # seconds of walk command: ~4-6 steps at 1.25-1.75 Hz strides
+WALK_STEPS_T0 = 1.0       # stand first, then the walk command starts
+WALK_STEPS_TAIL = 0.4     # a step that BEGINS within this long after the stop command is part of the walk
+WALK_MIN_STEPS = 4        # total, and at least 2 per foot
+WALK_MIN_PROGRESS = 0.25  # m forward by the end
+
+
+def walk_steps_swings(samples, t_lo, t_hi, min_ticks=SWING_MIN_TICKS):
+    """Per-foot swings from the per-tick samples (t, con_l, con_r, z_l, z_r),
+    sole heights above the standing sole height. A swing is a run of >= min_ticks
+    ticks with that foot out of contact; its peak is the highest sole point in the
+    run. Only swings that BEGIN in [t_lo, t_hi] count. Returns [(foot, t_on, peak)]
+    in onset order; a swing still open at the end of the data is closed there."""
+    out = []
+    for foot, (ic, iz) in (("L", (1, 3)), ("R", (2, 4))):
+        run = None
+        for smp in samples + [(float("inf"), True, True, 0.0, 0.0)]:
+            if not smp[ic]:
+                run = (smp[0], smp[iz], 1) if run is None else (run[0], max(run[1], smp[iz]), run[2] + 1)
+            elif run is not None:
+                if run[2] >= min_ticks and t_lo <= run[0] <= t_hi:
+                    out.append((foot, run[0], run[1]))
+                run = None
+    out.sort(key=lambda r: r[1])
+    return out
+
+
+def scen_walk_steps(lead):
+    """Walk a few steps from standing, starting with the `lead` foot, then
+    stop. The gait clock is set at the start of the command so the lead foot
+    is the one the clock swings first (sin(phase) > 0 swings L; the policy is
+    free to ignore it -- `lead_ok` reports whether it did).
+
+    Pass: no fall; at least WALK_MIN_STEPS steps and at least two per foot,
+    where a step is a swing (>= 3 control ticks off the ground) that begins
+    between the walk command and WALK_STEPS_TAIL after the stop command; EVERY
+    such step lifts ITS foot's sole at least SWING_CLEAR (3 cm) above the
+    standing sole height (the per-step, per-foot minimum, not a fraction);
+    forward progress >= WALK_MIN_PROGRESS; standing upright (>= 85 % height,
+    up_z >= 0.9) at the end; lateral drift < 0.25 m."""
+    t_stop = WALK_STEPS_T0 + WALK_STEPS_S
+
+    def build():
+        ev = {"_h": []}
+
+        def ctrl(t, gt, ev):
+            env = ev["_env"]
+            d = env.data
+            z0 = getattr(env, "_sole_z0", 0.0)
+            ev["_h"].append((t, bool(gt["con_l"]), bool(gt["con_r"]),
+                             float(d.geom_xpos[env._sole_gids[0]][2]) - z0,
+                             float(d.geom_xpos[env._sole_gids[1]][2]) - z0))
+            if "x0" not in ev and t >= WALK_STEPS_T0:
+                ev["x0"], ev["y0"] = gt["x"], gt["y"]
+                if getattr(env, "gait_clock", False):
+                    env._gait_phase = 0.0 if lead == "L" else -math.pi
+            if t < WALK_STEPS_T0:
+                return (0, 0, 0, 1, 0)
+            if t < t_stop:
+                return (WALK_STEPS_V, 0, 0, 1, 0)
+            return (0, 0, 0, 1, 0)
+        return ctrl, ev
+
+    def evaluate(rows, ev, fell, N, shared):
+        swings = walk_steps_swings(ev["_h"], WALK_STEPS_T0, t_stop + WALK_STEPS_TAIL)
+        per = {f: [p for ft, _, p in swings if ft == f] for f in ("L", "R")}
+        peaks = [p for _, _, p in swings]
+        min_peak = min(peaks) if peaks else 0.0
+        short = [max(SWING_CLEAR - p, 0.0) for p in peaks]
+        end = rows[-1] if rows else None
+        x0 = ev.get("x0")
+        progress = (end["x"] - x0) if (end and x0 is not None) else float("nan")
+        lateral = abs(end["y"] - ev["y0"]) if (end and "y0" in ev) else float("nan")
+        upright = bool(end and end["height"] >= 0.85 * N and end["up_z"] >= 0.9)
+        steps_ok = (len(peaks) >= WALK_MIN_STEPS and len(per["L"]) >= 2
+                    and len(per["R"]) >= 2)
+        clear_ok = bool(peaks) and all(p >= SWING_CLEAR for p in peaks)
+        success = ((not fell) and steps_ok and clear_ok and upright
+                   and not math.isnan(progress) and progress >= WALK_MIN_PROGRESS
+                   and not math.isnan(lateral) and lateral < 0.25)
+        return dict(success=success,
+                    metrics=dict(steps=len(peaks), steps_l=len(per["L"]), steps_r=len(per["R"]),
+                                 min_peak_clear=min_peak,
+                                 max_shortfall=max(short) if short else SWING_CLEAR,
+                                 steps_short=sum(1 for p in peaks if p < SWING_CLEAR),
+                                 lead_ok=float(bool(swings) and swings[0][0] == lead),
+                                 progress=progress, lateral=lateral),
+                    headline=f"{len(peaks)} steps, min {min_peak*100:.1f}cm")
+    return build, evaluate
+
+
 # name -> (episode_seconds, factory, is_locomotion)
 def _registry():
     # (single-leg crouch scenarios removed 2026-07-18, user call;
@@ -1848,7 +2104,9 @@ def _registry():
     reg["recover_sit"] = (12.0, scen_recover_fallen(deadline=5.0), False)
     reg["recover_fallen"] = (12.0, scen_recover_fallen(), False)
     reg["recover_supine"] = (32.0, scen_recover_supine(), False)
+    reg["recover_supine_ph"] = (32.0, scen_recover_supine(phase=True), False)
     reg["recover_prone"] = (45.0, scen_recover_prone(), False)
+    reg["recover_prone_fall"] = (45.0, scen_recover_prone(npz="getup_ref_v6ar_prone_ik.npz"), False)
     reg["stand_10s"] = (11.0, scen_stand_10s(), False)
     # torque-off idle: 1.5 s powered settle + 8 s released (user 2026-07-23)
     reg["stand_off"] = (9.5, scen_stand_off(), False)
@@ -1867,6 +2125,10 @@ def _registry():
     # every existing scorecard must stay comparable, and a subset run writes
     # a _partial card anyway.
     reg["handover_stand"] = (10.0, scen_handover_stand(), False)
+    # short walk, every step's clearance graded per foot (2026-10-24): behind
+    # --scenarios / the run's `eval_scenarios`, so the family totals stay put
+    for s in ("L", "R"):
+        reg[f"walk_steps_{s}"] = (WALK_STEPS_T0 + WALK_STEPS_S + 3.2, scen_walk_steps(s), True)
     return reg
 
 
@@ -1878,8 +2140,12 @@ ENV_EXTRA = {
                         recover_start_mix=(0.0, 0.0, 0.0, 1.0)),
     "recover_supine": dict(recover_mix=1.0,
                            recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
+    "recover_supine_ph": dict(recover_mix=1.0,
+                              recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     "recover_prone": dict(recover_mix=1.0,
                           recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
+    "recover_prone_fall": dict(recover_mix=1.0,
+                               recover_start_mix=(1.0, 0.0, 0.0, 0.0)),
     # rough-ground claim (loco_v7knee): the line walk on the 0-20 mm tiled
     # mosaic; the spawn draw puts each seed on a different tile
     "line_rough": dict(terrain_mosaic=True),
@@ -1898,7 +2164,8 @@ FAMILY_SCENARIOS = {
     "skills": ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
                "march_in_place", "march_10s", "hip_sway", "crouch_hold",
                "stand_10s", "metronome", "squat_reps", "weight_shift"],
-    "getup": ["recover_sit", "recover_fallen", "recover_supine", "recover_prone"],
+    "getup": ["recover_sit", "recover_fallen", "recover_supine", "recover_supine_ph",
+              "recover_prone", "recover_prone_fall"],
 }
 
 ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
@@ -1914,7 +2181,8 @@ ORDER = ["balance_L", "balance_R", "circle_air_L", "circle_air_R",
 # part of the default suite, so the comparable 144-card totals never move.
 # recover_supine: the get-up family scores it (FAMILY_SCENARIOS), nothing else
 # runs it -- it needs the robot plant (it starts from getup_ref_v6ar.npz)
-EXTRA_SCENARIOS = ["handover_stand", "recover_supine", "recover_prone"]
+EXTRA_SCENARIOS = ["handover_stand", "recover_supine", "recover_supine_ph", "recover_prone",
+                   "recover_prone_fall", "walk_steps_L", "walk_steps_R"]
 
 # base-name -> (metric key, formatter) for the md headline column, formatted
 # from the across-seed MEAN of that metric
@@ -1928,11 +2196,14 @@ HEADLINE = {
     "squat_reps": ("reps_ok", lambda v: f"{v:.0f}/3 reps"),
     "weight_shift": ("holds_ok", lambda v: f"{v:.0f}/4 holds"),
     "balance": ("clear_frac", lambda v: f"clear {v*100:.0f}%"),
+    "walk_steps": ("min_peak_clear", lambda v: f"min peak {v*100:.1f}cm"),
     "circle_air": ("traced_radius", lambda v: f"r={v*100:.1f}cm"),
     "recover_fallen": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_sit": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_supine": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
+    "recover_supine_ph": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "recover_prone": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
+    "recover_prone_fall": ("time_to_stand", lambda v: f"up in {v:.1f}s"),
     "line_1m": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "line_rough": ("time_to_1m", lambda v: f"t={v:.1f}s"),
     "backward_1m": ("time", lambda v: f"t={v:.1f}s"),
@@ -1996,7 +2267,10 @@ def run_one(env, act, factory, seed, record, N, mass):
         events = {k: v for k, v in ev.items() if not k.startswith("_")}
         path = os.path.join(traces_dir, f"{name}_s{seed}.npz")
         gb_trace.save(path, scenario=name, seed=seed, dt=drv.dt,
-                      episode_seconds=env.episode_seconds,
+                      # BimoWalkerEnv does not retain the `episode_seconds`
+                      # ctor arg; the runtime episode length is
+                      # max_steps * control_dt (walker_env.py:1134).
+                      episode_seconds=env.max_steps * env.control_dt,
                       rows=drv.rows, cmds=drv.cmds, fell=res["fell"],
                       success=res["success"], events=events,
                       swing_summary=drv.swings.summary(), shared=shared,
@@ -2035,17 +2309,49 @@ def main():
                         "(run-relative or absolute). ADDITIVE — the rollout "
                         "and scorecard numbers are unchanged; parity is the "
                         "gate (tests/test_gradebook.py).")
+    p.add_argument("--joint-frictionloss", type=float, default=None,
+                   help="grade on this joint Coulomb friction (N*m) instead "
+                        "of the run's own (config.json joint_frictionloss): "
+                        "the friction-robustness sweep of the get-up "
+                        "campaign. Writes scorecard_fl<value>.{md,json}")
+    p.add_argument("--push-force", type=float, default=None,
+                   help="push-stress grade: torso shoves of this force (N, held one "
+                        "control step) instead of the hardware-claim 5 N. Writes "
+                        "scorecard_push<N>x<p>.{md,json}")
+    p.add_argument("--push-prob", type=float, default=None,
+                   help="push-stress grade: per-control-step shove probability "
+                        "instead of the hardware-claim 0.01 (see --push-force)")
+    p.add_argument("--rise-ref-hold", action="store_true",
+                   help="grade with rise_ref_hold on (no handover from the residual "
+                        "reference map at recovered) whatever the run trained with: "
+                        "the handover counterfactual. Writes scorecard_hold.{md,json}")
+    p.add_argument("--ref-replay", metavar="NPZ", default=None,
+                   help="grade a get-up REFERENCE, not the policy: the run's plant and "
+                        "obs, rise_ref_npz -> NPZ, rise_ref_hold on, every action 0 "
+                        "(the reference replayed through the residual map, no RL). "
+                        "The baseline a fine-tune must beat. Writes "
+                        "scorecard_replay-<npz stem>.{md,json}")
     args = p.parse_args()
     suffix = "_sil" if args.sil else ""
     if args.act_lag_hz > 0.0 or args.act_delay_ticks > 0:
         suffix = f"{suffix}_lag"
+    if args.joint_frictionloss is not None:
+        suffix = f"{suffix}_fl{args.joint_frictionloss:g}"
+    if args.push_force is not None or args.push_prob is not None:
+        suffix = (f"{suffix}_push{5.0 if args.push_force is None else args.push_force:g}"
+                  f"x{0.01 if args.push_prob is None else args.push_prob:g}")
+    if args.rise_ref_hold:
+        suffix = f"{suffix}_hold"
+    if args.ref_replay:
+        suffix = f"{suffix}_replay-{os.path.splitext(os.path.basename(args.ref_replay))[0]}"
     # a --scenarios subset must not clobber the run's full reel either --
     # the scorecard learned this 2026-08-03 (guard below), but the movie
     # path didn't and a stand-only render overwrote two full reels
     # (2026-08-12). One suffix, decided before ANY artifact path is built.
     if args.scenarios:
         suffix = f"{suffix}_partial"
-    stack = "SIL (firmware stack)" if args.sil else "python policy"
+    stack = ("SIL (firmware stack)" if args.sil else
+             "reference replay" if args.ref_replay else "python policy")
 
     run_dir = os.path.join(RUNS, args.run_name)
     if args.trace:
@@ -2059,6 +2365,19 @@ def main():
     TRACE_RUN_ROOT = run_dir if args.trace else None
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
+    if args.joint_frictionloss is not None:
+        cfg["joint_frictionloss"] = args.joint_frictionloss
+    if args.push_force is not None:
+        cfg["_referee_push_force"] = args.push_force
+    if args.push_prob is not None:
+        cfg["_referee_push_prob"] = args.push_prob
+    if args.rise_ref_hold:
+        cfg["rise_ref_hold"] = True
+    if args.ref_replay:
+        if args.sil:
+            raise SystemExit("--ref-replay grades a reference, not a firmware stack")
+        cfg["rise_ref_npz"] = args.ref_replay
+        cfg["rise_ref_hold"] = True
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
     if not os.path.isabs(xml) and not os.path.exists(xml):
         # train_mjx.py stores the basename (the run may have trained on a
@@ -2071,6 +2390,17 @@ def main():
     if not args.scenarios and fam in FAMILY_SCENARIOS:
         names = [n for n in ORDER + EXTRA_SCENARIOS if n in FAMILY_SCENARIOS[fam]]
         print(f"[family={fam}] scoring {len(names)} scenarios")
+    extra_eval = [w.strip() for w in ((cfg.get("train", {}) or {}).get("eval_scenarios") or "").split(",")
+                  if w.strip()]
+    if extra_eval and not args.scenarios:
+        # the run asked for scenarios beyond its family's list (train_mjx
+        # --eval-scenarios): graded on the same card, after the family's
+        unknown = [w for w in extra_eval if w not in reg]
+        if unknown:
+            print(f"warning: unknown eval_scenarios ignored: {unknown}", file=sys.stderr)
+        names = names + [n for n in ORDER + EXTRA_SCENARIOS
+                         if n in extra_eval and n not in names]
+        print(f"[eval_scenarios] + {[n for n in names if n in extra_eval]}")
     if args.scenarios:
         want = [s.strip() for s in args.scenarios.split(",") if s.strip()]
         names = [n for n in ORDER + EXTRA_SCENARIOS if n in want]
@@ -2080,7 +2410,7 @@ def main():
     robot = is_robot_plant(xml)
     # a --robot-arms run (shoulders/elbows NOT in held_joints) drives the arms:
     # the get-up scenarios apply to it
-    arms_policy = robot and not any(
+    arms_policy = robot and plant_has_arms(xml) and not any(
         robot_role in k for k in (cfg.get("held_joints") or {})
         for robot_role in ("shoulder", "elbow"))
     not_applicable = {n: ROBOT_NOT_APPLICABLE[n] for n in names
@@ -2089,9 +2419,7 @@ def main():
     names = [n for n in names if n not in not_applicable]
     for n, why in not_applicable.items():
         print(f"[n/a on the robot plant] {n}: {why}")
-    if robot and args.sil:
-        raise SystemExit("the SIL column is not ported to the robot's plant "
-                         "(docs/training.md, 'Porting to the robot')")
+    sil_prof = sil_profile_for(xml) if args.sil else None
 
     # one env per distinct (episode length, scenario override) pair
     env_cache = {}
@@ -2118,13 +2446,21 @@ def main():
     # is identical, which is what makes the two columns comparable.
     sil_info = None
     if args.sil:
-        H, sil_lib, sil_info = sil_setup(args.run_name, run_dir)
+        H, sil_lib, sil_info = sil_setup(args.run_name, run_dir,
+                                         profile=sil_prof)
+        sil_check_spec(H, get_env(12.0))
         act = None
 
         def act_for(env):
             # one adapter per episode: it owns the library's history ring and
             # gait clock, and resets both in begin_episode()
             return H.SilActAdapter(sil_lib, env, log=False)
+    elif args.ref_replay:
+        def act(obs):
+            return np.zeros(act_size, dtype=np.float32)
+
+        def act_for(env):
+            return act
     else:
         act = load_policy(run_dir, obs_size, act_size)
 
@@ -2138,6 +2474,13 @@ def main():
     if args.act_lag_hz > 0.0:
         cond += (f"; MEASURED servo lag {args.act_lag_hz:g} Hz "
                  "(3-stage act-lag cascade)")
+    if args.joint_frictionloss is not None:
+        cond += f"; joint frictionloss {args.joint_frictionloss:g} N*m (not the run's own)"
+    if args.push_force is not None or args.push_prob is not None:
+        cond += (f"; push stress {cfg.get('_referee_push_force', 5.0):g} N "
+                 f"@ {cfg.get('_referee_push_prob', 0.01):g}/tick (not the hardware claim)")
+    if args.ref_replay:
+        cond += f"; REFERENCE REPLAY {os.path.basename(args.ref_replay)} (zero action, hold)"
     if args.act_delay_ticks > 0:
         cond += (f"; servo dead time {20 * args.act_delay_ticks} ms "
                  f"({args.act_delay_ticks} ticks)")

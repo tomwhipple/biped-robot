@@ -6,19 +6,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "balance/roll_pi.h"
+#include "fallguard/fallguard.h"
+#include "flailguard/flailguard.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
+#include "obs/assembler.h"
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
 #include "scsbus/gains.h"
+#include "wcli/wcli.h"
 #include "board.h"
 #include "cal_store.h"
+#include "flight_rec.h"
 #include "imu_sampler.h"
 #include "mech_envelope.h"
+#include "net_bench.h"
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "wifi_cli.h"
 #include "timesync.h"
 
 #include "driver/i2c_master.h"
@@ -31,6 +39,22 @@ namespace cli {
 namespace {
 
 char g_line[128];      // one owner (the housekeeping task), no heap
+
+// True while execute() runs a line that came over the Wi-Fi CLI
+// (wifi_cli.cpp). Housekeeping task only, like everything here.
+bool g_remote = false;
+
+// The second lock on the Wi-Fi CLI's door. The allowlist (components/wcli
+// policy.cpp) already refuses these lines over Wi-Fi; this refuses them again
+// at the write itself, so a slip in one table is not enough to reach NVS,
+// servo EEPROM or a safety latch from the air. True = refused (and said).
+bool tetherOnly(Sink out, const char* what) {
+    if (!g_remote) return false;
+    out("refused over Wi-Fi (tether only): ");
+    out(what);
+    out("\r\n");
+    return true;
+}
 
 // Settle time between writing an ID and re-checking it.
 //
@@ -158,7 +182,7 @@ void cmdPing(Sink out, int argc, char** argv) {
             bus->ping(static_cast<uint8_t>(id)) ? "present" : "no reply");
         return;
     }
-    // No argument: every bus joint, servo-ID order, against the fitted set.
+    // No argument: every bus joint, bus order, against the fitted set.
     const obs::Calibration& cal = robot::calibration();
     int missing = 0, fitted = 0;
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
@@ -178,6 +202,7 @@ void cmdPing(Sink out, int argc, char** argv) {
 }
 
 void cmdId(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`id` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 3) { out("usage: id <old> <new>\r\n"); return; }
@@ -261,28 +286,46 @@ bool torqueGate(scsbus::Bus* bus, Sink out, uint8_t id) {
 // bench can e.g. hyperextend a knee to its measured -95..+95 even though
 // policies train in -95..+5 (split introduced 2026-08-03 after the clamp cut
 // short a manual ROM session at the plant's limits).
-int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
+int32_t clampTicks(uint8_t id, int32_t ticks, bool* hit) {
+    if (hit) *hit = false;
     const int b = obs::busIndexOfId(id);
     if (b < 0) return ticks;    // not a bus servo: encoder range only
     const obs::Calibration& cal = robot::calibration();
-    const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
-    const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
+    const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
+    const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
     const int32_t lo = a < c ? a : c, hi = a < c ? c : a;
     if (ticks < lo || ticks > hi) {
-        const int32_t k = ticks < lo ? lo : hi;
-        say(out, "id %d: %ld is outside %s's range [%ld..%ld]%s, clamped to "
-            "%ld\r\n", id, static_cast<long>(ticks), obs::kBusJointNames[b],
-            static_cast<long>(lo), static_cast<long>(hi),
-            robot::g_cal_from_nvs ? "" : " (UNCALIBRATED defaults!)",
-            static_cast<long>(k));
-        return k;
+        if (hit) *hit = true;
+        return ticks < lo ? lo : hi;
     }
     return ticks;
 }
 
+int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
+    bool hit = false;
+    const int32_t k = clampTicks(id, ticks, &hit);
+    if (hit) {
+        const int b = obs::busIndexOfId(id);
+        const obs::Calibration& cal = robot::calibration();
+        const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
+        const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
+        say(out, "id %d: %ld is outside %s's range [%ld..%ld]%s, clamped to "
+            "%ld\r\n", id, static_cast<long>(ticks), obs::kBusJointNames[b],
+            static_cast<long>(a < c ? a : c), static_cast<long>(a < c ? c : a),
+            robot::g_cal_from_nvs ? "" : " (UNCALIBRATED defaults!)",
+            static_cast<long>(k));
+    }
+    return k;
+}
+
+static void balStop(Sink out, const char* why);
+static bool balLanding(Sink out);
+static bool fallLocked(Sink out);
+
 void cmdMove(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
+    if (balLanding(out) || fallLocked(out)) return;
     if (argc < 3) { out("usage: move <id> <ticks> [ms]\r\n"); return; }
     const long id = num(argv[1]);
     const long ticks = num(argv[2], 2048);
@@ -303,6 +346,7 @@ void cmdMove(Sink out, int argc, char** argv) {
         return;
     }
     if (!torqueGate(bus, out, static_cast<uint8_t>(id))) return;
+    balStop(out, "move");
     const uint8_t ids[1] = {static_cast<uint8_t>(id)};
     const int32_t tgt[1] = {clampToJointRange(static_cast<uint8_t>(id),
                                               static_cast<int32_t>(ticks),
@@ -316,6 +360,18 @@ void cmdMove(Sink out, int argc, char** argv) {
 
 // Smooth-pose streamer state (poseTick). Housekeeping task only.
 static bool s_traj_active = false;
+// `sweep` (cmdSweep): a lateral-roll sine riding on the held double-support pose, for system
+// identification (2026-11-01: the one-leg balance oscillates at ~1.9 Hz on a hard floor). Any new
+// stream (startSmooth) ends it.
+struct RollSweep {
+    bool on = false;
+    int32_t amp = 0;               // ticks, same sign on all four roll joints (= lateral pelvis shift)
+    int nf = 0;
+    float f[12] = {};
+    TickType_t t0 = 0;
+    float roll0 = 0.0f;
+};
+static RollSweep s_sw;
 static TickType_t s_traj_t0 = 0, s_traj_last = 0;
 static long s_traj_ms = 0;
 static float s_traj_headroom = 1.0f;    // servo speed = (gap to the next sub-target) / tick x this
@@ -346,18 +402,192 @@ static TickType_t s_trace_until = 0;
 static bool s_traj_on[obs::kNumBusJoints];
 static int32_t s_traj_start[obs::kNumBusJoints];
 static int32_t s_traj_tgt[obs::kNumBusJoints];
+static int32_t s_traj_nom[obs::kNumBusJoints];      // nominal target at the last tick (no balance, no abort)
 static int32_t s_traj_sent[obs::kNumBusJoints];     // last goal written per joint
 static uint16_t s_traj_spd[obs::kNumBusJoints];     // ... and its speed
 static TickType_t s_traj_tsent[obs::kNumBusJoints]; // ... and when
+// Flight recorder hand-off (cli::recorderTick, flight_rec.h): set by the
+// stream tick that just ran, consumed by recorderTick in the same housekeeping
+// iteration. Housekeeping task only.
+static bool s_rec_ticked = false;
+static int64_t s_rec_t0 = 0;
+static uint32_t s_rec_work_us = 0;
+static bool s_rec_wrote = false;
+static bool s_rec_written[obs::kNumBusJoints];
+
+// -- stance-leg IMU roll balance (`pose ... B<L|R>`, `balance`) -------------
+// Closed-loop roll on top of the open-loop streamer, for a one-leg stand: each
+// poseTick the fused torso roll, relative to the roll captured when the pose
+// was issued, drives a PI (balance/roll_pi.h) whose output is added to the
+// STANCE leg's ankle-roll and hip-roll targets -- through the calibrated
+// envelope clamp and the per-joint dir, exactly like the nominal targets. The
+// swing leg is untouched. It rides on the streamer, so it persists through the
+// hold after the min-jerk move ends, and it stops at the next pose (except a
+// same-side `pose ... B`, which CONTINUES it: balance::continues), `move`,
+// `home`, `release`/`torque`, or when the loop is armed. Same code for either
+// stance: no side-specific gains or offsets (the sim's roll joints mirror).
+//
+// SAFETY: if |roll - ref| passes the abort limit, or the attitude read fails
+// or goes stale, the correction FREEZES at its last value (the targets keep
+// being held) and a message says so. Nothing here ever releases torque.
+//
+// Threading (shared.h): housekeeping task only. The attitude comes from
+// robot::peekImu(), a copy under the sampler's own critical section.
+static balance::Config s_bal_cfg;       // balance::Config defaults = the sim-chosen gains
+static balance::RollBalance s_bal;
+static char s_bal_side = 0;             // 'L' / 'R' while engaged
+static int s_bal_ba = -1, s_bal_bh = -1;    // bus index of the stance ankle roll / hip roll
+static TickType_t s_bal_last = 0;
+static float s_bal_roll = 0.0f;
+static float s_bal_rate = 0.0f;         // last body roll rate, rad/s
+static int32_t s_bal_dta = 0, s_bal_dth = 0;    // current correction, ticks (dir applied)
+static balance::State s_bal_shown = balance::State::kOff;
+static uint32_t s_bal_clamps = 0;       // writes the envelope clamp cut short
+constexpr uint32_t kBalStaleMs = 100;   // an attitude older than this is a failed read
+constexpr int kBalLogMax = 600;         // 25 Hz -> 24 s
+static uint16_t s_bal_log_ms[kBalLogMax];
+static int16_t s_bal_log_roll[kBalLogMax], s_bal_log_err[kBalLogMax], s_bal_log_u[kBalLogMax];  // 0.01 deg
+static int16_t s_bal_log_rate[kBalLogMax];      // 0.1 deg/s (saturating)
+static int s_bal_log_n = 0;
+static TickType_t s_bal_t0 = 0;
+static bool s_bal_log_odd = false;
+static bool s_bal_hold_said = false;
+// ABORT (roll_pi.h): the correction fades, then every joint of the stream returns
+// to s_bal_home (where the B CHAIN began: the first `pose ... B` of a run of
+// same-side continuations, i.e. the double-support pre-lift pose) -- from where
+// its nominal target was when the abort fired. Torque stays on throughout.
+static int32_t s_bal_from[obs::kNumBusJoints];      // nominal target at the abort tick
+static int32_t s_bal_home[obs::kNumBusJoints];      // landing target: start of the B chain
+static bool s_bal_from_set[obs::kNumBusJoints];
+static bool s_bal_landed_said = false;
+static long s_bal_abort_ms = -1;                    // ms since engage when it fired (-1 = not aborted)
+static long s_bal_landed_ms = -1;
+
+// Roll (rad) from the fused attitude and, when asked, the body roll rate: the
+// latest 4 ms gyro sample about the BODY x axis (imu::Sample::gyro is already
+// through the mount rotation and bias-calibrated; + about x tips the torso to the
+// robot's right, the same sign as the roll). A non-finite rate comes back as is:
+// RollBalance::update turns it into an IMU fault.
+static bool balReadRoll(float* roll, float* rate = nullptr) {
+    imu::Sample smp{};
+    uint32_t age = 0;
+    if (!robot::peekImu(smp, &age) || !smp.valid || age > kBalStaleMs) return false;
+    if (rate != nullptr) *rate = smp.gyro[0];
+    return balance::rollFromUp(smp.up, roll);
+}
+
+static int32_t balTicks(int bus, float rad) {
+    const obs::Calibration& cal = robot::calibration();
+    return obs::busAngleToStepsRaw(bus, rad, cal) - obs::busAngleToStepsRaw(bus, 0.0f, cal);
+}
+
+// true (and says so) while a balance abort is landing the lifted foot: a new
+// goal now would cut the landing short, so `pose` and `move` refuse it.
+static bool balLanding(Sink out) {
+    if (!s_bal.aborted() || s_bal.landed()) return false;
+    out("refused: a balance abort is landing -- wait for `balance: landed`\r\n");
+    return true;
+}
+
+static void balStop(Sink out, const char* why) {
+    if (!s_bal.engaged()) return;
+    s_bal.disengage();
+    s_bal_dta = s_bal_dth = 0;
+    s_bal_shown = balance::State::kOff;
+    say(out, "balance off (%s)\r\n", why);
+}
+
+static const int kBalDegX100 = 5730;    // 100 * 180/pi
+
+// One 50 Hz evaluation. Updates the PI and the two correction offsets; once
+// aborted, runs the open-loop abort sequence (the attitude is only read for the
+// log -- no decision depends on it, so a dead IMU lands the foot just the same).
+static void balTick(TickType_t now, Sink out) {
+    if (!s_bal.engaged()) return;
+    long dt_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_last));
+    if (dt_ms < 10) dt_ms = 10;
+    if (dt_ms > 100) dt_ms = 100;
+    const float dt_s = static_cast<float>(dt_ms) / 1000.0f;
+    float roll = 0.0f;
+    float rate = 0.0f;
+    const bool have = balReadRoll(&roll, &rate);
+    if (have) {
+        s_bal_roll = roll;
+        s_bal_rate = rate;
+    }
+    if (s_bal.state() == balance::State::kActive || s_bal.armed()) {
+        if (have) s_bal.update(roll, dt_s, rate);
+        else s_bal.imuFault();
+    } else if (s_bal.aborted()) {
+        s_bal.abortTick(dt_s);
+    }
+    s_bal_last = now;
+    const long t_ms = static_cast<long>(pdTICKS_TO_MS(now - s_bal_t0));
+    if (s_bal.state() != s_bal_shown) {
+        if (s_bal_shown == balance::State::kArmed && s_bal.state() == balance::State::kActive) {
+            say(out, "balance: lean past the arm threshold, PI starts, ref roll %+.2f deg\r\n",
+                static_cast<double>(s_bal.ref() * 57.29578f));
+        }
+        s_bal_shown = s_bal.state();
+        if (s_bal.aborted()) {
+            s_bal_abort_ms = t_ms;
+            s_bal_landed_ms = -1;
+            s_bal_landed_said = false;
+            if (s_bal_shown == balance::State::kAbortTip) {
+                say(out, "balance ABORT (tip): roll err %+.2f deg past the %.1f deg limit, u was %+.2f deg\r\n",
+                    static_cast<double>(s_bal.abortErr() * 57.29578f),
+                    static_cast<double>(s_bal_cfg.abort_rad * 57.29578f),
+                    static_cast<double>(s_bal.abortU() * 57.29578f));
+            } else {
+                say(out, "balance ABORT (IMU): no usable attitude/rate, u was %+.2f deg\r\n",
+                    static_cast<double>(s_bal.abortU() * 57.29578f));
+            }
+            say(out, "balance abort: u fades over %.1f s, then the pose returns to the pre-lift pose over %.1f s; "
+                "torque stays ON\r\n", static_cast<double>(s_bal_cfg.abort_decay_s),
+                static_cast<double>(s_bal_cfg.abort_land_s));
+        }
+    }
+    if (s_bal.landed() && !s_bal_landed_said) {
+        s_bal_landed_said = true;
+        s_bal_landed_ms = t_ms;
+        say(out, "balance: landed (pre-lift pose, %ld ms after the abort), u 0, torque ON; "
+            "next pose or `balance off` ends it\r\n", t_ms - s_bal_abort_ms);
+    }
+    s_bal_dta = balTicks(s_bal_ba, s_bal.ankle());
+    s_bal_dth = balTicks(s_bal_bh, s_bal.hip());
+    s_bal_log_odd = !s_bal_log_odd;
+    if (s_bal_log_odd && s_bal_log_n < kBalLogMax) {
+        const int i = s_bal_log_n++;
+        s_bal_log_ms[i] = static_cast<uint16_t>(pdTICKS_TO_MS(now - s_bal_t0));
+        s_bal_log_roll[i] = static_cast<int16_t>(s_bal_roll * static_cast<float>(kBalDegX100));
+        s_bal_log_err[i] = static_cast<int16_t>(s_bal.err() * static_cast<float>(kBalDegX100));
+        s_bal_log_u[i] = static_cast<int16_t>(s_bal.u() * static_cast<float>(kBalDegX100));
+        float r10 = s_bal_rate * 572.9578f;      // 0.1 deg/s
+        if (r10 > 32000.0f) r10 = 32000.0f;
+        if (r10 < -32000.0f) r10 = -32000.0f;
+        s_bal_log_rate[i] = static_cast<int16_t>(r10);
+    }
+}
 
 // Start the smooth streamer (poseTick) for the joints in `on`, from their
 // CURRENT positions to tgt over dur_ms, with the default tuning. false = a
-// servo did not answer (nothing written).
+// servo did not answer (nothing written). With `from`, the move starts there
+// instead (a balance continuation: the previous nominal targets, so the live
+// correction keeps riding on top) and the last goal written is kept as is.
 bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
-                 long dur_ms, Sink out, const char* who) {
+                 long dur_ms, Sink out, const char* who,
+                 const int32_t* from = nullptr) {
+    s_sw.on = false;                       // a new move ends a sweep
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         s_traj_on[b] = false;
         if (!on[b]) continue;
+        if (from != nullptr) {
+            s_traj_on[b] = true;
+            s_traj_start[b] = from[b];
+            s_traj_tgt[b] = tgt[b];
+            s_traj_nom[b] = from[b];
+            continue;
+        }
         int32_t cur = tgt[b];
         if (bus->readPosition(obs::kBusServoId[b], cur) != scsbus::Status::kOk) {
             say(out, "%s: id %u did not answer -- no move\r\n", who,
@@ -368,6 +598,7 @@ bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
         s_traj_on[b] = true;
         s_traj_start[b] = cur;
         s_traj_tgt[b] = tgt[b];
+        s_traj_nom[b] = cur;
         s_traj_sent[b] = cur;
         s_traj_spd[b] = 15;
         s_traj_tsent[b] = xTaskGetTickCount();
@@ -388,6 +619,139 @@ bool startSmooth(scsbus::Bus* bus, const int32_t* tgt, const bool* on,
 // `reg <id> <addr> [1|2]` -- READ a servo register (EEPROM or RAM), never
 // write. Added 2026-09-03 to inspect PosP/PosD/PosI (21-23), dead zones
 // (26/27) and acceleration (41) while chasing bench oscillation.
+// `sread [reps] [id ...]` -- run the feedback SYNC READ `reps` times (default 50) over the
+// given ids, in that order (default: every fitted servo, bus order), and report how often each
+// id answered and the read time. Read-only. Added 2026-10-30: the flight recorder's 12-servo
+// read waited out its full deadline (~37 ms) because id 11 missed about half the replies,
+// although single reads of it never fail -- this finds out what the burst order does.
+// `stepresp <id> <delta_ticks> [ms] [spd]` -- one servo's position step response, measured
+// directly (Tom 2026-11-01, after the first policy stand flailed and the roll sweep showed the
+// servos far slower/softer than the sim's): write ONE goal step (spd 0 = the servo's maximum, as
+// the armed loop's goal writes are, minus its shaper), then read that servo's feedback block as
+// fast as single reads allow for `ms` (default 300); then step back to where it started and record
+// that too. No pose stream may be running; the other joints keep their last goals. Prints
+// "SR <phase 0=out 1=back> <t_us> <pos - start> <speed> <load>".
+void cmdStepResp(Sink out, int argc, char** argv) {
+    if (fallLocked(out)) return;
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 3) { out("usage: stepresp <id> <delta_ticks> [ms 50-800] [spd steps/s, 0 = max]\r\n"); return; }
+    const long id = num(argv[1], 0);
+    long delta = num(argv[2], 0);
+    long ms = argc >= 4 ? num(argv[3], 300) : 300;
+    const long spd = argc >= 5 ? num(argv[4], 0) : 0;
+    if (id < 1 || id > 253 || delta == 0) { out("stepresp: bad id/delta\r\n"); return; }
+    if (delta > 80) delta = 80;
+    if (delta < -80) delta = -80;           // <= 7 deg
+    if (ms < 50) ms = 50;
+    if (ms > 800) ms = 800;
+    if (s_traj_active) { out("stepresp: a pose stream is running -- wait for it to finish\r\n"); return; }
+    if (!torqueGate(bus, out, static_cast<uint8_t>(id))) return;
+    balStop(out, "stepresp");
+    scsbus::Feedback fb{};
+    if (bus->readFeedback(static_cast<uint8_t>(id), fb) != scsbus::Status::kOk) {
+        say(out, "stepresp: id %ld did not answer\r\n", id);
+        return;
+    }
+    const int32_t p0 = fb.position;
+    constexpr int kMax = 500;
+    static int32_t s_t[2][kMax], s_p[2][kMax], s_v[2][kMax], s_l[2][kMax];
+    int n[2] = {0, 0};
+    const uint8_t ids[1] = {static_cast<uint8_t>(id)};
+    for (int ph = 0; ph < 2; ++ph) {
+        const int32_t tgt[1] = {clampToJointRange(static_cast<uint8_t>(id), ph == 0 ? p0 + static_cast<int32_t>(delta) : p0, out)};
+        const int64_t t0 = esp_timer_get_time();
+        bus->syncWritePositions(ids, tgt, 1, 0, static_cast<uint16_t>(spd), 0);
+        while (n[ph] < kMax) {
+            const int64_t t = esp_timer_get_time() - t0;
+            if (t > ms * 1000) break;
+            if (bus->readFeedback(static_cast<uint8_t>(id), fb) == scsbus::Status::kOk) {
+                s_t[ph][n[ph]] = static_cast<int32_t>(t);
+                s_p[ph][n[ph]] = fb.position - p0;
+                s_v[ph][n[ph]] = fb.speed;
+                s_l[ph][n[ph]] = fb.load;
+                ++n[ph];
+            }
+        }
+    }
+    say(out, "stepresp id %ld: start %ld, step %+ld ticks, %ld ms, spd %ld; %d + %d samples\r\n", id,
+        static_cast<long>(p0), delta, ms, spd, n[0], n[1]);
+    for (int ph = 0; ph < 2; ++ph)
+        for (int k = 0; k < n[ph]; ++k)
+            say(out, "SR %d %ld %ld %ld %ld\r\n", ph, static_cast<long>(s_t[ph][k]), static_cast<long>(s_p[ph][k]),
+                static_cast<long>(s_v[ph][k]), static_cast<long>(s_l[ph][k]));
+    out("stepresp end\r\n");
+}
+
+// `regw <id> <addr> <value>` -- WRITE one byte to a servo's RAM register (addr >= 40), for
+// actuator experiments (2026-11-02: STS3215 vs STS3250 differ in undocumented regs 81/84/85/86;
+// the STS3215 has ~70 ms dead time). RAM only: EEPROM (addr < 40) is refused, so nothing persists
+// past a power cycle. Torque enable (40) and goal registers (42-47) are refused too -- use
+// torque/move/pose. Bench only (claimBus); the Wi-Fi CLI allowlist does not include it.
+void cmdRegw(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 4) { out("usage: regw <id> <addr 41|48-86 RAM> <value 0-255>   (RAM only, lost at power-off)\r\n"); return; }
+    const long id = num(argv[1], 0), addr = num(argv[2], 0), val = num(argv[3], -1);
+    if (id < 1 || id > 253 || val < 0 || val > 255) { out("regw: bad id/value\r\n"); return; }
+    if (addr < 41 || (addr >= 42 && addr <= 47) || addr > 86) {
+        out("regw: refused -- RAM 41 or 48..86 only (EEPROM, torque and goal registers are off limits)\r\n");
+        return;
+    }
+    uint8_t before = 0;
+    bus->readU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), before);
+    const scsbus::Status st = bus->writeU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), static_cast<uint8_t>(val));
+    uint8_t after = 0;
+    bus->readU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), after);
+    say(out, "regw id %ld reg %ld: %u -> wrote %ld (%s) -> reads %u\r\n", id, addr, static_cast<unsigned>(before),
+        val, statusName(st), static_cast<unsigned>(after));
+}
+
+void cmdSread(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    long reps = argc >= 2 ? num(argv[1], 50) : 50;
+    if (reps < 1) reps = 1;
+    if (reps > 500) reps = 500;
+    uint8_t ids[obs::kNumBusJoints];
+    size_t n = 0;
+    if (argc >= 3) {
+        for (int k = 2; k < argc && n < obs::kNumBusJoints; ++k) {
+            const long id = num(argv[k], 0);
+            if (id >= 1 && id <= 253) ids[n++] = static_cast<uint8_t>(id);
+        }
+    } else {
+        const obs::Calibration& cal = robot::calibration();
+        for (int b = 0; b < obs::kNumBusJoints; ++b)
+            if (cal.fitted[b]) ids[n++] = obs::kBusServoId[b];
+    }
+    if (n == 0) { out("sread: no ids\r\n"); return; }
+    scsbus::Feedback fb[obs::kNumBusJoints];
+    bool ok[obs::kNumBusJoints];
+    uint32_t cnt[obs::kNumBusJoints] = {};
+    int64_t tsum = 0, tmax = 0;
+    long full = 0;
+    for (long r = 0; r < reps; ++r) {
+        const int64_t t0 = esp_timer_get_time();
+        bus->syncReadFeedback(ids, n, fb, ok);
+        const int64_t dt = esp_timer_get_time() - t0;
+        tsum += dt;
+        if (dt > tmax) tmax = dt;
+        bool all = true;
+        for (size_t i = 0; i < n; ++i) {
+            if (ok[i]) ++cnt[i]; else all = false;
+        }
+        if (all) ++full;
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    say(out, "sread %ld x %u ids: all answered %ld/%ld, read mean %lld us max %lld us\r\n", reps,
+        static_cast<unsigned>(n), full, reps, static_cast<long long>(tsum / reps),
+        static_cast<long long>(tmax));
+    for (size_t i = 0; i < n; ++i)
+        say(out, "  #%u id %3u answered %lu/%ld\r\n", static_cast<unsigned>(i), ids[i],
+            static_cast<unsigned long>(cnt[i]), reps);
+}
+
 void cmdReg(Sink out, int argc, char** argv) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
@@ -416,7 +780,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // control loop uses, so the servos latch their targets together instead
     // of rippling through separate `move`s. Two forms, told apart by how many
     // numbers lead the line:
-    //   17 targets  every BUS joint, servo-ID order 1..17 (obs/bus_map.h);
+    //   17 targets  every BUS joint, bus order (obs/bus_map.h kBusJointNames) (obs/bus_map.h);
     //   10 targets  the policy's joints, obs_spec order (L yaw, roll, pitch,
     //               knee, ankle, then R) -- the prototype's bench tools speak
     //               this one; the other servos are left alone.
@@ -424,6 +788,7 @@ void cmdPose(Sink out, int argc, char** argv) {
     // Targets for servos not fitted in `cal` are ignored, never sent.
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
+    if (balLanding(out) || fallLocked(out)) return;
     int nnum = 0;
     while (1 + nnum < argc && isNumber(argv[1 + nnum])) ++nnum;
     int ntgt = 0;
@@ -435,7 +800,7 @@ void cmdPose(Sink out, int argc, char** argv) {
                (nnum == obs::kNumJoints || nnum == obs::kNumJoints + 1)) {
         ntgt = obs::kNumJoints;
     } else {
-        say(out, "usage: pose <%d ticks, servo-ID order 1..%d> [s<ms>|t<ms>|"
+        say(out, "usage: pose <%d ticks, bus order, kBusJointNames 1..%d> [s<ms>|t<ms>|"
             "steps/s] [tokens]\r\n", obs::kNumBusJoints, obs::kNumBusJoints);
         say(out, "       pose <%d ticks, policy order: L yaw,roll,pitch,knee,"
             "ankle then R> [...]\r\n", obs::kNumJoints);
@@ -490,10 +855,74 @@ void cmdPose(Sink out, int argc, char** argv) {
     // duration comes from the longest move at 300 steps/s (>= 1 s). A
     // trailing number keeps the legacy constant-speed slew, t<ms> the
     // unison mode, s<ms> an explicit smooth duration.
-    const bool smooth = (last == nullptr) || last[0] == 's';
+    const bool smooth = (last == nullptr) || last[0] == 's' || last[0] == 'B';
+    // B<L|R>: closed-loop roll balance on that STANCE leg (see balTick). Parsed
+    // and checked BEFORE anything moves; any problem refuses the whole pose.
+    int bal_side = 0, bal_idx = -1;
+    bool bal_cont = false;      // same-side B on an active balance: continue it (balance::continues)
+    // Default: the PI is LIVE through the move (hw 10-30: the lift-phase lean is real -- the 10-25 one-leg-stand
+    // protocol held 6/6 live, while ARMED let the robot roll onto the lifted foot). `A<deg>` opts into ARMED
+    // (roll_pi.h) with that early-start lean (A0 = only at the move end); `l` is accepted and means live.
+    bool bal_live = true;
+    float bal_arm_deg = -1.0f;
+    float bal_ref = 0.0f;
+    for (int k = 1 + ntgt; k < argc; ++k) {
+        if (argv[k][0] == 'B') bal_idx = k;
+        if (argv[k][0] == 'l' && argv[k][1] == 0) bal_live = true;
+        if (argv[k][0] == 'A') { bal_arm_deg = strtof(argv[k] + 1, nullptr); bal_live = false; }
+    }
+    if (bal_idx >= 0) {
+        bal_side = argv[bal_idx][1];
+        if (!smooth) {
+            out("pose B: balance needs the smooth form (default or s<ms>), not t<ms> or a speed\r\n");
+            return;
+        }
+        if ((bal_side != 'L' && bal_side != 'R') || argv[bal_idx][2] != 0) {
+            out("pose B<L|R>: name the STANCE leg, e.g. BL (left foot down, right foot free)\r\n");
+            return;
+        }
+        char nm[24];
+        snprintf(nm, sizeof nm, "%c_ankle_roll", bal_side);
+        const int ba = obs::busIndexOfName(nm);
+        snprintf(nm, sizeof nm, "%c_hip_roll", bal_side);
+        const int bh = obs::busIndexOfName(nm);
+        if (ba < 0 || bh < 0 || !on[ba] || !on[bh]) {
+            say(out, "pose B%c: the %c ankle roll and hip roll must be fitted and in this pose "
+                "(use the %d-target bus form)\r\n", bal_side, bal_side, obs::kNumBusJoints);
+            return;
+        }
+        const char* bad = balance::validate(s_bal_cfg);
+        if (bad) {
+            say(out, "pose B%c: balance gains refused (%s) -- fix with `balance set`\r\n", bal_side, bad);
+            return;
+        }
+        s_bal_ba = ba;      // unchanged on a continuation (same side)
+        s_bal_bh = bh;
+        bal_cont = balance::continues(s_bal.state(), s_bal_side, static_cast<char>(bal_side),
+                                      s_traj_on, on, obs::kNumBusJoints);
+    }
+    if (bal_idx >= 0 && !bal_cont) {
+        // reference roll = mean of a few fresh samples at the pose the robot is IN
+        float sum = 0.0f;
+        for (int i = 0; i < 5; ++i) {
+            float r = 0.0f;
+            if (!balReadRoll(&r)) {
+                out("pose B: no fresh IMU attitude (`imu` to check) -- not moving\r\n");
+                return;
+            }
+            sum += r;
+            vTaskDelay(pdMS_TO_TICKS(6));
+        }
+        bal_ref = sum / 5.0f;
+        if (fabsf(bal_ref) > 0.5f * s_bal_cfg.abort_rad) {
+            say(out, "pose B: torso roll %+.1f deg is more than half the abort limit from level -- not engaging\r\n",
+                static_cast<double>(bal_ref * 57.29578f));
+            return;
+        }
+    }
     if (smooth) {
         long ms = 0;
-        if (last) {
+        if (last && last[0] == 's') {
             ms = num(last + 1, 3000);
         } else {
             int32_t worst = 0;
@@ -513,14 +942,47 @@ void cmdPose(Sink out, int argc, char** argv) {
             out("pose s<ms>: duration must be 200-20000 ms\r\n");
             return;
         }
-        if (!startSmooth(bus, tgt, on, ms, out, "pose")) return;
+        if (bal_cont) {
+            // the previous stream's nominal targets as of its last tick (mid-move
+            // or holding), copied before startSmooth overwrites them
+            int32_t from[obs::kNumBusJoints];
+            memcpy(from, s_traj_nom, sizeof from);
+            if (!startSmooth(bus, tgt, on, ms, out, "pose", from)) return;
+            s_bal_hold_said = false;
+        } else {
+            balStop(out, "new pose");
+            if (!startSmooth(bus, tgt, on, ms, out, "pose")) return;
+        }
+        if (bal_idx >= 0 && !bal_cont) {
+            memcpy(s_bal_home, s_traj_start, sizeof s_bal_home);
+            balance::Config bc = s_bal_cfg;
+            if (bal_arm_deg >= 0.0f) bc.arm_start_rad = bal_arm_deg / 57.29578f;
+            if (balance::validate(bc) != nullptr) bc.arm_start_rad = s_bal_cfg.arm_start_rad;
+            s_bal.configure(bc);
+            if (bal_live) s_bal.engage(bal_ref);
+            else s_bal.arm(bal_ref);        // the PI starts when this move ends (roll_pi.h ARMED)
+            s_bal_side = static_cast<char>(bal_side);
+            s_bal_last = xTaskGetTickCount();
+            s_bal_t0 = s_bal_last;
+            s_bal_shown = s_bal.state();
+            s_bal_roll = bal_ref;
+            s_bal_rate = 0.0f;
+            s_bal_dta = s_bal_dth = 0;
+            s_bal_clamps = 0;
+            s_bal_log_n = 0;
+            s_bal_hold_said = false;
+            s_bal_landed_said = false;
+            s_bal_abort_ms = s_bal_landed_ms = -1;
+            memset(s_bal_from_set, 0, sizeof s_bal_from_set);
+        }
         // optional tuning tokens after s<ms>: h<pct> speed headroom (servo
         // speed = profile speed x pct/100; <100 keeps the servo running
         // continuously behind the stream instead of stop-starting at 50 Hz),
         // a<n> servo acceleration register (100 steps/s^2 per LSB, 0 = max).
         s_trace_id = 0;
         for (int k = 1 + ntgt; k < argc; ++k) {
-            if (argv[k][0] == 's') continue;
+            if (argv[k][0] == 's' || argv[k][0] == 'B' || argv[k][0] == 'A' ||
+                (argv[k][0] == 'l' && argv[k][1] == 0)) continue;
             if (argv[k][0] == 'h') {
                 long pct = num(argv[k] + 1, 90);
                 if (pct < 30) pct = 30;
@@ -560,9 +1022,31 @@ void cmdPose(Sink out, int argc, char** argv) {
             nmove, ms, static_cast<double>(s_traj_headroom),
             static_cast<unsigned>(s_traj_acc), static_cast<long>(s_traj_bigstep),
             s_traj_minint_ms, s_traj_zv_ms);
+        if (bal_cont) {
+            say(out, "balance CONTINUES, %c stance: ref roll %+.2f deg kept, I %+.4f, u %+.2f deg riding on the "
+                "new move (from the last nominal targets); an abort lands on the pose the chain began from\r\n",
+                bal_side, static_cast<double>(s_bal.ref() * 57.29578f),
+                static_cast<double>(s_bal.integral()),
+                static_cast<double>(s_bal.u() * 57.29578f));
+        } else if (bal_idx >= 0) {
+            say(out, "balance ON, %c stance: ref roll %+.2f deg, kp %.2f ki %.2f kd %.3f ankle x%+.2f hip x%+.2f, "
+                "clamp %.1f deg, abort %.1f deg -- holds after the move; any other command ends it\r\n",
+                bal_side, static_cast<double>(bal_ref * 57.29578f),
+                static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
+                static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
+                static_cast<double>(s_bal_cfg.clamp_rad * 57.29578f),
+                static_cast<double>(s_bal_cfg.abort_rad * 57.29578f));
+            if (bal_live) {
+                out("balance LIVE through the move (default; `A<deg>` = ARMED)\r\n");
+            } else {
+                say(out, "balance ARMED: u 0 until the move ends or the lean passes %.1f deg, then the PI starts there\r\n",
+                    static_cast<double>(s_bal.config().arm_start_rad * 57.29578f));
+            }
+        }
         return;
     }
     // The two single-frame forms write the moved joints only.
+    balStop(out, "new pose");
     uint8_t ids[obs::kNumBusJoints];
     int32_t steps[obs::kNumBusJoints];
     int n = 0;
@@ -646,6 +1130,11 @@ void cmdPose(Sink out, int argc, char** argv) {
 // Touched only by the housekeeping task (typed `home`, linkHome and
 // homeVerify all run there), so plain statics.
 static bool s_home_pending = false;
+// Benched with torque HELD after an armed-loop hold (the flail guard or a
+// soft operator stop; shared.h g_armed_holds), waiting for the robot to be
+// upright and still to home it (flailTickImpl). Any deliberate operator move
+// -- a home, a torque/release, a pose, a run -- takes it over and clears this.
+static bool s_hold_pending = false;
 static TickType_t s_home_deadline = 0;
 static int32_t s_home_tgt[obs::kNumBusJoints];
 static bool s_home_on[obs::kNumBusJoints];
@@ -656,12 +1145,15 @@ static int s_home_stage = 0;
 constexpr float kHomeWiggleDeg = 5.0f;     // abduction per hip; 5 deg measured 2026-09-13 (loads <= 88, pelvis level)
 constexpr long kHomeWiggleMs = 600L;       // per move (smooth), + settle before the next
 constexpr long kHomeWiggleSettleMs = 250L;
-// The hip rolls, by servo (obs/bus_map.h): 5 is L_hip_roll, 1 is R_hip_roll.
-constexpr int kBusLRoll = obs::busIndexOfId(5), kBusRRoll = obs::busIndexOfId(1);
+// The hip rolls, by joint name (obs/bus_map.h), not by servo ID.
+constexpr int kBusLRoll = obs::busIndexOfName("L_hip_roll"),
+              kBusRRoll = obs::busIndexOfName("R_hip_roll");
 static_assert(kBusLRoll >= 0 && kBusRRoll >= 0, "hip rolls must be on the bus");
 
 linkproto::ArmResult homeAll(Sink out, long spd) {
     s_home_pending = false;
+    s_hold_pending = false;          // a home IS the way out of a hold
+    balStop(out, "home");
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return linkproto::ArmResult::kHomeBusFailed;
     if (!robot::g_cal_from_nvs) {
@@ -742,9 +1234,281 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 }
 
 
+// -- fall guard, bench half (fallguard.h; ctrl_task runs the armed half) ----
+// Tom 2026-11-01, after a turn-in-place step fell over with nothing watching
+// (balance only runs inside `pose ... B`): "in the firmware, we should have
+// fall detection. Once a fall is detected, motion should stop. After a fall
+// when the robot is picked up it should home the servos." And, the same day:
+// one system, not a bench one and a policy one -- so this is the SAME module
+// ctrl_task uses (components/fallguard), with its one table of limits:
+//  - FALL while benched: Motion::kBench, tilt past 30 deg for 100 ms (stands
+//    peak at the 12 deg balance abort, so this is a backstop for every phase
+//    balance does not cover: shifts, centring, lowering, home). It stops the
+//    pose stream, the balance and any home, and turns torque OFF. `pose`/`move`
+//    are refused while fallen.
+//  - FALL while armed: ctrl's Detector (Motion::kPolicy, 45 deg / 200 ms) goes
+//    limp and disarms the loop; the fall arrives here through g_armed_falls and
+//    latches THIS Detector, so the recovery below is the same for both.
+//  - PICKED UP: within 10 deg of upright AND |gyro| < 0.35 rad/s for 2 s
+//    continuously (being carried or a moment upright mid-fall does not count),
+//    then `home` runs by itself (2.5 s smooth, play take-up, readback, release)
+//    and the latch clears. It never arms. History: the armed loop's auto-CLEAR
+//    re-armed torque in the operator's hands (2026-08-30/31) and was removed;
+//    this is a slow home that ends released, at Tom's request, and `fall
+//    autohome off` restores "wait for a typed `home`".
+// Every fall, hand-over, pick-up and clear is a flight-recorder Ev::kFall event.
+static bool s_fall_on = true;
+static bool s_fall_autohome = true;
+static fallguard::Detector s_fall;
+static uint32_t s_armed_falls_seen = 0;
+
+static void fallEvent(fallguard::Motion m, fallguard::Event e, const char* text) {
+    robot::flight::event(flightrec::Ev::kFall, text, static_cast<int32_t>(m), static_cast<int32_t>(e));
+}
+
+static bool fallLocked(Sink out) {
+    if (!s_fall.fallen()) return false;
+    out("refused: FALLEN -- motion locked until the robot is upright and homed (`fall` for status)\r\n");
+    return true;
+}
+
+// An operator cleared the latch (typed `home`, the wireless home, `fall clear`,
+// or a fresh arm -- each is someone deciding, looking at the robot).
+static void fallClear(const char* why) {
+    if (!s_fall.fallen()) return;
+    const fallguard::Motion m = s_fall.fellIn();
+    s_fall.clear();
+    fallEvent(m, fallguard::Event::kCleared, why);
+}
+
+void fallTickImpl(Sink out) {
+    // The armed loop's falls first: they arrive while ctrl may still own the
+    // bus, so this only LATCHES (ctrl has already released torque) -- the
+    // pick-up below runs once the loop is benched.
+    const uint32_t af = robot::g_armed_falls.load();
+    if (af != s_armed_falls_seen) {
+        s_armed_falls_seen = af;
+        const float tilt = robot::g_armed_fall_tilt_deg.load();
+        char msg[96];
+        snprintf(msg, sizeof msg, "armed fall at %.0f deg: loop disarmed, torque off", static_cast<double>(tilt));
+        if (s_fall_on) {
+            s_fall.latch(fallguard::Motion::kPolicy, tilt);
+            fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
+            say(out, "FALL (armed loop): torso tilted %.0f deg -- disarmed, torque OFF\r\n", static_cast<double>(tilt));
+            say(out, "  pick it up, hold it upright and still: %s\r\n",
+                s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+        } else {
+            fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
+            say(out, "FALL (armed loop) at %.0f deg -- disarmed, torque OFF; bench fall guard is off, no autohome\r\n",
+                static_cast<double>(tilt));
+        }
+    }
+    if (!s_fall_on) return;
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) return;
+    imu::Sample smp{};
+    uint32_t age = 0;
+    const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;   // no decision on no data
+    const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
+    const fallguard::Event ev = s_fall.update(fallguard::Motion::kBench, valid, smp.up, smp.gyro, now_ms);
+    if (ev == fallguard::Event::kFell) {
+        s_traj_active = false;
+        s_home_pending = false;
+        balStop(out, "FALL");
+        if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+        char msg[64];
+        snprintf(msg, sizeof msg, "bench fall at %.0f deg: motion stopped, torque off",
+                 static_cast<double>(s_fall.fallTiltDeg()));
+        fallEvent(fallguard::Motion::kBench, ev, msg);
+        say(out, "FALL: torso tilted %.0f deg -- motion stopped, torque OFF. Pick it up and hold it upright "
+            "and still: %s\r\n", static_cast<double>(s_fall.fallTiltDeg()),
+            s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+        return;
+    }
+    if (ev != fallguard::Event::kPickedUp || !s_fall_autohome) return;
+    const fallguard::Motion m = s_fall.fellIn();
+    out("FALL cleared: upright and still for 2 s -- homing\r\n");
+    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+        out("home did not start -- still FALLEN (`home` to retry)\r\n");
+        return;
+    }
+    s_fall.clear();
+    fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 2 s, autohome started");
+}
+
+// -- flail guard + operator stop, bench half (shared.h g_armed_holds,
+//    g_op_stops; ctrl_task runs the armed half) ------------------------------
+// After the first armed policy stand flailed (2026-11-01, flailguard.h):
+//  - HOLD handed over from the armed loop -- its flail guard tripped, or a soft
+//    operator stop arrived: ctrl froze every servo where it was, torque ON, and
+//    benched without releasing. This logs why (flight event kFlail), then waits
+//    until the robot is within the flail tilt line (20 deg) and still
+//    (|gyro| < 0.35 rad/s) for 1 s -- standing on its own, or held upright --
+//    and runs the bench `home` (2.5 s smooth, play take-up, readback, release).
+//    `fall autohome off` (the same switch as the fall pick-up) leaves it held
+//    for a typed `home`. Past the bench fall line (30 deg / 100 ms) the bench
+//    fall guard takes it from here and goes limp, as for any bench fall.
+//  - OPERATOR STOP (tools/estop.py) while benched: any bench motion -- pose
+//    stream, balance, home -- stops where it is; a HARD stop also releases
+//    torque. Armed, ctrl has already acted; this only logs (kStop), once per
+//    burst (the tool repeats its frame for a second).
+static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0;
+static bool s_hold_cand = false;
+static uint32_t s_hold_since = 0;
+static TickType_t s_stop_logged = 0;
+static bool s_stop_logged_any = false;
+constexpr uint32_t kHoldSettleMs = 1000u;
+
+static const char* holdWhy(uint8_t trip) {
+    if (trip == robot::kHoldTripOperator) return "operator soft STOP";
+    return flailguard::tripName(static_cast<flailguard::Trip>(trip));
+}
+
+void flailTickImpl(Sink out) {
+    // -- operator stops ---------------------------------------------------
+    const uint32_t stops = robot::g_op_stops.load();      // stops, then estops (shared.h)
+    const uint32_t estops = robot::g_op_estops.load();
+    if (stops != s_stops_seen) {
+        const bool hard = estops != s_estops_seen;
+        s_stops_seen = stops;
+        s_estops_seen = estops;
+        const bool benched = robot::g_mode_request.load() == robot::Mode::kBench &&
+                             !robot::g_ctrl_owns_bus.load();
+        if (benched) {
+            s_traj_active = false;
+            s_home_pending = false;
+            balStop(out, "STOP");
+            if (hard) {
+                if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+                s_hold_pending = false;     // limp: nothing left to home from
+            } else {
+                // A soft stop leaves a hold holding (it may be this very
+                // stop's, handed over by ctrl mid-burst) and restarts its
+                // settle: no autohome until 1 s still after the last frame.
+                s_hold_cand = false;
+            }
+        }
+        const TickType_t now = xTaskGetTickCount();
+        if (!s_stop_logged_any || now - s_stop_logged > pdMS_TO_TICKS(2000)) {
+            s_stop_logged_any = true;
+            s_stop_logged = now;
+            const char* what = hard ? (benched ? "operator HARD STOP (bench): motion stopped, torque OFF"
+                                               : "operator HARD STOP (armed): torque OFF, run ended")
+                                    : (benched ? "operator soft STOP (bench): motion stopped where it is"
+                                               : "operator soft STOP (armed): policy stopped, joints HELD, run ended");
+            robot::flight::event(flightrec::Ev::kStop, what, hard ? 1 : 0, benched ? 0 : 1);
+            say(out, "%s\r\n", what);
+        }
+    }
+
+    // -- a hold handed over from the armed loop ---------------------------
+    const uint32_t holds = robot::g_armed_holds.load();
+    if (holds != s_holds_seen) {
+        s_holds_seen = holds;
+        const uint8_t trip = robot::g_armed_hold_trip.load();
+        const float value = robot::g_armed_hold_value.load();
+        const int joint = robot::g_armed_hold_joint.load();
+        const bool held = robot::g_armed_hold_torque.load();
+        char msg[160];
+        const bool is_tilt_or_pose = trip == static_cast<uint8_t>(flailguard::Trip::kPose) ||
+                                     trip == static_cast<uint8_t>(flailguard::Trip::kTilt);
+        if (trip == robot::kHoldTripOperator) {
+            snprintf(msg, sizeof msg, "HOLD: operator soft STOP -- policy stopped, joints %s, disarmed",
+                     held ? "HELD stiff" : "were already limp");
+        } else {
+            snprintf(msg, sizeof msg, "FLAIL guard: %s %.2f%s%s%s -- policy stopped, joints %s, disarmed",
+                     holdWhy(trip), static_cast<double>(value), is_tilt_or_pose ? " deg" : " rad/s",
+                     joint >= 0 && joint < obs::kNumJoints ? " at " : "",
+                     joint >= 0 && joint < obs::kNumJoints ? obs::kJointNames[joint] : "",
+                     held ? "HELD stiff" : "were already limp");
+        }
+        robot::flight::event(flightrec::Ev::kFlail, msg, trip, held ? 1 : 0);
+        say(out, "%s\r\n", msg);
+        s_hold_pending = held && s_fall_on && s_fall_autohome;
+        s_hold_cand = false;
+        if (held) {
+            say(out, "  %s\r\n", s_hold_pending
+                    ? "holding; once it is upright (< 20 deg) and still for 1 s it homes itself (`bench` = limp now)"
+                    : "holding (autohome off): `home` to re-zero, `release` or `bench` to go limp");
+        }
+    }
+    if (!s_hold_pending) return;
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) return;
+    if (s_fall.fallen()) {            // the bench fall guard went limp: its recovery now
+        s_hold_pending = false;
+        return;
+    }
+    imu::Sample smp{};
+    uint32_t age = 0;
+    const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;
+    const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
+    const float w = sqrtf(smp.gyro[0] * smp.gyro[0] + smp.gyro[1] * smp.gyro[1] + smp.gyro[2] * smp.gyro[2]);
+    if (!(valid && fallguard::tiltDeg(smp.up) < flailguard::kLimits.tilt_deg && w < fallguard::kPickupGyroRadS)) {
+        s_hold_cand = false;
+        return;
+    }
+    if (!s_hold_cand) {
+        s_hold_cand = true;
+        s_hold_since = now_ms;
+    }
+    if (static_cast<uint32_t>(now_ms - s_hold_since) < kHoldSettleMs) return;
+    out("HOLD: upright and still for 1 s -- homing\r\n");
+    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+        out("home did not start -- still HOLDING (`home` to retry, `release` to go limp)\r\n");
+        s_hold_pending = true;
+        s_hold_cand = false;
+        return;
+    }
+    robot::flight::event(flightrec::Ev::kFlail, "hold: upright and still 1 s, autohome started", 0, 2);
+}
+
+// `flail` status | on | off
+void cmdFlail(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`flail on|off` switches a safety guard")) return;
+    if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_flail_on.store(true);
+    else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
+    const flailguard::Limits& L = flailguard::kLimits;
+    say(out, "flail guard (flailguard.h) %s: trips -> policy stopped, joints HELD, disarmed (kDisarmedFlail)\r\n",
+        robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
+    say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
+        static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
+    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s\r\n", static_cast<double>(L.rate_tau_s),
+        static_cast<double>(L.rate_rad_s));
+    say(out, "  tilt    > %.0f deg for %lu ms (the fall guard, limp, stays at 45)\r\n",
+        static_cast<double>(L.tilt_deg), static_cast<unsigned long>(L.tilt_hold_ms));
+    say(out, "  chatter mean |d raw target/dt| EMA(%.1f s) > %.1f rad/s\r\n", static_cast<double>(L.chatter_tau_s),
+        static_cast<double>(L.chatter_rad_s));
+    say(out, "  %lu hold(s) since boot%s%s; %s\r\n", static_cast<unsigned long>(robot::g_armed_holds.load()),
+        robot::g_armed_holds.load() ? ", last: " : "",
+        robot::g_armed_holds.load() ? holdWhy(robot::g_armed_hold_trip.load()) : "",
+        s_hold_pending ? "HOLDING now, homes when upright and still" : "not holding");
+}
+
+// `fall` status | on | off | autohome on|off | clear
+void cmdFall(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`fall on|off|autohome|clear` switches a safety guard")) return;
+    if (argc >= 2 && !strcmp(argv[1], "on")) s_fall_on = true;
+    else if (argc >= 2 && !strcmp(argv[1], "off")) s_fall_on = false;
+    else if (argc >= 3 && !strcmp(argv[1], "autohome")) s_fall_autohome = !strcmp(argv[2], "on");
+    else if (argc >= 2 && !strcmp(argv[1], "clear")) fallClear("fall clear");
+    const fallguard::Limits pl = fallguard::kPolicyLimits, bl = fallguard::kBenchLimits;
+    say(out, "fall guard (fallguard.h): armed policy tilt > %.0f deg for %lu ms; bench > %.0f deg for %lu ms\r\n",
+        static_cast<double>(acosf(pl.fall_up_z) * 57.29578f), static_cast<unsigned long>(pl.debounce_ms),
+        static_cast<double>(acosf(bl.fall_up_z) * 57.29578f), static_cast<unsigned long>(bl.debounce_ms));
+    say(out, "  bench guard %s, autohome %s (upright < %.0f deg, |gyro| < %.2f rad/s for %lu ms)\r\n",
+        s_fall_on ? "ON" : "OFF", s_fall_autohome ? "ON" : "OFF", static_cast<double>(fallguard::kPickupTiltDeg),
+        static_cast<double>(fallguard::kPickupGyroRadS), static_cast<unsigned long>(fallguard::kPickupHoldMs));
+    say(out, "  %s, %lu fall(s) since boot (bench + armed), last %.0f deg\r\n",
+        s_fall.fallen() ? (s_fall.fellIn() == fallguard::Motion::kPolicy ? "FALLEN in the armed loop (motion locked)"
+                                                                         : "FALLEN on the bench (motion locked)")
+                        : "not fallen",
+        static_cast<unsigned long>(s_fall.falls()), static_cast<double>(s_fall.fallTiltDeg()));
+}
+
 // The tethered `home`. 0 steps/s asks for the servo's maximum, same
-// convention as `move` and `pose`.
+// convention as `move` and `pose`. It also clears a fall latch (a deliberate
+// `home` after a fall is the manual form of autohome).
 void cmdHome(Sink out, int argc, char** argv) {
+    fallClear("typed home");
     homeAll(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
                            : kHomeStepsPerSec);
 }
@@ -798,18 +1562,56 @@ void cmdShape(Sink out, int argc, char** argv) {
     }
 }
 
+void cmdStandClock(Sink out, int argc, char** argv) {
+    // standclock [run|freeze|coast [<phase rad>]] -- what the gait clock does
+    // at a plain stand (obs::StandClock; experiments/policy/stand-still).
+    // Live, one writer (here), one reader (ctrl); not persistent: boot = run.
+    if (argc >= 2) {
+        obs::StandClock m;
+        if (!strcmp(argv[1], "run") || !strcmp(argv[1], "off")) m = obs::StandClock::kRun;
+        else if (!strcmp(argv[1], "freeze")) m = obs::StandClock::kFreeze;
+        else if (!strcmp(argv[1], "coast")) m = obs::StandClock::kCoast;
+        else { out("standclock: run|freeze|coast [phase rad, -3.1416..3.1416]\r\n"); return; }
+        if (argc >= 3) {
+            const float ph = strtof(argv[2], nullptr);
+            if (!(ph >= -3.1416f && ph <= 3.1416f)) {
+                out("standclock: phase must be -3.1416..3.1416 rad\r\n");
+                return;
+            }
+            robot::g_stand_phase.store(ph);
+        }
+        robot::g_stand_clock.store(static_cast<uint8_t>(m));
+    }
+    const auto m = static_cast<obs::StandClock>(robot::g_stand_clock.load());
+    if (obs::kClockStandFreeze) {
+        out("standclock: this policy was trained with the clock HELD at a stand -- "
+            "it always holds (option ignored)\r\n");
+    }
+    if (m == obs::StandClock::kCoast) {
+        say(out, "standclock: coast -- at a plain stand the clock keeps 1.5 Hz until phase "
+            "%.3f rad, then holds\r\n", static_cast<double>(robot::g_stand_phase.load()));
+    } else if (m == obs::StandClock::kFreeze) {
+        out("standclock: freeze -- at a plain stand the clock holds where it is\r\n");
+    } else {
+        out("standclock: run -- the clock runs at a stand, as trained (default)\r\n");
+    }
+}
+
 void cmdTorque(Sink out, int argc, char** argv, bool on) {
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     const bool one = argc >= 2;
     const uint8_t id = one ? static_cast<uint8_t>(num(argv[1]))
                            : scsbus::kBroadcastId;
+    balStop(out, on ? "torque" : "release");
+    s_hold_pending = false;          // the operator has taken the hold over
     const scsbus::Status st = bus->torqueEnable(id, on);
     say(out, "%s %s: %s\r\n", on ? "torque" : "release",
         one ? argv[1] : "all", statusName(st));
 }
 
 void cmdMiddle(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`middle` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 2) { out("usage: middle <id>\r\n"); return; }
@@ -849,6 +1651,7 @@ void cmdVolt(Sink out) {
 void cmdBatt(Sink out, int argc, char** argv) {
     battguard::Guard& g = robot::battGuard();
     if (argc >= 2 && !strcmp(argv[1], "reset")) {
+        if (tetherOnly(out, "`batt reset` clears the pack-guard latch")) return;
         // Bench-mode gate, same rule as the mutating `cal` subcommands: this
         // WRITES state the control task owns, and only in bench mode is ctrl
         // guaranteed to return before touching it. Checked directly rather
@@ -898,10 +1701,64 @@ void cmdBatt(Sink out, int argc, char** argv) {
 
 void eepromSettle() { vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs)); }
 
+// -- STS3215 RAM response config (2026-11-02) ------------------------------
+// The STS3215's factory RAM regs 85 = 50 and 81 = 20 add ~50-60 ms of start delay and halve the
+// slew: measured with `stepresp` on the robot, 85 -> 0 cut the dead time 63-78 -> 18-24 ms and
+// 81 -> 1 halved the rise (t90 ~200 -> ~95 ms); the STS3250 hip rolls ship with 0 / 1. That dead
+// time is what made the first policy stand flail (2026-11-01 RCA). RAM, so it is lost whenever the
+// SERVO pack power-cycles: applied and verified with the gains before every arm and at boot, and
+// re-applied by servoRamTick when a benched check finds it reset. `servocfg factory` restores the
+// factory values for comparison (and stops the re-apply) until `servocfg fast`.
+constexpr uint8_t kRegStartDelay = 85, kRegRise = 81, kRegModelH = 4, kModelHSts3215 = 3;
+constexpr uint8_t kFastStartDelay = 0, kFastRise = 1, kFactoryStartDelay = 50, kFactoryRise = 20;
+static bool s_servo_fast = true;
+static uint32_t s_servo_reapplied = 0;
+
+// Write (if `write`) and verify regs 85/81 on every fitted STS3215. True when all read back as
+// wanted. Silent unless something fails or `verbose`.
+static bool applyServoRam(scsbus::Bus* bus, Sink out, bool write, bool verbose) {
+    const uint8_t want85 = s_servo_fast ? kFastStartDelay : kFactoryStartDelay;
+    const uint8_t want81 = s_servo_fast ? kFastRise : kFactoryRise;
+    const obs::Calibration& cal = robot::calibration();
+    int n = 0, bad = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        const uint8_t id = obs::kBusServoId[b];
+        uint8_t model = 0;
+        if (bus->readU8(id, kRegModelH, model) != scsbus::Status::kOk) {
+            say(out, "  servocfg %-12s id %2u: NO REPLY\r\n", obs::kBusJointNames[b], static_cast<unsigned>(id));
+            ++bad;
+            continue;
+        }
+        if (model != kModelHSts3215) continue;
+        ++n;
+        if (write) {
+            bus->writeU8(id, kRegStartDelay, want85);
+            bus->writeU8(id, kRegRise, want81);
+        }
+        uint8_t r85 = 0xFF, r81 = 0xFF;
+        bus->readU8(id, kRegStartDelay, r85);
+        bus->readU8(id, kRegRise, r81);
+        const bool ok = (r85 == want85 && r81 == want81);
+        if (!ok) ++bad;
+        if (verbose || !ok)
+            say(out, "  servocfg %-12s id %2u  reg85 %3u reg81 %3u  %s\r\n", obs::kBusJointNames[b],
+                static_cast<unsigned>(id), static_cast<unsigned>(r85), static_cast<unsigned>(r81),
+                ok ? "ok" : "MISMATCH");
+    }
+    if (verbose || bad)
+        say(out, "servocfg: %s (STS3215 reg85 %u reg81 %u) on %d servo(s), %d bad\r\n",
+            s_servo_fast ? "FAST" : "FACTORY", static_cast<unsigned>(want85), static_cast<unsigned>(want81), n, bad);
+    return bad == 0;
+}
+
 // Read 21/22 from every servo the loop drives and compare with the expected
 // table. Prints every row when `verbose`, else only the ones that fail.
 // True when every servo answered with exactly its expected P/D.
 bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
+    // STS3215 response config first (RAM: write + verify every time -- the servo pack may have
+    // power-cycled since boot). A failure refuses the arm exactly like a gain mismatch.
+    const bool ram_ok = applyServoRam(bus, out, true, verbose);
     // Every FITTED bus joint: a servo the robot does not carry has nothing
     // to verify, and one it does carry is checked whether or not the policy
     // drives it (the loop holds the others).
@@ -945,7 +1802,47 @@ bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
         say(out, "gains: all %u servos at their expected P/D\r\n",
             static_cast<unsigned>(n));
     }
-    return bad == 0;
+    return bad == 0 && ram_ok;
+}
+
+// Benched housekeeping: every 5 s, if the pose streamer is idle, read reg 85 of the first fitted
+// STS3215; if it no longer holds the wanted value (servo power-cycled), re-apply to all.
+static TickType_t s_servo_ram_next = 0;
+void servoRamTickImpl(Sink out) {
+    const TickType_t now = xTaskGetTickCount();
+    if (now < s_servo_ram_next) return;
+    s_servo_ram_next = now + pdMS_TO_TICKS(5000);
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
+        !robot::g_bus || s_traj_active)
+        return;
+    scsbus::Bus* bus = robot::g_bus;
+    const obs::Calibration& cal = robot::calibration();
+    const uint8_t want85 = s_servo_fast ? kFastStartDelay : kFactoryStartDelay;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        uint8_t model = 0, r85 = 0;
+        const uint8_t id = obs::kBusServoId[b];
+        if (bus->readU8(id, kRegModelH, model) != scsbus::Status::kOk || model != kModelHSts3215) continue;
+        if (bus->readU8(id, kRegStartDelay, r85) != scsbus::Status::kOk) return;   // pack off: next time
+        if (r85 != want85) {
+            ++s_servo_reapplied;
+            say(out, "servocfg: STS3215 reg85 reads %u (servos power-cycled?) -- re-applying %s config\r\n",
+                static_cast<unsigned>(r85), s_servo_fast ? "FAST" : "FACTORY");
+            applyServoRam(bus, out, true, false);
+        }
+        return;
+    }
+}
+
+// `servocfg [fast|factory]` -- show / set the STS3215 response config (RAM regs 85/81).
+void cmdServocfg(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc >= 2 && !strcmp(argv[1], "fast")) s_servo_fast = true;
+    else if (argc >= 2 && !strcmp(argv[1], "factory")) s_servo_fast = false;
+    applyServoRam(bus, out, argc >= 2, true);
+    say(out, "servocfg: re-applied %lu time(s) since boot after a servo power cycle\r\n",
+        static_cast<unsigned long>(s_servo_reapplied));
 }
 
 void cmdGains(Sink out, int argc, char** argv) {
@@ -986,6 +1883,7 @@ void cmdGains(Sink out, int argc, char** argv) {
         out("usage: gains | gains <id> | gains <id> <P 1-254> <D 0-254>\r\n");
         return;
     }
+    if (tetherOnly(out, "`gains <id> <P> <D>` writes servo EEPROM")) return;
     const long p = num(argv[2], -1), d = num(argv[3], -1);
     if (p < 1 || p > 254 || d < 0 || d > 254) {
         out("gains: P must be 1-254 and D 0-254 (factory 32/32)\r\n");
@@ -1038,6 +1936,30 @@ void cmdGains(Sink out, int argc, char** argv) {
 // (re-arming a running loop re-reads nothing: the bus is ctrl's). Stores the
 // verdict and returns true when the arm is refused.
 bool armRefused(Sink out) {
+    // The compiled-in net must be a policy. A policy profile (BIMO_POLICY,
+    // firmware/policies/) may carry an untrained test net while its plant has
+    // no deployable one -- it exists to golden-test this path, and it drives
+    // every joint across its full range at random.
+    // cppcheck-suppress knownConditionTrueFalse -- generated per build.
+    if (policy::kWeightsArePlaceholder) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedPolicy));
+        say(out, "REFUSED: the compiled-in net (%s) is a placeholder / "
+            "untrained test net, not a policy -- build and flash real "
+            "weights (docs/training.md section 9)\r\n", policy::kWeightsRun);
+        return true;
+    }
+    // An int8 image checks its own net at boot (policy::init): the forward
+    // pass must reproduce the generator's numpy action. If it does not, the
+    // image is not running the net it was built from.
+    if (!policy::status().selftest_ok) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedPolicy));
+        say(out, "REFUSED: the policy self-test failed at boot (action err "
+            "%.3g) -- `nettime` shows the details; do not run this image\r\n",
+            static_cast<double>(policy::status().selftest_err));
+        return true;
+    }
     // Every joint the policy drives must be fitted: the loop reads and writes
     // fitted servos only, and a policy joint that is not on the wire would be
     // fed a stale angle forever.
@@ -1067,6 +1989,17 @@ bool armRefused(Sink out) {
 }
 
 void cmdMode(Sink out, bool run) {
+    if (run && tetherOnly(out, "arming is the commander's ARM edge")) return;
+    if (run) balStop(out, "arming");
+    // A typed or wireless `bench` while HOLDING after a flail/soft stop means
+    // "limp, now" -- every other way out of a run releases torque, and the
+    // docs teach `bench` as the tethered E-stop.
+    if (!run && s_hold_pending && robot::g_mode_request.load() == robot::Mode::kBench &&
+        !robot::g_ctrl_owns_bus.load() && robot::g_bus) {
+        robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+        out("hold released: torque OFF\r\n");
+    }
+    s_hold_pending = false;
     // No valid as-built calibration, no run. The default Calibration (zero
     // 2048, dir +1) is exactly the raw-middle pose that broke the feet on
     // 2026-08-02, and a stored blob measured under a different servo map is
@@ -1089,6 +2022,9 @@ void cmdMode(Sink out, bool run) {
     }
     robot::g_arm_result.store(
         static_cast<uint8_t>(linkproto::ArmResult::kAccepted));
+    // A fresh arm is the deliberate clear of a fall latch (ctrl resets its own
+    // at the handover; this is the bench Detector's, fallguard.h).
+    if (run) fallClear("armed");
     robot::g_mode_request.store(run ? robot::Mode::kRun : robot::Mode::kBench);
     out(run ? "control loop armed -- bus handed to core 1\r\n"
             : "benched -- control loop released torque and gave up the bus\r\n");
@@ -1110,7 +2046,7 @@ void cmdMode(Sink out, bool run) {
 // so a purely mechanical zero is never exact.
 void cmdCal(Sink out, int argc, char** argv) {
     // Joints are named by joint name (`L_knee`) or servo ID (`7`); rows are
-    // bus joints, servo-ID order (obs/bus_map.h).
+    // bus joints, bus order (obs/bus_map.h).
     obs::Calibration& cal = robot::calibration();
     if (argc < 2 || !strcmp(argv[1], "show")) {
         for (int b = 0; b < obs::kNumBusJoints; ++b) {
@@ -1124,6 +2060,7 @@ void cmdCal(Sink out, int argc, char** argv) {
                                 : "DEFAULTS -- nothing stored (cal save)");
         return;
     }
+    if (tetherOnly(out, "`cal` changes the calibration")) return;
     if (!strcmp(argv[1], "zero")) {
         scsbus::Bus* bus = claimBus(out);
         if (!bus) return;
@@ -1131,7 +2068,7 @@ void cmdCal(Sink out, int argc, char** argv) {
         // when the robot is physically held at the CAD-neutral pose. With no
         // joint named, every bus joint is tried, and the answer also sets
         // the fitted set: a servo that replies is fitted, one that does not
-        // is marked NOT FITTED (a 10-servo prototype comes out as IDs 1-10).
+        // is marked NOT FITTED (a 10-servo prototype comes out as its ten leg joints).
         int only = -1;
         if (argc >= 3) {
             only = parseBusJoint(argv[2]);
@@ -1294,6 +2231,15 @@ void cmdStat(Sink out) {
     say(out, "policy: %s, %d joints, obs %d, run %s\r\n",
         policy::kWeightsArePlaceholder ? "PLACEHOLDER WEIGHTS" : "exported",
         obs::kNumJoints, obs::kObsDim, obs::kRunName);
+    {
+        const policy::Status& ps = policy::status();
+        say(out, "  net: %s, %u B weights, %d/%d layers in RAM, kernel %s, "
+                 "self-test %s (`nettime` times it)\r\n",
+            ps.quantized ? "int8" : "float", static_cast<unsigned>(ps.weight_bytes),
+            ps.layers_in_ram, ps.num_layers,
+            ps.quantized ? policy::kernelName(ps.kernel) : "f32",
+            !ps.selftest_ran ? "n/a" : (ps.selftest_ok ? "ok" : "FAILED"));
+    }
     say(out, "bus: %d of %d servos fitted (cal)\r\n",
         robot::fittedBusJoints(robot::calibration(), nullptr, nullptr),
         obs::kNumBusJoints);
@@ -1355,6 +2301,107 @@ void cmdObsDump(Sink out, int argc, char** argv) {
     out("usage: obsdump on | off | once\r\n");
 }
 
+// -- balance ---------------------------------------------------------------
+// Status, gains and log of the stance-leg roll balance (`pose ... B<L|R>`).
+void cmdBalance(Sink out, int argc, char** argv) {
+    if (argc >= 2 && !strcmp(argv[1], "off")) {
+        if (s_bal.engaged()) balStop(out, "balance off");
+        else out("balance: not engaged\r\n");
+        return;
+    }
+    if (argc >= 2 && !strcmp(argv[1], "set")) {
+        if (s_bal.engaged()) {
+            out("balance set: refused while engaged -- `balance off` first\r\n");
+            return;
+        }
+        balance::Config c;
+        if (argc == 3 && !strcmp(argv[2], "default")) {
+            s_bal_cfg = c;
+            out("balance: gains back to the defaults\r\n");
+            return;
+        }
+        if (argc < 6) {
+            out("usage: balance set <kp> <ki> <ankle_mix> <hip_mix> [clamp_deg] [abort_deg] [kd] [decay_s] [land_s] [ilim_deg] | default\r\n");
+            return;
+        }
+        c.kp = strtof(argv[2], nullptr);
+        c.ki = strtof(argv[3], nullptr);
+        c.ka = strtof(argv[4], nullptr);
+        c.kh = strtof(argv[5], nullptr);
+        if (argc >= 7) c.clamp_rad = strtof(argv[6], nullptr) / 57.29578f;
+        if (argc >= 8) c.abort_rad = strtof(argv[7], nullptr) / 57.29578f;
+        if (argc >= 9) c.kd = strtof(argv[8], nullptr);
+        if (argc >= 10) c.abort_decay_s = strtof(argv[9], nullptr);
+        if (argc >= 11) c.abort_land_s = strtof(argv[10], nullptr);
+        if (argc >= 12) c.i_lim_rad = strtof(argv[11], nullptr) / 57.29578f;   // 0 = no I limit
+        const char* bad = balance::validate(c);
+        if (bad) {
+            say(out, "balance set: refused (%s)\r\n", bad);
+            return;
+        }
+        s_bal_cfg = c;
+        out("balance: gains set\r\n");
+    }
+    if (argc >= 2 && !strcmp(argv[1], "log")) {
+        say(out, "balance log: %d samples at 25 Hz (ms roll err u in 0.01 deg, rate in 0.1 deg/s)\r\n", s_bal_log_n);
+        for (int k = 0; k < s_bal_log_n; ++k) {
+            say(out, "BAL %u %d %d %d %d\r\n", static_cast<unsigned>(s_bal_log_ms[k]),
+                static_cast<int>(s_bal_log_roll[k]), static_cast<int>(s_bal_log_err[k]),
+                static_cast<int>(s_bal_log_u[k]), static_cast<int>(s_bal_log_rate[k]));
+        }
+        if (s_bal_abort_ms >= 0) {
+            // the event, in the log's units (ms since engage, 0.01 deg): where the BAL rows above
+            // show u fading and the roll after it
+            say(out, "BALEVT abort %s %ld %d %d\r\n",
+                s_bal.state() == balance::State::kAbortImu ? "imu" : "tip", s_bal_abort_ms,
+                static_cast<int>(s_bal.abortErr() * static_cast<float>(kBalDegX100)),
+                static_cast<int>(s_bal.abortU() * static_cast<float>(kBalDegX100)));
+            if (s_bal_landed_ms >= 0) say(out, "BALEVT landed %ld\r\n", s_bal_landed_ms);
+        }
+        out("balance log end\r\n");
+        return;
+    }
+    const double r2d = 57.29578;
+    say(out, "gains    kp %.3f  ki %.3f /s  kd %.3f s  ankle x%+.2f  hip x%+.2f  clamp %.1f deg  abort %.1f deg\r\n",
+        static_cast<double>(s_bal_cfg.kp), static_cast<double>(s_bal_cfg.ki),
+        static_cast<double>(s_bal_cfg.kd), static_cast<double>(s_bal_cfg.ka), static_cast<double>(s_bal_cfg.kh),
+        static_cast<double>(s_bal_cfg.clamp_rad) * r2d, static_cast<double>(s_bal_cfg.abort_rad) * r2d);
+    say(out, "I limit  |ki*I| <= %.1f deg%s\r\n", static_cast<double>(s_bal_cfg.i_lim_rad) * r2d,
+        s_bal_cfg.i_lim_rad > 0.0f ? "" : " (off)");
+    say(out, "abort    u fades %.2f s, then back to the pre-lift pose over %.2f s (torque stays on)\r\n",
+        static_cast<double>(s_bal_cfg.abort_decay_s), static_cast<double>(s_bal_cfg.abort_land_s));
+    float roll = 0.0f;
+    if (balReadRoll(&roll)) {
+        // g_line is 128 bytes: keep each say() to one short line
+        say(out, "roll now %+.2f deg  (+ = leaning to the robot's RIGHT)\r\n",
+            static_cast<double>(roll) * r2d);
+    } else {
+        out("roll now unavailable: no fresh IMU attitude (`imu`)\r\n");
+    }
+    if (!s_bal.engaged()) {
+        out("state    off (arm it with `pose ... B<L|R>`)\r\n");
+        return;
+    }
+    say(out, "state    %s, %c stance, %.1f s since engage\r\n", balance::stateName(s_bal.state()),
+        s_bal_side, static_cast<double>(pdTICKS_TO_MS(xTaskGetTickCount() - s_bal_t0)) / 1000.0);
+    say(out, "         ref %+.2f deg  err %+.2f deg  rate %+.2f deg/s  I %+.4f  u %+.2f deg\r\n",
+        static_cast<double>(s_bal.ref()) * r2d, static_cast<double>(s_bal.err()) * r2d,
+        static_cast<double>(s_bal.rate()) * r2d, static_cast<double>(s_bal.integral()),
+        static_cast<double>(s_bal.u()) * r2d);
+    if (s_bal.aborted()) {
+        say(out, "ABORT    %s at %.2f s: err %+.2f deg, u was %+.2f deg -> %s (%.2f s in, landing %.0f%%)\r\n",
+            s_bal.state() == balance::State::kAbortImu ? "IMU fault" : "tip",
+            static_cast<double>(s_bal_abort_ms) / 1000.0, static_cast<double>(s_bal.abortErr()) * r2d,
+            static_cast<double>(s_bal.abortU()) * r2d, balance::abortPhase(s_bal),
+            static_cast<double>(s_bal.abortSince()), static_cast<double>(s_bal.landFraction()) * 100.0);
+    }
+    say(out, "correction  %c ankle roll %+.2f deg = %+ld ticks   %c hip roll %+.2f deg = %+ld ticks   "
+             "(envelope clamped %lu writes)\r\n",
+        s_bal_side, static_cast<double>(s_bal.ankle()) * r2d, static_cast<long>(s_bal_dta),
+        s_bal_side, static_cast<double>(s_bal.hip()) * r2d, static_cast<long>(s_bal_dth),
+        static_cast<unsigned long>(s_bal_clamps));
+}
+
 }  // namespace
 
 static void traceTick(scsbus::Bus* bus, TickType_t now) {
@@ -1380,6 +2427,60 @@ void traceDump(Sink out) {
     out("trace end\r\n");
 }
 
+void fallTick(Sink out) { fallTickImpl(out); }
+void servoRamTick(Sink out) { servoRamTickImpl(out); }
+void flailTick(Sink out) { flailTickImpl(out); }
+
+constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
+              kSwRA = obs::busIndexOfName("R_ankle_roll"), kSwLA = obs::busIndexOfName("L_ankle_roll");
+
+// `sweep [amp_ticks] [f1 f2 ...]` -- system identification: with both feet down and the last pose
+// held, add amp*sin(2 pi f t) (same ticks on all four roll joints = lateral pelvis shift) at each
+// frequency in turn (default 0.5 1 1.5 2 2.5 3 4 Hz, >= 4 cycles / 3 s each, 0.4 s cosine tapers).
+// Stops by itself if the roll moves > 6 deg from the start; any new pose/move/home ends it; the
+// fall guard stays on. The flight recorder carries goal/present/IMU for the frequency response.
+void cmdSweep(Sink out, int argc, char** argv) {
+    if (fallLocked(out)) return;
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc >= 2 && !strcmp(argv[1], "stop")) { s_sw.on = false; out("sweep stopped\r\n"); return; }
+    if (s_bal.engaged()) { out("sweep: single-stance balance is engaged -- double support only\r\n"); return; }
+    bool any = false;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) any = any || s_traj_on[b];
+    if (!any || !s_traj_on[kSwRH] || !s_traj_on[kSwLH] || !s_traj_on[kSwRA] || !s_traj_on[kSwLA]) {
+        out("sweep: send a full-body pose first (the sweep rides on the held pose)\r\n");
+        return;
+    }
+    long amp = argc >= 2 ? num(argv[1], 11) : 11;
+    if (amp < 1) amp = 1;
+    if (amp > 34) amp = 34;                 // <= 3 deg
+    RollSweep sw;
+    sw.amp = static_cast<int32_t>(amp);
+    for (int k = 2; k < argc && sw.nf < 12; ++k) {
+        const float f = strtof(argv[k], nullptr);
+        if (f >= 0.1f && f <= 8.0f) sw.f[sw.nf++] = f;
+    }
+    if (sw.nf == 0) {
+        const float d[] = {0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f, 4.0f};
+        for (float f : d) sw.f[sw.nf++] = f;
+    }
+    if (!balReadRoll(&sw.roll0)) { out("sweep: no fresh IMU attitude -- not moving\r\n"); return; }
+    if (!s_traj_active) {                   // re-open the stream holding the last targets
+        int32_t tgt[obs::kNumBusJoints];
+        memcpy(tgt, s_traj_tgt, sizeof tgt);
+        bool on[obs::kNumBusJoints];
+        memcpy(on, s_traj_on, sizeof on);
+        if (!startSmooth(bus, tgt, on, 300, out, "sweep")) return;
+    }
+    float total = 0.0f;
+    for (int k = 0; k < sw.nf; ++k) total += fmaxf(3.0f, 4.0f / sw.f[k]) + 0.8f;
+    sw.t0 = xTaskGetTickCount();
+    sw.on = true;
+    s_sw = sw;
+    say(out, "sweep: +-%ld ticks (+-%.1f deg) on both hip+ankle rolls, %d freqs, %.0f s, stops if roll moves > 6 deg\r\n",
+        amp, static_cast<double>(amp) * 0.0879, sw.nf, static_cast<double>(total));
+}
+
 void poseTick(Sink out) {
     if (!s_traj_active) {
         // trace tail after the stream: keep sampling until s_trace_until
@@ -1396,14 +2497,16 @@ void poseTick(Sink out) {
     if (robot::g_ctrl_owns_bus.load() ||
         robot::g_mode_request.load() == robot::Mode::kRun) {
         s_traj_active = false;
+        balStop(out, "the loop was armed");
         out("smooth pose cancelled -- the loop was armed\r\n");
         return;
     }
     const TickType_t now = xTaskGetTickCount();
     if (now - s_traj_last < pdMS_TO_TICKS(20)) return;     // ~50 Hz evaluation
     s_traj_last = now;
+    const int64_t rec_t0 = esp_timer_get_time();
     scsbus::Bus* bus = claimBus(out);
-    if (!bus) { s_traj_active = false; return; }
+    if (!bus) { s_traj_active = false; balStop(out, "no bus"); return; }
     const long el = static_cast<long>(pdTICKS_TO_MS(now - s_traj_t0));
     // quintic minimum-jerk: s = 10t^3 - 15t^4 + 6t^5, optionally ZV-shaped
     auto quintic = [](float t) {
@@ -1429,6 +2532,35 @@ void poseTick(Sink out) {
     // last write, or at the very end. Its speed is the distance over the
     // interval it will take -- the servo GLIDES between updates instead of
     // being poked one tick every 20 ms against its dead zone.
+    balTick(now, out);
+    // `sweep`: this tick's offset (ticks) and its roll guard
+    float sw_off = 0.0f;
+    if (s_sw.on) {
+        const float t = static_cast<float>(pdTICKS_TO_MS(now - s_sw.t0)) / 1000.0f;
+        float ts = 0.0f;
+        int k = 0;
+        for (; k < s_sw.nf; ++k) {
+            const float dur = fmaxf(3.0f, 4.0f / s_sw.f[k]) + 0.8f;    // >= 4 cycles, + 0.4 s tapers
+            if (t < ts + dur) {
+                const float u = t - ts;
+                const float env = fminf(1.0f, fminf(u, dur - u) / 0.4f);
+                const float e = 0.5f - 0.5f * cosf(3.14159265f * fmaxf(0.0f, env));
+                sw_off = static_cast<float>(s_sw.amp) * e * sinf(6.2831853f * s_sw.f[k] * u);
+                break;
+            }
+            ts += dur;
+        }
+        float r = 0.0f;
+        if (k >= s_sw.nf) {
+            s_sw.on = false;
+            out("sweep done\r\n");
+        } else if (balReadRoll(&r) && fabsf(r - s_sw.roll0) > 6.0f / 57.29578f) {
+            s_sw.on = false;
+            sw_off = 0.0f;
+            say(out, "sweep STOPPED at %.1f Hz: roll %+.1f deg moved > 6 deg from the start\r\n",
+                static_cast<double>(s_sw.f[k]), static_cast<double>(r * 57.29578f));
+        }
+    }
     const int32_t kBigStep = s_traj_bigstep;
     const long kMinIntervalMs = s_traj_minint_ms;
     uint8_t ids[obs::kNumBusJoints];
@@ -1436,12 +2568,36 @@ void poseTick(Sink out) {
     uint16_t spds[obs::kNumBusJoints];
     int n = 0;
     bool changed = false;
+    memset(s_rec_written, 0, sizeof s_rec_written);
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         if (!s_traj_on[b]) continue;
         const float d = static_cast<float>(s_traj_tgt[b] - s_traj_start[b]);
-        const int32_t want = tau >= 1.0f
+        int32_t want = tau >= 1.0f
             ? s_traj_tgt[b]
             : s_traj_start[b] + static_cast<int32_t>(lroundf(sc * d));
+        s_traj_nom[b] = want;
+        if (s_bal.aborted()) {
+            // ABORT: the nominal target at the abort tick is where the landing
+            // starts; from there every joint returns to where this stream began
+            // (the double-support pre-lift pose). No attitude is consulted.
+            if (!s_bal_from_set[b]) {
+                s_bal_from[b] = want;
+                s_bal_from_set[b] = true;
+            }
+            want = balance::landTarget(s_bal_from[b], s_bal_home[b], s_bal.landFraction());
+        }
+        if (s_sw.on && (b == kSwRH || b == kSwLH || b == kSwRA || b == kSwLA)) {
+            bool hit = false;
+            want = clampTicks(obs::kBusServoId[b], want + static_cast<int32_t>(lroundf(sw_off)), &hit);
+        }
+        if (s_bal.engaged() && (b == s_bal_ba || b == s_bal_bh)) {
+            // the balance correction rides on the nominal target, inside the
+            // calibrated envelope like every other bench write
+            bool hit = false;
+            want = clampTicks(obs::kBusServoId[b],
+                              want + (b == s_bal_ba ? s_bal_dta : s_bal_dth), &hit);
+            if (hit) ++s_bal_clamps;
+        }
         const int32_t dstep = want - s_traj_sent[b];
         const int32_t mag = dstep < 0 ? -dstep : dstep;
         const long since_ms = static_cast<long>(pdTICKS_TO_MS(now - s_traj_tsent[b]));
@@ -1475,6 +2631,7 @@ void poseTick(Sink out) {
         s_traj_sent[b] = want;
         s_traj_spd[b] = spds[n];
         s_traj_tsent[b] = now;
+        s_rec_written[b] = true;
         ++n;
     }
     if (changed && n > 0) {
@@ -1482,9 +2639,33 @@ void poseTick(Sink out) {
                                 s_traj_acc);
     }
     traceTick(bus, now);
+    // The recorder reads the servos AFTER the write (cli::recorderTick), so
+    // it never sits between the attitude read and the goals going out.
+    s_rec_ticked = true;
+    s_rec_t0 = rec_t0;
+    s_rec_work_us = static_cast<uint32_t>(esp_timer_get_time() - rec_t0);
+    s_rec_wrote = changed && n > 0;
     if (tau >= 1.0f) {
-        s_traj_active = false;
-        say(out, "smooth pose done (%ld ms)\r\n", el);
+        if (s_bal.armed()) {
+            // the lift is done: the reference is the roll the robot settled at, the PI starts from zero
+            s_bal.start(s_bal_roll);
+            s_bal_shown = s_bal.state();
+            say(out, "balance: move done, PI starts, ref roll %+.2f deg\r\n",
+                static_cast<double>(s_bal_roll * 57.29578f));
+        }
+        if (s_bal.engaged()) {
+            // the stream is over, the hold is not: keep ticking so the
+            // feedback persists until the next command
+            if (!s_bal_hold_said && !s_bal.aborted()) {
+                s_bal_hold_said = true;
+                say(out, "smooth pose done (%ld ms); balance holding on %c stance\r\n", el, s_bal_side);
+            }
+        } else if (s_sw.on) {
+            // the sweep rides on the held pose: keep streaming
+        } else {
+            s_traj_active = false;
+            say(out, "smooth pose done (%ld ms)\r\n", el);
+        }
     }
 }
 
@@ -1573,6 +2754,56 @@ void homeVerify(Sink out) {
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
     }
+}
+
+uint32_t recorderTick() {
+    const bool ticked = s_rec_ticked;
+    s_rec_ticked = false;
+    robot::flight::houseTick();
+    if (!robot::flight::enabled()) return 0;
+    // Armed: ctrl records every tick itself, and the bus is not ours.
+    if (robot::g_ctrl_owns_bus.load() ||
+        robot::g_mode_request.load() == robot::Mode::kRun) {
+        return 0;
+    }
+    robot::flight::BenchView v;
+    if (ticked) {
+        v.source = flightrec::Source::kBenchPose;
+        v.t0_us = s_rec_t0;
+        v.work_us = s_rec_work_us;
+        v.traj_active = true;
+        v.wrote = s_rec_wrote;
+        v.on = s_traj_on;
+        v.nominal = s_traj_nom;
+        v.goal = s_traj_sent;
+        v.speed = s_traj_spd;
+        v.written = s_rec_written;
+    } else if (!s_traj_active && robot::flight::idleDue()) {
+        v.source = flightrec::Source::kBenchIdle;
+        v.t0_us = esp_timer_get_time();
+    } else {
+        return 0;
+    }
+    v.home_pending = s_home_pending;
+    v.home_stage = static_cast<uint8_t>(s_home_stage);
+    v.bal_engaged = s_bal.engaged();
+    flightrec::Balance& b = v.bal;
+    b.state = static_cast<uint8_t>(s_bal.state());
+    b.side = s_bal.engaged() ? static_cast<uint8_t>(s_bal_side) : 0;
+    b.ankle_bus = static_cast<int8_t>(s_bal_ba);
+    b.hip_bus = static_cast<int8_t>(s_bal_bh);
+    b.ref = s_bal.ref();
+    b.err = s_bal.err();
+    b.integral = s_bal.integral();
+    b.u = s_bal.u();
+    b.rate = s_bal.rate();
+    b.roll = s_bal_roll;
+    b.ankle_rad = s_bal.ankle();
+    b.hip_rad = s_bal.hip();
+    b.ankle_ticks = flightrec::sat16(s_bal_dta);
+    b.hip_ticks = flightrec::sat16(s_bal_dth);
+    b.clamps = s_bal_clamps;
+    return robot::flight::recordBench(robot::g_bus, v);
 }
 
 // -- imu -------------------------------------------------------------------
@@ -1913,6 +3144,7 @@ void cmdStream(Sink out, int argc, char** argv) {
         return;
     }
     if (s_srun) { out("stream: already running\r\n"); return; }
+    if (tetherOnly(out, "`stream` has no torque gate or envelope clamp")) return;
     if (!claimBus(out)) return;
     s_scfg = StreamCfg{static_cast<uint8_t>(atol(argv[1])), atol(argv[2]), atol(argv[3]),
                        static_cast<int>(atol(argv[4])), static_cast<int>(atol(argv[5])),
@@ -1994,6 +3226,7 @@ void cmdImu(Sink out, int argc, char** argv) {
         // per-axis gyro scale (SENSOR frame). `imu gscale` prints; three
         // numbers set + save to NVS. Measured with tools/imu_scale_check.py.
         if (argc >= 5) {
+            if (tetherOnly(out, "`imu gscale` saves to NVS")) return;
             float gs[3];
             for (int i = 0; i < 3; ++i) gs[i] = static_cast<float>(atof(argv[2 + i]));
             for (int i = 0; i < 3; ++i) {
@@ -2053,6 +3286,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "bias")) {
+        if (tetherOnly(out, "`imu bias` saves to NVS")) return;
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
             robot::g_ctrl_owns_bus.load()) {
             out("busy: `bench` first -- bias calibration writes driver state\r\n");
@@ -2122,6 +3356,7 @@ void cmdImu(Sink out, int argc, char** argv) {
             out("  so the nominal from CAD is ~90 deg about y: 0.7071 0 0.7071 0\r\n");
             return;
         }
+        if (tetherOnly(out, "`imu mount` saves to NVS")) return;
         float q[4];
         for (int i = 0; i < 4; ++i) q[i] = strtof(argv[2 + i], nullptr);
         const float n = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
@@ -2194,6 +3429,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "forget")) {
+        if (tetherOnly(out, "`imu forget` erases NVS")) return;
         say(out, "%s\r\n", robot::imuCalErase() ? "erased" : "erase failed");
         robot::g_imu_cal_from_nvs = false;
         return;
@@ -2316,7 +3552,88 @@ void cmdNtp(Sink out, int argc, char**) {
 // are bench-only for the same reason `cal save` is: an NVS commit is a flash
 // write, a flash write stalls both cores' cache, and a stalled control tick
 // past 2x budget trips the torque release.
+// `rec` -- the flight recorder (flight_rec.h, docs/flight-recorder.md).
+void cmdRec(Sink out, int argc, char** argv) {
+    // NVS writes stall the control tick (see `wifi clear`): armed, a change
+    // applies in RAM only and says so.
+    // Over Wi-Fi a change is RAM-only too: NVS writers stay tether-only.
+    const bool save = robot::g_mode_request.load() == robot::Mode::kBench &&
+                      !g_remote;
+    const char* nosave = save ? ""
+                         : g_remote ? " (Wi-Fi: NOT saved to NVS)"
+                                    : " (armed: NOT saved to NVS)";
+    if (argc >= 2 && !strcmp(argv[1], "off")) {
+        robot::flight::event(flightrec::Ev::kRec, "rec off");
+        robot::flight::setEnabled(false, save);
+        say(out, "rec: off%s\r\n", nosave);
+        return;
+    }
+    if (argc >= 2 && !strcmp(argv[1], "on")) {
+        robot::flight::setEnabled(true, save);
+        if (!robot::flight::enabled()) {
+            out("rec: no collector address yet -- `rec <ip>[:port]`\r\n");
+            return;
+        }
+        robot::flight::event(flightrec::Ev::kRec, "rec on");
+        say(out, "rec: on%s\r\n", nosave);
+        return;
+    }
+    if (argc >= 3 && !strcmp(argv[1], "idle")) {
+        robot::flight::setIdleHz(static_cast<int>(num(argv[2], 0)), save);
+        robot::flight::Status st;
+        robot::flight::getStatus(st);
+        say(out, "rec: idle sample %d Hz while benched and not streaming%s\r\n",
+            st.idle_hz, nosave);
+        return;
+    }
+    if (argc >= 2 && strcmp(argv[1], "status") != 0) {
+        unsigned a = 0, b = 0, c = 0, d = 0, port = flightrec::kDefaultPort;
+        const int got = sscanf(argv[1], "%u.%u.%u.%u:%u", &a, &b, &c, &d, &port);
+        if (got < 4 || a > 255 || b > 255 || c > 255 || d > 255 || port == 0 ||
+            port > 65535) {
+            out("usage: rec [status] | rec <a.b.c.d>[:port] | rec on | rec off | "
+                "rec idle <hz>\r\n");
+            return;
+        }
+        const uint32_t ip = (a << 24) | (b << 16) | (c << 8) | d;
+        robot::flight::configure(ip, static_cast<uint16_t>(port), save);
+        char msg[48];
+        snprintf(msg, sizeof msg, "rec -> %u.%u.%u.%u:%u", a, b, c, d, port);
+        robot::flight::event(flightrec::Ev::kRec, msg);
+        say(out, "rec: on -> %u.%u.%u.%u:%u%s\r\n", a, b, c, d, port, nosave);
+        return;
+    }
+    robot::flight::Status st;
+    robot::flight::getStatus(st);
+    say(out, "rec %s -> %lu.%lu.%lu.%lu:%u  wifi %s  utc %s  boot %08lx\r\n",
+        st.enabled ? "ON" : "off", static_cast<unsigned long>(st.ip >> 24),
+        static_cast<unsigned long>((st.ip >> 16) & 0xFF),
+        static_cast<unsigned long>((st.ip >> 8) & 0xFF),
+        static_cast<unsigned long>(st.ip & 0xFF), static_cast<unsigned>(st.port),
+        st.wifi ? "up" : "DOWN", st.utc ? "synced" : "NOT synced",
+        static_cast<unsigned long>(st.boot_id));
+    say(out, "  records ctrl %lu  bench %lu  idle %lu  events %lu  (seq %lu)\r\n",
+        static_cast<unsigned long>(st.ctrl_records), static_cast<unsigned long>(st.bench_records),
+        static_cast<unsigned long>(st.idle_records), static_cast<unsigned long>(st.events),
+        static_cast<unsigned long>(st.seq));
+    say(out, "  sent %lu  dropped: ring %lu  net %lu  wrong-task %lu\r\n",
+        static_cast<unsigned long>(st.sent), static_cast<unsigned long>(st.drop_ring),
+        static_cast<unsigned long>(st.drop_net), static_cast<unsigned long>(st.drop_task));
+    say(out, "  push cost max: ctrl %lu us  house %lu us;  bench read last %lu max %lu us "
+        "(%lu reads, %lu backoffs)\r\n",
+        static_cast<unsigned long>(st.max_push_ctrl_us),
+        static_cast<unsigned long>(st.max_push_house_us),
+        static_cast<unsigned long>(st.bench_read_us),
+        static_cast<unsigned long>(st.bench_read_max_us),
+        static_cast<unsigned long>(st.bench_reads),
+        static_cast<unsigned long>(st.bench_backoffs));
+    say(out, "  idle sample %d Hz;  free heap %lu B;  housekeeping stack free %lu B\r\n",
+        st.idle_hz, static_cast<unsigned long>(heap_caps_get_free_size(MALLOC_CAP_8BIT)),
+        static_cast<unsigned long>(uxTaskGetStackHighWaterMark(nullptr)));
+}
+
 void cmdWifi(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`wifi` credentials live in NVS")) return;
     if (argc >= 2 && !strcmp(argv[1], "clear")) {
         if (robot::g_mode_request.load() != robot::Mode::kBench) {
             out("busy: NVS writes stall the control tick -- `bench` first\r\n");
@@ -2387,6 +3704,78 @@ void cmdWifi(Sink out, int argc, char** argv) {
     }
 }
 
+// `wcli` -- the authenticated Wi-Fi CLI (wifi_cli.h, docs/wifi-cli.md).
+// Status anywhere; the key and the session are managed from the TETHER only.
+void cmdWcli(Sink out, int argc, char** argv) {
+    if (argc >= 2) {
+        if (tetherOnly(out, "`wcli key` manages the Wi-Fi CLI key itself")) return;
+        if (!strcmp(argv[1], "drop") && argc == 2) {
+            robot::wcliDropSession();
+            out("wcli: session dropped (the client must pair again)\r\n");
+            return;
+        }
+        if (!strcmp(argv[1], "key") && argc == 3) {
+            // NVS write: bench only, like every other NVS writer here.
+            if (robot::g_mode_request.load() != robot::Mode::kBench) {
+                out("busy: NVS writes stall the control tick -- `bench` first\r\n");
+                return;
+            }
+            if (!strcmp(argv[2], "clear")) {
+                out(robot::wcliKeyClear()
+                        ? "wcli: key erased -- the Wi-Fi CLI is off\r\n"
+                        : "wcli: erase FAILED\r\n");
+                return;
+            }
+            char fp[9] = {};
+            // The key itself is never printed, here or anywhere.
+            if (!robot::wcliKeySet(argv[2], fp)) {
+                out("wcli: key must be 64 hex digits (32 bytes) -- or NVS "
+                    "failed; nothing changed\r\n");
+                return;
+            }
+            say(out, "wcli: key stored in NVS, fingerprint %s -- any session "
+                "dropped\r\n", fp);
+            return;
+        }
+        out("usage: wcli | wcli key <64 hex> | wcli key clear | wcli drop   "
+            "(tether, bench)\r\n");
+        return;
+    }
+    robot::WcliStatus w;
+    robot::wcliGetStatus(w);
+    if (!w.have_key) {
+        say(out, "wcli: no key -- the Wi-Fi CLI is off (`wcli key <64 hex>` on "
+            "the tether; tools/wcli.py --keygen)  port %u\r\n",
+            static_cast<unsigned>(wcli::kPort));
+        return;
+    }
+    say(out, "wcli: key %s  port %u  ", w.fingerprint,
+        static_cast<unsigned>(wcli::kPort));
+    if (w.session) {
+        say(out, "session %lu.%lu.%lu.%lu:%u  seq %lu (%s)  heard %lu ms ago\r\n",
+            static_cast<unsigned long>(w.peer_ip >> 24),
+            static_cast<unsigned long>((w.peer_ip >> 16) & 0xFF),
+            static_cast<unsigned long>((w.peer_ip >> 8) & 0xFF),
+            static_cast<unsigned long>(w.peer_ip & 0xFF),
+            static_cast<unsigned>(w.peer_port), static_cast<unsigned long>(w.last_seq),
+            w.state == 1 ? "queued" : w.state == 2 ? "running" : w.state == 3 ? "done"
+            : w.state == 4 ? "cancelled" : "none",
+            static_cast<unsigned long>(w.heard_ms_ago));
+    } else {
+        out("no session\r\n");
+    }
+    say(out, "  rx ok %lu  bad %lu  stale %lu  wrong-peer %lu  replays %lu\r\n",
+        static_cast<unsigned long>(w.rx_ok), static_cast<unsigned long>(w.rx_bad),
+        static_cast<unsigned long>(w.rx_stale),
+        static_cast<unsigned long>(w.rx_wrong_peer),
+        static_cast<unsigned long>(w.replays));
+    say(out, "  sessions %lu  cmds %lu  busy %lu  out %lu (oldest held %lu, lost %lu)\r\n",
+        static_cast<unsigned long>(w.sessions), static_cast<unsigned long>(w.cmds),
+        static_cast<unsigned long>(w.busy), static_cast<unsigned long>(w.out_next),
+        static_cast<unsigned long>(w.oldest),
+        static_cast<unsigned long>(w.lost_chunks));
+}
+
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
@@ -2396,7 +3785,11 @@ void banner(Sink out) {
     out("  move <id> <ticks> [ms] [steps/s]   2048 == middle, 4096 ticks/rev\r\n");
     out("  pose <17 ticks, id 1..17 | 10 ticks, policy order> [s<ms>|t<ms>|steps/s]\r\n"
         "                       default = SMOOTH min-jerk (auto duration); s<ms> sets it,\r\n"
-        "                       tokens h<pct> a<acc> b<ticks> i<ms>; t<ms> unison; N = const speed\r\n");
+        "                       tokens h<pct> a<acc> b<ticks> i<ms> B<L|R>; t<ms> unison; N = const speed\r\n"
+        "                       B<L|R> = stance leg: IMU roll PI on its ankle+hip roll, holds after\r\n"
+        "                       the move, ends at the next command (17-target form, smooth only)\r\n");
+    out("  balance [set <kp> <ki> <ankle> <hip> [clamp_deg] [abort_deg]|default|off|log]\r\n"
+        "                       stance-leg roll balance: gains, live state, correction, log\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
     out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
         "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
@@ -2408,12 +3801,18 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
+    out("  standclock [run|freeze|coast [ph]]  gait clock at a stand (coast: hold at ph)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
+    out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
+    out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
+    out("  rec [status|<ip>[:port]|on|off|idle <hz>]   flight recorder -> UDP collector\r\n");
     out("  stat                 tick timing and fault counters\r\n");
+    out("  nettime [n]          time the policy forward pass every way this image\r\n"
+        "                       can run it (benched; n passes, default 20)\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 }
 
@@ -2450,11 +3849,19 @@ void linkHome(Sink out) {
     // and a reset that quietly did nothing -- no calibration, a latched pack,
     // a servo that did not answer -- must say which, or it looks exactly like
     // a dead button.
+    fallClear("wireless home");    // the wireless form of a typed `home`
     robot::g_arm_result.store(
         static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
 }
 
-void execute(const char* line, Sink out) {
+void execute(const char* line, Sink out, bool remote) {
+    // Scoped to this one line, whichever way it returns.
+    struct RemoteScope {
+        explicit RemoteScope(bool r) { g_remote = r; }
+        ~RemoteScope() { g_remote = false; }
+        RemoteScope(const RemoteScope&) = delete;
+        RemoteScope& operator=(const RemoteScope&) = delete;
+    } scope(remote);
     char buf[linkproto::kMaxCliLine + 1];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
@@ -2466,6 +3873,12 @@ void execute(const char* line, Sink out) {
     const int argc = split(buf, argv, 40);
     if (argc == 0) return;
     const char* c = argv[0];
+    // A deliberate bench move takes over a flail/soft-stop hold: the autohome
+    // must not start under the operator's own motion (flailTickImpl).
+    if (!strcmp(c, "pose") || !strcmp(c, "move") || !strcmp(c, "balance") ||
+        !strcmp(c, "sweep") || !strcmp(c, "stream") || !strcmp(c, "middle")) {
+        s_hold_pending = false;
+    }
 
     if (!strcmp(c, "help") || !strcmp(c, "?")) banner(out);
     else if (!strcmp(c, "scan")) cmdScan(out);
@@ -2477,11 +3890,17 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "torque")) cmdTorque(out, argc, argv, true);
     else if (!strcmp(c, "middle")) cmdMiddle(out, argc, argv);
     else if (!strcmp(c, "pose")) cmdPose(out, argc, argv);
+    else if (!strcmp(c, "balance")) cmdBalance(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
+    else if (!strcmp(c, "sread")) cmdSread(out, argc, argv);
+    else if (!strcmp(c, "stepresp")) cmdStepResp(out, argc, argv);
+    else if (!strcmp(c, "regw")) cmdRegw(out, argc, argv);
+    else if (!strcmp(c, "servocfg")) cmdServocfg(out, argc, argv);
     else if (!strcmp(c, "gains")) cmdGains(out, argc, argv);
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
+    else if (!strcmp(c, "standclock")) cmdStandClock(out, argc, argv);
     else if (!strcmp(c, "obsfreeze")) cmdObsFreeze(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);
@@ -2490,10 +3909,16 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "cal")) cmdCal(out, argc, argv);
     else if (!strcmp(c, "imu")) cmdImu(out, argc, argv);
     else if (!strcmp(c, "bno")) cmdBno(out, argc, argv);
-    else if (!strcmp(c, "stream")) cmdStream(out, argc, argv);
+    else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
+    else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
+    else if (!strcmp(c, "flail")) cmdFlail(out, argc, argv);
+    else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
+    else if (!strcmp(c, "wcli")) cmdWcli(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
+    else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
+    else if (!strcmp(c, "nettime")) robot::netTime(out, argc >= 2 ? atoi(argv[1]) : 20);
     else if (!strcmp(c, "obsdump")) cmdObsDump(out, argc, argv);
     else out("? (try `help`)\r\n");
 }

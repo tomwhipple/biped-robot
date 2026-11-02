@@ -18,8 +18,8 @@ namespace linkproto {
 constexpr uint8_t kMagicCmd[2] = {'B', 'M'};   // laptop -> robot
 constexpr uint8_t kMagicTlm[2] = {'B', 'T'};   // robot -> laptop
 // Protocol version 2 (issue #81): the telemetry frame carries the 17-servo
-// bus -- servo_err is a u32 (bit b = servo ID b + 1) and the joint block is
-// 17 angles in servo-ID order. The BASE block changed, which a length cannot
+// bus -- servo_err is a u32 (bit b = bus joint b) and the joint block is
+// 17 angles in bus order. The BASE block changed, which a length cannot
 // say, so the version is 2 in both directions and a version-1 peer's frames
 // are refused (kBadVersion) rather than half-read. protocol.py VERSION.
 constexpr uint8_t kVersion = 2;
@@ -41,14 +41,14 @@ constexpr size_t kCmdLenExt = 24;
 constexpr size_t kTlmTimeOff = 21;  // the u64 sits right after the body
 constexpr size_t kTlmLen = kTlmTimeOff + 8 + 2;   // 31
 // The JOINT block (mirror mode): one int16 milli-radian per BUS joint, in
-// servo-ID order (obs/bus_map.h; protocol.py JOINT_NAMES), then the CRC. For
+// bus order (obs/bus_map.h; protocol.py JOINT_NAMES), then the CRC. For
 // driving the real robot while a sim follows its observed pose.
 //
 // The robot is the SENDER and every client rejects an unexpected length, so
 // a robot that simply began beaconing the long frame would blind every
 // existing commander at once. Hence kFlagPose: the long frame is REQUESTED,
 // never volunteered. See docs/mirror-mode.md.
-constexpr size_t kNumJoints = 17;   // bus order: servo ID = index + 1
+constexpr size_t kNumJoints = 17;   // bus order (servo IDs: obs/bus_map.h kBusServoId)
 constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;   // 65
 
 // ATTITUDE: up_x and up_y, int16 milli, appended AFTER the joint block and
@@ -103,6 +103,32 @@ constexpr uint8_t kFlagHome = 1u << 4;
 // short again. It requests telemetry and commands nothing.
 constexpr uint8_t kFlagAtt = 1u << 5;
 
+// OPERATOR STOP, out of band (2026-11-01). A frame carrying this bit comes
+// from a stop button (tools/estop.py), not from a commander, and the robot
+// acts on it the moment it is decoded, in EVERY mode -- including a tethered
+// `run` with no commander at all, which is how the first armed policy stand
+// was run (and flailed, with no way to stop it but a grab).
+//
+// Out of band means it is NEVER fed to the ArmLatch, the HomeLatch or the
+// Watchdog. A second sender's frames would otherwise interleave with a
+// running commander's: its ARM level would make arm/bench edges against the
+// commander's (each re-arm a fresh Watchdog, so a fresh run), its seq could be
+// rejected as stale, and the commander's next ENABLE-off frame would clear a
+// plain ESTOP latch. None of that can happen to a frame nobody else reads.
+//
+// What it does is a LEVEL (every such frame asks again; repeats are harmless):
+//   with kFlagEstop: HARD stop -- torque released now (ctrl's tick, <= 20 ms
+//     after the frame), the run ends (disarmed to bench, kDisarmedStop);
+//     benched, any bench motion stops and torque is released;
+//   without: SOFT stop -- the policy stops and every servo holds its present
+//     position, torque ON, the run ends (kDisarmedStop) and the bench homes
+//     the robot once it is upright and still -- the flail guard's own stop;
+//     benched, any bench motion stops where it is.
+// Re-arming is a fresh ARM edge or `run`, as after a fall. An old firmware
+// ignores the bit, so the stop tool also sets kFlagEstop with ARM clear on a
+// hard stop: the old meaning (watchdog ESTOP latch) still releases torque.
+constexpr uint8_t kFlagStop = 1u << 6;
+
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
 constexpr float kStaleMs = 250.0f;         // -> decay to the trained stand
@@ -142,7 +168,8 @@ enum class LinkState : uint8_t {
     // above, these are decided by the ROBOT and no command clears them.
     kLowBattLand = 4,   // crouching down under control on a flat pack
     kLowBattSafe = 5,   // crouch finished, torque off, and it stays off
-    // Torso down (up_z below kFallUpZ, debounced), robot-latched: torque off
+    // Torso down (tilt past 45 deg for 200 ms: fallguard::kPolicyLimits, NOT
+    // kFallUpZ, which is the sim's episode end), robot-latched: torque off
     // so a downed robot does not grind its servos against the floor. A fall
     // DISARMS the robot (ctrl_task): the state is reported for the fall tick,
     // then the loop benches. Re-arming is deliberate -- a fresh wireless ARM
@@ -206,6 +233,20 @@ enum class ArmResult : uint8_t {
     // (scsbus::checkPositionGains) and refuses on any difference from the
     // compiled expected table (main/servo_gains.h).
     kRefusedGains = 10,  // arm refused: a servo's P/D is not the expected value
+    // A policy profile (firmware/policies/, BIMO_POLICY) can compile in an
+    // UNTRAINED test net while its plant has no deployable policy
+    // (policy::kWeightsArePlaceholder). It exists to golden-test the
+    // firmware path; driving servos with it is never what anyone meant.
+    kRefusedPolicy = 11, // arm refused: the compiled-in net is not a policy
+    // (2026-11-01) The armed loop's flail guard (components/flailguard) found
+    // the policy doing something clearly wrong for its command -- targets far
+    // from the stand, the torso thrashing or tilting, the targets chattering
+    // -- stopped it, froze every servo where it was with torque ON, and ended
+    // the run. The bench homes it once it is upright and still.
+    kDisarmedFlail = 12,
+    // An operator stop (kFlagStop) ended the run: torque released (hard) or
+    // held where it was (soft).
+    kDisarmedStop = 13,
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -224,14 +265,16 @@ ArmResult diagArmResult(uint8_t diag);
 // a firmware newer than this client.
 const char* diagReason(uint8_t diag);
 
-// -- fall detection (robot-side, ctrl_task) --------------------------------
-// The threshold is walker_env's own fall_up_z: the sim terminates an episode
-// below it, so past this line the policy is operating outside anything it
-// trained on and holding torque only feeds the fall. Debounced over ticks
-// because a footfall transient dips up_z briefly; 200 ms of "down" is a
-// torso on the floor, not a wobble.
+// -- fall detection ----------------------------------------------------------
+// kFallUpZ is walker_env's own fall_up_z: the SIM terminates an episode below
+// it (66 deg). It stays here as the training contract's number, for the twin
+// and sim code. The HARDWARE no longer uses it: both control paths run
+// components/fallguard (fallguard.h has the one table), and the armed loop
+// trips at fallguard::kPolicyLimits = cos 45 deg (0.707) for 200 ms -- 21 deg
+// before the episode end, because torque held past 45 deg only grinds the
+// servos into the floor (Tom 2026-11-01).
 constexpr float kFallUpZ = 0.4f;
-constexpr float kFallDebounceMs = 200.0f;
+constexpr float kFallDebounceMs = 200.0f;   // the sim-side debounce; fallguard's policy debounce matches it
 // The firmware latch no longer auto-clears (a fall DISARMS the robot,
 // ctrl_task.cpp); these two remain for the python twin's Watchdog and any
 // host-side "is it righted yet" display.
@@ -257,6 +300,7 @@ struct Command {
     bool pose() const { return (flags & kFlagPose) != 0; }
     bool home() const { return (flags & kFlagHome) != 0; }
     bool att() const { return (flags & kFlagAtt) != 0; }
+    bool stop() const { return (flags & kFlagStop) != 0; }
 };
 
 struct Telemetry {
@@ -266,9 +310,9 @@ struct Telemetry {
     float up_z;          // torso up-vector z; 1.0 = perfectly upright
     float vx_est;
     float wz_est;
-    uint32_t servo_err;  // bitmask, bit b = bus joint b (servo ID b+1) faulted
+    uint32_t servo_err;  // bitmask, bit b = bus joint b faulted
     uint8_t loop_late_pct;
-    // Measured joint angles, radians, bus order (servo ID = index + 1).
+    // Measured joint angles, radians, bus order.
     // n_joints is 0 on a classic frame -- which is every frame, unless a
     // commander asked with kFlagPose.
     uint8_t n_joints = 0;

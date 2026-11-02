@@ -94,12 +94,14 @@ The robot's ID map is **proposed, awaiting sign-off** ([servo-map.md §2.1](serv
 Assign IDs only from the signed-off map. Every servo ships as ID 1, so set IDs
 **one servo on the bus at a time**.
 
+![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](img/servo_map.png)
+
 For each servo:
 
 1. Board off. Connect this servo alone to a bus port. Board on.
 2. `scan`: expect exactly one servo, at ID 1, with a sane voltage and `err 0x00`.
 3. Check the part and its factory state:
-   - `reg 1 3 2` = **777** (STS3215);
+   - `reg 1 3 2` = **777** (STS3215), or **2825** for the STS3250 hip rolls (IDs 52 and 51);
    - `reg 1 9 2` = 0 and `reg 1 11 2` = 4095 (angle limits);
    - `reg 1 33` = 0 (position mode);
    - `gains 1` = P 32, D 32, I 0 (registers 21/22/23).
@@ -168,7 +170,7 @@ Never infer a sign from a compound motion.
 ### IMU, in the standing pose
 
 The QMI8658C is on the board, so the mount is a property of how the board is
-screwed into the pelvis. Measure it on the robot; do not reuse another mounting.
+screwed into the torso. Measure it on the robot; do not reuse another mounting.
 
 1. `imu`: `who_am_i 0x05` and `levelled yes`.
 2. **Mount.**

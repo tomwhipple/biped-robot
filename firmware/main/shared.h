@@ -63,6 +63,56 @@ extern std::atomic<bool> g_link_arm_level;     // valid once edges > 0
 // "un-home"), so there is nothing for a level to say.
 extern std::atomic<uint32_t> g_link_home_edges;
 
+// -- armed-loop falls (core 1 -> core 0) ------------------------------------
+// ctrl's fall latch (fallguard::Detector, Motion::kPolicy) disarms the loop to
+// bench; the pick-up recovery is the BENCH Detector's (cli.cpp fallTick), so
+// the fall is handed over here: ctrl stores the tilt it latched at, then bumps
+// the counter; housekeeping latches its own Detector on a new count and the
+// same pick-up rule homes the robot. One writer each side, like the edges above.
+extern std::atomic<uint32_t> g_armed_falls;
+extern std::atomic<float> g_armed_fall_tilt_deg;
+
+// -- armed-loop HOLDS: the flail guard and the soft operator stop -----------
+// ctrl's flail guard (components/flailguard) -- or a soft operator stop
+// (linkproto::kFlagStop without kFlagEstop) -- stops the policy, freezes every
+// fitted servo at its present position with torque ON, and disarms the loop to
+// bench WITHOUT the usual torque release (ctrl_task.cpp g_hold_on_bench). The
+// hold is handed to housekeeping here, the same way a fall is: ctrl stores what
+// tripped, then bumps the counter; housekeeping (cli.cpp flailTick) logs it
+// and, once the robot is upright and still, homes it (ends released).
+// g_armed_hold_trip is a flailguard::Trip, or kHoldTripOperator for a soft
+// stop; g_armed_hold_joint is the policy joint for a pose trip, else -1;
+// g_armed_hold_torque is whether torque was on to hold (false: it was already
+// limp -- RELAX, ESTOP, a pack latch -- so there is nothing to home from).
+constexpr uint8_t kHoldTripOperator = 0xFF;
+extern std::atomic<uint32_t> g_armed_holds;
+extern std::atomic<uint8_t> g_armed_hold_trip;
+extern std::atomic<float> g_armed_hold_value;
+extern std::atomic<int> g_armed_hold_joint;
+extern std::atomic<bool> g_armed_hold_torque;
+// `flail on|off` (CLI writes, ctrl reads every tick). On at boot.
+extern std::atomic<bool> g_flail_on;
+
+// -- operator stops (the link producers -> ctrl and housekeeping) -----------
+// A kFlagStop frame (tools/estop.py) is OUT OF BAND: the producer that decodes
+// it (wifi_link.cpp, link_task.cpp) never puts it in g_cmd_mailbox -- so no
+// latch or watchdog ever sees it -- and counts it here instead: g_op_estops
+// first when it also carries kFlagEstop (a HARD stop), then g_op_stops. Two
+// producers, so fetch_add (an atomic RMW is safe with several writers); each
+// consumer remembers what it has seen. Read g_op_stops FIRST, then
+// g_op_estops: a hard stop is counted in g_op_estops before g_op_stops moves,
+// so a reader that sees the stop also sees that it was hard.
+//   ctrl, armed: hard -> torque off now, disarm; soft -> hold + disarm (above).
+//   ctrl, benched: forgets them every tick (a stop is not stored up for the
+//     next arm).
+//   housekeeping, benched (CLI owns the bus): stops any bench motion; hard
+//     also releases torque. Always: one flight-recorder event per burst.
+extern std::atomic<uint32_t> g_op_stops;
+extern std::atomic<uint32_t> g_op_estops;
+// The producers' half: true (and counted) when `cmd` is an operator stop, in
+// which case the caller must NOT forward it to g_cmd_mailbox.
+bool takeOperatorStop(const linkproto::Command& cmd);
+
 // -- why the loop is (not) armed (core 0 -> the WiFi beacon) ---------------
 // cmdMode() is the ONE place that decides a mode request, and until 2026-08-30
 // its refusal only reached the UART sink: over WiFi the robot simply stayed
@@ -85,6 +135,14 @@ extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 // tunable: changing the pole mid-run is continuous because the shaper's state
 // carries over; only the gain changes.
 extern std::atomic<float> g_shape_hz;
+// -- stand clock option (core 0 -> core 1) ---------------------------------
+// Written by the CLI (`standclock`), read by ctrl every tick: what the gait
+// clock does at a plain stand for a policy trained with it running
+// (obs::StandClock -- kRun as trained, kFreeze, kCoast to g_stand_phase).
+// Boot state kRun: not persistent, off until hardware-tested. A policy
+// trained with kClockStandFreeze holds the clock whatever this says.
+extern std::atomic<uint8_t> g_stand_clock;     // an obs::StandClock
+extern std::atomic<float> g_stand_phase;       // rad, the kCoast target
 // Bench diagnostic (2026-09-03): freeze parts of the policy OBSERVATION at
 // their nominal stand values while the loop runs, to find which sensor
 // closes the oscillation loop. Bits: 1 = up-vector -> (0,0,1), 2 = gyro -> 0,
@@ -121,7 +179,7 @@ struct TelemetrySnapshot {
     std::atomic<float> up_z{0.0f};
     std::atomic<float> vx_est{0.0f};
     std::atomic<float> wz_est{0.0f};
-    std::atomic<uint32_t> servo_err{0};      // bit b = bus joint b (servo ID b+1)
+    std::atomic<uint32_t> servo_err{0};      // bit b = bus joint b
     std::atomic<uint8_t> loop_late_pct{0};
     std::atomic<uint32_t> ticks{0};
     std::atomic<uint32_t> overruns{0};
@@ -160,7 +218,7 @@ extern ObsDump g_obs_dump;
 // (joint_pose.h). Same double-buffer-plus-counter shape as ObsDump, same
 // reason: ten loose atomics would tear across ticks.
 extern JointPose g_joint_pose;
-// The wire frame carries every BUS joint, in servo-ID order (obs/bus_map.h),
+// The wire frame carries every BUS joint, in bus order (obs/bus_map.h),
 // whatever the policy drives. Changing the bus changes protocol.py first.
 static_assert(linkproto::kNumJoints ==
                   static_cast<size_t>(obs::kNumBusJoints),

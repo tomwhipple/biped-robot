@@ -9,7 +9,7 @@ every geom's name, class and contact bits, so walker_env / env_mjx, the
 foot-only contact mode and the referee's sole tracking see the same geoms:
 
   floor/fall (contype 2)  servo cases -> the servo mock; torso_housing -> the
-                          pelvis; torso_deck -> the bearing housing (the wide
+                          torso (its box holds the pelvis); torso_deck -> the bearing housing (the wide
                           bottom plate); girdle; head_shell -> head; the link
                           bars -> leg_link_v6 / ankle_link; the arm rods ->
                           boxes around arm_upper / arm_fore
@@ -40,9 +40,12 @@ import build_v6_inertia as B
 
 
 @functools.lru_cache(maxsize=None)
-def _aabb(path, off_mm):
-    """(centre m, half extents m) of an STL placed at off_mm, in its body frame."""
+def _aabb(path, off_mm, flip_x=False):
+    """(centre m, half extents m) of an STL placed at off_mm, in its body frame
+    (flip_x: turned 180 deg about X first, add_cad_meshes.parts' option)."""
     lo, hi = trimesh.load(path, force="mesh").bounds
+    if flip_x:
+        lo, hi = np.array([lo[0], -hi[1], -hi[2]]), np.array([hi[0], -lo[1], -lo[2]])
     off = np.array(off_mm, float)
     lo, hi = lo + off, hi + off
     return tuple((lo + hi) / 2e3), tuple((hi - lo) / 2e3)
@@ -54,15 +57,18 @@ def _union(boxes):
     return tuple((lo + hi) / 2), tuple((hi - lo) / 2)
 
 
-def part_boxes(arms=True):
+def part_boxes(arms=True, head=True):
     """body -> {label: (centre, half)}: every CAD part's box in its body frame."""
     out = {}
-    for body, items in M.parts(arms).items():
-        for stl, off, _ in items:
-            out.setdefault(body, {})[stl] = _aabb(B.stl(stl), tuple(off))
+    for body, items in M.parts(arms, head).items():
+        for stl, off, _, *opt in items:
+            opts = opt[0] if opt else {}
+            out.setdefault(body, {})[opts.get("name", stl)] = _aabb(B.stl(stl), tuple(off), opts.get("flip_x", False))
     for body, keys in M.SERVOS.items():
         for k in keys:
             if k.startswith(("shoulder", "elbow")) and not arms:
+                continue
+            if k == "neck" and not head:
                 continue
             out.setdefault(body, {})[f"servo_{k}"] = _aabb(os.path.join(M.SERVO_DIR, f"servo_{k}.stl"), (0, 0, 0))
     return out
@@ -99,8 +105,8 @@ def _centre(line):
     return np.array([float(v) for v in m.group(1).split()]) if m else np.zeros(3)
 
 
-def fit(src: str, arms=True) -> str:
-    P = part_boxes(arms)
+def fit(src: str, arms=True, head=True) -> str:
+    P = part_boxes(arms, head)
     out, stack = [], []
     for line in src.split("\n"):
         mb = re.search(r'<body name="([^"]+)"', line)
@@ -116,7 +122,7 @@ def fit(src: str, arms=True) -> str:
                 k, v = min(sv, key=lambda kv: np.linalg.norm(np.array(kv[1][0]) - _centre(line)))
                 line = _set_box(line, *v)
             elif name == "torso_housing":
-                line = _set_box(line, *boxes["pelvis_v7" if arms else "pelvis_v7_armless"])
+                line = _set_box(line, *boxes["torso_v8" if arms else "torso_v8_armless"])
             elif name == "torso_deck":
                 line = _set_box(line, *boxes["yaw_bearing_housing"])
             elif name == "girdle":

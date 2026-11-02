@@ -38,16 +38,16 @@ from bus_cal import (  # noqa: E402
 # A 17-servo robot, all fitted, NVS-loaded. Zeros are arbitrary distinct
 # values so we can verify row ordering lands them on the right servo.
 V3_ALL_FITTED_NVS = """\
-  R_hip_roll   id  1  zero 1010  dir -1  fitted
-  R_hip_pitch  id  2  zero 1020  dir +1  fitted
-  R_knee       id  3  zero 1030  dir -1  fitted
-  R_ankle      id  4  zero 1040  dir +1  fitted
-  L_hip_roll   id  5  zero 1050  dir -1  fitted
-  L_hip_pitch  id  6  zero 1060  dir +1  fitted
-  L_knee       id  7  zero 1070  dir -1  fitted
-  L_ankle      id  8  zero 1080  dir +1  fitted
-  R_hip_yaw    id  9  zero 1090  dir +1  fitted
-  L_hip_yaw    id 10  zero 1100  dir +1  fitted
+  R_hip_roll   id 52  zero 1010  dir -1  fitted
+  R_hip_pitch  id  6  zero 1020  dir +1  fitted
+  R_knee       id  7  zero 1030  dir -1  fitted
+  R_ankle      id  8  zero 1040  dir +1  fitted
+  L_hip_roll   id 51  zero 1050  dir -1  fitted
+  L_hip_pitch  id  2  zero 1060  dir +1  fitted
+  L_knee       id  3  zero 1070  dir -1  fitted
+  L_ankle      id  4  zero 1080  dir +1  fitted
+  R_hip_yaw    id 10  zero 1090  dir +1  fitted
+  L_hip_yaw    id  9  zero 1100  dir +1  fitted
   R_ankle_roll id 11  zero 1110  dir +1  fitted
   L_ankle_roll id 12  zero 1120  dir -1  fitted
   neck_yaw     id 13  zero 1130  dir +1  fitted
@@ -58,21 +58,22 @@ V3_ALL_FITTED_NVS = """\
 loaded from NVS at boot
 """
 
-# The 10-servo prototype's v2 blob after auto-migration to v3: IDs 1..10
-# fitted with the asbuilt values, 11..17 NOT FITTED at the default
+# The 10-servo prototype's v2 blob after auto-migration to v3 (landing by
+# joint NAME on the v6 map's IDs): the ten leg joints fitted with the asbuilt
+# values, the ankle rolls, neck and arms NOT FITTED at the default
 # (zero 2048, dir +1). Equivalent to what the firmware prints after a v2
 # blob migrated at boot.
 V2_MIGRATED_DEFAULTS = """\
-  R_hip_roll   id  1  zero 3532  dir -1  fitted
-  R_hip_pitch  id  2  zero 2479  dir +1  fitted
-  R_knee       id  3  zero 2063  dir -1  fitted
-  R_ankle      id  4  zero 3437  dir +1  fitted
-  L_hip_roll   id  5  zero 2418  dir -1  fitted
-  L_hip_pitch  id  6  zero 2001  dir +1  fitted
-  L_knee       id  7  zero 1581  dir -1  fitted
-  L_ankle      id  8  zero 3535  dir +1  fitted
-  R_hip_yaw    id  9  zero 1806  dir +1  fitted
-  L_hip_yaw    id 10  zero 1692  dir +1  fitted
+  R_hip_roll   id 52  zero 3532  dir -1  fitted
+  R_hip_pitch  id  6  zero 2479  dir +1  fitted
+  R_knee       id  7  zero 2063  dir -1  fitted
+  R_ankle      id  8  zero 3437  dir +1  fitted
+  L_hip_roll   id 51  zero 2418  dir -1  fitted
+  L_hip_pitch  id  2  zero 2001  dir +1  fitted
+  L_knee       id  3  zero 1581  dir -1  fitted
+  L_ankle      id  4  zero 3535  dir +1  fitted
+  R_hip_yaw    id 10  zero 1806  dir +1  fitted
+  L_hip_yaw    id  9  zero 1692  dir +1  fitted
   R_ankle_roll id 11  zero 2048  dir +1  NOT FITTED
   L_ankle_roll id 12  zero 2048  dir +1  NOT FITTED
   neck_yaw     id 13  zero 2048  dir +1  NOT FITTED
@@ -89,9 +90,12 @@ loaded from NVS at boot
 def test_bus_map_shape():
     assert N_BUS == 17
     assert len(BUS) == len(BUS_NAMES) == len(BUS_IDS) == len(BUS_PORTS) == 17
-    # The map's invariant: row b is servo ID b+1.
-    for b, (_, sid, _) in enumerate(BUS):
-        assert sid == b + 1
+    # Servo IDs are unique and valid -- NOT b + 1 since the v6 assembly
+    # (bus_map.h busIdsAreUniqueAndValid).
+    assert len(set(BUS_IDS)) == N_BUS
+    assert all(1 <= sid <= 253 for sid in BUS_IDS)
+    assert BUS_IDS[BUS_NAMES.index("R_hip_roll")] == 52
+    assert BUS_IDS[BUS_NAMES.index("L_hip_roll")] == 51
     # Names are unique (firmware's busNamesAreUnique static_assert).
     assert len(set(BUS_NAMES)) == N_BUS
 
@@ -186,7 +190,7 @@ def test_parse_v3_all_fitted_nvs():
         assert j.fitted
     # Spot-check: each row landed on the right bus index.
     assert cal.joints[0].name == "R_hip_roll"
-    assert cal.joints[0].servo_id == 1
+    assert cal.joints[0].servo_id == 52
     assert cal.joints[0].zero_steps == 1010
     assert cal.joints[0].direction == -1
     assert cal.joints[16].name == "L_elbow"
@@ -197,7 +201,7 @@ def test_parse_v3_all_fitted_nvs():
 def test_parse_v2_migrated_defaults():
     cal = parse_cal_show(V2_MIGRATED_DEFAULTS)
     assert cal.source == "nvs"
-    # IDs 1..10 fitted, 11..17 not.
+    # The ten prototype joints (bus indices 0..9) fitted, the rest not.
     for j in cal.joints[:10]:
         assert j.fitted, j.name
     for j in cal.joints[10:]:
@@ -219,9 +223,9 @@ def test_parse_refuses_unknown_joint():
 
 
 def test_parse_refuses_permuted_id():
-    # Swap R_knee (id 3) onto the R_hip_pitch row.
+    # Put R_knee's id (7) on the R_hip_pitch row.
     bad = V3_ALL_FITTED_NVS.replace(
-        "R_hip_pitch  id  2", "R_hip_pitch  id  3"
+        "R_hip_pitch  id  6", "R_hip_pitch  id  7"
     )
     with pytest.raises(BusCalError, match="bus map"):
         parse_cal_show(bad)
@@ -229,8 +233,8 @@ def test_parse_refuses_permuted_id():
 
 def test_parse_refuses_bad_direction():
     bad = V3_ALL_FITTED_NVS.replace(
-        "R_hip_roll   id  1  zero 1010  dir -1",
-        "R_hip_roll   id  1  zero 1010  dir -2"
+        "R_hip_roll   id 52  zero 1010  dir -1",
+        "R_hip_roll   id 52  zero 1010  dir -2"
     )
     with pytest.raises(BusCalError):
         parse_cal_show(bad)

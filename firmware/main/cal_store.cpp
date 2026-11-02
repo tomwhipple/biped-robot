@@ -73,8 +73,9 @@ bool calUnpack(const CalBlob& blob, obs::Calibration& out) {
 
 namespace {
 // A prototype-era calibration (v1/v2 values in kLegacyServoId order) as a v3
-// calibration: each value lands on its servo's bus joint, those ten are
-// fitted, and every other bus joint is absent at its defaults.
+// calibration: each value lands on its joint's bus index (by name,
+// kLegacyJointNames), those ten are fitted, and every other bus joint is
+// absent at its defaults.
 bool legacyToBus(const int32_t* zero, const int8_t* dir,
                  obs::Calibration& out) {
     obs::Calibration c;
@@ -82,7 +83,7 @@ bool legacyToBus(const int32_t* zero, const int8_t* dir,
     for (int i = 0; i < kLegacyJoints; ++i) {
         if (zero[i] < 0 || zero[i] > 4095) return false;
         if (dir[i] != 1 && dir[i] != -1) return false;
-        const int b = obs::busIndexOfId(kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(kLegacyJointNames[i]);
         if (b < 0) return false;
         c.zero_steps[b] = zero[i];
         c.dir[b] = dir[i];
@@ -118,7 +119,7 @@ bool calUnpackV1(const CalBlobV1& blob, obs::Calibration& out) {
 
 bool calIsAsBuilt(const obs::Calibration& cal) {
     for (int i = 0; i < kLegacyJoints; ++i) {
-        const int b = obs::busIndexOfId(kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(kLegacyJointNames[i]);
         if (b < 0 || !cal.fitted[b]) return false;
         if (cal.zero_steps[b] != kAsBuiltZeroSteps[i]) return false;
         if (cal.dir[b] != kAsBuiltDir[i]) return false;

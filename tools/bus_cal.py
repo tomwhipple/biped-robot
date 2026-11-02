@@ -11,7 +11,7 @@ How a tool uses this:
     from bus_cal import BusCal, fetch_cal, BUS, POCKET
     s = serial.Serial(...)                     # NOT this module's problem
     cal = fetch_cal(send_cmd_fn)               # parse `cal show` from the board
-    ticks = cal.pose_ticks({"L_knee": -30.0})  # 17 values, servo-ID order
+    ticks = cal.pose_ticks({"L_knee": -30.0})  # 17 values, bus order
 
 `fetch_cal()` is the only function that needs a serial port, and it takes
 the caller's `cmd(text) -> reply_text` callable so this module never imports
@@ -36,19 +36,20 @@ TICKS_PER_DEG: float = 4096.0 / 360.0  # STS3215: 12-bit encoder on the shaft
 # firmware/components/obs/include/obs/bus_map.h is what the firmware compiles;
 # this list is what the bench tools read. ALL THREE MUST AGREE (the SIL
 # suite's test_bus_map_is_one_map_everywhere checks the firmware side).
-# (name, id, port) — index b is servo ID b + 1 (bus_map.h's
-# busIdsAreIndexPlusOne() static_assert).
+# (name, id, port), in bus-index order (bus_map.h kBusJointNames). Servo IDs
+# are the v6 legs AS ASSEMBLED (2026-10-23, written on the servos): NOT b + 1 --
+# look a servo up with BUS_IDS.index(id).
 BUS: Tuple[Tuple[str, int, str], ...] = (
-    ("R_hip_roll",   1,  "A"),
-    ("R_hip_pitch",  2,  "A"),
-    ("R_knee",       3,  "A"),
-    ("R_ankle",      4,  "A"),   # pitch
-    ("L_hip_roll",   5,  "B"),
-    ("L_hip_pitch",  6,  "B"),
-    ("L_knee",       7,  "B"),
-    ("L_ankle",      8,  "B"),   # pitch
-    ("R_hip_yaw",    9,  "A"),
-    ("L_hip_yaw",    10, "B"),
+    ("R_hip_roll",   52, "A"),
+    ("R_hip_pitch",  6,  "A"),
+    ("R_knee",       7,  "A"),
+    ("R_ankle",      8,  "A"),   # pitch
+    ("L_hip_roll",   51, "B"),
+    ("L_hip_pitch",  2,  "B"),
+    ("L_knee",       3,  "B"),
+    ("L_ankle",      4,  "B"),   # pitch
+    ("R_hip_yaw",    10, "A"),
+    ("L_hip_yaw",    9,  "B"),
     ("R_ankle_roll", 11, "A"),
     ("L_ankle_roll", 12, "B"),
     ("neck_yaw",     13, "A"),
@@ -65,11 +66,11 @@ BUS_NAMES: Tuple[str, ...] = tuple(b[0] for b in BUS)
 BUS_IDS: Tuple[int, ...] = tuple(b[1] for b in BUS)
 BUS_PORTS: Tuple[str, ...] = tuple(b[2] for b in BUS)
 
-# Sanity-pin the layout invariant bus_map.h asserts in C++: index b is servo
-# ID b+1. The Python tools read this list positionally to assemble 17-wide
-# pose strings, so a permutation here would silently retarget commands.
-for _b, _row in enumerate(BUS):
-    assert _row[1] == _b + 1, f"BUS row {_b} has id {_row[1]}, expected {_b + 1}"
+# The Python tools read this list positionally (bus-index order) to assemble
+# 17-wide pose strings, so the ORDER must match bus_map.h's kBusJointNames;
+# the IDs must be unique (bus_map.h's busIdsAreUniqueAndValid()).
+assert len(set(BUS_IDS)) == N_BUS, f"duplicate servo id in BUS: {BUS_IDS}"
+assert all(1 <= _i <= 253 for _i in BUS_IDS), BUS_IDS
 
 # The 10-servo prototype's policy order. This is what `pose`-with-10-targets
 # means and what the legacy tools' CAL tables were indexed by. The bus-side
@@ -111,7 +112,7 @@ class BusJoint:
     """One row of the calibration: the static map entry plus the live blob."""
     name: str
     bus_index: int        # 0..16
-    servo_id: int         # 1..17 (bus_index + 1)
+    servo_id: int         # as kBusServoId[bus_index] (NOT bus_index + 1)
     port: str             # 'A' or 'B'
     zero_steps: int       # encoder ticks at the joint-0 pose
     direction: int        # +1 or -1
@@ -130,7 +131,7 @@ class BusJoint:
 class BusCal:
     """The 17-servo calibration, indexed by bus joint.
 
-    `joints[i]` is servo ID i+1. The two pose-assembly helpers produce the
+    `joints[i]` is bus index i (servo BUS_IDS[i]). The two pose-assembly helpers produce the
     17-wide bus-order list the firmware's `pose` wants; per-joint targets
     start at the calibrated zero so a joint the caller does not name is
     held at its standing pose. The firmware skips fitted==False rows on
@@ -209,7 +210,7 @@ class BusCal:
 # The firmware's cmdCal prints (cli.cpp:1113):
 #
 #     R_hip_roll   id  1  zero 3532  dir -1  fitted
-#     ... (16 more rows, one per bus joint, servo-ID order)
+#     ... (16 more rows, one per bus joint, bus order)
 #     loaded from NVS at boot
 #   or
 #     DEFAULTS -- nothing stored (cal save)
@@ -280,7 +281,7 @@ def parse_cal_show(text: str) -> BusCal:
         if sid in seen_ids:
             raise BusCalError(f"cal show: servo id {sid} listed twice")
         seen_ids.add(sid)
-        b = sid - 1
+        b = BUS_NAMES.index(name)
         joints.append(BusJoint(
             name=name,
             bus_index=b,
@@ -307,8 +308,9 @@ def asbuilt_prototype_cal() -> BusCal:
     joints: List[BusJoint] = []
     for b, (name, sid, port) in enumerate(BUS):
         if name in _ASBUILT_BY_NAME:
-            _id, zero, dirn = _ASBUILT_BY_NAME[name]
-            assert _id == sid, (name, _id, sid)
+            # The prototype's servo IDs differ from the v6 map; its zeros
+            # belong to the JOINT, so they follow the name.
+            _proto_id, zero, dirn = _ASBUILT_BY_NAME[name]
             fitted = True
         else:
             zero, dirn, fitted = 2048, +1, False

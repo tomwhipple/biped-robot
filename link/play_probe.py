@@ -22,10 +22,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import Driver, arm_off  # noqa: E402
 from protocol import (FLAG_ARM, FLAG_ESTOP, FLAG_HOME, FLAG_POSE,  # noqa: E402
-                      ArmResult, LinkState, diag_arm_result, diag_reason)
+                      JOINT_NAMES, TLM_RECV_BYTES, ArmResult, LinkState,
+                      diag_arm_result, diag_reason)
 
-JOINTS = ["L_yaw", "L_roll", "L_pitch", "L_knee", "L_ankle",
-          "R_yaw", "R_roll", "R_pitch", "R_knee", "R_ankle"]
+# The beacon's own joint block: bus order, protocol v2's 17 servos. The
+# names are the protocol's so a column or a guard verdict cannot drift.
+JOINTS = list(JOINT_NAMES)
 
 
 class PlayDriver(Driver):
@@ -34,8 +36,8 @@ class PlayDriver(Driver):
         self.f = open(csv_path, "w", newline="")
         self.w = csv.writer(self.f)
         self.w.writerow(["t", "epoch", "state", "len"] + JOINTS)
-        self.lo = [math.inf] * 10
-        self.hi = [-math.inf] * 10
+        self.lo = [math.inf] * len(JOINTS)
+        self.hi = [-math.inf] * len(JOINTS)
         self.last_tab = -1e9
         self.n_pose = 0
         self.states = set()
@@ -44,7 +46,7 @@ class PlayDriver(Driver):
         n_before = self.n_tlm
         while True:
             try:
-                buf, _ = self.rx.recvfrom(64)
+                buf, _ = self.rx.recvfrom(TLM_RECV_BYTES)
             except BlockingIOError:
                 break
             from protocol import ProtocolError, decode_telemetry

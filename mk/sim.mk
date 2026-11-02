@@ -2,15 +2,18 @@
 .PHONY: plant sim-data sim puppet eval train report
 
 V6_PLANT := sim/bimo_biped_v6ar.xml
+V6_LEGS_PLANT := sim/bimo_biped_v6legs.xml
 SERVO_MESHES := $(wildcard sim/meshes/v6/servo_*.stl)
 GETUP_REFS := sim/getup_ref_v6ar.npz sim/getup_ref_v6ar_prone.npz sim/getup_ref_v6ar_roll.npz
 
-plant: $(V6_PLANT) ## what the simulator loads: the dressed v6 plant and its CAD meshes
+plant: $(V6_PLANT) $(V6_LEGS_PLANT) ## what the simulator loads: the dressed v6 plant (and the legs-only as-built one) and their CAD meshes
 	$(v6_parts_listed)
 sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) sim/getup_catch_states.npz ## the terrain and get-up references the trainer loads (slow; changes what trains)
 
 $(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --write | tail -1
+$(V6_LEGS_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+	set -o pipefail; $(PY) sim/build_v6_inertia.py --asbuilt-legs --write | tail -1
 ifneq ($(SERVO_MESHES),)
 $(subst sim/meshes/v6/,sim/meshes/%/,$(SERVO_MESHES)): $(PYDEPS_sim/add_cad_meshes.py)
 	$(PY) sim/add_cad_meshes.py --export-servos

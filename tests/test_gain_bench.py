@@ -124,9 +124,10 @@ def test_parse_scan():
 
 def test_bus_map_ids_are_refused_for_motion(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", Script())
-    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "1", "--goal", "2048", "--rest", "3072"]) == 2
+    # id 2 is on the bus map (L_hip_pitch since the v6 assembly); id 1 no longer is
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "stiffness", "2", "--goal", "2048", "--rest", "3072"]) == 2
     assert "clamps" in open(tmp_path / "session.log").read()
-    assert gb.main(["--rehearse", "--session", str(tmp_path), "read", "1"]) == 0
+    assert gb.main(["--rehearse", "--session", str(tmp_path), "read", "2"]) == 0
 
 
 def test_a_clamped_move_releases():
@@ -335,7 +336,7 @@ def test_stance_shortfall_from_squat_bench_csv(tmp_path):
 
 
 def test_roll_ids_are_the_bus_maps():
-    assert gb.roll_id("L") == 5 and gb.roll_id("R") == 1
+    assert gb.roll_id("L") == 51 and gb.roll_id("R") == 52     # the STS3250s, as assembled
 
 
 # -- a bus-map ID on the bench (--allow-bus-id) ------------------------------------

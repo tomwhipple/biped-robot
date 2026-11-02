@@ -12,6 +12,9 @@
 
 #include "board.h"
 #include "cli.h"
+#include "flight_rec.h"
+#include "wcli/wcli.h"
+#include "wifi_cli.h"
 #include "driver/uart.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -25,7 +28,7 @@ namespace robot {
 namespace {
 
 constexpr int kLinkStackWords = 3072;
-constexpr int kHouseStackWords = 4096;
+constexpr int kHouseStackWords = 8192;   // bytes on ESP-IDF; 4096 left 1264 B free once the flight recorder encoded from here (10-30)
 constexpr size_t kCliLineMax = linkproto::kMaxCliLine + 1;
 constexpr int kCliQueueLen = 4;
 
@@ -34,8 +37,14 @@ StaticTask_t g_link_tcb;
 StackType_t g_house_stack[kHouseStackWords];
 StaticTask_t g_house_tcb;
 
-// Static queue storage: no heap after init.
-struct CliLine { char text[kCliLineMax]; };
+// Static queue storage: no heap after init. One queue for both channels, so
+// tether and Wi-Fi lines run one at a time, in arrival order, on one task.
+enum class CliSrc : uint8_t { kTether = 0, kWifi = 1 };
+struct CliLine {
+    char text[kCliLineMax];
+    CliSrc src;
+    uint32_t seq;   // the Wi-Fi CLI command seq (wifi_cli.h); 0 for the tether
+};
 uint8_t g_cli_storage[kCliQueueLen * sizeof(CliLine)];
 StaticQueue_t g_cli_qbuf;
 QueueHandle_t g_cli_queue = nullptr;
@@ -54,6 +63,26 @@ void uartSay(const char* s) {
     uart_write_bytes(board::kHostUart, s, strlen(s));
 }
 
+// The sink for a TETHER line's reply: the tether, and -- when the flight
+// recorder is on -- one EVENT per printed line, so every verdict the CLI
+// gives (refusals, readbacks) is in the recording with its timestamp, not
+// only in whatever caught the serial port.
+void tetherSay(const char* s) {
+    uartSay(s);
+    flight::outputText(s, flightrec::kChanTether);
+}
+
+// The housekeeping loop's own sink, for what it prints OUTSIDE any command
+// line (balance ON/ARMED/ABORT/landed from poseTick, home readbacks, link
+// arm/home edges): the tether and the recorder as above, and the Wi-Fi CLI
+// client if one is listening -- these verdicts are robot state, whichever
+// channel started the motion. A tether line's own reply is not copied to
+// the Wi-Fi client (tetherSay), nor a Wi-Fi reply to the tether.
+void houseSay(const char* s) {
+    tetherSay(s);
+    wcliAsyncOutput(s);
+}
+
 void linkTask(void*) {
     uint8_t rx[64];
     for (;;) {
@@ -69,6 +98,8 @@ void linkTask(void*) {
                         linkproto::Err::kOk) {
                         break;    // CRC did its job; drop it silently
                     }
+                    // Out of band, as over WiFi (shared.h g_op_stops).
+                    if (takeOperatorStop(pkt)) break;
                     CommandMsg msg;
                     msg.cmd = pkt;
                     msg.rx_ms =
@@ -82,6 +113,8 @@ void linkTask(void*) {
                     CliLine line;
                     strncpy(line.text, g_demux.line(), kCliLineMax - 1);
                     line.text[kCliLineMax - 1] = 0;
+                    line.src = CliSrc::kTether;
+                    line.seq = 0;
                     // Drop, do not block: the link path must never wait on the
                     // CLI consumer.
                     xQueueSend(g_cli_queue, &line, 0);
@@ -98,6 +131,7 @@ void linkTask(void*) {
 }
 
 void houseTask(void*) {
+    flight::bindHouseTask();
     cli::banner(&uartSay);
     TickType_t next_tlm = xTaskGetTickCount();
     uint32_t arm_edges_seen = g_link_arm_edges.load();
@@ -109,7 +143,17 @@ void houseTask(void*) {
     for (;;) {
         CliLine line;
         while (xQueueReceive(g_cli_queue, &line, 0) == pdTRUE) {
-            cli::execute(line.text, &uartSay);
+            if (line.src == CliSrc::kWifi) {
+                // Authenticated by the wcli task; the bench-only gate, the
+                // allowlist, the recorder event and the reply are there.
+                wcliExecute(line.text, line.seq);
+                continue;
+            }
+            // The recorder ships events over UDP in clear: never a secret.
+            static char logged[kCliLineMax];   // housekeeping only
+            wcli::redactForLog(line.text, logged, sizeof logged);
+            flight::event(flightrec::Ev::kCmd, logged, flightrec::kChanTether);
+            cli::execute(line.text, &tetherSay);
         }
 
         // Wireless arm/disarm (shared.h g_link_arm_*): consumed here, between
@@ -118,7 +162,9 @@ void houseTask(void*) {
         const uint32_t edges = g_link_arm_edges.load();
         if (edges != arm_edges_seen) {
             arm_edges_seen = edges;
-            cli::linkMode(g_link_arm_level.load(), &uartSay);
+            flight::event(flightrec::Ev::kArmEdge, nullptr,
+                          g_link_arm_level.load() ? 1 : 0);
+            cli::linkMode(g_link_arm_level.load(), &houseSay);
         }
 
         // Wireless "reset the servos" (shared.h g_link_home_edges). Consumed
@@ -129,13 +175,22 @@ void houseTask(void*) {
         const uint32_t homes = g_link_home_edges.load();
         if (homes != home_edges_seen) {
             home_edges_seen = homes;
-            cli::linkHome(&uartSay);
+            flight::event(flightrec::Ev::kHomeEdge, nullptr);
+            cli::linkHome(&houseSay);
         }
         // The home's readback, once its slew deadline has passed (typed
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
-        cli::homeVerify(&uartSay);
-        cli::poseTick(&uartSay);
+        cli::fallTick(&houseSay);
+        cli::servoRamTick(&houseSay);
+        cli::flailTick(&houseSay);
+        cli::homeVerify(&houseSay);
+        cli::poseTick(&houseSay);
+        // The flight recorder's bench half (flight_rec.h). What it spends on
+        // the bus comes back out of this iteration's sleep below, so the
+        // stream's tick phase -- and the bench balance loop riding on it --
+        // is the same with the recorder on as off.
+        const uint32_t rec_us = cli::recorderTick();
 
         // 10 Hz telemetry, back up the same tether the commands came down.
         //
@@ -160,7 +215,7 @@ void houseTask(void*) {
                 t.up_z = g_telemetry.up_z.load();
                 t.vx_est = g_telemetry.vx_est.load();
                 t.wz_est = g_telemetry.wz_est.load();
-                // Bit b = bus joint b = servo ID b + 1, all 17 of them.
+                // Bit b = bus joint b (servo kBusServoId[b]), all 17 of them.
                 t.servo_err = g_telemetry.servo_err.load();
                 t.loop_late_pct = g_telemetry.loop_late_pct.load();
                 t.t_us = timeNowUs();   // 0 until SNTP answers (timesync.h)
@@ -221,11 +276,26 @@ void houseTask(void*) {
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // Async output printed this iteration becomes sendable to the
+        // Wi-Fi CLI client now, not when a chunk fills.
+        wcliHouseTick();
+        const TickType_t sleep = pdMS_TO_TICKS(10);
+        const TickType_t give_back = pdMS_TO_TICKS(rec_us / 1000u);
+        vTaskDelay(give_back < sleep ? sleep - give_back : 1);
     }
 }
 
 }  // namespace
+
+bool submitWifiCliLine(const char* text, uint32_t seq) {
+    if (g_cli_queue == nullptr) return false;
+    CliLine line;
+    strncpy(line.text, text, kCliLineMax - 1);
+    line.text[kCliLineMax - 1] = 0;
+    line.src = CliSrc::kWifi;
+    line.seq = seq;
+    return xQueueSend(g_cli_queue, &line, 0) == pdTRUE;
+}
 
 void startLinkTask() {
     g_cmd_mailbox = xQueueCreateStatic(1, sizeof(CommandMsg), g_cmd_storage,

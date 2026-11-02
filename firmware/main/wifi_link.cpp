@@ -149,10 +149,16 @@ void wifiLinkTask(void*) {
                  n == static_cast<int>(linkproto::kCmdLenExt)) &&
                 linkproto::decodeCommand(rx, static_cast<size_t>(n), pkt) ==
                     linkproto::Err::kOk) {
-                CommandMsg msg;
-                msg.cmd = pkt;
-                msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
-                if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
+                // An operator stop (kFlagStop) is out of band: counted for
+                // ctrl and housekeeping, never put in the mailbox, so no latch
+                // or watchdog sees it (shared.h g_op_stops). It still takes
+                // the beacon below, so the stop tool can hear the verdict.
+                if (!takeOperatorStop(pkt)) {
+                    CommandMsg msg;
+                    msg.cmd = pkt;
+                    msg.rx_ms = static_cast<float>(esp_timer_get_time()) / 1000.0f;
+                    if (g_cmd_mailbox) xQueueOverwrite(g_cmd_mailbox, &msg);
+                }
                 g_rx_frames.fetch_add(1);
                 // Latest commander wins, same rule as latest command -- and
                 // {address, pose} are replaced as one value from this frame.
@@ -203,7 +209,7 @@ void wifiLinkTask(void*) {
             t.up_z = g_telemetry.up_z.load();
             t.vx_est = g_telemetry.vx_est.load();
             t.wz_est = g_telemetry.wz_est.load();
-            // Bit b = bus joint b = servo ID b + 1, same as link_task.
+            // Bit b = bus joint b (servo kBusServoId[b]), same as link_task.
             t.servo_err = g_telemetry.servo_err.load();
             t.loop_late_pct = g_telemetry.loop_late_pct.load();
             // The wall-clock stamp (timesync.h): the assembly instant, or 0
@@ -226,7 +232,7 @@ void wifiLinkTask(void*) {
                 t.up_y = g_telemetry.up_y.load();
             }
             if (cmdr.pose) {
-                // Every bus joint, servo-ID order; an unfitted servo reads 0.
+                // Every bus joint, bus order; an unfitted servo reads 0.
                 float q[obs::kNumBusJoints];
                 uint32_t seq = 0;
                 int64_t read_us = 0;
@@ -350,6 +356,8 @@ bool wifiApply(const char* ssid, const char* psk) {
     esp_wifi_connect();
     return true;
 }
+
+bool wifiConnected() { return g_connected.load(); }
 
 void wifiGetStatus(WifiStatus& out) {
     out.driver_up = g_driver_up.load();

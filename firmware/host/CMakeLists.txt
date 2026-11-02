@@ -12,8 +12,25 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(COMPONENTS ${CMAKE_CURRENT_SOURCE_DIR}/../components)
 
+# The policy profile, as the Makefile's POLICY (tools/policy_profile.py):
+# empty builds the deployed policy; a name builds firmware/policies/<name>/'s,
+# first on the include path. One profile per build directory.
+set(BIMO_POLICY "" CACHE STRING
+    "policy profile under firmware/policies/ (empty: the deployed policy)")
+if(BIMO_POLICY)
+    set(BIMO_POLICY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../policies/${BIMO_POLICY})
+    if(NOT EXISTS ${BIMO_POLICY_DIR}/obs/obs_spec.h)
+        message(FATAL_ERROR "BIMO_POLICY=${BIMO_POLICY}: no "
+                "${BIMO_POLICY_DIR}/obs/obs_spec.h")
+    endif()
+    string(TOUPPER "${BIMO_POLICY}" _bimo_policy_uc)
+    include_directories(BEFORE ${BIMO_POLICY_DIR})
+    add_compile_definitions(BIMO_POLICY_OVERLAY
+                            BIMO_POLICY_PROFILE_${_bimo_policy_uc})
+endif()
+
 add_compile_options(-Wall -Wextra -Werror -Wshadow -Wconversion
-                    -Wsign-conversion -g -O1)
+                    -Wsign-conversion -g -O1 -ffp-contract=off)
 
 # The sanitizers are attached per target rather than globally: the SIL shared
 # library must NOT have them (see the ctrl_sil target at the bottom).
@@ -27,7 +44,12 @@ include_directories(
     ${COMPONENTS}/obs/include
     ${COMPONENTS}/policy/include
     ${COMPONENTS}/imu/include
-    ${COMPONENTS}/battguard/include)
+    ${COMPONENTS}/battguard/include
+    ${COMPONENTS}/fallguard/include
+    ${COMPONENTS}/flailguard/include
+    ${COMPONENTS}/balance/include
+    ${COMPONENTS}/flightrec/include
+    ${COMPONENTS}/wcli/include)
 
 enable_testing()
 
@@ -51,6 +73,7 @@ bimo_test(test_client test_client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/keymap.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/bench.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/recorder.cpp
           ${COMPONENTS}/linkproto/protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
@@ -73,9 +96,31 @@ bimo_test(test_obs test_obs.cpp
           ${COMPONENTS}/imu/imu.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../main/cal_store.cpp)
 
-bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp)
+bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp
+          ${COMPONENTS}/policy/q8.cpp)
 
 bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
+
+bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
+
+bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
+
+bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)
+
+# The flight recorder's wire format, against vectors from tools/flightrec.py.
+bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)
+
+# The Wi-Fi CLI's pure half, and the same logic on a UDP socket for the
+# Python client's end-to-end tests (tests/test_wcli.py).
+set(WCLI_SRC ${COMPONENTS}/wcli/sha256.cpp
+             ${COMPONENTS}/wcli/wcli.cpp
+             ${COMPONENTS}/wcli/policy.cpp)
+bimo_test(test_wcli test_wcli.cpp ${WCLI_SRC})
+add_executable(wcli_twin wcli_twin.cpp ${WCLI_SRC})
+target_compile_options(wcli_twin PRIVATE ${SAN_COMPILE} -fno-exceptions -fno-rtti)
+target_link_options(wcli_twin PRIVATE ${SAN_LINK})
+find_package(Threads REQUIRED)
+target_link_libraries(wcli_twin PRIVATE Threads::Threads)
 
 # The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
 bimo_test(test_obsdump test_obsdump.cpp
@@ -86,7 +131,8 @@ set(SIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/sil_lib.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp)
 set(SIL_DEPS ${COMPONENTS}/obs/assembler.cpp
              ${COMPONENTS}/obs/actuation.cpp
-             ${COMPONENTS}/policy/mlp.cpp)
+             ${COMPONENTS}/policy/mlp.cpp
+             ${COMPONENTS}/policy/q8.cpp)
 
 bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})
 bimo_test(test_sil_golden test_sil_golden.cpp
@@ -96,6 +142,11 @@ bimo_test(test_sil_golden test_sil_golden.cpp
 # for sim/sil/golden, and test_sil writes its fixtures into the cwd.
 set_tests_properties(test_sil test_sil_golden PROPERTIES
                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+if(BIMO_POLICY)
+    # the profile's own vectors (the Makefile's GOLDEN_ENV)
+    set_tests_properties(test_sil_golden PROPERTIES ENVIRONMENT
+        "SIL_GOLDEN_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../../sim/sil/golden/${BIMO_POLICY}")
+endif()
 
 # The dylib/so python loads with ctypes. NO SANITIZERS, deliberately: an
 # ASan-instrumented shared library dlopen()ed into a stock python aborts with
@@ -152,7 +203,7 @@ if(glfw3_FOUND AND EXISTS ${THIRD_PARTY}/imgui/imgui.cpp
 
     add_executable(bimo_gui ${LINK_DIR}/gui.cpp ${LINK_DIR}/client.cpp
                    ${LINK_DIR}/keymap.cpp ${LINK_DIR}/recorder.cpp
-                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp
+                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp ${LINK_DIR}/bench.cpp
                    ${LINKPROTO_SRC})
     target_include_directories(bimo_gui PRIVATE ${LINK_DIR})
     target_link_libraries(bimo_gui PRIVATE bimo_imgui

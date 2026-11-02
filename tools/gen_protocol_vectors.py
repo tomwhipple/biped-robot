@@ -67,7 +67,7 @@ CMD_EXT_CASES = [
 ]
 
 # Extended telemetry (mirror mode): the classic body plus one angle per bus
-# joint (17, servo-ID order). Frozen as BYTES like everything else here, so the
+# joint (17, bus order). Frozen as BYTES like everything else here, so the
 # C++ port is diffed against numbers rather than against whatever the Python
 # happened to do that day. A real robot clock reading:
 # 2026-09-02T22:27:55.605401Z, the instant of the first webcam frame in the
@@ -155,6 +155,9 @@ DIAG_CASES = [
     (False, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.DISARMED_FALL),
     (False, True, P.ArmResult.REFUSED_GAINS),
+    (False, True, P.ArmResult.REFUSED_POLICY),
+    (False, True, P.ArmResult.DISARMED_FLAIL),
+    (False, True, P.ArmResult.DISARMED_STOP),
 ]
 DIAG_RAW = [0x00, 0x02, 0x21, 0x13, 0xF0, 0xF3]   # decode-only, incl. unknown
 

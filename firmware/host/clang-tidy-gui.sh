@@ -30,6 +30,7 @@ GUI_SRCS=(
     "$ROOT/link/recorder.cpp"
     "$ROOT/link/mjpeg.cpp"
     "$ROOT/link/simproc.cpp"
+    "$ROOT/link/bench.cpp"
 )
 
 # gui.cpp is not in the host compile_commands.json (it only links on macOS),
@@ -42,6 +43,7 @@ GUI_INC=(
     -I"$ROOT/firmware/components/policy/include"
     -I"$ROOT/firmware/components/imu/include"
     -I"$ROOT/firmware/components/battguard/include"
+    -I"$ROOT/firmware/components/balance/include"
     -I"$ROOT/firmware/components/scsbus/include"
     -I"$ROOT/link"
     -I"$ROOT/third_party"

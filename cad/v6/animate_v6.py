@@ -62,11 +62,15 @@ INSERT = [
     ("bearing_inner_",     (0, 0, 1), 8),    # races onto the hubs until they sit on the carriers' lips (on
     ("bearing_outer_",     (0, 0, 1), 8),    # the bench each carrier goes up through its bearing: same motion)
     ("servo_hip_yaw_",     (0, 0, -1), 9),   # yaw servo offered UP into its cell (arrives from below)
-    ("pelvis_v7",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing
-    ("gd_mock",            (0, 0, 1), 11),   # boards down through the deck slots
-    ("pi4_mock",           (0, 0, 1), 11),
-    ("pack_mock",          (0, 0, 1), 12),   # pack down through the aperture -- BEFORE the girdle:
-                                              # it cannot pass the neck tube or the neck floor afterwards
+    ("pelvis_v8",          (0, 0, 1), 10),   # pelvis lowered onto the yaw servos and the housing,
+    ("torso_v8",           (0, 0, 1), 10),   # with the torso it is glued into
+    ("gd_mock",            (1, 0, 0), 11),   # the Pi + General Driver stack in from the front
+    ("pi4_mock",           (1, 0, 0), 11),
+    ("front_cover_v8",     (1, 0, 0), 12),   # then the front cover
+    ("power_board_mock",   (-1, 0, 0), 11),  # power board onto its standoffs from aft
+    ("power_cover_v8",     (-1, 0, 0), 12),  # then its cover
+    ("pack_mock",          (0, 1, 0), 12),   # pack in sideways through the battery door's opening,
+    ("battery_door_v8",    (0, 1, 0), 12),   # then the door over it (one screw)
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
     # screwed up into the tube's bosses, the servo dropped in onto it and
     # screwed from below. Then the girdle (or, armless, the collar) goes onto
@@ -79,14 +83,17 @@ INSERT = [
     ("neck_floor",         (0, 0, 1), 13),
     ("servo_neck",         (0, 0, 1), 14),   # dropped into the tube from above, onto the floor's pads
     ("head",               (0, 0, 1), 15),
-    # ARMS (cad/v6/arm_v6.py): each shoulder servo dropped straight into its
-    # open pod from above (the only way in: a roof over a 32 mm span is
-    # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
-    # onto the horn along the joint axis, the one direction a single-sided
-    # horn plate can arrive from -> elbow servo slid into the upper arm's grip
-    # channel from the FRONT (the same channel entry leg_link uses) -> forearm
-    # lifted UP, its fork tines either side of the two discs.
-    ("servo_shoulder_",    (0, 0, 1), 16),
+    # ARMS (cad/v6/arm_v6.py): each shoulder servo pushed into its pod along
+    # its own axis from OUTBOARD, cheek off (the features on both its faces
+    # stand proud along the axis, so that is the only way in), then the cheek
+    # on along the same axis and screwed from outboard (shoulder_girdle_v6.
+    # INSERT) -> upper arm offered straight IN onto the horn along the joint
+    # axis, the one direction a single-sided horn plate can arrive from ->
+    # elbow servo slid into the upper arm's grip channel from the FRONT (the
+    # same channel entry leg_link uses) -> forearm lifted UP, its fork tines
+    # either side of the two discs.
+    ("servo_shoulder_",    (0, 1, 0), 16),
+    ("shoulder_cheek_",    (0, 1, 0), 16),
     ("arm_upper_",         (0, 1, 0), 17),
     ("servo_elbow_",       (1, 0, 0), 18),
     ("arm_fore_",          (0, 0, -1), 19),

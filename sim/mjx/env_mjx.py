@@ -101,6 +101,21 @@ SERVO_KP_PRESETS = {
     # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
     # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
     "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
+    # the robot AS BUILT AND AS RUN (2026-10-30): every leg servo at the
+    # factory P 32 / D 32 the robot runs (firmware/main/servo_gains.h; tests/
+    # test_servo_gains_asbuilt.py pins the two equal), in the model's units.
+    # The model's kp 12 N*m/rad is soft for a real P 32: the bench's bottle
+    # midpoints measured 34 +- 3 N*m/rad on an STS3215 at P 32 (2.8x;
+    # plan-b-bench 2026-10-01), and the legs-only robot at P 32 reads its
+    # stance ankle-roll encoder 1.0-1.5 deg in the one-leg lift where this
+    # model gives 1.3 at 2.8x and 4.5 at 1x (sim/roll_compliance.py, hw
+    # 2026-10-24). The STS3250 hip roll reads 0.7-0.9 deg there: 0.74 at 4x,
+    # 1.45 at 2x, 2.65 at 1x -- the 4x the model already credited it with.
+    # No P is raised: the STS3250 limit-cycles from P 96 and P 64's stiffness
+    # is unmeasured (plan-b-bench 2026-10-23), and a value is modelled only
+    # once measured. Leg roles only (a key must match an actuator).
+    "asbuilt": {"hip_yaw": 2.8, "hip_roll": 4.0, "hip_pitch": 2.8,
+                "knee": 2.8, "ankle": 2.8, "ankle_roll": 2.8},
 }
 
 
@@ -154,7 +169,7 @@ def _per_servo(value, n, what):
     return 1.0, arr.copy()
 
 
-def policy_range(m, physical=False):
+def policy_range(m, physical=False, within_stops=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. EXACT MIRROR of
     sim/walker_env.py's policy_range() -- read the docstring there for why the
     policy range and the joint's mechanical stop are separate numbers, and why
@@ -169,9 +184,17 @@ def policy_range(m, physical=False):
         # mechanical stop (the CAD envelope) -- for the get-up, which needs
         # hip roll / knee travel the walking range never used
         return lo, hi
+    jlo, jhi = lo.copy(), hi.copy()
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
+    if within_stops:
+        # ctrl_within_stops (2026-10-30): never a policy range past the
+        # mechanical stop. The v6 plants' ankle ctrlrange is +-45 deg, its stop
+        # +-40: a full-map action of +-1 drives the servo 5 deg into the stop
+        # on hardware. Opt-in (config.json records it), so no older run's
+        # action scaling moves.
+        lo, hi = np.maximum(lo, jlo), np.minimum(hi, jhi)
     return lo, hi
 
 _STS_STALL_12V = 2.94                        # N*m  (30 kg*cm @12V)
@@ -217,6 +240,10 @@ class State(NamedTuple):
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     last_air: jax.Array       # (2,) last completed swing duration per foot
                               # (gait-symmetry penalty compares L vs R)
+    swing_peak: jax.Array     # (2,) per-foot sole peak (m above standing) of
+                              # the swing in progress (w_low_swing)
+    since_move: jax.Array     # ()  seconds since the last moving command
+                              # (stop_grace_s); large at reset
     gait_freq: jax.Array      # ()  per-episode gait-clock frequency (Hz)
     gait_phase: jax.Array     # ()  running clock phase in [-pi, pi)
     obs_hist: jax.Array       # (hist-1, frame) previous obs frames (newest
@@ -251,7 +278,7 @@ class State(NamedTuple):
                               # kp/kd are references, times the static
                               # per-servo profile (_kp_prof/_kd_prof)
     lat_ms: jax.Array         # ()  per-episode sub-step latency
-    lash: jax.Array           # ()  per-episode backlash (rad)
+    lash: jax.Array           # () or (n_servo,)  per-episode backlash (rad); per servo when roll_lash is on
     zero_off: jax.Array       # (n_servo,) per-episode joint ZERO OFFSET (rad):
                               # the servo's tick zero vs the policy's frame.
                               # The hardware zero is set by eye and moved by
@@ -266,15 +293,16 @@ class State(NamedTuple):
                               # ~0.5x sim dq -- reproduced only by ~2 Hz of
                               # 3-stage filtering, 5x the 10 Hz shaper alone.
     lag_y: jax.Array          # (3, n_servo) cascaded lag filter state
-    act_hist: jax.Array       # (act_delay_max+1, n_servo) recent joint TARGETS,
-                              # row 0 = this tick; the actuator serves row
-                              # act_delay. Servo DEAD TIME DR: 2026-09-05 bench
+    act_hist: jax.Array       # (_act_hist_len, n_servo) recent joint TARGETS,
+                              # row 0 = this tick; servo j serves row
+                              # act_delay[j] + act_delay_extra[j]. Servo DEAD TIME DR: 2026-09-05 bench
                               # (one foot clamped, 16 traces, 3 loads, 3-10 deg)
                               # measured ~85 ms pure delay + 30 ms lag before
                               # the STS3215 follows a target, amplitude- and
                               # load-independent -- phase without attenuation,
                               # which the lag cascade above cannot produce.
-    act_delay: jax.Array      # ()  int32 per-episode target delay, 0..act_delay_max
+    act_delay: jax.Array      # () int32 per-episode target delay, 0..act_delay_max, or
+                              # (n_servo,) per-servo draws under act_delay_types
     imu_R: jax.Array          # (3,3) mounting misalignment
     imu_bias: jax.Array       # (3,) gyro bias
     gyro_hist: jax.Array      # (3, 3) raw torso gyro at the last 3 obs ticks,
@@ -557,6 +585,8 @@ class BimoMJXEnv:
         stand_knee_sigma: float = 0.06,
         clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
         # plain stand so the obs stop oscillating (see step(); 2026-08-12)
+        stop_grace_s: float = 0.0,  # gait shaping stays on this long after a
+        # walk -> stand stop (the closing step; see step(), 2026-10-29)
         w_pitch_hinge: float = 0.0,
         pitch_deadband_deg: float = 5.0,
         w_power: float = 0.0,
@@ -566,6 +596,7 @@ class BimoMJXEnv:
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
         servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
         ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
+        ctrl_within_stops=False,       # policy range = ctrlrange clipped to the mechanical stops
         servo_kp_scale=None,   # per-servo P multiplier: None, a number, a
         # per-actuator sequence, {actuator | role: factor}, or a preset name
         # (SERVO_KP_PRESETS). Scales kp AND kd -- see SERVO_KP_PRESETS.
@@ -610,6 +641,19 @@ class BimoMJXEnv:
         latency_jitter_ms: float = 0.0,
         backlash_deg: float = 0.0,
         backlash_deg_max: float | None = None,
+        roll_lash_deg: float = 0.0,   # EXTRA deadzone width (peak-to-peak, deg) on
+        # the four roll joints (hip_roll, ankle_roll) on top of backlash_deg: the
+        # play downstream of the encoders (hw 2026-10-24; walker_env mirror)
+        roll_lash_deg_max: float | None = None,  # per-episode draw uniform(lo, max)
+        torso_mass_range: float | None = None,   # batch-level torso mass/inertia
+        # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
+        torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
+        # U(-c, +c) m (body_ipos y) -- lateral asymmetry DR
+        floor_contact_range: tuple | None = None,  # ((k_lo, k_hi), (b_lo, b_hi)): batch-level
+        # foot/floor contact DR -- each env draws a stiffness k and a damping b LOG-uniformly
+        # and sets solref = (-k, -b) on the floor and every sole pad (MuJoCo direct
+        # stiffness/damping). The carpet..hard-floor range of the 2026-11-01 floors fit
+        # (experiments/one-leg-stand/2026-11-01-floors-fit.md). Training only; None = off.
         zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
@@ -733,6 +777,10 @@ class BimoMJXEnv:
         # (N*m). Open Duck's BAM fit for the STS3215: friction_base ~0.05.
         # Genuinely missing from our model (the torque-speed envelope covers
         # viscous/back-EMF losses, NOT stiction). 0 = legacy exact.
+        joint_frictionloss_range: tuple | None = None,  # (lo, hi) N*m: batch-level DR of
+        # the joint friction -- each env draws ONE value U(lo, hi) for every servo DOF
+        # (the unknown is common-mode: the gearbox's true stiction, 0.05 BAM .. 0.35
+        # assumed backdrive, ~0.235 measured powered). Training only; None = off.
         joint_armature: float = 0.0,       # reflected rotor inertia per leg
         # DOF (kg*m^2). BAM fit ~0.028 -- significant against our light legs.
         # -- plan-v2 Phase B: procedural gait imitation (Open Duck pattern) ----
@@ -784,6 +832,11 @@ class BimoMJXEnv:
                                          # recovered, the target is the recorded reference at the current
                                          # phase + rise_ref_residual * action (the policy learns corrections
                                          # to a script that already works), clipped to the policy range
+        rise_ref_hold: bool = False,  # get-up campaign 2026-10-23: no handover at recovered -- the residual
+                                      # reference map and the rise_ref/rise_root tracking keep running after
+                                      # the held stand (the reference holds its last, standing frame).
+                                      # Without it the action map jumps from ref + residual * a to
+                                      # default + span * a and the tracking income stops at the latch.
         gravity_scale: float = 1.0,  # training curriculum (2026-10-11): scales gravity (get-up under
                                      # reduced gravity, then annealed back to 1.0); the referee is unaffected
         w_rise_root: float = 0.0,   # DeepMimic ROOT tracking while down (2026-10-12): kernel on the pelvis
@@ -791,7 +844,17 @@ class BimoMJXEnv:
                                     # phase -- joint-only tracking let a hunched half-stand (up_z ~0.6) pay
         rise_ref_et: float = 0.0,   # m; >0: DeepMimic early termination -- a recovery episode not yet
                                     # recovered ends when the pelvis strays this far from the reference's
+        rise_ref_et_hold: bool = False,  # get-up campaign 2026-10-28: with rise_ref_hold, keep the
+                                    # early termination after the held stand too (vs the reference's
+                                    # last, standing frame). Without it a stand that sinks to a ~0.27 m
+                                    # crouch after the latch is never ended and keeps partial tracking
+                                    # income: under 15 N shoves the w2k/w4k policies stand, then sink.
         rise_ref_s2: float = 2.0,   # exp kernel denominator (rad^2 summed)
+        w_low_swing: float = 0.0,   # per-step clearance penalty: on touchdown
+                                    # of a >= 3-tick swing, w x its shortfall
+                                    # below 3 cm (walker_env.low_swing_shortfall),
+                                    # under any command (Tom 2026-10-24: every
+                                    # foot >= 3 cm on every step)
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -842,9 +905,24 @@ class BimoMJXEnv:
         # -- observations ---------------------------------------------------------
         imu_obs: bool = True,
         imu_noise: float = 1.0,
+        imu_mount_deg: float = 2.0,   # 1-sigma IMU mounting misalignment (deg), before imu_noise
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
+        # per-SERVO dead time by servo type, ticks: {"sts3215": (lo, hi), "sts3250": (lo, hi)}
+        # (2026-11-01 robot stepresp, loaded: STS3215 63-84 ms dead + tau ~57 ms, STS3250
+        # 12-18 ms + ~19 ms). Each servo draws its own integer delay per episode; overrides
+        # the scalar act_delay_max draw (whose history it reuses). None = off.
+        act_delay_types: dict | None = None,
+        # per-episode servo DAMPING multiplier U(lo, hi) on top of gain_range (2026-11-01 fit:
+        # the stance servos act ~0.17x the modelled kd at stand amplitudes). None = off.
+        servo_kd_range: tuple | None = None,
+        servo_kp_range: tuple | None = None,    # same for the stiffness
+        act_delay_extra=None,                   # per-actuator EXTRA dead time, ticks:
+        # {actuator | role: ticks} or a walker_env.ACT_DELAY_EXTRA_PRESETS name ("sts2026":
+        # the STS3215s +3 ticks behind the STS3250 hip rolls, 2026-11-01 step responses)
+        act_lag_scale=None,                     # per-actuator multiplier on the act-lag
+        # pole: {actuator | role: x} or a walker_env.ACT_LAG_SCALE_PRESETS name
         init_pose_deg: float | None = None,     # start-pose jitter half-width per
                                                 # joint (deg). None keeps the
                                                 # historical +-0.03 rad (1.7 deg).
@@ -1076,8 +1154,10 @@ class BimoMJXEnv:
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
         self.hip_flex_deg = hip_flex_deg
-        _plo, _phi = policy_range(m, physical=ctrl_physical)
+        _plo, _phi = policy_range(m, physical=ctrl_physical,
+                                  within_stops=ctrl_within_stops)
         self.ctrl_physical = bool(ctrl_physical)
+        self.ctrl_within_stops = bool(ctrl_within_stops)
         _plo, _phi = _plo[self._pi], _phi[self._pi]
         self._lo = jp.asarray(_plo)
         self._hi = jp.asarray(_phi)
@@ -1171,6 +1251,7 @@ class BimoMJXEnv:
         self.stand_knee_target = stand_knee_target
         self.stand_knee_sigma = stand_knee_sigma
         self.clock_stand_freeze = clock_stand_freeze
+        self.stop_grace_s = float(stop_grace_s)
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
         # sidestep gaits legitimately roll). Default 0 -> the term is not
@@ -1184,6 +1265,8 @@ class BimoMJXEnv:
         self.servo_range = servo_range
         self.mass_range = mass_range
         self.friction_range = friction_range
+        self.joint_frictionloss_range = (None if joint_frictionloss_range is None
+                                         else tuple(float(x) for x in joint_frictionloss_range))
         self.payload_max = payload_max
         # batch-level DR nominals (mirror walker_env._nom_*): the reference
         # mass/inertia/friction the per-env draws are scaled from. Captured
@@ -1192,6 +1275,7 @@ class BimoMJXEnv:
         self._nom_mass = jp.asarray(np.array(self.mj_model.body_mass))
         self._nom_inertia = jp.asarray(np.array(self.mj_model.body_inertia))
         self._nom_friction = jp.asarray(np.array(self.mj_model.geom_friction))
+        self._nom_frictionloss = jp.asarray(np.array(self.mj_model.dof_frictionloss))
         self._floor_gid = self.mj_model.geom("floor").id
         self._payload_bid = (self.mj_model.body("payload").id
                              if (payload_mass > 0 or payload_dr
@@ -1199,6 +1283,22 @@ class BimoMJXEnv:
         self.latency_ms = latency_ms
         self.latency_ms_max = latency_ms_max
         self.latency_jitter_ms = latency_jitter_ms
+        self.roll_lash_rad = float(np.deg2rad(roll_lash_deg))
+        self.roll_lash_rad_max = (None if roll_lash_deg_max is None
+                                  else float(np.deg2rad(roll_lash_deg_max)))
+        self._roll_mask = jp.asarray(np.array(
+            [n[2:] in ("hip_roll", "ankle_roll") for n in self._servo_names],
+            dtype=np.float32))
+        self.torso_mass_range = torso_mass_range
+        self.torso_com_y = float(torso_com_y)
+        self.floor_contact_range = (None if floor_contact_range is None else
+                                    tuple(tuple(float(v) for v in r) for r in floor_contact_range))
+        self._contact_gids = np.array(
+            [g for g in range(self.mj_model.ngeom)
+             if g == self._floor_gid or "_pad_" in (self.mj_model.geom(g).name or "")], dtype=np.int32)
+        self._nom_solref = jp.asarray(np.array(self.mj_model.geom_solref))
+        self._nom_ipos = jp.asarray(np.array(self.mj_model.body_ipos))
+        self._torso_bid = int(self.mj_model.body("torso").id)
         self.backlash_rad = float(np.deg2rad(backlash_deg))
         self.backlash_rad_max = (None if backlash_deg_max is None
                                  else float(np.deg2rad(backlash_deg_max)))
@@ -1297,6 +1397,12 @@ class BimoMJXEnv:
         self.rise_ref_residual = float(rise_ref_residual)
         if self.rise_ref_residual > 0.0 and self._rr is None:
             raise ValueError("rise_ref_residual needs rise_ref_npz")
+        self.rise_ref_hold = bool(rise_ref_hold)
+        if self.rise_ref_hold and self._rr is None:
+            raise ValueError("rise_ref_hold needs rise_ref_npz")
+        self.rise_ref_et_hold = bool(rise_ref_et_hold)
+        if self.rise_ref_et_hold and not (self.rise_ref_hold and self.rise_ref_et > 0.0):
+            raise ValueError("rise_ref_et_hold needs rise_ref_hold and rise_ref_et > 0")
         # getup_v9: a stand only counts as "recovered" after this many
         # CONSECUTIVE standing steps (0.5 s) -- an instantaneous crossing
         # was farmable by ballistic bank starts
@@ -1305,6 +1411,7 @@ class BimoMJXEnv:
         if w_mimic > 0 and not gait_clock:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
+        self.w_low_swing = w_low_swing
         self.lift_clear = lift_clear
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -1317,12 +1424,40 @@ class BimoMJXEnv:
             self.getup_start_mix = recover_start_mix
         self.imu_obs = imu_obs
         self.imu_noise = imu_noise
+        self.imu_mount_deg = float(imu_mount_deg)
         self.gyro_gain_range = (tuple(float(x) for x in gyro_gain_range)
                                 if gyro_gain_range is not None else None)
         self.gyro_delay_max = int(gyro_delay_max)
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
         self.act_delay_max = int(act_delay_max)
+        self.act_delay_types = ({k: (int(v[0]), int(v[1])) for k, v in act_delay_types.items()}
+                                if act_delay_types else None)
+        if self.act_delay_types:
+            types = {n: "sts3215" for n in self._servo_names}
+            for k, v in (self.servo_types or {}).items():
+                for n in self._servo_names:
+                    if n == k or joint_role(n) == k:
+                        types[n] = v
+            lo = np.array([self.act_delay_types.get(types[n], (0, 0))[0] for n in self._servo_names])
+            hi = np.array([self.act_delay_types.get(types[n], (0, 0))[1] for n in self._servo_names])
+            assert np.all((0 <= lo) & (lo <= hi)), "act_delay_types wants 0 <= lo <= hi ticks"
+            self._ad_lo = jp.asarray(lo, dtype=jp.int32)
+            self._ad_hi = jp.asarray(hi, dtype=jp.int32)
+            self.act_delay_max = max(self.act_delay_max, int(hi.max()))
+        self.servo_kd_range = tuple(servo_kd_range) if servo_kd_range else None
+        self.servo_kp_range = tuple(servo_kp_range) if servo_kp_range else None
         assert 0 <= self.act_delay_max <= 10, "act_delay_max in ticks (20 ms each)"
+        from walker_env import role_vector, ACT_DELAY_EXTRA_PRESETS, ACT_LAG_SCALE_PRESETS
+        if isinstance(act_delay_extra, str):
+            act_delay_extra = ACT_DELAY_EXTRA_PRESETS[act_delay_extra]
+        if isinstance(act_lag_scale, str):
+            act_lag_scale = ACT_LAG_SCALE_PRESETS[act_lag_scale]
+        _ext = role_vector(self._servo_names, act_delay_extra, 0, "act_delay_extra").astype(np.int32)
+        self._act_delay_extra = jp.asarray(_ext) if _ext.any() else None
+        self._act_hist_len = self.act_delay_max + int(_ext.max()) + 1
+        assert self._act_hist_len <= 13, "dead time ring holds 12 ticks"
+        _ls = role_vector(self._servo_names, act_lag_scale, 1.0, "act_lag_scale")
+        self._act_lag_scale = jp.asarray(_ls, dtype=jp.float32) if np.any(_ls != 1.0) else None
         self.init_pose_deg = (None if init_pose_deg is None
                               else float(init_pose_deg))
         self._init_q_rad = (0.03 if self.init_pose_deg is None
@@ -1880,6 +2015,16 @@ class BimoMJXEnv:
                                       maxval=self.backlash_rad_max)
         else:
             lash = jp.asarray(self.backlash_rad, dtype=jp.float32)
+        if self.roll_lash_rad_max is not None or self.roll_lash_rad > 0.0:
+            # per-servo deadzone: the roll joints add their own downstream play
+            # (fold_in: every existing draw keeps its stream when the feature is off)
+            if self.roll_lash_rad_max is not None:
+                extra = jax.random.uniform(jax.random.fold_in(rng, 5151),
+                                           minval=self.roll_lash_rad,
+                                           maxval=self.roll_lash_rad_max)
+            else:
+                extra = jp.asarray(self.roll_lash_rad, dtype=jp.float32)
+            lash = lash + extra * self._roll_mask
         if self.zero_offset_rad > 0.0:
             # per SERVO: a held servo's zero is set by eye like any other
             zero_off = jax.random.uniform(jax.random.fold_in(r_lash, 7),
@@ -1896,10 +2041,18 @@ class BimoMJXEnv:
                                    minval=1 - self.servo_range,
                                    maxval=1 + self.servo_range)])
             servo = self._nom_servo * sf
+            if self.servo_kp_range is not None:
+                servo = servo.at[0].multiply(jax.random.uniform(
+                    jax.random.fold_in(r_servo, 21), minval=self.servo_kp_range[0],
+                    maxval=self.servo_kp_range[1]))
+            if self.servo_kd_range is not None:
+                servo = servo.at[1].multiply(jax.random.uniform(
+                    jax.random.fold_in(r_servo, 22), minval=self.servo_kd_range[0],
+                    maxval=self.servo_kd_range[1]))
         else:
             servo = self._nom_servo
         if self.imu_obs and self.domain_rand and self.imu_noise > 0.0:
-            ang = jax.random.normal(r_ang) * np.deg2rad(2.0) * self.imu_noise
+            ang = jax.random.normal(r_ang) * np.deg2rad(self.imu_mount_deg) * self.imu_noise
             ax = jax.random.normal(r_ax, (3,))
             ax = ax / (jp.linalg.norm(ax) + 1e-9)
             k = jp.array([[0.0, -ax[2], ax[1]],
@@ -1955,6 +2108,11 @@ class BimoMJXEnv:
     def _draw_act_delay(self, rng: jax.Array):
         """Per-episode servo dead time in control ticks (fold_in 4473 so the
         other draws keep their streams). 0 when the feature is off."""
+        if self.act_delay_types:
+            u = jax.random.uniform(jax.random.fold_in(rng, 4474), (self._n_servo,))
+            span = (self._ad_hi - self._ad_lo + 1).astype(jp.float32)
+            return self._ad_lo + jp.minimum(jp.floor(u * span).astype(jp.int32),
+                                            self._ad_hi - self._ad_lo)
         if self.act_delay_max > 0:
             return jax.random.randint(
                 jax.random.fold_in(rng, 4473), (), 0, self.act_delay_max + 1)
@@ -1963,7 +2121,7 @@ class BimoMJXEnv:
     def _act_hist0(self):
         # before the policy has acted the served target is the home pose
         return jp.tile(self._sdefault.astype(jp.float32)[None, :],
-                       (self.act_delay_max + 1, 1))
+                       (self._act_hist_len, 1))
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -2188,7 +2346,7 @@ class BimoMJXEnv:
             lag_y0 = jp.tile(self._sdefault.astype(jp.float32), (3, 1))
         else:
             q_init = data.qpos[self._jq0:self._jq1].astype(jp.float32)
-            act_hist = jp.tile(q_init[None, :], (self.act_delay_max + 1, 1))
+            act_hist = jp.tile(q_init[None, :], (self._act_hist_len, 1))
             lag_y0 = jp.tile(q_init, (3, 1))
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
@@ -2230,7 +2388,7 @@ class BimoMJXEnv:
             # the servo chain starts AT the squat, not slewing from standing
             q_init_r = self._to_servo(q_rsi).astype(jp.float32)
             act_hist = jp.where(crouch_slot > 0,
-                                jp.tile(q_init_r[None, :], (self.act_delay_max + 1, 1)),
+                                jp.tile(q_init_r[None, :], (self._act_hist_len, 1)),
                                 act_hist)
             lag_y0 = jp.where(crouch_slot > 0, jp.tile(q_init_r, (3, 1)), lag_y0)
         if self.ext_cmd:
@@ -2262,7 +2420,8 @@ class BimoMJXEnv:
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
-                     last_air=jp.zeros(2),
+                     last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+                     since_move=jp.full((), 1e3),
                      gait_freq=gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist, cmd=cmd,
                      cmd_next=cmd_next, traj=traj, traj_on=traj_on,
@@ -2339,8 +2498,8 @@ class BimoMJXEnv:
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action,
             last_target=self._sdefault.astype(jp.float32), step_i=step_i,
-            air_time=jp.zeros(2), last_air=jp.zeros(2),
-            gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
+            air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+            since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
             crouch_slot=first.crouch_slot, crouch_c=first.crouch_c,
@@ -2375,7 +2534,8 @@ class BimoMJXEnv:
             t_rr = state.rise_t0 + state.step_i.astype(jp.float32) * self.control_dt
             res = jp.clip(self._rise_ref(t_rr) + self.rise_ref_residual * action,
                           self._lo, self._hi)
-            down = (state.recover_slot > 0.5) & (state.recovered < 0.5)
+            down = (state.recover_slot > 0.5) & (
+                (state.recovered < 0.5) | self.rise_ref_hold)
             target = jp.where(down, res, target)
         # the policy's targets onto the servo vector: held joints get their
         # fixed hold target, and from here on everything is per servo
@@ -2384,13 +2544,21 @@ class BimoMJXEnv:
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
         # the lag cascade, as the real bus write precedes the servo's response.
         act_hist = jp.concatenate([target[None, :], state.act_hist[:-1]], axis=0)
-        target = jp.take(act_hist, state.act_delay, axis=0)
+        # ONE dead-time mechanism (#189 + #192): each servo's delay = its per-episode draw (a per-servo
+        # vector under act_delay_types, else the scalar act_delay_max draw) + its fixed act_delay_extra.
+        if self.act_delay_types or self._act_delay_extra is not None:
+            d = state.act_delay if self._act_delay_extra is None else state.act_delay + self._act_delay_extra
+            idx = jp.clip(jp.broadcast_to(d, (act_hist.shape[1],)), 0, self._act_hist_len - 1)
+            target = act_hist[idx, jp.arange(act_hist.shape[1])]
+        else:
+            target = jp.take(act_hist, state.act_delay, axis=0)
         # action-chain lag (3 cascaded first-order stages, the firmware C2
         # shaper's structure) BEFORE quantization, matching the deploy path's
         # shaper -> angleToSteps order. Per-episode pole from _draw_episode;
         # a 0 Hz draw is a pass-through.
         if self.act_lag_hz > 0.0 or self.act_lag_hz_max is not None:
-            k = 1.0 - jp.exp(-2.0 * jp.pi * state.act_lag * self.control_dt)
+            pole = state.act_lag if self._act_lag_scale is None else state.act_lag * self._act_lag_scale
+            k = 1.0 - jp.exp(-2.0 * jp.pi * pole * self.control_dt)
             k = jp.where(state.act_lag > 0.0, k, 1.0)
             y1 = state.lag_y[0] + k * (target - state.lag_y[0])
             y2 = state.lag_y[1] + k * (y1 - state.lag_y[1])
@@ -2704,6 +2872,22 @@ class BimoMJXEnv:
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
             cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > 0.05)) & ~lifted
+        # the clock freeze (mirrored in walker_env, so referee obs match)
+        # keeps the raw command; only the reward sees the stop grace
+        cmd_moving_raw = cmd_moving
+        since_move = jp.where(cmd_moving_raw, 0.0,
+                              state.since_move + self.control_dt)
+        if self.stop_grace_s > 0.0:
+            # stop grace (legs track, 2026-10-29): the referee counts a step
+            # that begins within 0.4 s of the stop (walk_steps), but at a
+            # plain stand every gait term is off and double support is paid,
+            # so the cheapest way to close the stance was a ~1 cm shuffle
+            # (seven reward variables left it there). For stop_grace_s after
+            # a moving command the gait shaping (feet air, swing height,
+            # cadence, symmetry, single support) and the stand terms gated on
+            # ~cmd_moving keep treating the command as a walk.
+            cmd_moving = cmd_moving | ((state.since_move < self.stop_grace_s)
+                                       & ~lifted)
         landed = con & (state.air_time > 0.0)
         if self.w_feet_air:
             reward += jp.where(cmd_moving, self.w_feet_air * jp.sum(
@@ -2730,7 +2914,7 @@ class BimoMJXEnv:
                 # the drive. Freeze is gated exactly like w_still: no
                 # locomotion command, no lift (marches/balances keep their
                 # clock). Mirrored in walker_env so referee obs match.
-                plain_stand = ((~cmd_moving)
+                plain_stand = ((~cmd_moving_raw)
                                & (~lifted if self.ext_cmd else True))
                 gait_phase = jp.where(plain_stand, state.gait_phase,
                                       gait_phase)
@@ -2806,6 +2990,11 @@ class BimoMJXEnv:
             reward -= (self.w_rise_dofvel
                        * jp.where(state.recovered < 0.5, 1.0, 0.0)
                        * jp.sum(self._p(qd_j) ** 2))
+        # reference tracking pays while down; with rise_ref_hold also after
+        # the held stand of a recovery episode (no income cliff at the latch)
+        rr_gate = jp.where((state.recovered < 0.5)
+                           | (self.rise_ref_hold & (state.recover_slot > 0.5)),
+                           1.0, 0.0)
         if self.w_rise_ref and self.ext_cmd and self.recover_mix > 0:
             # staged-rise reference while DOWN (getup_v3): dense guidance
             # toward the scripted tuck->plant->squat->stand trajectory
@@ -2813,8 +3002,7 @@ class BimoMJXEnv:
                                   + state.step_i.astype(jp.float32)
                                   * self.control_dt)
             dq_rr = self._p(data.qpos[self._jq0:self._jq1]) - q_rr
-            reward += (self.w_rise_ref
-                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+            reward += (self.w_rise_ref * rr_gate
                        * jp.exp(-jp.sum(dq_rr ** 2) / self.rise_ref_s2))
         if self.w_rise_root and self.ext_cmd and self.recover_mix > 0:
             # root tracking while DOWN (mirrored in walker_env; one shared kernel)
@@ -2822,8 +3010,7 @@ class BimoMJXEnv:
             k_rt = jp.clip(jp.round((state.rise_t0 + state.step_i.astype(jp.float32)
                                      * self.control_dt) / self._rr["dt"]
                                     ).astype(jp.int32), 0, self._rr["T"] - 1)
-            reward += (self.w_rise_root
-                       * jp.where(state.recovered < 0.5, 1.0, 0.0)
+            reward += (self.w_rise_root * rr_gate
                        * _wenv_rise_root_kernel(data.qpos[2], data.qpos[3:7], self._rr["root"][k_rt], jp))
         if self.w_up_vel and self.ext_cmd and self.recover_mix > 0:
             # getup_v5: momentum-friendly rise incentive -- positive root
@@ -2846,6 +3033,19 @@ class BimoMJXEnv:
             reward -= jp.where(cmd_moving, self.w_symmetry * jp.sum(
                 jp.where(sym_valid,
                          jp.abs(state.air_time - other_last), 0.0)), 0.0)
+        # per-step clearance: a completed swing of >= 3 ticks pays its
+        # shortfall below 3 cm under ANY command, so the start and stop steps
+        # the gait shaping never sees are graded too (mirrors walker_env)
+        z_soles = jp.stack([data.geom_xpos[self._sole_gids[0]][2],
+                            data.geom_xpos[self._sole_gids[1]][2]]) - self._sole_z0
+        if self.w_low_swing:
+            from walker_env import (low_swing_shortfall as _wenv_low_swing,  # jax-free, shared with the CPU env
+                                    LOW_SWING_MIN_TICKS)
+            step_done = landed & (state.air_time
+                                  >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt)
+            reward -= jp.where(state.recovered > 0.5, self.w_low_swing * jp.sum(
+                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp), 0.0)), 0.0)
+        swing_peak = jp.where(con, 0.0, jp.maximum(state.swing_peak, z_soles))
         last_air = jp.where(landed, state.air_time, state.last_air)
         air_time = jp.where(con, 0.0, state.air_time + self.control_dt)
         single = con[0] != con[1]
@@ -3011,7 +3211,9 @@ class BimoMJXEnv:
                                      * self.control_dt) / self._rr["dt"]
                                     ).astype(jp.int32), 0, self._rr["T"] - 1)
             stray = jp.abs(data.qpos[2] - self._rr["qpos"][k_rr, 2]) > self.rise_ref_et
-            et = stray & (state.recover_slot > 0.5) & (recovered < 0.5)
+            # rise_ref_et_hold: also after the latch (the held stand)
+            et = (stray & (state.recover_slot > 0.5)
+                  & ((recovered < 0.5) | self.rise_ref_et_hold))
             done_flag = jp.maximum(done_flag, et.astype(jp.float32))
 
         # resample AFTER the reward graded the command the policy saw
@@ -3111,8 +3313,8 @@ class BimoMJXEnv:
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
                      last_target=target, step_i=step_i, air_time=air_time,
-                     last_air=last_air,
-                     gait_freq=state.gait_freq, gait_phase=gait_phase,
+                     last_air=last_air, swing_peak=swing_peak,
+                     since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
                      traj_on=traj_on, recover_slot=state.recover_slot,
@@ -3136,7 +3338,11 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      payload_max: float | None = None,
                      payload_bid: int | None = None,
                      floor_gid: int = 0, nom_mass=None, nom_inertia=None,
-                     nom_friction=None, tilt_max_deg: float = 0.0):
+                     nom_friction=None, tilt_max_deg: float = 0.0,
+                     joint_frictionloss_range=None, nom_frictionloss=None,
+                     jv=(0, 0), torso_bid=None, torso_mass_range=None,
+                     torso_com_y=0.0, nom_ipos=None,
+                     floor_contact_range=None, contact_gids=None, nom_solref=None):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3147,7 +3353,16 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     gravity by theta ~ U(0, tilt_max) about a random horizontal azimuth is,
     for a flat floor, exactly a floor inclined by theta. The IMU sees what
     the real one sees: a robot standing plumb to the SUPPORT reads a tilted
-    up-vector against true gravity."""
+    up-vector against true gravity.
+
+    joint_frictionloss_range (lo, hi): per-env joint Coulomb friction, ONE
+    draw U(lo, hi) set on every servo DOF (dofs jv[0]:jv[1]); the get-up
+    references are verified over 0.05..0.5 N*m and a policy trained at one
+    value fails at another (robot_getup_t3k, 2026-10-22).
+
+    floor_contact_range ((k_lo, k_hi), (b_lo, b_hi)): per-env foot/floor contact, k and b drawn
+    log-uniformly, solref = (-k, -b) on contact_gids (the floor and the sole pads) -- carpet
+    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md."""
     nbody = model.body_mass.shape[0]
     g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
     # (float() here breaks under jit: domain_randomize is traced inside
@@ -3155,9 +3370,18 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
 
     @jax.vmap
     def rand(rng):
-        r_m, r_f, r_p, r_t, r_a = jax.random.split(rng, 5)
+        r_m, r_f, r_p, r_t, r_a, r_j = jax.random.split(rng, 6)
         mf = jax.random.uniform(r_m, (nbody,), minval=1 - mass_range,
                                 maxval=1 + mass_range)
+        if torso_mass_range is not None:
+            mf = mf.at[torso_bid].set(jax.random.uniform(
+                jax.random.fold_in(r_m, 11), minval=1 - torso_mass_range,
+                maxval=1 + torso_mass_range))
+        ipos = nom_ipos
+        if torso_com_y > 0.0:
+            ipos = nom_ipos.at[torso_bid, 1].add(jax.random.uniform(
+                jax.random.fold_in(r_m, 12), minval=-torso_com_y,
+                maxval=torso_com_y))
         mass = nom_mass * mf
         inertia = nom_inertia * mf[:, None]
         ff = jax.random.uniform(r_f, minval=1 - friction_range,
@@ -3174,9 +3398,22 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
         gravity = jp.array([-g0 * jp.sin(th) * jp.cos(az),
                             -g0 * jp.sin(th) * jp.sin(az),
                             g0 * jp.cos(th)])
-        return mass, inertia, friction, gravity
+        if joint_frictionloss_range is not None:
+            lo, hi = joint_frictionloss_range
+            fl = nom_frictionloss.at[jv[0]:jv[1]].set(
+                jax.random.uniform(r_j, minval=lo, maxval=hi))
+        else:
+            fl = nom_frictionloss
+        sr = nom_solref
+        if floor_contact_range is not None:
+            (k_lo, k_hi), (b_lo, b_hi) = floor_contact_range
+            r_k, r_b = jax.random.split(jax.random.fold_in(r_f, 13))
+            k = jp.exp(jax.random.uniform(r_k, minval=np.log(k_lo), maxval=np.log(k_hi)))
+            b = jp.exp(jax.random.uniform(r_b, minval=np.log(b_lo), maxval=np.log(b_hi)))
+            sr = nom_solref.at[contact_gids].set(jp.stack([-k, -b]))
+        return mass, inertia, friction, gravity, fl, ipos, sr
 
-    mass, inertia, friction, gravity = rand(rng)
+    mass, inertia, friction, gravity, frictionloss, ipos, solref = rand(rng)
     in_axes = jax.tree_util.tree_map(lambda x: None, model)
     fields = {"body_mass": 0, "body_inertia": 0, "geom_friction": 0}
     values = {"body_mass": mass, "body_inertia": inertia,
@@ -3184,6 +3421,15 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     if tilt_max_deg > 0.0:
         fields["opt.gravity"] = 0
         values["opt.gravity"] = gravity
+    if joint_frictionloss_range is not None:
+        fields["dof_frictionloss"] = 0
+        values["dof_frictionloss"] = frictionloss
+    if torso_com_y > 0.0:
+        fields["body_ipos"] = 0
+        values["body_ipos"] = ipos
+    if floor_contact_range is not None:
+        fields["geom_solref"] = 0
+        values["geom_solref"] = solref
     in_axes = in_axes.tree_replace(fields)
     model = model.tree_replace(values)
     return model, in_axes

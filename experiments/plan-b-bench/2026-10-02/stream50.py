@@ -21,7 +21,7 @@ sys.path.insert(0, HERE)
 import gain_bench as GB
 import sweep_smooth as SS
 
-SID = 30
+SID = int(os.environ.get("SID", 30))
 LEVEL = int(os.environ.get("LEVEL_T", 2507))
 DOWN = int(os.environ.get("DOWN_T", 3531))
 GAINS = [tuple(int(v) for v in x.split(":")) for x in
@@ -139,6 +139,16 @@ def main():
         try:
             if torque:
                 pos = GB.read_pos(b, SID)["pos"]
+                if isinstance(e, SS.AccelLost) and abs(pos - DOWN) > 60:
+                    # a stream still running would fight the move: wait it out
+                    t_end = time.monotonic() + 6
+                    while time.monotonic() < t_end and "idle" not in b.cmd(
+                            "stream status", until=r"stream: .*\n", timeout=2):
+                        time.sleep(0.3)
+                    say(f"  accelerometer lost off plumb: lowering {pos} -> {DOWN} at 100 steps/s")
+                    b.cmd(f"move {SID} {DOWN} 0 100 2", until=GB.MOVE_UNTIL)
+                    time.sleep(abs(pos - DOWN) / 100 + 3.0)
+                    pos = GB.read_pos(b, SID)["pos"]
                 if abs(pos - DOWN) <= 60:
                     GB.release(b, SID); say(f"  released at plumb: {pos}")
                 else:

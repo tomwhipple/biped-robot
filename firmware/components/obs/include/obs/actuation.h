@@ -21,12 +21,12 @@
 namespace obs {
 
 // Per-servo calibration, restored from NVS at boot, indexed by BUS joint
-// (obs/bus_map.h: index b is servo ID b + 1), so it covers every servo the
+// (obs/bus_map.h, bus index order), so it covers every servo the
 // robot carries, not just the ones the policy drives. Defaults are what a
 // freshly "Set Middle Position"-ed, correctly-oriented servo gives you.
 //
 // `fitted` says which bus joints this robot actually has: the 10-joint
-// prototype carries IDs 1-10 and not 11-17. The control loop and the bench
+// prototype carries its ten leg joints and not the ankle rolls, neck or arms. The control loop and the bench
 // commands read and write fitted servos only -- a SYNC READ that waits on a
 // servo which is not there costs its whole timeout every tick. `cal` sets it
 // (a joint that answers `cal zero` is fitted; `cal fit` sets it by hand).

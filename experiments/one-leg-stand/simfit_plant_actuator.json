@@ -1,0 +1,64 @@
+{
+ "plant": {
+  "kp_scale": 1.39655,
+  "roll_lash": 1.65459,
+  "roll_lash_hip": 0.963022,
+  "backlash": 0.227027,
+  "sole_w": 0.0814,
+  "sole_out_dL": 0.0137,
+  "floor_tc": 0.0334,
+  "torso_scale": 1.082,
+  "torso_com_y": -0.0068,
+  "zoff_La": -2.12,
+  "lag_hz": 17.2372,
+  "d3215_ms": 73.0694,
+  "lag3250": 4.22661,
+  "latency_ms": 7.03407,
+  "friction": 0.00743829,
+  "h_tc": 0.005,
+  "h_dr": 1.0,
+  "kd_scale": 0.272537,
+  "jdamp": 0.160906
+ },
+ "source": "2026-11-01 actuator fit (simfit_sweepfit.py, STEP_W=0.5): the double-support roll sweep (21:32 UTC, hard floor) body roll/cmd and joint act/goal + the loaded step responses (22:16 UTC), rigid floor (h_tc 0.005 dr 1), total mass pinned at 1538 g (torso_scale 1.082). Sweep cost 3.42 (10-30 plant 13.1), step cost 3.04 (10-30 plant ~8). The asymmetry/sole fields are still the 10-30 values.",
+ "training_flags_20ms": "--servo-kp-scale hip_yaw=3.9,hip_roll=5.6,hip_pitch=3.9,knee=3.9,ankle=3.9,ankle_roll=3.9 --servo-kd 0.068 --servo-joint-damping 0.16 --joint-frictionloss 0.0075 --backlash-deg 0.1,0.35 --roll-lash-deg 0.8,2.0 --act-lag 12,22 --act-delay-max 1 --act-delay-extra sts2026 --act-lag-scale sts2026",
+ "band": {
+  "kd018": {
+   "kd_scale": 0.18
+  },
+  "kd040": {
+   "kd_scale": 0.4
+  },
+  "kp110": {
+   "kp_scale": 1.1
+  },
+  "kp170": {
+   "kp_scale": 1.7
+  },
+  "dead48": {
+   "d3215_ms": 48.0
+  },
+  "dead96": {
+   "d3215_ms": 96.0
+  },
+  "fric03": {
+   "friction": 0.03
+  },
+  "lag10": {
+   "lag_hz": 10.0
+  },
+  "hiplash06": {
+   "roll_lash_hip": 0.6
+  },
+  "hiplash14": {
+   "roll_lash_hip": 1.4
+  },
+  "carpetlossy": {
+   "floor_k": 4000.0,
+   "floor_b": 350.0
+  },
+  "imu20": {
+   "imu_delay_ms": 20.0
+  }
+ }
+}

@@ -17,8 +17,8 @@
 #   audit_torso.py,         printability REPORTS (cad/check_printability.py's
 #   audit_ankle_foot.py     engine: bridges, ceilings, islands, first-layer
 #                           contact) on the exported STLs in cad/v6/stl. They
-#                           do not fail the run: pelvis_v7 and ankle_link carry
-#                           ceilings and islands by design, and supports are
+#                           do not fail the run: ankle_link carries ceilings
+#                           and islands by design, and supports are
 #                           the slicer's job (cad/PRINT_LIST.md). Read the
 #                           ** lines against the slice preview.
 #

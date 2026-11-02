@@ -10,39 +10,76 @@
 #include "obs/assembler.h"
 #include <string.h>
 
+#include <initializer_list>
+
 #include "test_util.h"
-#include "vectors/obs_vectors.h"
+// <> not "": a policy profile build (POLICY=...) puts its own vectors/
+// first on the include path, ahead of this directory.
+#include <vectors/obs_vectors.h>
 
 namespace {
+
+// Policy index of the joint called `name`, or -1.
+int jointIndex(const char* name) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (strcmp(obs::kJointNames[j], name) == 0) return j;
+    }
+    return -1;
+}
+
+// The servo ID of the policy joint called `name`, or 0 when the policy does
+// not drive it.
+int servoIdOf(const char* name) {
+    const int j = jointIndex(name);
+    return j < 0 ? 0 : obs::kServoId[j];
+}
 
 void testSpecMatchesVectors() {
     CHECK_EQ(obs::kNumJoints, obs_vectors::kNumJoints);
     CHECK_EQ(obs::kNumCmd, obs_vectors::kNumCmd);
     CHECK_EQ(obs::kFrameDim, obs_vectors::kFrameDim);
     CHECK_EQ(obs::kObsDim, obs::kFrameDim * obs::kHistLen);
-    // The deployed plant is the 10-DOF v3yaw one (MEMORY: all sims on
-    // bimo_biped_v3yaw.xml), so the joint count is 10, not 8.
-    CHECK_EQ(obs::kNumJoints, 10);
+    // The joint count is the plant's: five per leg on the 10-DOF prototype
+    // (the deployed v5body policy), six -- ankle roll included -- on the v6
+    // robot's legs (the v6legs profile). Never 8: hip yaw is on both.
+    const bool ankle_roll = jointIndex("L_ankle_roll") >= 0;
+    CHECK_EQ(obs::kNumJoints, ankle_roll ? 12 : 10);
+    CHECK_EQ(jointIndex("R_ankle_roll") >= 0, ankle_roll);
     CHECK(obs::kImuObs);
+    // action_map "full" is the only map actionToAngles implements (the
+    // generator and the exporter both refuse anything else).
+    CHECK(strcmp(obs::kActionMap, "full") == 0);
 }
 
 void testServoIdMapIsAPermutation() {
-    // docs/wiring.md's bus IDs vs. the sim's action order. On the 10-DOF plant
-    // this is NOT the identity, and the 2026-08-02 errata widened the gap: the
-    // two bus chains went onto the opposite legs, so port A (9,1,2,3,4) is the
-    // RIGHT leg and port B (10,5,6,7,8) the LEFT. See ID_BY_ROLE in
-    // tools/gen_obs_spec.py for the observations that pinned it down.
-    bool seen[16] = {};
+    // The bus IDs vs. the sim's action order: the v6 legs as assembled
+    // (2026-10-23, ID_BY_ROLE in tools/gen_obs_spec.py and obs/bus_map.h) --
+    // the left leg carries 9 / 51 / 2 / 3 / 4, the right 10 / 52 / 6 / 7 / 8.
+    bool seen[256] = {};
     for (int i = 0; i < obs::kNumJoints; ++i) {
         const uint8_t id = obs::kServoId[i];
-        CHECK(id >= 1 && id <= 10);
+        CHECK(id >= 1 && id <= 253);
         CHECK(!seen[id]);
         seen[id] = true;
     }
-    CHECK_EQ(obs::kServoId[0], 10);     // L_hip_yaw  -- port B, the LEFT leg
-    CHECK_EQ(obs::kServoId[1], 5);      // L_hip_roll -- port B
-    CHECK_EQ(obs::kServoId[5], 9);      // R_hip_yaw  -- port A, the RIGHT leg
-    CHECK_EQ(obs::kServoId[9], 4);      // R_ankle    -- port A
+    // The sim's action order: left leg then right, proximal to distal, hip
+    // yaw first -- on every plant.
+    CHECK(strcmp(obs::kJointNames[0], "L_hip_yaw") == 0);
+    CHECK(strcmp(obs::kJointNames[obs::kNumJoints / 2], "R_hip_yaw") == 0);
+    CHECK_EQ(servoIdOf("L_hip_yaw"), 9);
+    CHECK_EQ(servoIdOf("L_hip_roll"), 51);    // STS3250
+    CHECK_EQ(servoIdOf("L_hip_pitch"), 2);
+    CHECK_EQ(servoIdOf("L_knee"), 3);
+    CHECK_EQ(servoIdOf("L_ankle"), 4);
+    CHECK_EQ(servoIdOf("R_hip_yaw"), 10);
+    CHECK_EQ(servoIdOf("R_hip_roll"), 52);    // STS3250
+    CHECK_EQ(servoIdOf("R_hip_pitch"), 6);
+    CHECK_EQ(servoIdOf("R_knee"), 7);
+    CHECK_EQ(servoIdOf("R_ankle"), 8);
+    if (jointIndex("L_ankle_roll") >= 0) {
+        CHECK_EQ(servoIdOf("L_ankle_roll"), 12);
+        CHECK_EQ(servoIdOf("R_ankle_roll"), 11);
+    }
 }
 
 void testFramesMatchTheSim() {
@@ -115,6 +152,87 @@ void testGaitClockWraps() {
     c2.setPhase(0.0f);
     for (int i = 0; i < 100; ++i) c2.advance(1.0f / 150.0f);   // exactly 1 rev
     CHECK_NEAR(c2.phase(), 0.0, 1e-3);
+}
+
+// Coast: the trained rate until the stand phase, then held exactly there --
+// never a jump, never a slower step than training's (the policy only ever
+// sees running-clock frames, then a constant phase).
+void testGaitClockCoast() {
+    const float pi = 3.14159265f;
+    const float step = 2.0f * pi * 0.02f * 1.5f;
+    obs::GaitClock c(1.5f);
+    c.setPhase(0.2f);
+    int held_at = -1;
+    float prev = c.phase();
+    for (int i = 0; i < 100; ++i) {
+        const bool held = c.coastTo(0.02f, pi);
+        float d = c.phase() - prev;
+        if (d < -pi) d += 2.0f * pi;
+        CHECK(d >= -1e-6f && d <= step + 1e-5f);      // forward, at most one trained step
+        if (held && held_at < 0) held_at = i;
+        if (held_at >= 0) CHECK_NEAR(c.phase(), -pi, 1e-6);   // pi wraps to -pi, exactly
+        prev = c.phase();
+    }
+    // 0.2 -> pi is (pi - 0.2) / step ticks away
+    CHECK(held_at >= 0 && held_at <= static_cast<int>((pi - 0.2f) / step) + 1);
+    // Already past the target: it goes round (forward only), not back.
+    obs::GaitClock c2(1.5f);
+    c2.setPhase(-1.0f);
+    CHECK(!c2.coastTo(0.02f, -1.2f));
+    CHECK(c2.phase() > -1.0f);
+    // Sitting on the target: held, no motion.
+    obs::GaitClock c3(1.5f);
+    c3.setPhase(1.0f);
+    CHECK(c3.coastTo(0.02f, 1.0f));
+    CHECK_NEAR(c3.phase(), 1.0, 1e-6);
+    // A hair past the target (float rounding): held, not sent round a cycle.
+    obs::GaitClock c4(1.5f);
+    c4.setPhase(1.0f + 2e-6f);
+    CHECK(c4.coastTo(0.02f, 1.0f));
+    CHECK_NEAR(c4.phase(), 1.0, 1e-6);
+}
+
+// tickGaitClock: the one clock rule ctrl_task and the SIL share.
+void testTickGaitClock() {
+    float stand[obs::kNumCmd], walk[obs::kNumCmd];
+    for (int i = 0; i < obs::kNumCmd; ++i) stand[i] = walk[i] = 0.0f;
+    if (obs::kNumCmd > 3) stand[3] = walk[3] = 1.0f;
+    walk[0] = 0.3f;
+    CHECK(obs::plainStand(stand));
+    CHECK(!obs::plainStand(walk));
+    float liftc[obs::kNumCmd];
+    memcpy(liftc, stand, sizeof liftc);
+    if (obs::kNumCmd > 4) {
+        liftc[4] = 0.6f;
+        CHECK(!obs::plainStand(liftc));
+    }
+    // Under a locomotion command every mode advances like the speed clock.
+    for (auto m : {obs::StandClock::kRun, obs::StandClock::kFreeze, obs::StandClock::kCoast}) {
+        obs::GaitClock a(1.5f), ref(1.5f);
+        obs::tickGaitClock(a, walk, m, 0.0f);
+        ref.advanceSpeedClock(obs::kControlDt, 0.3f);
+        CHECK_NEAR(a.phase(), ref.phase(), 0.0);
+    }
+    // At a plain stand: a freeze-trained run always holds; any other follows
+    // the mode.
+    obs::GaitClock r(1.5f), f(1.5f), k(1.5f);
+    r.setPhase(0.5f); f.setPhase(0.5f); k.setPhase(0.5f);
+    for (int i = 0; i < 200; ++i) {
+        obs::tickGaitClock(r, stand, obs::StandClock::kRun, 2.0f);
+        obs::tickGaitClock(f, stand, obs::StandClock::kFreeze, 2.0f);
+        obs::tickGaitClock(k, stand, obs::StandClock::kCoast, 2.0f);
+    }
+    CHECK_NEAR(f.phase(), 0.5, 0.0);
+    if (obs::kClockStandFreeze) {
+        CHECK_NEAR(r.phase(), 0.5, 0.0);
+        CHECK_NEAR(k.phase(), 0.5, 0.0);
+    } else {
+        obs::GaitClock ref(1.5f);
+        ref.setPhase(0.5f);
+        for (int i = 0; i < 200; ++i) ref.advance(obs::kControlDt);
+        CHECK_NEAR(r.phase(), ref.phase(), 1e-5);
+        CHECK_NEAR(k.phase(), 2.0, 1e-6);
+    }
 }
 
 void testActionToAngles() {
@@ -210,12 +328,14 @@ void testBusAngleToStepsRaw() {
 void testBusMap() {
     CHECK_EQ(obs::kNumBusJoints, 17);
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
-        CHECK_EQ(obs::kBusServoId[b], b + 1);          // index b == ID b + 1
-        CHECK_EQ(obs::busIndexOfId(b + 1), b);
+        CHECK_EQ(obs::busIndexOfId(obs::kBusServoId[b]), b);
+        CHECK_EQ(obs::busIndexOfName(obs::kBusJointNames[b]), b);
         CHECK(obs::kBusPort[b] == 'A' || obs::kBusPort[b] == 'B');
     }
     CHECK_EQ(obs::busIndexOfId(0), -1);
     CHECK_EQ(obs::busIndexOfId(18), -1);
+    CHECK_EQ(obs::busIndexOfId(1), -1);   // the old R_hip_roll ID: not on the bus
+    CHECK_EQ(obs::busIndexOfName("no_such_joint"), -1);
     // Every policy joint is a bus joint with the same name and servo, and
     // the two maps are inverse on the policy's joints.
     int driven = 0;
@@ -233,9 +353,10 @@ void testBusMap() {
         if (obs::busToPolicy(b) >= 0) ++driven;
     }
     CHECK_EQ(driven, obs::kNumJoints);
-    // The proposed map (docs/servo-map.md 2.1): IDs 1-10 the prototype's,
-    // then the ankle rolls, the neck and the arms.
-    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(9)], "R_hip_yaw") == 0);
+    // The as-assembled map (docs/servo-map.md 2.1).
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(9)], "L_hip_yaw") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(52)], "R_hip_roll") == 0);
+    CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(51)], "L_hip_roll") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(11)], "R_ankle_roll") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(13)], "neck_yaw") == 0);
     CHECK(strcmp(obs::kBusJointNames[obs::busIndexOfId(17)], "L_elbow") == 0);
@@ -418,8 +539,9 @@ void testCalBlob() {
     }
 
     // v2 -> v3 (the automatic boot migration): a prototype v2 blob, joint-
-    // indexed in the legacy map, lands each servo's zero and direction on
-    // that servo's bus joint; those ten are fitted and IDs 11-17 are not.
+    // indexed in the legacy map, lands each value on its JOINT's bus index
+    // (by name: the IDs changed with the v6 assembly); those ten are fitted
+    // and the ankle rolls, neck and arms are not.
     robot::CalBlobV2 v2{};
     v2.magic = robot::kCalMagic;
     v2.version = 2;
@@ -433,7 +555,7 @@ void testCalBlob() {
     obs::Calibration m2;
     CHECK(robot::calUnpackV2(v2, m2));
     for (int i = 0; i < robot::kLegacyJoints; ++i) {
-        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(robot::kLegacyJointNames[i]);
         if (b < 0) {
             CHECK(false);
             continue;
@@ -486,7 +608,7 @@ void testCalBlob() {
     obs::Calibration mig;
     CHECK(robot::calUnpackV1(v1, mig));
     for (int i = 0; i < robot::kLegacyJoints; ++i) {
-        const int b = obs::busIndexOfId(robot::kLegacyServoId[i]);
+        const int b = obs::busIndexOfName(robot::kLegacyJointNames[i]);
         if (b < 0) {
             CHECK(false);
             continue;
@@ -637,6 +759,8 @@ int main() {
     testFramesMatchTheSim();
     testHistoryOrdering();
     testGaitClockWraps();
+    testGaitClockCoast();
+    testTickGaitClock();
     testActionToAngles();
     testAngleToSteps();
     testBusAngleToStepsRaw();

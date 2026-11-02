@@ -169,7 +169,8 @@ def make_env(p: DesignParams, xml_path, mu=0.7, play_deg=3.0, backlash_deg=1.0, 
 def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, play_deg=3.0, backlash_deg=1.0,
              mass_scale=1.0, servo_scale=1.0, payload=0.0, floor_tilt_deg=0.0, per_joint=None,
              lag_hz=2.0, delay_ticks=4, render=None, verbose=False, fb_ankle=0.0, fb_hip=0.0, fb_i=0.0,
-             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False, track_speed=False):
+             fb_sag=0.0, fb_sag_joints=None, track_torque=False, track_sway=False, track_speed=False,
+             setup=None, hook=None):
     """fb_ankle / fb_hip: proportional IMU-roll feedback (rad per rad of torso
     roll error) added to the ankle-roll / hip-roll targets of BOTH legs -- the
     simplest compliance-aware controller, what a policy would learn first.
@@ -186,7 +187,11 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
     track_sway (2026-09-17, wide_gait.py): also return res["traj_t"] /
     res["traj_x"] / res["traj_y"], the pelvis (torso freejoint) x/y position
     every tick -- for measuring lateral sway vs forward stride per step.
-    Off by default -- no effect on the existing return dict."""
+    setup / hook (2026-10-24, experiments/one-leg-stand): setup(env) runs once
+    after reset (change the model, e.g. torso mass); hook(t, env, qc) -> qc runs
+    every control tick after the feedback above and returns the joint targets
+    to send (a closed-loop controller owned by the experiment). Both default
+    to None -- no effect on the existing return dict."""
     env = make_env(p, xml_path, mu=mu, play_deg=play_deg, backlash_deg=backlash_deg, lag_hz=lag_hz,
                    delay_ticks=delay_ticks, payload=payload)
     m = env.model
@@ -197,6 +202,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
         a = math.radians(floor_tilt_deg)
         m.opt.gravity[:] = [-9.81 * math.sin(a), 0.0, -9.81 * math.cos(a)]   # +tilt = downhill forward
     obs, _ = env.reset(seed=seed)
+    if setup is not None:
+        setup(env)
     kp, kd, stall, w0 = env._servo
     na = env._nq_act                      # 12, or 13 with the v7 neck
     stall = np.full(na, stall) * servo_scale
@@ -256,6 +263,8 @@ def run_walk(p: DesignParams, xml_path, tl: Timeline, windows, seed=0, mu=0.7, p
             qc = qc.copy()
             qc[iL] += corr; qc[iR] += corr
             qc[hL] += fb_hip * roll_err; qc[hR] += fb_hip * roll_err
+        if hook is not None:
+            qc = hook(t, env, qc)
         if fb_sag:
             qm = env.data.qpos[7:19]
             qc = qc.copy()

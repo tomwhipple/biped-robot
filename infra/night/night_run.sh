@@ -44,6 +44,28 @@ sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
 }
 sync_repo main
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
+# Tom 2026-10-23: "Make sure to always test these jobs before spending all
+# night on them." Pre-flight the queue BEFORE the first launch (and before
+# pausing the vision queue): parses every job like this runner does, checks
+# --out uniqueness/checkpoints/--rise-ref npz, and constructs the CPU env with
+# the recipe's env_kw (constructor catches plant/servo/hold contract bugs --
+# the class that burned night 2, 2026-10-22 -- at 22:00, not 07:00).
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  if ! NO_NOTIFY= python3 "$N/preflight.sh.py"; then
+    echo "$(date +%H:%M) !!! pre-flight FAILED; refusing to launch the queue" \
+         "(fix the jobs or move them to queue/held/). Notifying Tom."
+    "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+      "Night pre-flight FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/preflight.log; jobs are still queued but the runner refused to burn the night on them." \
+      || true
+    "$N/vision_pause.sh" resume 2>/dev/null || true
+    exit 1
+  fi
+fi
+# Tom 2026-10-07: pause the camera classifier (the vision queue) while training
+# runs; resumed when the queue is done (below) and by night_stop.sh at 07:00.
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  "$N/vision_pause.sh" pause
+fi
 # legacy single-args file becomes the first queue item
 [[ -f "$N/args" ]] && mv "$N/args" "$N/queue/00-legacy"
 
@@ -157,7 +179,9 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
     echo "$(date +%H:%M) $JOB vanished before launch (queue edited under the runner); rescanning"
     continue
   fi
-  ARGS=$(grep -v '^BRANCH=' "$JF")
+  # comment and blank lines are notes, never args: robot_getup_s1k crashed at
+  # launch (2026-10-12) because its job file's comments reached train_mjx.py
+  ARGS=$(grep -vE '^(BRANCH=|[[:space:]]*#|[[:space:]]*$)' "$JF" | tr '\n' ' ')
   if [[ -z "${ARGS// /}" ]]; then
     echo "$(date +%H:%M) $JOB has no args line and no CMD=; moving to done/ unlaunched"
     mv -f "$JF" "$N/queue/done/$JOB.empty" 2>/dev/null || true
@@ -166,7 +190,13 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   OUT=$(grep -oE '(--out)[= ][^ ]+' <<<"$ARGS" | awk -F'[= ]' '{print $2}')
   OUT=${OUT:-mjx_cmd_v1}
   REQ=$(grep -oE '(--steps)[= ][0-9]+' <<<"$ARGS" | grep -oE '[0-9]+$' || true)
-  BUDGET=$(( (END_HARD - $(date +%s) - 900) * 17000 ))
+  # steps/s the budget assumes: 17k is the old MJX rate; MuJoCo Warp runs
+  # ~93k (robot_getup_s1k: 525M in 94 min), so at 17k every Warp job started
+  # after ~01:00 was silently cut far below what the window could finish.
+  # 60k keeps a third in hand; the 06:55 guard still bounds a slow run.
+  RATE=17000
+  [[ "$ARGS" == *"--mjx-impl warp"* ]] && RATE=60000
+  BUDGET=$(( (END_HARD - $(date +%s) - 900) * RATE ))
   if (( BUDGET < 5000000 )); then
     echo "window too small for $JOB; stays queued"
     break
@@ -177,7 +207,11 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   fi
   mv -f "$JF" "$N/queue/done/$JOB"      # one-shot: consumed at launch
   cd "$BASE/sim/mjx"
-  XLA_PYTHON_CLIENT_MEM_FRACTION=0.90 nohup "$PY" train_mjx.py $ARGS \
+  # MuJoCo Warp (--mjx-impl warp) allocates GPU memory outside XLA's pool:
+  # no 90 % preallocation for it (2026-10-07), on-demand allocation instead
+  MEMENV="XLA_PYTHON_CLIENT_MEM_FRACTION=0.90"
+  [[ "$ARGS" == *"--mjx-impl warp"* ]] && MEMENV="XLA_PYTHON_CLIENT_PREALLOCATE=false"
+  env $MEMENV nohup "$PY" train_mjx.py $ARGS \
     > "$BASE/sim/runs/train.log" 2>&1 < /dev/null &
   PID=$!
   { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
@@ -198,6 +232,7 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   mv -f "$N/state" "$N/state.done.$OUT"
   restore_ollama
 done
+"$N/vision_pause.sh" resume
 # leave the tree on main so a branch job never strands the clone
 [[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
 echo "$(date) night_run loop done"

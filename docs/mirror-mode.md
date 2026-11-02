@@ -63,11 +63,12 @@ that sets `POSE` is by construction one that can read the answer.
 | 69 | base + joints + attitude | both |
 
 - The joint block is 17 × i16 milli-radians, one per **bus** servo in
-  **servo-ID order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): IDs 1–10 the
-  legs as on the prototype, then the ankle rolls, the neck and the arms
-  ([servo-map.md](servo-map.md) §2.1). It is not the policy's joint order;
-  consumers map it by name. A servo the robot does not carry (IDs 11–17 on
-  the prototype) reads 0.0.
+  **bus order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): the ten prototype
+  leg joints, then the ankle rolls, the neck and the arms
+  ([servo-map.md](servo-map.md) §2.1); the servo IDs are not the positions.
+  It is not the policy's joint order; consumers map it by name. A servo the
+  robot does not carry (the ankle rolls, neck and arms on the prototype)
+  reads 0.0.
 - With joints present, `t_us` is the instant they were read off the bus.
 - The robot publishes the pose every armed tick through `main/joint_pose.h`
   (a double buffer with a sequence counter, so one beacon never mixes two

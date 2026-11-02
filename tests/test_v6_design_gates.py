@@ -62,7 +62,8 @@ def test_committed_plant_is_the_robot():
     sys.path.insert(0, os.path.join(HERE, "..", "sim", "mjx"))
     import robot_plant
     assert (robot_plant.HOLD_DEG["shoulder"], robot_plant.HOLD_DEG["elbow"]) == V.ARM_REST
-    assert 2.0 < m.body_subtreemass[0] < 2.4
+    # 2.43 kg as drawn: the OVONIC 4200 pack (246 g, #107) and the power bay (#108)
+    assert 2.0 < m.body_subtreemass[0] < 2.6
 
 
 def test_committed_plant_is_generated():

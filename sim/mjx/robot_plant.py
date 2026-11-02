@@ -36,6 +36,9 @@ import mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROBOT_XML = "bimo_biped_v6ar.xml"
+# the body as built 2026-10-24: 12 leg servos + the control board, no pack, Pi,
+# head, neck or arms (build_v6_inertia.asbuilt_legs; `--robot --xml` selects it)
+ROBOT_LEGS_XML = "bimo_biped_v6legs.xml"
 
 # rest pose per held joint role (deg); a joint the plant does not have is
 # simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST
@@ -91,11 +94,15 @@ def _role(name):
 
 def is_robot_model(m):
     """The robot's plant, told apart from every prototype plant by what it
-    has: the ankle-roll joints (the 6-DOF leg) and the head camera site. The
+    has: the ankle-roll joints (the 6-DOF leg) and a mounted IMU, plus -- on
+    the plants that have a head -- the camera site. The legs-only as-built
+    plant (ROBOT_LEGS_XML) has no head; every v6 plant has the `imu` site. The
     referee keys its per-plant conditions on this, not on a file name."""
     names = {m.joint(j).name for j in range(m.njnt)}
-    has_cam = any(m.site(i).name == "camera" for i in range(m.nsite))
-    return {"L_ankle_roll", "R_ankle_roll"} <= names and has_cam
+    sites = {m.site(i).name for i in range(m.nsite)}
+    has_head = "neck_yaw" in names
+    return ({"L_ankle_roll", "R_ankle_roll"} <= names and "imu" in sites
+            and ("camera" in sites or not has_head))
 
 
 def robot_env_kwargs(xml=None):
