@@ -11,8 +11,8 @@ namespace {
 // returns 0 rather than handing the host a half-record it would silently
 // mis-parse.
 struct Cursor {
-    char* out;
-    size_t cap;
+    char* out = nullptr;
+    size_t cap = 0;
     size_t pos = 0;
     bool ok = true;
 

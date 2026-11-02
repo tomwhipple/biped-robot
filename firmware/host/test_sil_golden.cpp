@@ -126,19 +126,16 @@ std::string resolveWeights(const std::string& json_path,
                     const std::string cand = join(d, r->str + ".silw");
                     if (siljson::fileExists(cand.c_str())) return cand;
                 }
+                // A golden file that names a run whose .silw is absent falls
+                // back to the compiled-in net (or skips): another run's blob
+                // (e.g. a policy profile's export, which lands in the same
+                // sim/sil/weights/) is not "its" weights.
+                return std::string();
             }
         }
     }
-    // Last resort: exactly one .silw nearby is unambiguous, more than one
-    // is not -- but only for a golden file that names no run. One that does
-    // and whose .silw is absent falls back to the compiled-in net (or skips):
-    // another run's blob (e.g. a policy profile's export, which lands in the
-    // same sim/sil/weights/) is not "its" weights.
-    if (root.isObj()) {
-        if (const siljson::Value* r = root.get("run")) {
-            if (r->isStr() && !r->str.empty()) return std::string();
-        }
-    }
+    // Last resort, for a golden file that names no run: exactly one .silw
+    // nearby is unambiguous, more than one is not.
     for (const std::string& d : dirs) {
         std::vector<std::string> silw;
         listFiles(d, ".silw", silw);

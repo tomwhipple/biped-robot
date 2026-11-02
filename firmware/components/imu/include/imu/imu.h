@@ -44,10 +44,10 @@ struct Sample {
     // (+0.342, 0, 0.940). Heading is not observable to a 6-axis IMU, so the
     // fusion has to dead-reckon yaw and it will drift. fusion.h explains what
     // that costs and what the yaw-invariant alternative would be.
-    float up[3];
-    float gyro[3];      // rad/s, body frame
-    uint64_t t_us;      // timestamp of the report
-    bool valid;
+    float up[3] = {};
+    float gyro[3] = {};     // rad/s, body frame
+    uint64_t t_us = 0;      // timestamp of the report
+    bool valid = false;
     // For the flight recorder (main/flight_rec.h), not the policy: the
     // specific force behind this sample (m/s^2, body frame, mount applied,
     // gyro-style bias NOT subtracted -- the accelerometer has none modelled)

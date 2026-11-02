@@ -211,7 +211,7 @@ void SimProc::stop() {
     }
 }
 
-bool SimProc::tell(const char* line) {
+bool SimProc::tell(const char* text) {
     if (in_fd < 0 || pid <= 0) return false;
     // The child may already be dead: poll() reaps at the END of a tick, so a
     // sim killed by a signal between ticks still looks alive here. Writing to
@@ -226,7 +226,7 @@ bool SimProc::tell(const char* line) {
         return false;
     }
     char buf[192];
-    const int n = snprintf(buf, sizeof buf, "%s\n", line);
+    const int n = snprintf(buf, sizeof buf, "%s\n", text);
     if (n <= 0 || static_cast<size_t>(n) >= sizeof buf) return false;
     const ssize_t w = write(in_fd, buf, static_cast<size_t>(n));
     if (w != n) {

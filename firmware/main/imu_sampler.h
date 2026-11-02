@@ -42,9 +42,9 @@ struct RingStats {
     float rms_first = 0.0f, rms_last = 0.0f;
     float f_hz = 0.0f;
     int nbins = 0;
-    float env[80];                // per-50 ms RMS, oldest first (<= 4 s)
-    float integ[3];               // integrated body-frame gyro over the window, rad
-    float mean[3];                // mean body-frame gyro over the window, rad/s
+    float env[80] = {};           // per-50 ms RMS, oldest first (<= 4 s)
+    float integ[3] = {};          // integrated body-frame gyro over the window, rad
+    float mean[3] = {};           // mean body-frame gyro over the window, rad/s
 };
 bool imuRing(int ms, RingStats& out);
 }  // namespace robot

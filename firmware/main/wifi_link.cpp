@@ -91,15 +91,15 @@ void wifiLinkTask(void*) {
     // a copy (the g_* atomics below are `wifi` diagnostics, not inputs).
     struct Commander {
         sockaddr_in addr;
-        bool pose;      // Mirror mode: a LEVEL from this frame, not a latch.
-                        // Unlike ARM there is nothing to remember -- a
-                        // commander that stops asking stops getting long
-                        // frames on the very next beacon.
-        bool att;       // Same rule, same snapshot: the torso up vector. It
-                        // shares this struct with `pose` and the address for
-                        // the reason spelled out above -- two optional blocks
-                        // read from different frames could hand a commander a
-                        // length it never asked for, which every client drops.
+        bool pose = false;   // Mirror mode: a LEVEL from this frame, not a latch.
+                             // Unlike ARM there is nothing to remember -- a
+                             // commander that stops asking stops getting long
+                             // frames on the very next beacon.
+        bool att = false;    // Same rule, same snapshot: the torso up vector. It
+                             // shares this struct with `pose` and the address for
+                             // the reason spelled out above -- two optional blocks
+                             // read from different frames could hand a commander a
+                             // length it never asked for, which every client drops.
     };
     Commander cmdr = {};
     bool have_cmdr = false;
