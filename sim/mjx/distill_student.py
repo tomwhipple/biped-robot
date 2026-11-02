@@ -167,6 +167,13 @@ def main():
     p.add_argument("--require-full-map", action="store_true",
                    help="refuse a teacher whose action_map is not 'full' "
                         "(tools/export_policy_weights.py exports only those)")
+    p.add_argument("--env-set", action="append", default=[], metavar="KEY=JSON",
+                   help="override one teacher config.json env key for the distill "
+                        "rollouts (repeatable; the value is JSON), e.g. the fast-servo "
+                        "dead time 'act_delay_types={\"sts3215\":[0,2],\"sts3250\":[0,1]}'. "
+                        "The student's config.json carries the overridden value (so the "
+                        "referee grades it on that plant) and distill.env_overrides "
+                        "records the teacher's original")
     args = p.parse_args()
 
     t_dir = os.path.join(RUNS, args.teacher)
@@ -179,6 +186,16 @@ def main():
     with open(os.path.join(t_dir, "params.pkl"), "rb") as f:
         t_params = pickle.load(f)
     norm_params = t_params[0]
+    env_overrides = {}
+    for item in args.env_set:
+        key, sep, val = item.partition("=")
+        if not sep or key in _NOT_ENV:
+            raise SystemExit(f"--env-set wants KEY=JSON with an env key, got {item!r}")
+        if key not in cfg:
+            raise SystemExit(f"--env-set {key}: not a key of the teacher's config.json")
+        env_overrides[key] = {"teacher": cfg[key], "distill": json.loads(val)}
+        cfg[key] = env_overrides[key]["distill"]
+        print(f"env override {key}: {env_overrides[key]['teacher']!r} -> {cfg[key]!r}", flush=True)
     t_hidden = hidden_sizes(t_params[1], (512, 256, 128))
 
     amap = cfg.get("action_map", "legacy")
@@ -315,6 +332,7 @@ def main():
             normalizer="teacher, frozen",
             label="tanh(mean), deterministic mode",
             rounds=args.rounds, rounds_done=len(curve), complete=complete,
+            env_overrides=env_overrides,
             envs=args.envs, chunk=args.chunk,
             chunks_per_round=args.chunks_per_round, epochs=args.epochs,
             batch=args.batch, lr=args.lr, lr_final=args.lr_final,

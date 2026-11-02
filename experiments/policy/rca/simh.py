@@ -46,8 +46,10 @@ def build(plant, run=RUN_NAME, ep_s=16.0, model=None):
 
 
 def run_root(run):
-    """The main checkout's sim/runs, else the night clone's (tonight's fresh runs)."""
-    for root in (os.path.join(rec.MAIN, "sim", "runs"), "/home/claw/code/robot-mjx/sim/runs"):
+    """This checkout's sim/runs (a worktree's own runs), else the main checkout's, else the
+    night clone's (tonight's fresh runs)."""
+    for root in (os.path.join(rec.ROOT, "sim", "runs"), os.path.join(rec.MAIN, "sim", "runs"),
+                 "/home/claw/code/robot-mjx/sim/runs"):
         if os.path.exists(os.path.join(root, run, "params.pkl")):
             return root
     return os.path.join(rec.MAIN, "sim", "runs")
