@@ -16,7 +16,8 @@ the committed plant, which is THE ROBOT AS DRAWN:
   * the robot's servos (DESIGN.md section 4): an STS3250 (74.5 g) at each
     hip roll, an STS3215 (55 g) everywhere else. --servo-plan B is 17 x
     STS3215; 3250 puts STS3250s at the six roll + knee joints.
-  * the one-print hip yoke (hip_yoke_v6), the girdle, the neck floor, the
+  * the glued hip yoke (hip_yoke_glued_roll + hip_yoke_glued_pitch, two prints
+    glued into one rigid link), the girdle, the neck floor, the
     arm links, the bearing housing, and the two hip-yaw bearings (6810-2RS)
     split between the housing and the carriers.
 
@@ -32,7 +33,7 @@ lands in the body whose joint moves it.
                neck_collar, armless), the bearings' outer halves
     head       head (shell + face fused) + camera
     _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half
-    _hip       hip_yoke_v6
+    _hip       hip_yoke_glued_roll + hip_yoke_glued_pitch (glued into one link)
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
     _foot      foot + silicone sole + the ankle-roll servo
     _arm       arm_upper_v6 + the elbow servo (its case runs up the upper arm)
@@ -186,6 +187,10 @@ def servo(key, grams):
     return mesh_props(_mock_stl(key), [0, 0, 0], mass=grams * 1e-3)
 
 
+# the hip link as built: two prints glued into one rigid link, both in the link frame
+HIP_YOKE_PIECES = ("hip_yoke_glued_roll", "hip_yoke_glued_pitch")
+
+
 def stl(name):
     return os.path.join(STL, name + ".stl")
 
@@ -258,7 +263,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
         hy = [mesh_props(stl(carrier), [0, 0, 0]), servo("roll", g_roll),
               ring_props(brg_kg / 2, ri, (ri + ro) / 2, bz0, bz1)]      # the bearing's inner half turns with the leg
         out[f"{side}_hip_yaw"] = hy
-        out[f"{side}_hip"] = [mesh_props(stl("hip_yoke_v6"), [0, 0, 0])]
+        out[f"{side}_hip"] = [mesh_props(stl(n), [0, 0, 0]) for n in HIP_YOKE_PIECES]
         out[f"{side}_thigh"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g15)]
         out[f"{side}_shin"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g_knee)]
         out[f"{side}_ankle_blk"] = [mesh_props(stl("ankle_link"), [0, 0, 0]), servo("pitch", g15)]
