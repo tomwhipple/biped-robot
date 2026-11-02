@@ -321,6 +321,32 @@ const char* motionText(const Intent& in);
 void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
                 float& vy, float& wz, Ext& ext_out, uint8_t& flags);
 
+// -- around the link: handover, re-pointing, leaving ------------------------
+// The rules every front end follows when the link itself changes. bimo_gui
+// calls them, and so does the C boundary (link/console_api.h) that the Qt
+// console loads, so each has one copy.
+
+// WATCHING <-> DRIVING. Going to watch closes the transmit socket and sends
+// NO parting disarm (Link::goReadonly); taking control adopts the level the
+// robot reports (Intent::adopt), so the handover moves nothing. `host` is
+// only quoted in `msg`, which says what happened either way. Returns false
+// when control could not be taken: no robot address (Link::has_dest).
+bool toggleControl(Link& link, Intent& in, const char* host, double now_ms,
+                   char* msg, size_t cap);
+
+// Re-point the console at another robot (or the sim), in the given mode. A
+// driving console that holds the robot armed drops ARM first, repeated: unlike
+// handing over, nobody is left commanding the robot it leaves. The intent
+// comes back disarmed, released and unlatched.
+bool relinkDisarming(Link& link, Intent& in, const char* host, int cmd_port,
+                     int tlm_port, bool observe);
+
+// The disarm a console sends on its way out: ARM dropped, `frames` times,
+// `gap_ms` apart, since any one datagram may vanish. An observer sends
+// nothing -- it never armed anything, and must not disarm what the driver
+// armed.
+void leaveDisarmed(Link& link, int frames, int gap_ms);
+
 }  // namespace bimo
 
 #endif  // BIMO_LINK_CLIENT_H_

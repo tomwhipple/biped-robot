@@ -48,6 +48,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
     # beacon is classic again. See docs/mirror-mode.md.
     want_pose, last_pose = False, None
     want_att, last_att = False, None
+    last_stop = (None, -1e9)
     homes_seen = sup.homes
     t0 = time.monotonic()
     tick = 0
@@ -73,6 +74,17 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                 # 2026-09-02, and why it now says so out loud.
                 pkt = pkt._replace(flags=pkt.flags & ~FLAG_HOME)
             sup.accept(pkt, now_ms)
+            if pkt.stop:
+                # Out of band (Supervisor.accept): a stop button's frame is
+                # not the commander's, so it leaves its beacon requests be.
+                # One line per burst (frames come at 100 Hz) and per kind.
+                kind = "hard" if pkt.estop else "soft"
+                if not quiet and (kind != last_stop[0]
+                                  or now_ms - last_stop[1] > 300.0):
+                    print(f"  [{now_ms/1000:7.2f}s] stop: {kind} from {peer}",
+                          flush=True)
+                last_stop = (kind, now_ms)
+                continue
             want_pose = pkt.pose
             want_att = pkt.att
         state = sup.state(now_ms)

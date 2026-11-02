@@ -1,7 +1,14 @@
-"""End-to-end: the real bimo_gui binary against the plant-free link twin over
-real UDP.
+"""End-to-end: the real consoles against the plant-free link twin over real
+UDP -- bimo_gui (link/gui.cpp) and the Qt console's --headless
+(link/bimo_console.py, the same C++ core through link/console_api.h), every
+scenario against both.
 
-Run:  make -C firmware/host gui && .venv/bin/python -m pytest tests/test_gui_e2e.py -q
+Run:  make -C firmware/host gui console && .venv/bin/python -m pytest tests/test_gui_e2e.py -q
+
+Where the v2 console differs by design, the test says so: its E-STOP is the
+out-of-band hard stop (it ends the run, as tools/estop.py does), its HOLD
+and E-STOP reach the robot from an observer too, and --mirror draws the
+robot in the console instead of starting a sim to pose.
 
 The window is not what is tested here, and does not need to be: bimo_gui
 --headless runs the IDENTICAL link loop (link/client.h's Link + Intent, the
@@ -31,6 +38,9 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUI = os.path.join(ROOT, "firmware", "host", "build", "bimo_gui")
+V2 = os.path.join(ROOT, "link", "bimo_console.py")
+V2_LIB = os.path.join(ROOT, "firmware", "host", "build", "libbimo_console."
+                      + ("dylib" if sys.platform == "darwin" else "so"))
 TWIN = os.path.join(ROOT, "link", "link_twin.py")
 
 # A PAIR PER TEST, not one pair for the file. The twins bind with
@@ -41,8 +51,33 @@ TWIN = os.path.join(ROOT, "link", "link_twin.py")
 # flake that is impossible to find locally.
 _next_port = itertools.count(4312, 4)
 
-pytestmark = pytest.mark.skipif(not os.path.exists(GUI),
-                                reason="build it: make -C firmware/host gui")
+
+
+class Console:
+    """How to start one of the two consoles."""
+
+    def __init__(self, name):
+        self.name = name
+        self.v2 = name == "bimo_console"
+
+    def cmd(self, args):
+        args = list(args)
+        if not self.v2:
+            return [GUI, *args]
+        # v2 starts as an observer; a test that drives says so.
+        if "--readonly" not in args and "--host" in args:
+            args.append("--drive")
+        return [sys.executable, V2, *args]
+
+
+@pytest.fixture(params=["bimo_gui", "bimo_console"])
+def console(request):
+    c = Console(request.param)
+    if not c.v2 and not os.path.exists(GUI):
+        pytest.skip("build it: make -C firmware/host gui")
+    if c.v2 and not os.path.exists(V2_LIB):
+        pytest.skip("build it: make -C firmware/host console")
+    return c
 
 
 def _ports():
@@ -57,7 +92,7 @@ def _twin(cmd_port, tlm_port, extra=()):
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
-def _gui(script, cmd_port, tlm_port, extra=()):
+def _gui(console, script, cmd_port, tlm_port, extra=()):
     """Feed `script` -- a list of (delay_s, line) -- to a headless console.
 
     Written from a thread-free generator into the child's stdin: the delays
@@ -65,8 +100,8 @@ def _gui(script, cmd_port, tlm_port, extra=()):
     batched up front.
     """
     proc = subprocess.Popen(
-        [GUI, "--host", "127.0.0.1", "--cmd-port", str(cmd_port),
-         "--tlm-port", str(tlm_port), "--headless", *extra],
+        console.cmd(["--host", "127.0.0.1", "--cmd-port", str(cmd_port),
+                     "--tlm-port", str(tlm_port), "--headless", *extra]),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1)
     for delay, line in script:
@@ -90,11 +125,11 @@ def _ext_lines(log):
     return [ln for ln in log.splitlines() if "crouch" in ln]
 
 
-def _run(script, twin_args=(), gui_args=()):
+def _run(console, script, twin_args=(), gui_args=()):
     cmd_port, tlm_port = _ports()
     twin = _twin(cmd_port, tlm_port, twin_args)
     time.sleep(0.5)
-    gui = _gui(script, cmd_port, tlm_port, gui_args)
+    gui = _gui(console, script, cmd_port, tlm_port, gui_args)
     try:
         out = gui.communicate(timeout=15)[0]
     except subprocess.TimeoutExpired:
@@ -106,11 +141,11 @@ def _run(script, twin_args=(), gui_args=()):
     return out, log, gui.returncode
 
 
-def test_arm_press_release_estop_quit():
+def test_arm_press_release_estop_quit(console):
     # The ARM level must be seen LOW before it can be seen going high:
     # ArmLatch deliberately ignores a sender's first frame, so that a robot
     # rebooting under a console still holding ARM=1 stays benched.
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.0, "arm"),
         (1.2, "press forward"),
         (0.6, "release forward"),
@@ -136,9 +171,20 @@ def test_arm_press_release_estop_quit():
     assert ("live", "+0.00", "+0.00", "on") in seq[i:], log
     assert ("live", "+0.00", "+0.50", "on") in seq, log
 
-    assert any(s[0] == "estop" and s[3] == "off" for s in seq), log
-    j = max(k for k, s in enumerate(seq) if s[0] == "estop")
-    assert any(s[0] == "live" for s in seq[j:]), log    # stand cleared it
+    if console.v2:
+        # The out-of-band HARD stop: torque off and the run ENDED (benched,
+        # DISARMED_STOP), so STAND does not bring it back -- re-arming is a
+        # deliberate act, as after tools/estop.py.
+        assert "stop: hard" in log, log
+        j = max(k for k, s in enumerate(seq) if s[0] == "live")
+        assert seq[j + 1][0] in ("bench", "estop") and seq[j + 1][3] == "off", log
+        assert "operator STOP" in log, log
+        assert not any(s[0] == "live" for s in seq[j + 1:]), log
+        assert "STOP CONFIRMED" in out, out
+    else:
+        assert any(s[0] == "estop" and s[3] == "off" for s in seq), log
+        j = max(k for k, s in enumerate(seq) if s[0] == "estop")
+        assert any(s[0] == "live" for s in seq[j:]), log    # stand cleared it
     assert kinds[-1] == "bench" and seq[-1][3] == "off", log   # quit disarmed
     assert rc == 0, out
 
@@ -146,9 +192,9 @@ def test_arm_press_release_estop_quit():
     assert "11.40 V" in out, out                        # telemetry decoded
 
 
-def test_a_slider_reaches_the_wire_as_an_extended_frame():
+def test_a_slider_reaches_the_wire_as_an_extended_frame(console):
     """crouch is a channel no keyboard console can command at all."""
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.0, "arm"),
         (1.2, "set crouch 0.80"),
         (0.8, "press strafe_left"),
@@ -172,8 +218,8 @@ def test_a_slider_reaches_the_wire_as_an_extended_frame():
     assert rc == 0, out
 
 
-def test_console_follows_a_robot_that_refuses_to_arm():
-    out, log, rc = _run([
+def test_console_follows_a_robot_that_refuses_to_arm(console):
+    out, log, rc = _run(console, [
         (0.8, "arm"),
         (2.5, "press forward"),      # > kArmSyncMs: the console has given up
         (0.5, "quit"),
@@ -193,7 +239,7 @@ def test_console_follows_a_robot_that_refuses_to_arm():
     assert rc == 0, out
 
 
-def test_closing_stdin_disarms():
+def test_closing_stdin_disarms(console):
     """A console that goes away must leave a limp robot, not a standing one.
 
     Killing the operator (here: EOF on stdin) is the case that matters -- the
@@ -203,7 +249,7 @@ def test_closing_stdin_disarms():
     cmd_port, tlm_port = _ports()
     twin = _twin(cmd_port, tlm_port)
     time.sleep(0.5)
-    gui = _gui([(1.0, "arm"), (1.2, "press forward"), (0.5, "")],
+    gui = _gui(console, [(1.0, "arm"), (1.2, "press forward"), (0.5, "")],
                cmd_port, tlm_port)
     try:
         gui.stdin.close()                 # EOF: the console should leave
@@ -226,7 +272,7 @@ def _pose_lines(log):
     return [ln for ln in log.splitlines() if "pose " in ln]
 
 
-def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
+def test_mirror_mode_asks_for_joint_angles_and_stops_asking(console):
     """The whole point of FLAG_POSE being a request rather than a default.
 
     A robot must beacon the classic 20 B frame to everyone until a commander
@@ -234,7 +280,7 @@ def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
     docs/mirror-mode.md). So: silent by default, long frames while mirroring,
     classic again the moment the console stops asking.
     """
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.0, "sim mirror"),
         (2.0, "sim mirror off"),
         (1.0, "quit"),
@@ -252,7 +298,7 @@ def test_mirror_mode_asks_for_joint_angles_and_stops_asking():
     assert rc == 0, out
 
 
-def test_mirror_flag_brings_up_the_sim_it_mirrors_against(tmp_path):
+def test_mirror_flag_brings_up_the_sim_it_mirrors_against(console, tmp_path):
     """`--mirror` must reach the SPAWN path, not just flip the mode.
 
     Mirroring with no sim is the console asking the robot for joint angles and
@@ -261,19 +307,21 @@ def test_mirror_flag_brings_up_the_sim_it_mirrors_against(tmp_path):
     picking a run: pointed at an empty --repo there is nothing to run, and it
     says so out loud instead of coming up silently mirror-on and blank.
     """
-    out, log, rc = _run([(1.5, "quit"), (0.5, "")],
+    out, log, rc = _run(console, [(1.5, "quit"), (0.5, "")],
                         gui_args=["--no-record", "--mirror",
                                   "--repo", str(tmp_path)])
     assert "MIRROR" in out, out
-    assert "no runnable sim runs" in out, out
+    if not console.v2:
+        # v2 draws the measured pose itself (the 3D view): no sim to start.
+        assert "no runnable sim runs" in out, out
     # ... and it really did ask the robot for angles, empty repo or not.
     assert any("requested" in ln for ln in _pose_lines(log)), log
     assert rc == 0, out
 
 
-def test_mirror_is_off_unless_asked_for():
+def test_mirror_is_off_unless_asked_for(console):
     """A console that never mentions mirroring must never request pose."""
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.0, "arm"),
         (1.5, "press forward"),
         (0.5, "quit"),
@@ -287,7 +335,7 @@ def _home_lines(log):
     return [ln for ln in log.splitlines() if "home:" in ln]
 
 
-def test_reset_servos_works_with_the_estop_latched():
+def test_reset_servos_works_with_the_estop_latched(console):
     """The one button that must survive the state everything else refuses in.
 
     An E-stopped robot is limp by design, and that is the state an operator is
@@ -296,23 +344,29 @@ def test_reset_servos_works_with_the_estop_latched():
     way out -- it needs no arm, it reaches the robot through the E-stop, and
     the robot benches and holds the standing pose rather than staying limp.
     """
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.0, "arm"),
         (1.2, "press forward"),
         (0.5, "estop"),
-        (0.5, "home"),
+        # v2's E-STOP is a 1 s burst of hard-stop frames, and the console
+        # refuses a reset while one is going out: the stop wins.
+        (1.8 if console.v2 else 0.5, "home"),
         (0.8, "quit"),
         (0.5, ""),
     ], gui_args=["--no-record"])
 
     seq = _states(log)
     kinds = [s[0] for s in seq]
-    assert "estop" in kinds, log
+    if console.v2:
+        assert "stop: hard" in log, log
+        i = max(k for k, s in enumerate(seq) if s[0] == "live") + 1
+    else:
+        assert "estop" in kinds, log
+        i = max(k for k, s in enumerate(seq) if s[0] == "estop")
     assert _home_lines(log), "the robot never saw the request\n" + log
 
     # After the reset: benched (the run is over) but torque ON -- the one
     # combination nothing else on this wire produces, and the whole point.
-    i = max(k for k, s in enumerate(seq) if s[0] == "estop")
     held = [s for s in seq[i:] if s[0] == "bench" and s[3] == "on"]
     assert held, log
     assert "servos reset to the standing pose" in log, log
@@ -327,13 +381,13 @@ def test_reset_servos_works_with_the_estop_latched():
     assert rc == 0, out
 
 
-def test_reset_servos_needs_no_arm_and_is_one_edge():
+def test_reset_servos_needs_no_arm_and_is_one_edge(console):
     """From the boot state, and exactly once however long the level is held.
 
     The robot acts on the RISING edge (HomeLatch), so a level held for
     kHomeFrames must still home once -- not eight times at 20 Hz.
     """
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.5, "home"),
         (1.0, "home"),
         (0.8, "quit"),
@@ -345,7 +399,7 @@ def test_reset_servos_needs_no_arm_and_is_one_edge():
     assert rc == 0, out
 
 
-def test_a_robot_that_never_heard_of_the_reset_is_called_out():
+def test_a_robot_that_never_heard_of_the_reset_is_called_out(console):
     """The failure that actually happened the day the button shipped.
 
     A console rebuilt with RESET SERVOS, pointed at firmware that predates
@@ -355,7 +409,7 @@ def test_a_robot_that_never_heard_of_the_reset_is_called_out():
     "answered about something else" -- otherwise the operator goes looking
     for a dead radio or a seized servo.
     """
-    out, log, rc = _run([
+    out, log, rc = _run(console, [
         (1.5, "home"),
         (2.5, ""),
         (0.5, "quit"),
@@ -378,16 +432,16 @@ def test_a_robot_that_never_heard_of_the_reset_is_called_out():
 # is only reachable because the driver forwards.
 
 
-def _observer(tlm_port, extra=()):
+def _observer(console, tlm_port, extra=()):
     """A headless watcher. No --host: it has nowhere to send, by design."""
     return subprocess.Popen(
-        [GUI, "--headless", "--readonly", "--tlm-port", str(tlm_port),
-         "--no-record", *extra],
+        console.cmd(["--headless", "--readonly", "--tlm-port", str(tlm_port),
+                     "--no-record", *extra]),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1)
 
 
-def test_readonly_console_cannot_command_the_robot():
+def test_readonly_console_cannot_command_the_robot(console):
     """Point a watcher straight at the twin and try every control on it.
 
     This is the adversarial case, not the intended wiring: the observer is
@@ -400,8 +454,8 @@ def test_readonly_console_cannot_command_the_robot():
     cmd_port, tlm_port = _ports()
     twin = _twin(cmd_port, tlm_port)
     time.sleep(0.5)
-    obs = _observer(tlm_port, ["--host", "127.0.0.1",
-                               "--cmd-port", str(cmd_port)])
+    obs = _observer(console, tlm_port, ["--host", "127.0.0.1",
+                                        "--cmd-port", str(cmd_port)])
     for delay, line in [(0.8, "arm"), (0.6, "press forward"),
                         (0.5, "estop"), (0.5, "home"), (0.5, "quit"),
                         (0.5, "")]:
@@ -427,6 +481,12 @@ def test_readonly_console_cannot_command_the_robot():
     #    command. Telemetry arriving here would have meant a frame got out.
     assert [st for st, _, _, _ in _states(log)] == ["bench"], log
     assert "robot (no telemetry)" in out, out
+    if console.v2:
+        # Its E-STOP is the one thing an observer sends: the out-of-band stop,
+        # which no latch or watchdog sees. A benched robot changes no mode on
+        # it -- hence still the single "bench" line above.
+        assert "stop: hard from 127.0.0.1" in log, log
+        assert "home:" not in log, log
     assert "OBSERVER" in out, out
     # And it said so for each refusal rather than going quiet, which is the
     # difference between a mode and a bug.
@@ -435,7 +495,7 @@ def test_readonly_console_cannot_command_the_robot():
     assert obs.returncode == 0, out
 
 
-def test_the_driver_forwards_the_beacon_to_the_watcher():
+def test_the_driver_forwards_the_beacon_to_the_watcher(console):
     """The intended wiring: driver --watch, watcher --readonly.
 
     The watcher is bound to a port the twin never sends to, so every beacon it
@@ -446,9 +506,9 @@ def test_the_driver_forwards_the_beacon_to_the_watcher():
     watch_port = tlm_port + 1                  # _next_port strides 4
     twin = _twin(cmd_port, tlm_port)
     time.sleep(0.5)
-    obs = _observer(watch_port)
+    obs = _observer(console, watch_port)
     time.sleep(0.3)
-    drv = _gui([(1.0, "arm"), (1.5, "press forward"), (0.8, "release forward"),
+    drv = _gui(console, [(1.0, "arm"), (1.5, "press forward"), (0.8, "release forward"),
                 (0.4, "quit"), (0.4, "")], cmd_port, tlm_port,
                ["--no-record", "--watch", "127.0.0.1:%d" % watch_port])
     try:
@@ -481,7 +541,7 @@ def test_the_driver_forwards_the_beacon_to_the_watcher():
     assert obs.returncode == 0, obs_out
 
 
-def test_a_watcher_can_take_control_and_hand_it_back():
+def test_a_watcher_can_take_control_and_hand_it_back(console):
     """The toggle, end to end, against a robot the watcher was only watching.
 
     Started with --readonly, so nothing it does can reach the twin until it
@@ -495,9 +555,9 @@ def test_a_watcher_can_take_control_and_hand_it_back():
     time.sleep(0.5)
     # A watcher WITH a --host: it has somewhere to take control to.
     proc = subprocess.Popen(
-        [GUI, "--headless", "--readonly", "--host", "127.0.0.1",
-         "--cmd-port", str(cmd_port), "--tlm-port", str(tlm_port),
-         "--no-record"],
+        console.cmd(["--headless", "--readonly", "--host", "127.0.0.1",
+                     "--cmd-port", str(cmd_port), "--tlm-port", str(tlm_port),
+                     "--no-record"]),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1)
     for delay, line in [(0.8, "arm"),            # refused: still watching
@@ -537,7 +597,7 @@ def test_a_watcher_can_take_control_and_hand_it_back():
     assert proc.returncode == 0, out
 
 
-def test_mirror_asks_for_attitude_and_the_robot_answers():
+def test_mirror_asks_for_attitude_and_the_robot_answers(console):
     """Mirror mode must carry BOTH halves of "the last known state".
 
     Joint angles say what the legs are doing; the up vector says which way the
@@ -549,8 +609,8 @@ def test_mirror_asks_for_attitude_and_the_robot_answers():
     cmd_port, tlm_port = _ports()
     twin = _twin(cmd_port, tlm_port)
     time.sleep(0.5)
-    gui = _gui([(1.0, "arm"), (1.0, "sim mirror"), (2.0, "quit"), (0.5, "")],
-               cmd_port, tlm_port, ["--no-record"])
+    gui = _gui(console, [(1.0, "arm"), (1.0, "sim mirror"), (2.0, "quit"),
+                         (0.5, "")], cmd_port, tlm_port, ["--no-record"])
     try:
         out = gui.communicate(timeout=15)[0]
     except subprocess.TimeoutExpired:
