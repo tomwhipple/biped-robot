@@ -22,30 +22,31 @@ WHY TWO PIECES
   turning 0.3 mm inside the carrier's bay bore) and the pad rims print like a
   cylinder lying on the bed.
 
-  PITCH U (print RY_XUP, model -X on the bed): the bed face is x = -14, the
-  idler riser's rear edge, where the r14 idler hub is already tangent. The
-  horn arm's rear edge comes back to it and meets its pad through a 45 deg
-  face tangent to the pad (PITCH_ARM_EXT).
+  PITCH U (print RY_XUP, model -X on the bed): the bed face is x = -14, where
+  the r14 idler hub is tangent. The horn arm's rear edge comes back to it and
+  meets its pad through a 45 deg face tangent to the pad (PITCH_ARM_EXT).
 
 THE JOINT
   The roll flange's underside sits on the pitch flange's top at z -20 (the
-  glue plane, ZF_MID): a glued lap 35.6 x 33.45 mm. Two split-prong snap clips
+  glue plane, ZF_MID): a glued lap about 1060 mm2. Two split-prong snap clips
   (SNAP_*) hang from the roll flange through two holes in the pitch flange
   and click under it; they locate the pieces in x and y and hold them while
   the glue cures. The prongs' fingers are cut free of the flange 2 mm up
   (relief slots) so a 0.3 mm barb bends them ~1.2 %, well inside PETG's
   yield. Glue: CA or epoxy on lightly sanded faces.
 
-THE ROLL TORQUE PATH (2026-11-02, docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)
-  The roll servo (an STS3250, 4.9 N m stall) drives the yoke through the roll
-  HORN arm, and the pitch servo reacts the torque at both pitch pads, so the
-  whole roll torque passes from the horn arm into the glued lap. The first
-  glued yoke ended the lap at x 16 and the roll flange went on alone, 27 x 4
-  mm, to the horn arm at 21.45: that strip carried the torque in torsion,
-  with its shear across the layers of an on-edge print, and it broke there on
-  the robot (the horn arm came off with a strip of flange; the glue held).
-  FEM at stall: 182 MPa at the horn arm's inner root, 69 MPa p99 over the
-  strip. Three changes move the torque straight onto the laminate:
+THE LOAD PATHS (2026-11-02, docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)
+  The yoke carries the roll servo's torque (an STS3250, 4.9 N m stall) from
+  the roll HORN arm to both pitch pads, the pitch servo's from the pitch horn
+  arm to both roll pads, and the yaw servo's as a couple across both forks.
+  An FDM part is weakest across its layers, and on these on-edge prints a
+  moment carried by a thin plate puts its shear on the layer planes. The
+  first glued yoke broke that way on the robot: the lap ended at x 16, the
+  roll flange went on alone, 27 x 4 mm, to the horn arm at 21.45, and the horn
+  arm came off with a strip of flange (the glue held). FEM at stall put
+  121 MPa across the layers at the horn arm's root. Every fork was then
+  checked in its own print frame under all three servo torques and two leg
+  forces, and given the same treatment where it needed it:
     - the pitch flange runs on to LAP_X1 (21.6), under the horn arm's inner
       face, on a toe whose underside follows the thigh's and pitch servo's
       swept envelope at -120 deg of flexion with >= 1 mm to spare (TOE_*);
@@ -53,14 +54,16 @@ THE ROLL TORQUE PATH (2026-11-02, docs/design-v6/2026-11-02-hip-yoke-roll-failur
       reached, and the toe replaces it;
     - the roll flange is as wide as the pitch flange (to PY1, 23.45), so the
       lap and the torque section are 33.45 mm wide where they were 27;
-    - a FIN rises off the roll flange's +y edge from the lap's rear to the
-      horn arm, and a WEB carries the horn arm out to the same edge: the open
-      4 mm strip becomes a deep section, inside the carrier's and the roll
-      servo's swept envelope at +-55 deg of roll with >= 1 mm to spare.
-  The -y side has no such room (the carrier and the roll servo sweep it), so
-  the section is deep on one side only. Both pieces print at 100 % infill
-  (cad/v6/print_settings.json): the fracture ran through the sparse core of
-  a 3-wall, 35 % print.
+    - a FIN rises off the roll flange's +y edge from arm to arm, and a WEB
+      carries each roll arm out to the same edge, its top tangent to the pad:
+      the open 4 mm strip becomes a deep section, inside the carrier's and the
+      roll servo's swept envelope at +-55 deg of roll with >= 1 mm to spare.
+      The -y side has no such room (the carrier and the roll servo sweep it);
+    - the pitch IDLER arm is a plate the full width of its r14 hub (x +-14),
+      not v5's 18 mm riser off to the rear, which bent in its plane under the
+      yaw servo's torque.
+  Both pieces print at 100 % infill (cad/v6/print_settings.json): the
+  fracture ran through the sparse core of a 3-wall, 35 % print.
 
     .venv/bin/python cad/v6/hip_yoke_glued.py   # stl/step + audits + mass + render
 """
@@ -105,7 +108,7 @@ PY0 = D.IDLER_ARM_INNER - D.PLATE               # -20.40 pitch idler arm, outer
 PYI1 = D.SV_HORN_FACE                           # +20.45 pitch horn arm, inner
 PYI0 = D.IDLER_ARM_INNER                        # -17.40 pitch idler arm, inner
 AHW = 12.0                                      # arm plate half-width (v5)
-RISER_X = (-14.0, 4.0)                          # pitch idler riser, v5 literals
+RISER_X = (-14.0, 4.0)                          # v5's pitch idler riser (its rear edge is the bed face)
 HUB_R = 14.0                                    # pitch idler hub, v5 literal
 
 # roll U: the bed face, and the flange's +y edge (the pitch flange's, PY1, from
@@ -127,17 +130,37 @@ TOE_X0, TOE_SLOPE = 17.0, 0.583
 # The FIN on the roll flange's +y edge: its underside leaves the flange top at
 # FIN_Y0 and rises at FIN_SLOPE (dz/dy, 36 deg off the print's vertical) to
 # FIN_TOP_Z, >= 1.2 mm (vertical) under the carrier's and the roll servo's
-# sweep at +-55 deg of roll; it runs FIN_X, the lap's rear to the horn arm.
+# sweep at +-55 deg of roll; it runs FIN_X, arm to arm.
 FIN_Y0, FIN_SLOPE, FIN_TOP_Z = 8.0, 0.72, -8.0
-FIN_X = (PITCH_BED_X, RXI1)
+FIN_X = (RXI0, RXI1)
 FIN_Y_CAP = FIN_Y0 + (FIN_TOP_Z - ZF_TOP) / FIN_SLOPE          # 19.11
-# the horn arm's +y WEB, from the arm's edge out to PY1: its top runs on the
+# the profile's corner there is bevelled (inside the profile, so it can only
+# open a clearance): the fin's junction with the arms then rounds at a real radius
+FIN_BEVEL = ((FIN_Y_CAP - 2.0, FIN_TOP_Z - 2.0 * FIN_SLOPE), (FIN_Y_CAP + 1.5, FIN_TOP_Z))
+# each roll arm's +y WEB, from the arm's edge out to PY1: its top runs on the
 # tangent from the pad's rim down to the fin's top at PY1, so the arm, the web
 # and the fin are one outline with no notch (a web whose top met the arm's
 # edge in a corner put a 59 MPa peak there at stall). It stays outside the
 # pad's radius, so no servo interface is touched. Nothing sweeps outboard of
-# the arm's inner face (the carrier's bay wall is inside it).
+# an arm's inner face (the carrier's bay walls are inside them).
 WEB_PAD_R = D.PAD_D / 2
+# the webs end WEB_RISE above the fin's top at PY1, so the fin meets each arm's
+# inner face under a face of real height (where they met at one point the
+# junction could not be rounded)
+WEB_RISE = 3.0
+# the idler pad is sunk 1.35 into its arm, so there the web keeps a 1.0 mm rim
+# round the pocket: its top is tangent to a circle 1.0 outside the pad, and
+# the rim ends in a 1.0 mm step at the tangent point
+WEB_IDLER_RIM = 1.0
+# THE PITCH IDLER ARM. v5 made it a r14 hub on an 18 mm riser (x -14..4) to
+# keep it out of the v5 thigh's idler grip plate; the v6 thigh grips inboard
+# of the arm's y band and sweeps nothing there forward to x 15 (the swept
+# map, 2026-11-02), and the off-centre riser bent in its plane under the yaw
+# servo's torque, 32 MPa across its layers at stall. It is now a plate the
+# hub's own width, x -14 (the bed face) to +14, centred on the pitch axis.
+IDLER_X1 = HUB_R
+R_IDLER_FRONT = 4.0       # its front root: under the yaw servo's torque the arm bends
+                          # in its plane and this corner carries the peak
 
 # the snap clips: two prongs on the roll flange's underside at x = 0, one at
 # each of yoke_roll's flange edges (-10 and 17; at the new +y edge the prong
@@ -326,10 +349,23 @@ def _blend(p, groups, tag):
     target radius, then smaller, then a chamfer, reporting anything it could
     not round."""
     skipped = []
-    for name, r, test in groups:
+    for name, r, test, *chain in groups:
         edges = [e for e in p.edges() if test(e)]
         if not edges:
             print(f"  [{tag}] '{name}': no edges matched -- left sharp")
+            continue
+        if chain:
+            # a chain of edges that meet at corners, rounded in one call
+            for f in LADDER:
+                try:
+                    p = fillet(edges, r * f)
+                    print(f"  [{tag}] {name}: chain of {len(edges)} at R{r * f:.2f}")
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
+            else:
+                skipped += [(name, (e.center().X, e.center().Y, e.center().Z)) for e in edges]
+                print(f"  [{tag}] {name}: chain of {len(edges)} NOT rounded")
             continue
         got = 0
         for e in edges:
@@ -355,22 +391,25 @@ def _blend(p, groups, tag):
 
 
 def roll_fin():
-    """The +y fin (x FIN_X) and the horn arm's web (x RXI1..RX1), each
-    reaching 0.5 into the flange below so the union has no coplanar seam."""
+    """The +y fin (x FIN_X) and both arms' webs, each reaching 0.5 into the
+    flange below so the union has no coplanar seam."""
     zb = ZF_TOP - 0.5
-    fin = v5.wedge_x([(FIN_Y0, zb), (FIN_Y0, ZF_TOP), (FIN_Y_CAP, FIN_TOP_Z),
-                      (PY1, FIN_TOP_Z), (PY1, zb)], FIN_X[0], FIN_X[1] + 0.01)
-    ty, tz = web_tangent()
-    web = v5.wedge_x([(0.0, zb), (PY1, zb), (PY1, FIN_TOP_Z), (ty, tz), (0.0, 0.0)], RXI1, RX1)
-    # inside the pad's own radius everything stays the pad's
-    return fin + (web - v5.cyl_x(D.PAD_D / 2, RXI1 - 1, RX1 + 1, 0, 0))
+    fin = v5.wedge_x([(FIN_Y0, zb), (FIN_Y0, ZF_TOP), *FIN_BEVEL,
+                      (PY1, FIN_TOP_Z), (PY1, zb)], FIN_X[0] - 0.01, FIN_X[1] + 0.01)
+    def prof(r):
+        ty, tz = web_tangent(r)
+        return [(0.0, zb), (PY1, zb), (PY1, FIN_TOP_Z + WEB_RISE), (ty, tz), (0.0, 0.0)]
+    webs = (v5.wedge_x(prof(WEB_PAD_R), RXI1, RX1)
+            + v5.wedge_x(prof(WEB_PAD_R + WEB_IDLER_RIM), RX0, RXI0))
+    # inside the pads' own radius everything stays the pads'
+    return fin + (webs - v5.cyl_x(D.PAD_D / 2, RX0 - 1, RX1 + 1, 0, 0))
 
 
-def web_tangent():
-    """(y, z) where the web's top leaves the circle WEB_PAD_R round the pad:
-    the upper tangent point from (PY1, FIN_TOP_Z)."""
+def web_tangent(r=WEB_PAD_R):
+    """(y, z) where the web's top leaves the circle of radius r round the
+    pad: the upper tangent point from the web's end, (PY1, FIN_TOP_Z + WEB_RISE)."""
     import math
-    px, pz, r = PY1, FIN_TOP_Z, WEB_PAD_R
+    px, pz = PY1, FIN_TOP_Z + WEB_RISE
     d = math.hypot(px, pz)
     a = math.atan2(pz, px) + math.acos(r / d)
     return r * math.cos(a), r * math.sin(a)
@@ -383,7 +422,7 @@ def roll_u(style=True):
     prongs."""
     p = v5.yoke_roll() + _fill_bolt_columns(D.M3_CLEAR / 2 + 0.05, ZF_MID, ZF_TOP)
     p -= v5.box(-40, 40, -40, ROLL_BED_Y, -40, 30)
-    p += v5.box(FIN_X[0], RX1, D.YOKE_FLANGE_Y / 2 - 0.5, PY1, ZF_MID, ZF_TOP)
+    p += v5.box(RX0, RX1, D.YOKE_FLANGE_Y / 2 - 0.5, PY1, ZF_MID, ZF_TOP)
     # the idler arm's foot stops at its sunk pad's floor: over the 1.35 mm sink
     # the pad is a pocket, and a foot there would be a feather round its rim
     for x0, x1 in ((RXI1, RX1), (RX0 + D.ROLL_IDLER_PAD_SINK, RXI0)):
@@ -398,17 +437,16 @@ def roll_u(style=True):
              lambda e: _dir(e, "y") and _on(e, x=RXI1, z=ZF_TOP)),
             ("idler arm root, servo side", R_ROOT_SERVO,
              lambda e: _dir(e, "y") and _on(e, x=RXI0, z=ZF_TOP)),
-            ("idler arm root, +y side", R_ROOT,
-             lambda e: _dir(e, "x") and _on(e, y=AHW, z=ZF_TOP)),
-            ("fin into the horn arm", R_ROOT_HORN,
-             lambda e: _on(e, x=RXI1) and not _dir(e, "y") and not _dir(e, "z")
-             and _span(e, "y", FIN_Y0, FIN_Y_CAP) and _span(e, "z", ZF_TOP, FIN_TOP_Z)),
+            # the fin's profile where it meets each arm's inner face: its sloped
+            # underside and its flat top, as one chain
+            ("fin into the arms", R_ROOT_HORN,
+             lambda e: any(_on(e, x=vx) for vx in (RXI1, RXI0)) and not _dir(e, "z")
+             and ((not _dir(e, "y") and _span(e, "y", FIN_Y0, FIN_BEVEL[1][0]) and _span(e, "z", ZF_TOP, FIN_TOP_Z))
+                  or (_dir(e, "y") and _on(e, z=FIN_TOP_Z) and _span(e, "y", FIN_BEVEL[1][0], PY1))), "chain"),
             ("flange ends, underside", R_EDGE,
              lambda e: _dir(e, "y") and any(_on(e, x=vx, z=ZF_MID) for vx in (RX1, RX0))),
             ("flange +y edge, ends", R_EDGE,
-             lambda e: _dir(e, "z") and (_on(e, x=RX0, y=D.YOKE_FLANGE_Y / 2) or _on(e, x=RX1, y=PY1))),
-            ("fin rear end", R_EDGE,
-             lambda e: _dir(e, "z") and _on(e, x=FIN_X[0], y=PY1)),
+             lambda e: _dir(e, "z") and any(_on(e, x=vx, y=PY1) for vx in (RX0, RX1))),
         ], "roll_u")
     for (y0, y1), sloped in zip(SNAP_Y, (False, True)):
         p -= _prong_reliefs(y0, y1, sloped)
@@ -441,6 +479,9 @@ def pitch_u(style=True):
     frame, returned in the roll frame."""
     zf1, zf0 = D.PITCH_ARM_REACH, D.PITCH_ARM_REACH + D.YOKE_FLANGE_T
     q = v5.yoke_pitch() + _fill_bolt_columns(D.HEATSET_D / 2 + 0.05, zf1, zf0) + pitch_toe()
+    # the idler arm as a plate on its full hub, outside the pad's radius
+    idler = v5.box(PITCH_BED_X, IDLER_X1, PY0, PYI0, 0.0, zf1 + 0.5) + v5.cyl_y(HUB_R, PY0, PYI0, 0, 0)
+    q += idler - v5.cyl_y(D.PAD_D / 2, PY0 - 1, PYI0 + 1, 0, 0)
     q -= v5.box(-40, PITCH_BED_X, -40, 40, zf1, zf0 + 1)
     q += v5.wedge_y(PITCH_ARM_EXT, D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)
     for foot in PITCH_HUB_FEET:
@@ -453,12 +494,12 @@ def pitch_u(style=True):
         p = _blend(p, [
             ("horn arm root, servo side", R_ROOT,
              lambda e: _dir(e, "x") and _on(e, y=PYI1, z=ZF_BOT)),
-            ("riser root, servo side", R_ROOT,
+            ("idler arm root, servo side", R_ROOT,
              lambda e: _dir(e, "x") and _on(e, y=PYI0, z=ZF_BOT)),
             ("horn arm root, front", R_ROOT,
              lambda e: _dir(e, "y") and _on(e, x=AHW, z=ZF_BOT)),
-            ("riser root, front", R_ROOT,
-             lambda e: _dir(e, "y") and _on(e, x=RISER_X[1], z=ZF_BOT)),
+            ("idler arm root, front", R_IDLER_FRONT,
+             lambda e: _dir(e, "y") and _on(e, x=IDLER_X1, z=ZF_BOT)),
             # not the +y one: the roll flange is flush with it there
             ("flange top, idler-side edge", R_EDGE,
              lambda e: _dir(e, "x") and _on(e, y=PY0, z=ZF_MID)),
