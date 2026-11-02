@@ -3,6 +3,7 @@
 
     tools/flight_collector.py                       # port 4220, hw_sessions/<today>/
     tools/flight_collector.py --label walk2         # ... flight_<UTC>_walk2.frec
+    tools/flight_collector.py --forward laptop:4221 # ... and re-send each datagram there
     tools/flight_session.sh start [label] | stop | status   # the background form
 
 The robot (firmware/main/flight_rec.h, `rec <mira-ip>`) sends one datagram per
@@ -23,7 +24,14 @@ File format (.frec): b"FRECSESS1\\n", one line of JSON metadata, then records
 of <u16 len><u64 host receive time, UTC us><packet>. tools/flight_reader.py
 reads it. Stdlib only -- this runs as a long-lived service.
 
-Data stays on mira: there is no upload anywhere in this file.
+--forward HOST:PORT (repeatable) re-sends every datagram, byte for byte and in
+arrival order, to each destination right after writing it: the live feed for
+an operator console. Best effort -- one non-blocking send socket, a failed
+send is counted (status line, the summary's "forward" block) and never
+delays the file. Destinations are resolved once at start. Nothing is sent to
+the robot: a destination at the address a datagram came from is skipped.
+
+The files stay on mira: there is no upload anywhere in this file.
 """
 from __future__ import annotations
 
@@ -122,10 +130,79 @@ class SeqTracker:
         return out
 
 
+class Forwarder:
+    """--forward: every datagram, unchanged, to each destination, best-effort.
+
+    Its own non-blocking socket, sendto only: a full buffer, a refused port or
+    an unreachable host costs one counted error and never a wait. `dests` is
+    [(name, (ipv4, port))], resolved by the caller once (`resolve`).
+    """
+
+    def __init__(self, dests, sock=None):
+        self.dests = list(dests)
+        if sock is None:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setblocking(False)
+        self.sock = sock
+        self.sent = {n: 0 for n, _ in self.dests}
+        self.errors = {n: 0 for n, _ in self.dests}
+        self.skipped = {n: 0 for n, _ in self.dests}    # destination == the sender
+        self.last_error: dict[str, str] = {}
+
+    @staticmethod
+    def resolve(specs) -> list:
+        """[(host, port)] -> [(name, (ipv4, port))]; OSError names the bad one."""
+        out = []
+        for host, port in specs:
+            try:
+                out.append((f"{host}:{port}", F.resolve_ipv4(host, port)))
+            except OSError as e:
+                raise OSError(f"--forward {host}:{port}: cannot resolve ({e})") from e
+        return out
+
+    def send(self, data: bytes, src_ip: str | None = None) -> None:
+        for name, addr in self.dests:
+            # Never toward the robot. Loopback is a test or a replay (the rule
+            # serve() uses for the robot's address too).
+            if src_ip and addr[0] == src_ip and not src_ip.startswith("127."):
+                self.skipped[name] += 1
+                continue
+            try:
+                self.sock.sendto(data, addr)
+                self.sent[name] += 1
+            except OSError as e:
+                self.errors[name] += 1
+                self.last_error[name] = f"{type(e).__name__}: {e}"
+
+    def counts(self) -> dict:
+        return {n: (self.sent[n], self.errors[n], self.skipped[n]) for n, _ in self.dests}
+
+    def since(self, before: dict) -> dict:
+        """Per destination, the counts accumulated since `before` (counts())."""
+        out = {}
+        for name, addr in self.dests:
+            s0, e0, k0 = before.get(name, (0, 0, 0))
+            out[name] = dict(addr=f"{addr[0]}:{addr[1]}", sent=self.sent[name] - s0,
+                             errors=self.errors[name] - e0,
+                             skipped_sender=self.skipped[name] - k0,
+                             last_error=self.last_error.get(name))
+        return out
+
+    def status(self) -> str:
+        return "; ".join(f"fwd {n} {self.sent[n]} sent {self.errors[n]} err"
+                         + (f" ({self.last_error[n]})" if n in self.last_error else "")
+                         + (f" {self.skipped[n]} skipped" if self.skipped[n] else "")
+                         for n, _ in self.dests)
+
+    def close(self) -> None:
+        self.sock.close()
+
+
 class Session:
     """One open .frec file and its statistics."""
 
-    def __init__(self, out_dir: str | None, label: str | None, first_rx_us: int, port: int):
+    def __init__(self, out_dir: str | None, label: str | None, first_rx_us: int, port: int,
+                 forward: Forwarder | None = None):
         os.makedirs(out_dir, exist_ok=True)
         stem = "flight_" + utc_stamp(first_rx_us) + (f"_{label}" if label else "")
         path = os.path.join(out_dir, stem + ".frec")
@@ -152,6 +229,8 @@ class Session:
         self.unsynced = 0
         self.hello: dict | None = None
         self.boot_id: int | None = None
+        self.forward = forward
+        self._fwd0 = forward.counts() if forward else None
 
     def write(self, data: bytes, rx_us: int, pkt: dict | None) -> None:
         self.f.write(REC.pack(len(data), rx_us) + data)
@@ -204,6 +283,7 @@ class Session:
                 median_hz=round(1.0 / statistics.median(dts), 2) if dts else None,
                 p95_period_ms=round(sorted(dts)[int(0.95 * (len(dts) - 1))] * 1e3, 2) if dts else None)
         skew = sorted(self.skew_ms)
+        fwd = dict(forward=self.forward.since(self._fwd0)) if self.forward else {}
         return dict(
             file=os.path.basename(self.path),
             start_utc=iso(self.start_us), end_utc=iso(self.last_rx_us),
@@ -220,6 +300,7 @@ class Session:
             firmware=(self.hello or {}).get("fw"),
             last_hello={k: v for k, v in (self.hello or {}).items()
                         if k not in ("type",)},
+            **fwd,
         )
 
     def close(self) -> dict:
@@ -234,17 +315,19 @@ class Collector:
     """The service logic, socket-free so the tests drive it directly."""
 
     def __init__(self, out_dir: str | None, label: str | None = None, split_gap_s: float = 30.0,
-                 split_on_boot: bool = True, port: int = F.DEFAULT_PORT, log=print):
+                 split_on_boot: bool = True, port: int = F.DEFAULT_PORT, log=print,
+                 forward: Forwarder | None = None):
         self.out_dir = out_dir
         self.label = label
         self.split_gap_us = int(split_gap_s * 1e6)
         self.split_on_boot = split_on_boot
         self.port = port
         self.log = log
+        self.forward = forward
         self.session: Session | None = None
         self.closed: list[dict] = []
 
-    def handle(self, data: bytes, rx_us: int) -> None:
+    def handle(self, data: bytes, rx_us: int, src_ip: str | None = None) -> None:
         try:
             pkt = F.decode(data)
         except F.DecodeError:
@@ -260,9 +343,11 @@ class Collector:
             # no --out: today's directory, decided per session (a service
             # that runs for days still files each run under its own date)
             out = self.out_dir or default_out_dir()
-            self.session = Session(out, self.label, rx_us, self.port)
+            self.session = Session(out, self.label, rx_us, self.port, self.forward)
             self.log(f"session open: {self.session.path}")
         self.session.write(data, rx_us, pkt)
+        if self.forward is not None:
+            self.forward.send(data, src_ip)
 
     def rotate(self, why: str = "rotate") -> dict | None:
         s = self.session
@@ -272,18 +357,21 @@ class Collector:
         summ = s.close()
         self.closed.append(summ)
         lost = sum(b["missing"] for b in summ["boots"].values())
+        fwd = "".join(f", fwd {n} {f['sent']} sent {f['errors']} err"
+                      for n, f in summ.get("forward", {}).items())
         self.log(f"session closed ({why}): {s.path}  {summ['packets']} packets, "
-                 f"{summ['duration_s']} s, {lost} missing")
+                 f"{summ['duration_s']} s, {lost} missing{fwd}")
         return summ
 
     def status(self) -> str:
         s = self.session
+        fwd = f"; {self.forward.status()}" if self.forward is not None else ""
         if s is None:
-            return "idle (no open session)"
+            return "idle (no open session)" + fwd
         lost = sum(len(t.missing) for t in s.seq.values())
         return (f"{os.path.basename(s.path)}: {s.packets} pkts "
                 f"(tick {s.by_type['tick']}, event {s.by_type['event']}, "
-                f"hello {s.by_type['hello']}), {lost} missing, {s.bad} bad")
+                f"hello {s.by_type['hello']}), {lost} missing, {s.bad} bad" + fwd)
 
 
 def now_us() -> int:
@@ -308,8 +396,15 @@ def note_robot_addr(ip: str) -> None:
 
 
 def serve(args) -> int:
+    forward = None
+    if args.forward:
+        try:
+            forward = Forwarder(Forwarder.resolve(args.forward))
+        except OSError as e:
+            print(f"flight collector: {e}", file=sys.stderr, flush=True)
+            return 2
     col = Collector(args.out, args.label, args.split_gap, not args.no_split_on_boot,
-                    args.port, log=lambda m: print(m, flush=True))
+                    args.port, log=lambda m: print(m, flush=True), forward=forward)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
@@ -327,7 +422,9 @@ def serve(args) -> int:
     signal.signal(signal.SIGTERM, on_stop)
     signal.signal(signal.SIGHUP, on_hup)
     print(f"flight collector: udp {args.bind}:{args.port} -> "
-          f"{args.out or default_out_dir() + ' (per-session date)'}", flush=True)
+          f"{args.out or default_out_dir() + ' (per-session date)'}"
+          + ("".join(f", forward -> {n} ({a[0]}:{a[1]})" for n, a in forward.dests)
+             if forward else ""), flush=True)
     t_end = time.monotonic() + args.duration if args.duration else None
     next_status = time.monotonic() + args.status_every
     robot_ip = None
@@ -342,7 +439,7 @@ def serve(args) -> int:
         except socket.timeout:
             data = None
         if data:
-            col.handle(data, now_us())
+            col.handle(data, now_us(), src[0])
             # Loopback is a test or a replay, never the robot.
             if src[0] != robot_ip and not src[0].startswith("127."):
                 robot_ip = src[0]
@@ -352,7 +449,17 @@ def serve(args) -> int:
             print("status: " + col.status(), flush=True)
     col.rotate("collector stopped")
     sock.close()
+    if forward is not None:
+        print("forward totals: " + forward.status(), flush=True)
+        forward.close()
     return 0
+
+
+def forward_spec(s: str) -> tuple[str, int]:
+    try:
+        return F.parse_hostport(s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
 
 
 def main(argv=None) -> int:
@@ -369,6 +476,10 @@ def main(argv=None) -> int:
     p.add_argument("--duration", type=float, default=0.0, help="stop after N s (0 = run)")
     p.add_argument("--status-every", type=float, default=10.0,
                    help="print a status line every N s (0 = never)")
+    p.add_argument("--forward", action="append", default=[], type=forward_spec,
+                   metavar="HOST:PORT",
+                   help="after writing each datagram, re-send it unchanged here "
+                        "(repeatable; best-effort, send errors are counted)")
     args = p.parse_args(argv)
     return serve(args)
 

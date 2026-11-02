@@ -517,7 +517,13 @@ console can be exercised on a laptop.
   that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
   writes the fed observations in `obsdump` format, and `--plant`,
   `--act-delay-ticks`, `--act-lag-hz`, `--play-deg` load it like the
-  hardware. `--viewer` is [mirror mode](mirror-mode.md).
+  hardware. `--viewer` is [mirror mode](mirror-mode.md). `--flight
+  HOST:PORT` sends the robot's flight-recorder stream from the sim
+  (goal, nominal and measured position per joint, IMU, command, events;
+  [flight-recorder.md](flight-recorder.md#the-sil-twin-as-a-source)). Its
+  beacon follows the firmware's rules: the joint block for a commander
+  asking with `POSE`, `up_x`/`up_y` for one asking with `ATT`, from the
+  same sample as `up_z`.
 
 ```sh
 .venv/bin/python link/link_twin.py                       # plant-free robot
