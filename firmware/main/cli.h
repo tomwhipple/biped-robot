@@ -57,6 +57,8 @@ void homeVerify(Sink out);
 void poseTick(Sink out);
 // Bench fall guard (cli.cpp): every housekeeping tick, before poseTick.
 void fallTick(Sink out);
+// STS3215 RAM response config (regs 85/81): re-applied when a benched check finds it reset.
+void servoRamTick(Sink out);
 // Flail guard + operator stop, bench half (cli.cpp flailTickImpl): every
 // housekeeping tick, right after fallTick. Takes over an armed-loop HOLD
 // (shared.h g_armed_holds) and homes it once upright and still; stops bench
