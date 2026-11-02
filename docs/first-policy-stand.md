@@ -8,9 +8,9 @@ it.*
 
 | | |
 |---|---|
-| policy | `robot_legs_walk14_s1_s128r24`: (128, 128) student of `robot_legs_walk14_s1`, action map `full`, as-built (factory P 32 / D 32) stiffness |
+| policy | `robot_legs_walk16_act_s128r24` (from 2026-11-02; the 11-01 stand ran `robot_legs_walk14_s1_s128r24`): (128, 128) student of `robot_legs_walk16_act`, action map `full`, as-built (factory P 32 / D 32) stiffness, trained with actuator DR (per-servo dead time, kp/kd ranges; branch `policy-stand-rca`) -- [§8, walk16](#walk16_act_s128r24-the-second-stand-2026-11-02) |
 | image | `make firmware POLICY=v6legs` → `build/firmware-v6legs/bimo_firmware.bin` (or `idf.py -C firmware -B build/firmware-v6legs -DBIMO_POLICY=v6legs build`) |
-| headers | `firmware/policies/v6legs/` (`make deploy RUN=robot_legs_walk14_s1_s128r24 POLICY=v6legs`) |
+| headers | `firmware/policies/v6legs/` (`make deploy RUN=robot_legs_walk16_act_s128r24 POLICY=v6legs`) |
 | sim evidence | `sim/mjx/eval_stand_arm.py` (below) |
 
 The mechanics described here are the code as of this branch: `ctrl_task.cpp`,
@@ -52,7 +52,7 @@ Tethered serial console, robot benched (boot state). Every item must pass.
 
 | # | command | pass |
 |---|---|---|
-| 1 | `stat` | `policy: exported, 12 joints, obs 165, run robot_legs_walk14_s1_s128r24` (not `PLACEHOLDER WEIGHTS`) and `bus: N of 17 servos fitted` with the 12 leg servos among them (item 3) |
+| 1 | `stat` | `policy: exported, 12 joints, obs 165, run robot_legs_walk16_act_s128r24` (not `PLACEHOLDER WEIGHTS`) and `bus: N of 17 servos fitted` with the 12 leg servos among them (item 3) |
 | 2 | `volt` | pack ≥ 11.4 V (3S). The guard warns at 10.5 V and lands at 9.9 V. After a pack swap, run `batt reset`, then `batt` should show not latched |
 | 3 | `cal show` | as-built calibration loaded from NVS; all 12 leg joints fitted (`run` refuses otherwise) |
 | 4 | `gains` | all 12 leg servos read P 32 / D 32, matching `servo_gains.h`. `run` re-reads them and refuses on any difference (`REFUSED_GAINS`) |
@@ -295,6 +295,35 @@ CUDA_VISIBLE_DEVICES= JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/eval_stand_arm.
     --scenarios stand_10s,arm_home,arm_off,push,walk_small --seeds 16
 # + --sil: the firmware stack acts (libctrl_sil, POLICY=v6legs); --pin-clock for the python column beside it
 ```
+
+### walk16_act_s128r24: the second stand (2026-11-02)
+
+The 11-01 stand with walk14_s1 flailed. The RCA (PR #189,
+`experiments/policy/rca/`) traced it to the actuator: the STS3215's ~68 ms
+dead time and low damping cut walk14_s1's loop-gain margin to about ×1.25.
+`robot_legs_walk16_act` continues walk14_s1_actar with 400M steps of actuator
+DR (per-servo dead time `sts3215=2:5, sts3250=0:1` ticks, kp ×0.6-1.2, kd
+0.12-1.0, lag 2-8 Hz). Its nominal stiffness is still the as-built preset, so
+`servo_gains.h`'s static check holds unchanged. Its student is the
+hardware-stand candidate from the 2026-11-02 morning plan
+([getup-campaign ledger, night 12](design-v6/getup-campaign-2026-10.md)).
+On the measured actuator, 8 seeds per cell: 0/8 falls measured, at ×1.25 and
+at ×1.5 loop gain, on the sweep-only fit, with 100 ms dead time, and with
+gyro ×2.5; 8/8 at ×2, like every policy (walk14_s1: 1/8 measured, 8/8 from
+×1.25).
+
+On this page's two plants (`eval_stand_arm.py`, 8 seeds, python policy, no
+dead time), against walk14_s1:
+
+| student | plant | stand_10s | arm_home falls / tilt 0-2 s worst | arm_off ±4° | push 0.4 m/s falls (kicks survived) | joint torque Nm |
+|---|---|---|---|---|---|---|
+| **walk16_act_s128r24** | train | 0/8 | 0/8 / 3.6° | 0/6 (+2 tipped in the hold) | 1/8 (29/32) | 0.077 |
+| | fit | 0/8 | 0/8 / 1.0° | 0/8 | 0/8 (32/32) | 0.154 |
+| walk14_s1_s128r24 | train | 0/8 | 0/8 / 3.8° | 0/6 (+2 tipped in the hold) | 4/8 (20/32) | 0.079 |
+| | fit | 0/8 | 0/8 / 1.4° | 0/8 | 0/8 (32/32) | 0.124 |
+
+The exporter pins the same frozen command channels as walk14_s1 (crouch 1,
+lift and foot 0), so everything in §1 about pinned channels still applies.
 
 ### Firmware vs python, closed loop (SIL)
 

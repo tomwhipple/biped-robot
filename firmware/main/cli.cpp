@@ -15,6 +15,7 @@
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
 #include "scsbus/gains.h"
+#include "wcli/wcli.h"
 #include "board.h"
 #include "cal_store.h"
 #include "flight_rec.h"
@@ -24,6 +25,7 @@
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "wifi_cli.h"
 #include "timesync.h"
 
 #include "driver/i2c_master.h"
@@ -36,6 +38,22 @@ namespace cli {
 namespace {
 
 char g_line[128];      // one owner (the housekeeping task), no heap
+
+// True while execute() runs a line that came over the Wi-Fi CLI
+// (wifi_cli.cpp). Housekeeping task only, like everything here.
+bool g_remote = false;
+
+// The second lock on the Wi-Fi CLI's door. The allowlist (components/wcli
+// policy.cpp) already refuses these lines over Wi-Fi; this refuses them again
+// at the write itself, so a slip in one table is not enough to reach NVS,
+// servo EEPROM or a safety latch from the air. True = refused (and said).
+bool tetherOnly(Sink out, const char* what) {
+    if (!g_remote) return false;
+    out("refused over Wi-Fi (tether only): ");
+    out(what);
+    out("\r\n");
+    return true;
+}
 
 // Settle time between writing an ID and re-checking it.
 //
@@ -183,6 +201,7 @@ void cmdPing(Sink out, int argc, char** argv) {
 }
 
 void cmdId(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`id` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 3) { out("usage: id <old> <new>\r\n"); return; }
@@ -661,6 +680,30 @@ void cmdStepResp(Sink out, int argc, char** argv) {
             say(out, "SR %d %ld %ld %ld %ld\r\n", ph, static_cast<long>(s_t[ph][k]), static_cast<long>(s_p[ph][k]),
                 static_cast<long>(s_v[ph][k]), static_cast<long>(s_l[ph][k]));
     out("stepresp end\r\n");
+}
+
+// `regw <id> <addr> <value>` -- WRITE one byte to a servo's RAM register (addr >= 40), for
+// actuator experiments (2026-11-02: STS3215 vs STS3250 differ in undocumented regs 81/84/85/86;
+// the STS3215 has ~70 ms dead time). RAM only: EEPROM (addr < 40) is refused, so nothing persists
+// past a power cycle. Torque enable (40) and goal registers (42-47) are refused too -- use
+// torque/move/pose. Bench only (claimBus); the Wi-Fi CLI allowlist does not include it.
+void cmdRegw(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc < 4) { out("usage: regw <id> <addr 41|48-86 RAM> <value 0-255>   (RAM only, lost at power-off)\r\n"); return; }
+    const long id = num(argv[1], 0), addr = num(argv[2], 0), val = num(argv[3], -1);
+    if (id < 1 || id > 253 || val < 0 || val > 255) { out("regw: bad id/value\r\n"); return; }
+    if (addr < 41 || (addr >= 42 && addr <= 47) || addr > 86) {
+        out("regw: refused -- RAM 41 or 48..86 only (EEPROM, torque and goal registers are off limits)\r\n");
+        return;
+    }
+    uint8_t before = 0;
+    bus->readU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), before);
+    const scsbus::Status st = bus->writeU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), static_cast<uint8_t>(val));
+    uint8_t after = 0;
+    bus->readU8(static_cast<uint8_t>(id), static_cast<uint8_t>(addr), after);
+    say(out, "regw id %ld reg %ld: %u -> wrote %ld (%s) -> reads %u\r\n", id, addr, static_cast<unsigned>(before),
+        val, statusName(st), static_cast<unsigned>(after));
 }
 
 void cmdSread(Sink out, int argc, char** argv) {
@@ -1419,6 +1462,7 @@ void flailTickImpl(Sink out) {
 
 // `flail` status | on | off
 void cmdFlail(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`flail on|off` switches a safety guard")) return;
     if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_flail_on.store(true);
     else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
     const flailguard::Limits& L = flailguard::kLimits;
@@ -1440,6 +1484,7 @@ void cmdFlail(Sink out, int argc, char** argv) {
 
 // `fall` status | on | off | autohome on|off | clear
 void cmdFall(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`fall on|off|autohome|clear` switches a safety guard")) return;
     if (argc >= 2 && !strcmp(argv[1], "on")) s_fall_on = true;
     else if (argc >= 2 && !strcmp(argv[1], "off")) s_fall_on = false;
     else if (argc >= 3 && !strcmp(argv[1], "autohome")) s_fall_autohome = !strcmp(argv[2], "on");
@@ -1530,6 +1575,7 @@ void cmdTorque(Sink out, int argc, char** argv, bool on) {
 }
 
 void cmdMiddle(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`middle` writes servo EEPROM")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 2) { out("usage: middle <id>\r\n"); return; }
@@ -1569,6 +1615,7 @@ void cmdVolt(Sink out) {
 void cmdBatt(Sink out, int argc, char** argv) {
     battguard::Guard& g = robot::battGuard();
     if (argc >= 2 && !strcmp(argv[1], "reset")) {
+        if (tetherOnly(out, "`batt reset` clears the pack-guard latch")) return;
         // Bench-mode gate, same rule as the mutating `cal` subcommands: this
         // WRITES state the control task owns, and only in bench mode is ctrl
         // guaranteed to return before touching it. Checked directly rather
@@ -1618,10 +1665,64 @@ void cmdBatt(Sink out, int argc, char** argv) {
 
 void eepromSettle() { vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs)); }
 
+// -- STS3215 RAM response config (2026-11-02) ------------------------------
+// The STS3215's factory RAM regs 85 = 50 and 81 = 20 add ~50-60 ms of start delay and halve the
+// slew: measured with `stepresp` on the robot, 85 -> 0 cut the dead time 63-78 -> 18-24 ms and
+// 81 -> 1 halved the rise (t90 ~200 -> ~95 ms); the STS3250 hip rolls ship with 0 / 1. That dead
+// time is what made the first policy stand flail (2026-11-01 RCA). RAM, so it is lost whenever the
+// SERVO pack power-cycles: applied and verified with the gains before every arm and at boot, and
+// re-applied by servoRamTick when a benched check finds it reset. `servocfg factory` restores the
+// factory values for comparison (and stops the re-apply) until `servocfg fast`.
+constexpr uint8_t kRegStartDelay = 85, kRegRise = 81, kRegModelH = 4, kModelHSts3215 = 3;
+constexpr uint8_t kFastStartDelay = 0, kFastRise = 1, kFactoryStartDelay = 50, kFactoryRise = 20;
+static bool s_servo_fast = true;
+static uint32_t s_servo_reapplied = 0;
+
+// Write (if `write`) and verify regs 85/81 on every fitted STS3215. True when all read back as
+// wanted. Silent unless something fails or `verbose`.
+static bool applyServoRam(scsbus::Bus* bus, Sink out, bool write, bool verbose) {
+    const uint8_t want85 = s_servo_fast ? kFastStartDelay : kFactoryStartDelay;
+    const uint8_t want81 = s_servo_fast ? kFastRise : kFactoryRise;
+    const obs::Calibration& cal = robot::calibration();
+    int n = 0, bad = 0;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        const uint8_t id = obs::kBusServoId[b];
+        uint8_t model = 0;
+        if (bus->readU8(id, kRegModelH, model) != scsbus::Status::kOk) {
+            say(out, "  servocfg %-12s id %2u: NO REPLY\r\n", obs::kBusJointNames[b], static_cast<unsigned>(id));
+            ++bad;
+            continue;
+        }
+        if (model != kModelHSts3215) continue;
+        ++n;
+        if (write) {
+            bus->writeU8(id, kRegStartDelay, want85);
+            bus->writeU8(id, kRegRise, want81);
+        }
+        uint8_t r85 = 0xFF, r81 = 0xFF;
+        bus->readU8(id, kRegStartDelay, r85);
+        bus->readU8(id, kRegRise, r81);
+        const bool ok = (r85 == want85 && r81 == want81);
+        if (!ok) ++bad;
+        if (verbose || !ok)
+            say(out, "  servocfg %-12s id %2u  reg85 %3u reg81 %3u  %s\r\n", obs::kBusJointNames[b],
+                static_cast<unsigned>(id), static_cast<unsigned>(r85), static_cast<unsigned>(r81),
+                ok ? "ok" : "MISMATCH");
+    }
+    if (verbose || bad)
+        say(out, "servocfg: %s (STS3215 reg85 %u reg81 %u) on %d servo(s), %d bad\r\n",
+            s_servo_fast ? "FAST" : "FACTORY", static_cast<unsigned>(want85), static_cast<unsigned>(want81), n, bad);
+    return bad == 0;
+}
+
 // Read 21/22 from every servo the loop drives and compare with the expected
 // table. Prints every row when `verbose`, else only the ones that fail.
 // True when every servo answered with exactly its expected P/D.
 bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
+    // STS3215 response config first (RAM: write + verify every time -- the servo pack may have
+    // power-cycled since boot). A failure refuses the arm exactly like a gain mismatch.
+    const bool ram_ok = applyServoRam(bus, out, true, verbose);
     // Every FITTED bus joint: a servo the robot does not carry has nothing
     // to verify, and one it does carry is checked whether or not the policy
     // drives it (the loop holds the others).
@@ -1665,7 +1766,47 @@ bool checkGains(scsbus::Bus* bus, Sink out, bool verbose) {
         say(out, "gains: all %u servos at their expected P/D\r\n",
             static_cast<unsigned>(n));
     }
-    return bad == 0;
+    return bad == 0 && ram_ok;
+}
+
+// Benched housekeeping: every 5 s, if the pose streamer is idle, read reg 85 of the first fitted
+// STS3215; if it no longer holds the wanted value (servo power-cycled), re-apply to all.
+static TickType_t s_servo_ram_next = 0;
+void servoRamTickImpl(Sink out) {
+    const TickType_t now = xTaskGetTickCount();
+    if (now < s_servo_ram_next) return;
+    s_servo_ram_next = now + pdMS_TO_TICKS(5000);
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
+        !robot::g_bus || s_traj_active)
+        return;
+    scsbus::Bus* bus = robot::g_bus;
+    const obs::Calibration& cal = robot::calibration();
+    const uint8_t want85 = s_servo_fast ? kFastStartDelay : kFactoryStartDelay;
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        uint8_t model = 0, r85 = 0;
+        const uint8_t id = obs::kBusServoId[b];
+        if (bus->readU8(id, kRegModelH, model) != scsbus::Status::kOk || model != kModelHSts3215) continue;
+        if (bus->readU8(id, kRegStartDelay, r85) != scsbus::Status::kOk) return;   // pack off: next time
+        if (r85 != want85) {
+            ++s_servo_reapplied;
+            say(out, "servocfg: STS3215 reg85 reads %u (servos power-cycled?) -- re-applying %s config\r\n",
+                static_cast<unsigned>(r85), s_servo_fast ? "FAST" : "FACTORY");
+            applyServoRam(bus, out, true, false);
+        }
+        return;
+    }
+}
+
+// `servocfg [fast|factory]` -- show / set the STS3215 response config (RAM regs 85/81).
+void cmdServocfg(Sink out, int argc, char** argv) {
+    scsbus::Bus* bus = claimBus(out);
+    if (!bus) return;
+    if (argc >= 2 && !strcmp(argv[1], "fast")) s_servo_fast = true;
+    else if (argc >= 2 && !strcmp(argv[1], "factory")) s_servo_fast = false;
+    applyServoRam(bus, out, argc >= 2, true);
+    say(out, "servocfg: re-applied %lu time(s) since boot after a servo power cycle\r\n",
+        static_cast<unsigned long>(s_servo_reapplied));
 }
 
 void cmdGains(Sink out, int argc, char** argv) {
@@ -1706,6 +1847,7 @@ void cmdGains(Sink out, int argc, char** argv) {
         out("usage: gains | gains <id> | gains <id> <P 1-254> <D 0-254>\r\n");
         return;
     }
+    if (tetherOnly(out, "`gains <id> <P> <D>` writes servo EEPROM")) return;
     const long p = num(argv[2], -1), d = num(argv[3], -1);
     if (p < 1 || p > 254 || d < 0 || d > 254) {
         out("gains: P must be 1-254 and D 0-254 (factory 32/32)\r\n");
@@ -1811,6 +1953,7 @@ bool armRefused(Sink out) {
 }
 
 void cmdMode(Sink out, bool run) {
+    if (run && tetherOnly(out, "arming is the commander's ARM edge")) return;
     if (run) balStop(out, "arming");
     // A typed or wireless `bench` while HOLDING after a flail/soft stop means
     // "limp, now" -- every other way out of a run releases torque, and the
@@ -1881,6 +2024,7 @@ void cmdCal(Sink out, int argc, char** argv) {
                                 : "DEFAULTS -- nothing stored (cal save)");
         return;
     }
+    if (tetherOnly(out, "`cal` changes the calibration")) return;
     if (!strcmp(argv[1], "zero")) {
         scsbus::Bus* bus = claimBus(out);
         if (!bus) return;
@@ -2248,6 +2392,7 @@ void traceDump(Sink out) {
 }
 
 void fallTick(Sink out) { fallTickImpl(out); }
+void servoRamTick(Sink out) { servoRamTickImpl(out); }
 void flailTick(Sink out) { flailTickImpl(out); }
 
 constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
@@ -2963,6 +3108,7 @@ void cmdStream(Sink out, int argc, char** argv) {
         return;
     }
     if (s_srun) { out("stream: already running\r\n"); return; }
+    if (tetherOnly(out, "`stream` has no torque gate or envelope clamp")) return;
     if (!claimBus(out)) return;
     s_scfg = StreamCfg{static_cast<uint8_t>(atol(argv[1])), atol(argv[2]), atol(argv[3]),
                        static_cast<int>(atol(argv[4])), static_cast<int>(atol(argv[5])),
@@ -3044,6 +3190,7 @@ void cmdImu(Sink out, int argc, char** argv) {
         // per-axis gyro scale (SENSOR frame). `imu gscale` prints; three
         // numbers set + save to NVS. Measured with tools/imu_scale_check.py.
         if (argc >= 5) {
+            if (tetherOnly(out, "`imu gscale` saves to NVS")) return;
             float gs[3];
             for (int i = 0; i < 3; ++i) gs[i] = static_cast<float>(atof(argv[2 + i]));
             for (int i = 0; i < 3; ++i) {
@@ -3103,6 +3250,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "bias")) {
+        if (tetherOnly(out, "`imu bias` saves to NVS")) return;
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
             robot::g_ctrl_owns_bus.load()) {
             out("busy: `bench` first -- bias calibration writes driver state\r\n");
@@ -3172,6 +3320,7 @@ void cmdImu(Sink out, int argc, char** argv) {
             out("  so the nominal from CAD is ~90 deg about y: 0.7071 0 0.7071 0\r\n");
             return;
         }
+        if (tetherOnly(out, "`imu mount` saves to NVS")) return;
         float q[4];
         for (int i = 0; i < 4; ++i) q[i] = strtof(argv[2 + i], nullptr);
         const float n = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
@@ -3244,6 +3393,7 @@ void cmdImu(Sink out, int argc, char** argv) {
     }
 
     if (argc >= 2 && !strcmp(argv[1], "forget")) {
+        if (tetherOnly(out, "`imu forget` erases NVS")) return;
         say(out, "%s\r\n", robot::imuCalErase() ? "erased" : "erase failed");
         robot::g_imu_cal_from_nvs = false;
         return;
@@ -3370,8 +3520,12 @@ void cmdNtp(Sink out, int argc, char**) {
 void cmdRec(Sink out, int argc, char** argv) {
     // NVS writes stall the control tick (see `wifi clear`): armed, a change
     // applies in RAM only and says so.
-    const bool save = robot::g_mode_request.load() == robot::Mode::kBench;
-    const char* nosave = save ? "" : " (armed: NOT saved to NVS)";
+    // Over Wi-Fi a change is RAM-only too: NVS writers stay tether-only.
+    const bool save = robot::g_mode_request.load() == robot::Mode::kBench &&
+                      !g_remote;
+    const char* nosave = save ? ""
+                         : g_remote ? " (Wi-Fi: NOT saved to NVS)"
+                                    : " (armed: NOT saved to NVS)";
     if (argc >= 2 && !strcmp(argv[1], "off")) {
         robot::flight::event(flightrec::Ev::kRec, "rec off");
         robot::flight::setEnabled(false, save);
@@ -3443,6 +3597,7 @@ void cmdRec(Sink out, int argc, char** argv) {
 }
 
 void cmdWifi(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`wifi` credentials live in NVS")) return;
     if (argc >= 2 && !strcmp(argv[1], "clear")) {
         if (robot::g_mode_request.load() != robot::Mode::kBench) {
             out("busy: NVS writes stall the control tick -- `bench` first\r\n");
@@ -3513,6 +3668,78 @@ void cmdWifi(Sink out, int argc, char** argv) {
     }
 }
 
+// `wcli` -- the authenticated Wi-Fi CLI (wifi_cli.h, docs/wifi-cli.md).
+// Status anywhere; the key and the session are managed from the TETHER only.
+void cmdWcli(Sink out, int argc, char** argv) {
+    if (argc >= 2) {
+        if (tetherOnly(out, "`wcli key` manages the Wi-Fi CLI key itself")) return;
+        if (!strcmp(argv[1], "drop") && argc == 2) {
+            robot::wcliDropSession();
+            out("wcli: session dropped (the client must pair again)\r\n");
+            return;
+        }
+        if (!strcmp(argv[1], "key") && argc == 3) {
+            // NVS write: bench only, like every other NVS writer here.
+            if (robot::g_mode_request.load() != robot::Mode::kBench) {
+                out("busy: NVS writes stall the control tick -- `bench` first\r\n");
+                return;
+            }
+            if (!strcmp(argv[2], "clear")) {
+                out(robot::wcliKeyClear()
+                        ? "wcli: key erased -- the Wi-Fi CLI is off\r\n"
+                        : "wcli: erase FAILED\r\n");
+                return;
+            }
+            char fp[9] = {};
+            // The key itself is never printed, here or anywhere.
+            if (!robot::wcliKeySet(argv[2], fp)) {
+                out("wcli: key must be 64 hex digits (32 bytes) -- or NVS "
+                    "failed; nothing changed\r\n");
+                return;
+            }
+            say(out, "wcli: key stored in NVS, fingerprint %s -- any session "
+                "dropped\r\n", fp);
+            return;
+        }
+        out("usage: wcli | wcli key <64 hex> | wcli key clear | wcli drop   "
+            "(tether, bench)\r\n");
+        return;
+    }
+    robot::WcliStatus w;
+    robot::wcliGetStatus(w);
+    if (!w.have_key) {
+        say(out, "wcli: no key -- the Wi-Fi CLI is off (`wcli key <64 hex>` on "
+            "the tether; tools/wcli.py --keygen)  port %u\r\n",
+            static_cast<unsigned>(wcli::kPort));
+        return;
+    }
+    say(out, "wcli: key %s  port %u  ", w.fingerprint,
+        static_cast<unsigned>(wcli::kPort));
+    if (w.session) {
+        say(out, "session %lu.%lu.%lu.%lu:%u  seq %lu (%s)  heard %lu ms ago\r\n",
+            static_cast<unsigned long>(w.peer_ip >> 24),
+            static_cast<unsigned long>((w.peer_ip >> 16) & 0xFF),
+            static_cast<unsigned long>((w.peer_ip >> 8) & 0xFF),
+            static_cast<unsigned long>(w.peer_ip & 0xFF),
+            static_cast<unsigned>(w.peer_port), static_cast<unsigned long>(w.last_seq),
+            w.state == 1 ? "queued" : w.state == 2 ? "running" : w.state == 3 ? "done"
+            : w.state == 4 ? "cancelled" : "none",
+            static_cast<unsigned long>(w.heard_ms_ago));
+    } else {
+        out("no session\r\n");
+    }
+    say(out, "  rx ok %lu  bad %lu  stale %lu  wrong-peer %lu  replays %lu\r\n",
+        static_cast<unsigned long>(w.rx_ok), static_cast<unsigned long>(w.rx_bad),
+        static_cast<unsigned long>(w.rx_stale),
+        static_cast<unsigned long>(w.rx_wrong_peer),
+        static_cast<unsigned long>(w.replays));
+    say(out, "  sessions %lu  cmds %lu  busy %lu  out %lu (oldest held %lu, lost %lu)\r\n",
+        static_cast<unsigned long>(w.sessions), static_cast<unsigned long>(w.cmds),
+        static_cast<unsigned long>(w.busy), static_cast<unsigned long>(w.out_next),
+        static_cast<unsigned long>(w.oldest),
+        static_cast<unsigned long>(w.lost_chunks));
+}
+
 void banner(Sink out) {
     out("\r\nbimo firmware v1 -- bench mode (nothing moves until `run`)\r\n");
     out("  scan                 ping IDs 0-253, report position/voltage/faults\r\n");
@@ -3543,6 +3770,7 @@ void banner(Sink out) {
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
+    out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
     out("  rec [status|<ip>[:port]|on|off|idle <hz>]   flight recorder -> UDP collector\r\n");
     out("  stat                 tick timing and fault counters\r\n");
@@ -3589,7 +3817,14 @@ void linkHome(Sink out) {
         static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
 }
 
-void execute(const char* line, Sink out) {
+void execute(const char* line, Sink out, bool remote) {
+    // Scoped to this one line, whichever way it returns.
+    struct RemoteScope {
+        explicit RemoteScope(bool r) { g_remote = r; }
+        ~RemoteScope() { g_remote = false; }
+        RemoteScope(const RemoteScope&) = delete;
+        RemoteScope& operator=(const RemoteScope&) = delete;
+    } scope(remote);
     char buf[linkproto::kMaxCliLine + 1];
     strncpy(buf, line, sizeof buf - 1);
     buf[sizeof buf - 1] = 0;
@@ -3622,6 +3857,8 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
     else if (!strcmp(c, "sread")) cmdSread(out, argc, argv);
     else if (!strcmp(c, "stepresp")) cmdStepResp(out, argc, argv);
+    else if (!strcmp(c, "regw")) cmdRegw(out, argc, argv);
+    else if (!strcmp(c, "servocfg")) cmdServocfg(out, argc, argv);
     else if (!strcmp(c, "gains")) cmdGains(out, argc, argv);
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
@@ -3639,6 +3876,7 @@ void execute(const char* line, Sink out) {
     else if (!strcmp(c, "flail")) cmdFlail(out, argc, argv);
     else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
+    else if (!strcmp(c, "wcli")) cmdWcli(out, argc, argv);
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);

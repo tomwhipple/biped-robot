@@ -75,6 +75,7 @@ wants an NVIDIA GPU; the referee, distillation and export run on a laptop.
 | [docs/wiring.md](docs/wiring.md) · [docs/servo-map.md](docs/servo-map.md) · [docs/bringup.md](docs/bringup.md) | power and electrical, servo IDs and calibration, bare board to first arm |
 | [firmware/README.md](firmware/README.md) · [docs/firmware-design.md](docs/firmware-design.md) | what runs on the ESP32 |
 | [docs/control-channel.md](docs/control-channel.md) | the wireless command protocol and its failsafe |
+| [docs/wifi-cli.md](docs/wifi-cli.md) | the bench CLI over Wi-Fi: provisioning, what is refused, the threat model |
 | [docs/training.md](docs/training.md) · [docs/sil-harness.md](docs/sil-harness.md) | how a policy is trained, refereed and deployed |
 | [AGENTS.md](AGENTS.md) | working practices: gates, branching, generated files, bench safety |
 | [docs/design-v6/](docs/design-v6/README.md) | dated design records and the evidence behind DESIGN.md's numbers |

@@ -48,7 +48,8 @@ include_directories(
     ${COMPONENTS}/fallguard/include
     ${COMPONENTS}/flailguard/include
     ${COMPONENTS}/balance/include
-    ${COMPONENTS}/flightrec/include)
+    ${COMPONENTS}/flightrec/include
+    ${COMPONENTS}/wcli/include)
 
 enable_testing()
 
@@ -72,6 +73,7 @@ bimo_test(test_client test_client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/keymap.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/bench.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/recorder.cpp
           ${COMPONENTS}/linkproto/protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
@@ -107,6 +109,18 @@ bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguar
 
 # The flight recorder's wire format, against vectors from tools/flightrec.py.
 bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)
+
+# The Wi-Fi CLI's pure half, and the same logic on a UDP socket for the
+# Python client's end-to-end tests (tests/test_wcli.py).
+set(WCLI_SRC ${COMPONENTS}/wcli/sha256.cpp
+             ${COMPONENTS}/wcli/wcli.cpp
+             ${COMPONENTS}/wcli/policy.cpp)
+bimo_test(test_wcli test_wcli.cpp ${WCLI_SRC})
+add_executable(wcli_twin wcli_twin.cpp ${WCLI_SRC})
+target_compile_options(wcli_twin PRIVATE ${SAN_COMPILE} -fno-exceptions -fno-rtti)
+target_link_options(wcli_twin PRIVATE ${SAN_LINK})
+find_package(Threads REQUIRED)
+target_link_libraries(wcli_twin PRIVATE Threads::Threads)
 
 # The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
 bimo_test(test_obsdump test_obsdump.cpp
@@ -189,7 +203,7 @@ if(glfw3_FOUND AND EXISTS ${THIRD_PARTY}/imgui/imgui.cpp
 
     add_executable(bimo_gui ${LINK_DIR}/gui.cpp ${LINK_DIR}/client.cpp
                    ${LINK_DIR}/keymap.cpp ${LINK_DIR}/recorder.cpp
-                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp
+                   ${LINK_DIR}/mjpeg.cpp ${LINK_DIR}/simproc.cpp ${LINK_DIR}/bench.cpp
                    ${LINKPROTO_SRC})
     target_include_directories(bimo_gui PRIVATE ${LINK_DIR})
     target_link_libraries(bimo_gui PRIVATE bimo_imgui

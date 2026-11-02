@@ -194,7 +194,12 @@ in: 0 bench, 1 policy; b = 1 fell, 2 picked up -> autohome, 3 cleared;
 `components/fallguard`), 11 flail (an armed-loop hold: a = 1 pose, 2 rate,
 3 tilt, 4 chatter, 255 operator soft stop; b = 1 torque held, 0 already limp,
 2 the hold's autohome started; `components/flailguard`), 12 stop (an operator
-stop, `linkproto::kFlagStop`: a = 1 hard / 0 soft, b = 1 armed / 0 benched).
+stop, `linkproto::kFlagStop`: a = 1 hard / 0 soft, b = 1 armed / 0 benched),
+13 Wi-Fi CLI session (a = peer IPv4, b = peer port; text says). On cmd and
+out events `a` is the channel: 0 the tether, 1 the Wi-Fi CLI
+(docs/wifi-cli.md), and a Wi-Fi cmd's `b` is its command seq. Logged command
+text has `wcli key <hex>` and the PSK of `wifi <ssid> <psk>` redacted -- the
+recorder sends in clear.
 
 HELLO body, 116 B + 5 B × 17: fw[32], utc_synced, enabled, idle_hz, cal_ok,
 19 × u32 (produced, sent, drop_ring, drop_net, max push ctrl/house µs, last
