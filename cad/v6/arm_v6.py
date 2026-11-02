@@ -149,6 +149,15 @@ def _mirrored(solid, side):
     return mirror(solid, Plane.XZ)
 
 
+def _side_label(solid, side, y_face, z):
+    """``solid``, already mirrored for its side, with that side's letter
+    debossed in its outboard face (y = +y_face on the left, -y_face on the
+    right). Cut after the mirror, or the right arm's letter reads backwards."""
+    o = 1 if side == "L" else -1
+    return solid - parts.letter_y(side, o * y_face, o, V.ARM_LABEL_X, z,
+                                  V.ARM_LABEL_H, V.ARM_LABEL_DEPTH)
+
+
 # ===========================================================================
 # 1. the elbow's two halves, drawn where their parent links already draw them
 # ===========================================================================
@@ -395,7 +404,7 @@ def arm_upper_v6(side="L"):
     for h in parts.bcd_y(boss_y0 - 1, py1 + 1, 0, 0, roll=ROLL_UP):
         p -= h
     p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
-    return _mirrored(p, side)
+    return _side_label(_mirrored(p, side), side, sy1, V.ARM_LABEL_Z_UPPER)
 
 
 # ===========================================================================
@@ -455,7 +464,7 @@ def arm_fore_v6(side="L"):
     _ramp = (-q - wx0) / 1.3                  # 1.3:1, comfortably inside 45 deg
     p += parts.wedge_y([(wx0, drop + q - _ramp), (-q, drop + q),
                         (-q, drop - q), (wx0, drop - q + _ramp)], -hy, hy)
-    return _mirrored(p, side)
+    return _side_label(_mirrored(p, side), side, hy, V.ARM_LABEL_Z_FORE)
 
 
 def support_enforcers(side="L"):
@@ -607,9 +616,8 @@ def run_audits(built, verbose=True):
     print("\n== printability (cad/check_printability.py, declared orientations) ==")
     CP.STL = OUT_STL
     for name, path in built.items():
+        # the right-hand parts too: their letter is not the left's mirror image
         base = name[:-2] if name.endswith(("_L", "_R")) else name
-        if name.endswith("_R"):
-            continue                      # mirror image: same audit by symmetry
         rot, note = PRINT_ORIENT[base]
         CP.ORIENT[name] = (rot, note)
         CP.PRINT_STL[name] = os.path.basename(path)
@@ -677,6 +685,49 @@ def render(stl_path, png_path, px=560):
     return png_path
 
 
+def render_side_labels(png_path, stl_dir=OUT_STL, w=260):
+    """The four links as they hang, each seen from outboard (top row), over a
+    close-up of its letter (bottom row). A raking light, so the 0.6 mm groove
+    reads. Renders the committed STLs; exports nothing."""
+    import mujoco
+    import imageio.v2 as imageio
+
+    links = (("arm_upper_v6", V.ARM_SHAFT_Y[1], V.ARM_LABEL_Z_UPPER),
+             ("arm_fore_v6", V.ARM_FORE_SHAFT_HY, V.ARM_LABEL_Z_FORE))
+    top, bottom = [], []
+    for side in "LR":
+        o = 1 if side == "L" else -1
+        for name, y_face, z_label in links:
+            xml = f"""
+            <mujoco>
+              <asset><mesh name="part" file="{os.path.abspath(stl_dir)}/{name}_{side}.stl" scale="0.001 0.001 0.001"/></asset>
+              <visual><headlight ambient="0.25 0.25 0.25" diffuse="0.25 0.25 0.25" specular="0 0 0"/>
+                <global offwidth="{w}" offheight="{3 * w}"/></visual>
+              <worldbody>
+                <light directional="true" dir="0.45 {-o * 0.55} -0.70" diffuse="0.75 0.75 0.75"/>
+                <geom type="mesh" mesh="part" rgba="0.82 0.84 0.87 1"/>
+              </worldbody>
+            </mujoco>"""
+            model = mujoco.MjModel.from_xml_string(xml)
+            data = mujoco.MjData(model)
+            mujoco.mj_forward(model, data)
+            cam = mujoco.MjvCamera()
+            # the camera looks along (cos el cos az, cos el sin az, sin el): -o y, at the outboard face
+            cam.azimuth, cam.elevation = (-90 if o > 0 else 90), 0
+            for frame, (h, lookat, dist) in ((top, (3 * w, (0, o * y_face / 1e3, -0.078), 0.30)),
+                                             (bottom, (w, (V.ARM_LABEL_X / 1e3, o * y_face / 1e3,
+                                                           z_label / 1e3), 0.04))):
+                ren = mujoco.Renderer(model, h, w)
+                cam.lookat, cam.distance = lookat, dist
+                ren.update_scene(data, cam)
+                frame.append(ren.render().copy())
+                ren.close()
+    os.makedirs(os.path.dirname(png_path), exist_ok=True)
+    imageio.imwrite(png_path, np.concatenate([np.concatenate(top, axis=1),
+                                              np.concatenate(bottom, axis=1)], axis=0))
+    return png_path
+
+
 BUILDERS = {
     "arm_upper_v6_L": lambda: arm_upper_v6("L"),
     "arm_upper_v6_R": lambda: arm_upper_v6("R"),
@@ -690,7 +741,12 @@ def main(argv=None):
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--no-audit", action="store_true")
+    ap.add_argument("--labels-figure", metavar="PNG",
+                    help="only render the side-letter figure from the STLs, to PNG")
     a = ap.parse_args(argv)
+    if a.labels_figure:
+        print(render_side_labels(a.labels_figure))
+        return 0
     for d in (OUT_STL, OUT_STEP, OUT_REN):
         os.makedirs(d, exist_ok=True)
     built = {}
