@@ -138,13 +138,32 @@ numbers are within 10 %, and the as-run x1.5 is 1/8.
      kind that makes limit cycles on real servos with play, and it is 2/8 on walk → stop.
    - All three only treat the symptom: the clock still drives the policy underneath.
 
-**Recommendation for the current student: `standclock coast` (phase π).** Implemented
+**Recommendation: `standclock coast` (phase π)** for walk14_s1, and for walk16_act (main's
+v6legs profile since #194, §4). Implemented
 (firmware commit `f6e9224`), default **off**. It is plain-stand gated exactly like training's
 `clock_stand_freeze`. Under any locomotion command or lift the clock runs as trained.
 
 ## 4. Next hardware test
 
-Fast servos (reg 85 = 0 / 81 = 1), `walk14_s1_s128r24`, tethered, hard board, zero command:
+`standclock` needs a flash of this branch. Since PR #194, main's v6legs profile is
+**walk16_act_s128r24**, which was also trained with the clock running, so the option applies
+to it. Fast servos, 8 seeds (`deployed_fast.md`, `knobs_fast.md`):
+
+| on the robot | goal jitter mean / max | body rate x / y / z | power (W proxy) | x1.5 | x2 | push 0.4 |
+|---|---|---|---|---|---|---|
+| walk16_act + knobs, clock running | 0.235 / 0.385 | 0.019 / 0.026 / 0.013 | 2.42 | 0 | 8 | 0 |
+| **walk16_act + knobs, coast → π** | **0.080 / 0.199** | 0.002 / 0.005 / 0.005 | **1.69** | 0 | 8 | 0 |
+| walk16_act, no knobs, coast → π | 0.105 / 0.253 | 0.003 / 0.007 / 0.008 | 1.79 | 0 | 8 | 0 |
+| walk16_act, no knobs, clock running | 0.280 / 0.459 | 0.027 / 0.034 / 0.018 | 2.65 | **8** | 8 | 0 |
+| walk14_s1 + knobs, coast → π (needs `make deploy RUN=robot_legs_walk14_s1_s128r24 POLICY=v6legs`) | 0.050 / 0.116 | 0.002 / 0.004 / 0.003 | 1.05 | 0 | 8 | 0 |
+
+The sim is ~1.5x optimistic in loop gain (§2). So "x1.5 0 / x2 8" is the profile of the
+stand that held on the robot today (walk14_s1 + knobs). "x1.25 0 / x1.5 8" is the profile of
+the one that diverged in < 1 s (walk14_s1, no knobs). walk16_act with no knobs and the clock
+running has the diverging profile: **do not run it without the knobs or without coast.**
+
+Recommended (flash this branch, POLICY=v6legs, fast servos, tethered, hard board, zero
+command):
 
 ```
 obsfreeze gain=0.5
@@ -153,16 +172,17 @@ standclock coast 3.1416
 run
 ```
 
-Expected from sim:
+Then, in the same session, `standclock run` as the A/B; that is today's clock with
+walk16_act. Expected from sim:
 
-- goal jitter 0.27 → ~0.07 deg rms (the sim's 4x reduction applied to the robot), with no
-  1.5 / 3 Hz peaks;
+- goal jitter ~3x lower, with no 1.5 / 3 Hz peaks;
 - body rates several times lower;
-- motor power toward the 0.13 W static hold, from 0.75 W.
+- motor power toward the static hold (0.13 W) from ~0.75 W.
 
-As an A/B in the same session, `standclock run` reproduces today's stand. Keep 10 s stages,
-the spotter, and the fall and flail guards. If it is still, `standclock freeze` vs
-`coast 3.1416` shows on the robot how much the stand phase matters for power.
+Keep 10 s stages, the spotter, and the fall and flail guards. If walk16_act misbehaves,
+walk14_s1 + knobs is the proven stand on these servos (needs a re-export), and in sim it is
+the stillest and cheapest with coast. Only after both look good, try `standclock freeze` vs
+`coast` to see how much the stand phase matters on the robot.
 
 ## 5. Training fix: stand-trained fine-tune
 
@@ -265,5 +285,6 @@ SERVO=fast HARD=1 python stand_candidates.py 8 coast_fast.json coast
 SERVO=fast HARD=1 python stand_candidates.py 8 knobs_fast.json knobs
 SERVO=fast ONLY=stand python stand_candidates.py 8 phases_fast.json phases
 SERVO=fast python stand_candidates.py 8 fw_candidates_fast.json fw
+SERVO=fast HARD=1 python stand_candidates.py 8 deployed_fast.json deployed
 SERVO=fast HARD=1 RUNS=<run>,<run> python stand_candidates.py 8 students_fast.json students
 ```

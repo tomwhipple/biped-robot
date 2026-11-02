@@ -95,7 +95,14 @@ def students(runs):
     return V
 
 
-SETS = {"fw": FW, "knobs": KNOBS, "coast": COAST, "phases": PHASES}
+W16 = "robot_legs_walk16_act_s128r24"     # the v6legs profile on main since PR #194
+DEPLOYED = {
+    "walk16_act + knobs (gyro x0.5, shape 6), clock 1.5 Hz": dict(run=W16),
+    "walk16_act + knobs, coast -> pi": dict(run=W16, clock="coast", stand_phase=math.pi),
+    "walk16_act, gyro x0.5 only (shape 10), coast -> pi": dict(run=W16, gyro_obs=0.5, shaper_hz=10.0,
+                                                              clock="coast", stand_phase=math.pi),
+}
+SETS = {"fw": FW, "knobs": KNOBS, "deployed": DEPLOYED, "coast": COAST, "phases": PHASES}
 
 
 def job(args):
