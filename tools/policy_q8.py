@@ -210,7 +210,16 @@ def _gptq_kernel(w, x, damp=0.01):
     return q.astype(np.int8), scale
 
 
-def gptq_quantize_net(mean, std, layers, act_dim, cal_obs):
+# Hessian damping (fraction of its mean diagonal). 0.01 (the paper's) fits
+# the calibration rollouts tightest but lets the error grow off them: on
+# walk16_act_s256r24 it put one 16-case SIL golden obs (random normal z, up
+# to 5.7 sigma) 0.090 off brax, past test_sil_golden's 0.08. At 0.1 that
+# case is 0.049 and the held-out rollouts cost 0.0029 rms vs 0.0026
+# (experiments/policy/int8-256/2026-11-02-int8-256.md).
+GPTQ_DAMP = 0.1
+
+
+def gptq_quantize_net(mean, std, layers, act_dim, cal_obs, damp=GPTQ_DAMP):
     """[(w, b)] -> [(wq (k, pad4(in)) int8, scale, b, in)] like quantize_net,
     with GPTQ rounding calibrated on cal_obs (raw observations)."""
     x = ((np.asarray(cal_obs, dtype=F) - mean) / std).astype(F)
@@ -218,7 +227,7 @@ def gptq_quantize_net(mean, std, layers, act_dim, cal_obs):
     for i, (w, b) in enumerate(layers):
         last = i + 1 == len(layers)
         k = act_dim if last else w.shape[1]
-        q, scale = _gptq_kernel(np.asarray(w, dtype=F)[:, :k], x)
+        q, scale = _gptq_kernel(np.asarray(w, dtype=F)[:, :k], x, damp)
         n_in = w.shape[0]
         qp = np.zeros((k, pad4(n_in)), np.int8)
         qp[:, :n_in] = q
