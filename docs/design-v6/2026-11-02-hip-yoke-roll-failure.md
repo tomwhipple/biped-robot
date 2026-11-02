@@ -64,6 +64,22 @@ this printer has been measured**, so nothing here says a stress passes.
 
 ## 3. Results
 
+Worst interlayer stress per member over all five cases (the larger of
+across-layer tension and interlayer shear, each piece in its own print frame;
+on the glue plane, the larger of peel and shear):
+
+![Worst interlayer stress per member, failed vs redesign](figs/hip_yoke_interlayer_stress.png)
+
+| member | failed glued yoke | redesign |
+|---|---|---|
+| roll horn arm + flange front | 120.8 (roll torque) | 13.9 (roll torque) |
+| roll flange over the lap | 14.5 (pitch torque) | 11.5 (yaw torque) |
+| roll idler arm | 12.3 (yaw torque) | 9.8 (yaw torque) |
+| pitch horn arm | 32.3 (roll torque) | 9.0 (roll torque) |
+| pitch idler arm | 28.3 (yaw torque) | 12.9 (yaw torque) |
+| pitch flange + toe | 54.4 (roll torque) | 9.9 (yaw torque) |
+| glue lap | 43.5 (roll torque) | 18.3 (yaw torque) |
+
 `compare.py baseline v6`: worst value per case and measure, MPa, with the
 location (x, y, z, yoke frame). `baseline` is the failed design; `v6` the
 current one.
@@ -151,8 +167,8 @@ outline is drawn over them.
 
 ![Sweep map, idler side](figs/hip_yoke_sweep_idler.png)
 
-CAD gate rows, final geometry, left leg (`check_assembly_v6.py --joint ...
---samples 5`, 2026-11-02; every row group ALL CLEAR):
+CAD gate rows, final geometry, both legs (`check_assembly_v6.py --joint ...
+--samples 5 --side L|R`, 2026-11-02; every row group ALL CLEAR):
 
 | row | min distance | at |
 |---|---|---|
@@ -160,15 +176,17 @@ CAD gate rows, final geometry, left leg (`check_assembly_v6.py --joint ...
 | hip roll: yoke less its disc seats vs the carrier | 1.00 mm | 27.5° |
 | hip roll: yoke less its disc seats vs the roll servo | 0.58 mm | −55° |
 | hip roll: yoke vs bearing races, housing | ≥ 21.5 mm | 55° |
-| hip roll/yaw: yoke, pitch servo, thigh vs the folded arms | ≥ 8.58 mm (yoke vs upper arm) | 55° |
+| hip roll/yaw: yoke vs the folded arms, left leg | ≥ 8.58 mm (upper arm) | 55° |
+| hip roll/yaw: yoke vs the folded arms, right leg | ≥ 7.63 mm (upper arm) | −55° |
 
 The hip-pitch row is the same limiting pair as before, at the same 0.70 mm.
 The yoke seated on its discs does not intersect either servo (0.00 mm
 overlap). Inter-leg contact is unchanged: the first piece to touch the other
 leg is the thigh, at about 15° of adduction (measured on an intermediate
 geometry; the fin stays within the pitch horn arm's y extent, 23.45, so it
-does not change). The right leg was gated on that intermediate geometry
-(ALL CLEAR); the final geometry is gated on the left leg only.
+does not change). The yoke is the same part on both legs, so its pitch
+idler arm is inboard on the left leg and outboard on the right, which is why
+the right leg's folded upper arm is the closer one.
 
 ## 6. What was not changed
 

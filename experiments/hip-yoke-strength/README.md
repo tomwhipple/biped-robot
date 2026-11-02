@@ -16,9 +16,11 @@ FEM needs gmsh and CalculiX (`ccx`) from FreeCAD.app's `bin/`; set
 | `run_cases.py <tag>...` | runs `fem_yoke.py` for all five cases of each tag, three at a time; logs in `fem/log_<tag>_<case>.txt` |
 | `interlayer.py <tag>...` | resolves each case's stress in each piece's print frame (roll piece: layers normal to Y; pitch piece: normal to X) and on the glue plane (peel, shear); bolt-hole walls excluded; hot spots 5 mm apart |
 | `compare.py <tag>...` | the worst values per case and measure, side by side, with locations (the record's table) |
+| `fig_interlayer.py <before> <after>` | the record's figure: worst interlayer stress per member over all five cases, two designs, with a `.csv` of the values |
 | `probe_space.py` | free-space probe around the roll horn arm: boxes tested against the neighbours that move relative to the yoke (roll servo and carrier over hip roll, thigh and pitch servo over hip pitch), overlap and minimum distance per angle |
 | `sweep_maps.py` | occupancy rasters of the swept neighbours around the front corner (the roll horn arm), written as `sweep_maps.png` and `.npz` |
 | `sweep_maps2.py` | the same for the idler side; `MAPNAME=sweep_idler` names its output |
+| `adduction.py` | first inter-leg contact as one hip adducts toward the other leg: per angle, the other leg's closest piece (`OLD=1` with an older `hip_yoke_glued.py` in `old/` for an A/B) |
 
 ```bash
 .venv/bin/python experiments/hip-yoke-strength/export_glued.py v6
