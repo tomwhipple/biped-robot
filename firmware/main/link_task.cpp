@@ -182,6 +182,7 @@ void houseTask(void*) {
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
         cli::fallTick(&houseSay);
+        cli::servoRamTick(&houseSay);
         cli::flailTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);
