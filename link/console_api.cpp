@@ -1,7 +1,6 @@
 #include "console_api.h"
 
 #include <stdio.h>
-#include <string.h>
 
 #include "client.h"
 #include "keymap.h"
@@ -19,7 +18,7 @@ struct BimoConsole {
     Link link;
     Intent in;
     Speeds speeds;
-    Keymap keys;
+    Keymap keys{};
     Recorder rec;
     // what the last tick put on the wire
     float vx = 0.0f, vy = 0.0f, wz = 0.0f;
@@ -77,6 +76,12 @@ int bimo_set_watch(BimoConsole* c, const char* spec, int default_port) {
 }
 
 void bimo_clear_watch(BimoConsole* c) { c->link.clearWatch(); }
+
+int bimo_set_tee(BimoConsole* c, const char* host, int port) {
+    return c->link.setTee(host, port) ? 1 : 0;
+}
+
+void bimo_clear_tee(BimoConsole* c) { c->link.clearTee(); }
 void bimo_close(BimoConsole* c) { c->link.close(); }
 
 void bimo_tick(BimoConsole* c, double now_ms) {
@@ -101,7 +106,7 @@ void bimo_tick(BimoConsole* c, double now_ms) {
 void bimo_poll(BimoConsole* c, double now_ms) { c->link.poll(now_ms); }
 
 void bimo_status(const BimoConsole* c, double now_ms, BimoStatus* o) {
-    memset(o, 0, sizeof *o);
+    *o = BimoStatus{};
     const Link& l = c->link;
     o->readonly = l.readonly;
     o->has_dest = l.has_dest;
@@ -162,6 +167,8 @@ void bimo_status(const BimoConsole* c, double now_ms, BimoStatus* o) {
     o->rec_cmd = c->rec.n_cmd;
     o->rec_tlm = c->rec.n_tlm;
     o->rec_bench = c->rec.n_bench;
+    o->tee_on = l.tee_on;
+    o->teed = l.teed;
 }
 
 int bimo_toggle_control(BimoConsole* c, const char* host, double now_ms,

@@ -235,6 +235,17 @@ bool Link::setWatch(const char* host, int port) {
     return true;
 }
 
+bool Link::setTee(const char* host, int port) {
+    tee_to.sin_family = AF_INET;
+    tee_to.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host, &tee_to.sin_addr) != 1) {
+        tee_on = false;
+        return false;
+    }
+    tee_on = true;
+    return true;
+}
+
 void Link::close() {
     if (tx >= 0) ::close(tx);
     if (rx >= 0) ::close(rx);
@@ -252,6 +263,11 @@ void Link::emit(const uint8_t* wire, size_t n) {
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
         ++sent;
+    }
+    if (tee_on &&
+        sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&tee_to),
+               sizeof tee_to) == static_cast<ssize_t>(n)) {
+        ++teed;
     }
 }
 

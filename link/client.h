@@ -122,10 +122,16 @@ struct Link {
     double rate_at_ms = 0.0;
     double rate_hz = 0.0;
 
-    // Mirror mode used to relay each command to a second address -- the sim,
-    // running the same command beside the robot. That is gone (2026-09-03):
-    // mirror mode is a VIEWER now, posed from the robot's measured joints, so
-    // there is no second robot to command. See docs/mirror-mode.md.
+    // Twin-in-the-loop (the Qt console's Sim tab, off by default): every
+    // command frame this link emits is ALSO sent, byte for byte, to a sim
+    // twin on its own ports, so the twin runs the same commands beside the
+    // robot. The twin reports through its own beacon and flight records and
+    // is drawn as its own ghost; nothing here ever blends it into the
+    // measured picture (mirror mode, docs/mirror-mode.md, is a viewer and
+    // commands nothing). An observer emits nothing, so it tees nothing.
+    sockaddr_in tee_to = {};
+    bool tee_on = false;
+    uint32_t teed = 0;
 
     // OBSERVER mode: this link has no transmit socket at all, so it cannot
     // put a byte on the wire. Not a policy the UI enforces -- a policy the
@@ -187,6 +193,9 @@ struct Link {
     bool relink(const char* host, int cmd_port, int tlm_port, bool observe);
     bool setWatch(const char* host, int port);
     void clearWatch() { watch_on = false; }
+    // The twin-in-the-loop copy (tee_to above). False on a non-dotted-quad.
+    bool setTee(const char* host, int port);
+    void clearTee() { tee_on = false; }
     void close();
 
     // vx/wz only -- the classic 14 B frame.

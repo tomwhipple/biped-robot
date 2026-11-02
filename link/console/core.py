@@ -75,6 +75,7 @@ class Status(ctypes.Structure):
         ("rec_active", ctypes.c_int32),
         ("rec_cmd", ctypes.c_uint32), ("rec_tlm", ctypes.c_uint32),
         ("rec_bench", ctypes.c_uint32),
+        ("tee_on", ctypes.c_int32), ("teed", ctypes.c_uint32),
     ]
 
     @property
@@ -104,6 +105,8 @@ _SIGS = {
     "bimo_relink": (_I, [_P, _S, _I, _I, _I]),
     "bimo_set_watch": (_I, [_P, _S, _I]),
     "bimo_clear_watch": (None, [_P]),
+    "bimo_set_tee": (_I, [_P, _S, _I]),
+    "bimo_clear_tee": (None, [_P]),
     "bimo_close": (None, [_P]),
     "bimo_tick": (None, [_P, _D]),
     "bimo_status": (None, [_P, _D, ctypes.POINTER(Status)]),
@@ -274,6 +277,13 @@ class Core:
 
     def clear_watch(self) -> None:
         self._lib.bimo_clear_watch(self._c)
+
+    def set_tee(self, host: str, port: int) -> bool:
+        """Twin-in-the-loop: every command frame also to host:port."""
+        return bool(self._lib.bimo_set_tee(self._c, _b(host), port))
+
+    def clear_tee(self) -> None:
+        self._lib.bimo_clear_tee(self._c)
 
     def close(self) -> None:
         self._lib.bimo_close(self._c)

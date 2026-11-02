@@ -930,6 +930,24 @@ void test_c_boundary_drives_and_watches_like_the_core() {
     CHECK_EQ(drainCommands(robot, &cmd), 3);
     CHECK(!cmd.arm() && !cmd.enabled());
 
+    // Twin-in-the-loop: the same frames, byte for byte, to the sim too.
+    int sim_port = 0;
+    const int sim = robotSocket(&sim_port);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    CHECK(!bimo_set_tee(d, "not-an-ip", sim_port) && true);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    bimo_tick(d, 20.0);
+    linkproto::Command teed = {};
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK_EQ(drainCommands(sim, &teed), 1);
+    CHECK_EQ(teed.seq, cmd.seq);
+    bimo_status(d, 20.0, &st);
+    CHECK(st.tee_on && st.teed == 1);
+    bimo_clear_tee(d);
+    bimo_tick(d, 30.0);
+    CHECK_EQ(drainCommands(sim, &teed), 0);
+    ::close(sim);
+
     // The keymap is the shared one, HOLD included.
     const int hold = bimo_action_from_name("hold");
     CHECK(hold >= 0 && hold < bimo_action_count());

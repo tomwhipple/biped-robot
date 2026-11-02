@@ -58,6 +58,9 @@ typedef struct {
     // the console recording
     int32_t rec_active;
     uint32_t rec_cmd, rec_tlm, rec_bench;
+    // twin-in-the-loop
+    int32_t tee_on;
+    uint32_t teed;
 } BimoStatus;
 
 int bimo_api_version(void);
@@ -79,6 +82,10 @@ int bimo_relink(BimoConsole* c, const char* host, int cmd_port, int tlm_port,
 // HOST[:PORT]; `default_port` when the spec has none. 0 on a bad spec.
 int bimo_set_watch(BimoConsole* c, const char* spec, int default_port);
 void bimo_clear_watch(BimoConsole* c);
+// Twin-in-the-loop: a copy of every command frame to a sim (Link::tee_to).
+// 0 on a non-dotted-quad host.
+int bimo_set_tee(BimoConsole* c, const char* host, int port);
+void bimo_clear_tee(BimoConsole* c);
 void bimo_close(BimoConsole* c);
 
 // One tick: drain the beacon, follow the robot (arm sync, home answer), send
