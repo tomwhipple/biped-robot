@@ -113,11 +113,14 @@ Status Bus::syncReadBurst(const uint8_t* ids, size_t n, Feedback* out,
     if (!port_.write(tx_, txn)) return Status::kTxFail;
 
     // One deadline for the whole burst: the servos answer back-to-back in the
-    // order we listed them, so this is ~n * (reply time) not n * timeout.
+    // order we listed them, so this is ~n * (reply time) not n * timeout
+    // (bus.h kSyncBaseUs / kSyncPerServoUs).
+    const uint32_t legacy_us = reply_timeout_us_ * static_cast<uint32_t>(n);
+    const uint32_t burst_us = kSyncBaseUs + kSyncPerServoUs * static_cast<uint32_t>(n);
     const uint64_t deadline =
-        port_.nowUs() + reply_timeout_us_ * static_cast<uint32_t>(n);
+        port_.nowUs() + (burst_us < legacy_us ? burst_us : legacy_us);
     size_t have = 0, answered = 0;
-    while (answered < n) {
+    while (answered < n && !ok[n - 1]) {
         Response r;
         const ParseResult pr = parseResponse(rx_, have, r);
         if (pr == ParseResult::kOk) {

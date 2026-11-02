@@ -118,6 +118,23 @@ void Recorder::telemetry(double now_ms, const Telemetry& t) {
     ++n_tlm;
 }
 
+void Recorder::bench(double now_ms, const char* datagram, size_t n) {
+    if (f == nullptr) return;
+    fprintf(f, "{\"t\":%.3f,\"utc\":%.6f,\"dir\":\"bench\",\"d\":",
+            (now_ms - t0_ms) / 1000.0, wallNow());
+    fwrite(datagram, 1, n, f);
+    fputs("}\n", f);
+    ++n_bench;
+}
+
+void Recorder::cam(double now_ms, int pane, const char* src, const char* url) {
+    if (f == nullptr) return;
+    fprintf(f,
+            "{\"t\":%.3f,\"utc\":%.6f,\"dir\":\"cam\",\"pane\":%d,"
+            "\"src\":\"%s\",\"url\":\"%s\"}\n",
+            (now_ms - t0_ms) / 1000.0, wallNow(), pane, src, url);
+}
+
 void Recorder::maybeFlush(double now_ms) {
     if (f == nullptr) return;
     if (now_ms - last_flush_ms < 1000.0) return;
