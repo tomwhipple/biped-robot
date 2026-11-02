@@ -37,6 +37,8 @@ import time
 
 import serial
 
+import sweep_guard as G
+
 K = 4096 / 360.0
 # firmware/main/mech_envelope.h kMechLo / kMechHi, degrees, by JOINT NAME. The
 # servo ID of each joint comes from the live board's `cal show` (board_joint),
@@ -86,7 +88,7 @@ class Port:
             m = POS_RE.search(self.cmd(f"pos {sid}", r"id\s+\d+\s+pos.*\n|timeout"))
             if m:
                 return {"pos": int(m.group(2)), "spd": int(m.group(3)), "load": int(m.group(4)),
-                        "temp": int(m.group(6)), "err": int(m.group(7), 16)}
+                        "volt": float(m.group(5)), "temp": int(m.group(6)), "err": int(m.group(7), 16)}
         raise Abort(f"id {sid}: no position reply")
 
     def torque_reg(self, sid):
@@ -129,9 +131,10 @@ def settle(p, sid, tmax=2.0):
     return r
 
 
-def sweep(p, sid, sgn, a, say, budget=None, mech=None):
+def sweep(p, sid, sgn, a, say, budget=None, mech=None, joint=None):
     """One direction from the resting position; returns the record. budget:
-    degrees left of the whole sweep's travel (both directions together)."""
+    degrees left of the whole sweep's travel (both directions together). joint:
+    (name, zero, dir) of the board's ORIGINAL cal row, for the inward hip-roll cap."""
     p0 = p.pos(sid)["pos"]
     step = round(a.step_deg * K)
     window = (ENC_LO, ENC_HI)
@@ -152,6 +155,13 @@ def sweep(p, sid, sgn, a, say, budget=None, mech=None):
     else:
         cap_deg = a.max_deg
     cap = p0 + sgn * round(min(cap_deg, a.max_deg, budget if budget is not None else 1e9) * K)
+    capped_by = "range cap"
+    lim = G.inward_limit(joint[0], a.allow_contact) if joint else None
+    if lim and sgn == lim[0] * joint[2]:          # this direction points at the other leg
+        ic = joint[1] + joint[2] * round(lim[0] * lim[1] * K)
+        if (cap - ic) * sgn > 0:
+            cap, capped_by = ic, f"inward cap {lim[1]:.0f} deg (leg-leg contact; --allow-contact lifts it)"
+            say(f"  id {sid} dir {sgn:+d}: {joint[0]} inward -> capped at {ic} ({lim[1]:.0f} deg)")
     rec = {"dir": sgn, "start": p0, "window": window, "steps": [], "stop": None}
     ACTIVE["start"] = p0
     # `move` refuses with torque off (cli.cpp torqueGate), so: torque, check it
@@ -165,22 +175,32 @@ def sweep(p, sid, sgn, a, say, budget=None, mech=None):
     r = settle(p, sid)
     rec["torque"] = True
     base = r["load"]
+    volts = r["volt"] or 12.0
+    guard = G.PowerGuard(rise_w=a.rise_w, step_w=a.step_w, abs_w=a.abs_w)
+    guard.baseline(G.sample_power(p, sid, volts, 0.4))
+    rec["base_w"] = round(guard.base_w, 3)
     prev, n = r["pos"], 0
-    say(f"  {utc()} id {sid} dir {sgn:+d}: start {p0}, window {window}, load {base}")
+    say(f"  {utc()} id {sid} dir {sgn:+d}: start {p0}, window {window}, load {base}, "
+        f"power {guard.base_w:.2f} W at rest")
     while True:
         n += 1
         tgt = p0 + sgn * step * n
         lim = min(window[1], cap) if sgn > 0 else max(window[0], cap)
         if (tgt - lim) * sgn > 0:
-            rec["stop"] = "range cap" if (cap - lim) * sgn <= 0 else (
+            rec["stop"] = capped_by if (cap - lim) * sgn <= 0 else (
                 "encoder wrap" if lim in (ENC_LO, ENC_HI) else "cal window")
             break
         p.move(sid, tgt, a.speed)
-        time.sleep(step / a.speed)
+        pw = G.sample_power(p, sid, volts, step / a.speed)       # DURING the move
         r = settle(p, sid)
-        r["tgt"] = tgt
+        pw += G.sample_power(p, sid, volts, 0.0)
+        r["tgt"], r["power_w"] = tgt, round(max(pw), 3)
         rec["steps"].append(r)
         moved = (r["pos"] - prev) * sgn
+        why = guard.check(max(pw), r["load"], following=moved >= 0.4 * step)
+        if why:
+            rec["stop"] = why
+            break
         if r["err"]:
             rec["stop"] = f"status 0x{r['err']:02x}"
             break
@@ -229,13 +249,20 @@ def main():
     ap.add_argument("--max-deg", type=float, default=120.0)
     ap.add_argument("--load-stop", type=int, default=450, help="/1000 of the servo's max")
     ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--rise-w", type=float, default=1.5, help="abort above at-rest power + this (W)")
+    ap.add_argument("--step-w", type=float, default=0.35, help="abort above last step + trend + this (W)")
+    ap.add_argument("--abs-w", type=float, default=4.0, help="abort above this power, any joint (W)")
+    ap.add_argument("--torque-limit", type=int, default=400,
+                    help="swept servo's RAM torque limit for the sweep, /1000 (reg 48); restored after")
+    ap.add_argument("--allow-contact", action="store_true",
+                    help="lift the inward hip-roll cap (the other leg must be moved clear)")
     a = ap.parse_args()
     sid = a.id
     log = open(a.out.rsplit(".", 1)[0] + ".log", "a")
     say = lambda s: (print(s, flush=True), log.write(s + "\n"), log.flush())
     p = Port(a.port, log)
     res = {"id": sid, "args": vars(a), "dirs": []}
-    orig = None
+    orig, tl_orig = None, None
     try:
         for i in [int(x) for x in a.check_ids.split(",")]:
             if p.torque_reg(i) != 0:
@@ -251,11 +278,13 @@ def main():
         # (2026-10-23: each direction alone allowed the full width, and the
         # stop-less hip yaw ran 86 + 85 deg, twice its +-45 design range)
         budget = (mech[1] - mech[0] + 20) if mech else 2 * a.max_deg
+        tl_orig = G.read_torque_limit(p, sid)
+        say(f"  id {sid} torque limit {tl_orig} -> {G.set_torque_limit(p, sid, a.torque_limit)} for the sweep")
         for sgn in [int(x) for x in a.dirs.split(",")]:
             if budget <= a.step_deg:
                 say(f"  id {sid} dir {sgn:+d}: skipped, travel budget used")
                 continue
-            rec = sweep(p, sid, sgn, a, say, budget, mech)
+            rec = sweep(p, sid, sgn, a, say, budget, mech, (row[0],) + tuple(orig[:2]) if row else None)
             res["dirs"].append(rec)
             budget -= abs(rec["reach_deg"])
     except (Abort, KeyboardInterrupt, Exception) as e:
@@ -274,6 +303,11 @@ def main():
             say(f"!! recovery failed ({e2!r}): broadcast release")
             p.cmd("release", r"release \S+: \S+\r?\n")
     finally:
+        if tl_orig is not None:
+            try:
+                say(f"  id {sid} torque limit restored: {G.set_torque_limit(p, sid, tl_orig)}")
+            except Exception as e4:
+                say(f"!! torque limit restore failed: {e4!r} (a servo power cycle restores it)")
         if orig:
             try:
                 p.cmd(f"cal set {sid} {orig[0]} {orig[1]}", r"zero <- .*\n|usage")
