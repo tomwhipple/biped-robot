@@ -258,6 +258,15 @@ def sil_profile_for(xml):
               "`tools/gen_obs_spec.py --run <a run on it> --profile <name>`)",
               file=sys.stderr)
         found = [None]
+    # Several profiles can share a plant (v6legs: the float (128,128) net and
+    # v6legs256, the int8 (256,256) one). The first is the default; $SIL_PROFILE
+    # names another -- e.g. to score a run through its int8 build.
+    want = os.environ.get("SIL_PROFILE")
+    if want:
+        if want not in [f or "" for f in found]:
+            raise SystemExit(f"[sil] SIL_PROFILE={want} is not a profile for "
+                             f"plant {plant} (those are {found})")
+        found = [want]
     prof = found[0]
     loaded = sys.modules.get("harness")
     if loaded is not None and getattr(loaded, "POLICY_PROFILE", None) != prof:

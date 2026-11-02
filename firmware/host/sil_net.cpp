@@ -202,20 +202,55 @@ void LoadedNet::bind() {
 
 void LoadedNet::loadBuiltin() {
     builtin_ = true;
+    q8_ = false;
     source_ = "policy/weights.h (generated)";
     activation_ = "swish";
     sizes_.clear();
-    sizes_.push_back(policy::kLayers[0].in);
     layers_.clear();
+#ifdef POLICY_WEIGHTS_Q8
+    // No float layers in an int8 header; the sizes are the trained net's
+    // (the head 2 * act_dim wide, as a .silw would say).
+    sizes_.push_back(policy::kLayersQ8[0].in);
+    for (int i = 0; i < policy::kNumLayers; ++i) {
+        const bool last = i + 1 == policy::kNumLayers;
+        sizes_.push_back(last ? 2 * policy::kActDim : policy::kLayersQ8[i].out);
+    }
+#else
+    sizes_.push_back(policy::kLayers[0].in);
     for (int i = 0; i < policy::kNumLayers; ++i) {
         layers_.push_back(policy::kLayers[i]);
         sizes_.push_back(policy::kLayers[i].out);
     }
+#endif
     mean_.assign(policy::kNormMean, policy::kNormMean + policy::kObsDim);
     std_.assign(policy::kNormStd, policy::kNormStd + policy::kObsDim);
     net_.act_dim = policy::kActDim;
     bind();
+#ifdef POLICY_WEIGHTS_Q8
+    net_.num_layers = 0;      // the float Net carries the normalizer only
+    bindQ8();
+#endif
 }
+
+#ifdef POLICY_WEIGHTS_Q8
+void LoadedNet::bindQ8() {
+    q8_ = true;
+    netq8_.obs_dim = policy::kObsDim;
+    netq8_.act_dim = policy::kActDim;
+    netq8_.num_layers = policy::kNumLayers;
+    netq8_.layers = policy::kLayersQ8;
+    netq8_.norm_mean = policy::kNormMean;
+    netq8_.norm_std = policy::kNormStd;
+    q_xf_.assign(static_cast<size_t>(policy::scratchQ8Floats(policy::kMaxWidth)), 0.0f);
+    q_xq_.assign(static_cast<size_t>(policy::scratchQ8Int16(policy::kMaxWidth)), 0);
+    q_acc_.assign(static_cast<size_t>(policy::scratchQ8Int32(policy::kMaxWidth)), 0);
+    netq8_.xf = q_xf_.data();
+    netq8_.xq = q_xq_.data();
+    netq8_.acc = q_acc_.data();
+}
+#endif
+
+
 
 bool LoadedNet::load(const char* weights_path, std::string& err) {
     if (!weights_path || !*weights_path) {
@@ -445,13 +480,42 @@ bool LoadedNet::load(const char* weights_path, std::string& err) {
     }
 
     builtin_ = false;
+    q8_ = false;
     source_ = blob_path;
     net_.act_dim = act_dim;
     bind();
+#ifdef POLICY_WEIGHTS_Q8
+    {
+        // The compiled-in run's blob runs the compiled-in int8 net (sil_net.h).
+        std::string run;
+        if (have_side) {
+            if (const siljson::Value* r = side.get("run")) {
+                if (r->isStr()) run = r->str;
+            }
+        }
+        if (run.empty()) {
+            const size_t slash = blob_path.find_last_of('/');
+            run = stripExt(blob_path.substr(slash == std::string::npos ? 0 : slash + 1));
+        }
+        bool same = run == policy::kWeightsRun &&
+                    sizes_.size() == static_cast<size_t>(policy::kNumLayers) + 1 &&
+                    sizes_.front() == policy::kLayersQ8[0].in;
+        for (int i = 0; same && i + 1 < policy::kNumLayers; ++i) {
+            same = sizes_[static_cast<size_t>(i) + 1] == policy::kLayersQ8[i].out;
+        }
+        if (same) bindQ8();
+    }
+#endif
     return true;
 }
 
 void LoadedNet::forward(const float* obs, float* action) const {
+#ifdef POLICY_WEIGHTS_Q8
+    if (q8_) {
+        policy::forwardNetQ8(netq8_, obs, action, policy::Kernel::kC);
+        return;
+    }
+#endif
     policy::forwardNet(net_, obs, action);
 }
 

@@ -36,6 +36,22 @@ computed HERE in numpy with the exact brax semantics the firmware reproduces:
 Kernel layout is flax's (in, out) row-major, copied verbatim, so neither the
 export nor the firmware ever has to transpose.
 
+QUANTIZED (--quant int8, a policy profile for a net too big to stream as
+float; docs/firmware-design.md section 6.1)
+      .venv/bin/python tools/gen_policy_weights.py --run <run> \
+          --profile <name> --quant int8
+
+    The header carries int8 OUTPUT-major kernels with per-output float
+    scales (policy::DenseQ8, POLICY_WEIGHTS_Q8), quantized offline with GPTQ
+    error feedback on CPU-plant rollouts of the float net
+    (tools/policy_q8.py), the head cut to its act_dim mean logits, and one
+    self-test case the firmware checks at boot.  The golden vectors are the
+    numpy mirror of the firmware's int8 arithmetic (policy_q8.forward_q8),
+    which the firmware reproduces to the bit up to the final tanhf; how far
+    that lands from the float net is reported here and pinned by
+    test_sil_golden against brax.  A profile that is already int8 stays int8
+    when regenerated without --quant.
+
 Real-mode obs cases are built as raw = mean + std * z from a sampled NORMALIZED
 z (the same construction tools/export_policy_weights.py uses for its brax
 goldens): sampling raw obs directly would put every channel wildly out of
@@ -55,6 +71,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
+import policy_q8                                       # noqa: E402
 
 # The deployed set; --profile <name> reads and writes firmware/policies/<name>/
 # instead (tools/policy_profile.py). main() rebinds these three.
@@ -237,6 +254,42 @@ def obs_cases(mean, std, obs_dim, placeholder, n=8, seed=20260803):
     return out
 
 
+def iarr(name, v, per_line=24):
+    v = np.ravel(v)
+    lines = ["alignas(4) inline constexpr int8_t %s[%d] = {" % (name, v.size)]
+    for i in range(0, v.size, per_line):
+        lines.append("    " + ",".join(str(int(x)) for x in v[i:i + per_line])
+                     + ",")
+    lines.append("};")
+    return lines
+
+
+def q8_lines(qlayers, selftest):
+    """The int8 half of a quantized weights.h (policy::DenseQ8)."""
+    L = []
+    for i, (wq, scale, b, n_in) in enumerate(qlayers):
+        k, in_pad = wq.shape
+        L.append("// layer %d: int8 (%d out, %d in -> %d padded), OUTPUT-major,"
+                 " + 4 bytes slack" % (i, k, n_in, in_pad))
+        L += iarr("kQW%d" % i, np.concatenate([wq.ravel(),
+                                               np.zeros(4, np.int8)]))
+        L += carr("kQS%d" % i, scale)
+        L += carr("kQB%d" % i, b)
+        L.append("")
+    L.append("inline constexpr DenseQ8 kLayersQ8[kNumLayers] = {")
+    for i, (wq, scale, b, n_in) in enumerate(qlayers):
+        L.append("    {%d, %d, %d, kQW%d, kQS%d, kQB%d},"
+                 % (n_in, wq.shape[1], wq.shape[0], i, i, i))
+    L.append("};")
+    L.append("")
+    L.append("// policy::init()'s boot check: this raw obs (a calibration-rollout")
+    L.append("// state) must give this action (tools/policy_q8.py forward_q8).")
+    L += carr("kSelfTestObs", selftest[0])
+    L += carr("kSelfTestAction", selftest[1])
+    L.append("")
+    return L
+
+
 def main():
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group()
@@ -250,6 +303,9 @@ def main():
                     help="policy profile <name>: read its obs spec and write "
                          "its weights under firmware/policies/<name>/ "
                          "(tools/policy_profile.py)")
+    ap.add_argument("--quant", choices=("none", "int8"), default=None,
+                    help="int8: a quantized profile (policy/q8.h). Default: "
+                         "whatever the target header already is")
     args = ap.parse_args()
     global SPEC_H, WEIGHTS_OUT, VEC_OUT
     profile = policy_profile.check(args.profile)
@@ -264,6 +320,19 @@ def main():
             "default to the placeholder; it does not any more, because the "
             "deployed header is now real weights and an argument-less run "
             "would silently un-deploy the policy.")
+
+    quant = args.quant
+    if quant is None:
+        was_q8 = (os.path.exists(WEIGHTS_OUT)
+                  and "#define POLICY_WEIGHTS_Q8" in open(WEIGHTS_OUT).read())
+        quant = "int8" if was_q8 else "none"
+        if was_q8:
+            print("  %s is int8: regenerating it int8 (--quant none to "
+                  "change that)" % os.path.relpath(WEIGHTS_OUT, ROOT))
+    if quant == "int8" and (args.placeholder or profile is None):
+        raise SystemExit("--quant int8 is for a policy PROFILE's real net "
+                         "(--profile <name> --run <run>): the deployed set "
+                         "and the placeholder stay float")
 
     obs_dim, act_dim = spec_dims()
     placeholder = bool(args.placeholder)
@@ -298,8 +367,38 @@ def main():
                 test_net = json.load(fh).get("test_net")
 
     sizes = info["sizes"]
-    cases = [(o, forward(mean, std, layers, o, act_dim))
+    qlayers = None
+    selftest = None
+    if quant == "int8":
+        print("  int8: calibration rollouts of the float net on the CPU "
+              "plant ...")
+        cal = policy_q8.calibration_obs(ROOT, info["run"], mean, std, layers,
+                                        act_dim)
+        qlayers = policy_q8.gptq_quantize_net(mean, std, layers, act_dim, cal)
+        a_f = policy_q8.float_forward(mean, std, layers, cal, act_dim)
+        a_q = np.array([policy_q8.forward_q8(mean, std, qlayers, o, act_dim)
+                        for o in cal])
+        e = np.abs(a_q - a_f)
+        print("  int8 vs float on %d calibration obs: action err max %.4f "
+              "p99 %.4f rms %.4f" % (len(cal), e.max(),
+                                     np.percentile(e, 99),
+                                     np.sqrt(np.mean(e ** 2))))
+        so = cal[len(cal) // 3]
+        selftest = (so, policy_q8.forward_q8(mean, std, qlayers, so, act_dim))
+        fwd = lambda o: policy_q8.forward_q8(mean, std, qlayers, o, act_dim)
+    else:
+        fwd = lambda o: forward(mean, std, layers, o, act_dim)
+    cases = [(o, fwd(o))
              for o in obs_cases(mean, std, obs_dim, placeholder, args.cases)]
+    if qlayers is not None:
+        for k, (o, a) in enumerate(cases):
+            z = float(np.max(np.abs((o - mean) / std)))
+            e = float(np.max(np.abs(a - forward(mean, std, layers, o,
+                                                 act_dim))))
+            print("  int8 vs float, golden case %d (max |z| %.3g): %.4f%s"
+                  % (k, z, e, "  <- a frozen channel 1e6 sigma out: no "
+                     "int8 rounding matches float there, and the firmware "
+                     "never feeds it (pinFrozen)" if z > 1e3 else ""))
 
     # -- weights header ----------------------------------------------------
     L = []
@@ -336,6 +435,13 @@ def main():
             w("// header was written.  constexpr, so it lives in flash DROM.")
         else:
             w("// constexpr, so it lives in flash DROM.")
+    if qlayers is not None:
+        w("//")
+        w("// INT8 (policy/q8.h): output-major int8 kernels, per-output float")
+        w("// scales, GPTQ-rounded on CPU-plant rollouts (tools/policy_q8.py);")
+        w("// the head keeps its %d mean logits only. policy::init() copies"
+          % act_dim)
+        w("// what fits into RAM and checks kSelfTest* before `run` may arm.")
     w("#pragma once")
     L.extend(policy_profile.guard_lines(profile, "weights.h"))
     w("#include <stddef.h>")
@@ -358,19 +464,30 @@ def main():
     L += carr("kNormMean", mean)
     L += carr("kNormStd", std)
     w("")
-    for i, (wt, b) in enumerate(layers):
+    if qlayers is not None:
+        L += q8_lines(qlayers, selftest)
+        layers_out = []
+    else:
+        layers_out = layers
+    for i, (wt, b) in enumerate(layers_out):
         w("// layer %d: (%d, %d), flax kernel order (in, out) row-major"
           % (i, wt.shape[0], wt.shape[1]))
         L += carr("kW%d" % i, wt, per_line=8)
         L += carr("kB%d" % i, b, per_line=8)
         w("")
-    w("inline constexpr Dense kLayers[kNumLayers] = {")
-    for i, (wt, b) in enumerate(layers):
-        w("    {%d, %d, kW%d, kB%d}," % (wt.shape[0], wt.shape[1], i, i))
-    w("};")
-    w("")
+    if qlayers is None:
+        w("inline constexpr Dense kLayers[kNumLayers] = {")
+        for i, (wt, b) in enumerate(layers):
+            w("    {%d, %d, kW%d, kB%d}," % (wt.shape[0], wt.shape[1], i, i))
+        w("};")
+        w("")
     w("}  // namespace policy")
     w("")
+    if qlayers is not None:
+        # the macro the firmware's #ifdefs key on, ahead of the namespace
+        at = L.index("namespace policy {")
+        L[at:at] = ["// policy/q8.h: this net runs the int8 forward pass.",
+                    "#define POLICY_WEIGHTS_Q8 1", ""]
     os.makedirs(os.path.dirname(WEIGHTS_OUT), exist_ok=True)
     with open(WEIGHTS_OUT, "w") as f:
         f.write("\n".join(L))
@@ -408,6 +525,11 @@ def main():
     with open(VEC_OUT, "w") as f:
         f.write("\n".join(V))
 
+    if qlayers is not None:
+        nb = sum(q.size + 8 * q.shape[0] + 4 for q, _, _, _ in qlayers)
+        print("int8 net: %.1f KB of weights+scales+biases (vs %.1f KB fp32)"
+              % (nb / 1024.0, sum(w_.size + b.size for w_, b in layers)
+                 * 4 / 1024.0))
     nparams = sum(w_.size + b.size for w_, b in layers)
     print("%s net: %s (%d weights + %d normalizer floats, %.1f KB fp32)"
           % ("placeholder" if placeholder else info["run"],

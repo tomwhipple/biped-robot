@@ -1,7 +1,7 @@
 idf_component_register(
     SRCS "app_main.cpp" "ctrl_task.cpp" "link_task.cpp" "cli.cpp" "imu_sampler.cpp"
          "scs_port_idf.cpp" "cal_store.cpp" "wifi_link.cpp" "obs_dump.cpp"
-         "timesync.cpp" "flight_rec.cpp"
+         "timesync.cpp" "flight_rec.cpp" "net_bench.cpp"
     INCLUDE_DIRS "."
     REQUIRES scsbus linkproto obs policy imu battguard balance flightrec fallguard flailguard
              driver esp_timer esp_system nvs_flash freertos

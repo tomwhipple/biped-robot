@@ -296,7 +296,11 @@ and are clamped to that range.
   the same run.
 - `policy::forwardNet` takes the weights as a parameter and `forward()`
   binds it to the generated header, so the SIL library runs an exported
-  `.silw` through the identical arithmetic.
+  `.silw` through the identical arithmetic. Only the act_dim mean logits of
+  the head are computed; the log-std half is never read at inference.
+- A policy profile may instead carry an **int8** net (`--quant int8`,
+  `POLICY_WEIGHTS_Q8`, `policy/q8.h`): the way a net wider than (128, 128)
+  fits the tick. §6.1 has the budget and the arithmetic.
 
 ### 5.3 Command shaper and goal speed
 
@@ -653,6 +657,127 @@ is described in [training.md](training.md) §9.
 The referee gates the deployed artifact: the distilled net is scored on both
 scorecard columns — the python referee and the SIL column through the
 firmware's own code — before its headers are generated and flashed.
+
+### 6.1 The forward-pass budget, and int8 for a wider net
+
+The 2026-11-02 distillation study put most of the student-vs-teacher gap on
+student width: on walk14 a (256, 256) student scores 62/160 and a
+teacher-sized (512, 256, 128) one 69/160, against 37/160 for (128, 128)
+(teacher 79). The question is what fits the 20 ms tick. On the robot
+(2026-11-01, `stat`, 12 servos, the v6legs (128, 128) float net) the tick is
+servo read 3.55 ms, IMU 0.02, obs 0.04, **net 7.8**, write 0.09, other
+0.6: worst 13.2 ms. Everything but the net is ~5.4 ms, so the net may take
+about 14 ms and still leave the tick ~1 ms of margin, and the wider the net
+the less of that is left.
+
+**Where the 7.8 ms goes.** The weights are `constexpr` in flash `.rodata`,
+read through the 32 KB flash cache, and the 162 KB (128, 128) net is five
+times that cache: every tick streams all of it over QIO SPI at 80 MHz
+(40 MB/s raw, ~1.1 µs per 32-byte cache line). The float inner loop
+(`lsi, lsi, madd.s, ssi`, 6 instructions per MAC in a zero-overhead loop)
+is ~6–10 cycles per MAC, 1.0–1.7 ms for 40 576 MACs, and swish through
+libm's `expf` (a call chain through `__ieee754_expf`, `finitef` and
+`__divsf3`) ~200 cycles a unit, 0.2 ms. The remaining ~6 ms is the flash
+stream: **~37 µs per KB of weights** (36–40), a number every option below
+inherits. Weights cannot sit in RAM instead: static DRAM is 89 % used (the
+`.bss` is 136 KB) and the robot reports ~105 KB of free heap with WiFi up.
+
+**The options for a (256, 256) or (192, 192) net**, in ms per forward pass at
+240 MHz (estimates from the generated code and the flash rate above;
+`nettime` measures them, see below):
+
+| net | storage, kernel | weight bytes | flash stream | compute + act. | **net** | worst tick |
+|---|---|---|---|---|---|---|
+| (128, 128) | float, flash (as deployed) | 162 KB | ~6.1 | 1.3–2.0 | **7.8 measured** | 13.2 measured |
+| (128, 128) | int8, MAC16, flash | 39 KB | 1.5 | 0.5 | **~2.0** | ~7.4 |
+| (128, 128) | int8, MAC16, RAM (fits the boot budget) | 39 KB | 0 | 0.5 | **~0.6** | ~6.0 |
+| (192, 192) | float, flash | 286 KB | 10.6 | 2.6 | **~13** | ~18.5 |
+| (192, 192) | int8, MAC16, flash | 71 KB | 2.6 | 0.9 | **~3.6** | ~9.0 |
+| (256, 256) | float, flash | 445 KB | 16.5 | 4.2 | **~21** | > 20: does not fit |
+| (256, 256) | float, rows split over both cores | 445 KB | 16.5 (one SPI bus) | 2.1 | **~19** | does not fit |
+| (256, 256) | int16 weights, MAC16 `mula.dd` (1 cycle/MAC), flash | 218 KB | 8.1 | 0.7 | **~9** | ~14.5 |
+| (256, 256) | **int8, C kernel, flash** | 109 KB | 4.0 | 3.1 | **~7.1** | ~12.5 |
+| (256, 256) | **int8, MAC16, flash** | 109 KB | 4.0 | 1.4 | **~5.4** | **~10.8** |
+| (256, 256) | int8, MAC16, all in RAM (needs ~109 KB of heap) | 109 KB | 0 | 1.4 | **~1.4** | ~6.8 |
+
+Splitting rows across the cores does not help the float net: both cores'
+caches fill over the one SPI flash bus, so the stream does not parallelise.
+It would also put the control tick at the mercy of core 0, where WiFi's
+interrupts and tasks take hundreds of microseconds at a time, and it would
+cost three cross-core barriers per tick. ESP-NN's optimised kernels are for
+the S3's SIMD; on the classic ESP32 it falls back to plain C. ESP-DSP's
+`dotprod_s16` uses the same MAC16 unit as the kernel below but needs int16
+weights. **int8 weights in flash, MAC16 kernel** is the one option that fits
+a (256, 256) net with margin and needs no RAM: ~5.4 ms against 7.8 today, so
+the wider net makes the tick *faster*.
+
+**The int8 arithmetic** (`policy/q8.h`, `q8.cpp`, `q8_mac16.S`; numpy mirror
+`tools/policy_q8.py`):
+
+- Weights are int8 with one float scale per output channel, stored
+  **output-major** (row j is output j, zero-padded to a multiple of 4
+  inputs), so each output is one dot product. Activations are int16, scaled
+  per tensor at run time from their max |x| (the int16 step loses <2e-4 of
+  action; the weights are where the error is). The integer sum is exact in
+  int32. Then y = acc · (s_x · s_j) + b_j and a polynomial swish
+  (`swishFast`: e^z by 2^n · 2^f with a degree-6 polynomial, ~1e-6 from
+  brax's swish, and about a fifth of `expf`'s cost).
+- The **MAC16 kernel** (`q8RowsMac16`, in IRAM) splits each word of four
+  int8 weights with one shift and two masks into int16 halves holding
+  w << 8, and feeds four `mula.da` multiply-accumulates. Two of them also
+  load the next activation words, so the loop is 9 instructions per 4 MACs,
+  ~2.3 cycles per MAC. The 40-bit accumulator holds 256 · sum exactly for
+  inputs up to 512 wide. The C kernel (`q8RowsC`, 22 instructions per 4
+  MACs) computes the same integers.
+- Every float step is one IEEE operation in a fixed order, and `q8.cpp`
+  builds with `-ffp-contract=off`. So the robot, the host build (SIL) and
+  the numpy mirror agree to the bit, up to the final `tanhf`; the host test
+  holds the golden vectors to 2e-6.
+- **Rounding.** Plain round-to-nearest int8 costs the walk14 (256, 256)
+  student ~0.007 rms / 0.06 max in action on its own rollouts. The
+  generator therefore rounds with **GPTQ** error feedback: each kernel's
+  inputs are rounded in turn and the error is folded into the inputs not yet
+  rounded, weighted by the layer's input covariance on CPU-plant rollouts of
+  the float net. That is about half the error, with the same format at run
+  time: 0.004 rms, 0.03–0.07 max. Frozen channels, which never move in
+  calibration, are rounded first and handed nobody's error. No retraining
+  or GPU is needed. Quantization-aware fine-tuning is the next step if a
+  deployed int8 net ever needs the last 0.004.
+
+**Boot.** `policy::init()` (from `app_main`, before the control task) copies
+int8 layers into internal RAM, largest first, while they fit the free heap
+minus a 64 KB reserve for WiFi's dynamic buffers. Today that is the small
+head, or the first layer when the heap allows; the rest streams from flash,
+with the same arithmetic. It then runs the generator's self-test case
+(`kSelfTestObs` → `kSelfTestAction`): the C path must reproduce numpy's
+action to 1e-4 or `run` refuses, and the MAC16 path must reproduce the C
+path **to the bit** or `forward()` stays on C. The MAC16 instruction
+semantics are pinned on the host only by an instruction-level emulation in
+`test_policy`; the silicon is checked here, on every boot. `stat` prints the
+result on its `net:` line.
+
+**Measuring it on the robot: `nettime [n]`** (benched; ~2 s at n = 20). It
+runs on core 1 below the control task and prints min / median / max µs for
+every way this image can run its net:
+
+- an int8 image: as run (the boot placement and kernel), C from flash,
+  MAC16 from flash, MAC16 with every layer the heap allows in RAM, then each
+  layer's kernel alone from flash and from RAM. The last pair is the flash
+  cost per KB directly.
+- a float image: as run, the same net with its weights copied to RAM as far
+  as the heap allows, and the net quantized to int8 on the spot with plain
+  rounding (`policy::quantizeDense`; for timing, not accuracy), with the C
+  and MAC16 kernels.
+- both: 512 swish units through `expf` and through `swishFast`.
+
+`stat` then gives the armed number (`net`) and the worst tick.
+
+The profile **`v6legs256`** carries the walk14 (256, 256) student
+`robot_legs_walk14_s256r24` as an int8 test net for this budget and the
+parity checks. It is a legacy run, not a deploy candidate. Its SIL golden
+(brax float vs firmware int8) holds to 0.08 (worst 0.066). The closed-loop
+SIL scorecard, float vs int8 through the firmware stack, is recorded in
+[design-v6/2026-11-02-esp32-int8-policy.md](design-v6/2026-11-02-esp32-int8-policy.md).
 
 ## 7. Test and deploy (host first, hardware last)
 

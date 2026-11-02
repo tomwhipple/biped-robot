@@ -756,6 +756,22 @@ include-order mistake cannot compile the wrong policy. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 
+**Int8 profiles.** `make deploy RUN=<run> POLICY=<name> QUANT=int8`
+(`gen_policy_weights.py --quant int8`) writes the profile's net as int8
+(`policy/q8.h`): GPTQ-rounded on CPU-plant rollouts of the float net, which
+the generator runs itself (~10 s), and the head cut to its mean logits. A
+regeneration keeps an int8 profile int8. This is how a net wider than
+(128, 128) fits the 20 ms tick ([firmware-design.md §6.1](firmware-design.md)).
+The SIL library of an int8 build runs the compiled-in int8 net when given
+that run's `.silw` (any other run runs float, and the spec's `policy.quant`
+says which). Several profiles can share a plant; `eval_precision.py --sil`
+takes the first, and `SIL_PROFILE=<name>` picks another.
+
+**`v6legs256`**: the `v6legs` plant and obs layout with the walk14 (256, 256)
+student `robot_legs_walk14_s256r24` as an int8 net (165 → 256 → 256 → 24,
+109 KB). It is a timing and parity test net for §6.1 of the firmware design,
+not a deploy candidate.
+
 **`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
 `--robot`, action map `full`. 12 policy joints in the sim's actuator order —
 `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
