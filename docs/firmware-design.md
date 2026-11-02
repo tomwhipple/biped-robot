@@ -148,7 +148,8 @@ Also:
 | `link` | 0 | 5 | UART0 reader: demultiplexes binary command frames from CLI text lines |
 | `wifi_link` | 0 | 5 | UDP command frames in on 4210; the 10 Hz telemetry beacon out on 4211 |
 | `imu` | 0 | 4 | the 250 Hz IMU sampler and fusion |
-| `housekeeping` | 0 | 2 | the CLI, arm and home requests, the home readback, pose streaming, UART telemetry, the observation dump |
+| `flightrec` | 0 | 3 | drains the flight recorder's two rings to UDP 4220, 1 Hz hello ([flight-recorder.md](flight-recorder.md)) |
+| `housekeeping` | 0 | 2 | the CLI, arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
 
 The WiFi/LwIP tasks stay on core 0 (IDF default), so nothing they do can
 preempt `ctrl`. All tasks are created once at init, and the control loop is
@@ -167,6 +168,9 @@ How data crosses cores (`main/shared.h` states the rules beside each item):
   dropped, never reported.
 - **IMU sample**: the one lock the tick takes is the sampler's `portMUX`
   critical section around a sample copy.
+- **Flight records**: one lock-free single-producer ring per producer
+  (`ctrl`, `housekeeping`), drained by the `flightrec` task; a full ring
+  drops the record and counts it, so no producer ever waits.
 - **Requests from the link** (arm and home edges) are counters bumped by
   `ctrl` and consumed by housekeeping, so each atomic keeps one writer.
 
@@ -182,6 +186,7 @@ prints the live values — `us_read`, `us_imu`, `us_obs`, `us_net`,
 | policy forward, 147 → 128 → 128 → 20 | 7.2 ms |
 | SYNC WRITE | 0.07 ms |
 | mailbox drain + watchdog | 0.07 ms |
+| flight-recorder record (encode + ring push), when `rec` is on | not yet measured on the robot; `rec` prints the worst case ("push cost max ctrl"). It adds no bus traffic: the record is built from the SYNC READ above |
 
 About 10 ms of the 20 ms tick is used, with 0 % late ticks on the prototype.
 The SYNC READ covers the fitted servos only; at the measured ~0.28 ms per
@@ -214,7 +219,7 @@ graph LR
     OBS --> NET[policy MLP<br/>147-128-128-20]
     NET --> SHP[command shaper<br/>+ takeover ramp]
     SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
-    SAFE[link watchdog, fall latch,<br/>pack guard, overrun => torque off] --- LOOP
+    SAFE[link watchdog, fall latch fallguard,<br/>pack guard, operator stop, overrun => torque off;<br/>flail guard => hold] --- LOOP
   end
   CAL[NVS: servo cal, IMU cal] --> OBS
   LOOP -->|telemetry, pose, obsdump| HK[housekeeping + beacon<br/>core 0]
@@ -229,6 +234,8 @@ graph LR
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
 | `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
+| `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
+| `components/flailguard/` | the armed loop's judge of the POLICY: pose / rate / tilt / chatter (§5.6 "Flail guard") | yes, incl. a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`) |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
 
 ### 5.1 Observation
@@ -397,21 +404,36 @@ In the order the tick applies them:
    (`VSAFE`), latched until `batt reset` (bench only, after a pack swap) or a
    power cycle. A tick with no servo reply is "no data", never 0 V.
    Thresholds and the power path: [wiring.md](wiring.md).
-2. **Fall latch.** `up_z` below 0.4 (walker_env's `fall_up_z`) for 200 ms:
+2. **Fall latch** (`components/fallguard`, shared with the bench path; see
+   "Fall guard" below). Torso tilt past 45 deg (`up_z` < 0.707) for 200 ms:
    report `FALLEN`, release torque, record `DISARMED_FALL` and bench the loop.
-   Past that line the policy is outside anything it trained on, and holding
-   torque only grinds the servos against the floor. There is no auto-clear;
-   re-arming is a fresh ARM edge or `run`. `StubImu` pins `up_z` at 1, so an
-   IMU-less board never trips it.
-3. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
+   This is tighter than walker_env's `fall_up_z` = 0.4 (66 deg), which stays
+   the sim's episode end (`linkproto::kFallUpZ`): holding torque from 45 down
+   to 66 deg only grinds the servos into the floor. Nothing here auto-clears
+   or re-arms; the bench half takes the latch over and homes the robot (ends
+   released) once it is picked up. Re-arming is a fresh ARM edge or `run`.
+   `StubImu` pins `up_z` at 1, so an IMU-less board never trips it.
+3. **Operator stop** (`linkproto::kFlagStop`, out of band: the link tasks
+   count it in `g_op_stops` and never pass it to the latches or the
+   watchdog). Hard (with `ESTOP`): release torque this tick, `DISARMED_STOP`,
+   bench. Soft: hold (below), `DISARMED_STOP`, bench. `tools/estop.py` sends
+   it; [control-channel.md](control-channel.md) has the wire rules.
+4. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
    250 ms without a valid frame (the command decays to the trained stand),
    `RELAX` after 5 s (torque off), `ESTOP` on the operator's flag (torque
    off, latched until a frame with `ENABLE` off). See
    [control-channel.md](control-channel.md).
-4. **Overrun**: a tick longer than 40 ms releases torque (§4).
+5. **Flail guard** (`components/flailguard`, after the policy and the
+   shaper, before the write; see "Flail guard" below): the policy doing
+   something clearly wrong for its command. Hold, `DISARMED_FLAIL`, bench.
+6. **Overrun**: a tick longer than 40 ms releases torque (§4).
 
 Every limp state releases torque with one broadcast frame and invalidates
-the shaper, so a re-engage reseeds from wherever the joints are.
+the shaper, so a re-engage reseeds from wherever the joints are. The two
+**holds** (the flail guard and the soft operator stop) are the exception: the
+tick writes every fitted servo's goal to the position it reported this tick
+(one SYNC WRITE, torque on) and the bench handover that follows skips its
+release, so the robot ends the run stiff where it was, not sagging.
 
 The **mechanical envelope** (`main/mech_envelope.h`) is the per-bus-joint
 measured or CAD-verified travel; the leg rows are the prototype's, and the
@@ -441,15 +463,105 @@ bench write. The swing leg is untouched. The correction persists through the
 hold after the min-jerk move ends, and ends at the next `pose`, `move`, `home`,
 `release`/`torque`, or when the loop is armed (the next move then starts from
 where the servos are). Safety: if the roll error passes the abort limit, or
-the attitude read fails or is older than 100 ms, the correction **freezes** at
-its last value, a message prints, and torque stays on. `balance` prints the
-gains, the live roll, and the active correction in degrees and ticks;
-`balance log` dumps the last 24 s at 25 Hz (`BAL ms roll err u` in 0.01 deg,
-then the roll rate in 0.1 deg/s); `balance set <kp> <ki> <ankle> <hip>
-[clamp_deg] [abort_deg] [kd]` changes the gains (refused while engaged; the
-defaults are kp 0.3, ki 1.0, kd 0.03, mixes +1/-1, clamp 10 deg, abort 12 deg).
-A non-finite gyro rate freezes the correction like a failed attitude read. The sim twin and the gain sweep are in
+the attitude read fails or is older than 100 ms, or the gyro rate is not
+finite, the loop **aborts**: it stops making decisions and runs a fixed
+open-loop sequence, chosen in sim ([2026-10-25-abort-policy-sim.md](../experiments/one-leg-stand/2026-10-25-abort-policy-sim.md)).
+The correction u fades to zero over 0.3 s (min-jerk), then every joint of the
+stream returns to the pose the `B` move started from (`s_traj_start`, the
+double-support pre-lift pose) over 1.0 s, from wherever its nominal target
+was at the abort: the lifted foot is put back down. Torque stays on
+throughout and no step of the sequence reads the IMU, so a dead IMU lands the
+foot the same way. The abort is idempotent: the first cause and its numbers
+stand. A message prints at the abort and at the landing; the loop then holds
+the pre-lift pose until the next `pose` or `balance off`. `balance` prints
+the gains, the live roll, the active correction in degrees and ticks and,
+once aborted, the cause, the time, the error and u at the abort and the
+phase (fading, landing, landed); `balance log` dumps the last 24 s at 25 Hz
+(`BAL ms roll err u` in 0.01 deg, then the roll rate in 0.1 deg/s) followed,
+after an abort, by `BALEVT abort <tip|imu> <ms> <err> <u>` and
+`BALEVT landed <ms>`; `balance set <kp> <ki> <ankle> <hip>
+[clamp_deg] [abort_deg] [kd] [decay_s] [land_s]` changes the gains and the
+abort times (refused while engaged; the defaults are kp 0.3, ki 1.0,
+kd 0.03, mixes +1/-1, clamp 10 deg, abort 12 deg, decay 0.3 s, land 1.0 s).
+The pure sequence (`balance::abortProfile`, `landTarget`) is host-tested and
+pinned to the sim twin `balance_abort.py`. An impulsive tip that is already
+past a few rad/s at 12 deg falls under any policy; the sequence is for the
+controller-caused and sensor-caused aborts. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
+
+**Fall guard** (`components/fallguard`, `fall`). One module, one table of
+limits, used by both control paths (Tom 2026-11-01: work towards one
+policy-driven system, not a bench system and a policy system):
+
+| path | owner | fall | on a fall |
+|---|---|---|---|
+| armed policy loop | `ctrl_task.cpp`, `Motion::kPolicy` | tilt > 45 deg (`up_z` < 0.707) for 200 ms | `FALLEN`, limp, `DISARMED_FALL`, bench the loop; hand the fall to the bench guard |
+| bench (scripted `pose`/`home`, idle) | `cli.cpp` `fallTick`, `Motion::kBench` | tilt > 30 deg (`up_z` < 0.866) for 100 ms | stop the pose stream, balance and any home; torque off |
+
+`linkproto::kFallUpZ` = 0.4 (66 deg) stays the **sim's** episode end and is no
+longer used on the robot. The bench line is tighter because scripted motion
+never leans on purpose (one-leg stands peak at the 12 deg balance abort).
+
+Recovery is the same whichever path fell: while latched, `pose`/`move` are
+refused; within 10 deg of upright **and** |gyro| < 0.35 rad/s continuously for
+2 s (carried, or upright for a moment mid-tumble, does not count) runs `home`
+by itself (2.5 s smooth, hip play take-up, readback, torque **released**) and
+clears the latch. It never arms. An armed fall reaches the bench guard through
+`g_armed_falls` (ctrl stores the tilt, then bumps the counter; housekeeping
+latches its own `Detector` on a new count, before its mode gate, so the latch
+is in place while ctrl is still handing the bus back; ctrl has already
+released torque, so the hand-over writes nothing to the bus). From then on the
+bench guard's pick-up rule drives the autohome exactly as after a bench fall
+(host-tested: `test_fallguard` `testArmedFallHandsOverToBenchAutohome`). A
+typed `home`, the wireless home, `fall clear` and a fresh arm each clear the
+latch (a person deciding, looking at the robot). `fall` prints both limits,
+the latch and which path it came from; `fall off` / `fall autohome off` turn
+the bench guard / its autohome off (the armed latch is not switchable). Every
+step is a flight-recorder `fall` event (code 10: a = motion, b = fell / picked
+up / cleared), next to the `out` lines that say the same in words. A get-up
+policy (which works lying down) will need its own rule when it is deployed.
+
+**Flail guard** (`components/flailguard`, `flail`). The fall guard only fires
+once the torso is going over. On 2026-11-01 the first armed policy stand
+stood ~3.3 s, then the policy's targets chattered and swung (hip rolls to
+-24/+22 deg, knees to -35..-95 deg, feet kicked high) and the robot never fell
+on its own: the operator had to grab it and tilt it past 45 deg. The flail
+guard judges the policy itself, every acting tick; any criterion trips:
+
+| criterion | signal | limit | when |
+|---|---|---|---|
+| pose | any joint's written (shaped) target vs the trained stand pose | > 15 deg (per-joint table `poseLimitDeg`) for 300 ms | stand command only, after the 1 s takeover ramp |
+| rate | torso \|gyro\|, EMA tau 0.2 s | > 1.5 rad/s | always |
+| tilt | torso tilt | > 20 deg for 200 ms | always |
+| chatter | mean over joints of \|d raw target / dt\| (before the shaper), EMA tau 0.1 s | > 7.0 rad/s (8 deg per tick) | always |
+
+Tuned on that recording (`tools/gen_flail_vectors.py` freezes its first 4 s
+into `firmware/host/vectors/flail_vectors.h`; `test_flailguard` replays it):
+in the clean first 3 s the peaks are rate 1.07 rad/s, chatter 3.9 rad/s,
+written-target deviation 10.9 deg (never sustained), tilt 3.7 deg. On their
+own, rate and chatter trip at 3.31 s, pose at 3.55 s; tilt never reached
+20 deg until the operator tilted the robot (it would have tripped at 9.23 s;
+the 45 deg fall guard tripped at 9.96 s). The guard as flashed trips at
+**3.31 s**, about when the flailing became visible.
+
+On a trip the policy's targets for that tick are not written; the servos
+**hold** where they are (above), `DISARMED_FLAIL` goes in the beacon, the loop
+benches without releasing torque, and housekeeping takes the hold over
+(`g_armed_holds`; `cli.cpp` `flailTick`): flight-recorder `flail` event (code
+11: a = criterion, b = held), then, once the robot is within 20 deg of
+upright and |gyro| < 0.35 rad/s for 1 s, the ordinary `home` (2.5 s smooth,
+play take-up, readback, torque released). Freeze-then-home rather than a
+1 s ramp to home from inside the loop: the freeze stops putting energy in on
+the trip tick, the trip comes early enough that the frozen pose is near the
+stand, and the way back is the bench's verified `home` rather than a new
+trajectory into a robot mid-disturbance. Past the bench fall line (30 deg /
+100 ms) the bench fall guard goes limp and its pick-up rule takes over, as for
+any bench fall; limp is never the flail guard's answer. `bench`, `release`,
+`home`, `pose`/`move` or `run` take the hold over; `fall autohome off` leaves
+it held for a typed `home`. `flail` prints the limits and the holds since
+boot; `flail off` stops judging (for deliberate experiments only). The
+operator's soft stop runs the same hold. The SIL library does not mirror the
+guard (it is a hardware stop, and the sim's columns must not move).
 
 ### 5.7 Position-loop gains (Plan B)
 
@@ -466,6 +578,10 @@ against a scripted port:
   broadcast, and again inside `cmdMode()` before every arm. A difference or a
   silent servo refuses the arm with `ArmResult::kRefusedGains`, and a failed
   boot check puts that verdict on the `BENCH` beacon before anyone asks.
+- **The policy gate** comes first in the same arm path: a build whose
+  compiled-in net is not a policy (`policy::kWeightsArePlaceholder` -- the
+  scaffold, or a policy profile's untrained test net) refuses every arm with
+  `ArmResult::kRefusedPolicy`.
 - **The write** (`gains <id> <P> <D>`, `writePositionGains`): bench mode, one
   servo by ID, and only if that servo reports torque off. It unlocks the
   EEPROM (55 ← 0), writes 21/22 in one frame, locks it again (also on every

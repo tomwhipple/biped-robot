@@ -27,10 +27,14 @@ unchanged.
               with an M2.5 x 8 flat-head into a boss on the tube's side wall
               (tube_bosses(), 6 mm of bite). The load path is case -> stator
               screws -> pads -> plate -> lugs -> tube walls -> girdle.
-    lead      a window through the floor under the connector trench, open to
-              the robot's left (+y) past the tube wall, so the two bus leads
-              leave the plugs sideways at floor level (or straight down) and
-              rise through the aperture beside the tube.
+    rails     along both edges, under the tube walls, from the plate's top to
+              0.3 under the case face: they tie the fore and aft halves across
+              the lead window, so the plate is a closed ring, not a U.
+    lead      a window through the floor under the connector trench, running
+              out to the robot's left (+y) as a tunnel under the +y rail, so
+              the two bus leads leave the plugs sideways at floor level and
+              rise through the aperture beside the tube. The tunnel is open
+              underneath: the leads are laid into it from below.
 
 WHY A SEPARATE PRINT
 --------------------
@@ -105,6 +109,11 @@ def neck_floor():
     # --- stator pads, up to the case face
     for px, py in V.NECK_PAD_XY:
         p += cyl_z(V.NECK_PAD_R, Z1 - 0.01, CASE_Z, px, py)
+    # --- edge rails under the tube walls, full length (the lead window below
+    # would otherwise leave the plate a U, its halves tied by a 2 mm strip)
+    for s in (1, -1):
+        y0, y1 = sorted((s * V.NECK_RAIL_HY0, s * HY))
+        p += box(X0, X1, y0, y1, Z1 - 0.01, V.NECK_RAIL_TOP)
     # the pads and lugs stop at the plate's own outline in x (aperture edges)
     p &= box(X0, X1, -HY - 10, HY + 10, Z0 - 1, CASE_Z + 1)
     # --- reliefs for what stands proud of the idler face
@@ -117,9 +126,12 @@ def neck_floor():
     p -= box(D.SV_IDLER_BOSS_Z[0] - D.RIB_RELIEF_CLR, D.SV_IDLER_BOSS_Z[1] + D.RIB_RELIEF_CLR,
              -(D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR), D.SV_IDLER_BOSS_HW + D.RIB_RELIEF_CLR,
              Z1 + 0.01, CASE_Z + 1)
-    # --- the lead window under the connector trench, through the plate and
-    # out past the tube wall on +y, so the leads can leave sideways
-    p -= box(LX0, LX1, -(D.SV_CONN_HW + 0.5), HY + 10, Z0 - 1, CASE_Z + 1)
+    # --- the lead window under the connector trench, through the plate, and
+    # on +y a tunnel through the plate alone, out past the tube wall under the
+    # +y rail, so the leads leave sideways and the rail still bridges the gap
+    hw = D.SV_CONN_HW + 0.5
+    p -= box(LX0, LX1, -hw, hw, Z0 - 1, CASE_Z + 1)
+    p -= box(LX0, LX1, hw - 0.01, HY + 10, Z0 - 1, Z1)
     # --- a chamfer on the plate's aft-bottom edge, 55 deg: steeper than the
     # printability rule's overhang limit, so it is a wall in print, not a
     # ledge.

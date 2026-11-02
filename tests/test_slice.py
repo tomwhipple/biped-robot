@@ -54,7 +54,9 @@ def test_plates_hold_known_parts_that_share_a_process():
         assert len(plate["parts"]) > 1 and set(plate["parts"]) <= set(SPEC["parts"]), name
         S.job_entry(SPEC, name)           # raises if the parts disagree
     jobs = S.jobs(SPEC)
-    on_plates = [p for plate in SPEC.get("plates", {}).values() for p in plate["parts"]]
+    # a part listed twice on one plate is two copies in the same project
+    # (girdle_neck carries shoulder_cheek_v6 twice), so count it once per plate
+    on_plates = [p for plate in SPEC.get("plates", {}).values() for p in dict.fromkeys(plate["parts"])]
     # every printed part is in exactly one --all project
     assert sorted(on_plates + [j for j in jobs if j in SPEC["parts"]]) == sorted(SPEC["parts"])
 
@@ -88,6 +90,7 @@ ORIENT_SOURCES = {
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),
     "shoulder_girdle_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_girdle_v6"),
+    "shoulder_cheek_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_cheek_v6"),
     "pelvis_v8": ("torso_v8", "PRINT_ORIENT", "pelvis_v8"),
     "torso_v8": ("torso_v8", "PRINT_ORIENT", "torso_v8"),
     "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),

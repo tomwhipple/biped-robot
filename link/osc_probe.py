@@ -3,7 +3,7 @@
 
 Tom (2026-09-02): "when I arm the robot it begins a growing oscillation that
 eventually results in it falling over."  This is the instrumented repeat of
-that GUI arm: ARM|POSE frames so every beacon carries the ten measured joint
+that GUI arm: ARM|POSE frames so every beacon carries the measured bus joint
 angles, a CSV of every beacon, and a guard that e-stops + disarms BEFORE the
 fall -- on torso tilt, or on any joint's peak-to-peak swing over the last
 second.  Built on arm_script.Driver (same latch preamble, same seq rule).
@@ -21,10 +21,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arm_script import Driver, arm_off  # noqa: E402
 from protocol import (FLAG_ESTOP, FLAG_ARM, FLAG_ATT, FLAG_HOME, FLAG_POSE, ArmResult,  # noqa: E402
-                      LinkState, diag_arm_result, diag_reason)
+                      JOINT_NAMES, LinkState, diag_arm_result, diag_reason)
 
-JOINTS = ["L_yaw", "L_roll", "L_pitch", "L_knee", "L_ankle",
-          "R_yaw", "R_roll", "R_pitch", "R_knee", "R_ankle"]
+# The beacon's own joint block: bus order, protocol v2's 17 servos. The
+# names are the protocol's so a column or a guard verdict cannot drift.
+JOINTS = list(JOINT_NAMES)
 
 
 class OscDriver(Driver):

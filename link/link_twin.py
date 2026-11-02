@@ -132,7 +132,8 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
                                for i in range(NUM_JOINTS))
             # Attitude, on the same terms: only when asked (FLAG_ATT), and
             # visibly moving so a client can tell a working feed from a
-            # hard-coded upright. A slow lean, well inside kFallUpZ.
+            # hard-coded upright. A slow lean (<= 14.5 deg), well inside the firmware's
+            # armed fall line (fallguard::kPolicyLimits, 45 deg).
             up_xy = ()
             if want_att:
                 ph = now_ms / 1000.0

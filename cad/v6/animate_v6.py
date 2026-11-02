@@ -83,14 +83,17 @@ INSERT = [
     ("neck_floor",         (0, 0, 1), 13),
     ("servo_neck",         (0, 0, 1), 14),   # dropped into the tube from above, onto the floor's pads
     ("head",               (0, 0, 1), 15),
-    # ARMS (cad/v6/arm_v6.py): each shoulder servo dropped straight into its
-    # open pod from above (the only way in: a roof over a 32 mm span is
-    # unprintable) and screwed from OUTBOARD -> upper arm offered straight IN
-    # onto the horn along the joint axis, the one direction a single-sided
-    # horn plate can arrive from -> elbow servo slid into the upper arm's grip
-    # channel from the FRONT (the same channel entry leg_link uses) -> forearm
-    # lifted UP, its fork tines either side of the two discs.
-    ("servo_shoulder_",    (0, 0, 1), 16),
+    # ARMS (cad/v6/arm_v6.py): each shoulder servo pushed into its pod along
+    # its own axis from OUTBOARD, cheek off (the features on both its faces
+    # stand proud along the axis, so that is the only way in), then the cheek
+    # on along the same axis and screwed from outboard (shoulder_girdle_v6.
+    # INSERT) -> upper arm offered straight IN onto the horn along the joint
+    # axis, the one direction a single-sided horn plate can arrive from ->
+    # elbow servo slid into the upper arm's grip channel from the FRONT (the
+    # same channel entry leg_link uses) -> forearm lifted UP, its fork tines
+    # either side of the two discs.
+    ("servo_shoulder_",    (0, 1, 0), 16),
+    ("shoulder_cheek_",    (0, 1, 0), 16),
     ("arm_upper_",         (0, 1, 0), 17),
     ("servo_elbow_",       (1, 0, 0), 18),
     ("arm_fore_",          (0, 0, -1), 19),

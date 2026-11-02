@@ -96,7 +96,7 @@ _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 _TICK_DIR = 1.0
 
 
-def policy_range(m, physical=False):
+def policy_range(m, physical=False, within_stops=False):
     """Per-actuator (lo, hi) the POLICY trains in, radians. MIRRORED in
     sim/mjx/env_mjx.py -- keep the two identical.
 
@@ -133,9 +133,17 @@ def policy_range(m, physical=False):
         # mechanical stop (the CAD envelope) -- for the get-up, which needs
         # hip roll / knee travel the walking range never used
         return lo, hi
+    jlo, jhi = lo.copy(), hi.copy()
     lim = np.asarray(m.actuator_ctrllimited).astype(bool)
     lo[lim] = np.asarray(m.actuator_ctrlrange)[lim, 0]
     hi[lim] = np.asarray(m.actuator_ctrlrange)[lim, 1]
+    if within_stops:
+        # ctrl_within_stops (2026-10-30): never a policy range past the
+        # mechanical stop. The v6 plants' ankle ctrlrange is +-45 deg, its stop
+        # +-40: a full-map action of +-1 drives the servo 5 deg into the stop
+        # on hardware. Opt-in (config.json records it), so no older run's
+        # action scaling moves.
+        lo, hi = np.maximum(lo, jlo), np.minimum(hi, jhi)
     return lo, hi
 
 
@@ -249,6 +257,21 @@ SERVO_KP_PRESETS = {
     # (the model's 4x credit) and the ankle-roll and knee STS3215s at the
     # bench's P 96 / D 0, ~2.8x (experiments/plan-b-bench, issue #73)
     "robot": {"hip_roll": 4.0, "ankle_roll": 2.8, "knee": 2.8},
+    # the robot AS BUILT AND AS RUN (2026-10-30): every leg servo at the
+    # factory P 32 / D 32 the robot runs (firmware/main/servo_gains.h; tests/
+    # test_servo_gains_asbuilt.py pins the two equal), in the model's units.
+    # The model's kp 12 N*m/rad is soft for a real P 32: the bench's bottle
+    # midpoints measured 34 +- 3 N*m/rad on an STS3215 at P 32 (2.8x;
+    # plan-b-bench 2026-10-01), and the legs-only robot at P 32 reads its
+    # stance ankle-roll encoder 1.0-1.5 deg in the one-leg lift where this
+    # model gives 1.3 at 2.8x and 4.5 at 1x (sim/roll_compliance.py, hw
+    # 2026-10-24). The STS3250 hip roll reads 0.7-0.9 deg there: 0.74 at 4x,
+    # 1.45 at 2x, 2.65 at 1x -- the 4x the model already credited it with.
+    # No P is raised: the STS3250 limit-cycles from P 96 and P 64's stiffness
+    # is unmeasured (plan-b-bench 2026-10-23), and a value is modelled only
+    # once measured. Leg roles only (a key must match an actuator).
+    "asbuilt": {"hip_yaw": 2.8, "hip_roll": 4.0, "hip_pitch": 2.8,
+                "knee": 2.8, "ankle": 2.8, "ankle_roll": 2.8},
 }
 
 
@@ -283,6 +306,37 @@ def servo_envelope_vectors(names, spec):
         if t is not None:
             stall[i], w0[i] = SERVO_TYPES[t]
     return stall, w0
+
+
+def role_vector(names, spec, default, what):
+    """{actuator | role: value} (or None) -> per-actuator vector, `default` elsewhere."""
+    n = len(names)
+    out = np.full(n, float(default))
+    if not spec:
+        return out
+    roles = [joint_role(nm) for nm in names]
+    known = set(names) | {r for r in roles if r is not None}
+    bad = [k for k in spec if k not in known]
+    if bad:
+        raise ValueError(f"{what} keys {bad} match no actuator of this plant ({list(names)})")
+    for i, (nm, r) in enumerate(zip(names, roles)):
+        if nm in spec:
+            out[i] = float(spec[nm])
+        elif r is not None and r in spec:
+            out[i] = float(spec[r])
+    return out
+
+
+# Per-servo-type actuator response (2026-11-01 loaded step responses + the double-support roll
+# sweep, experiments/one-leg-stand/2026-11-01-floors-fit.md): the STS3215s sit ~60-75 ms of dead
+# time behind the STS3250 hip rolls. As control ticks (20 ms) of EXTRA dead time and as a
+# multiplier on the act-lag pole, per role. Used as --act-delay-extra sts2026 --act-lag-scale sts2026.
+ACT_DELAY_EXTRA_PRESETS = {
+    "sts2026": {"hip_yaw": 3, "hip_pitch": 3, "knee": 3, "ankle": 3, "ankle_roll": 3, "hip_roll": 0},
+}
+ACT_LAG_SCALE_PRESETS = {
+    "sts2026": {"hip_roll": 4.0},
+}
 
 
 def servo_kp_scale_vector(names, spec):
@@ -415,6 +469,7 @@ class BimoWalkerEnv(gym.Env):
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
         servo_types=None,              # {actuator or role: "sts3250"}: per-servo stall/speed envelope
         ctrl_physical=False,           # policy range = the joints' mechanical stops (not the ctrlrange)
+        ctrl_within_stops=False,       # policy range = ctrlrange clipped to the mechanical stops
         servo_kp_scale=None,           # per-servo P multiplier on kp AND kd:
         # None, a number, a per-actuator sequence, {actuator | role: factor},
         # or a preset name (SERVO_KP_PRESETS; mirror of env_mjx)
@@ -737,6 +792,11 @@ class BimoWalkerEnv(gym.Env):
         # act_delay_ticks control steps ago (20 ms each), applied BEFORE the
         # lag cascade like the deploy path. 0 = pass-through.
         act_delay_ticks: int = 0,
+        # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
+        # (or a ACT_DELAY_EXTRA_PRESETS name), and a per-actuator multiplier on the act-lag
+        # pole ({actuator | role: x} or a ACT_LAG_SCALE_PRESETS name); mirror of env_mjx
+        act_delay_extra=None,
+        act_lag_scale=None,
         # -- explicit squat reference (2026-09-11, mirror of env_mjx) -----------
         crouch_pose_ref: bool = False,
         crouch_theta_max_deg: float = 39.0,   # 1 deg inside the +-40 ankle limit (bench max was 40)
@@ -921,6 +981,11 @@ class BimoWalkerEnv(gym.Env):
                             else np.radians(np.asarray(crouch_deep_ref, dtype=np.float32)))
         self._leg_len_cache = None    # (thigh, shank), computed on first use
         assert 0 <= self.act_delay_ticks <= 10, "act_delay_ticks (20 ms each)"
+        if isinstance(act_delay_extra, str):
+            act_delay_extra = ACT_DELAY_EXTRA_PRESETS[act_delay_extra]
+        if isinstance(act_lag_scale, str):
+            act_lag_scale = ACT_LAG_SCALE_PRESETS[act_lag_scale]
+        self._act_delay_extra_spec, self._act_lag_scale_spec = act_delay_extra, act_lag_scale
         self._act_hist = None    # target ring for the dead-time delay
         self.cmd_crouch_range = tuple(cmd_crouch_range)
         # feature flag: (1,1) draws no RNG at all, so runs with the default
@@ -1011,6 +1076,10 @@ class BimoWalkerEnv(gym.Env):
         self._sqpos = slice(self._jq0, self._jq1)
         self._sqvel = slice(self._jv0, self._jv1)
         self._servo_names = [self.model.joint(int(j)).name for j in _jnt]
+        self._act_delay_vec = (self.act_delay_ticks + role_vector(
+            self._servo_names, self._act_delay_extra_spec, 0, "act_delay_extra")).astype(int)
+        assert self._act_delay_vec.max() <= 12, "dead time ring holds 12 ticks"
+        self._act_lag_scale = role_vector(self._servo_names, self._act_lag_scale_spec, 1.0, "act_lag_scale")
         self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
         self._roll_mask = np.array([n[2:] in ("hip_roll", "ankle_roll")
                                     for n in self._servo_names], dtype=np.float64)
@@ -1218,8 +1287,10 @@ class BimoWalkerEnv(gym.Env):
         if action_map not in ("legacy", "full"):
             raise ValueError(f"unknown action_map {action_map!r}")
         self.action_map = action_map
-        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical)
+        self._lo, self._hi = policy_range(self.model, physical=ctrl_physical,
+                                          within_stops=ctrl_within_stops)
         self.ctrl_physical = bool(ctrl_physical)
+        self.ctrl_within_stops = bool(ctrl_within_stops)
         # recorded get-up reference (mirror of env_mjx rise_ref_npz)
         self._rr = None
         if rise_ref_npz:
@@ -2092,14 +2163,16 @@ class BimoWalkerEnv(gym.Env):
         # policy targets onto the servo vector (held joints at their hold);
         # everything downstream is per servo
         target = self._to_servo(self._action_to_ctrl(action))
-        if self.act_delay_ticks > 0:
-            # servo dead time: serve the target from act_delay_ticks ago,
-            # BEFORE the lag cascade -- matching env_mjx's act_hist order
+        nd = int(self._act_delay_vec.max())
+        if nd > 0:
+            # servo dead time: serve the target from act_delay_ticks (+ the actuator's
+            # act_delay_extra) ago, BEFORE the lag cascade -- matching env_mjx's act_hist order
             if self._act_hist is None:
-                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)
-                                  ] * self.act_delay_ticks
+                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)] * nd
             self._act_hist.append(target.astype(np.float64))
-            target = self._act_hist.pop(0)
+            hist = np.stack(self._act_hist)              # oldest first, newest (this tick) last
+            target = hist[nd - self._act_delay_vec, np.arange(hist.shape[1])]
+            self._act_hist.pop(0)
         if self._act_lag_ep > 0.0:
             # action-chain lag (3 cascaded first-order stages, the firmware C2
             # shaper's structure) BEFORE quantization, matching env_mjx and
@@ -2108,7 +2181,7 @@ class BimoWalkerEnv(gym.Env):
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
                     [np.asarray(self._sdefault, dtype=np.float64)] * 3)
-            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self.control_dt)
+            k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self._act_lag_scale * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])

@@ -500,39 +500,59 @@ arm**, and compares them with the compiled expected table,
   arm re-reads once the pack is on.
 
 The table is compiled in rather than stored in NVS: it is a design value with
-evidence behind it, reviewed in git. It is also checked at compile time
-against the deployed policy: the run's per-servo stiffness factor
-(`kServoKpScale` in the generated `obs_spec.h`, from its `servo_kp_scale`;
-Plan B trains ×4 on hip roll, ankle roll and knee) must be above 1 exactly
-where the table raises P, so a Plan B policy cannot be flashed onto
-factory-P servos, nor a stock policy onto raised ones. The register value
-that realises a factor is the #73 measurement; the check is on the pattern. `gains <id> <P> <D>` changes a servo, not
-what the robot expects; writing a value the table does not hold makes the next
-arm refuse, and the CLI says so. **Change `servo_gains.h` and the table below
-in the same commit, and name the measurement.**
+evidence behind it, reviewed in git. Each row also carries the stiffness its
+gains give **in the training sim's units** (`kSimKpScale`, the sim's
+`servo_kp_scale`), and the table is checked at compile time against the
+deployed policy: the run's per-servo factor (`kServoKpScale` in the generated
+`obs_spec.h`, from its config.json `servo_kp_scale`) must equal its row's
+factor on every plant servo (`--servo-kp-scale asbuilt`, the sim's copy of
+this table; `tests/test_servo_gains_asbuilt.py` pins the two equal). The one
+other contract that builds is the legacy one: every plant servo trained at 1.0
+on a factory row (a pre-2026-10-30 policy on the model's uncalibrated stock
+servo). Anything else, e.g. the sim's `robot` preset, does not build.
+`gains <id> <P> <D>` changes a servo, not what the robot expects; writing a
+value the table does not hold makes the next arm refuse, and the CLI says so.
+**Change `servo_gains.h` and the table below in the same commit, and name the
+measurement.**
 
-**Per-ID gains.** Every row is the factory 32/32 until the Plan B bench test
-(issue #73) measures the raised P. The six roll and knee servos then take it.
+**The factor is not P / 32.** The model's servo (kp 12 N·m/rad, §4 of
+[DESIGN.md](../DESIGN.md)) is soft for a real P 32: an STS3215 at P 32
+measured 34 ± 3 N·m/rad on the bench's bottles (2.8×,
+[plan-b-bench 2026-10-01](../experiments/plan-b-bench/2026-10-01-plan-b-bench.md)),
+and on the legs-only robot at P 32 the one-leg lift reads the stance ankle-roll
+encoder at 1.0–1.5° where the model gives 1.3° at 2.8× and 4.5° at 1×; the
+STS3250 hip roll reads 0.7–0.9° where the model gives 0.74° at 4×, 1.45° at 2×
+(`sim/roll_compliance.py` against hw 2026-10-24,
+[roll-compliance-2026-10-24.md](design-v6/roll-compliance-2026-10-24.md)).
+The servo's own load register suggests less (≈ 17 N·m/rad, 1.4×, below), but
+its N·m scale is unverified.
 
-| ID | joint | P (21) | D (22) | I (23) | evidence |
-|---|---|---|---|---|---|
-| 1 | `R_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 2 | `R_hip_pitch` | 32 | 32 | 0 | factory |
-| 3 | `R_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 4 | `R_ankle` | 32 | 32 | 0 | factory |
-| 5 | `L_hip_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 6 | `L_hip_pitch` | 32 | 32 | 0 | factory |
-| 7 | `L_knee` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 8 | `L_ankle` | 32 | 32 | 0 | factory |
-| 9 | `R_hip_yaw` | 32 | 32 | 0 | factory |
-| 10 | `L_hip_yaw` | 32 | 32 | 0 | factory |
-| 11 | `R_ankle_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 12 | `L_ankle_roll` | 32 | 32 | 0 | factory; Plan B raises it after #73 |
-| 13 | `neck_yaw` | 32 | 32 | 0 | factory |
-| 14 | `R_shoulder` | 32 | 32 | 0 | factory |
-| 15 | `R_elbow` | 32 | 32 | 0 | factory |
-| 16 | `L_shoulder` | 32 | 32 | 0 | factory |
-| 17 | `L_elbow` | 32 | 32 | 0 | factory |
+**Per-ID gains (2026-10-30).** Every servo runs the factory 32/32. No P is
+raised: the STS3250 limit-cycles from P 96 and P 64 / D 32, its clean raised
+gain, has no stiffness measurement
+([plan-b-bench 2026-10-23](../experiments/plan-b-bench/2026-10-23-plan-b-bench.md));
+the STS3215's P 96 / D 0 was never run on the robot. Raise a row only with its
+measured factor.
+
+| ID | joint | servo | P (21) | D (22) | I (23) | sim factor | evidence |
+|---|---|---|---|---|---|---|---|
+| 52 | `R_hip_roll` | STS3250 | 32 | 32 | 0 | 4.0 | factory; one-leg lift hip-roll encoder (hw 2026-10-24) |
+| 6 | `R_hip_pitch` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 7 | `R_knee` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 8 | `R_ankle` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 51 | `L_hip_roll` | STS3250 | 32 | 32 | 0 | 4.0 | factory; one-leg lift hip-roll encoder |
+| 2 | `L_hip_pitch` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 3 | `L_knee` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 4 | `L_ankle` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 10 | `R_hip_yaw` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 9 | `L_hip_yaw` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bench bottles at P 32 |
+| 11 | `R_ankle_roll` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bottles, and the one-leg lift ankle-roll encoder |
+| 12 | `L_ankle_roll` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bottles, and the one-leg lift ankle-roll encoder |
+| 13 | `neck_yaw` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
+| 14 | `R_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
+| 15 | `R_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
+| 16 | `L_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
+| 17 | `L_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
 
 The gate checks P and D; I is shown by `gains <id>` but not gated (it stays 0
 until the integral fallback, which needs an integral term in the sim first).

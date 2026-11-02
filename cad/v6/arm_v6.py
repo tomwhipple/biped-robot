@@ -544,7 +544,7 @@ def SCREWS():
 
 # where each piece is offered from, on the bench (fly-in / animate_v6)
 INSERT = {
-    "servo_shoulder": (0, 0, 1),     # dropped into the open cradle from above
+    "servo_shoulder": (0, 1, 0),     # in along its axis from outboard, cheek off (shoulder_girdle_v6.INSERT)
     "arm_upper": (0, 1, 0),          # offered straight in onto the horn, outboard->in
     "servo_elbow": (1, 0, 0),        # slid into the upper arm's grip channel from the front
     "arm_fore": (0, 0, -1),          # lifted up, its fork tines either side of the discs

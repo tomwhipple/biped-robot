@@ -12,6 +12,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(COMPONENTS ${CMAKE_CURRENT_SOURCE_DIR}/../components)
 
+# The policy profile, as the Makefile's POLICY (tools/policy_profile.py):
+# empty builds the deployed policy; a name builds firmware/policies/<name>/'s,
+# first on the include path. One profile per build directory.
+set(BIMO_POLICY "" CACHE STRING
+    "policy profile under firmware/policies/ (empty: the deployed policy)")
+if(BIMO_POLICY)
+    set(BIMO_POLICY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../policies/${BIMO_POLICY})
+    if(NOT EXISTS ${BIMO_POLICY_DIR}/obs/obs_spec.h)
+        message(FATAL_ERROR "BIMO_POLICY=${BIMO_POLICY}: no "
+                "${BIMO_POLICY_DIR}/obs/obs_spec.h")
+    endif()
+    string(TOUPPER "${BIMO_POLICY}" _bimo_policy_uc)
+    include_directories(BEFORE ${BIMO_POLICY_DIR})
+    add_compile_definitions(BIMO_POLICY_OVERLAY
+                            BIMO_POLICY_PROFILE_${_bimo_policy_uc})
+endif()
+
 add_compile_options(-Wall -Wextra -Werror -Wshadow -Wconversion
                     -Wsign-conversion -g -O1)
 
@@ -28,7 +45,10 @@ include_directories(
     ${COMPONENTS}/policy/include
     ${COMPONENTS}/imu/include
     ${COMPONENTS}/battguard/include
-    ${COMPONENTS}/balance/include)
+    ${COMPONENTS}/fallguard/include
+    ${COMPONENTS}/flailguard/include
+    ${COMPONENTS}/balance/include
+    ${COMPONENTS}/flightrec/include)
 
 enable_testing()
 
@@ -80,6 +100,13 @@ bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 
+bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
+
+bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)
+
+# The flight recorder's wire format, against vectors from tools/flightrec.py.
+bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)
+
 # The observation dump: main/, but ESP-IDF-free on purpose (see obs_dump.h).
 bimo_test(test_obsdump test_obsdump.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../main/obs_dump.cpp)
@@ -99,6 +126,11 @@ bimo_test(test_sil_golden test_sil_golden.cpp
 # for sim/sil/golden, and test_sil writes its fixtures into the cwd.
 set_tests_properties(test_sil test_sil_golden PROPERTIES
                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+if(BIMO_POLICY)
+    # the profile's own vectors (the Makefile's GOLDEN_ENV)
+    set_tests_properties(test_sil_golden PROPERTIES ENVIRONMENT
+        "SIL_GOLDEN_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../../sim/sil/golden/${BIMO_POLICY}")
+endif()
 
 # The dylib/so python loads with ctypes. NO SANITIZERS, deliberately: an
 # ASan-instrumented shared library dlopen()ed into a stock python aborts with

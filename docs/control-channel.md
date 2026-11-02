@@ -59,6 +59,7 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 3 | `POSE` | beacon joint angles too (a level) |
 | 4 | `HOME` | reset the servos to the stand (rising edge) |
 | 5 | `ATT` | beacon the torso up vector too (a level) |
+| 6 | `STOP` | operator stop, out of band ([below](#operator-stop-out-of-band)): with `ESTOP` hard (torque off), without soft (hold) |
 
 **Telemetry**, robot → the last console that commanded it, UDP port 4211,
 10 Hz:
@@ -137,7 +138,7 @@ argument, so link loss is tested exactly rather than slept through.
 | `VLAND` | 4 | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
 | `VSAFE` | 5 | 1.5 s after `VLAND` | torque off, latched until `batt reset` or a power cycle |
 | `FALLEN` | 6 | `up_z` < 0.4 for 200 ms | torque off; the run ends and the loop benches |
-| `BENCH` | 7 | boot, an `ARM` 1→0 edge, a fall, a home, or the tethered `bench` | the CLI owns the bus; the link commands nothing |
+| `BENCH` | 7 | boot, an `ARM` 1→0 edge, a fall, a flail-guard trip, an operator `STOP`, a home, or the tethered `bench` | the CLI owns the bus; the link commands nothing |
 
 The first four describe the link. The rest are decided by the robot and
 appended to the enum, so existing states keep their encoding. The pack
@@ -161,12 +162,53 @@ One line of reason per rule:
   the watchdog**; otherwise a reordered burst could hold the robot `LIVE` on
   a command from the past. A backwards jump of more than 1000 means the
   sender restarted, and the watchdog resyncs to it.
-- **`FALLEN` ends the run.** Below the sim's own `fall_up_z` the policy is
-  outside its training and holding torque only grinds the servos against the
-  floor. There is no auto-clear: re-arming is a fresh `ARM` edge or `run`,
-  by someone looking at the robot.
+- **`FALLEN` ends the run.** Past 45 deg of torso tilt for 200 ms
+  (`components/fallguard`; tighter than the sim's own `fall_up_z` = 0.4,
+  66 deg, which stays the training episode end) holding torque only grinds
+  the servos against the floor. Nothing re-arms by itself: re-arming is a
+  fresh `ARM` edge or `run`, by someone looking at the robot. Once the robot
+  is benched, the bench fall guard holds the latch and, when the robot is
+  picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
+  ends with torque released.
+- **A misbehaving policy ends the run holding.** The armed loop's flail guard
+  (`components/flailguard`: targets far from the stand at a stand command,
+  the torso thrashing or past 20 deg, the targets chattering) freezes every
+  servo where it is with torque on and benches without the usual release
+  (`DISARMED_FLAIL`); the bench homes the robot once it is upright and still.
+  Limp stays the fall guard's answer, past 45 deg. [firmware-design.md](firmware-design.md),
+  "Flail guard".
 - **The real E-stop is the inline battery switch.** No flag that has to
   arrive over a radio can be a safety guarantee.
+
+### Operator stop, out of band
+
+`STOP` (bit 6) is the stop button's flag (`tools/estop.py`), not a
+commander's. The robot acts on a `STOP` frame the moment it is decoded, in
+every mode, and **never feeds it to the `ARM`/`HOME` latches or the
+watchdog**:
+
+- **with `ESTOP`, hard**: armed, torque is released on the next control tick
+  (≤ 20 ms) and the run ends (`DISARMED_STOP`); benched, any bench motion
+  (pose stream, balance, home) stops and torque is released;
+- **without, soft**: armed, the policy stops, every servo holds its present
+  position with torque on, the run ends (`DISARMED_STOP`) and the bench homes
+  the robot once it is upright and still, exactly as after a flail-guard
+  trip; benched, bench motion stops where it is.
+
+Out of band is the point. A second sender's ordinary frames interleaved with
+a running commander's would fight it: its `ARM` level against the
+commander's makes bench and arm edges (each re-arm a fresh watchdog, so a
+fresh run), its sequence numbers can be dropped as stale, and the
+commander's next `ENABLE`-off frame clears a plain `ESTOP` latch. A frame
+nobody else reads cannot be undone. Re-arming afterwards is a fresh `ARM`
+edge or `run`. The flag is a level and idempotent, so the tool repeats it at
+100 Hz for a second (the command mailbox is latest-wins).
+
+Firmware that predates the bit ignores it. A hard stop therefore also sets
+`ESTOP`, with `ARM` and `ENABLE` clear: the old watchdog latch releases
+torque, and dropping `ARM` can only ever bench. A soft stop means nothing to
+old firmware (a plain stand), so `tools/estop.py --soft` escalates to hard
+when the beacon does not confirm it within 400 ms.
 
 Measured against the sim twin with injected loss, walking at 20 Hz for 8 s:
 30 % packet loss caused 0 dropouts to `STAND`, 60 % caused 5 and 85 %
@@ -230,6 +272,9 @@ a false fault.)
 | 8 `HOME_PENDING` | home written, joints moving, readback not done |
 | 9 `HOME_NOT_REACHED` | home failed: readback found joints off their zeros |
 | 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
+| 11 `REFUSED_POLICY` | arm refused: the compiled-in net is a placeholder or an untrained test net, not a policy (a policy profile's, [training.md §9](training.md)) |
+| 12 `DISARMED_FLAIL` | the flail guard stopped the policy; joints held stiff, run over, homes when upright and still |
+| 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop) |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a

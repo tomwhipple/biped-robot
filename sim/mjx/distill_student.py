@@ -70,7 +70,7 @@ from brax.training.agents.ppo import networks as ppo_networks   # noqa: E402
 from env_mjx import BimoMJXEnv                        # noqa: E402
 
 # config.json keys that are provenance, not env kwargs
-_NOT_ENV = ("train", "git_sha", "git_dirty", "distill", "_run")
+_NOT_ENV = ("train", "git_sha", "git_dirty", "distill", "distill_physics", "_run")
 
 
 def hidden_sizes(net_params, fallback):
@@ -86,8 +86,16 @@ def hidden_sizes(net_params, fallback):
         return fallback
 
 
-def env_kwargs(cfg):
-    """Rebuild the teacher's BimoMJXEnv kwargs from its config.json."""
+def env_kwargs(cfg, mjx_impl=None, num_envs=None):
+    """Rebuild the teacher's BimoMJXEnv kwargs from its config.json.
+
+    mjx_impl overrides the teacher's physics backend: the v6 robot runs train
+    on MuJoCo Warp (`mjx_impl: warp`), which needs CUDA, so a CPU smoke run
+    distills on the "jax" impl -- the same model and the same env, a
+    different contact solver.  Warp pools its contact buffer over
+    `warp_envs` envs, so that is re-sized to the distill batch (the
+    teacher's 2048 would over-allocate 4x at 512 envs; a distill batch above
+    the teacher's would overflow it)."""
     kw = {k: v for k, v in cfg.items() if k not in _NOT_ENV}
     for k, v in list(kw.items()):
         if isinstance(v, list):
@@ -96,7 +104,22 @@ def env_kwargs(cfg):
     if not os.path.isabs(xml):
         xml = os.path.join(ROOT, "sim", os.path.basename(xml))
     kw["xml_path"] = xml
+    if mjx_impl:
+        kw["mjx_impl"] = mjx_impl
+    if kw.get("mjx_impl", "jax") == "warp":
+        if num_envs:
+            kw["warp_envs"] = int(num_envs)
+    else:
+        kw.pop("warp_envs", None)
+        kw.pop("mjx_impl", None)
     return kw
+
+
+def _atomic_write(path, data, mode="wb"):
+    tmp = path + ".tmp"
+    with open(tmp, mode) as f:
+        f.write(data)
+    os.replace(tmp, path)
 
 
 def make_net(obs_size, act_size, hidden, value_hidden=(256, 256)):
@@ -134,6 +157,16 @@ def main():
                    help="gaussian noise added to EXECUTED actions only")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--holdout", type=int, default=20000)
+    p.add_argument("--mjx-impl", choices=["jax", "warp"], default=None,
+                   help="physics backend override (default: the teacher's "
+                        "config; 'jax' for a CPU run of a Warp teacher)")
+    p.add_argument("--time-budget-s", type=float, default=0.0,
+                   help="wall-clock budget: stop before a round that would "
+                        "not finish inside it (0 = none).  The student is "
+                        "saved after EVERY round, so a kill also leaves one")
+    p.add_argument("--require-full-map", action="store_true",
+                   help="refuse a teacher whose action_map is not 'full' "
+                        "(tools/export_policy_weights.py exports only those)")
     args = p.parse_args()
 
     t_dir = os.path.join(RUNS, args.teacher)
@@ -148,11 +181,27 @@ def main():
     norm_params = t_params[0]
     t_hidden = hidden_sizes(t_params[1], (512, 256, 128))
 
-    env = BimoMJXEnv(**env_kwargs(cfg))
+    amap = cfg.get("action_map", "legacy")
+    if amap != "full":
+        msg = (f"teacher action_map is {amap!r}: the student inherits it and "
+               "tools/export_policy_weights.py exports action_map='full' "
+               "only -- this student can be refereed but not deployed")
+        if args.require_full_map:
+            raise SystemExit("--require-full-map: " + msg)
+        print("WARNING: " + msg, flush=True)
+
+    kw = env_kwargs(cfg, args.mjx_impl, args.envs)
+    env = BimoMJXEnv(**kw)
     wrapped = BatchedEnv(env, env.max_steps, num_envs=args.envs)
     obs_size, act_size = env.obs_size, env.action_size
+    t_obs = int(np.shape(norm_params.mean)[-1])
+    if t_obs != obs_size:
+        raise SystemExit(f"teacher normalizer is {t_obs}-wide but the env "
+                         f"rebuilt from its config.json observes {obs_size}: "
+                         "config/checkpoint mismatch")
     print(f"teacher {args.teacher}: {t_hidden} hidden, obs {obs_size}, "
-          f"act {act_size}, plant {os.path.basename(cfg['xml_path'])}")
+          f"act {act_size}, plant {os.path.basename(cfg['xml_path'])}, "
+          f"action_map {amap}, physics {kw.get('mjx_impl', 'jax')}")
     print(f"student {out_name}: {hidden} hidden")
 
     t_net = make_net(obs_size, act_size, t_hidden,
@@ -235,12 +284,72 @@ def main():
     key, k_reset = jax.random.split(key)
     state = wrapped.reset(jax.random.split(k_reset, args.envs))
 
+    try:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+                             capture_output=True, timeout=10).stdout.strip()
+        dirty = bool(subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+            text=True, capture_output=True, timeout=10).stdout.strip())
+    except Exception:
+        sha, dirty = None, None
+    os.makedirs(out_dir, exist_ok=True)
+    src = os.path.join(t_dir, "config.json")
+    if os.path.exists(src):
+        shutil.copyfile(src, os.path.join(out_dir, "teacher_config.json"))
+
+    def save(curve, complete):
+        """Write the student as a normal brax run dir (params.pkl +
+        config.json).  Called after EVERY round with atomic replaces, so the
+        06:55 guard or a crash leaves the last finished round's student, not
+        nothing (rounds are ~1 min on the GPU)."""
+        params = (norm_params, jax.device_get(s_policy),
+                  jax.device_get(s_value))
+        _atomic_write(os.path.join(out_dir, "params.pkl"),
+                      pickle.dumps(params))
+        out_cfg = dict(cfg)
+        if args.mjx_impl and args.mjx_impl != cfg.get("mjx_impl", "jax"):
+            out_cfg["distill_physics"] = args.mjx_impl
+        out_cfg["distill"] = dict(
+            teacher=args.teacher, teacher_hidden=list(t_hidden),
+            student_hidden=list(hidden), student_params=int(n_params),
+            normalizer="teacher, frozen",
+            label="tanh(mean), deterministic mode",
+            rounds=args.rounds, rounds_done=len(curve), complete=complete,
+            envs=args.envs, chunk=args.chunk,
+            chunks_per_round=args.chunks_per_round, epochs=args.epochs,
+            batch=args.batch, lr=args.lr, lr_final=args.lr_final,
+            beta0=args.beta0, beta_decay=args.beta_decay, buffer=args.buffer,
+            act_noise=args.act_noise, seed=args.seed,
+            physics=kw.get("mjx_impl", "jax"),
+            time_budget_s=args.time_budget_s,
+            env_steps=int(curve[-1]["env_steps"]) if curve else 0,
+            curve=curve)
+        out_cfg["git_sha"] = sha
+        out_cfg["git_dirty"] = dirty
+        _atomic_write(os.path.join(out_dir, "config.json"),
+                      json.dumps(out_cfg, indent=2), "w")
+        _atomic_write(os.path.join(out_dir, "distill.jsonl"),
+                      "".join(json.dumps(rec) + "\n" for rec in curve), "w")
+
     X = np.zeros((0, obs_size), np.float32)
     Y = np.zeros((0, act_size), np.float32)
     hx = hy = None
     curve = []
     t0 = time.time()
+    stopped = None
     for r in range(args.rounds):
+        el = time.time() - t0
+        if args.time_budget_s > 0 and r > 0:
+            # the next round costs about the slowest so far (the buffer, and
+            # with it the epoch time, only grows) plus a margin
+            per = max(c["t"] - (curve[i - 1]["t"] if i else 0.0)
+                      for i, c in enumerate(curve))
+            if el + 1.15 * per > args.time_budget_s:
+                stopped = (f"time budget {args.time_budget_s:.0f}s: stopping "
+                           f"after {r} of {args.rounds} rounds "
+                           f"({el:.0f}s used, ~{per:.0f}s/round)")
+                print(stopped, flush=True)
+                break
         beta = 1.0 if r == 0 else max(0.0, args.beta0 * args.beta_decay ** r)
         falls = 0
         obs_c, act_c = [], []
@@ -286,47 +395,12 @@ def main():
               f"BC mse {train_loss:.5f}  val mse {val:.5f}  "
               f"val mae {vmae:.4f}  falls {falls:>5d}  "
               f"[{time.time() - t0:6.0f}s]", flush=True)
+        save(curve, complete=False)
 
-    # -- save as a normal brax run dir ------------------------------------
-    os.makedirs(out_dir, exist_ok=True)
-    params = (norm_params, jax.device_get(s_policy), jax.device_get(s_value))
-    with open(os.path.join(out_dir, "params.pkl"), "wb") as f:
-        pickle.dump(params, f)
-
-    try:
-        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
-                             capture_output=True, timeout=10).stdout.strip()
-        dirty = bool(subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
-            text=True, capture_output=True, timeout=10).stdout.strip())
-    except Exception:
-        sha, dirty = None, None
-    out_cfg = dict(cfg)
-    out_cfg["distill"] = dict(
-        teacher=args.teacher, teacher_hidden=list(t_hidden),
-        student_hidden=list(hidden), student_params=int(n_params),
-        normalizer="teacher, frozen", label="tanh(mean), deterministic mode",
-        rounds=args.rounds, envs=args.envs, chunk=args.chunk,
-        chunks_per_round=args.chunks_per_round, epochs=args.epochs,
-        batch=args.batch, lr=args.lr, lr_final=args.lr_final,
-        beta0=args.beta0, beta_decay=args.beta_decay, buffer=args.buffer,
-        act_noise=args.act_noise, seed=args.seed,
-        env_steps=int(args.rounds * args.chunks_per_round * args.chunk
-                      * args.envs),
-        curve=curve)
-    out_cfg["git_sha"] = sha
-    out_cfg["git_dirty"] = dirty
-    with open(os.path.join(out_dir, "config.json"), "w") as f:
-        json.dump(out_cfg, f, indent=2)
-    with open(os.path.join(out_dir, "distill.jsonl"), "w") as f:
-        for rec in curve:
-            f.write(json.dumps(rec) + "\n")
-    # the teacher's own progress log is useful provenance next to the student
-    src = os.path.join(t_dir, "config.json")
-    if os.path.exists(src):
-        shutil.copyfile(src, os.path.join(out_dir, "teacher_config.json"))
+    save(curve, complete=stopped is None)
     print(f"saved -> {out_dir}  ({time.time() - t0:.0f}s, "
-          f"{curve[-1]['env_steps']:,d} env steps)")
+          f"{curve[-1]['env_steps']:,d} env steps, {len(curve)}/{args.rounds} "
+          f"rounds{'' if stopped is None else ', TIME BUDGET'})")
 
 
 if __name__ == "__main__":

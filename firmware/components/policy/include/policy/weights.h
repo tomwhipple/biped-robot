@@ -11,6 +11,9 @@
 // eval_precision.py and eval_precision.py --sil -- before this
 // header was written.  constexpr, so it lives in flash DROM.
 #pragma once
+#ifdef BIMO_POLICY_OVERLAY
+#error "this is the DEPLOYED weights.h, but the build selected a policy profile (BIMO_POLICY): its firmware/policies/<profile> directory must come first on the include path"
+#endif
 #include <stddef.h>
 #include <stdint.h>
 

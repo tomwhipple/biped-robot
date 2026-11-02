@@ -24,6 +24,7 @@
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "obs/obs_spec.h"
+#include "policy/mlp.h"
 #include "scsbus/registers.h"
 #include "sil.h"
 #include "sil_json.h"
@@ -200,6 +201,14 @@ void testTickRoundTrip() {
 // SIL slots are bus indices (sil_lib.cpp), found by servo ID -- not ID - 1.
 int slotOf(int joint) { return obs::policyToBus(joint); }
 
+// Policy index of the joint called `name`, or -1.
+int jointIndex(const char* name) {
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (strcmp(obs::kJointNames[j], name) == 0) return j;
+    }
+    return -1;
+}
+
 void testServoPermutationEndToEnd() {
     const std::string nom = g_tmp_prefix + "cal_nominal.json";
     CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.5f), 0);
@@ -244,8 +253,12 @@ void testServoPermutationEndToEnd() {
     }
     CHECK(differs_from_identity);   // the permutation is exercised, not vacuous
     CHECK_EQ(slotOf(0), 9);         // L_hip_yaw: bus index 9, servo ID 9
-    CHECK_EQ(slotOf(5), 8);         // R_hip_yaw: bus index 8, servo ID 10
+    CHECK_EQ(slotOf(jointIndex("R_hip_yaw")), 8);   // bus index 8, servo ID 10
     CHECK_EQ(slotOf(1), 4);         // L_hip_roll: bus index 4, servo ID 51
+    if (jointIndex("L_ankle_roll") >= 0) {          // the v6 legs' 6th joint
+        CHECK_EQ(slotOf(jointIndex("R_ankle_roll")), 10);   // servo ID 11
+        CHECK_EQ(slotOf(jointIndex("L_ankle_roll")), 11);   // servo ID 12
+    }
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
@@ -449,8 +462,12 @@ void testZeroedSmoke() {
                             : kTwoPi * obs::kControlDt * 1.5f;
     CHECK_NEAR(out.obs[obs::kOffPhase + 0], sinf(phase), 1e-6);
     CHECK_NEAR(out.obs[obs::kOffPhase + 1], cosf(phase), 1e-6);
+    // The command is all zero, except where the compiled-in net has a frozen
+    // command channel: that one is pinned to its trained value
+    // (policy/mlp.h pinFrozen) -- e.g. the crouch of a run trained at 1 only.
     for (int i = 0; i < obs::kNumCmd; ++i) {
-        CHECK_NEAR(out.obs[obs::kOffCmd + i], 0.0, 0.0);
+        const int k = obs::kOffCmd + i;
+        CHECK_NEAR(out.obs[k], policy::isFrozen(k) ? policy::kNormMean[k] : 0.0f, 0.0);
     }
     // First tick after a reset: every history slot is this frame (env.reset()).
     for (int h = 1; h < obs::kHistLen; ++h) {

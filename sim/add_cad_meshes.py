@@ -38,17 +38,24 @@ SERVOS = {"torso": ["yaw_L", "yaw_R", "neck", "shoulder_L", "shoulder_R"],
 
 
 def parts(arms=True, head=True):
-    """body -> [(stl name, offset mm, rgba)]: the printed parts, as placed in
-    build_v6_inertia.bodies()."""
+    """body -> [(stl name, offset mm, rgba[, opts])]: the printed parts, as
+    placed in build_v6_inertia.bodies(). `opts` (optional) places a second
+    copy of a part: "name" for its geom, "flip_x" to turn it 180 deg about X
+    (through the body origin, before the offset)."""
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z
     z_foot = -V.ANKLE_ROLL_Z + V.TPU_SOLE_T
+    # the shoulder cheek is one part: the right pod's is the left's turned
+    # over about the shoulder axis (shoulder_girdle_v6.shoulder_cheek_v6)
+    cheeks = [("shoulder_cheek_v6", (0, 0, zdeck), PLA),
+              ("shoulder_cheek_v6", (0, 0, zdeck + 2 * V.ARM_AXIS_Z), PLA,
+               {"name": "shoulder_cheek_v6_R", "flip_x": True})]
     out = {"torso": [("pelvis_v8", (0, 0, zdeck), PLA),
                      ("torso_v8" + ("" if arms else "_armless"), (0, 0, zdeck), PLA),
                      ("front_cover_v8", (0, 0, zdeck), PLA)]
            + ([("power_cover_v8", (0, 0, zdeck), PLA), ("battery_door_v8", (0, 0, zdeck), PLA)] if head else [])
            + [("yaw_bearing_housing", (0, 0, zdeck), PLA)]
            + ([("neck_floor", (0, 0, zdeck), PLA)] if head else [])
-           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] if arms else
+           + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] + cheeks if arms else
               [("neck_collar", (0, 0, zdeck), PLA)] if head else [])}
     if head:
         out["head"] = [("head", (0, 0, 0), PLA)]
@@ -90,12 +97,15 @@ def dress(src: str, xml_dir: str, arms=True, head=True) -> str:
     P = parts(arms, head)
     for body in sorted(set(P) | set(SERVOS)):
         geoms = []
-        for stl, off, rgba in P.get(body, []):
+        for stl, off, rgba, *opt in P.get(body, []):
+            opts = opt[0] if opt else {}
             if not os.path.exists(B.stl(stl)):
                 raise FileNotFoundError(B.stl(stl))
             n = mesh(f"cad_{stl}", f"{rel_cad}/{stl}.stl")
             pos = " ".join(f"{x * 1e-3:.5f}" for x in off)
-            geoms.append(f'<geom name="{body}_cad_{stl}" class="cad" mesh="{n}" pos="{pos}" rgba="{rgba}"/>')
+            quat = ' quat="0 1 0 0"' if opts.get("flip_x") else ""
+            geoms.append(f'<geom name="{body}_cad_{opts.get("name", stl)}" class="cad" mesh="{n}" pos="{pos}"'
+                         f'{quat} rgba="{rgba}"/>')
         for k in SERVOS.get(body, []):
             if k.startswith(("shoulder", "elbow")) and not arms:
                 continue

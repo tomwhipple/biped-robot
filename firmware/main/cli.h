@@ -10,6 +10,7 @@
 // checks that.
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 namespace cli {
 
@@ -54,5 +55,19 @@ void homeVerify(Sink out);
 // both ends, so nothing rings (Tom 2026-09-03: unison constant-speed moves
 // made the crouch oscillation WORSE). No-op when idle.
 void poseTick(Sink out);
+// Bench fall guard (cli.cpp): every housekeeping tick, before poseTick.
+void fallTick(Sink out);
+// Flail guard + operator stop, bench half (cli.cpp flailTickImpl): every
+// housekeeping tick, right after fallTick. Takes over an armed-loop HOLD
+// (shared.h g_armed_holds) and homes it once upright and still; stops bench
+// motion on an operator stop (shared.h g_op_stops).
+void flailTick(Sink out);
+// Flight recorder, bench side (main/flight_rec.h): call right after poseTick
+// every housekeeping iteration. Records the stream tick that just ran (one
+// SYNC READ of the fitted servos, after the goal write), or an idle sample
+// when nothing streams, and publishes mode-handover events. Returns the
+// microseconds it spent, which the caller takes back out of its sleep so the
+// pose stream's cadence is unchanged. 0 when the recorder is off or armed.
+uint32_t recorderTick();
 
 }  // namespace cli
