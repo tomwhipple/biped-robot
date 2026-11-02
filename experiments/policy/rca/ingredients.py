@@ -32,7 +32,15 @@ def obs_hook(spec):
     """Sensor-side models applied to the policy's obs (all 3 frames)."""
     if not spec:
         return None
+    hist = []
+
     def h(o, env):
+        if spec.get("dq_delay"):
+            # servo register 58 lags the true speed ~19 ms (stepresp): frame h reads the
+            # dq of tick t-h-1
+            hist.append(o[12:24].copy())
+            for k in range(3):
+                o[k * 55 + 12:k * 55 + 24] = hist[max(len(hist) - 2 - k, 0)]
         for k in range(3):
             b = k * 55
             if spec.get("dq_quant"):

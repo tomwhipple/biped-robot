@@ -40,8 +40,17 @@ def build(plant, run=RUN_NAME, ep_s=16.0, model=None):
     for k in [k for k in ESA._CACHE if isinstance(k, tuple)]:
         _ACT.setdefault((k[0],), ESA._CACHE[k][1])
         del ESA._CACHE[k]
+    ESA.RUNS = run_root(run)
     env, act, zoff = ESA._setup(run, plant, 0.0, ep_s)
     return env, act, zoff
+
+
+def run_root(run):
+    """The main checkout's sim/runs, else the night clone's (tonight's fresh runs)."""
+    for root in (os.path.join(rec.MAIN, "sim", "runs"), "/home/claw/code/robot-mjx/sim/runs"):
+        if os.path.exists(os.path.join(root, run, "params.pkl")):
+            return root
+    return os.path.join(rec.MAIN, "sim", "runs")
 
 
 def apply_model(env, m):
@@ -228,7 +237,16 @@ class TypedServo:
       STS3250 (hip rolls):       dead ~15 ms, tau ~19 ms
     The plant's PD then adds its own (fast) mechanical response; tau_* here are the set-point
     lags left after it (calibrated with sim_stepresp.py). db_deg: set-point hysteresis."""
-    def __init__(self, dead15=70.0, tau15=45.0, dead50=14.0, tau50=12.0, db15=0.0, db50=0.0, scale=1.0):
+    def __init__(self, dead15=70.0, tau15=45.0, dead50=14.0, tau50=12.0, db15=0.0, db50=0.0, scale=1.0,
+                 zeta50=None, fn50=9.0, dither_deg=0.0, dither_hz=4.6, seed=0):
+        # zeta50: STS3250 set-point as an underdamped 2nd-order (natural freq fn50, damping
+        # zeta50) instead of the first-order tau50 (unloaded stepresp: 10-22 % overshoot).
+        # dither_deg: the STS3250 limit cycle (legs hanging: ~4.6 Hz, ~0.5 deg p2p, L/R in
+        # antiphase in the joint frame) as a sinusoid on the hip-roll set points, amplitude deg.
+        self.zeta50, self.w50 = zeta50, 2 * np.pi * fn50
+        self.dither = math.radians(dither_deg); self.dither_w = 2 * np.pi * dither_hz
+        self.ph = np.random.default_rng(seed).uniform(0, 2 * np.pi)
+        self.sign = np.array([1.0 if n.startswith("L_") else -1.0 for n in rec.POL])
         self.dead = np.where(IS3250, dead50, dead15) * scale / 1000.0
         self.tau = np.where(IS3250, tau50, tau15) * scale / 1000.0
         self.db = np.radians(np.where(IS3250, db50, db15))
@@ -237,6 +255,7 @@ class TypedServo:
     def reset(self, q):
         self.buf = [np.array(q, float)] * self.n
         self.y = np.array(q, float); self.p = np.array(q, float)
+        self.z = np.array(q, float); self.zd = np.zeros(NJ); self.k = 0
 
     def __call__(self, g):
         self.buf.append(np.asarray(g, float).copy()); self.buf = self.buf[-self.n:]
@@ -249,12 +268,26 @@ class TypedServo:
         x = (1 - fr) * a + fr * b
         kk = np.where(self.tau > 0, 1 - np.exp(-0.02 / np.maximum(self.tau, 1e-6)), 1.0)
         self.y += kk * (x - self.y)
+        if self.zeta50 is not None:
+            # 2nd-order set point for the STS3250s, integrated at 1 ms inside the tick
+            w, zt = self.w50, self.zeta50
+            for _ in range(20):
+                acc = w * w * (x - self.z) - 2 * zt * w * self.zd
+                self.zd += acc * 0.001; self.z += self.zd * 0.001
+            self.y = np.where(IS3250, self.z, self.y)
+        self.k += 1
+        if self.dither:
+            self.y = self.y + np.where(IS3250, self.sign * self.dither *
+                                       math.sin(self.dither_w * self.k * 0.02 + self.ph), 0.0)
         if np.any(self.db > 0):
             self.p = np.clip(self.p, self.y - 0.5 * self.db, self.y + 0.5 * self.db)
             return self.p.copy()
         return self.y.copy()
 
 
+# the robot's measured servo (2026-11-01 stepresp, unloaded = intrinsic): STS3215 dead ~68 ms then
+# first-order ~55 ms; STS3250 dead ~12 ms, underdamped (10-22 % overshoot), 4.6 Hz limit cycle
+MEAS_SERVO = dict(dead15=68.0, tau15=55.0, dead50=12.0, tau50=0.0, zeta50=0.55, fn50=9.0)
 # joint_fit.py best (robot stepresp loaded + roll sweep, 2026-11-01)
 JF_SERVO = dict(dead15=28.4, tau15=57.4, dead50=6.5, tau50=2.4)
 JF_PLANT = dict(kp_scale=0.92, kd_scale=0.167, frictionloss=0.169, roll_lash_deg=0.0, backlash_deg=0.0)

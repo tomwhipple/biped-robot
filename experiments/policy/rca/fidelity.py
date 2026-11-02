@@ -84,3 +84,19 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def free_running():
+    """Python with its OWN previous action in the prev_action slots (recorded sensors, phase,
+    cmd) -- no reconstruction from the step-quantised nominal at all."""
+    r = rec.load(); n = int(np.sum(r["link"] == 1))
+    a_fw = rec.angles_to_action(r["nom"][:n])
+    act = load_act()
+    F = frames(r, n, np.zeros((n, NJ)))
+    a_py = np.zeros((n, NJ)); prev = np.zeros(NJ)
+    for i in range(n):
+        F[i, 33:45] = prev
+        o = np.concatenate([F[max(i - h, 0)] for h in range(H)])
+        a_py[i] = np.clip(act(o), -1, 1); prev = a_py[i]
+    err = np.abs(a_py - a_fw)
+    return err

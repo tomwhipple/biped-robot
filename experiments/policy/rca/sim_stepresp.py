@@ -12,7 +12,7 @@ TARGET = {"R_hip_roll": (15, 58, 0.80), "R_ankle_roll": (77, 165, 0.80), "R_hip_
           "L_knee": (77, 195, 0.85), "R_ankle": (82, 235, 0.95)}
 
 
-def run(joint, servo_kw=None, model=None, plant="fit"):
+def run(joint, servo_kw=None, model=None, plant="fit", trace=False):
     env, act, zoff = simh.build(plant, ep_s=6.0)
     env.domain_rand = False; env.push_prob = 0.0
     env.reset(seed=0)
@@ -45,7 +45,10 @@ def run(joint, servo_kw=None, model=None, plant="fit"):
         mv = np.where(xx >= 2 / 30)[0]
         f = lambda c: float(np.interp(c * fin, xx[:np.argmax(xx) + 1], tt[:np.argmax(xx) + 1])) if xx.max() > c * fin else float("nan")
         return dict(dead_ms=float(tt[mv[0]]) if len(mv) else float("nan"), t10_ms=f(0.1), t90_ms=f(0.9), final=float(fin))
-    return stats(x[:15], t[:15])
+    st = stats(x[:15], t[:15])
+    if trace:
+        st["t"] = t.tolist(); st["x"] = x.tolist()
+    return st
 
 
 if __name__ == "__main__":

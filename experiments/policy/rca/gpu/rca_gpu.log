@@ -4,3 +4,30 @@ repo @ main 70cb615
 unloaded nomic-embed-text:latest
 unloaded qwen2.5:7b-instruct-ctx16k
 15:08 teacher robot_legs_walk14_s1_gg start (timeout 2400s): --steps 200000000 --num-evals 10 --gyro-gain-range 0.5,3.0 --gyro-delay-max 1
+15:34 teacher robot_legs_walk14_s1_gg exit 0
+15:34 distill robot_legs_walk14_s1_gg_s128r24 start (budget 2400s)
+15:45 distill robot_legs_walk14_s1_gg_s128r24 exit 0
+15:45 teacher robot_legs_walk14_s1_ggad start (timeout 2400s): --steps 200000000 --num-evals 10 --gyro-gain-range 0.5,3.0 --gyro-delay-max 1 --act-delay-max 3 --w-action-rate 0.3
+15:45 chain: stopped teacher B before it trained; handing over to rca_gpu2
+=== Sun Nov  1 03:46:00 PM MST 2026 rca_gpu start ===
+repo @ policy-stand-rca e4b8a0a
+15:46 paused camera-watcher-classifier-1
+unloaded qwen2.5:7b-instruct-ctx16k
+15:46 teacher robot_legs_walk14_s1_act start (timeout 4200s): --steps 400000000 --num-evals 12 --act-delay-types sts3215=2:5,sts3250=0:1 --act-lag 2,8 --servo-kd-range 0.12,1.0 --servo-kp-range 0.6,1.2 --joint-frictionloss-range 0.1,0.4 --gyro-gain-range 0.7,1.6 --gyro-delay-max 1
+16:35 teacher robot_legs_walk14_s1_act exit 0
+16:35 distill robot_legs_walk14_s1_act_s128r24 start (budget 2400s)
+16:37 distill robot_legs_walk14_s1_act_s128r24 exit 0
+16:37 teacher robot_legs_walk14_s1_actar start (timeout 4200s): --steps 300000000 --num-evals 10 --act-delay-types sts3215=2:5,sts3250=0:1 --act-lag 2,8 --servo-kd-range 0.12,1.0 --servo-kp-range 0.6,1.2 --joint-frictionloss-range 0.1,0.4 --gyro-gain-range 0.7,1.6 --gyro-delay-max 1 --w-action-rate 0.3
+17:11 teacher robot_legs_walk14_s1_actar exit 0
+17:11 distill robot_legs_walk14_s1_actar_s128r24 start (budget 2400s)
+17:14 distill robot_legs_walk14_s1_actar_s128r24 exit 0
+=== Sun Nov  1 05:14:35 PM MST 2026 rca_gpu done ===
+17:14 resumed camera-watcher-classifier-1
+=== Sun Nov  1 05:14:35 PM MST 2026 rca_gpu end (trap) ===
+=== Sun Nov  1 05:15:30 PM MST 2026 rca_gpu start ===
+repo @ policy-stand-rca e4b8a0a
+17:15 paused camera-watcher-classifier-1
+unloaded qwen2.5vl:latest
+17:15 teacher robot_legs_walk14_s1_actar2 start (timeout 4200s): --steps 400000000 --num-evals 12 --act-delay-types sts3215=2:5,sts3250=0:1 --act-lag 2,8 --servo-kd-range 0.12,1.0 --servo-kp-range 0.6,1.2 --joint-frictionloss-range 0.1,0.4 --gyro-gain-range 0.7,1.6 --gyro-delay-max 1 --w-action-rate 0.3 --init-from robot_legs_walk14_s1_actar --seed 2
+17:16 teacher robot_legs_walk14_s1_actar2 exit 0
+17:16 distill robot_legs_walk14_s1_actar2_s128r24 start (budget 2400s)
