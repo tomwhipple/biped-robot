@@ -66,6 +66,13 @@ make -C firmware/host deps gui
 firmware/host/build/bimo_gui --bench-telemetry mira:8650 --cam-relay mira:8647 --cam emeet
 ```
 
+The Qt console takes the same flags and shows the same view as its Bench tab
+([console.md](console.md)):
+
+```sh
+.venv/bin/python link/bimo_console.py --bench-telemetry mira:8650 --cam-relay mira:8647 --cam emeet
+```
+
 `mira` resolves through Tailscale. `--cam NAME` (up to two, `emeet`, `brio`
 or `sony`) opens panes at start; the combo box in each pane changes source and
 `(off)` releases the camera. `--drive-view` starts on the DRIVE view instead;

@@ -75,6 +75,47 @@ view pane on the left shows the 3D pose, a camera or the sim's render. Tabs:
 Checks, Drive, Joints, Telemetry, Sim, Session, Setup, and Bench when started
 with `--bench-telemetry` / `--cam-relay`.
 
+- **3D pose** (`view3d.py`, `pose3d.py`): the plant posed from the measured
+  joints (flight records, else the beacon's joint block when `--mirror` asks
+  for it), kinematics only, root pinned and yaw drawn 0. The commanded pose
+  (each joint's goal) is a cyan ghost and the sim twin's an amber one, each its
+  own geometry, never a blend. A camera is a picture-in-picture or a split,
+  never drawn under the model. Every layer shows its age and reads FROZEN past
+  1 s.
+- **Checks** (`tab_checks.py`): [first-policy-stand.md](first-policy-stand.md)
+  §2. Rows the console can read pass or fail by themselves; the rest are
+  ticked by the operator. ARM reads "ARM · checks open" until the list is
+  clear; it is never blocked. The abort watch (§5) is advisory and sends
+  nothing.
+- **Drive**: hold-to-move buttons, what was sent beside what the policy saw
+  (the flight record's command), the extended channels, speeds and send rate,
+  30 s of pack, tilt and vx.
+- **Joints** (`tab_joints.py`): goal vs measured for every bus joint on the
+  robot's clock, error RMS and load, a faulted servo boxed red ("reading
+  held"), the sim twin as an amber trace; click a joint to highlight it in 3D.
+- **Telemetry** (`tab_telemetry.py`): pack, tilt, gyro, tick work time, beacon
+  age and flight-record holes on a time axis; the servo table; the link table.
+- **Sim**: start, stop and reset `sim/sil_twin.py`, its log, and
+  twin-in-the-loop (off by default): every command frame sent to the robot is
+  also sent to the sim on its own ports.
+- **Session**: the recording, the flight recorder's state, and one event log
+  for the console and the robot.
+- **Setup**: the link (applied on the button; a relink while armed disarms
+  first), the beacon relay, the keymap, the gamepad mapping, a screenshot.
+- **Bench** (`bench.py`, `tab_bench.py`): the serial-bridge telemetry and two
+  camera panes, watch-only ([bench-console.md](bench-console.md)).
+
+## Gamepad
+
+`gamepad.py`, through SDL's GameController API (pygame), mapped by position:
+the right shoulder (RB) is a held dead-man, east (B) is E-STOP in every role,
+the left stick is vx (the trained band) and vy, the right stick x is wz; the
+pad cannot arm or reset the servos. Losing the pad releases everything. **It
+drives the sim only** (a loopback host) until the Bluetooth disconnect and
+silence latencies are measured on the pad
+([design §7, §14](design-v6/2026-11-01-operator-console-ui.md)): `tools/pad_latency.py`
+is that measurement. Its E-STOP works for any host.
+
 ## Data
 
 | source | port | carries |
