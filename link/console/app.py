@@ -125,7 +125,8 @@ class Window(QtWidgets.QMainWindow):
         self.setCentralWidget(root)
         self.statusBar().showMessage(f"log {ctl.log.path or '(none)'}")
         self.resize(1920, 1080)
-        self.select_tab(opts.tab or DEFAULT_TAB)
+        bench = "Bench" in self.tab_widgets and not opts.drive_view   # bimo_gui's bench view
+        self.select_tab(opts.tab or ("Bench" if bench else DEFAULT_TAB))
 
         self.link_timer = QtCore.QTimer(self)
         self.link_timer.setTimerType(QtCore.Qt.TimerType.PreciseTimer)
