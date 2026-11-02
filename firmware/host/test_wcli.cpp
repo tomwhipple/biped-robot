@@ -748,6 +748,20 @@ void testPolicy() {
         {"run", false, Verdict::kRefuseTether},
         {"stream 7 2000 2100 1000 0", false, Verdict::kRefuseTether},
         {"obsdump on", false, Verdict::kRefuseTether},
+        // the fall / flail guards (#181/#187): status reads only, switches tether-only
+        {"fall", false, Verdict::kAllow},
+        {"flail", false, Verdict::kAllow},
+        {"fall off", false, Verdict::kRefuseTether},
+        {"fall clear", false, Verdict::kRefuseTether},
+        {"fall autohome off", false, Verdict::kRefuseTether},
+        {"flail off", false, Verdict::kRefuseTether},
+        {"flail on", false, Verdict::kRefuseTether},
+        {"flail", true, Verdict::kRefuseArmed},
+        // bench identification experiments (#184 sweep, #188 stepresp)
+        {"sweep stop", false, Verdict::kAllow},
+        {"sweep", false, Verdict::kRefuseTether},
+        {"sweep 20 1 2", false, Verdict::kRefuseTether},
+        {"stepresp 7 40", false, Verdict::kRefuseTether},
         // default deny
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},

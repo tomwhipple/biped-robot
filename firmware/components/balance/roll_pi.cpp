@@ -16,6 +16,7 @@ const char* validate(const Config& c) {
     if (!(c.abort_decay_s >= 0.05f && c.abort_decay_s <= 2.0f)) return "abort decay must be 0.05..2 s";
     if (!(c.abort_land_s >= 0.2f && c.abort_land_s <= 5.0f)) return "abort land must be 0.2..5 s";
     if (!(c.arm_start_rad >= 0.0f && c.arm_start_rad <= 0.34907f)) return "arm start must be 0..20 deg";
+    if (!(c.i_lim_rad >= 0.0f && c.i_lim_rad <= 0.26180f + 1e-5f)) return "I limit must be 0..15 deg";
     return nullptr;
 }
 
@@ -139,6 +140,12 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
     if (u < -cfg_.clamp_rad) u = -cfg_.clamp_rad;
     const bool pushing_into_clamp = (u != unsat) && ((err > 0.0f) == (u > 0.0f));
     if (!pushing_into_clamp) i_ += err * dt_s;
+    if (cfg_.i_lim_rad > 0.0f && cfg_.ki > 0.0f) {
+        // the integral's share of u stays within +-i_lim_rad (it limits the next tick's u)
+        const float lim = cfg_.i_lim_rad / cfg_.ki;
+        if (i_ > lim) i_ = lim;
+        if (i_ < -lim) i_ = -lim;
+    }
     u_ = u;
     return state_;
 }

@@ -148,6 +148,26 @@ Decision classify(const char* line, bool armed) {
         return Decision{Verdict::kRefuseUnknown, "unknown `imu` form"};
     }
 
+    if (is(c, "fall")) {
+        if (argc == 1) return allow();
+        return tether("`fall on|off|autohome|clear` switches the fall guard (a "
+                      "safety latch)");
+    }
+    if (is(c, "flail")) {
+        if (argc == 1) return allow();
+        return tether("`flail on|off` switches the armed loop's flail guard (a "
+                      "safety latch)");
+    }
+    if (is(c, "sweep")) {
+        if (argc == 2 && is(sub, "stop")) return allow();
+        return tether("`sweep` is a bench identification experiment (roll "
+                      "sweep), run from the tether");
+    }
+    if (is(c, "stepresp")) {
+        return tether("`stepresp` is a bench identification experiment (one "
+                      "servo's step response), run from the tether");
+    }
+
     // -- never over Wi-Fi --------------------------------------------------------
     if (is(c, "id")) return tether("`id` assigns a servo ID (servo EEPROM)");
     if (is(c, "middle")) {

@@ -436,6 +436,67 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-02 card: night 12 -- a (128,128) get-up trained directly with PPO
+# sweeps 48/48 on one seed (w13k_s1; the other seed sinks after standing);
+# the w12k student sweeps 44/48 but loses shoves (4/16). Legs: the
+# actuator-DR student walk16_act_s128r24 passes x1.5 loop gain on the
+# measured actuator (the hardware-stand candidate); the walk does not
+# return under actuator DR.
+fig_1102 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w13k_s1', ['recover_supine_ph'],
+                 'robot_getup_w13k_s1_supine_ph',
+                 'a firmware-sized (128, 128) get-up trained with PPO, no distil: '
+                 '48/48 over friction 0.05-0.5, 8/16 under 15 N shoves'),
+    video_figure('robot_getup_w13k', ['recover_supine_ph'],
+                 'robot_getup_w13k_supine_ph',
+                 'the same recipe, seed 0: it stands at 21.7 s, then sinks to '
+                 '0.29 m (supine ph 1/8 at friction 0.35; sweep 31/48)'),
+    video_figure('robot_legs_walk16_act_s128r24', ['stand_10s'],
+                 'robot_legs_walk16_act_s128r24_stand',
+                 'the hardware-stand candidate: 0/8 falls on the measured actuator at '
+                 'x1.5 loop gain (shown on the no-dead-time referee, where it drifts)'),
+    video_figure('robot_legs_walk16_act', ['walk_steps_L'],
+                 'robot_legs_walk16_act_walk_steps',
+                 'the actuator-DR teacher stands but does not step: peaks <= 1 cm '
+                 '(walk14 without dead time: 5/8 at >= 3 cm)'),
+] if f)
+# 2026-11-01 card: night 11 -- the get-up holds on the full deploy contract
+# (w12k: asbuilt P32, quantizer, clip within stops: 48/48, 15 N 14/16); the
+# first get-up student (w9k -> (128,128)) loses 16/48. Legs: walk14 79/160 is
+# the best deployable teacher; its student loses 42; the first step is the
+# walk gate now.
+fig_1101 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w12k', ['recover_prone_fall'],
+                 'robot_getup_w12k_prone_fall',
+                 'the get-up on the robot\'s own gains, encoder quantizer and stop '
+                 'clip: 48/48 over friction 0.05-0.5, 14/16 under 15 N shoves'),
+    video_figure('robot_getup_w9k_s128r24', ['recover_prone_fall'],
+                 'robot_getup_w9k_s128r24_prone_fall',
+                 'the first firmware-sized get-up student: 32/48 over friction '
+                 '(teacher 48); it never stands from prone at friction 0.5'),
+    video_figure('robot_legs_walk14', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk14_walk_steps',
+                 'the best deployable legs teacher: 79/160, walk_steps 5/8 and 3/8; '
+                 'the misses are the first step from standing'),
+] if f)
+# 2026-10-31 card: night 10 -- the get-up stands on the as-built STS3215
+# knees (w9k, w9k_s1, w10k: sweep 48/48, 15 N 15-16/16; #147). Legs, the
+# deploy-first recipe on the fitted plant: the (128,128) students lose 10-15
+# seed-passes to their teachers and double the power (the distil underfits).
+fig_1031 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w9k', ['recover_prone_fall'],
+                 'robot_getup_w9k_prone_fall',
+                 'the get-up on the robot\'s own STS3215 knees: 48/48 over friction '
+                 '0.05-0.5, 16/16 under 15 N shoves (the STS3250-knee w5k: 48, 14)'),
+    video_figure('robot_legs_walk13_fit_s1', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk13_fit_s1_walk_steps',
+                 'the best deployable-recipe teacher (full map, P32, fitted plant): '
+                 'walk_steps left 4/8, right 1/8; 70/160 overall'),
+    video_figure('robot_legs_walk13_fit_s128r24', ['walk_steps_R', 'stand_10s'],
+                 'robot_legs_walk13_fit_s128r24_steps_stand',
+                 'its firmware-sized student: 52/160 (teacher 67), 213 W at a plain '
+                 'stand (teacher 80 W): the student hunts around the teacher\'s targets'),
+] if f)
 # 2026-10-30 card: night 9 -- 30/22 N training shoves barely move the 30 N
 # grade (the misses are shoves off the time-indexed prone roll); the analytic
 # reference stands open loop on the as-built STS3215 knees (#147). Legs: the
@@ -807,6 +868,92 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>
+    <p><b>Get-up: the firmware-sized network can do it without distillation.</b>
+    Trained directly with PPO at (128, 128), w13k_s1 passes 48/48 across joint
+    friction 0.05 – 0.5. It learns as fast as the big network. The other seed
+    (w13k) stands and then sinks from supine ph (31/48), and both small-net
+    seeds lose more shoves than the big ones (7 – 8/16 at 15 N against
+    12 – 15/16). The stock student of the deployable teacher w12k is much
+    better than w9k's (44/48 against 32/48), but it keeps only 4/16 under
+    shoves. Twice the distillation data made it worse. A big network from
+    scratch (w14k) sweeps 48/48, so the old init is not needed. Tonight:
+    action noise during distillation, a teacher-sized student, a (256, 256)
+    PPO network, a third seed, and less residual authority for the small
+    network.</p>
+    <p><b>Legs: a stand policy with margin on the measured actuator; the walk is the open problem.</b>
+    After 11-01's flail (the STS3215s have ~70 ms dead time), the
+    actuator-randomised student walk16_act_s128r24 survives 1.5× loop gain,
+    the pessimistic actuator fit and 100 ms dead time with 0/8 falls. It is
+    the hardware-stand candidate. On that plant the walk does not come back:
+    training falls stay at ~0.9 over 1.1B steps and foot peaks stay ≤ 1.2 cm.
+    Tonight tests the cadence (commanded speed capped at 0.35 m/s) against
+    the dead-time tails (40 – 100 ms DR narrowed to 60 – 80 ms). On the
+    no-dead-time line, a (256, 256) student recovers 25 of the 42 seed-passes
+    the (128, 128) student lost (62 vs 37/160; teacher 79). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1102}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·01 · night 11: the deployable get-up + the student gate</span></p>
+    <p><b>Get-up: it holds on everything the robot's firmware imposes.</b>
+    Trained on the factory P32 gains the robot runs (w11k, w11k_s1: 46 and
+    47/48), then with the encoder quantizer and targets clipped to the joint
+    stops as well (w12k: 48/48 across joint friction 0.05 – 0.5, 14/16 under
+    15 N shoves). Clipping at the stops cost nothing. w12k is the deployable
+    get-up teacher. Its weak point is the next step. The first get-up distilled
+    into the firmware-sized (128, 128) network loses 16 of 48 trials and 10 of
+    16 under shoves. It sinks after standing at low friction and never stands
+    from prone at high friction. Its fit error says it learned its training
+    data but does not generalise. Tonight tests more distillation data, and
+    also training the small network directly with PPO so there is no distil
+    step (with a from-scratch control).</p>
+    <p><b>Legs: a better teacher, and the student is still the gate.</b>
+    walk14 (a second 400M on the fitted plant) passes 79/160 with walk_steps
+    5/8 left and 3/8 right. The right-foot weakness is gone, and the stop step
+    now clears 3 cm in 14 of 15 episodes. The failing step is now the first
+    step from standing (8/16 below 3 cm). Its firmware-sized student passes
+    37/160. 4× more training steps or 4× more data per round did not help the
+    students. Tonight brackets network size (256, 256) and the teacher's own
+    size, to tell capacity from the distil recipe. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1101}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·31 · night 10: get-up + the deployable legs</span></p>
+    <p><b>Get-up: it stands on the robot's own STS3215 knees, so no STS3250 knees are needed.</b>
+    Every get-up before night 10 trained with STS3250 knees, but the robot has
+    STS3215 (#147). The best recipe, trained on the as-built servos, gives the
+    same result on three runs (two seeds, plus one started from the best STS3250
+    policy): 48/48 across joint friction 0.05 – 0.5 and 15 – 16/16 under 15 N
+    shoves, the same as with STS3250 knees. The open-loop reference tipped back
+    at friction 0.05; the trained policies hold that stand. Tonight the get-up
+    trains on the gains the robot really runs (factory P32 on every leg servo),
+    then with the rest of the deploy contract (encoder quantizer, targets within
+    the stops). The first get-up distil into the firmware-sized network also
+    runs tonight.</p>
+    <p><b>Legs: the deployable teachers walk; their firmware-sized students are the gate.</b>
+    The walk now trains on the plant fitted to the 10-30 flight-recorder stands,
+    with the gains the ESP32 runs. The best teacher (walk13_fit_s1) passes 70/160,
+    with walk_steps 4/8 on the left foot and 1/8 on the right. Every
+    (128, 128) student loses 10 – 15 seed-passes to its teacher and draws about
+    twice the power: 213 W at a plain stand, against the teacher's 80 W. The
+    distil underfits: its error ends 6 – 12× higher than the v5 students' on the
+    same recipe. Tonight tests 4× more SGD and 4× more data per round, continues
+    the teacher from walk13_fit_s1 on two seeds, and distils every teacher.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1031}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·30 · night 9: get-up + the as-built legs</span></p>

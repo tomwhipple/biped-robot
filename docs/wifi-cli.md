@@ -125,13 +125,18 @@ purpose (`firmware/components/wcli/policy.cpp`).
 | `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot) |
 | `stream status`, `stream dump` | `stream <id> ...` -- drives a servo with no torque gate and no envelope clamp |
 | `obsdump`, `obsdump show/off` | `obsdump on/once` -- streams to the tether UART only |
+| `fall`, `flail` (status) | `fall on/off/autohome/clear`, `flail on/off` -- switch a safety guard (fall guard, flail guard) |
+| `sweep stop` | `sweep ...`, `stepresp ...` -- bench identification experiments, run from the tether |
 | | `run` -- arming is the commander's ARM edge |
 | | anything else -- not on the allowlist |
 
 Two locks, not one: the allowlist refuses these lines before they reach the
 CLI, and the CLI refuses them again itself (`cli.cpp tetherOnly()`) when the
 line came over Wi-Fi -- a slip in one table does not reach NVS, servo EEPROM
-or a safety latch.
+or a safety latch. (A Wi-Fi `home` still clears a fall latch, exactly as on
+the tether: a deliberate home after a fall is the manual form of autohome.)
+The operator stop (`tools/estop.py`, `linkproto::kFlagStop`) is a separate,
+unauthenticated link frame on port 4210 and needs no Wi-Fi CLI session.
 
 ## Safety
 

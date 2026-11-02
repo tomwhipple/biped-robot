@@ -29,6 +29,7 @@ import json
 import math
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -37,14 +38,26 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = os.path.dirname(HERE)
 ROOT = os.path.dirname(SIM)
 FIRMWARE = os.path.join(ROOT, "firmware")
-SPEC_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
-                      "obs_spec.h")
+
+# The policy profile this harness drives (tools/policy_profile.py): the
+# DEPLOYED policy's spec by default, or $BIMO_POLICY's (firmware/policies/
+# <name>/, a second plant -- eval_precision --sil sets it from the run's
+# plant). Read once at import: the ctypes structs below are sized from it, so
+# a process drives one profile's library.
+if os.path.join(ROOT, "tools") not in sys.path:
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+import policy_profile                                       # noqa: E402
+
+POLICY_PROFILE = policy_profile.from_env()
+SPEC_H = policy_profile.files(POLICY_PROFILE)["spec_h"]
 BUS_MAP_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
                          "bus_map.h")
 
 WEIGHTS_DIR = os.path.join(HERE, "weights")
-GOLDEN_DIR = os.path.join(HERE, "golden")
-CAL_DIR = os.path.join(HERE, "cal")
+GOLDEN_DIR = policy_profile.files(POLICY_PROFILE)["golden_dir"]
+# calibration files carry one row per POLICY joint, so a profile keeps its own
+CAL_DIR = os.path.join(HERE, "cal", *([POLICY_PROFILE] if POLICY_PROFILE
+                                      else []))
 RUNS_DIR = os.path.join(SIM, "runs")
 
 
@@ -471,8 +484,13 @@ class SilTargets(ctypes.Structure):
 
 LIB_NAMES = ("libctrl_sil.dylib", "libctrl_sil.so", "ctrl_sil.dylib",
              "ctrl_sil.so")
-LIB_DIRS = (os.path.join(FIRMWARE, "host", "build"),
-            os.path.join(FIRMWARE, "host"))
+# a profile's library is built into build/policy-<name>/ (firmware/host/
+# Makefile POLICY=<name>); the deployed one into build/
+LIB_DIRS = ((os.path.join(FIRMWARE, "host", "build",
+                          "policy-" + POLICY_PROFILE),)
+            if POLICY_PROFILE else
+            (os.path.join(FIRMWARE, "host", "build"),
+             os.path.join(FIRMWARE, "host")))
 
 
 def find_lib():
@@ -512,6 +530,7 @@ class SilLib:
         self.lib.sil_tick.restype = ctypes.c_int
         self.lib.sil_spec.argtypes = []
         self.lib.sil_spec.restype = ctypes.c_char_p
+        self.check_widths()
         # sil_abi 2 (optional on older libraries): the C2 command shaper.
         try:
             self.lib.sil_set_shaper.argtypes = [ctypes.c_float]
@@ -531,6 +550,25 @@ class SilLib:
         if probe:
             self.probe()
         self.reset()
+
+    def check_widths(self):
+        """The struct widths are the compiled spec's (sil.h): refuse a library
+        built for another policy profile than the one SilSensors/SilTargets
+        were sized from, before a single byte crosses the boundary."""
+        try:
+            got = json.loads(self.spec_string())
+        except ValueError as e:
+            raise ProbeFailed(f"sil_spec() is not JSON: {e}")
+        want = dict(num_bus_joints=NB, num_cmd=NCMD, act_dim=NACT,
+                    obs_dim=NOBS)
+        bad = {k: (got.get(k), v) for k, v in want.items() if got.get(k) != v}
+        if bad:
+            raise ProbeFailed(
+                f"{self.path} was built for another policy (profile "
+                f"{got.get('policy_profile')!r}, run {got.get('run')!r}): "
+                f"widths {bad} (library, harness). This harness is profile "
+                f"{POLICY_PROFILE or '(deployed)'} -- set BIMO_POLICY and "
+                "build with `make -C firmware/host sil POLICY=<profile>`")
 
     # -- raw calls -----------------------------------------------------
     def spec_string(self):

@@ -156,7 +156,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §10 battery door | M2.5 × 8 flat | 1 |
 | §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
-| §11c shoulder servos | M2.5 × 8 flat | 8 |
+| §11c shoulder cheeks to the pod lugs / shoulder servos through the cheeks | M2.5 × 8 flat | 8 / 8 |
 | §11d shoulder horns | M3 × 6 | 8 |
 | §11d elbow grips (upper arms) | M2.5 × 8 flat | 12 |
 | §11d elbows (forearm forks) | M3 × 5 horn / M3 × 6 idler | 8 / 8 |
@@ -182,10 +182,11 @@ The robot has no heat-set inserts and no washers.
    - Centring first keeps each joint's travel clear of the encoder's 0/4095
      wrap. On the prototype, a zero at 3273 capped a hip's backward pitch at
      +72°.
-   - **The two hip-yaw servos go in without their idler disc.** Nothing rides
-     their idler side, which seats flat on the cell ceiling (§7a). Leave the
-     disc off and keep it in the bag as a spare; the other 15 servos keep
-     theirs.
+   - **The two hip-yaw servos and the two shoulder servos go in without their
+     idler disc.** Nothing rides their idler side: the hip yaws' seats flat
+     on the cell ceiling (§7a), the shoulders' against the girdle's inboard
+     wall (§11c). Leave the disc off and keep it in the bag as a spare; the
+     other 13 servos keep theirs.
 4. **Gains.** On the four ankle-roll and knee STS3215s, write the
    position-loop P (register 21) and D (register 22) that the bench test (#73)
    settled. The hip rolls are STS3250s; their row in the table comes from the
@@ -526,9 +527,10 @@ the neck is built into the girdle before the girdle goes onto the robot.
    ![Neck floor up into the girdle's tube](assembly/v6_13_neck_floor.png)
 
 2. **Plug the neck servo's leads first.** The bus ports face down, in the
-   connector trench on the idler face. The floor has a window under the trench,
-   open toward the robot's left (+Y), so the plugs pass it and the leads leave
-   sideways at floor level.
+   connector trench on the idler face. The floor has a window under the trench
+   that runs out toward the robot's left (+Y) as a tunnel under the floor's
+   edge rail: the plugs sit in the window, and the leads are laid into the
+   tunnel from below and leave sideways at floor level.
 3. **Drop the neck servo into the tube from above**, horn up, case length
    fore-aft with the cable end aft. Its idler face lands on the floor's four
    pads; the turning idler disc and hub clear the floor by 0.6 mm.
@@ -550,15 +552,42 @@ the neck is built into the girdle before the girdle goes onto the robot.
 
 ![The girdle lowered onto the deck](assembly/v6_15_girdle.png)
 
-### 11c. Shoulder servos
+### 11c. Shoulder servos and cheeks
 
-- **Drop each servo straight into its open pod** from above: case length
-  fore-aft, width vertical, horn outboard.
-- **Screw it with 4 × M2.5 × 8 flat-heads into the horn-side case face, from
-  outboard.** The inboard face sits 1.24 mm off the torso's skin, where no
-  driver fits.
+Each pod's outboard wall is a separate print, the **cheek**
+(`shoulder_cheek_v6`, the same part for both pods). The servo cannot drop in from above: its
+output boss and horn-side rib (outboard), and its back-cover platform and
+free-hub post (inboard), all stand proud along the shoulder axis into
+pockets in the pod's walls. So the servo goes in along that axis, from
+outboard, with the cheek off.
 
-![Shoulder servos into their pods](assembly/v6_16_shoulder_servos.png)
+1. **Plug its leads first.** They rise from the connector trench on the idler
+   face and leave up through the open-topped notch in the pod's inboard wall.
+2. **Push the servo in along the shoulder axis from outboard**, **no idler
+   disc** (§2): case length fore-aft with the cable end aft, width vertical,
+   horn outboard. Rest it on the pod's floor, between the end walls, and slide
+   it inboard. The free-hub post enters its hole, the platform its detent, and
+   the leads slide into the notch. Stop when the idler face meets the four
+   crush pads on the inboard wall.
+
+   ![Shoulder servos in from outboard](assembly/v6_16_shoulder_servos.png)
+
+3. **Put the cheek on along the same axis.** Thread its large hole over the
+   output boss and drop it into the rebate between the two end lugs' rims,
+   onto the floor's ledge, countersinks outboard and its rib pocket against the
+   case's horn-side rib. Both cheeks are the same part: it is symmetric top to
+   bottom about the shoulder axis, so either way up fits.
+4. **Drive the 4 corner screws** (M2.5 × 8 flat-heads, from outboard, into
+   the end lugs). They push the case the last 0.25 mm home onto the crush
+   pads, so it ends up clamped between the inboard wall and the cheek.
+5. **Drive the 4 case screws** (M2.5 × 8 flat-heads) through the cheek into
+   the horn-side case face, from outboard. The inboard face sits 1.24 mm off
+   the torso's skin, where no driver fits.
+
+   ![Cheeks on over the boss](assembly/v6_16b_shoulder_cheeks.png)
+
+To take a shoulder servo out, remove the arm (§11d) first. The cheek comes
+off outboard, and then the servo slides out the way it went in.
 
 ### 11d. Arms (a mirror pair)
 
@@ -623,8 +652,7 @@ is no current budget.
   (neck, shoulders) and the camera's ribbon (from the Pi's top edge) leave up
   through the deck opening between the boards.
 - **Neck:** the leads leave the plugs through the neck floor's window, toward
-  +Y, and rise through the deck aperture beside the tube; the tube also has a
-  window at the servo's cable end.
+  +Y, and rise through the deck aperture beside the tube.
 
 **Rules:**
 

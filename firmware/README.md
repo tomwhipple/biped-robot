@@ -57,6 +57,15 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 The pre-push hook (`.githooks/pre-push`) also runs the target build; it finds
 ESP-IDF through `idf.py` on `PATH` or `$IDF_PATH`.
 
+**Which policy.** The image carries the deployed policy unless a **policy
+profile** is named: `idf.py -C firmware -B build/firmware-v6legs
+-DBIMO_POLICY=v6legs build` (or `make firmware POLICY=v6legs`) builds the v6
+legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
+profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
+`v6legs` profile currently holds an untrained test net, and the firmware
+refuses to arm on it ([training.md §9](../docs/training.md), "Policy
+profiles").
+
 ## On-target bring-up
 
 [docs/bringup.md](../docs/bringup.md) is the procedure, from a bare board to
@@ -68,7 +77,7 @@ the tick timing and fault counters along the way.
 ## Host tests (the hardware-free gate)
 
 ```sh
-make -C firmware/host test     # 10 suites under ASan/UBSan, plus libctrl_sil
+make -C firmware/host test     # 11 suites under ASan/UBSan, plus libctrl_sil -- the deployed policy, then each profile
 make -C firmware/host check    # test + the bimo_tui build (+ bimo_gui on macOS)
 ```
 
@@ -83,9 +92,11 @@ hardware-touching files are excluded by construction.
 | `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
-| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder |
+| `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
+| `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 2 s upright-and-still pick-up, the armed-to-bench hand-over -> autohome |
+| `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
@@ -107,10 +118,13 @@ make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + st
 make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
 make -C firmware/host build/wcli_twin   # the Wi-Fi CLI's robot half on a localhost socket (tests/test_wcli.py)
 make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h (+ vectors) from one run
+make -C firmware/host test POLICY=v6legs   # one policy profile's build (`test` alone runs every profile too)
+make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs   # into policies/v6legs/
 ```
 
-`obs_spec.h`, `weights.h` and the files in `host/vectors/` are generated
-(AGENTS.md lists the generators); never hand-edit them. The two deployed
+`obs_spec.h`, `weights.h`, the files in `host/vectors/` and everything under
+`policies/` are generated (AGENTS.md lists the generators); never hand-edit
+them. The two deployed
 headers change only together, and only because somebody named the run to
 deploy.
 
@@ -123,6 +137,7 @@ firmware/
                         1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings,
                         the custom partition table
   partitions.csv        nvs + phy_init at the stock offsets, a 3 MB app partition
+  policies/<profile>/   a second compiled-in policy's generated headers (BIMO_POLICY)
   main/                 everything that touches ESP-IDF
     board.h             the pinout, from the vendor schematic
     app_main.cpp        NVS, UARTs, IMU, calibration restore, torque off, start tasks
@@ -152,9 +167,11 @@ firmware/
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
+    fallguard/          fall detection + pick-up recovery, one module for the armed loop and the bench
+    flailguard/         the armed loop's judge of the policy (pose, rate, tilt, chatter) -> hold + disarm
     flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
     wcli/               the Wi-Fi CLI: SHA-256/HMAC, wire codec, session logic, allowlist
-  host/                 host build: Makefile + CMakeLists, 13 test suites, the SIL
+  host/                 host build: Makefile + CMakeLists, 15 test suites, the SIL
                         library (sil.h, sil_lib.cpp, sil_net.cpp), wcli_twin, vectors/
 tools/
   gen_protocol_vectors.py   link/protocol.py -> host/vectors/protocol_vectors.h

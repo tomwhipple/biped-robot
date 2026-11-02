@@ -560,14 +560,86 @@ void testRollFromUp() {
     CHECK(!balance::rollFromUp(bad, &roll));
 }
 
+// Rows from balance.py (the third block it prints): RollPI(kp 0.3, ki 1.0, clamp 10 deg,
+// i_lim 3 deg) at dt 0.5 -- the integral stops at i_lim/ki and unwinds from there at once.
+void testIntegralLimitMatchesSimTwin() {
+    Config c;
+    c.kp = 0.3f; c.ki = 1.0f; c.kd = 0.0f; c.ka = 1.0f; c.kh = -1.0f;
+    c.clamp_rad = 10.0f * kDeg; c.abort_rad = 20.0f * kDeg; c.i_lim_rad = 3.0f * kDeg;
+    RollBalance b;
+    b.configure(c);
+    b.engage(0.0f);
+    struct Row { float err, u, i; };
+    const Row rows[] = {
+        {0.05f, 0.015000f, 0.025000f},  {0.05f, 0.040000f, 0.050000f},
+        {0.05f, 0.065000f, 0.052360f},  {0.05f, 0.067360f, 0.052360f},
+        {0.05f, 0.067360f, 0.052360f},  {0.05f, 0.067360f, 0.052360f},
+        {-0.02f, 0.046360f, 0.042360f}, {-0.02f, 0.036360f, 0.032360f},
+    };
+    for (const Row& r : rows) {
+        b.update(r.err, 0.5f);
+        CHECK_NEAR(b.u(), r.u, 2e-5);
+        CHECK_NEAR(b.integral(), r.i, 2e-5);
+    }
+}
+
+// Rows from balance.py (the fourth block it prints): the firmware DEFAULT config (kp 0.15,
+// ki 1.0, kd 0, clamp 10 deg, I limit 3 deg) at dt 0.026 (the bench tick) -- the gyro rate
+// is ignored (kd 0) and the integral caps at 3 deg of u.
+void testDefaultsMatchSimTwin() {
+    Config c;                                         // the defaults
+    c.abort_rad = 20.0f * kDeg;
+    RollBalance b;
+    b.configure(c);
+    b.engage(0.0f);
+    // err 0.05 rad / rate 0.3 rad/s for 60 ticks, then -0.02 / -0.5 for 4; checked at tick k
+    struct Row { int k; float u, i; };
+    const Row rows[] = {
+        {0, 0.007500f, 0.001300f}, {1, 0.008800f, 0.002600f}, {30, 0.046500f, 0.040300f}, {39, 0.058200f, 0.052000f}, {40, 0.059500f, 0.052360f}, {41, 0.059860f, 0.052360f}, {59, 0.059860f, 0.052360f}, {60, 0.049360f, 0.051840f}, {61, 0.048840f, 0.051320f}, {63, 0.047800f, 0.050280f},
+    };
+    int n = 0;
+    for (int k = 0; k < 64; ++k) {
+        const bool first = k < 60;
+        b.update(first ? 0.05f : -0.02f, 0.026f, first ? 0.3f : -0.5f);
+        if (n < static_cast<int>(sizeof rows / sizeof rows[0]) && rows[n].k == k) {
+            CHECK_NEAR(b.u(), rows[n].u, 2e-5);
+            CHECK_NEAR(b.integral(), rows[n].i, 2e-5);
+            ++n;
+        }
+    }
+    CHECK(n == static_cast<int>(sizeof rows / sizeof rows[0]));
+}
+
+// The limit is symmetric, scales with ki, and 0 turns it off (the pre-10-30 loop).
+void testIntegralLimitProperties() {
+    const float sgns[] = {1.0f, -1.0f};
+    for (float sgn : sgns) {
+        Config c;                                     // defaults: kp 0.3 ki 1.0, I limit 3 deg
+        c.ki = 2.0f;
+        RollBalance b;
+        b.configure(c);
+        b.engage(0.0f);
+        for (int k = 0; k < 400; ++k) b.update(sgn * 2.0f * kDeg, 0.025f);
+        CHECK_NEAR(b.integral() * c.ki, sgn * c.i_lim_rad, 1e-6);
+        CHECK_NEAR(b.u(), sgn * (c.kp * 2.0f * kDeg + c.i_lim_rad), 1e-5);
+        c.i_lim_rad = 0.0f;                           // off: the integral runs to the output clamp
+        RollBalance f;
+        f.configure(c);
+        f.engage(0.0f);
+        for (int k = 0; k < 400; ++k) f.update(sgn * 2.0f * kDeg, 0.025f);
+        CHECK_NEAR(f.u(), sgn * c.clamp_rad, 1e-6);
+    }
+}
+
 void testDefaultsAreSimChosen() {
-    // experiments/one-leg-stand/2026-10-25-gyro-damping-sim.md
+    // experiments/one-leg-stand/2026-11-01-floors-fit.md (kp 0.3 / kd 0.03 before)
     const Config c;
-    CHECK_NEAR(c.kp, 0.3, 1e-6);
+    CHECK_NEAR(c.kp, 0.15, 1e-6);
     CHECK_NEAR(c.ki, 1.0, 1e-6);
-    CHECK_NEAR(c.kd, 0.03, 1e-6);
+    CHECK_NEAR(c.kd, 0.0, 1e-6);
     CHECK_NEAR(c.ka, 1.0, 1e-6);
     CHECK_NEAR(c.kh, -1.0, 1e-6);
+    CHECK_NEAR(c.i_lim_rad, 3.0 * kDeg, 1e-5);       // 2026-10-30-sim-fit.md
 }
 
 void testValidate() {
@@ -597,6 +669,11 @@ void testValidate() {
     c = Config{}; c.abort_land_s = NAN;   CHECK(balance::validate(c) != nullptr);
     c = Config{}; c.abort_land_s = 0.4f;  CHECK(balance::validate(c) == nullptr);
     c = Config{}; c.kp = NAN;         CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.i_lim_rad = 0.0f;           CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.i_lim_rad = 15.0f * kDeg;   CHECK(balance::validate(c) == nullptr);
+    c = Config{}; c.i_lim_rad = -0.01f;         CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.i_lim_rad = 16.0f * kDeg;   CHECK(balance::validate(c) != nullptr);
+    c = Config{}; c.i_lim_rad = NAN;            CHECK(balance::validate(c) != nullptr);
 }
 
 }  // namespace
@@ -625,7 +702,10 @@ int main() {
     testDisengageZeroes();
     testMirrorSymmetry();
     testRollFromUp();
+    testIntegralLimitMatchesSimTwin();
+    testIntegralLimitProperties();
     testDefaultsAreSimChosen();
+    testDefaultsMatchSimTwin();
     testValidate();
     return testutil::report("roll_pi");
 }

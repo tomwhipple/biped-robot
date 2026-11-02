@@ -66,4 +66,28 @@ void forward(const float* obs, float* action);
 // separately from the layers when a golden vector disagrees.
 void normalize(const float* obs, float* out);
 
+// -- frozen channels (docs/sil-harness.md finding 2) -------------------------
+// brax floors the normaliser std at 1e-6, so an obs slot training never varied
+// turns any deviation d into d * 1e6 at the first layer: the net has never seen
+// that input move, and its first-layer weights for it are untrained noise
+// scaled by 1e6. The only value it is defined at is the one training fed it,
+// which the normaliser recorded exactly as that slot's mean.
+//
+// A slot is FROZEN when its std is at or below kFrozenStdMax (the floor is
+// 1e-6; every channel training varied sits orders of magnitude above).
+inline constexpr float kFrozenStdMax = 1e-5f;
+
+// Pin v[0..n), the obs slots off .. off+n-1 of the NEWEST frame, to their
+// trained value wherever the net's normaliser says that slot is frozen.
+// Returns the bitmask of entries that were not already exactly that value.
+// The control loop runs every command channel through this, so a policy that
+// trained with a constant crouch (cmd[3] = 1) or no lift / foot channels
+// (cmd[4..6] = 0) is fed exactly that, whatever the link or the pack guard
+// asks for -- such a policy cannot crouch or lift on command anyway.
+uint32_t pinFrozenNet(const Net& net, int off, int n, float* v);
+// The same for the compiled-in net (policy/weights.h).
+uint32_t pinFrozen(int off, int n, float* v);
+// Is obs slot i of the compiled-in net frozen?
+bool isFrozen(int i);
+
 }  // namespace policy

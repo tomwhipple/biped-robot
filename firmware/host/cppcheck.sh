@@ -32,6 +32,8 @@ cppcheck --inline-suppr \
     -I"$ROOT/firmware/components/imu/include" \
     -I"$ROOT/firmware/components/battguard/include" \
     -I"$ROOT/firmware/components/balance/include" \
+    -I"$ROOT/firmware/components/fallguard/include" \
+    -I"$ROOT/firmware/components/flailguard/include" \
     -I"$ROOT/link" \
     "$ROOT/firmware/components" "$ROOT/firmware/host" \
     "$ROOT/firmware/main" "$ROOT/link" \

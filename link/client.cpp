@@ -294,7 +294,11 @@ void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
 }
 
 void Link::poll(double now_ms) {
-    uint8_t buf[64];
+    // Sized from the protocol: UDP truncates a datagram to the buffer without
+    // a word, so a buffer short of the longest frame drops it, and one exactly
+    // its size would cut an oversize datagram back to a valid length. One byte
+    // more and an oversize datagram arrives oversize and is refused.
+    uint8_t buf[kTlmLenMax + 1];
     for (;;) {
         const ssize_t n = recv(rx, buf, sizeof buf, MSG_DONTWAIT);
         if (n < 0) break;

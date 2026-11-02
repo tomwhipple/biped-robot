@@ -11,8 +11,11 @@ test-py: ## the Python suites, with the SIL library they load
 	$(MAKE) pytest
 	$(MAKE) sil-suite
 
-sil-lib: ## firmware/host's libctrl_sil, which the SIL suite loads
+sil-lib: ## firmware/host's libctrl_sil, which the SIL suite loads (the deployed policy's, and each policy profile's)
 	$(MAKE) -C firmware/host -j1 sil
+	@for p in $(notdir $(patsubst %/obs/obs_spec.h,%,$(wildcard firmware/policies/*/obs/obs_spec.h))); do \
+	  $(MAKE) -C firmware/host -j1 sil POLICY=$$p || exit 1; \
+	done
 
 pytest: $(V6_ROLLUP) ## tests/: sim physics parity, the link protocol, ROM, the referee, the design gates
 	$(PY) -m pytest tests/ -q

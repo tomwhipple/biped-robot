@@ -33,6 +33,23 @@ std::atomic<Mode> g_mode_request{Mode::kBench};
 std::atomic<bool> g_ctrl_owns_bus{false};
 std::atomic<uint32_t> g_link_arm_edges{0};
 std::atomic<uint32_t> g_link_home_edges{0};
+std::atomic<uint32_t> g_armed_falls{0};
+std::atomic<float> g_armed_fall_tilt_deg{0.0f};
+std::atomic<uint32_t> g_armed_holds{0};
+std::atomic<uint8_t> g_armed_hold_trip{0};
+std::atomic<float> g_armed_hold_value{0.0f};
+std::atomic<int> g_armed_hold_joint{-1};
+std::atomic<bool> g_armed_hold_torque{false};
+std::atomic<bool> g_flail_on{true};
+std::atomic<uint32_t> g_op_stops{0};
+std::atomic<uint32_t> g_op_estops{0};
+
+bool takeOperatorStop(const linkproto::Command& cmd) {
+    if (!cmd.stop()) return false;
+    if (cmd.estop()) g_op_estops.fetch_add(1);   // before g_op_stops: shared.h
+    g_op_stops.fetch_add(1);
+    return true;
+}
 std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
@@ -214,10 +231,14 @@ extern "C" void app_main(void) {
                                             "until `gains` is clean");
     ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
              g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
-    ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, policy %s",
+    // cppcheck-suppress knownConditionTrueFalse -- generated per build
+    ESP_LOGI(kTag, "bus %d baud on GPIO %d/%d, %d joints, obs %d, "
+             "policy %s%s [%s, profile %s]",
              board::kServoBaud, static_cast<int>(board::kServoTx),
              static_cast<int>(board::kServoRx), obs::kNumJoints, obs::kObsDim,
-             policy::kWeightsArePlaceholder ? "PLACEHOLDER" : obs::kRunName);
+             policy::kWeightsArePlaceholder ? "PLACEHOLDER " : "",
+             obs::kRunName, obs::kPlantXml,
+             obs::kPolicyProfile[0] ? obs::kPolicyProfile : "deployed");
     startLinkTask();
 
     // After startLinkTask (the mailbox must exist), before the log silence

@@ -48,8 +48,12 @@ sys.path.insert(0, os.path.join(ROOT, "sim", "mjx"))
 
 RUNS = os.path.join(ROOT, "sim", "runs")
 SIL = os.path.join(ROOT, "sim", "sil")
-SPEC_H = os.path.join(ROOT, "firmware", "components", "obs", "include", "obs",
-                      "obs_spec.h")
+sys.path.insert(0, HERE)
+import policy_profile                                  # noqa: E402
+
+# The deployed obs spec; --profile <name> checks against firmware/policies/
+# <name>/ instead (tools/policy_profile.py).
+SPEC_H = policy_profile.files()["spec_h"]
 
 MAGIC = b"SILW"
 VERSION = 1
@@ -60,11 +64,11 @@ ACT_FIELD = 16          # bytes reserved for the activation name
 # ---------------------------------------------------------------------
 #  obs_spec.h drift check (read-only; the header is generated elsewhere)
 # ---------------------------------------------------------------------
-def read_obs_spec():
+def read_obs_spec(path=None):
     """Pull the int constants out of the generated firmware obs spec."""
     out = {}
     try:
-        txt = open(SPEC_H).read()
+        txt = open(path or SPEC_H).read()
     except OSError:
         return out
     for line in txt.splitlines():
@@ -270,10 +274,19 @@ def main():
     p.add_argument("--raw", action="store_true",
                    help="write a headerless bare-f32 blob (escape hatch)")
     p.add_argument("--no-golden", action="store_true")
-    p.add_argument("--golden-dir", default=os.path.join(SIL, "golden"))
+    p.add_argument("--golden-dir", default=None,
+                   help="default sim/sil/golden, or sim/sil/golden/<profile> "
+                        "with --profile")
+    p.add_argument("--profile", default=None,
+                   help="policy profile whose obs spec the dims are checked "
+                        "against (tools/policy_profile.py)")
     p.add_argument("--n-policy", type=int, default=16)
     p.add_argument("--n-obs", type=int, default=8)
     args = p.parse_args()
+    profile = policy_profile.check(args.profile)
+    pfiles = policy_profile.files(profile)
+    if args.golden_dir is None:
+        args.golden_dir = pfiles["golden_dir"]
 
     run_dir = args.run if os.path.isdir(args.run) else os.path.join(RUNS,
                                                                     args.run)
@@ -318,7 +331,7 @@ def main():
     if not cfg.get("imu_obs"):
         raise SystemExit("config imu_obs is false; the firmware zeroes "
                          "linvel+height and would diverge")
-    spec_h = read_obs_spec()
+    spec_h = read_obs_spec(pfiles["spec_h"])
     for key, val in (("kObsDim", obs_dim), ("kActDim", act_dim),
                      ("kFrameDim", env.obs_frame), ("kHistLen", hist),
                      ("kNumJoints", env_act)):
@@ -367,11 +380,38 @@ def main():
     # constant or the policy sees a 1e5-magnitude input.
     frozen = np.where(std <= 1e-5)[0]
     if frozen.size:
-        slots = sorted(set(int(i) % int(env.obs_frame) for i in frozen))
+        fw = int(env.obs_frame)
+        slots = sorted(set(int(i) % fw for i in frozen))
         print(f"  WARNING: {frozen.size} frozen obs channels (std == std_eps) "
               f"-> frame slots {slots}")
         print("           the firmware MUST feed these their training value "
               "exactly; a deviation of d becomes d/1e-6 after normalisation")
+        # The firmware can do that for exactly two kinds of slot (policy/mlp.h
+        # pinFrozen, obs/assembler.cpp): a command channel, which ctrl_task
+        # pins to the trained value (the normaliser mean), and the linvel /
+        # height slots the assembler hard-zeroes (trained value 0). Anything
+        # else -- a frozen sensor slot -- it cannot feed, so refuse.
+        nq = int(env._nq_act)
+        off_lin, off_h = 2 * nq + 3, 3 * nq + 9
+        off_cmd = 3 * nq + 12
+        zero_slots = {off_lin, off_lin + 1, off_lin + 2, off_h}
+        cmd_slots = set(range(off_cmd, off_cmd + int(env._ncmd)))
+        bad = [s for s in slots if s not in zero_slots | cmd_slots]
+        if bad:
+            raise SystemExit(f"frozen obs slots {bad} are neither command "
+                             "channels nor the assembler's hard zeros: the "
+                             "firmware cannot feed them their training value")
+        if sorted(set(int(i) % fw for i in frozen)) != slots or \
+                frozen.size != len(slots) * hist:
+            raise SystemExit("frozen obs slots differ between history frames")
+        nz = [s for s in slots if s in zero_slots and mean[s] != 0.0]
+        if nz:
+            raise SystemExit(f"frozen linvel/height slots {nz} trained at a "
+                             "nonzero value; the assembler feeds 0")
+        pin = {s - off_cmd: float(mean[s]) for s in slots if s in cmd_slots}
+        if pin:
+            print("           command channels the firmware pins (cmd index: "
+                  f"trained value): {pin}")
 
     n_params = sum(w.size + b.size for w, b in layers)
     print(f"{run_name}: {' -> '.join(str(s) for s in sizes)}  swish")

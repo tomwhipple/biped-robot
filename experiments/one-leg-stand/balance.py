@@ -10,7 +10,8 @@ host test pins the C++ side against numbers this file produced
 Structure
     err   = roll - roll_ref                 roll_ref captured when feedback engages
     rate  = body roll rate from the gyro (rad/s, + = roll increasing), 1 tick late, noisy
-    u     = clamp(kp*err + ki*I + kd*rate, +-clamp)   I += err*dt unless saturated and err pushes further
+    u     = clamp(kp*err + ki*I + kd*rate, +-clamp)   I += err*dt unless saturated and err pushes further,
+                                                      then |ki*I| <= i_lim (0 = none)
     stance ankle_roll target += ka * u      (ka, kh signed mixes; hip roll and
     stance hip_roll   target += kh * u       ankle roll of the STANCE leg only)
     the swing leg is untouched.
@@ -32,9 +33,16 @@ sys.path.insert(0, os.path.join(ROOT, "sim"))
 from design_gates import JN, minjerk  # noqa: E402
 
 
+# The firmware's default roll balance (roll_pi.h Config), 2026-11-01-floors-fit.md: kp 0.15, ki 1.0,
+# kd 0 (no gyro term), clamp 10 deg, |ki*I| <= 3 deg. kp 0.3 / kd 0.03 before (hard-floor oscillation).
+DEFAULT = dict(kp=0.15, ki=1.0, kd=0.0, clamp=math.radians(10.0), i_lim=math.radians(3.0))
+
+
 class RollPI:
-    def __init__(self, kp, ki, clamp, kd=0.0):
-        self.kp, self.ki, self.clamp, self.kd = kp, ki, clamp, kd
+    def __init__(self, kp, ki, clamp, kd=0.0, i_lim=0.0):
+        """i_lim: |ki*I| limit (rad of u), 0 = none -- roll_pi.h Config::i_lim_rad (the firmware
+        default is 3 deg since 2026-10-30-sim-fit.md; 0 here keeps the older studies as they were)."""
+        self.kp, self.ki, self.clamp, self.kd, self.i_lim = kp, ki, clamp, kd, i_lim
         self.i = 0.0
         self.u = 0.0
 
@@ -46,6 +54,9 @@ class RollPI:
         u = max(-self.clamp, min(self.clamp, unsat))
         if not (u != unsat and (err > 0) == (u > 0)):      # anti-windup: freeze I while pushing into the clamp
             self.i += err * dt
+        if self.i_lim > 0 and self.ki > 0:                 # the integral's share of u stays within +-i_lim
+            lim = self.i_lim / self.ki
+            self.i = max(-lim, min(lim, self.i))
         self.u = u
         return u
 
@@ -174,3 +185,15 @@ if __name__ == "__main__":
     p = RollPI(1.0, 0.5, math.radians(6), kd=0.1)
     for e, w in ((0.02, 0.0), (0.02, 0.5), (0.02, -0.5), (0.0, 0.3), (0.1, 0.4), (0.1, 0.4), (-0.05, -2.0)):
         print(f"{e:.3f} {w:.3f} -> u {p.step(e, 0.02, w):.6f}  i {p.i:.6f}")
+    # with the integral limit: RollPI(kp 0.3, ki 1.0, clamp 10 deg, kd 0, i_lim 3 deg) at dt 0.5 (big steps reach the limit in two)
+    p = RollPI(0.3, 1.0, math.radians(10), i_lim=math.radians(3))
+    for e in (0.05, 0.05, 0.05, 0.05, 0.05, 0.05, -0.02, -0.02):
+        print(f"{e:.3f} -> u {p.step(e, 0.5):.6f}  i {p.i:.6f}")
+    # the firmware DEFAULT config (DEFAULT) at the bench tick dt 0.026: (err, rate) -> u, i
+    p = RollPI(DEFAULT["kp"], DEFAULT["ki"], DEFAULT["clamp"], kd=DEFAULT["kd"], i_lim=DEFAULT["i_lim"])
+    rows = []
+    for k, (e, w) in enumerate([(0.05, 0.3)] * 60 + [(-0.02, -0.5)] * 4):
+        u = p.step(e, 0.026, w)
+        if k in (0, 1, 30, 39, 40, 41, 59, 60, 61, 63):
+            rows.append(f"{{{k}, {u:.6f}f, {p.i:.6f}f}},")
+    print("DEFAULT_ROWS", " ".join(rows))

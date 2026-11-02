@@ -7,7 +7,8 @@
 //                                    (the shifted pose, before the lift), so the
 //                                    absolute IMU roll zero never matters
 //   u   = clamp(kp*err + ki*I + kd*w) I += err*dt, frozen while the output is
-//                                    saturated and err pushes further (anti-windup)
+//                                    saturated and err pushes further (anti-windup),
+//                                    and |ki*I| <= i_lim_rad (the integral's share of u)
 //                                    w = body roll rate from the gyro (rad/s, + =
 //                                    roll increasing = d err/dt): derivative on the
 //                                    measurement, never a differenced angle
@@ -47,13 +48,18 @@
 namespace balance {
 
 struct Config {
-    // The defaults are the sim-chosen gains (experiments/one-leg-stand/README.md):
-    // held from half to 1.5x all three together, falls appear at 2x; kd alone is
-    // good to about 2x. Ankle +1 / hip -1 is a lateral pelvis translation with no
-    // net torso tilt, i.e. it moves the CoM.
-    float kp = 0.3f;          // rad per rad
+    // The defaults are the 2026-11-01 floors fit's (experiments/one-leg-stand/
+    // 2026-11-01-floors-fit.md). On a hard floor kp 0.3 / kd 0.03 went into a divergent
+    // 1.4-1.9 Hz roll oscillation (R stance, 3 of 5 runs): the robot's own limit cycles put
+    // the stance plant at roll/u = 2.3 at -46 deg there, so |C*P| was 1.07 at loop phase ~0
+    // -- the gyro term's 50 deg of lead is what closed the loop onto zero phase. In the
+    // actuator model fitted to the roll sweep and the servo step responses, kp 0.15 with no
+    // rate term holds 87/88 band runs on both floors (kp 0.3/kd 0.03: 0/88), |C*P| at the
+    // robot's limit cycle drops to 0.35. The integral (capped, below) still removes the slow
+    // lean. Ankle +1 / hip -1 is a lateral pelvis translation with no net torso tilt.
+    float kp = 0.15f;         // rad per rad
     float ki = 1.0f;          // 1/s
-    float kd = 0.03f;         // rad per rad/s: damping on the gyro roll rate, same sign as kp
+    float kd = 0.0f;          // rad per rad/s: damping on the gyro roll rate, same sign as kp (0 = off)
     float ka = 1.0f;          // PI output -> stance ankle roll (signed mix)
     float kh = -1.0f;         // PI output -> stance hip roll (signed mix)
     // |u| limit, 10 deg. The roll play beyond the encoders absorbs most of the
@@ -64,6 +70,13 @@ struct Config {
     float abort_rad = 0.20944f;   // |err| beyond this aborts, 12 deg
     float abort_decay_s = 0.3f;   // abort: u -> 0 over this ...
     float abort_land_s = 1.0f;    // ... then the pose returns to the pre-lift pose over this
+    // |ki*I| limit: the integral's share of u, 3 deg (0 = no limit). The 10-30 sim fit
+    // (experiments/one-leg-stand/2026-10-30-sim-fit.md) found the L stance's outer support
+    // edge ~1 deg of u beyond its equilibrium: the I term wound to 6.5 deg and the robot fell
+    // outward over the stance foot (2 of 3 bench runs). With the integral capped the loop holds
+    // a small residual lean toward the lifted foot instead (sim: 144/144 stands across the fitted
+    // band, both sides) and kp*err keeps its full authority against a real inward fall.
+    float i_lim_rad = 0.05236f;
     float arm_start_rad = 0.06981f;   // ARMED: |err| past this starts the PI there, 4 deg (0 = only at
                                       // move end; at or past the abort the abort wins)
 };
