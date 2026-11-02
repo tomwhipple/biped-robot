@@ -14,8 +14,8 @@ Per profile, against the run its spec was generated from:
 
 The run's artifacts are gitignored (sim/runs/, *.silw): absent, these SKIP
 with what to regenerate -- for the v6legs policy, fetch its run
-(sim/runs/robot_legs_walk14_s1_s128r24) then `tools/export_policy_weights.py
---run robot_legs_walk14_s1_s128r24 --profile v6legs --no-golden`; for an
+(sim/runs/robot_legs_walk16_act_s128r24) then `tools/export_policy_weights.py
+--run robot_legs_walk16_act_s128r24 --profile v6legs --no-golden`; for an
 untrained test net, `tools/make_test_policy_run.py --out <name>` first.
 """
 import json

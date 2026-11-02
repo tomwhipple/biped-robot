@@ -762,13 +762,14 @@ map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
 (`q 0, dq 12, up 24, linvel 27, gyro 30, prev_action 33, height 45, phase 46,
 cmd 48`, 7 command channels), 3 frames, network 165 → 128 → 128 → 24. The
-profile carries **`robot_legs_walk14_s1_s128r24`**, the (128, 128) student of
-`robot_legs_walk14_s1`, trained at the as-built factory gains (servo_kp_scale
-2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its static check passes)
-with the ankle pitch inside its stops (policy range ±40 deg). It was chosen
-for the first armed test, a stand at zero command started standing on the
-floor, by `sim/mjx/eval_stand_arm.py` on the training plant and the fitted
-plant. The comparison, the closed-loop SIL parity and the hardware procedure
+profile carries **`robot_legs_walk16_act_s128r24`** (from 2026-11-02), the
+(128, 128) student of `robot_legs_walk16_act`, trained at the as-built factory
+gains (servo_kp_scale 2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its
+static check passes) plus actuator DR around them (per-servo dead time, kp/kd
+ranges; branch `policy-stand-rca`), with the ankle pitch inside its stops
+(policy range ±40 deg). It replaced `robot_legs_walk14_s1_s128r24`, the first
+armed test's policy, after the stand RCA (PR #189): 0/8 falls at ×1.5 loop
+gain on the measured actuator, where walk14_s1 fell from ×1.25. The comparison, the closed-loop SIL parity and the hardware procedure
 are in [first-policy-stand.md](first-policy-stand.md). Its frozen command
 channels (crouch 1, lift and foot 0) are pinned by the firmware
 (sil-harness.md finding 2). `tools/make_test_policy_run.py` still makes the
