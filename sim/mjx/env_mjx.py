@@ -214,6 +214,10 @@ _TICK_STEPS_PER_REV = 4096
 _TICK_RAD = 2.0 * np.pi / _TICK_STEPS_PER_REV   # one quantum, rad
 _TICK_ZERO = 2048                                # zero_steps, nominal cal
 _TICK_MAX = 4095                                 # encoder full scale
+# obs::goalSpeedSteps (actuation.h): goal speed = headroom x gap / tick, steps/s
+_GOAL_SPEED_HEADROOM = 1.25
+_GOAL_SPEED_FLOOR = 50.0                         # steps/s (0 would mean UNLIMITED)
+_GOAL_SPEED_MAX = 3400.0                         # steps/s, scsbus::kMaxGoalSpeed
 _TICK_VEL_MAX = 32767                            # reg-58 sign-magnitude |v|
 # Per-joint direction signs -- sim/sil/cal/cal_nominal.json "dir" is +1 on
 # every joint (obs::Calibration's C++ default; a freshly "Set Middle
@@ -293,6 +297,8 @@ class State(NamedTuple):
                               # ~0.5x sim dq -- reproduced only by ~2 Hz of
                               # 3-stage filtering, 5x the 10 Hz shaper alone.
     lag_y: jax.Array          # (3, n_servo) cascaded lag filter state
+    shp_hz: jax.Array         # ()  per-episode FIRMWARE shaper pole, Hz (fw_shaper_hz; 0 = off)
+    shp_y: jax.Array          # (3, n_servo) firmware shaper (obs::CommandShaper) state
     act_hist: jax.Array       # (_act_hist_len, n_servo) recent joint TARGETS,
                               # row 0 = this tick; servo j serves row
                               # act_delay[j] + act_delay_extra[j]. Servo DEAD TIME DR: 2026-09-05 bench
@@ -585,6 +591,16 @@ class BimoMJXEnv:
         stand_knee_sigma: float = 0.06,
         clock_stand_freeze: bool = False,   # hold the gait-clock phase at a
         # plain stand so the obs stop oscillating (see step(); 2026-08-12)
+        clock_stand_coast: float | None = None,  # at a plain stand the clock keeps
+        # its rate until the phase reaches this (rad), then holds -- the firmware's
+        # `standclock coast <phase>` (obs::GaitClock::coastTo, 2026-11-02). Every stand
+        # then settles at ONE phase (freeze held wherever the stand began: walk17_still
+        # kept phase-dependent stand poses). Exclusive with clock_stand_freeze.
+        w_squeeze: float = 0.0,     # stand-gated L1 on the servo's position error |served
+        # target - q| (less the backlash band, as the PD sees it), rad: the robot's armed
+        # stand drew ~1 W against 0.05-0.19 W for a static hold of the same pose -- targets
+        # the legs cannot reach, squeezing through the feet (2026-11-02). Tracks the servo's
+        # P-loop effort; tau^2 (power_w) ranked stand poses wrongly.
         stop_grace_s: float = 0.0,  # gait shaping stays on this long after a
         # walk -> stand stop (the closing step; see step(), 2026-10-29)
         w_pitch_hinge: float = 0.0,
@@ -658,6 +674,23 @@ class BimoMJXEnv:
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
         act_lag_hz_max: float | None = None,
+        # stages in the act-lag cascade: 3 = the historical stand-in for shaper PLUS servo
+        # response; 1 = the servo's own first-order rise (pole 1/(2*pi*tau)), for use with
+        # fw_shaper_hz, which then models the firmware shaper exactly (2026-11-02)
+        act_lag_order: int = 3,
+        # the FIRMWARE command shaper in the loop (obs::CommandShaper, actuation.h): 3 cascaded
+        # first-order lags at the `shape` pole on the policy's targets, seeded at the start
+        # pose, BEFORE the integer goal ticks and the servo (dead time + act-lag). One pole per
+        # episode, uniform(fw_shaper_hz, fw_shaper_hz_max); fixed when the max is None. 0 = off.
+        # 2026-11-02 robot: walk16_act (trained without it) chattered with the shaper off and
+        # tripped at 20 Hz, held at 15 / 12 Hz -- the deployed chain must be the trained one.
+        fw_shaper_hz: float = 0.0,
+        fw_shaper_hz_max: float | None = None,
+        # the firmware's per-joint GOAL SPEED (obs::goalSpeedSteps, register 46) written with a
+        # shaped target: 1.25 x |goal - present| / 20 ms, floor 50, cap 3400 steps/s. The servo
+        # slews its set point at that speed: within the tick the PD target ramps from the last
+        # one instead of stepping. Needs fw_shaper_hz (the firmware writes it only when shaping).
+        fw_goal_speed: bool = False,
         tilt_max_deg: float = 0.0,   # batch-level gravity-tilt DR (un-level floor)
         push_prob: float | None = None,
         push_force: float | None = None,
@@ -1251,6 +1284,11 @@ class BimoMJXEnv:
         self.stand_knee_target = stand_knee_target
         self.stand_knee_sigma = stand_knee_sigma
         self.clock_stand_freeze = clock_stand_freeze
+        self.clock_stand_coast = (None if clock_stand_coast is None
+                                  else float(clock_stand_coast))
+        assert not (clock_stand_freeze and self.clock_stand_coast is not None), \
+            "clock_stand_freeze and clock_stand_coast are exclusive"
+        self.w_squeeze = float(w_squeeze)
         self.stop_grace_s = float(stop_grace_s)
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
@@ -1306,6 +1344,15 @@ class BimoMJXEnv:
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_hz_max = (None if act_lag_hz_max is None
                                else float(act_lag_hz_max))
+        assert act_lag_order in (1, 3), "act_lag_order: 1 or 3 stages"
+        self.act_lag_order = int(act_lag_order)
+        self.fw_shaper_hz = float(fw_shaper_hz)
+        self.fw_shaper_hz_max = (None if fw_shaper_hz_max is None
+                                 else float(fw_shaper_hz_max))
+        self._fw_shaper = self.fw_shaper_hz > 0.0 or self.fw_shaper_hz_max is not None
+        self.fw_goal_speed = bool(fw_goal_speed)
+        assert not self.fw_goal_speed or self._fw_shaper, \
+            "fw_goal_speed needs fw_shaper_hz (the firmware writes it with shaped targets)"
         self.zero_offset_deg = float(zero_offset_deg)
         self.zero_offset_rad = float(np.deg2rad(zero_offset_deg))
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
@@ -1543,6 +1590,7 @@ class BimoMJXEnv:
                             if self.march_hz > 0.0 else 0)
         self._march_period = 2 * self._march_half
         self._metric_keys = self._METRIC_KEYS + (
+            ("squeeze",) if w_squeeze else ()) + (
             ("height_err", "foot_err", "foot_clear", "foot_sep", "lift_ok",
              "vy_body", "recovered", "com_stance", "head_err")
             if ext_cmd else ())
@@ -2118,6 +2166,15 @@ class BimoMJXEnv:
                 jax.random.fold_in(rng, 4473), (), 0, self.act_delay_max + 1)
         return jp.zeros((), dtype=jp.int32)
 
+    def _draw_shaper(self, rng: jax.Array):
+        """Per-episode firmware shaper pole, Hz (fold_in 4475: the other draws keep
+        their streams). The fixed pole without a max; 0 when the feature is off."""
+        if self.fw_shaper_hz_max is not None:
+            return jax.random.uniform(jax.random.fold_in(rng, 4475),
+                                      minval=self.fw_shaper_hz,
+                                      maxval=self.fw_shaper_hz_max)
+        return jp.asarray(self.fw_shaper_hz, dtype=jp.float32)
+
     def _act_hist0(self):
         # before the policy has acted the served target is the home pose
         return jp.tile(self._sdefault.astype(jp.float32)[None, :],
@@ -2436,6 +2493,7 @@ class BimoMJXEnv:
                      servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
                      act_lag=act_lag,
                      lag_y=lag_y0,
+                     shp_hz=self._draw_shaper(r_ep), shp_y=lag_y0,
                      act_hist=act_hist, act_delay=act_delay,
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
@@ -2511,6 +2569,8 @@ class BimoMJXEnv:
             servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
             lag_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
+            shp_hz=self._draw_shaper(r_ep),
+            shp_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
             act_hist=act_hist, act_delay=act_delay,
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
@@ -2540,6 +2600,21 @@ class BimoMJXEnv:
         # the policy's targets onto the servo vector: held joints get their
         # fixed hold target, and from here on everything is per servo
         target = self._to_servo(target)
+        # the FIRMWARE shaper (obs::CommandShaper::update, ctrl_task.cpp "shape"): three
+        # cascaded first-order lags at this episode's pole, then the integer goal ticks
+        # the SYNC WRITE carries. Everything downstream (dead time, act-lag, PD) is the
+        # servo and the plant. A 0 Hz pole is a pass-through, like `shape 0`.
+        if self._fw_shaper:
+            ks = 1.0 - jp.exp(-2.0 * jp.pi * state.shp_hz * self.control_dt)
+            ks = jp.where(state.shp_hz > 0.0, ks, 1.0)
+            s1 = state.shp_y[0] + ks * (target - state.shp_y[0])
+            s2 = state.shp_y[1] + ks * (s1 - state.shp_y[1])
+            s3 = state.shp_y[2] + ks * (s2 - state.shp_y[2])
+            shp_y = jp.stack([s1, s2, s3])
+            target = self._quant_angle(s3) if self.quantize_ticks else s3
+        else:
+            shp_y = state.shp_y
+        goal_written = target
         # servo dead time DR (see State.act_hist): the actuator serves the
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
         # the lag cascade, as the real bus write precedes the servo's response.
@@ -2561,13 +2636,18 @@ class BimoMJXEnv:
             k = 1.0 - jp.exp(-2.0 * jp.pi * pole * self.control_dt)
             k = jp.where(state.act_lag > 0.0, k, 1.0)
             y1 = state.lag_y[0] + k * (target - state.lag_y[0])
-            y2 = state.lag_y[1] + k * (y1 - state.lag_y[1])
-            y3 = state.lag_y[2] + k * (y2 - state.lag_y[2])
-            lag_y = jp.stack([y1, y2, y3])
-            target = y3
+            if self.act_lag_order == 1:
+                # the servo's own first-order rise (the shaper is modelled above)
+                lag_y = jp.stack([y1, y1, y1])
+                target = y1
+            else:
+                y2 = state.lag_y[1] + k * (y1 - state.lag_y[1])
+                y3 = state.lag_y[2] + k * (y2 - state.lag_y[2])
+                lag_y = jp.stack([y1, y2, y3])
+                target = y3
         else:
             lag_y = state.lag_y
-        if self.quantize_ticks:
+        if self.quantize_ticks and not self._fw_shaper:
             # the firmware writes INTEGER goal ticks (SYNC WRITE): quantize
             # before the actuator path (latency, PD, backlash) sees the target
             target = self._quant_angle(target)
@@ -2617,10 +2697,29 @@ class BimoMJXEnv:
                              state.servo[3] * self._w0_prof)
         lash = state.lash
         last_target = state.last_target
+        if self.fw_goal_speed:
+            # obs::goalSpeedSteps from the written goal and the PRESENT position (the
+            # firmware's last feedback = the joint at the start of this tick), in rad/s
+            q_now = state.data.qpos[self._jq0:self._jq1]
+            gap = jp.abs(goal_written + state.zero_off - q_now)
+            v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
+                             _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
+            # where the slewed set point ends this tick (next tick ramps on from there)
+            t_end = (self.n_substeps - lat_k).astype(jp.float32) * self.sim_dt
+            served_end = last_target + jp.clip(target - last_target,
+                                               -v_goal * t_end, v_goal * t_end)
+        else:
+            v_goal = None
+            served_end = target
 
         def substep(carry, i):
             d, _ = carry
-            cur = jp.where(i < lat_k, last_target, target)
+            if self.fw_goal_speed:
+                t_i = jp.maximum(i - lat_k + 1, 0).astype(jp.float32) * self.sim_dt
+                cur = last_target + jp.clip(target - last_target,
+                                            -v_goal * t_i, v_goal * t_i)
+            else:
+                cur = jp.where(i < lat_k, last_target, target)
             q = d.qpos[self._jq0:self._jq1]
             qd = d.qvel[self._jv0:self._jv1]
             cap = stall * jp.clip(1.0 - jp.abs(qd) / w0, 0.0, 1.0)
@@ -2918,6 +3017,19 @@ class BimoMJXEnv:
                                & (~lifted if self.ext_cmd else True))
                 gait_phase = jp.where(plain_stand, state.gait_phase,
                                       gait_phase)
+            elif self.clock_stand_coast is not None:
+                # coast (obs::GaitClock::coastTo, firmware `standclock coast`): at a plain
+                # stand the clock keeps its rate until it reaches the stand phase, then
+                # holds exactly there. Same gate as the freeze.
+                plain_stand = ((~cmd_moving_raw)
+                               & (~lifted if self.ext_cmd else True))
+                tgt_ph = (jp.mod(self.clock_stand_coast + jp.pi, 2 * jp.pi) - jp.pi)
+                step_ph = 2 * jp.pi * self.control_dt * clock_freq
+                to_go = jp.mod(tgt_ph - state.gait_phase, 2 * jp.pi)
+                arrive = (to_go <= step_ph) | (to_go >= 2 * jp.pi - 1e-4)
+                gait_phase = jp.where(plain_stand,
+                                      jp.where(arrive, tgt_ph, gait_phase),
+                                      gait_phase)
         if self.w_feet_phase:
             # periodic swing-height targets: feet half a cycle apart
             # (left swings on sin(phase) > 0, right on the opposite half)
@@ -3101,6 +3213,19 @@ class BimoMJXEnv:
             reward -= (self.w_still
                        * jp.where(stand_gate, 1.0, 0.0)
                        * jp.sum(self._p(data.qvel[self._jv0:self._jv1]) ** 2))
+        squeeze = None
+        if self.w_squeeze:
+            # stand squeeze (2026-11-02 robot): the servo's position error the PD acts on --
+            # this tick's served target vs the joint, less the backlash band -- summed L1
+            # over the policy joints. At a stand that is the P-loop current the robot pays
+            # for unreachable targets (legs pushing against each other through the feet).
+            sq_gate = ((~cmd_moving)
+                       & ((~lifted) & (state.cmd[3] >= 0.97) if self.ext_cmd else True)
+                       & (state.recovered > 0.5))
+            sq_err = jp.maximum(jp.abs(served_end - data.qpos[self._jq0:self._jq1])
+                                - 0.5 * lash, 0.0)
+            squeeze = jp.sum(self._p(sq_err))
+            reward -= self.w_squeeze * jp.where(sq_gate, 1.0, 0.0) * squeeze
         if self.w_stand_zero:
             # zero command -> zero action -> home pose (see ctor note)
             # crouch is a COMMAND, not a stand: cmd[3] < 0.97 releases the pull
@@ -3298,6 +3423,8 @@ class BimoMJXEnv:
             "track_w_err": jp.abs(wz - cmd_w),
             "standing": standing,
         }
+        if squeeze is not None:
+            metrics["squeeze"] = squeeze
         if self.ext_cmd:
             metrics.update(
                 height_err=jp.abs(height - h_ref),
@@ -3312,7 +3439,7 @@ class BimoMJXEnv:
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
-                     last_target=target, step_i=step_i, air_time=air_time,
+                     last_target=served_end, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
                      since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
@@ -3325,6 +3452,7 @@ class BimoMJXEnv:
                      cmd_crouch=state.cmd_crouch, servo=state.servo,
                      lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
+                     shp_hz=state.shp_hz, shp_y=shp_y,
                      act_hist=act_hist, act_delay=state.act_delay,
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias,

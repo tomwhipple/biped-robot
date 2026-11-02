@@ -652,6 +652,9 @@ class BimoWalkerEnv(gym.Env):
         speed_clock_hi: float = 1.7,
         clock_stand_freeze: bool = False,   # hold phase at a plain stand
         # (mirror of env_mjx; the obs stop oscillating, 2026-08-12)
+        clock_stand_coast: float | None = None,  # at a plain stand keep the rate
+        # until the phase reaches this (rad), then hold (mirror of env_mjx; the
+        # firmware's `standclock coast`, 2026-11-02)
         w_feet_phase: float = 0.0,
         swing_height: float = 0.06,
         feet_phase_s2: float = 0.004,
@@ -924,6 +927,8 @@ class BimoWalkerEnv(gym.Env):
         self.speed_clock_lo = speed_clock_lo
         self.speed_clock_hi = speed_clock_hi
         self.clock_stand_freeze = clock_stand_freeze
+        self.clock_stand_coast = (None if clock_stand_coast is None
+                                  else float(clock_stand_coast))
         self.w_feet_phase = w_feet_phase
         self.swing_height = swing_height
         self.feet_phase_s2 = feet_phase_s2
@@ -2626,7 +2631,19 @@ class BimoWalkerEnv(gym.Env):
                 freq *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35),
                                       self.speed_clock_lo,
                                       self.speed_clock_hi))
-            if not (self.clock_stand_freeze and not moving and not lifted):
+            stand = not moving and not lifted
+            if self.clock_stand_coast is not None and stand:
+                # coast (mirror of env_mjx / obs::GaitClock::coastTo): advance at
+                # the rate until within one step of the stand phase, then hold
+                tgt = float((self.clock_stand_coast + np.pi) % (2 * np.pi) - np.pi)
+                step_ph = 2 * np.pi * self.control_dt * freq
+                to_go = (tgt - self._gait_phase) % (2 * np.pi)
+                if to_go <= step_ph or to_go >= 2 * np.pi - 1e-4:
+                    self._gait_phase = tgt
+                else:
+                    self._gait_phase = float(
+                        (self._gait_phase + step_ph + np.pi) % (2 * np.pi) - np.pi)
+            elif not (self.clock_stand_freeze and stand):
                 self._gait_phase = float(
                     (self._gait_phase + 2 * np.pi * self.control_dt
                      * freq + np.pi) % (2 * np.pi) - np.pi)
