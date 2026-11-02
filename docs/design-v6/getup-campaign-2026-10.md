@@ -140,7 +140,10 @@ the two starts converge before the roll.
    today), distil, SIL — the deployment path of training.md §9. *(night 11:
    the first get-up student, w9k → (128, 128), loses 16/48 of the sweep and
    10/16 at 15 N; night 12: distil data, and training the (128, 128) policy
-   directly with PPO, `--policy-hidden`)*
+   directly with PPO, `--policy-hidden` — the w12k student sweeps 44/48 but
+   keeps 4/16 at 15 N; the (128, 128) PPO policy sweeps 31 and 48/48 on two
+   seeds, 15 N 7 and 8/16; night 13: distil noise / capacity, a (256, 256)
+   PPO net, the small net's seed spread and residual 0.075)*
 
 Throughout: when the referee shows a phase failing, fix the reference first
 (`getup_ref_analytic.py verify` / `rise` / `search-roll`), then the RL.
@@ -216,12 +219,17 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w11k | 10-31 | w9k (t3k) | `--servo-kp-scale robot` → `asbuilt` (factory P32: hip pitch, hip yaw, ankle 1× → 2.8×) | the get-up holds on the gains the robot runs: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 7/8 | 8/8 (35.3 s) | 8/8 (35.2 s) | **held** at the edge: 0.05: 8/8, 8/8; 0.5: 7/8, 8/8 = 46/48; 15 N 14/16, 30 N 3/16 (w9k 48, 16, 3) |
 | robot_getup_w12k | 10-31 | w11k (t3k) | + `--quantize --ctrl-within-stops` (the rest of the legs deploy contract) | no loss vs w11k: the deployable get-up recipe | 0/8 | 8/8 | 8/8 (34.3 s) | 8/8 (34.3 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N 14/16, 30 N 5/16. The first get-up on the full deploy contract |
 | robot_getup_w11k_s1 | 10-31 | w11k | seed 1 | replicate (may be capped) | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | trained the full 600M; **replicates**: 0.05: 8/8, 8/8; 0.5: 7/8, 8/8 = 47/48; 15 N 15/16, 30 N 5/16 |
-| robot_getup_w12k_s128r24 | 11-01 | w12k | (distil) stock student of the deploy-contract teacher | the deployable teacher's baseline student (expect the w9k student's 32/48) | | | | | |
-| robot_getup_w12k_s128r24n1024 | 11-01 | w12k_s128r24 | distil `--envs` 512 → 1024 | the get-up student overfits: more data, val_mse < 0.008, sweep ≥ 40/48 | | | | | |
-| robot_getup_w13k | 11-01 | w12k (fresh) | policy net (512, 256, 128) → (128, 128) (`--policy-hidden`, #180; forces a fresh init) | the residual policy needs no big net: sweep ≥ 44/48, 15 N ≥ 12/16, deployable with no distil | | | | | |
-| robot_getup_w14k | 11-01 | w12k (fresh) | no `--init-from` (from scratch, (512, 256, 128)) | control for w13k: the reference carries a fresh policy, sweep ≥ 44/48 | | | | | |
-| robot_getup_w12k_s1 | 11-01 | w12k | seed 1 | replicate of the deploy-contract recipe | | | | | |
-| robot_getup_w13k_s1 | 11-01 | w13k | seed 1 | replicate (likely capped) | | | | | |
+| robot_getup_w12k_s128r24 | 11-01 | w12k | (distil) stock student of the deploy-contract teacher | the deployable teacher's baseline student (expect the w9k student's 32/48) | 0/8 | 8/8 | 8/8 (34.4 s) | 8/8 (34.4 s) | better than expected on friction, lost on shoves: 0.05: 4/8, 8/8; 0.5: 8/8, 8/8 = **44/48** (w9k student 32); 15 N **4/16** (teacher 14), 30 N 1/16. bc 0.0011, val 0.014: still overfit |
+| robot_getup_w12k_s128r24n1024 | 11-01 | w12k_s128r24 | distil `--envs` 512 → 1024 | the get-up student overfits: more data, val_mse < 0.008, sweep ≥ 40/48 | 0/8 | 8/8 | 6/8 (34.1 s) | 6/8 (34.1 s) | **not held**: val 0.0185 (worse than 0.014); 0.05: 5/8, 3/8; 0.5: 8/8, 8/8 = 38/48 (stock 44); 15 N 8/16, 30 N 1/16. More data per round does not fix it |
+| robot_getup_w13k | 11-01 | w12k (fresh) | policy net (512, 256, 128) → (128, 128) (`--policy-hidden`, #180; forces a fresh init) | the residual policy needs no big net: sweep ≥ 44/48, 15 N ≥ 12/16, deployable with no distil | 0/8 | 1/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | **not held** on this seed: supine ph stands at 21.7 s, then sinks to 0.29 m. 0.05: 4/8, 8/8; 0.5: 2/8, 8/8 = 31/48; 15 N 7/16, 30 N 0/16. MJX `episode_recovered` plateaus by 160M like the big net's |
+| robot_getup_w14k | 11-01 | w12k (fresh) | no `--init-from` (from scratch, (512, 256, 128)) | control for w13k: the reference carries a fresh policy, sweep ≥ 44/48 | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N 12/16, 30 N 4/16. The t3k init is not needed |
+| robot_getup_w12k_s1 | 11-01 | w12k | seed 1 | replicate of the deploy-contract recipe | 0/8 | 8/8 | 8/8 (34.9 s) | 8/8 (34.9 s) | **replicates**: 48/48; 15 N **15/16**, 30 N 2/16 |
+| robot_getup_w13k_s1 | 11-01 | w13k | seed 1 | replicate (likely capped) | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | capped at 532M. **48/48**; 15 N 8/16, 30 N 0/16. The (128, 128) recipe over 2 seeds: 31, 48; 15 N 7, 8 (big net 12 – 15) |
+| robot_getup_w12k_s128r24an3 | 11-02 | w12k_s128r24 | distil `--act-noise` 0 → 0.3 (noise on the executed actions) | the student's buffer is too narrow for post-shove states: val < 0.01, 15 N ≥ 8/16, sweep ≥ 44/48 | | | | | |
+| robot_getup_w12k_s512r24 | 11-02 | w12k_s128r24 | distil `--hidden` → 512, 256, 128 (teacher size) | the distil loss is the DAgger recipe, not capacity: 15 N stays ≤ 8/16 | | | | | |
+| robot_getup_w15k | 11-02 | w13k (fresh) | `--policy-hidden` 128,128 → 256,256 | the small net's push loss is capacity: sweep 48/48, 15 N ≥ 12/16 | | | | | |
+| robot_getup_w13k_s2 | 11-02 | w13k | seed 2 | replicate: is 31 or 48/48 typical | | | | | |
+| robot_getup_w16k | 11-02 | w13k (fresh) | `--rise-ref-residual` 0.15 → 0.075 | less authority stops the small net's post-stand sink: sweep ≥ 46/48 (may be capped) | | | | | |
 
 ## Nights
 
@@ -1378,3 +1386,169 @@ w12k_s1 and w13k_s1 against w12k. Read w13k's MJX curve against w14k's
 (`eval/episode_recovered`): a small net that stalls early is a different
 failure from one that is still climbing. The two w12k students' sweeps go
 against the w9k student's 32/48.
+
+### Night of 2026-11-01 (evaluated 2026-11-02)
+
+All fourteen jobs ran (the robot session started the runner at 20:21 and put
+its four actuator-DR legs jobs on `policy-stand-rca` first; the night ended
+05:45; w13k_s1 was capped at 532M). The planner's jobs trained on main
+`dc40c16`. Upstream since the last plan: #192 (floors/actuator fit) and the
+on-ESP deploy, fall-guard, flail-guard and `stepresp` PRs. #192 only adds
+opt-in flags (`--act-delay-extra`, `--act-lag-scale`, `--servo-kd`,
+`--servo-joint-damping`, `--floor-contact`); no referee or env default
+changed, and w12k_s1 on the new tree replicates w12k, so the comparisons hold.
+A DNS failure at 23:01 skipped one fetch; that job trained on the same
+`dc40c16`. No new moving flight-recorder session since the 11-01 stands, which
+the RCA (PR #189) already fit.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35 (CPU referee, 8 seeds each; as-built servos):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| w12k_s128r24 (stock student) | 4/8 8/8 | 8/8 8/8 | 8/8 8/8 | **44/48** | 4/16 | 1/16 | teacher 48, 14, 5; w9k student 32, 6, 0 |
+| w12k_s128r24n1024 (2× data) | 5/8 3/8 | 8/8 6/8 | 8/8 8/8 | 38/48 | 8/16 | 1/16 | stock 44, 4, 1 |
+| w13k ((128, 128) PPO, fresh) | 4/8 8/8 | 1/8 8/8 | 2/8 8/8 | 31/48 | 7/16 | 0/16 | w12k 48, 14, 5 |
+| w13k_s1 (seed 1, 532M) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 8/16 | 0/16 | w13k 31, 7, 0 |
+| w14k ((512, 256, 128), fresh) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 12/16 | 4/16 | w12k 48, 14, 5 |
+| w12k_s1 (seed 1) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **15/16** | 2/16 | w12k 48, 14, 5 |
+
+- **The deploy-contract teacher distils much better than w9k did on friction
+  (44/48 vs 32/48), but the student does not hold up to shoves (4/16 at 15 N).**
+  Its only sweep misses are supine ph at 0.05, where it stands and then sinks
+  (end height 0.34 m mean). It is still overfit (bc 0.0011, val 0.014). Twice
+  the data per round made the fit worse (val 0.0185) and the sweep worse (38),
+  so data volume is not the lever. What the student lacks is the teacher's
+  recovery from a shove, i.e. states its buffer never holds.
+- **A (128, 128) net trained directly with PPO can do the whole get-up.**
+  w13k_s1 sweeps 48/48 with no distillation. Its MJX `episode_recovered`
+  curve plateaus by ~160M steps, as fast as the big net's (w14k), so the
+  small net is not a slow learner. The other seed (w13k) has the old
+  post-stand sink from supine ph: it stands at 21.7 s and ends at 0.29 m in
+  7/8 at 0.35. Both small-net seeds lose shoves: 7 and 8/16 at 15 N against
+  12 – 15/16 for the big nets.
+- **The big net needs no t3k init.** w14k from scratch sweeps 48/48 with
+  12/16 at 15 N. w12k_s1 replicates w12k (48/48, 15/16), so the deploy-
+  contract recipe holds over two seeds.
+
+**Decision.** For arc step 4 there are two (128, 128) candidates:
+w13k_s1 (PPO: 48/48, 8/16 at 15 N) and the w12k student (44/48, 4/16). The
+gap to the teacher is now the shove, not the sweep. Tonight tests both
+routes. Distillation: noise on the executed actions (`--act-noise 0.3`,
+DART-style, which widens the states the buffer sees) and the teacher-sized
+student, to tell recipe from capacity. PPO: a (256, 256) net (is the push
+loss capacity?), seed 2 of the (128, 128) recipe, and the (128, 128) net at
+residual 0.075, to see whether less authority removes w13k's sink. The body
+question (every get-up trains on the arms body; the as-built robot has
+none) is still Tom's.
+
+#### One-leg stands and short walks
+
+Two lines this morning. (a) The planner's no-dead-time line (walk15, the
+capacity bracket). The robot session's 11-01 RCA has made it obsolete for
+deploy: on the measured actuator every policy trained without dead time
+has ≤ 1.25× loop-gain margin. It still answers the student question.
+(b) The robot session's actuator-DR line (`policy-stand-rca`, PR #189):
+walk16_act / walk16_actwide, warm-started from walk14_s1_actar.
+
+| run | parent | the one variable | key rows (as-trained CPU referee) | overall | verdict |
+|---|---|---|---|---|---|
+| robot_legs_walk15 | walk14 (init walk14) | a third 400M | walk_steps L/R 3/8, 1/8 (min peak 2.4 / 1.7 cm); stand 8/8; turn 1/8 | 67/160 (walk14 79), falls 23 % | **not held** (≥ 82): walk14 had converged |
+| walk14_s256r24 | walk14_s128r24 | student `--hidden` 256,256 | walk_steps 4/8, 3/8; stand 8/8; val 0.0053 | **62/160** (s128 37) | **held** (≥ 55): capacity is most of the gap |
+| walk14_s512r24 | walk14_s128r24 | student = teacher size | walk_steps 2/8, 5/8; stand 8/8; val 0.0041 | **69/160** (teacher 79) | at the edge (≥ 70): capacity closes 32 of 42; the DAgger recipe the last ~10 |
+| walk15_s128r24 | walk15 | (stock distil) | walk_steps 2/8, 1/8; stand 7/8 | 28/160 | |
+| walk16_act | walk14_s1_actar | +400M actuator DR + action rate 0.3 (seed 0) | stand 8/8 (27 W), walk_steps 0/8 0/8 (min peak 1.0 / 0.5 cm), turn 0/8 | 17/160, falls 78 % | stands, does not walk |
+| walk16_actwide | walk14_s1_actar | wider kp/kd/gyro DR (seed 1) | stand 8/8, walk_steps 0/8 0/8 | 20/160, falls 78 % | as walk16_act |
+| walk16_act_s128r24 | walk16_act | (stock distil) | stand 6/8 (drift 13 cm, 118 W), walk_steps 0/8 | 12/160 | see the margin table |
+| walk16_actwide_s128r24 | walk16_actwide | (stock distil) | stand 7/8 | 17/160 | |
+
+Margin on the measured actuator (`experiments/policy/rca/candidates.py
+… fit 8`, `ACT=meas` + `ACT=hard`, branch `policy-stand-rca`; falls of 8):
+
+| policy | measured | ×1.25 | ×1.5 | ×2 | push 0.4 / 0.6 m/s | dead 100 ms, τ 90 | sweep-only fit | gyro ×2.5 |
+|---|---|---|---|---|---|---|---|---|
+| walk14_s1_s128r24 (deployed 11-01, RCA) | 1/8 | 8/8 | 8/8 | 8/8 | 5/8 / — | — | 8/8 | — |
+| walk14_s1_actar_s128r24 (RCA, day) | 0/8 | 0/8 | 0/8 | 8/8 | 0/8 / 8/8 | — | 5/8 | — |
+| **walk16_act_s128r24** | 0/8 | 0/8 | **0/8** | 8/8 | 0/8 / 8/8 | 0/8 | **0/8** | 0/8 |
+| walk16_actwide_s128r24 | 0/8 | 0/8 | 4/8 | 8/8 | 0/8 / 8/8 | 0/8 | 6/8 | 0/8 |
+| walk16_act (teacher) | 0/8 | 0/8 | 0/8 | 8/8 | 0/8 / 1/8 | 0/8 | 2/8 | 0/8 |
+| walk16_actwide (teacher) | 0/8 | 0/8 | 5/8 | 8/8 | 0/8 / 5/8 | 0/8 | 4/8 | 0/8 |
+
+- **walk16_act_s128r24 is the best hardware-stand candidate so far.** It
+  meets the RCA bar (0/8 at ×1.5). It also passes the pessimistic
+  sweep-only actuator fit (0/8, where the actar student had 5/8), 100 ms
+  dead time, and gyro ×2.5. It fails ×2, like every other policy. On the
+  old no-dead-time referee its stand drifts and burns 118 W, but that
+  plant is no longer the robot (see below). The wide DR (actwide) cost
+  margin (×1.5 4/8, sweep-only 6/8): dropped.
+- **On the actuator-DR plant the walk does not come back.** MJX
+  `eval/episode_fell` over 1.1B steps of actuator DR: walk14_s1_act
+  1.00 → 0.91, actar → 0.91, walk16_act 0.90 → 0.89, walk16_actwide
+  0.91 → 0.88 (walk14 without dead time: 0.25). Every walk_steps peak is
+  ≤ 1.2 cm. More steps on the same recipe is not the lever.
+  The measured actuator is ~68 ms dead time + ~55 ms rise. At the
+  default gait clock (1.25 – 1.75 Hz, scaled up to ×1.4 with commanded
+  speed) that leaves roughly 170 – 330 ms per swing. Tonight's two
+  teachers each test one cause: the cadence (commanded speed capped at
+  0.35 m/s, so the clock runs ≤ 1.0×) and the dead-time tails (DR
+  2 – 5 → 3 – 4 ticks, around the measured 68 ms).
+- **Student capacity, answered on walk14:** (256, 256) recovers 25 of the
+  42 seed-passes the (128, 128) student lost, and the teacher-sized
+  student 32. Capacity is the main gap and the DAgger recipe is the rest.
+  A (256, 256) student is ~115k parameters (~460 KB fp32), and whether the
+  ESP32 firmware can hold it is now a real question for Tom. Tonight
+  distils walk17_slow at both sizes.
+- **The CPU referee grades the legs on a plant without dead time.** Its
+  scorecard and the measured-actuator margins disagree for the
+  actuator-DR policies (walk16_act_s128r24: stand_10s 6/8 on the referee,
+  0/8 falls on the measured actuator). Until #189 is rebased onto #192 and
+  the referee gets the measured actuator, both are reported. For deploy,
+  the margin table is the ranking. The SIL card is still missing for every
+  legs run (the export refuses: `obs_spec.h` kObsDim 147 vs the run's 165;
+  firmware/generated, not touched here).
+
+**Decision.** The stand question is answered in sim:
+walk16_act_s128r24 goes to Tom and the robot session as the hardware-stand
+candidate (the RCA doc's route b, exported the same way). The walk is now
+the open problem on the actuator-DR plant. The no-dead-time line stops:
+no more walk14/15 continuations.
+
+**Pre-flight finding:** pre-flight builds an *existing* teacher's distil
+env from the night clone on main, whatever the job's `BRANCH=`. A distil of
+an existing actuator-DR teacher (`--act-delay-types` is branch-only) fails
+pre-flight, and at 22:00 that would block the whole night. It passed last
+night only because those teachers did not exist yet. Until #189 merges,
+distil only teachers that train on the same night.
+
+#### Tonight (night 13)
+
+Legs first (Tom 2026-10-24 / 10-30), then get-up. Expected: two 400M legs
+teachers at ~50 min with three distils (~22:00 – 23:50), two get-up distils
+(~8 min), then three 600M get-up jobs at ~1.7 h (the third may be capped).
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk17_slow | walk16_act (walk16_act) | `--cmd-v-range` 0.05,0.7 → 0.05,0.35 | the cadence breaks the walk: MJX fell < 0.7 (0.89), walk_steps median peak ≥ 2 cm, student still 0/8 at ×1.5 |
+| 2 | robot_legs_walk17_slow_s128r24 | walk17_slow | (stock distil) | |
+| 3 | robot_legs_walk17_slow_s256r24 | walk17_slow_s128r24 | `--hidden` 256,256 | the capacity gain transfers to the actuator-DR line, no margin lost |
+| 4 | robot_legs_walk17_narrow | walk16_act (walk16_act) | `--act-delay-types` sts3215 2:5 → 3:4 | the dead-time tails break the walk: fell < 0.7, peaks ≥ 2 cm (risk: the 100 ms probe) |
+| 5 | robot_legs_walk17_narrow_s128r24 | walk17_narrow | (stock distil) | |
+| 6 | robot_getup_w12k_s128r24an3 | w12k_s128r24 | distil `--act-noise` 0 → 0.3 | wider visited states: val < 0.01, 15 N ≥ 8/16, sweep ≥ 44/48 |
+| 7 | robot_getup_w12k_s512r24 | w12k_s128r24 | distil `--hidden` 512,256,128 | recipe, not capacity: 15 N stays ≤ 8/16 |
+| 8 | robot_getup_w15k | w13k (fresh) | `--policy-hidden` 256,256 | push loss is capacity: 48/48, 15 N ≥ 12/16 |
+| 9 | robot_getup_w13k_s2 | w13k | seed 2 | replicate (31 vs 48) |
+| 10 | robot_getup_w16k | w13k (fresh) | `--rise-ref-residual` 0.15 → 0.075 | no post-stand sink: sweep ≥ 46/48 (may be capped) |
+
+Pre-flight: PASS 10/10. The five training jobs also parse with
+`train_mjx.py`'s own parser on their branches (`policy-stand-rca` c6f8250,
+main dc40c16). Fallback: the w13k recipe (the (128, 128) get-up, whose seed
+spread is the open question).
+
+**Tomorrow's evaluation:** legs: MJX `eval/episode_fell` and walk_steps
+peaks for walk17_slow and walk17_narrow against walk16_act. Grade all three
+students with `ACT=meas` + `ACT=hard` candidates.py next to their
+scorecards. Compare walk17_slow_s256r24 with its s128 sibling. Get-up: the
+sweep plus 15 / 30 N for w15k, w13k_s2 and w16k against w13k / w13k_s1, and
+for the two students against w12k_s128r24 (44, 4, 1), with val_mse.
