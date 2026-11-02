@@ -74,6 +74,11 @@ enum class Ev : uint8_t {
     kFbBackoff = 9,   // bench feedback read too slow (a servo silent): a = us it took
     kFall = 10,       // fall guard (fallguard.h): a = Motion it fell in (0 bench, 1 policy),
                       // b = fallguard::Event (1 fell, 2 picked up -> home, 3 cleared); text says
+    kFlail = 11,      // armed-loop HOLD (flailguard.h): a = flailguard::Trip (1 pose, 2 rate,
+                      // 3 tilt, 4 chatter; 255 operator soft stop), b = 1 torque held / 0 was
+                      // limp / 2 the hold's autohome started; text says
+    kStop = 12,       // operator stop (linkproto::kFlagStop), once per burst: a = 1 hard / 0 soft,
+                      // b = 1 armed / 0 benched; text says
 };
 
 constexpr int kMaxJoints = 17;      // == obs::kNumBusJoints (static_assert in main)

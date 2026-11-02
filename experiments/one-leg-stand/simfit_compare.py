@@ -25,9 +25,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import simfit_hw as H  # noqa: E402
 import simfit_sim as S  # noqa: E402
+import simfit_osc as O  # noqa: E402
 
 R2D = 180 / math.pi
-ALL = [(tag, s) for tag in H.SESSIONS for s in ("R", "L")]
+ALL = H.all_ids()                 # stand ids, e.g. "222031L", "194709R2"
 SIG_ERR, SIG_U, SIG_T = 1.0, 2.0, 2.0
 PEN_CAP = 3.0                      # s: an abort the other side did not have costs at most 1.5
 
@@ -38,6 +39,43 @@ def parse_kv(items, cls):
         k, v = it.split("=")
         kw[k] = float(v)
     return cls(**kw)
+
+
+MODE = os.environ.get("SIMFIT_COST", "floors")   # "raw" = the 10-30 cost
+SIG_ENV = 1.0                      # deg: the band-passed roll envelope
+LP_HZ = 0.8
+
+
+def _lp(tg, x):
+    from scipy.signal import butter, sosfiltfilt
+    if len(tg) < 30:
+        return x
+    sos = butter(2, LP_HZ, fs=100.0, output="sos")
+    return sosfiltfilt(sos, x)
+
+
+def _lp_rms(te, a, b):
+    """rms of the low-passed difference, on a uniform 100 Hz grid."""
+    if len(te) < 5 or te[-1] - te[0] < 0.2:
+        return float(np.sqrt(np.mean((a - b) ** 2)))
+    tg = np.arange(te[0], te[-1], 0.01)
+    dlt = _lp(tg, np.interp(tg, te, a - b))
+    return float(np.sqrt(np.mean(dlt ** 2)))
+
+
+def _env_rms(st, r, t0, t1):
+    """rms difference of the 0.8-4 Hz roll envelopes over [t0 + 1.5, t1] (deg)."""
+    if t1 - t0 < 2.0:
+        return 0.0
+    d = st.ticks
+    th, eh = O.osc(d.t.values, d.roll.values, t0, t1)["env"]
+    ts, es = O.osc(r["t"], r["roll"], t0, t1)["env"]
+    if len(th) < 50 or len(ts) < 50:
+        return 0.0
+    tg = np.arange(t0 + 1.5, t1 - 0.2, 0.02)
+    if len(tg) < 5:
+        return 0.0
+    return float(np.sqrt(np.mean((np.interp(tg, th, eh) - np.interp(tg, ts, es)) ** 2)))
 
 
 def stage_cost(st, r, name):
@@ -69,11 +107,20 @@ def stage_cost(st, r, name):
     e_hw, u_hw = hw.bal_err.values * R2D, hw.bal_u.values * R2D
     rms_e = float(np.sqrt(np.mean((e_sim - e_hw) ** 2)))
     rms_u = float(np.sqrt(np.mean((u_sim - u_hw) ** 2)))
-    cost = rms_e / SIG_ERR + rms_u / SIG_U + pen
+    if MODE == "raw":                       # the 10-30 cost (phase-sensitive tick-by-tick rms)
+        cost = rms_e / SIG_ERR + rms_u / SIG_U + pen
+        env = float("nan")
+    else:
+        # floors cost: the slow part tick by tick (low-passed below the 1.4-2.1 Hz roll mode) plus the
+        # mode's envelope -- an oscillation that has the robot's size but not its phase is not a miss
+        rms_e = _lp_rms(te, e_sim, e_hw)
+        rms_u = _lp_rms(te, u_sim, u_hw)
+        env = _env_rms(st, r, t0, t_cmp)
+        cost = rms_e / SIG_ERR + rms_u / SIG_U + env / SIG_ENV + pen
     sg = 1.0 if st.side == "L" else -1.0
     k_end = np.searchsorted(r["t"], min(t0 + mv.dur, t_cmp))
     k_hold = np.searchsorted(r["t"], t_cmp) - 1
-    return cost, dict(rms_err=rms_e, rms_u=rms_u, abort_pen=pen,
+    return cost, dict(rms_err=rms_e, rms_u=rms_u, rms_env=env, abort_pen=pen,
                       hw_abort=(hw_ab - t0) if hw_ab else None, sim_abort=(sim_ab - t0) if sim_ab else None,
                       sim_u_end=sg * r["u"][k_hold] * R2D, hw_u_end=sg * u_hw[-1],
                       sim_err_peak=float(np.max(sg * r["err"][sw])) * R2D if sw.any() else float("nan"),
@@ -81,9 +128,15 @@ def stage_cost(st, r, name):
 
 
 def eval_stand(args):
-    tag, side, pl, ctl, kw = args
-    st = H.load_stand(tag, side)
-    r = S.Replay(st, pl, ctl, **kw).run()
+    """(stand id, plant, ctl, replay kwargs) -> cost. ctl None = the balance as the robot ran it
+    (the session's firmware: no I cap on 10-30, the 3 deg cap on 11-01). The plant's floor
+    contact is the stand's floor (Plant.on)."""
+    sid, pl, ctl, kw = args
+    st = H.load_stand(sid)
+    if ctl is None:
+        ctl = S.Ctl(**st.fw)
+    r = S.Replay(st, pl.on(st.floor), ctl, **kw).run()
+    tag, side = st.session, st.side
     res = {}
     tot = 0.0
     for name in ("l10", "l30"):
@@ -101,12 +154,16 @@ def eval_stand(args):
     res["fell_early"] = fell
     if fell:
         tot += 5.0
-    return dict(tag=tag, side=side, cost=tot, stages=res, r=r)
+    for name in ("l10", "l30"):
+        if name in res:
+            res[name]["osc_hw"] = {k: v for k, v in O.hw_osc(st, name).items() if k != "env"}
+            so, _ = O.sim_osc(st, r, name)
+            res[name]["osc_sim"] = {k: v for k, v in so.items() if k != "env"}
+    return dict(id=sid, tag=tag, side=side, floor=st.floor, cost=tot, stages=res, r=r)
 
 
 def evaluate(pl, ctl=None, stands=ALL, workers=None, keep=False, **kw):
-    ctl = ctl or S.Ctl()
-    jobs = [(t, s, pl, ctl, kw) for t, s in stands]
+    jobs = [(sid, pl, ctl, kw) for sid in stands]
     if workers == 1:
         out = [eval_stand(j) for j in jobs]
     else:
@@ -125,7 +182,7 @@ def plot(results, path, title=""):
     n = len(results)
     fig, axs = plt.subplots(n, 3, figsize=(17, 2.6 * n), squeeze=False)
     for i, o in enumerate(results):
-        st = H.load_stand(o["tag"], o["side"])
+        st = H.load_stand(o["id"])
         r = o["r"]
         d = st.ticks
         sg = 1.0 if st.side == "L" else -1.0
@@ -135,7 +192,7 @@ def plot(results, path, title=""):
         ax[0].plot(d.t, sg * (d.roll - base_hw) * R2D, "k", lw=1.2, label="robot")
         ax[0].plot(r["t"], sg * (r["roll"] - base_sim) * R2D, "C1", lw=1.2, label="sim")
         ax[0].set_ylim(-14, 8)
-        ax[0].set_ylabel(f"{st.session} {st.side}\nroll vs crouch\n(+ toward lifted)", fontsize=8)
+        ax[0].set_ylabel(f"{st.id} {st.floor}\nroll vs crouch\n(+ toward lifted)", fontsize=8)
         hwb = d.bal_state != 0
         ax[1].plot(d.t[hwb], sg * d.bal_err[hwb] * R2D, "k.", ms=1.5)
         ax[1].plot(r["t"], np.where(r["state"] > 0, sg * r["err"] * R2D, np.nan), "C1", lw=1)
@@ -171,7 +228,7 @@ def report(results):
         s = "  ".join(f"{k}: e {v.get('rms_err', 0):.2f} u {v.get('rms_u', 0):.2f} pk {v.get('sim_err_peak', 0):+.1f}/{v.get('hw_err_peak', 0):+.1f} "
                       f"uend {v.get('sim_u_end', 0):+.1f}/{v.get('hw_u_end', 0):+.1f} ab {v.get('sim_abort') and round(v['sim_abort'], 1)}/{v.get('hw_abort') and round(v['hw_abort'], 1)}"
                       for k, v in o["stages"].items() if isinstance(v, dict))
-        print(f"  {o['tag']} {o['side']}  cost {o['cost']:5.2f}   {s}")
+        print(f"  {o['id']:9s} {o['floor']:6s} cost {o['cost']:5.2f}   {s}")
     print(f"  TOTAL {tot:.2f}")
     return tot
 
@@ -185,8 +242,8 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     pl = parse_kv(a.set, S.Plant)
-    ctl = parse_kv(a.ctl, S.Ctl)
-    stands = ALL if not a.stands else [(x[:-1], x[-1]) for x in a.stands.split(",")]
+    ctl = parse_kv(a.ctl, S.Ctl) if a.ctl else None      # None = as the robot ran it
+    stands = ALL if not a.stands else (H.all_ids(a.stands) if a.stands in ("carpet", "hard") else a.stands.split(","))
     res = evaluate(pl, ctl, stands, keep=bool(a.png), seed=a.seed)
     print(pl.label())
     report(res)

@@ -97,7 +97,8 @@ ARMED / PI starts / ABORT / landed, refusals, home readbacks), wireless ARM
 and home edges, bench/run handovers with the arm verdict, balance state
 changes, `ctrl` link-state changes, a bench read that backed off, and every
 fall-guard step (fall on the bench, an armed fall handed over, pick-up ->
-autohome, a clear).
+autohome, a clear), every flail-guard hold (its criterion and value) and its
+autohome, and every operator stop (once per burst).
 HELLO, 1 Hz: firmware version, NTP state, the calibration (servo ID, fitted,
 dir, zero per bus joint), recorder counters and the `ctrl` tick budget
 (`us_read` … `us_other`, overruns, worst tick).
@@ -190,7 +191,10 @@ then `len` ≤ 180 bytes of text. Codes: 1 cmd, 2 out, 3 arm edge (a = level),
 7 balance state (a = old, b = new), 8 link state (a = old, b = new),
 9 feedback backoff (a = µs the read took), 10 fall (a = the motion it fell
 in: 0 bench, 1 policy; b = 1 fell, 2 picked up -> autohome, 3 cleared;
-`components/fallguard`).
+`components/fallguard`), 11 flail (an armed-loop hold: a = 1 pose, 2 rate,
+3 tilt, 4 chatter, 255 operator soft stop; b = 1 torque held, 0 already limp,
+2 the hold's autohome started; `components/flailguard`), 12 stop (an operator
+stop, `linkproto::kFlagStop`: a = 1 hard / 0 soft, b = 1 armed / 0 benched).
 
 HELLO body, 116 B + 5 B × 17: fw[32], utc_synced, enabled, idle_hz, cal_ok,
 19 × u32 (produced, sent, drop_ring, drop_net, max push ctrl/house µs, last

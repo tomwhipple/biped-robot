@@ -125,30 +125,33 @@ STEPS = [
      ["shoulder_girdle_v6", "neck_floor"], ["servo_neck"], 45, (150, -25), ["shoulder_girdle_v6"]),
     ("15_girdle", "11a. The girdle, neck built in, lowered onto the deck",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + PACK, NECK, 45, (150, -25), ["torso_v8", "shoulder_girdle_v6"]),
-    ("16_shoulder_servos", "11b. Shoulder servos down into their pods, screwed from outboard",
+    ("16_shoulder_servos", "11c. Shoulder servos in along their axis from outboard, onto the inboard wall",
      TORSO_DONE + BOARDS + PACK + NECK, ["servo_shoulder_L", "servo_shoulder_R"], 45, (150, -30),
      ["shoulder_girdle_v6"]),
-    ("17_upper_arm", "11c. Upper arm straight in onto the shoulder horn",
-     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["arm_upper_L"], 45, (110, -10),
-     ["servo_shoulder_L", "arm_upper_L"]),
+    ("16b_shoulder_cheeks", "11c. Cheeks on over the boss: 4 corner screws, then 4 case screws, from outboard",
+     TORSO_DONE + BOARDS + PACK + NECK + ["servo_shoulder_L", "servo_shoulder_R"],
+     ["shoulder_cheek_L", "shoulder_cheek_R"], 35, (150, -30), ["shoulder_girdle_v6"]),
+    ("17_upper_arm", "11d. Upper arm straight in onto the shoulder horn",
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R", "shoulder_cheek_L", "shoulder_cheek_R"],
+     ["arm_upper_L"], 45, (110, -10), ["servo_shoulder_L", "arm_upper_L"]),
     ("18_elbow_servo", "11c. Elbow servo into the upper arm's grip channel, from the front",
      ["arm_upper_L", "servo_shoulder_L"], ["servo_elbow_L"], 45, (150, -10), ["arm_upper_L", "servo_elbow_L"]),
     ("19_forearm", "11c. Forearm lifted up, its fork onto the elbow servo's discs",
      ["arm_upper_L", "servo_shoulder_L", "servo_elbow_L"], ["arm_fore_L"], 45, (120, -5),
      ["arm_fore_L", "servo_elbow_L", "arm_upper_L"]),
     ("20_head", "11e. Head down onto the neck horn",
-     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R"], ["head"], 45, (150, -15),
+     TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R", "shoulder_cheek_L", "shoulder_cheek_R"], ["head"], 45, (150, -15),
      ["head", "shoulder_girdle_v6"]),
     ("21_complete", "The robot as drawn",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS + PACK + ["head"] + NECK
-     + ["servo_shoulder_L", "servo_shoulder_R"] + ARM[1:] + ARM_R[1:], [], 0, (150, -10), None),
+     + ["servo_shoulder_L", "servo_shoulder_R", "shoulder_cheek_L", "shoulder_cheek_R"] + ARM[1:] + ARM_R[1:], [], 0, (150, -10), None),
 ]
 
 
 # per-step camera distance, in units of "the framed box's diagonal just fits"
 ZOOM = {"07_yaw_servo": 1.3, "08_bearings_into_housing": 1.3, "09_housing": 1.3, "09a_yaw_carrier": 2.0,
         "09b_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
-        "13_neck_floor": 2.4, "14_neck_servo": 1.4, "17_upper_arm": 1.5}
+        "13_neck_floor": 2.4, "14_neck_servo": 1.4, "16b_shoulder_cheeks": 1.2, "17_upper_arm": 1.5}
 
 
 def comes_from(label):

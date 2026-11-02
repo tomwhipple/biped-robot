@@ -26,6 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import simfit_compare as C  # noqa: E402
 import simfit_sim as S  # noqa: E402
+import simfit_hw as H  # noqa: E402
 
 POOL = None
 
@@ -37,28 +38,99 @@ def pool():
     return POOL
 
 
-def eval_many(plants, stands=C.ALL, ctl=None, seeds=(0,)):
-    """[(plant, total cost, per-stand results)] for many plants at once."""
-    ctl = ctl or S.Ctl()
-    jobs = [(t, s, pl, ctl, dict(seed=sd)) for pl in plants for sd in seeds for (t, s) in stands]
-    out = list(pool().map(C.eval_stand, jobs))
+# The robot's stance plant at its hard-floor limit cycle (simfit_frf.py hw): roll/u at 1.85 Hz.
+FRF_HW = (1.85, 2.3, -46.0)
+FRF_W = float(os.environ.get("SIMFIT_FRF_W", "0"))     # weight of the FRF term (0 = off)
+
+
+def frf_cost(m, ph):
+    """|ln(|P|/2.3)|/0.3 + |phase error|/30 deg; an abort under the 1 deg dither costs 1.5."""
+    if not np.isfinite(m):
+        return 1.5
+    dph = (ph - FRF_HW[2] + 180.0) % 360.0 - 180.0
+    return abs(math.log(max(m, 1e-3) / FRF_HW[1])) / 0.3 + abs(dph) / 30.0
+
+
+def _frf_job(pl):
+    import simfit_frf as F
+    return F._one((pl, "hard", "R", FRF_HW[0], 1.0, "194709"))
+
+
+TIP_W = float(os.environ.get("SIMFIT_TIP_W", "0"))     # weight of the inside-tip test (simfit_tip), 0 = off
+
+
+SWEEP_W = float(os.environ.get("SIMFIT_SWEEP_W", "0"))  # weight of the double-support roll sweep (simfit_sweep)
+
+
+def _sweep_job(pl):
+    import simfit_sweep as W
+    return W.cost_job(pl)[0]
+
+
+def _tip_job(args):
+    import simfit_tip as T
+    o = T._job(args)
+    return o
+
+
+def eval_many(plants, stands=C.ALL, ctl=None, seeds=(0,), frf_w=None, tip_w=None):
+    """[(plant, total cost, per-stand results)] for many plants at once. With an FRF weight, each
+    plant also pays frf_w * frf_cost of its hard-floor R-stance roll/u at 1.85 Hz (a pseudo-stand
+    "FRF" in the chunk)."""
+    frf_w = FRF_W if frf_w is None else frf_w
+    jobs = [(sid, pl, ctl, dict(seed=sd)) for pl in plants for sd in seeds for sid in stands]
+    futs = [pool().submit(C.eval_stand, j) for j in jobs]
+    ffut = [pool().submit(_frf_job, pl) for pl in plants] if frf_w > 0 else []
+    tip_w = TIP_W if tip_w is None else tip_w
+    tfut = [[pool().submit(_tip_job, (pl, sd)) for sd in "LR"] for pl in plants] if tip_w > 0 else []
+    sfut = [pool().submit(_sweep_job, pl) for pl in plants] if SWEEP_W > 0 else []
+    out = [f.result() for f in futs]
     for o in out:
         o.pop("r")
     res = []
     n = len(stands) * len(seeds)
     for i, pl in enumerate(plants):
         chunk = out[i * n:(i + 1) * n]
-        res.append((pl, sum(o["cost"] for o in chunk) / len(seeds), chunk))
+        cost = sum(o["cost"] for o in chunk) / len(seeds)
+        if ffut:
+            f, m, ph = ffut[i].result()
+            fc = frf_w * frf_cost(m, ph)
+            cost += fc
+            chunk = chunk + [dict(id="FRF", side="R", floor="hard", cost=fc, stages={"frf": (m, ph)})]
+        if sfut:
+            sc = SWEEP_W * sfut[i].result()
+            cost += sc
+            chunk = chunk + [dict(id="SWEEP", side="-", floor="hard", cost=sc, stages={})]
+        if tfut:
+            for f in tfut[i]:
+                o = f.result()
+                tc = tip_w * o["cost"]
+                cost += tc
+                chunk = chunk + [dict(id="TIP" + o["side"], side=o["side"], floor="hard", cost=tc,
+                                      stages={"tip": (o["sim_step"], o["hw_step"])})]
+        res.append((pl, cost, chunk))
     return res
 
 
 def line(pl, cost, chunk, keys):
     vals = " ".join(f"{k}={getattr(pl, k):g}" for k in keys)
-    per = " ".join(f"{o['tag'][-3:]}{o['side']}:{o['cost']:.1f}" for o in chunk)
+    per = " ".join(f"{o['id'][3:]}:{o['cost']:.1f}" for o in chunk)
     l30 = " ".join(f"{o['side']}u{o['stages'].get('l30', {}).get('sim_u_end', float('nan')):+.1f}"
-                   f"{'A' if o['stages'].get('l30', {}).get('sim_abort') else ''}" for o in chunk)
-    fe = "".join("F" if o["stages"].get("fell_early") else "." for o in chunk)
+                   f"{'A' if o['stages'].get('l30', {}).get('sim_abort') else ''}" for o in chunk if o["id"] not in ("FRF", "TIPL", "TIPR", "SWEEP"))
+    frf = [o["stages"]["frf"] for o in chunk if o["id"] == "FRF"]
+    if frf:
+        l30 += f" P {frf[0][0]:.2f}/{frf[0][1]:+.0f}"
+    tips = [o["stages"]["tip"] for o in chunk if o["id"] in ("TIPL", "TIPR")]
+    if tips:
+        l30 += " tip " + "/".join(str(t[0]) for t in tips)
+    fe = "".join("F" if o["stages"].get("fell_early") else "." for o in chunk if o["id"] not in ("FRF", "TIPL", "TIPR", "SWEEP"))
     return f"{vals:40s} cost {cost:6.2f}  [{per}]  {l30} {fe}"
+
+
+def stands_of(a):
+    if not a.train:
+        return C.ALL
+    return H.all_ids(a.train) if a.train in ("carpet", "hard") else a.train.split(",")
 
 
 def parse_base(items):
@@ -73,7 +145,7 @@ def cmd_sweep(a):
         keys.append(k)
         for v in vs.split(","):
             plants.append(replace(base, **{k: float(v)}))
-    for pl, cost, chunk in eval_many(plants):
+    for pl, cost, chunk in eval_many(plants, stands_of(a)):
         print(line(pl, cost, chunk, keys), flush=True)
 
 
@@ -85,11 +157,11 @@ def cmd_grid(a):
         keys.append(k)
         vals.append([float(v) for v in vs.split(",")])
     plants = [replace(base, **dict(zip(keys, combo))) for combo in itertools.product(*vals)]
-    res = eval_many(plants)
+    res = eval_many(plants, stands_of(a))
     rows = []
     for pl, cost, chunk in sorted(res, key=lambda x: x[1]):
         print(line(pl, cost, chunk, keys), flush=True)
-        rows.append(dict(plant=asdict(pl), cost=cost, stands=[(o["tag"], o["side"], o["cost"], o["stages"]) for o in chunk]))
+        rows.append(dict(plant=asdict(pl), cost=cost, stands=[(o["id"], o["cost"], o["stages"]) for o in chunk]))
     if a.json:
         json.dump(rows, open(a.json, "w"), indent=1, default=float)
 
@@ -97,17 +169,20 @@ def cmd_grid(a):
 def cmd_fit(a):
     from scipy.optimize import minimize
     base = parse_base(a.base)
-    keys, lo, hi = [], [], []
+    keys, lo, hi, logs = [], [], [], []
     for spec in a.specs:
         k, r = spec.split("=")
-        l, h = (float(x) for x in r.split(":"))
-        keys.append(k); lo.append(l); hi.append(h)
-    lo, hi = np.array(lo), np.array(hi)
-    stands = C.ALL if not a.train else [(x[:-1], x[-1]) for x in a.train.split(",")]
+        parts = r.split(":")
+        l, h = float(parts[0]), float(parts[1])
+        lg = len(parts) > 2 and parts[2] == "log"        # KEY=lo:hi:log searches log10(value)
+        keys.append(k); lo.append(math.log10(l) if lg else l); hi.append(math.log10(h) if lg else h); logs.append(lg)
+    lo, hi, logs = np.array(lo), np.array(hi), np.array(logs)
+    stands = stands_of(a)
     hist = []
 
     def to_pl(z):
         x = lo + (hi - lo) * np.clip(z, 0, 1)
+        x = np.where(logs, 10.0 ** x, x)
         return replace(base, **dict(zip(keys, x.tolist())))
 
     def f_batch(Z):
@@ -121,7 +196,8 @@ def cmd_fit(a):
     rng = np.random.default_rng(0)
     Z0 = rng.uniform(0, 1, size=(a.n0, len(keys)))
     if a.x0:
-        Z0[0] = (np.array([float(v) for v in a.x0.split(",")]) - lo) / (hi - lo)
+        x0 = np.array([float(v) for v in a.x0.split(",")])
+        Z0[0] = (np.where(logs, np.log10(np.maximum(x0, 1e-12)), x0) - lo) / (hi - lo)
     c0 = f_batch(Z0)
     order = np.argsort(c0)
     print("start design best:", [line(hist[i][1], hist[i][0], hist[i][2], keys) for i in order[:3]], flush=True)
@@ -150,17 +226,17 @@ def cmd_fit(a):
     plants = []
     for i, k in enumerate(keys):
         for v in np.linspace(lo[i], hi[i], a.nprof):
-            plants.append(replace(best, **{k: float(v)}))
+            plants.append(replace(best, **{k: float(10 ** v if logs[i] else v)}))
     res = eval_many(plants, stands)
     j = 0
     for i, k in enumerate(keys):
         prof[k] = []
         for v in np.linspace(lo[i], hi[i], a.nprof):
-            prof[k].append((float(v), res[j][1]))
+            prof[k].append((float(10 ** v if logs[i] else v), res[j][1]))
             j += 1
         print("profile", k, " ".join(f"{v:g}:{c:.2f}" for v, c in prof[k]), flush=True)
     if a.json:
-        json.dump(dict(best=asdict(best), cost=float(r.fun), keys=keys, lo=lo.tolist(), hi=hi.tolist(),
+        json.dump(dict(best=asdict(best), cost=float(r.fun), keys=keys, lo=lo.tolist(), hi=hi.tolist(), log=logs.tolist(),
                        profile=prof, stands=stands,
                        history=[(c, asdict(pl)) for c, pl, ch in hist]), open(a.json, "w"), indent=1)
 

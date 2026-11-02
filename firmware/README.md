@@ -96,6 +96,7 @@ hardware-touching files are excluded by construction.
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 2 s upright-and-still pick-up, the armed-to-bench hand-over -> autohome |
+| `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
@@ -164,6 +165,7 @@ firmware/
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>)
     fallguard/          fall detection + pick-up recovery, one module for the armed loop and the bench
+    flailguard/         the armed loop's judge of the policy (pose, rate, tilt, chatter) -> hold + disarm
     flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
   host/                 host build: Makefile + CMakeLists, 13 test suites, the SIL
                         library (sil.h, sil_lib.cpp, sil_net.cpp), vectors/

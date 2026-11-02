@@ -31,7 +31,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from protocol import (ArmResult, diag_arm_result, CMD_PORT, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,  # noqa: E402
-                      SEND_HZ, TLM_PORT, LinkState, ProtocolError,
+                      SEND_HZ, TLM_PORT, TLM_RECV_BYTES, LinkState,
+                      ProtocolError,
                       decode_telemetry, diag_reason, encode_command)
 from sources import EXT_KEYS, SCRIPTS  # noqa: E402
 
@@ -120,7 +121,7 @@ class Driver:
         """Drain telemetry, print changes, return a guard verdict or None."""
         while True:
             try:
-                buf, _ = self.rx.recvfrom(64)
+                buf, _ = self.rx.recvfrom(TLM_RECV_BYTES)
             except BlockingIOError:
                 break
             try:
