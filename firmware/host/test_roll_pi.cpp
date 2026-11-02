@@ -583,6 +583,33 @@ void testIntegralLimitMatchesSimTwin() {
     }
 }
 
+// Rows from balance.py (the fourth block it prints): the firmware DEFAULT config (kp 0.15,
+// ki 1.0, kd 0, clamp 10 deg, I limit 3 deg) at dt 0.026 (the bench tick) -- the gyro rate
+// is ignored (kd 0) and the integral caps at 3 deg of u.
+void testDefaultsMatchSimTwin() {
+    Config c;                                         // the defaults
+    c.abort_rad = 20.0f * kDeg;
+    RollBalance b;
+    b.configure(c);
+    b.engage(0.0f);
+    // err 0.05 rad / rate 0.3 rad/s for 60 ticks, then -0.02 / -0.5 for 4; checked at tick k
+    struct Row { int k; float u, i; };
+    const Row rows[] = {
+        {0, 0.007500f, 0.001300f}, {1, 0.008800f, 0.002600f}, {30, 0.046500f, 0.040300f}, {39, 0.058200f, 0.052000f}, {40, 0.059500f, 0.052360f}, {41, 0.059860f, 0.052360f}, {59, 0.059860f, 0.052360f}, {60, 0.049360f, 0.051840f}, {61, 0.048840f, 0.051320f}, {63, 0.047800f, 0.050280f},
+    };
+    int n = 0;
+    for (int k = 0; k < 64; ++k) {
+        const bool first = k < 60;
+        b.update(first ? 0.05f : -0.02f, 0.026f, first ? 0.3f : -0.5f);
+        if (n < static_cast<int>(sizeof rows / sizeof rows[0]) && rows[n].k == k) {
+            CHECK_NEAR(b.u(), rows[n].u, 2e-5);
+            CHECK_NEAR(b.integral(), rows[n].i, 2e-5);
+            ++n;
+        }
+    }
+    CHECK(n == static_cast<int>(sizeof rows / sizeof rows[0]));
+}
+
 // The limit is symmetric, scales with ki, and 0 turns it off (the pre-10-30 loop).
 void testIntegralLimitProperties() {
     const float sgns[] = {1.0f, -1.0f};
@@ -605,11 +632,11 @@ void testIntegralLimitProperties() {
 }
 
 void testDefaultsAreSimChosen() {
-    // experiments/one-leg-stand/2026-10-25-gyro-damping-sim.md
+    // experiments/one-leg-stand/2026-11-01-floors-fit.md (kp 0.3 / kd 0.03 before)
     const Config c;
-    CHECK_NEAR(c.kp, 0.3, 1e-6);
+    CHECK_NEAR(c.kp, 0.15, 1e-6);
     CHECK_NEAR(c.ki, 1.0, 1e-6);
-    CHECK_NEAR(c.kd, 0.03, 1e-6);
+    CHECK_NEAR(c.kd, 0.0, 1e-6);
     CHECK_NEAR(c.ka, 1.0, 1e-6);
     CHECK_NEAR(c.kh, -1.0, 1e-6);
     CHECK_NEAR(c.i_lim_rad, 3.0 * kDeg, 1e-5);       // 2026-10-30-sim-fit.md
@@ -678,6 +705,7 @@ int main() {
     testIntegralLimitMatchesSimTwin();
     testIntegralLimitProperties();
     testDefaultsAreSimChosen();
+    testDefaultsMatchSimTwin();
     testValidate();
     return testutil::report("roll_pi");
 }

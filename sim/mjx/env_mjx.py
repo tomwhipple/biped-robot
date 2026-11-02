@@ -648,6 +648,11 @@ class BimoMJXEnv:
         # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
         torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
         # U(-c, +c) m (body_ipos y) -- lateral asymmetry DR
+        floor_contact_range: tuple | None = None,  # ((k_lo, k_hi), (b_lo, b_hi)): batch-level
+        # foot/floor contact DR -- each env draws a stiffness k and a damping b LOG-uniformly
+        # and sets solref = (-k, -b) on the floor and every sole pad (MuJoCo direct
+        # stiffness/damping). The carpet..hard-floor range of the 2026-11-01 floors fit
+        # (experiments/one-leg-stand/2026-11-01-floors-fit.md). Training only; None = off.
         zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
@@ -903,6 +908,11 @@ class BimoMJXEnv:
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
+        act_delay_extra=None,                   # per-actuator EXTRA dead time, ticks:
+        # {actuator | role: ticks} or a walker_env.ACT_DELAY_EXTRA_PRESETS name ("sts2026":
+        # the STS3215s +3 ticks behind the STS3250 hip rolls, 2026-11-01 step responses)
+        act_lag_scale=None,                     # per-actuator multiplier on the act-lag
+        # pole: {actuator | role: x} or a walker_env.ACT_LAG_SCALE_PRESETS name
         init_pose_deg: float | None = None,     # start-pose jitter half-width per
                                                 # joint (deg). None keeps the
                                                 # historical +-0.03 rad (1.7 deg).
@@ -1271,6 +1281,12 @@ class BimoMJXEnv:
             dtype=np.float32))
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
+        self.floor_contact_range = (None if floor_contact_range is None else
+                                    tuple(tuple(float(v) for v in r) for r in floor_contact_range))
+        self._contact_gids = np.array(
+            [g for g in range(self.mj_model.ngeom)
+             if g == self._floor_gid or "_pad_" in (self.mj_model.geom(g).name or "")], dtype=np.int32)
+        self._nom_solref = jp.asarray(np.array(self.mj_model.geom_solref))
         self._nom_ipos = jp.asarray(np.array(self.mj_model.body_ipos))
         self._torso_bid = int(self.mj_model.body("torso").id)
         self.backlash_rad = float(np.deg2rad(backlash_deg))
@@ -1405,6 +1421,17 @@ class BimoMJXEnv:
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
         self.act_delay_max = int(act_delay_max)
         assert 0 <= self.act_delay_max <= 10, "act_delay_max in ticks (20 ms each)"
+        from walker_env import role_vector, ACT_DELAY_EXTRA_PRESETS, ACT_LAG_SCALE_PRESETS
+        if isinstance(act_delay_extra, str):
+            act_delay_extra = ACT_DELAY_EXTRA_PRESETS[act_delay_extra]
+        if isinstance(act_lag_scale, str):
+            act_lag_scale = ACT_LAG_SCALE_PRESETS[act_lag_scale]
+        _ext = role_vector(self._servo_names, act_delay_extra, 0, "act_delay_extra").astype(np.int32)
+        self._act_delay_extra = jp.asarray(_ext) if _ext.any() else None
+        self._act_hist_len = self.act_delay_max + int(_ext.max()) + 1
+        assert self._act_hist_len <= 13, "dead time ring holds 12 ticks"
+        _ls = role_vector(self._servo_names, act_lag_scale, 1.0, "act_lag_scale")
+        self._act_lag_scale = jp.asarray(_ls, dtype=jp.float32) if np.any(_ls != 1.0) else None
         self.init_pose_deg = (None if init_pose_deg is None
                               else float(init_pose_deg))
         self._init_q_rad = (0.03 if self.init_pose_deg is None
@@ -2055,7 +2082,7 @@ class BimoMJXEnv:
     def _act_hist0(self):
         # before the policy has acted the served target is the home pose
         return jp.tile(self._sdefault.astype(jp.float32)[None, :],
-                       (self.act_delay_max + 1, 1))
+                       (self._act_hist_len, 1))
 
     _METRIC_KEYS = ("power_w", "vx_body", "wz", "height", "up_z", "fell",
                     "track_v_err", "track_w_err", "standing")
@@ -2280,7 +2307,7 @@ class BimoMJXEnv:
             lag_y0 = jp.tile(self._sdefault.astype(jp.float32), (3, 1))
         else:
             q_init = data.qpos[self._jq0:self._jq1].astype(jp.float32)
-            act_hist = jp.tile(q_init[None, :], (self.act_delay_max + 1, 1))
+            act_hist = jp.tile(q_init[None, :], (self._act_hist_len, 1))
             lag_y0 = jp.tile(q_init, (3, 1))
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
@@ -2322,7 +2349,7 @@ class BimoMJXEnv:
             # the servo chain starts AT the squat, not slewing from standing
             q_init_r = self._to_servo(q_rsi).astype(jp.float32)
             act_hist = jp.where(crouch_slot > 0,
-                                jp.tile(q_init_r[None, :], (self.act_delay_max + 1, 1)),
+                                jp.tile(q_init_r[None, :], (self._act_hist_len, 1)),
                                 act_hist)
             lag_y0 = jp.where(crouch_slot > 0, jp.tile(q_init_r, (3, 1)), lag_y0)
         if self.ext_cmd:
@@ -2478,13 +2505,18 @@ class BimoMJXEnv:
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
         # the lag cascade, as the real bus write precedes the servo's response.
         act_hist = jp.concatenate([target[None, :], state.act_hist[:-1]], axis=0)
-        target = jp.take(act_hist, state.act_delay, axis=0)
+        if self._act_delay_extra is None:
+            target = jp.take(act_hist, state.act_delay, axis=0)
+        else:                       # per-servo dead time: the episode's draw + the servo's own
+            idx = jp.clip(state.act_delay + self._act_delay_extra, 0, self._act_hist_len - 1)
+            target = act_hist[idx, jp.arange(act_hist.shape[1])]
         # action-chain lag (3 cascaded first-order stages, the firmware C2
         # shaper's structure) BEFORE quantization, matching the deploy path's
         # shaper -> angleToSteps order. Per-episode pole from _draw_episode;
         # a 0 Hz draw is a pass-through.
         if self.act_lag_hz > 0.0 or self.act_lag_hz_max is not None:
-            k = 1.0 - jp.exp(-2.0 * jp.pi * state.act_lag * self.control_dt)
+            pole = state.act_lag if self._act_lag_scale is None else state.act_lag * self._act_lag_scale
+            k = 1.0 - jp.exp(-2.0 * jp.pi * pole * self.control_dt)
             k = jp.where(state.act_lag > 0.0, k, 1.0)
             y1 = state.lag_y[0] + k * (target - state.lag_y[0])
             y2 = state.lag_y[1] + k * (y1 - state.lag_y[1])
@@ -3267,7 +3299,8 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      nom_friction=None, tilt_max_deg: float = 0.0,
                      joint_frictionloss_range=None, nom_frictionloss=None,
                      jv=(0, 0), torso_bid=None, torso_mass_range=None,
-                     torso_com_y=0.0, nom_ipos=None):
+                     torso_com_y=0.0, nom_ipos=None,
+                     floor_contact_range=None, contact_gids=None, nom_solref=None):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3283,7 +3316,11 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     joint_frictionloss_range (lo, hi): per-env joint Coulomb friction, ONE
     draw U(lo, hi) set on every servo DOF (dofs jv[0]:jv[1]); the get-up
     references are verified over 0.05..0.5 N*m and a policy trained at one
-    value fails at another (robot_getup_t3k, 2026-10-22)."""
+    value fails at another (robot_getup_t3k, 2026-10-22).
+
+    floor_contact_range ((k_lo, k_hi), (b_lo, b_hi)): per-env foot/floor contact, k and b drawn
+    log-uniformly, solref = (-k, -b) on contact_gids (the floor and the sole pads) -- carpet
+    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md."""
     nbody = model.body_mass.shape[0]
     g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
     # (float() here breaks under jit: domain_randomize is traced inside
@@ -3325,9 +3362,16 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                 jax.random.uniform(r_j, minval=lo, maxval=hi))
         else:
             fl = nom_frictionloss
-        return mass, inertia, friction, gravity, fl, ipos
+        sr = nom_solref
+        if floor_contact_range is not None:
+            (k_lo, k_hi), (b_lo, b_hi) = floor_contact_range
+            r_k, r_b = jax.random.split(jax.random.fold_in(r_f, 13))
+            k = jp.exp(jax.random.uniform(r_k, minval=np.log(k_lo), maxval=np.log(k_hi)))
+            b = jp.exp(jax.random.uniform(r_b, minval=np.log(b_lo), maxval=np.log(b_hi)))
+            sr = nom_solref.at[contact_gids].set(jp.stack([-k, -b]))
+        return mass, inertia, friction, gravity, fl, ipos, sr
 
-    mass, inertia, friction, gravity, frictionloss, ipos = rand(rng)
+    mass, inertia, friction, gravity, frictionloss, ipos, solref = rand(rng)
     in_axes = jax.tree_util.tree_map(lambda x: None, model)
     fields = {"body_mass": 0, "body_inertia": 0, "geom_friction": 0}
     values = {"body_mass": mass, "body_inertia": inertia,
@@ -3341,6 +3385,9 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
     if torso_com_y > 0.0:
         fields["body_ipos"] = 0
         values["body_ipos"] = ipos
+    if floor_contact_range is not None:
+        fields["geom_solref"] = 0
+        values["geom_solref"] = solref
     in_axes = in_axes.tree_replace(fields)
     model = model.tree_replace(values)
     return model, in_axes

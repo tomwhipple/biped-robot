@@ -102,7 +102,9 @@ class BatchedEnv(brax_base.Env):
                     joint_frictionloss_range=e.joint_frictionloss_range,
                     nom_frictionloss=e._nom_frictionloss, jv=(e._jv0, e._jv1),
                     torso_bid=e._torso_bid, torso_mass_range=e.torso_mass_range,
-                    torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos)
+                    torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos,
+                    floor_contact_range=e.floor_contact_range,
+                    contact_gids=e._contact_gids, nom_solref=e._nom_solref)
         return self._dr_cache[n]
 
     @property
@@ -308,6 +310,25 @@ def make_parser():
                         "gearbox backdrive stiction measures ~0.35 N*m "
                         "(off_frictionloss) -- pass that for a plant whose "
                         "static pose-hold matches hardware")
+    p.add_argument("--act-delay-extra", default=None,
+                   help="per-servo EXTRA dead time in control ticks on top of --act-delay-max: "
+                        "a preset (sts2026: the STS3215s +3 ticks behind the STS3250 hip rolls, "
+                        "2026-11-01 loaded step responses) or role/actuator=ticks pairs")
+    p.add_argument("--act-lag-scale", default=None,
+                   help="per-servo multiplier on the --act-lag pole: a preset (sts2026: hip_roll "
+                        "x4, the STS3250 rises ~4x faster) or role/actuator=x pairs")
+    p.add_argument("--servo-kd", type=float, default=None,
+                   help="servo position-loop damping reference, N*m*s/rad (default 0.25; "
+                        "--servo-kp-scale multiplies it with kp). The 2026-11-01 roll sweep "
+                        "fits the robot's servos far less damped than the model "
+                        "(experiments/one-leg-stand/2026-11-01-floors-fit.md)")
+    p.add_argument("--servo-joint-damping", type=float, default=None,
+                   help="viscous damping on every servo DOF, N*m*s/rad (default 0.1)")
+    p.add_argument("--floor-contact", default=None,
+                   help="k_lo,k_hi,b_lo,b_hi: per-env foot/floor contact DR, stiffness k "
+                        "(1/s^2) and damping b (1/s) drawn log-uniformly, solref=(-k,-b) on "
+                        "the floor and the sole pads; needs DR on (--precision). The carpet.."
+                        "hard range of experiments/one-leg-stand/2026-11-01-floors-fit.md")
     p.add_argument("--joint-frictionloss-range", default=None,
                    help="lo,hi N*m: per-env joint friction DR (one draw for "
                         "every servo DOF), e.g. 0.05,0.5; needs DR on "
@@ -677,6 +698,11 @@ def build_env_kw(args):
         # sim wobbles where the robot does not. Applied AFTER the family
         # block so any family recipe can be run with the measured level.
         env_kw["joint_frictionloss"] = args.joint_frictionloss
+    if getattr(args, "floor_contact", None) is not None:
+        v = [float(x) for x in args.floor_contact.split(",")]
+        if len(v) != 4 or not (0 < v[0] <= v[1] and 0 < v[2] <= v[3]):
+            raise SystemExit("--floor-contact wants k_lo,k_hi,b_lo,b_hi (all > 0, lo <= hi)")
+        env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
     if args.joint_frictionloss_range is not None:
         # get-up campaign 2026-10-22: friction DR (training only; the referee
         # grades at joint_frictionloss, or eval_precision --joint-frictionloss)
@@ -703,6 +729,15 @@ def build_env_kw(args):
         env_kw["recover_mix"] = 0.0
         if args.hip_flex is not None:
             env_kw["hip_flex_deg"] = args.hip_flex
+    for flag, key, cast in (("act_delay_extra", "act_delay_extra", int), ("act_lag_scale", "act_lag_scale", float)):
+        spec = getattr(args, flag, None)
+        if spec is not None:
+            env_kw[key] = (spec if "=" not in spec else
+                           {k.strip(): cast(float(v)) for k, v in (kv.split("=") for kv in spec.split(",") if kv.strip())})
+    if getattr(args, "servo_kd", None) is not None:
+        env_kw["servo_kd"] = float(args.servo_kd)
+    if getattr(args, "servo_joint_damping", None) is not None:
+        env_kw["servo_joint_damping"] = float(args.servo_joint_damping)
     if args.servo_kp_scale is not None:
         spec = args.servo_kp_scale
         if "=" in spec:
