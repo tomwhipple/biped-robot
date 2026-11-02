@@ -58,7 +58,7 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `head.py` | `head_shell`, `head_face`, and `head` (the two fused, for checks) |
 | `neck_floor.py` | the neck servo's seat: a plate screwed up into the neck tube's bosses, in the deck's battery aperture (#90); its checks and `tube_bosses()` |
 | `neck_collar.py` | the `ARMS=0` variant's neck tube (not a print target: its flange pilots miss the deck) |
-| `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print |
+| `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print, and the two pods' screw-on cheeks (`shoulder_cheek_v6`), so each shoulder servo goes in along its own axis; `--checks` sweeps both insertion paths |
 | `arm_v6.py` | upper arm and forearm (mirror pairs), the elbow-servo mock, and the elbow ROM check |
 | `audit_torso.py` | printability report for `pelvis_v8`, `torso_v8`, both covers, `yaw_bearing_housing` and the head parts |
 | `audit_ankle_foot.py` | printability report for `ankle_link` and `foot_L/R` |

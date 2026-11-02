@@ -439,8 +439,10 @@ def _arm_chain(side):
     pieces = [
         # the shoulder bracket is gone: shoulder_girdle_v6 carries BOTH shoulder
         # servos and the neck, and it is drawn once in torso_pieces(). Only the
-        # servo itself rides link 0 here.
+        # servo itself and its pod's cheek (the outboard grip plate, a separate
+        # print so the servo can go in along its axis) ride link 0 here.
         (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
+        (0, f"shoulder_cheek_{side}", COL_PRINT, deck * SG.shoulder_cheek_v6(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
         # the elbow servo's case rides the UPPER arm (arm_v6.elbow_servo_mock)
         (1, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),

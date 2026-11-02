@@ -43,8 +43,8 @@ Model
     neck           Rot(180,0,0)*servo_mock_z at the neck axis
                    (assembly_v6._torso_pieces): case standing, idler face
                    DOWN at the deck (neck_floor's well), cable end AFT; the
-                   lead leaves the girdle's neck tube through its aft window
-                   (shoulder_girdle_v6.py:296). Anchor: 2 mm below the deck
+                   lead leaves through the neck floor's window toward +y and
+                   rises beside the tube (docs/assembly.md 12). Anchor: 2 mm below the deck
                    top inside the well -- the neck floor's own lead window
                    (NECK_LEAD_WIN, x -17.35..-10.75) is cut through that
                    plate right under the trench.
@@ -124,7 +124,7 @@ YAW_PLUG = {"A": (-CONN_MID, -HIP, _YAW_PLUG_Z),
             "B": (-CONN_MID, +HIP, _YAW_PLUG_Z)}
 # neck plug: idler face DOWN into the neck floor's well (face at the deck
 # top plane, plug 2 mm proud below it), band mid toward the AFT cable end;
-# exits the neck tube's aft window:
+# leaves through the floor's window toward +y, up beside the tube:
 NECK_PLUG = (V.NECK_X - CONN_MID, 0.0, DECK_TOP_Z - 2.0)
 # shoulder lead's exit: up the open notch over the trench band (aft of the
 # axis), at the inboard wall plane, over the pod top:
@@ -159,8 +159,8 @@ NOTE_PITCH = ("link webs carry a cable WINDOW, not a routed channel; "
 NOTE_ANKLE_ROLL = ("the ankle link's raceway mentioned at dimensions_v6.py"
                    ":180 is not drawn; straight-line into the foot "
                    "bulkhead's cable window")
-NOTE_NECK = ("climbs the battery layer into the girdle's neck tube, out the "
-             "aft window, up to the well")
+NOTE_NECK = ("out the neck floor's window toward +y, up through the deck "
+             "aperture beside the neck tube")
 NOTE_SH_IN = ("exits UP through the girdle's open notch (shoulder_girdle_v6"
               ".py:216), along the deck to the General Driver's slot")
 NOTE_ARM = ("span is MEASURED off the assembly mocks (this file, "
