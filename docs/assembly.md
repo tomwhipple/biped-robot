@@ -258,11 +258,16 @@ the idler, with thread-locker, and check runout.
 
 ## 6. Hip yoke onto the hip-pitch servo
 
-- **Pitch clevis.** Lower `hip_yoke_v6` onto the hip-pitch servo in the thigh.
-  - Its pitch clevis (the lower half) straddles the servo's two discs: a horn arm
-    on +Y (4 × M3 × 5) and an idler hub on −Y (4 × M3 × 6).
-  - The yoke is one print, so there are no flange bolts.
-- **Roll clevis.** The upper half waits for §8.
+- **Join the yoke.** Press `hip_yoke_glued_roll` onto `hip_yoke_glued_pitch`
+  until both split prongs click under the pitch flange, pull them apart, glue
+  the lap (CA or epoxy, faces lightly sanded, the whole ~1058 mm² wetted) and
+  press them back together. Let it cure before any load: the lap carries the
+  servo torque. There are no flange bolts or inserts.
+- **Pitch clevis.** Lower the yoke's pitch clevis (`hip_yoke_glued_pitch`,
+  the lower half) onto the hip-pitch servo in the thigh.
+  - It straddles the servo's two discs: a horn arm on +Y (4 × M3 × 5) and an
+    idler hub on −Y (4 × M3 × 6).
+- **Roll clevis.** The upper half (`hip_yoke_glued_roll`) waits for §8.
 
 The leg is now a subassembly from the hip yoke down to the foot.
 
