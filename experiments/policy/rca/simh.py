@@ -42,6 +42,9 @@ def build(plant, run=RUN_NAME, ep_s=16.0, model=None):
         del ESA._CACHE[k]
     ESA.RUNS = run_root(run)
     env, act, zoff = ESA._setup(run, plant, 0.0, ep_s)
+    # the firmware chain runs HERE (Shaper / Servo in front of env._action_to_ctrl): a run
+    # trained with the shaper in the loop must not be shaped a second time by walker_env
+    env.fw_shaper_hz = 0.0
     return env, act, zoff
 
 

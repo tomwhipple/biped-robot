@@ -168,3 +168,25 @@ def test_loop_gain_dr_amplifies_the_deviation_only():
         want = _targets(env, np.clip(ema + 1.5 * (av - ema), -1, 1))
         np.testing.assert_allclose(np.asarray(s.last_target), want, rtol=0, atol=2e-5)
         np.testing.assert_allclose(np.asarray(s.prev_action), av, rtol=0, atol=1e-6)
+
+
+def test_walker_env_shaper_matches_mjx():
+    """The referee's walker_env applies the same shaper as env_mjx (same law, same seed,
+    same order), so a shaper-trained run is graded on the chain it trained on."""
+    from walker_env import BimoWalkerEnv
+    w = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+                      actuator_model="sts3215", imu_obs=True, domain_rand=False,
+                      latency_ms=0.0, backlash_deg=0.0, quantize_ticks=False,
+                      fw_shaper_hz=10.0)
+    w.reset(seed=0)
+    acts = [0.3, -0.2, 0.5]
+    for a in acts:
+        w.step(a * np.ones(w.action_space.shape[0], np.float32))
+    want = _shaper_law([w._to_servo(w._action_to_ctrl(a * np.ones(w.action_space.shape[0],
+                                                                   np.float32))) for a in acts],
+                       w._sdefault, 10.0, w.control_dt)
+    np.testing.assert_allclose(w.data.ctrl, want[2], rtol=0, atol=1e-9)
+    band = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+                         actuator_model="sts3215", imu_obs=True, domain_rand=False,
+                         fw_shaper_hz=8.0, fw_shaper_hz_max=12.0)
+    assert band.fw_shaper_hz == 10.0

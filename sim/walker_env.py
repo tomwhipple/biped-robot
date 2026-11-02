@@ -795,6 +795,14 @@ class BimoWalkerEnv(gym.Env):
         # act_delay_ticks control steps ago (20 ms each), applied BEFORE the
         # lag cascade like the deploy path. 0 = pass-through.
         act_delay_ticks: int = 0,
+        # the FIRMWARE command shaper (obs::CommandShaper; env_mjx fw_shaper_hz): 3 cascaded
+        # first-order lags on the policy targets, seeded at the default pose, then the goal
+        # ticks, BEFORE the servo (dead time, act-lag). A run trained with it inherits it
+        # through config.json -- it is the robot's firmware, not training DR -- and the
+        # referee grades at the deployed pole: fw_shaper_hz, or the middle of a drawn band
+        # (fw_shaper_hz_max). 0 = off (2026-11-02).
+        fw_shaper_hz: float = 0.0,
+        fw_shaper_hz_max: float | None = None,
         # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
         # (or a ACT_DELAY_EXTRA_PRESETS name), and a per-actuator multiplier on the act-lag
         # pole ({actuator | role: x} or a ACT_LAG_SCALE_PRESETS name); mirror of env_mjx
@@ -980,6 +988,9 @@ class BimoWalkerEnv(gym.Env):
         self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
         self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
         self.act_delay_ticks = int(act_delay_ticks)
+        self.fw_shaper_hz = (0.5 * (float(fw_shaper_hz) + float(fw_shaper_hz_max))
+                             if fw_shaper_hz_max is not None else float(fw_shaper_hz))
+        self._shp_y = None       # (3, n_servo) shaper state; seeded on 1st step
         self.crouch_pose_ref = bool(crouch_pose_ref)
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
         self.crouch_deep = (None if crouch_deep_ref is None
@@ -2150,6 +2161,7 @@ class BimoWalkerEnv(gym.Env):
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
+        self._shp_y = None                    # re-seed the firmware shaper
         if self.act_lag_dr_max is not None:
             self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
                                                             self.act_lag_dr_max))
@@ -2168,6 +2180,17 @@ class BimoWalkerEnv(gym.Env):
         # policy targets onto the servo vector (held joints at their hold);
         # everything downstream is per servo
         target = self._to_servo(self._action_to_ctrl(action))
+        if self.fw_shaper_hz > 0.0:
+            # the firmware shaper, then the goal ticks (mirror of env_mjx step)
+            if self._shp_y is None:
+                self._shp_y = np.stack([np.asarray(self._sdefault, dtype=np.float64)] * 3)
+            ks = 1.0 - np.exp(-2.0 * np.pi * self.fw_shaper_hz * self.control_dt)
+            self._shp_y[0] += ks * (target - self._shp_y[0])
+            self._shp_y[1] += ks * (self._shp_y[0] - self._shp_y[1])
+            self._shp_y[2] += ks * (self._shp_y[1] - self._shp_y[2])
+            target = self._shp_y[2].copy()
+            if self.quantize_ticks:
+                target = self._quant_angle(target)
         nd = int(self._act_delay_vec.max())
         if nd > 0:
             # servo dead time: serve the target from act_delay_ticks (+ the actuator's
@@ -2191,7 +2214,7 @@ class BimoWalkerEnv(gym.Env):
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
             target = self._lag_y[2].copy()
-        if self.quantize_ticks:
+        if self.quantize_ticks and not self.fw_shaper_hz > 0.0:
             # the firmware writes INTEGER goal ticks (SYNC WRITE), so the
             # servo never sees the float target -- quantize before the
             # actuator path (latency buffer, PD, backlash) touches it
