@@ -54,7 +54,9 @@ def test_plates_hold_known_parts_that_share_a_process():
         assert len(plate["parts"]) > 1 and set(plate["parts"]) <= set(SPEC["parts"]), name
         S.job_entry(SPEC, name)           # raises if the parts disagree
     jobs = S.jobs(SPEC)
-    on_plates = [p for plate in SPEC.get("plates", {}).values() for p in plate["parts"]]
+    # a part listed twice on one plate is two copies in the same project
+    # (girdle_neck carries shoulder_cheek_v6 twice), so count it once per plate
+    on_plates = [p for plate in SPEC.get("plates", {}).values() for p in dict.fromkeys(plate["parts"])]
     # every printed part is in exactly one --all project
     assert sorted(on_plates + [j for j in jobs if j in SPEC["parts"]]) == sorted(SPEC["parts"])
 
@@ -88,6 +90,7 @@ ORIENT_SOURCES = {
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),
     "shoulder_girdle_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_girdle_v6"),
+    "shoulder_cheek_v6": ("shoulder_girdle_v6", "PRINT_ORIENT", "shoulder_cheek_v6"),
     "pelvis_v8": ("torso_v8", "PRINT_ORIENT", "pelvis_v8"),
     "torso_v8": ("torso_v8", "PRINT_ORIENT", "torso_v8"),
     "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),
@@ -370,6 +373,29 @@ def test_torso_window_enforcers_match_the_cad():
             x0, x1, y0, y1, z0, z1 = enf
             assert bb.min.X < x0 < x1 < bb.max.X and bb.min.Y < y0 < y1 < bb.max.Y
             assert z0 == pytest.approx(bb.min.Z - T.ENF_INTO) and z1 == pytest.approx(bb.max.Z)
+
+
+def test_forearm_pad_enforcers_match_the_cad():
+    """The forearms' boxes are arm_v6's: one per elbow pad, across its tine,
+    from the bed to where the pad's arc is steeper than the spec's support
+    threshold. The upper arms share the arms plate's manual supports with no
+    box, so they print unsupported."""
+    import arm_v6 as A
+    V, D = A.V, A.D
+    assert A.SUPPORT_ANGLE == float(SPEC["supports"]["support_threshold_angle"])
+    r = D.PAD_D / 2
+    for s in "LR":
+        fore = SPEC["parts"][f"arm_fore_v6_{s}"]
+        assert fore["supports"] and fore["settings"]["support_type"] == "normal(manual)"
+        boxes = [e["box"] for e in fore["support_enforcers"]]
+        assert boxes == A.support_enforcers(s)
+        bb = A.arm_fore_v6(s).bounding_box()
+        for x0, x1, y0, y1, z0, z1 in boxes:
+            assert x0 == pytest.approx(bb.min.X) and -r < x1 < 0     # from the bed, short of the axis
+            assert bb.min.Y <= y0 < y1 <= bb.max.Y and y1 - y0 <= D.PLATE + 0.6 + 1e-9
+            assert z0 < 0 < r == z1                                   # the round end, past the axis
+        assert "support_enforcers" not in SPEC["parts"][f"arm_upper_v6_{s}"]
+    assert S.job_entry(SPEC, "arms")["settings"]["support_type"] == "normal(manual)"
 
 
 def test_orient_name_round_trip():
@@ -664,3 +690,35 @@ def test_real_slice_of_the_feet_puts_both_on_one_plate(tmp_path):
     assert stats["in_bounds"] and os.path.exists(os.path.join(tmp_path, "feet.gcode"))
     state = json.loads((tmp_path / ".work" / "feet.state.json").read_text())
     assert set(state["objects"]) == {"foot_L.stl", "foot_R.stl"}
+
+
+def _support_heights(gcode):
+    """Print heights of every support move that travels (unretracts are E-only)."""
+    z, typ, heights = 0.0, "", set()
+    for line in open(gcode):
+        if line.startswith(";Z:"):
+            z = float(line[3:])
+        elif line.startswith(";TYPE:"):
+            typ = line[6:].strip()
+        elif ("upport" in typ and line.startswith("G1") and " E" in line and "E-" not in line
+              and (" X" in line or " Y" in line)):
+            heights.add(z)
+    return heights
+
+
+@pytest.mark.skipif(sys.platform != "darwin" or not os.path.exists(ORCA),
+                    reason="OrcaSlicer.app not installed")
+def test_real_slice_of_the_arms_supports_the_elbow_pads_only(tmp_path):
+    """All four arm links on one plate, square to the bed; support only from
+    the bed up to the forearms' pads (5.16 mm over it), none on the upper arms."""
+    lib = S.orca_profile.Library()
+    printer = S.choose_printer(lib, SPEC)
+    path, stats = S.slice_part("arms", SPEC, lib, str(tmp_path), printer)
+    project = S.read_3mf(path)
+    assert sorted(name for name, _ in project["items"]) == sorted(
+        f"{p}.stl" for p in SPEC["plates"]["arms"]["parts"])
+    assert stats["in_bounds"]
+    heights = _support_heights(tmp_path / "arms.gcode")
+    assert heights and max(heights) < 7.0
+    S.slice_part("arm_upper_v6_L", SPEC, lib, str(tmp_path), printer)
+    assert not _support_heights(tmp_path / "arm_upper_v6_L.gcode")

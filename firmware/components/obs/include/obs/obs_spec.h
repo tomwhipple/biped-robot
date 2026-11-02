@@ -5,11 +5,17 @@
 // retrain that changes joint count, command width or history depth
 // regenerates this file; nothing downstream hardcodes 10 or 49.
 #pragma once
+#ifdef BIMO_POLICY_OVERLAY
+#error "this is the DEPLOYED obs_spec.h, but the build selected a policy profile (BIMO_POLICY): its firmware/policies/<profile> directory must come first on the include path"
+#endif
 #include <stdint.h>
 
 namespace obs {
 
 // -- deployed run ------------------------------------------------------
+// The policy profile this set belongs to (tools/policy_profile.py):
+// "" for the deployed set in the components, else the BIMO_POLICY name.
+inline constexpr const char* kPolicyProfile = "";
 inline constexpr const char* kRunName = "loco_v41rsi_b_s128r24";
 inline constexpr const char* kPlantXml = "bimo_biped_v5body.xml";
 inline constexpr const char* kActionMap = "full";

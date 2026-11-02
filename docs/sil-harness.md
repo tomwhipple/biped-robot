@@ -41,22 +41,24 @@ harness: bus order back to joint order -> ticks to angles -> invert the
 ## C ABI (`firmware/host/sil.h` → `libctrl_sil.{dylib,so}`)
 
 ```c
-typedef struct {            // what the bus + IMU deliver
-    uint16_t pos_ticks[17]; // present position, register 56 semantics, servo-ID order
-    int16_t  vel_ticks[17]; // present speed: the register-58 sign-magnitude
-                            //   word (sign in bit 15), carried in an int16
-    float    up[3];         // IMU up-vector
-    float    gyro[3];       // rad/s
-    float    cmd[7];        // command channels (harness-supplied)
+// widths: the compiled policy's (bus 17, cmd 7; act/obs 10/147 for the
+// deployed policy, 12/165 for the v6legs profile)
+typedef struct {                       // what the bus + IMU deliver
+    uint16_t pos_ticks[SIL_NUM_BUS];   // present position, register 56 semantics, bus order
+    int16_t  vel_ticks[SIL_NUM_BUS];   // present speed: the register-58 sign-magnitude
+                                       //   word (sign in bit 15), carried in an int16
+    float    up[3];                    // IMU up-vector
+    float    gyro[3];                  // rad/s
+    float    cmd[SIL_NUM_CMD];         // command channels (harness-supplied)
 } SilSensors;
 
 typedef struct {
-    uint16_t goal_ticks[17];  // SYNC WRITE view, servo-ID order; shaped when
-                              //   the shaper is on (the default, as deployed)
-    float    action[10];      // the raw [-1, 1] policy action (diagnostics)
-    float    obs[147];        // the assembled observation (diagnostics, goldens)
-    uint16_t goal_speed[17];  // per-servo register-46 goal speed, servo-ID
-                              //   order; 0 when shaping is off
+    uint16_t goal_ticks[SIL_NUM_BUS];  // SYNC WRITE view, bus order; shaped when
+                                       //   the shaper is on (the default, as deployed)
+    float    action[SIL_ACT_DIM];      // the raw [-1, 1] policy action (diagnostics)
+    float    obs[SIL_OBS_DIM];         // the assembled observation (diagnostics, goldens)
+    uint16_t goal_speed[SIL_NUM_BUS];  // per-servo register-46 goal speed, bus
+                                       //   order; 0 when shaping is off
 } SilTargets;
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
@@ -87,9 +89,13 @@ void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw 
   position sensed on the first tick after `sil_reset()` -- the firmware's
   hold, without its takeover ramp ([firmware-design.md](firmware-design.md)
   §5.8). The harness fills them with 2048.
-- **The widths are static-asserted** against `bus_map.h` and `obs_spec.h` in
-  `sil_lib.cpp`, so a retrain that changes a dimension breaks the build
-  rather than silently reinterpreting bytes.
+- **The widths are the compiled spec's**: one library per policy profile
+  (`make -C firmware/host sil POLICY=<profile>` builds into
+  `build/policy-<profile>/`; [training.md §9](training.md), "Policy
+  profiles"). `sil_spec()` reports every width and the profile, the harness
+  sizes its ctypes structs from the same `obs_spec.h` (`$BIMO_POLICY` selects
+  a profile's) and refuses a library whose widths differ, so a dimension
+  change can never silently reinterpret bytes.
 - `sil_abi` 3 is the current ABI: the 17-slot bus arrays. `sil_abi` 2 added
   goal speeds in `SilTargets` and `sil_set_shaper()`, mirroring the
   firmware's command shaper ([firmware-design.md](firmware-design.md) §5.3).
@@ -223,6 +229,16 @@ Numbered because code cites them.
    out, so for this policy it must stay at 0. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
    the deployed run.
+   Since the v6 legs deployment the firmware enforces this itself:
+   `policy::pinFrozen` (policy/mlp.h) feeds every frozen **command** channel
+   its trained value (the normaliser mean) in `ctrl_task.cpp` and
+   `sil_lib.cpp`, whatever the link or the pack guard asks for. The exporter
+   refuses a run with a frozen slot that is neither a command channel nor
+   one the assembler hard-zeroes (linvel, height). `test_policy` checks the
+   compiled-in net's set, and `test_sil_profiles.py` checks it against the
+   training env's own command sampler. The v6 legs walk students freeze
+   linvel, height and `cmd[3..6]`: crouch is fixed at 1, and lift and foot
+   are 0.
 3. **The policy takes its weights as a parameter.** `policy::Net` /
    `forwardNet` run an exported `.silw` through exactly the on-target
    arithmetic; `forward()` binds the same code to the generated header.

@@ -436,6 +436,177 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-02 card: night 12 -- a (128,128) get-up trained directly with PPO
+# sweeps 48/48 on one seed (w13k_s1; the other seed sinks after standing);
+# the w12k student sweeps 44/48 but loses shoves (4/16). Legs: the
+# actuator-DR student walk16_act_s128r24 passes x1.5 loop gain on the
+# measured actuator (the hardware-stand candidate); the walk does not
+# return under actuator DR.
+fig_1102 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w13k_s1', ['recover_supine_ph'],
+                 'robot_getup_w13k_s1_supine_ph',
+                 'a firmware-sized (128, 128) get-up trained with PPO, no distil: '
+                 '48/48 over friction 0.05-0.5, 8/16 under 15 N shoves'),
+    video_figure('robot_getup_w13k', ['recover_supine_ph'],
+                 'robot_getup_w13k_supine_ph',
+                 'the same recipe, seed 0: it stands at 21.7 s, then sinks to '
+                 '0.29 m (supine ph 1/8 at friction 0.35; sweep 31/48)'),
+    video_figure('robot_legs_walk16_act_s128r24', ['stand_10s'],
+                 'robot_legs_walk16_act_s128r24_stand',
+                 'the hardware-stand candidate: 0/8 falls on the measured actuator at '
+                 'x1.5 loop gain (shown on the no-dead-time referee, where it drifts)'),
+    video_figure('robot_legs_walk16_act', ['walk_steps_L'],
+                 'robot_legs_walk16_act_walk_steps',
+                 'the actuator-DR teacher stands but does not step: peaks <= 1 cm '
+                 '(walk14 without dead time: 5/8 at >= 3 cm)'),
+] if f)
+# 2026-11-01 card: night 11 -- the get-up holds on the full deploy contract
+# (w12k: asbuilt P32, quantizer, clip within stops: 48/48, 15 N 14/16); the
+# first get-up student (w9k -> (128,128)) loses 16/48. Legs: walk14 79/160 is
+# the best deployable teacher; its student loses 42; the first step is the
+# walk gate now.
+fig_1101 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w12k', ['recover_prone_fall'],
+                 'robot_getup_w12k_prone_fall',
+                 'the get-up on the robot\'s own gains, encoder quantizer and stop '
+                 'clip: 48/48 over friction 0.05-0.5, 14/16 under 15 N shoves'),
+    video_figure('robot_getup_w9k_s128r24', ['recover_prone_fall'],
+                 'robot_getup_w9k_s128r24_prone_fall',
+                 'the first firmware-sized get-up student: 32/48 over friction '
+                 '(teacher 48); it never stands from prone at friction 0.5'),
+    video_figure('robot_legs_walk14', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk14_walk_steps',
+                 'the best deployable legs teacher: 79/160, walk_steps 5/8 and 3/8; '
+                 'the misses are the first step from standing'),
+] if f)
+# 2026-10-31 card: night 10 -- the get-up stands on the as-built STS3215
+# knees (w9k, w9k_s1, w10k: sweep 48/48, 15 N 15-16/16; #147). Legs, the
+# deploy-first recipe on the fitted plant: the (128,128) students lose 10-15
+# seed-passes to their teachers and double the power (the distil underfits).
+fig_1031 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w9k', ['recover_prone_fall'],
+                 'robot_getup_w9k_prone_fall',
+                 'the get-up on the robot\'s own STS3215 knees: 48/48 over friction '
+                 '0.05-0.5, 16/16 under 15 N shoves (the STS3250-knee w5k: 48, 14)'),
+    video_figure('robot_legs_walk13_fit_s1', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk13_fit_s1_walk_steps',
+                 'the best deployable-recipe teacher (full map, P32, fitted plant): '
+                 'walk_steps left 4/8, right 1/8; 70/160 overall'),
+    video_figure('robot_legs_walk13_fit_s128r24', ['walk_steps_R', 'stand_10s'],
+                 'robot_legs_walk13_fit_s128r24_steps_stand',
+                 'its firmware-sized student: 52/160 (teacher 67), 213 W at a plain '
+                 'stand (teacher 80 W): the student hunts around the teacher\'s targets'),
+] if f)
+# 2026-10-30 card: night 9 -- 30/22 N training shoves barely move the 30 N
+# grade (the misses are shoves off the time-indexed prone roll); the analytic
+# reference stands open loop on the as-built STS3215 knees (#147). Legs: the
+# stop window (#164) fixes the closing step on two seeds; balance drifts
+# one-sided when trained on from the two-sided pass.
+fig_1030 = "\n    ".join(f for f in [
+    video_figure('robot_legs_walk9', ['walk_steps_L'],
+                 'robot_legs_walk9_walk_steps_L',
+                 'walk shaping kept on for 0.4 s after "stop": the closing step clears '
+                 '3 cm in 12 of 16 episodes (walk8 4/16); the first step is the gate now'),
+    video_figure('robot_legs_walk9_s1', ['line_1m'],
+                 'robot_legs_walk9_s1_line_1m',
+                 'the replicate: the stop step holds (10/16 clear), but the 1 m line '
+                 'drifts sideways, 1/8 (y 25 cm at 1 m; walk3 7 cm)'),
+    video_figure('robot_legs_bal4', ['balance_L', 'balance_R'],
+                 'robot_legs_bal4_balance',
+                 'trained on from the only two-sided balance: left 7/8, right 1/8 '
+                 '(bal3_s1 8/8): the recipe has a one-sided optimum'),
+    video_figure('robot_getup_w7k_s1', ['recover_prone_fall'],
+                 'robot_getup_w7k_s1_prone_fall',
+                 'trained with 30 N shoves: 48/48 over friction, 15 N 16/16, but 30 N '
+                 'only 6/16, mostly shoved off the prone roll and never standing'),
+] if f)
+# 2026-10-29 card: night 8 -- shoves + the early termination after the latch
+# hold the stand (w5k 48/48, 15 N 14 and 16/16 on two seeds); the termination
+# alone does not (w6k 11/16); 30 N fails on the prone roll. Legs: the balance
+# recipe is one-sided in 2 of 3 seeds; holding the clock left the stop step.
+fig_1029 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w5k_s1', ['recover_prone_fall'],
+                 'robot_getup_w5k_s1_prone_fall',
+                 'trained with 15 N shoves and the termination kept on after the stand: '
+                 '48/48 over friction, and 16/16 under 15 N shoves (no sink)'),
+    video_figure('robot_getup_w6k', ['recover_supine_ph'],
+                 'robot_getup_w6k_supine_ph',
+                 'the control, termination without shoves: 48/48 over friction, but '
+                 'under 15 N shoves 11/16 (4 stand, then sink)'),
+    video_figure('robot_legs_bal3_s2', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_s2_balance',
+                 'the balance recipe, third seed: left 6/8, right 0/8 (clear 24 %): '
+                 'one-sided again, bal3_s1 stays the only two-sided pass'),
+    video_figure('robot_legs_walk8', ['walk_steps_L'],
+                 'robot_legs_walk8_walk_steps_L',
+                 'gait clock held at the stand: steady steps ~6 cm, the closing step '
+                 'after "stop" still ~0.9 cm, the first step ~1.9 cm'),
+] if f)
+# 2026-10-28 card: night 7 -- training with 15 N shoves did not harden the
+# get-up; the shoves win AFTER the stand (a sink into a ~0.27 m crouch that the
+# early termination never ends, #163); 0.075 sweeps 48/48 on a second seed;
+# legs: bal3_s1 balances on either foot (7/8, 8/8), the stop step is unmoved.
+fig_1028 = "\n    ".join(f for f in [
+    video_figure('robot_legs_bal3_s1', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_s1_balance',
+                 'bal3, seed 2 of the recipe: one-leg balance passes on BOTH feet '
+                 '(7/8 left, 8/8 right, foot clear 98 - 99 %), bal3 was 2/8 each'),
+    video_figure('robot_legs_walk7', ['walk_steps_R'],
+                 'robot_legs_walk7_walk_steps_R',
+                 'a charge on joint motion at the stand (w_still 0.3): steady steps clear '
+                 '~6 cm, the closing step after "stop" is still a ~0.6 cm shuffle'),
+    video_figure('robot_getup_w4k', ['recover_supine_ph'],
+                 'robot_getup_w4k_supine_ph',
+                 'trained with 15 N shoves: 8/8 here, but under 15 N it stands in every '
+                 'seed and 7/8 then sink to a ~0.27 m crouch'),
+    video_figure('robot_getup_w3k_s1', ['recover_prone_fall'],
+                 'robot_getup_w3k_s1_prone_fall',
+                 'residual 0.075, second seed: 48/48 over friction 0.05 - 0.5 again'),
+] if f)
+# 2026-10-27 card: night 6 -- the residual 0.15 recipe holds over three seeds
+# (47, 47, 43/48) and 0.075 sweeps 48/48, but harder shoves (15 N @ 2 %) knock
+# them down half the time; legs: starting balance from the walker makes it
+# two-sided (bal3), the stop step stays ~1 cm whatever the variable.
+fig_1027 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w3k', ['recover_prone_fall'],
+                 'robot_getup_w3k_prone_fall',
+                 'residual 0.075: up from face-down in every seed at every friction, '
+                 '48/48 over 0.05 - 0.5, the first clean sweep'),
+    video_figure('robot_getup_w2k_s2', ['recover_supine_ph'],
+                 'robot_getup_w2k_s2_supine_ph',
+                 'the 0.15 recipe, seed 2: 43/48 over friction; its misses still stand, '
+                 'then sink (the old stand-then-tip, now 1 - 2 seeds of 8)'),
+    video_figure('robot_legs_bal3', ['balance_L', 'balance_R'],
+                 'robot_legs_bal3_balance',
+                 'balance started from the walker: a foot up ~8.6 s of 10 on EITHER side '
+                 '(bal2: right side 0/8), still 2/8 each on brief touchdowns'),
+    video_figure('robot_legs_walk5', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk5_walk_steps',
+                 'twice the start/stop transitions: steady steps 5 - 8 cm, the closing step '
+                 'after "stop" still ~0.7 cm (0/8, 0/8)'),
+] if f)
+# 2026-10-26 card: night 5 -- a smaller residual (0.15) gives the best get-up
+# so far (w2k 47/48) and keeps the stand; the w0k recipe's 46/48 was one lucky
+# seed of three; friction DR lost again. Legs: the low-swing penalty lifts the
+# first step but not the stop step; the mirror loss leaves balance one-sided.
+fig_1026 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w2k', ['recover_supine_ph'],
+                 'robot_getup_w2k_supine_ph',
+                 'residual 0.3 -> 0.15: stands from the back and stays up in every seed, '
+                 '47/48 over friction 0.05 - 0.5, the best get-up so far'),
+    video_figure('robot_getup_w0k_s1', ['recover_supine_ph'],
+                 'robot_getup_w0k_s1_supine_ph',
+                 'the w0k recipe (residual 0.3), seed 1: stands at ~23 s, then sinks to a seat '
+                 'at 0.31 m (1/8; 24/48 over friction)'),
+    video_figure('robot_legs_walk3', ['walk_steps_L', 'walk_steps_R'],
+                 'robot_legs_walk3_walk_steps',
+                 'per-step penalty, weight 5: steady steps 3.2 - 8 cm, the first step '
+                 'higher than walk2, the stop step still 0.3 - 1.9 cm (2/8, 0/8)'),
+    video_figure('robot_legs_bal2', ['balance_L', 'balance_R'],
+                 'robot_legs_bal2_balance',
+                 'mirror-symmetry loss on: half the falls of bal1, still stands on one foot '
+                 'only one way round (balance_L 5/8, balance_R 0/8)'),
+] if f)
 # 2026-10-25 card: night 4 -- the centred crouch hold works (w0k 46/48 over
 # friction, above its reference's replay) but its seed replicate stands and
 # then tips; the first legs-only runs balance one way round only and walk with
@@ -697,6 +868,222 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>
+    <p><b>Get-up: the firmware-sized network can do it without distillation.</b>
+    Trained directly with PPO at (128, 128), w13k_s1 passes 48/48 across joint
+    friction 0.05 – 0.5. It learns as fast as the big network. The other seed
+    (w13k) stands and then sinks from supine ph (31/48), and both small-net
+    seeds lose more shoves than the big ones (7 – 8/16 at 15 N against
+    12 – 15/16). The stock student of the deployable teacher w12k is much
+    better than w9k's (44/48 against 32/48), but it keeps only 4/16 under
+    shoves. Twice the distillation data made it worse. A big network from
+    scratch (w14k) sweeps 48/48, so the old init is not needed. Tonight:
+    action noise during distillation, a teacher-sized student, a (256, 256)
+    PPO network, a third seed, and less residual authority for the small
+    network.</p>
+    <p><b>Legs: a stand policy with margin on the measured actuator; the walk is the open problem.</b>
+    After 11-01's flail (the STS3215s have ~70 ms dead time), the
+    actuator-randomised student walk16_act_s128r24 survives 1.5× loop gain,
+    the pessimistic actuator fit and 100 ms dead time with 0/8 falls. It is
+    the hardware-stand candidate. On that plant the walk does not come back:
+    training falls stay at ~0.9 over 1.1B steps and foot peaks stay ≤ 1.2 cm.
+    Tonight tests the cadence (commanded speed capped at 0.35 m/s) against
+    the dead-time tails (40 – 100 ms DR narrowed to 60 – 80 ms). On the
+    no-dead-time line, a (256, 256) student recovers 25 of the 42 seed-passes
+    the (128, 128) student lost (62 vs 37/160; teacher 79). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1102}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·01 · night 11: the deployable get-up + the student gate</span></p>
+    <p><b>Get-up: it holds on everything the robot's firmware imposes.</b>
+    Trained on the factory P32 gains the robot runs (w11k, w11k_s1: 46 and
+    47/48), then with the encoder quantizer and targets clipped to the joint
+    stops as well (w12k: 48/48 across joint friction 0.05 – 0.5, 14/16 under
+    15 N shoves). Clipping at the stops cost nothing. w12k is the deployable
+    get-up teacher. Its weak point is the next step. The first get-up distilled
+    into the firmware-sized (128, 128) network loses 16 of 48 trials and 10 of
+    16 under shoves. It sinks after standing at low friction and never stands
+    from prone at high friction. Its fit error says it learned its training
+    data but does not generalise. Tonight tests more distillation data, and
+    also training the small network directly with PPO so there is no distil
+    step (with a from-scratch control).</p>
+    <p><b>Legs: a better teacher, and the student is still the gate.</b>
+    walk14 (a second 400M on the fitted plant) passes 79/160 with walk_steps
+    5/8 left and 3/8 right. The right-foot weakness is gone, and the stop step
+    now clears 3 cm in 14 of 15 episodes. The failing step is now the first
+    step from standing (8/16 below 3 cm). Its firmware-sized student passes
+    37/160. 4× more training steps or 4× more data per round did not help the
+    students. Tonight brackets network size (256, 256) and the teacher's own
+    size, to tell capacity from the distil recipe. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1101}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·31 · night 10: get-up + the deployable legs</span></p>
+    <p><b>Get-up: it stands on the robot's own STS3215 knees, so no STS3250 knees are needed.</b>
+    Every get-up before night 10 trained with STS3250 knees, but the robot has
+    STS3215 (#147). The best recipe, trained on the as-built servos, gives the
+    same result on three runs (two seeds, plus one started from the best STS3250
+    policy): 48/48 across joint friction 0.05 – 0.5 and 15 – 16/16 under 15 N
+    shoves, the same as with STS3250 knees. The open-loop reference tipped back
+    at friction 0.05; the trained policies hold that stand. Tonight the get-up
+    trains on the gains the robot really runs (factory P32 on every leg servo),
+    then with the rest of the deploy contract (encoder quantizer, targets within
+    the stops). The first get-up distil into the firmware-sized network also
+    runs tonight.</p>
+    <p><b>Legs: the deployable teachers walk; their firmware-sized students are the gate.</b>
+    The walk now trains on the plant fitted to the 10-30 flight-recorder stands,
+    with the gains the ESP32 runs. The best teacher (walk13_fit_s1) passes 70/160,
+    with walk_steps 4/8 on the left foot and 1/8 on the right. Every
+    (128, 128) student loses 10 – 15 seed-passes to its teacher and draws about
+    twice the power: 213 W at a plain stand, against the teacher's 80 W. The
+    distil underfits: its error ends 6 – 12× higher than the v5 students' on the
+    same recipe. Tonight tests 4× more SGD and 4× more data per round, continues
+    the teacher from walk13_fit_s1 on two seeds, and distils every teacher.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1031}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·30 · night 9: get-up + the as-built legs</span></p>
+    <p><b>Get-up: harder training shoves did not harden it further; tonight it trains on the robot's own knee servos.</b>
+    Training at 30 N (w7k, two seeds) and 22 N (w8k) keeps the clean friction
+    sweep (48/48 each) and 15 – 16/16 under 15 N shoves. The 30 N grade only goes
+    from 4 to 5 and 6/16, and to 3/16 at 22 N. Half the face-down episodes are
+    shoved off the 11 s roll and never stand. The time-indexed reference moves on
+    without them, and a harder shove in training cannot teach a retry. The w5k
+    recipe stays the get-up. New this morning: every get-up so far trains with
+    STS3250 knees, but the robot has STS3215 (#147). With the robot's servos, the
+    analytic reference stands open loop in 144 of 216 robustness conditions:
+    every one at friction 0.35 and 0.5. At 0.05 it rises to 0.39 m and then tips
+    back during the final straightening. Tonight's three get-up jobs train the
+    w5k recipe on the as-built servos.</p>
+    <p><b>Legs: the closing step after "stop" now clears 3 cm; the first step is the gate.</b>
+    Keeping the walk shaping on for 0.4 s after a stop (walk9, #164) lifted the
+    closing step: it clears 3 cm in 12 and 10 of 16 episodes on two seeds, against
+    5 before. Seven reward variables had not moved it. walk_steps passes 5/16 on
+    both seeds, the best of the line. Now the first step fails (a ~2.5 cm lead step
+    in 7 and 10 of 16), and the 1 m line drifts sideways (4/8, 1/8). Training on
+    from the only two-sided balance policy (bal4) lost the right foot (1/8), so
+    bal3_s1 stays the balance policy. Tonight: a third walk9 seed, and walk10 with
+    the low-swing penalty doubled for the first step. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1030}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·29 · night 8: get-up + the as-built legs</span></p>
+    <p><b>Get-up: shoves in training plus the early termination after the stand hold it up under 15 N shoves.</b>
+    w5k (15 N training shoves, termination kept on after the stand, #163) sweeps
+    48/48 over joint friction 0.05 – 0.5 on two seeds. Under 15 N shoves it stands
+    14/16 and 16/16, against 7 and 13/16 with shoves alone and 12 and 8/16 with
+    neither. The termination without shoves (w6k) also sweeps 48/48, but holds
+    only 11/16 under shoves. At 30 N it is 4/16. Most misses are shoved off the
+    prone roll and never stand (11 of 16 prone episodes). Tonight trains at 30
+    and 22 N.</p>
+    <p><b>Legs: balance on both feet is one seed in three; the closing step is unmoved.</b>
+    A third balance seed (bal3_s2) holds the left foot 6/8 and the right 0/8, so
+    bal3_s1 stays the only policy that passes on both feet. Tonight trains on from
+    it (bal4). Holding the gait clock at a stand (walk8) left the closing step after
+    "stop" at ~0.9 cm, the seventh variable that has not moved it. At a stand the
+    reward pays double support and turns the step shaping off, so a quick low
+    shuffle is the cheapest way to close the stance. #164 keeps the walk shaping
+    on for 0.4 s after a stop (<code>--stop-grace-s</code>); walk9 and a replicate
+    train with it tonight. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1029}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·28 · night 7: get-up + the as-built legs</span></p>
+    <p><b>The as-built legs balance on either foot.</b> A second seed of the
+    balance recipe (bal3_s1) holds the left foot up 7/8 and the right 8/8, with
+    the lifted foot clear 98 – 99 % of the time. It is the first policy to pass
+    one-leg balance on both feet; the first seed (bal3) was 2/8 each. Walking:
+    charging joint motion at a plain stand (<code>--w-still</code> 0.1, 0.3) left
+    the closing step after "stop" at a 0.6 – 0.7 cm shuffle, the sixth variable
+    that has not moved it. Tonight: a third balance seed, and the walker with its
+    gait clock held at a stand (<code>--clock-freeze-stand</code>), since the
+    shuffle starts when the still-running clock swings the trailing foot.</p>
+    <p><b>Get-up: training with shoves did not help. The shoves win after the stand, not during the rise.</b>
+    Trained with 15 N shoves, w4k stands 7/16 under them and its seed 13/16 (no
+    training pushes: 12 and 8/16). Per seed, nearly every miss stands first, then
+    settles 3 – 7 s later into a ~0.27 m crouch and stays there. The early
+    termination only runs before the stand, so the crouch was never ended in
+    training and still earned part of the tracking reward. #163 keeps the
+    termination on after the stand; tonight trains it with and without
+    shoves. Residual 0.075 swept 48/48 again on a second seed.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1028}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·27 · night 6: get-up + the as-built legs</span></p>
+    <p><b>The get-up recipe holds over three seeds, and residual 0.075 sweeps clean. Harder shoves still knock it over.</b>
+    The residual 0.15 recipe scores 47, 47 and 43/48 over joint friction 0.05 /
+    0.35 / 0.5 on three seeds (the old 0.3 recipe: 46, 14, 24). Halving the
+    correction again to 0.075 (w3k) passes all 48. The referee's standard shoves
+    (5 N, 1 % of ticks) do not separate these policies; graded with harder ones,
+    at 15 N on 2 % of ticks they stand 8 – 12 of 16, and at 30 N 1 – 2 of 16. No
+    get-up run has trained with pushes since the campaign began. Tonight: w2k's
+    recipe trained with 15 N shoves (w4k, plus a seed), and a second seed of
+    w3k.</p>
+    <p><b>The as-built legs: balance is now two-sided; the stop step has not moved.</b>
+    Started from the walker instead of from scratch, bal3 holds a foot up for
+    about 8.6 s of 10 on either side (bal2's right side: 0/8). It still scores
+    only 2/8 each, failing on brief touchdowns, and it stands at 64 W (bal2
+    188 W). The closing step after "stop" stays at 0.7 – 1.5 cm whatever we
+    change: twice the start/stop transitions (walk5) and a new seed (walk3_s1)
+    both left it there. Tonight: a charge on joint motion at a plain stand
+    (<code>--w-still</code> 0.1 and 0.3) and a seed of bal3.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1027}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·10·26 · night 5: get-up + the as-built legs</span></p>
+    <p><b>Less authority, better get-up: w2k scores 47/48 over joint friction and stays standing.</b>
+    w2k is w0k's recipe with the policy's correction around the reference
+    halved (residual 0.3 → 0.15). From the back and from face-down it scores
+    8/8 and 7/8 at friction 0.05, and 8/8 for both at 0.35 and at 0.5, ending
+    upright at 0.39 m in every seed. w0k's own 46/48 turned out to be the lucky
+    seed: its replicates score 14/48 and 24/48, standing and then sinking onto a
+    seat. Friction randomisation lost for the third time (w1k 24/48) and is
+    dropped. Tonight: two more seeds of w2k to see whether the spread narrows,
+    and residual 0.075 (w3k).</p>
+    <p><b>The as-built legs: the first step got higher, the stop step did not.</b>
+    With the per-step penalty, walk3 is the best walker on this plant (77/160;
+    line 8/8, square 8/8, gait asymmetry 9 %), but it passes "every step ≥ 3 cm"
+    only 2/8 and 0/8. Logged per step: the first step rose (median 1.6 → 2.6 cm),
+    the steady steps all clear 3 cm, and the closing step after "stop" stays at
+    ~1.5 cm, the same at weight 5 and 15. Tonight: twice as many start/stop
+    transitions in training (walk5), and a seed replicate of walk3. Balance with
+    the mirror-symmetry loss halves the falls (49 → 24 %) but still stands on
+    one foot only one way round, though the loss was active and the plant
+    mirrors; tonight starts it from the walker instead of from scratch (bal3).
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1026}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·10·25 · night 4: get-up + the as-built legs</span></p>

@@ -37,18 +37,25 @@
 
 namespace {
 
-// The ABI's fixed widths are the contract with python's ctypes. If a retrain
-// regenerates obs_spec.h with different dimensions, this file must be looked
-// at rather than silently reinterpreting the harness's bytes.
-static_assert(obs::kNumBusJoints == 17, "SilSensors/goal arrays are 17 wide");
-static_assert(obs::kActDim == 10, "SilTargets.action is 10 wide");
-static_assert(obs::kNumCmd == 7, "SilSensors.cmd is 7 wide");
-static_assert(obs::kObsDim == 147, "SilTargets.obs is 147 wide");
+// The ABI's widths are the compiled spec's (sil.h); sil_spec() reports each
+// one and the python harness refuses a library whose widths are not the ones
+// it sized its ctypes structs from. These pin the struct to the spec.
+static_assert(sizeof(SilSensors::pos_ticks) ==
+                  sizeof(uint16_t) * obs::kNumBusJoints,
+              "SilSensors arrays are bus-wide");
+static_assert(sizeof(SilSensors::cmd) == sizeof(float) * obs::kNumCmd,
+              "SilSensors.cmd is kNumCmd wide");
+static_assert(sizeof(SilTargets::action) == sizeof(float) * obs::kActDim,
+              "SilTargets.action is kActDim wide");
+static_assert(sizeof(SilTargets::obs) == sizeof(float) * obs::kObsDim,
+              "SilTargets.obs is kObsDim wide");
+static_assert(obs::kActDim == obs::kNumJoints,
+              "one action per policy joint (action_map full)");
 static_assert(obs::kFrameDim * obs::kHistLen == obs::kObsDim,
               "obs is hist_len frames");
 
 // Slot in the servo-ID-ordered arrays for a given policy joint: its bus
-// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h: slot = bus_id - 1.
+// index (obs/bus_map.h). See the ARRAY ORDER note in sil.h.
 inline int slotOf(int joint) { return obs::policyToBus(joint); }
 
 // The goal of a bus slot the policy does not drive: the position sensed on
@@ -116,8 +123,10 @@ void buildSpec() {
     g_spec = "{";
     snprintf(buf, sizeof buf,
              "\"sil_abi\":3,\"run\":\"%s\",\"plant\":\"%s\","
-             "\"action_map\":\"%s\",\"spec_hash\":\"0x%016llx\",",
+             "\"action_map\":\"%s\",\"policy_profile\":\"%s\","
+             "\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
+             obs::kPolicyProfile,
              static_cast<unsigned long long>(specHash()));
     g_spec += buf;
     // sil_abi 2: what the python side needs to replicate the C2 command
@@ -311,14 +320,20 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     // [4]=lift. Training's plain_stand gate (env_mjx): no locomotion
     // command AND no lift -- marches/balances keep their clock. Must stay
     // bit-identical to ctrl_task.cpp's gate.
-    const float sil_vy = obs::kNumCmd > 1 ? in->cmd[1] : 0.0f;
-    const float sil_lift = obs::kNumCmd > 4 ? in->cmd[4] : 0.0f;
+    // Frozen command channels pinned to their trained value, as ctrl_task.cpp
+    // does (policy/mlp.h pinFrozen), before the clock gate reads them -- from
+    // the LOADED net's normaliser, so a .silw of another run pins its own.
+    float cmd[obs::kNumCmd];
+    memcpy(cmd, in->cmd, sizeof cmd);
+    policy::pinFrozenNet(g_net.net(), obs::kOffCmd, obs::kNumCmd, cmd);
+    const float sil_vy = obs::kNumCmd > 1 ? cmd[1] : 0.0f;
+    const float sil_lift = obs::kNumCmd > 4 ? cmd[4] : 0.0f;
     if (!obs::kClockStandFreeze
-        || fabsf(in->cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
-        || fabsf(in->cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
+        || fabsf(cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
+        || fabsf(cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
         // speed clock: same scale as ctrl_task.cpp (kSpeedClock)
         g_clock.advanceSpeedClock(obs::kControlDt,
-                                  sqrtf(in->cmd[0] * in->cmd[0] + sil_vy * sil_vy));
+                                  sqrtf(cmd[0] * cmd[0] + sil_vy * sil_vy));
     }
 
     obs::Inputs inp{};
@@ -328,7 +343,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     memcpy(inp.gyro, in->gyro, sizeof inp.gyro);
     memcpy(inp.prev_action, g_prev_action, sizeof g_prev_action);
     inp.phase = g_clock.phase();
-    memcpy(inp.cmd, in->cmd, sizeof(float) * obs::kNumCmd);
+    memcpy(inp.cmd, cmd, sizeof cmd);
 
     obs::assembleFrame(inp, g_frame);
     if (!g_primed) {

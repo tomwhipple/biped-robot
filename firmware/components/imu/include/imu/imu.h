@@ -48,6 +48,13 @@ struct Sample {
     float gyro[3];      // rad/s, body frame
     uint64_t t_us;      // timestamp of the report
     bool valid;
+    // For the flight recorder (main/flight_rec.h), not the policy: the
+    // specific force behind this sample (m/s^2, body frame, mount applied,
+    // gyro-style bias NOT subtracted -- the accelerometer has none modelled)
+    // and the fused body->world quaternion (w, x, y, z) that `up` came from.
+    // Default-initialised so the aggregate initialisers above stay complete.
+    float accel[3] = {0.0f, 0.0f, 0.0f};
+    float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 // Unit quaternion (w, x, y, z) describing how the sensor is mounted relative

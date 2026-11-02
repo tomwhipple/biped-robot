@@ -546,6 +546,8 @@ bool Qmi8658Imu::read(Sample& out) {
     }
 
     fusion_.up(out.up);
+    fusion_.quat(out.quat);
+    for (int i = 0; i < 3; ++i) out.accel[i] = accel_b[i];
     // The obs wants an instantaneous body rate, which is what the sim's
     // qvel[3:6] is -- so the gyro channel comes from the raw register even on
     // the AE path, where dQ would only give the interval average.

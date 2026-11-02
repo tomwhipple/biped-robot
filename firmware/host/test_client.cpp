@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <math.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -766,6 +767,77 @@ void test_taking_control_adopts_the_robots_arm_level() {
     CHECK(strstr(in5.note, "NO beacon") != nullptr);
 }
 
+// -- the receive buffer -----------------------------------------------------
+// One datagram to the port `link` is bound to, then wait until it is readable:
+// loopback UDP is not readable the instant sendto returns (tests/
+// test_arm_guard.py has the measurement), and Link::poll never blocks.
+void deliver(const Link& link, const uint8_t* wire, size_t n) {
+    sockaddr_in at = {};
+    socklen_t at_len = sizeof at;
+    CHECK(getsockname(link.rx, reinterpret_cast<sockaddr*>(&at), &at_len) == 0);
+    at.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    const int tx = socket(AF_INET, SOCK_DGRAM, 0);
+    CHECK(tx >= 0);
+    CHECK(sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&at), sizeof at) ==
+          static_cast<ssize_t>(n));
+    ::close(tx);
+    pollfd pfd = {link.rx, POLLIN, 0};
+    CHECK(::poll(&pfd, 1, 200) == 1);
+}
+
+// The beacons mirror mode asks for are the LONG ones: 65 B with the joints,
+// 69 B with the attitude too. A 64 B read buffer -- right for protocol v1,
+// whose longest frame was 52 B -- truncated both, decode refused them, and
+// every console armed with kFlagPose went blind.
+void test_poll_reads_the_longest_beacon_whole() {
+    Link link;
+    CHECK(link.listen(0, nullptr, 0));
+    linkproto::Telemetry t = {};
+    t.seq_echo = 77;
+    t.state = LinkState::kLive;
+    t.vbat_v = 11.4f;
+    t.up_z = 0.95f;
+    t.n_joints = static_cast<uint8_t>(linkproto::kNumJoints);
+    for (size_t i = 0; i < linkproto::kNumJoints; ++i) {
+        t.joints[i] = 0.01f * static_cast<float>(i);
+    }
+    uint8_t wire[linkproto::kTlmLenMax + 1];
+
+    size_t n = encodeTelemetry(wire, t);
+    CHECK_EQ(n, linkproto::kTlmLenExt);
+    deliver(link, wire, n);
+    link.poll(1000.0);
+    CHECK_EQ(link.tlm_count, 1);
+    CHECK_EQ(link.tlm_bad, 0);
+    CHECK_EQ(link.tlm.n_joints, 17);
+    CHECK(!link.tlm.have_att);
+    CHECK_NEAR(link.tlm.joints[16], 0.16, 1e-3);
+
+    t.have_att = 1;
+    t.up_x = 0.3f;
+    t.up_y = -0.2f;
+    n = encodeTelemetry(wire, t);
+    CHECK_EQ(n, linkproto::kTlmLenExtAtt);
+    deliver(link, wire, n);
+    link.poll(1020.0);
+    CHECK_EQ(link.tlm_count, 2);
+    CHECK_EQ(link.tlm_bad, 0);
+    CHECK_EQ(link.tlm.n_joints, 17);
+    CHECK(link.tlm.have_att);
+    CHECK_NEAR(link.tlm.up_x, 0.3, 1e-3);
+    CHECK_NEAR(link.tlm.up_y, -0.2, 1e-3);
+
+    // One byte past the longest frame must arrive as one byte too many. A
+    // buffer of exactly kTlmLenMax would cut it back to a valid 69 B frame,
+    // whose CRC still matches, and accept a datagram the robot never sent.
+    wire[n] = 0xA5;
+    deliver(link, wire, n + 1);
+    link.poll(1040.0);
+    CHECK_EQ(link.tlm_count, 2);
+    CHECK_EQ(link.tlm_bad, 1);
+    link.close();
+}
+
 }  // namespace
 
 // The fault field is a u32 over the 17-servo bus (bit b = bus joint b); the
@@ -1070,6 +1142,7 @@ int main() {
     test_control_toggle_tracks_the_socket();
     test_control_needs_a_destination();
     test_taking_control_adopts_the_robots_arm_level();
+    test_poll_reads_the_longest_beacon_whole();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

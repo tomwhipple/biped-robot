@@ -43,24 +43,24 @@ def _plant(sets):
     return _cache[key]
 
 
-def _keys(solve_sets, hold, bias=-0.005, stance="L"):
-    key = ("kf", tuple(solve_sets), hold, bias, stance)
+def _keys(solve_sets, hold, bias=-0.005, stance="L", t_lift=2.0):
+    key = ("kf", tuple(solve_sets), hold, bias, stance, t_lift)
     if key not in _cache:
         p, _ = _plant(solve_sets)
         q, info = OL.keyframes(p, 0.02, 0.03, bias, 1.0, stance)
-        tl, win = OL.timeline(q, t_hold=hold, swing="R" if stance == "L" else "L")
+        tl, win = OL.timeline(q, t_lift=t_lift, t_hold=hold, swing="R" if stance == "L" else "L")
         _cache[key] = (tl, win, info)
     return _cache[key]
 
 
 PJ = {"L_hip_roll": "sts3250", "R_hip_roll": "sts3250"}
-BASE = dict(torso=1.0, play=3.0, lash=1.0, lag=0.0, delay=1, mu=0.7, kf="asbuilt", bias=-0.005, stance="L", off=0.0, imu_delay=1, seed=0, hold=10.0)
+BASE = dict(torso=1.0, play=3.0, lash=1.0, lag=0.0, delay=1, mu=0.7, kf="asbuilt", bias=-0.005, stance="L", off=0.0, imu_delay=1, seed=0, hold=10.0, t_lift=2.0, gbias=0.0)
 
 
 def run_case(args):
     cfg, ctl = args
     c = {**BASE, **cfg}
-    tl, win, _ = _keys(OL.AS_BUILT if c["kf"] == "asbuilt" else [], c["hold"], c["bias"], c["stance"])
+    tl, win, _ = _keys(OL.AS_BUILT if c["kf"] == "asbuilt" else [], c["hold"], c["bias"], c["stance"], c["t_lift"])
     p, xml = _plant(OL.AS_BUILT)
 
     def setup(env):
@@ -70,7 +70,8 @@ def run_case(args):
         env.model.body_ipos[b][1] += c["off"]      # lateral CoM offset of the torso (board off-centre)
     hook = None
     if ctl:
-        hook = OL.bal_hook(tl, c["stance"], ctl["kp"], ctl["ki"], ctl["ka"], ctl["kh"], ctl.get("clamp", 6.0),
+        hook = OL.bal_hook(tl, c["stance"], ctl["kp"], ctl["ki"], ctl["ka"], ctl["kh"], ctl.get("clamp", 10.0), kd=ctl.get("kd", 0.0),
+                           gyro_bias=c["gbias"], gyro_noise=ctl.get("gnoise", 0.0075),
                            delay_ticks=c["imu_delay"], noise=math.radians(ctl.get("noise", 0.1)), seed=c["seed"])
     orig = SG.q_of
     SG.q_of = lambda p_, key: key if isinstance(key, np.ndarray) else orig(p_, key)
@@ -112,6 +113,26 @@ def _cases(level):
     return out
 
 
+def gyro_cases():
+    """The transient spec's sweep: the quick robustness cases (torso 0.6-1.4x, play 3-5 deg, backlash
+    1-2 deg, lag 0/2 Hz, dead time 0-4 ticks, mu 0.4-1.0, torso CoM +-15 mm) plus the gyro bias
+    residual, each lifted straight to 30 mm over 2 s and over 4 s, both stances."""
+    out = []
+    for st in ("L", "R"):
+        for tl in (2.0, 4.0):
+            for c in [c for c in _cases("quick") if c.get("bias") != -0.020] + [dict(gbias=0.010), dict(gbias=-0.010),
+                                         dict(off=0.015, torso=0.6, lag=2.0, delay=4),
+                                         dict(off=-0.015, torso=0.6, lag=2.0, delay=4),
+                                         dict(off=0.015, torso=1.4, play=5.0, lash=2.0, lag=2.0, delay=4, gbias=0.010),
+                                         dict(off=-0.015, torso=0.6, play=5.0, lash=2.0, lag=2.0, delay=4, gbias=-0.010, mu=0.4)]:
+                out.append({**c, "stance": st, "t_lift": tl})
+    return out
+
+
+def transient_ok(r):
+    return bool((not r["fell"]) and not r["tripped"] and r["err_peak_deg"] < 6.0 and r["settle_s"] <= 3.0)
+
+
 def evaluate(ctl, pool, level="full", seeds=(0,)):
     jobs = [({**c, "seed": s}, ctl) for c in cases(level) for s in seeds]
     return jobs, pool.map(run_case, jobs)
@@ -125,27 +146,48 @@ def summarize(res):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=("grid", "table", "open"))
+    ap.add_argument("mode", choices=("grid", "table", "open", "gyro"))
+    ap.add_argument("--kd", type=float, default=0.0)
+    ap.add_argument("--kds", type=float, nargs="*", default=[0.0, 0.05, 0.1, 0.2])
+    ap.add_argument("--scales", type=float, nargs="*", default=[1.0])
+    ap.add_argument("--gnoise", type=float, default=0.0075)
     ap.add_argument("--kp", type=float, default=0.5)
     ap.add_argument("--ki", type=float, default=0.3)
     ap.add_argument("--ka", type=float, default=1.0)
     ap.add_argument("--kh", type=float, default=0.0)
-    ap.add_argument("--clamp", type=float, default=6.0)
+    ap.add_argument("--clamp", type=float, default=10.0)
     ap.add_argument("--scale", type=float, default=1.0, help="multiply kp and ki (stability margin: 2x)")
     ap.add_argument("--kps", type=float, nargs="*", default=[0.25, 0.5])
     ap.add_argument("--kis", type=float, nargs="*", default=[0.25, 0.5])
     ap.add_argument("--khs", type=float, nargs="*", default=[-1.0])
-    ap.add_argument("--clamps", type=float, nargs="*", default=[6.0])
+    ap.add_argument("--clamps", type=float, nargs="*", default=[10.0])
     ap.add_argument("--seeds", type=int, default=1)
     ap.add_argument("--json", default=None)
     ap.add_argument("--procs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
     a = ap.parse_args(argv)
     pool = mp.Pool(a.procs)
     out = {}
+    if a.mode == "gyro":
+        jobs0 = gyro_cases()
+        for kp, ki, kd, cl in itertools.product(a.kps, a.kis, a.kds, a.clamps):
+            for sc in a.scales:
+                ctl = dict(kp=kp * sc, ki=ki * sc, kd=kd * sc, ka=a.ka, kh=-1.0 if a.kh == 0.0 else a.kh, clamp=cl, gnoise=a.gnoise)
+                res = pool.map(run_case, [({**BASE, **c}, ctl) for c in jobs0])
+                ok = [transient_ok(r) for r in res]
+                pk = [r["err_peak_deg"] for r in res]
+                st = [r["settle_s"] for r in res]
+                rms = [r["roll_rms_last5_deg"] for r in res if not r["fell"]]
+                worst = max(range(len(res)), key=lambda i: pk[i])
+                print(f"kp {kp*sc:.3f} ki {ki*sc:.3f} kd {kd*sc:.3f} x{sc}: pass {sum(ok)}/{len(ok)}  fell {sum(r['fell'] for r in res)}  trip {sum(r['tripped'] for r in res)}  "
+                      f"peak max {max(pk):.1f} med {np.median(pk):.1f}  settle max {max(st):.1f}  rms5 max {max(rms):.2f} med {np.median(rms):.2f}  worst {({k: v for k, v in jobs0[worst].items()})}", flush=True)
+                out[json.dumps(ctl) + f"x{sc}"] = dict(pass_=int(sum(ok)), n=len(ok), peak=pk, settle=st, rms5=rms)
+        if a.json:
+            json.dump(out, open(a.json, "w"), indent=1, default=str)
+        return
     if a.mode == "open":
         jobs, res = evaluate(None, pool, seeds=range(a.seeds))
     elif a.mode == "table":
-        ctl = dict(kp=a.kp * a.scale, ki=a.ki * a.scale, ka=a.ka, kh=a.kh, clamp=a.clamp)
+        ctl = dict(kp=a.kp * a.scale, ki=a.ki * a.scale, kd=a.kd * a.scale, ka=a.ka, kh=a.kh, clamp=a.clamp)
         jobs, res = evaluate(ctl, pool, seeds=range(a.seeds))
     else:
         for kp, ki, ka, kh, cl in itertools.product(a.kps, a.kis, (1.0,), a.khs, a.clamps):

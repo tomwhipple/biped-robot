@@ -16,7 +16,7 @@ for the collar's flange screws.
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -52,9 +52,10 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
-| `shoulder_girdle_v6` | 1 | 77.1 | 200 × 58 × 33 | base down | **yes**, build plate only | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no | a mirror pair; open-front U with two end walls; grips the elbow servo |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **yes**, build plate only: the two elbow-pad undersides start 5 mm off the bed | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
+| `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
+| `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
@@ -115,12 +116,24 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 - **`neck_floor`:** a separate print because it hangs 5 mm below the girdle's
   print plane. Its counterbores and countersinks open onto the bed; the audit
   finds nothing to support.
+- **`arm_upper_v6_L/_R`, `arm_fore_v6_L/_R`:** all four print together on the
+  `arms` plate (3 h 54 m, 137 g). The girdle does not fit beside them.
+  - Each forearm pad's round end, past the elbow axis, hangs 5.16 mm over the
+    bed. It is supported from the plate up its underside to where the arc is
+    steeper than the 30° support threshold, and nowhere else: an enforcer box
+    per pad (`arm_v6.support_enforcers()`, pinned by `tests/test_slice.py`).
+  - The upper arms need no support. The plate's manual supports leave them
+    unsupported; auto supports would put a column under the shoulder head.
 - **`shoulder_girdle_v6`**
   - It is 200 mm long, so **centre it on the bed**.
-  - Supports go under the trapezius-web window tops (34 mm spans), the
-    grip-plate rib-relief roofs, and the bay disc-relief tops.
+  - **No supports.** The trapezius webs are thin walls (no windows), and every
+    roof on the part (the web recesses, the platform detents) rises at 50°; the
+    neck tube's aft wall is closed. The `girdle_neck` plate (the girdle, the neck
+    floor and the cheek twice, square in one row) prints with supports off: 3 h 00 m, 92 g.
+  - Print the two cheeks on the same plate (`girdle_neck`), outer face down:
+    no supports. Both are the same part, square-edged: it fits either pod.
 
-**Totals:** 26 prints, all PETG, from 20 STLs: ≈ 861 g before supports and
+**Totals:** 28 prints, all PETG, from 21 STLs: ≈ 880 g before supports and
 brims.
 
 **Not printed:**
@@ -299,7 +312,8 @@ python3 cad/slice.py --harvest               # only read saved projects back
        or a 3×3 matrix whose rows are the print axes in model coordinates;
      - supports, and copies;
      - overrides, in OrcaSlicer's own keys.
-  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`. One
+  4. Plates: parts printed together. **`feet`** is `foot_L` + `foot_R`;
+     **`arms`** is the four arm links. One
      process slices a plate, so its parts must agree on supports and overrides
      (`slice.py` refuses a plate whose parts don't). A plate's copies are its
      own: `--copies 2` puts two of each foot on it.

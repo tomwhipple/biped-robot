@@ -164,14 +164,14 @@ def run(p, xml, tl, win, **kw):
         SG.q_of = orig
 
 
-def bal_hook(tl, stance, kp, ki, ka, kh, clamp_deg, **kw):
+def bal_hook(tl, stance, kp, ki, ka, kh, clamp_deg, kd=0.0, **kw):
     """The stance-leg roll PI (balance.py) engaged at the start of the lift --
     reference captured at the shifted pose -- through the hold, faded out over the lowering."""
     from balance import Balance
     seg = lambda n: tl.durs[tl.names.index(n) - 1]      # t_of(name) is the END of that segment
     t_lift0, t_lift1 = tl.t_of("lift") - seg("lift"), tl.t_of("lift")
     t_hold1 = tl.t_of("hold")
-    return Balance(stance, kp, ki, ka, kh, math.radians(clamp_deg), t_on=t_lift0, t_off=t_hold1,
+    return Balance(stance, kp, ki, ka, kh, math.radians(clamp_deg), kd=kd, t_on=t_lift0, t_off=t_hold1,
                    t_fade=seg("lower"), t_hold0=t_lift1, t_hold1=t_hold1, **kw)
 
 
@@ -198,6 +198,7 @@ def main(argv=None):
     ap.add_argument("--bal-ki", type=float, default=0.0, help="stance-leg roll PI: I gain (1/s)")
     ap.add_argument("--bal-ka", type=float, default=1.0, help="PI output -> stance ankle roll (signed mix)")
     ap.add_argument("--bal-kh", type=float, default=0.0, help="PI output -> stance hip roll (signed mix)")
+    ap.add_argument("--bal-kd", type=float, default=0.0, help="stance-leg roll PID: gyro roll-rate gain (rad per rad/s)")
     ap.add_argument("--bal-clamp", type=float, default=6.0, help="PI output clamp, deg")
     ap.add_argument("--fb-ankle", type=float, default=0.0, help="IMU torso roll -> ankle roll P gain (rad/rad)")
     ap.add_argument("--fb-hip", type=float, default=0.0, help="IMU torso roll -> hip roll P gain (rad/rad)")
@@ -251,9 +252,9 @@ def main(argv=None):
     if a.plant_set or any(fb.values()):
         print(f"simulated plant: {p_sim.summary()}  set {a.plant_set}  feedback {fb}")
     bal = None
-    if a.bal_kp or a.bal_ki:
-        bal = bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp)
-        print(f"stance-leg roll PI on L: kp {a.bal_kp} ki {a.bal_ki} ankle x{a.bal_ka} hip x{a.bal_kh} clamp {a.bal_clamp} deg")
+    if a.bal_kp or a.bal_ki or a.bal_kd:
+        bal = bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp, kd=a.bal_kd)
+        print(f"stance-leg roll PI on L: kp {a.bal_kp} ki {a.bal_ki} kd {a.bal_kd} ankle x{a.bal_ka} hip x{a.bal_kh} clamp {a.bal_clamp} deg")
     r = run(p_sim, xml, tl, win, per_joint=pj, track_torque=True, hook=bal, **fb)
     if bal is not None:
         out["balance"] = bal.metrics()
@@ -274,7 +275,7 @@ def main(argv=None):
         bal = None if bal is None else True
         for label, kw in cases:
             rs = [run(p_sim, xml, tl, win, seed=s, per_joint=pj, **fb, **kw,
-                      hook=(bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp) if bal else None))
+                      hook=(bal_hook(tl, a.stance, a.bal_kp, a.bal_ki, a.bal_ka, a.bal_kh, a.bal_clamp, kd=a.bal_kd) if bal else None))
                   for s in range(3)]
             worst = min(rs, key=lambda x: (x["ok"], x["min_margin"] if x["min_margin"] == x["min_margin"] else -1))
             print(SG.fmt_row(label, worst) + f"   ({sum(x['ok'] for x in rs)}/3 seeds ok)")
