@@ -79,7 +79,11 @@ enum class Ev : uint8_t {
                       // limp / 2 the hold's autohome started; text says
     kStop = 12,       // operator stop (linkproto::kFlagStop), once per burst: a = 1 hard / 0 soft,
                       // b = 1 armed / 0 benched; text says
+    kWcli = 13,       // Wi-Fi CLI session event (text says): a = peer IPv4, b = peer port
 };
+// kCmd / kOut `a`: which channel the line came in on / went back out on.
+constexpr int32_t kChanTether = 0;
+constexpr int32_t kChanWifi = 1;   // kCmd b = the Wi-Fi CLI command seq
 
 constexpr int kMaxJoints = 17;      // == obs::kNumBusJoints (static_assert in main)
 constexpr int kMaxText = 180;       // event text, bytes (a CLI line is <= 128)

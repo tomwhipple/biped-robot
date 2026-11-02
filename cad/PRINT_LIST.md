@@ -54,8 +54,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
 | `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
 | `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
-| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair; open-front U with two end walls; grips the elbow servo |
-| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair; the elbow fork, an end wall, 12 mm hand knuckle |
+| `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair, L / R debossed on the outboard rail; open-front U with two end walls; grips the elbow servo |
+| `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair, L / R debossed on the outboard rail; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
