@@ -424,6 +424,16 @@ new commander is a class in `link/sources.py` or a front end on
   window, taking `press forward` / `release forward` / `set crouch 0.8` on
   stdin; the end-to-end tests drive it that way, and it makes any figure
   reproducible from a command line. Sessions record to `hw_sessions/*.jsonl`.
+- **`bimo_console`** (`link/bimo_console.py`, Qt; `make -C firmware/host
+  console`, then PyQt6 + pyqtgraph): the same core as a C library
+  (`link/console_api.h`, loaded with ctypes), so it puts the same bytes on the
+  wire as `bimo_gui` for the same keys. It **starts as an observer**; its
+  **HOLD** (`f`) and **E-STOP** (`e`) are the out-of-band operator stops
+  (`kFlagStop`, `tools/estop.py`'s frames) and work in every role. It adds a
+  3D view of the measured pose with commanded and sim ghosts, goal vs measured
+  for every joint from the flight recorder, a pre-arm Checks tab and a
+  gamepad. `--headless` takes the same stdin verbs as `bimo_gui --headless`.
+  See [console.md](console.md).
 - **`bimo_gui --readonly`**: an observer that cannot touch the robot.
   - **It has no transmit socket.** The socket is closed entering readonly
     and created leaving it, so the promise is enforced by the file
