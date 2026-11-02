@@ -26,11 +26,19 @@
 //     stack at 1x real time and serves its render as MJPEG; the SIM panel
 //     starts it and draws it, so a policy can be flown before it is flown.
 //
+//   * The BENCH, with the robot on its serial tether and no WiFi beacon: live
+//     camera panels (tools/cam_relay.py) and bench telemetry from the serial
+//     bridge (tools/board_bridge.py) -- balance strip charts, a 12-servo
+//     table, the IMU. Watch-only: --bench-telemetry / --cam-relay without
+//     --host start the console as an observer. docs/bench-console.md.
+//
 // --headless runs the identical link loop with no window, taking `press
 // forward` / `release forward` / `set crouch 0.8` on stdin. That is what
 // tests/test_gui_e2e.py drives: no display, no pty, and it exercises the real
 // key-release path rather than a simulation of auto-repeat.
 #include <errno.h>
+#include <float.h>
+#include <math.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -41,6 +49,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "bench.h"
 #include "client.h"
 #include "jpeg.h"
 #include "keymap.h"
@@ -71,6 +80,14 @@ using bimo::nowMs;
 constexpr int kAxCountLocal = bimo::kAxCount;
 constexpr int kChart = 300;                // 30 s of a 10 Hz beacon
 constexpr int kDefaultStreamPort = 8645;   // sim/sil_twin.py's own default
+constexpr int kBenchPort = 8650;           // tools/board_bridge.py (UDP)
+constexpr int kCamPort = 8647;             // tools/cam_relay.py (HTTP)
+constexpr int kCamPanes = 2;
+// The relay's source names, in menu order.
+const char* const kCamNames[] = {"emeet", "brio", "sony"};
+const char* const kCamLabels[] = {"EMEET C960 (floor, feet)", "Brio 101",
+                                  "Sony A7 III"};
+constexpr int kCamCount = 3;
 // A stream with nothing new for this long is stalled, and must look stalled.
 constexpr double kStreamStaleMs = 2000.0;
 // What the send-rate slider may reach. The floor is the real constraint: the
@@ -118,6 +135,12 @@ struct Options {
     bool autostream = false;             // --sim-view given: connect at boot
     const char* screenshot = nullptr;    // write a PNG of the window, then go
     double screenshot_after = 6.0;
+    // The bench: serial-bridge telemetry and camera relay, both on mira.
+    const char* bench = nullptr;         // HOST:PORT of tools/board_bridge.py
+    const char* cam_relay = nullptr;     // HOST[:PORT] of tools/cam_relay.py
+    const char* cams[2] = {nullptr, nullptr};   // sources to open at boot
+    int n_cams = 0;
+    bool drive_view = false;             // --drive-view: start on DRIVE
 };
 
 void usage(const char* argv0) {
@@ -132,13 +155,21 @@ void usage(const char* argv0) {
             "                       TAKE CONTROL button (or [t]) opens one\n"
             "          [--watch HOST[:PORT]]  relay each beacon to a watcher\n"
             "          [--screenshot FILE [--screenshot-after S]]\n"
+            "          [--bench-telemetry HOST[:PORT]]  the serial bridge (%d)\n"
+            "          [--cam-relay HOST[:PORT]] [--cam NAME [--cam NAME]]\n"
+            "                       the camera relay (%d); NAME = emeet|brio|sony\n"
+            "          [--drive-view]  start on DRIVE, not the bench view\n"
+            "\n"
+            "  --bench-telemetry / --cam-relay without --host start an\n"
+            "  OBSERVER: the bench console never transmits unless given --host.\n"
             "\n"
             "  --readonly needs a beacon to watch, and the robot beacons only\n"
             "  to whoever commanded it last. So the DRIVING console forwards:\n"
             "    driver:   bimo_gui --host ROBOT --watch <watch-ip>\n"
             "    watcher:  bimo_gui --readonly --host ROBOT\n",
             argv0, kCmdPort, kTlmPort, bimo::kDefaultVx, bimo::kDefaultVy,
-            bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort);
+            bimo::kDefaultWz, static_cast<double>(kSendHz), kDefaultStreamPort,
+            kBenchPort, kCamPort);
 }
 
 bool parse(int argc, char** argv, Options& o) {
@@ -168,6 +199,13 @@ bool parse(int argc, char** argv, Options& o) {
         else if (!strcmp(a, "--screenshot-after") && v) {
             o.screenshot_after = atof(v); ++i;
         }
+        else if (!strcmp(a, "--bench-telemetry") && v) { o.bench = v; ++i; }
+        else if (!strcmp(a, "--cam-relay") && v) { o.cam_relay = v; ++i; }
+        else if (!strcmp(a, "--cam") && v) {
+            if (o.n_cams >= 2) return false;
+            o.cams[o.n_cams++] = v; ++i;
+        }
+        else if (!strcmp(a, "--drive-view")) { o.drive_view = true; }
         else if (!strcmp(a, "--sim-view")) {
             o.autostream = true;
             if (has_val) { o.sim_view = v; ++i; }
@@ -178,7 +216,17 @@ bool parse(int argc, char** argv, Options& o) {
     // is still the best guess for where the sim stream is, so it stays
     // accepted. Only its being REQUIRED is lifted.
     o.host_given = o.host != nullptr;
+    // A console pointed only at the bench has nothing to drive. Without a
+    // robot address it is an observer, never an armed console by accident.
+    if (o.host == nullptr && (o.bench != nullptr || o.cam_relay != nullptr)) {
+        o.readonly = true;
+    }
     if (o.host == nullptr && o.readonly) o.host = "0.0.0.0";
+    for (int i = 0; i < o.n_cams; ++i) {
+        bool ok = !strcmp(o.cams[i], "off");
+        for (int c = 0; c < 3; ++c) ok = ok || !strcmp(o.cams[i], kCamNames[c]);
+        if (!ok || o.cam_relay == nullptr) return false;
+    }
     return o.host != nullptr && o.rate_hz > 0.0;
 }
 
@@ -192,6 +240,22 @@ struct App {
     bimo::MjpegStream stream;
     bimo::SimProc sim;
     bimo::RunList runs;
+    bimo::BenchLink bench;
+
+    // A camera panel: one stream from the relay, one texture.
+    struct CamPane {
+        bimo::MjpegStream stream;
+        GLuint tex = 0;
+        int tex_w = 0, tex_h = 0;
+        uint64_t seq = 0;
+        int sel = -1;                    // index into kCamNames, -1 = off
+        char last_err[192] = "";
+    };
+    CamPane cam[kCamPanes];
+    char cam_host[96] = "";              // host:port of the relay
+    bool bench_view = false;
+    char last_bench_note[160] = "";
+    bool bench_was_live = false;
 
     // host_port is a display string ("host:port"); sized to hold a 63-byte
     // host (ed_host's bound) plus ":port".
@@ -328,6 +392,23 @@ void pumpLog(App& a) {
         snprintf(a.last_stream_err, sizeof a.last_stream_err, "%s", serr);
         if (a.last_stream_err[0]) logEvent(a, "stream", "%s", a.last_stream_err);
     }
+    // Bench bridge heard / lost, and each camera pane's own reason.
+    if (a.bench.active()) {
+        const bool live = a.bench.model.live(bimo::nowMs());
+        if (live != a.bench_was_live) {
+            a.bench_was_live = live;
+            logEvent(a, "bench", "telemetry bridge %s (%s)",
+                     live ? "heard" : "LOST", a.bench.target());
+        }
+    }
+    for (int i = 0; i < kCamPanes; ++i) {
+        char e[192];
+        a.cam[i].stream.error(e, sizeof e);
+        if (strcmp(a.cam[i].last_err, e) != 0) {
+            snprintf(a.cam[i].last_err, sizeof a.cam[i].last_err, "%s", e);
+            if (e[0]) logEvent(a, "cam", "pane %d: %s", i, e);
+        }
+    }
     // The child's own stdout -- its last words when it dies are in here.
     const int have = a.sim.lines();
     const int first = a.sim.log_n - have;
@@ -366,6 +447,11 @@ void tick(App& a, double now_ms) {
         a.c_wz_est.push(t.wz_est);
         a.c_late.push(static_cast<float>(t.loop_late_pct));
         a.rec.telemetry(now_ms, t);
+        // The Wi-Fi beacon feeds the same bench model where it overlaps the
+        // serial bridge's samples (docs/bench-console.md).
+        if (a.bench.active() && t.have_att) {
+            a.bench.model.applyBeaconUp(t.up_x, t.up_y, t.up_z, now_ms);
+        }
         // Mirror: hand the robot's measured pose to the sim, once per beacon,
         // so the ghost is drawn from the same 10 Hz the robot reports at.
         if (a.mirror && t.n_joints == linkproto::kNumJoints && a.sim.running()) {
@@ -394,6 +480,7 @@ void tick(App& a, double now_ms) {
     }
     a.rec.maybeFlush(now_ms);
     a.sim.poll();
+    a.bench.poll(now_ms);
     pumpLog(a);
 }
 
@@ -410,6 +497,12 @@ void toggleRecord(App& a, double now_ms) {
         return;
     }
     snprintf(a.status, sizeof a.status, "recording -> %s", a.rec.path);
+    // Panes already pointed somewhere when the take began.
+    for (int i = 0; i < kCamPanes; ++i) {
+        if (a.cam[i].sel >= 0) {
+            a.rec.cam(now_ms, i, kCamNames[a.cam[i].sel], a.cam[i].stream.url);
+        }
+    }
 }
 
 // Where to watch the sim. --sim-view wins. Otherwise: a sim THIS console
@@ -460,6 +553,53 @@ void startSim(App& a) {
 void stopSim(App& a) {
     a.stream.stop();
     a.sim.stop();
+}
+
+// -- the camera panels --------------------------------------------------------
+// Point a pane at one of the relay's sources (-1 = off). The relay starts the
+// camera on the first viewer and stops it after the last, so selecting is what
+// opens a device on mira, and "off" is what lets it go.
+void camSelect(App& a, int pane, int src) {
+    if (pane < 0 || pane >= kCamPanes) return;
+    App::CamPane& c = a.cam[pane];
+    c.stream.stop();
+    c.sel = -1;
+    c.last_err[0] = 0;
+    c.seq = 0;
+    c.tex_w = c.tex_h = 0;               // never show the previous camera
+    if (src < 0 || src >= kCamCount || a.cam_host[0] == 0) return;
+    char url[512];
+    snprintf(url, sizeof url, "http://%s/%s", a.cam_host, kCamNames[src]);
+    if (c.stream.start(url)) {
+        c.sel = src;
+        if (a.rec.active()) a.rec.cam(bimo::nowMs(), pane, kCamNames[src], url);
+    }
+}
+
+// What a pane is doing, in one word, decided in ONE place so the window and
+// the headless status line (which the tests read) cannot disagree.
+enum CamState { kCamOff, kCamWaiting, kCamLive, kCamStale };
+CamState camState(const App::CamPane& c, double now_ms) {
+    if (c.sel < 0) return kCamOff;
+    if (c.stream.frames() == 0) return kCamWaiting;
+    return now_ms - c.stream.lastFrameMs() > kStreamStaleMs ? kCamStale
+                                                            : kCamLive;
+}
+const char* camStateName(CamState s) {
+    switch (s) {
+        case kCamOff: return "off";
+        case kCamWaiting: return "waiting";
+        case kCamLive: return "live";
+        case kCamStale: return "STALE";
+    }
+    return "?";
+}
+
+// Bench state text shared by the window and the headless line.
+const char* benchStateName(const App& a, double now_ms) {
+    if (!a.bench.active()) return "off";
+    if (a.bench.model.datagrams == 0) return "waiting";
+    return a.bench.model.live(now_ms) ? "live" : "STALE";
 }
 
 // Mirror is a MODE, not a button press: it changes where commands go and what
@@ -584,6 +724,25 @@ void headlessStatus(const App& a, double now_ms, double t0_ms) {
     } else {
         printf(" | robot (no telemetry)");
     }
+    if (a.bench.active()) {
+        const bimo::BenchModel& m = a.bench.model;
+        printf(" | bench %s joints %d", benchStateName(a, now_ms),
+               m.jointsSeen());
+        if (m.have_roll) printf(" roll %+.2f", static_cast<double>(m.roll));
+        if (m.have_ref) {
+            printf(" err %+.2f u %+.2f", static_cast<double>(m.err),
+                   static_cast<double>(m.u));
+        }
+        if (m.state[0]) printf(" bal %s", m.state);
+        if (m.have_up) printf(" up_z %.3f", static_cast<double>(m.up[2]));
+        if (m.hb_polling) printf(" polling");
+    }
+    for (int i = 0; i < kCamPanes; ++i) {
+        const App::CamPane& c = a.cam[i];
+        if (c.sel < 0) continue;
+        printf(" | cam%d %s %s frames %u", i, kCamNames[c.sel],
+               camStateName(camState(c, now_ms)), c.stream.frames());
+    }
     printf("\n");
     fflush(stdout);
 }
@@ -647,6 +806,24 @@ void headlessLine(App& a, char* line, double now_ms) {
             printf("note: panel settings|keys|telemetry\n");
         }
         fflush(stdout);
+    } else if (!strcmp(verb, "cam")) {
+        // cam <pane> <emeet|brio|sony|off>: the pane's combo box, scriptable.
+        const int pane = arg != nullptr ? atoi(arg) : -1;
+        int src = -1;
+        for (int c = 0; c < kCamCount; ++c) {
+            if (arg2 != nullptr && !strcmp(arg2, kCamNames[c])) src = c;
+        }
+        if (pane < 0 || pane >= kCamPanes ||
+            (src < 0 && (arg2 == nullptr || strcmp(arg2, "off")))) {
+            printf("note: cam <0|1> emeet|brio|sony|off\n");
+        } else if (a.cam_host[0] == 0) {
+            printf("note: no --cam-relay\n");
+        } else {
+            camSelect(a, pane, src);
+        }
+        fflush(stdout);
+    } else if (!strcmp(verb, "view")) {
+        a.bench_view = arg != nullptr && !strcmp(arg, "bench");
     } else if (!strcmp(verb, "set")) {
         if (arg == nullptr || arg2 == nullptr) return;
         const float v = static_cast<float>(atof(arg2));
@@ -1383,6 +1560,10 @@ void drawSession(App& a, double now_ms) {
                             a.sessions);
     }
     ImGui::SameLine();
+    if (ImGui::Button(a.bench_view ? "drive view" : "bench view")) {
+        a.bench_view = !a.bench_view;
+    }
+    ImGui::SameLine();
     if (ImGui::Button(a.show_keymap ? "hide keys" : "keys")) {
         a.show_keymap = !a.show_keymap;
         a.show_settings = false;
@@ -1709,30 +1890,42 @@ void pumpKeys(App& a, GLFWwindow* win, double now_ms) {
     }
 }
 
-void refreshTexture(App& a) {
+// Newest frame of `stream` into `tex`, if there is one newer than `*seq`.
+void uploadFrame(bimo::MjpegStream& stream, uint64_t* seq, GLuint* tex,
+                 int* tex_w, int* tex_h) {
     uint8_t* jpeg = nullptr;
     size_t len = 0;
-    if (!a.stream.latest(&a.frame_seq, &jpeg, &len)) return;
+    if (!stream.latest(seq, &jpeg, &len)) return;
     int w = 0, h = 0;
     unsigned char* px = bimo::decodeJpeg(jpeg, len, &w, &h);
     bimo::MjpegStream::freeFrame(jpeg);
     if (px == nullptr) return;
-    if (a.tex == 0) {
-        glGenTextures(1, &a.tex);
-        glBindTexture(GL_TEXTURE_2D, a.tex);
+    if (*tex == 0) {
+        glGenTextures(1, tex);
+        glBindTexture(GL_TEXTURE_2D, *tex);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     } else {
-        glBindTexture(GL_TEXTURE_2D, a.tex);
+        glBindTexture(GL_TEXTURE_2D, *tex);
     }
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                  px);
-    a.tex_w = w;
-    a.tex_h = h;
+    *tex_w = w;
+    *tex_h = h;
     bimo::freePixels(px);
+}
+
+void refreshTexture(App& a) {
+    uploadFrame(a.stream, &a.frame_seq, &a.tex, &a.tex_w, &a.tex_h);
+    // Only the bench view shows the panes; decoding frames nobody sees would
+    // burn a core for nothing.
+    if (!a.bench_view) return;
+    for (App::CamPane& c : a.cam) {
+        uploadFrame(c.stream, &c.seq, &c.tex, &c.tex_w, &c.tex_h);
+    }
 }
 
 // The console photographs its own back buffer. Deliberately not
@@ -1765,6 +1958,244 @@ bool grabWindow(const char* path, int w, int h) {
     const bool ok = bimo::writePng(path, w, h, px);
     free(px);
     return ok;
+}
+
+
+// -- the BENCH view -----------------------------------------------------------
+// Cameras on the left, bench telemetry on the right. Everything here is
+// watch-only: nothing in this view transmits, to the robot or to the bridge
+// (beyond the bridge's own subscribe lease, link/bench.h).
+const ImVec4 kRed(0.95f, 0.30f, 0.22f, 1.0f);
+const ImVec4 kAmber(0.95f, 0.75f, 0.25f, 1.0f);
+const ImVec4 kGreen(0.40f, 0.85f, 0.45f, 1.0f);
+
+void drawCamPane(App& a, int i, double now_ms, float w) {
+    App::CamPane& c = a.cam[i];
+    char id[24];
+    snprintf(id, sizeof id, "##cam%d", i);
+    ImGui::SetNextItemWidth(w * 0.55f);
+    const char* cur = c.sel >= 0 ? kCamLabels[c.sel] : "(off)";
+    if (ImGui::BeginCombo(id, cur)) {
+        if (ImGui::Selectable("(off)", c.sel < 0)) camSelect(a, i, -1);
+        for (int k = 0; k < kCamCount; ++k) {
+            if (ImGui::Selectable(kCamLabels[k], c.sel == k)) camSelect(a, i, k);
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    const CamState st = camState(c, now_ms);
+    if (st == kCamStale) {
+        // The invariant from the sim panel: a frozen frame must not look live.
+        ImGui::TextColored(kRed, "STALE  no frame for %.1f s",
+                           (now_ms - c.stream.lastFrameMs()) / 1000.0);
+    } else if (st == kCamLive) {
+        ImGui::TextColored(kGreen, "live  %u frames", c.stream.frames());
+    } else if (st == kCamWaiting) {
+        ImGui::TextDisabled("waiting for the first frame ...");
+    } else {
+        ImGui::TextDisabled("off");
+    }
+    const float h = c.tex_h > 0 ? w * static_cast<float>(c.tex_h) /
+                                      static_cast<float>(c.tex_w)
+                                : w * 0.5625f;
+    if (c.tex != 0 && c.tex_w > 0 && st != kCamOff) {
+        ImGui::Image(static_cast<ImTextureID>(c.tex), ImVec2(w, h));
+        if (st == kCamStale) {
+            // A stale picture is tinted as well as labelled.
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+                IM_COL32(150, 30, 30, 110));
+        }
+    } else {
+        ImGui::Dummy(ImVec2(w, h * 0.3f));
+        char e[192];
+        c.stream.error(e, sizeof e);
+        if (e[0]) ImGui::TextColored(kAmber, "%s", e);
+        else if (a.cam_host[0] == 0) {
+            ImGui::TextDisabled("no camera relay: pass --cam-relay HOST[:PORT]");
+        } else if (c.sel < 0) {
+            ImGui::TextDisabled("pick a camera above");
+        }
+        ImGui::Dummy(ImVec2(w, h * 0.3f));
+    }
+}
+
+void plotSeries(const char* label, const bimo::TimeSeries& s, double now_ms,
+                const char* fmt, bool live) {
+    float v[300];
+    const int first = s.resample(now_ms, bimo::kBenchWindowMs, v, 300);
+    char overlay[64];
+    snprintf(overlay, sizeof overlay, fmt, static_cast<double>(s.last()));
+    if (!live) ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.5f, 0.3f, 0.3f, 1));
+    ImGui::PlotLines(label, v + first, 300 - first, 0, overlay, FLT_MAX, FLT_MAX,
+                     ImVec2(-150.0f, 42.0f));
+    if (!live) ImGui::PopStyleColor();
+}
+
+void drawBenchTelemetry(App& a, double now_ms) {
+    const bimo::BenchModel& m = a.bench.model;
+    ImGui::SeparatorText("BENCH TELEMETRY  (last 30 s)");
+    if (!a.bench.active()) {
+        ImGui::TextDisabled("no bridge: pass --bench-telemetry HOST[:PORT]  "
+                            "(tools/board_bridge.py on mira)");
+        return;
+    }
+    const bool live = m.live(now_ms);
+    ImGui::SameLine();
+    if (m.datagrams == 0) {
+        ImGui::TextColored(kAmber, "waiting for the bridge at %s",
+                           a.bench.target());
+    } else if (!live) {
+        ImGui::TextColored(kRed, "STALE  bridge silent for %.1f s",
+                           (now_ms - m.last_rx_ms) / 1000.0);
+    } else {
+        ImGui::TextColored(kGreen, "live  %s", a.bench.target());
+        ImGui::SameLine();
+        if (m.hb_polling) {
+            ImGui::TextDisabled("polling on (%u queries)", m.hb_polls);
+        } else {
+            ImGui::TextDisabled("passive: only what the operator asks for");
+        }
+        if (m.hb_rx_age > 5.0) {
+            ImGui::TextColored(kAmber, "the board has said nothing for %.0f s",
+                               m.hb_rx_age);
+        }
+    }
+
+    // balance
+    if (m.state[0]) {
+        const bool on = strcmp(m.state, "off") != 0;
+        const bool bad = strncmp(m.state, "FROZEN", 6) == 0;
+        ImGui::TextColored(bad ? kRed : (on ? kGreen : ImVec4(0.7f, 0.7f, 0.7f, 1)),
+                           "balance %s", m.state);
+        if (on && m.stance) {
+            ImGui::SameLine();
+            ImGui::Text("%c stance  %.1f s", m.stance, static_cast<double>(m.since));
+        }
+    } else {
+        ImGui::TextDisabled("balance: no state yet (poll, or `balance` at the CLI)");
+    }
+    if (m.have_gains) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("kp %.2f ki %.2f clamp %.1f abort %.1f deg",
+                            static_cast<double>(m.kp), static_cast<double>(m.ki),
+                            static_cast<double>(m.clamp),
+                            static_cast<double>(m.abort_deg));
+    }
+    if (m.roll_na) ImGui::TextColored(kAmber, "roll: no fresh IMU attitude");
+    plotSeries("roll deg", m.s_roll, now_ms, "%+.2f", live);
+    plotSeries("err deg", m.s_err, now_ms, "%+.2f", live);
+    plotSeries("u deg", m.s_u, now_ms, "%+.2f", live);
+    if (m.have_corr) {
+        ImGui::TextDisabled("correction %c ankle %+.2f deg (%+d t)  hip %+.2f deg (%+d t)  clamped %d",
+                            m.corr_side ? m.corr_side : '?',
+                            static_cast<double>(m.ankle_deg), m.ankle_ticks,
+                            static_cast<double>(m.hip_deg), m.hip_ticks,
+                            m.clamped);
+    }
+
+    // imu
+    ImGui::SeparatorText("IMU");
+    if (m.have_up) {
+        const double tilt = acos(fmin(1.0, fmax(-1.0, static_cast<double>(m.up[2])))) *
+                            57.29578;
+        ImGui::Text("up  %+.3f %+.3f %+.3f   tilt %.1f deg", static_cast<double>(m.up[0]),
+                    static_cast<double>(m.up[1]), static_cast<double>(m.up[2]), tilt);
+        ImGui::SameLine();
+        ImGui::TextDisabled("%.0f s ago", (now_ms - m.t_up) / 1000.0);
+    } else {
+        ImGui::TextDisabled("up: none yet (`imu`)");
+    }
+    if (m.have_roll) {
+        ImGui::Text("roll %+.2f deg", static_cast<double>(m.roll));
+        ImGui::SameLine();
+    }
+    if (m.have_level) {
+        ImGui::TextColored(m.levelled ? kGreen : kAmber, "%s",
+                           m.levelled ? "levelled" : "NOT levelled");
+        ImGui::SameLine();
+    }
+    if (m.have_raw) {
+        ImGui::TextDisabled("a %.2f %.2f %.2f |a| %.2f  g %.3f %.3f %.3f",
+                            static_cast<double>(m.acc[0]), static_cast<double>(m.acc[1]),
+                            static_cast<double>(m.acc[2]), static_cast<double>(m.accmag),
+                            static_cast<double>(m.graw[0]), static_cast<double>(m.graw[1]),
+                            static_cast<double>(m.graw[2]));
+    } else {
+        ImGui::NewLine();
+    }
+
+    // servos
+    ImGui::SeparatorText("SERVOS");
+    static const int kOrder[] = {52, 6, 7, 8, 11, 51, 2, 3, 4, 12, 10, 9};
+    if (ImGui::BeginTable("joints", 10,
+                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                              ImGuiTableFlags_SizingFixedFit)) {
+        const char* cols[] = {"id", "joint", "pos", "dzero t", "dzero deg",
+                              "load", "temp C", "V", "err", "age s"};
+        for (const char* c : cols) ImGui::TableSetupColumn(c);
+        ImGui::TableHeadersRow();
+        bool shown[bimo::kBenchMaxId] = {false};
+        auto row = [&](int id) {
+            const bimo::BenchJoint& j = m.joints[id];
+            if (!j.have || shown[id]) return;
+            shown[id] = true;
+            const double age = (now_ms - j.t_ms) / 1000.0;
+            // A reading older than two poll sweeps is history, not state.
+            const bool old = age > 15.0 || !live;
+            if (old) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.55f, 1));
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn(); ImGui::Text("%d", j.id);
+            ImGui::TableNextColumn(); ImGui::TextUnformatted(j.name[0] ? j.name : "-");
+            ImGui::TableNextColumn(); ImGui::Text("%d", j.pos);
+            if (j.have_cal) {
+                const int d = j.pos - j.zero;
+                ImGui::TableNextColumn(); ImGui::Text("%+d", d);
+                ImGui::TableNextColumn(); ImGui::Text("%+.1f", d * 360.0 / 4096.0);
+            } else {
+                ImGui::TableNextColumn(); ImGui::TextDisabled("-");
+                ImGui::TableNextColumn(); ImGui::TextDisabled("-");
+            }
+            ImGui::TableNextColumn(); ImGui::Text("%d", j.load);
+            ImGui::TableNextColumn(); ImGui::Text("%d", j.temp);
+            ImGui::TableNextColumn(); ImGui::Text("%.1f", static_cast<double>(j.volt));
+            ImGui::TableNextColumn();
+            if (j.err) ImGui::TextColored(kRed, "0x%02X", j.err);
+            else ImGui::TextUnformatted("ok");
+            ImGui::TableNextColumn(); ImGui::Text("%.0f", age);
+            if (old) ImGui::PopStyleColor();
+        };
+        for (int id : kOrder) row(id);
+        for (int id = 0; id < bimo::kBenchMaxId; ++id) row(id);
+        ImGui::EndTable();
+    }
+    if (m.jointsSeen() == 0) {
+        ImGui::TextDisabled("no servo readings yet: `pos <id>` at the CLI, or run the bridge with --poll");
+    } else {
+        ImGui::TextDisabled("dzero = pos - the cal zero, raw servo ticks (4096/rev), direction not applied; "
+                            "'-' until a `cal show` is seen or --cal-from seeds it");
+    }
+}
+
+void drawBenchView(App& a, double now_ms, const ImGuiViewport* vp) {
+    const float cam_w = vp->WorkSize.x * 0.40f;
+    const float body_h = vp->WorkSize.y - 150.0f;
+    ImGui::BeginChild("cams", ImVec2(cam_w, body_h));
+    ImGui::SeparatorText("CAMERAS");
+    for (int i = 0; i < kCamPanes; ++i) {
+        // The second pane is optional: shown when asked for, else one click.
+        if (i == 1 && a.cam[1].sel < 0 &&
+            !ImGui::CollapsingHeader("second camera")) {
+            continue;
+        }
+        drawCamPane(a, i, now_ms, cam_w - 24.0f);
+        ImGui::Spacing();
+    }
+    ImGui::EndChild();
+    ImGui::SameLine();
+    ImGui::BeginChild("bench", ImVec2(0, body_h));
+    drawBenchTelemetry(a, now_ms);
+    ImGui::EndChild();
 }
 
 int runWindow(App& a) {
@@ -1823,22 +2254,26 @@ int runWindow(App& a) {
         drawHeader(a, now_ms);
         ImGui::Separator();
 
-        const float sim_w = vp->WorkSize.x * 0.42f;
-        const float mid_h = vp->WorkSize.y * 0.46f;
-        ImGui::BeginChild("sim", ImVec2(sim_w, mid_h));
-        drawSim(a, now_ms, sim_w);
-        ImGui::EndChild();
-        ImGui::SameLine();
-        ImGui::BeginChild("drive", ImVec2(0, mid_h));
-        drawDrive(a);
-        ImGui::EndChild();
-
-        if (a.show_keymap) {
-            drawKeymap(a);
-        } else if (a.show_settings) {
-            drawSettings(a, now_ms);
+        if (a.bench_view && !a.show_keymap && !a.show_settings) {
+            drawBenchView(a, now_ms, vp);
         } else {
-            drawTelemetry(a, now_ms);
+            const float sim_w = vp->WorkSize.x * 0.42f;
+            const float mid_h = vp->WorkSize.y * 0.46f;
+            ImGui::BeginChild("sim", ImVec2(sim_w, mid_h));
+            drawSim(a, now_ms, sim_w);
+            ImGui::EndChild();
+            ImGui::SameLine();
+            ImGui::BeginChild("drive", ImVec2(0, mid_h));
+            drawDrive(a);
+            ImGui::EndChild();
+
+            if (a.show_keymap) {
+                drawKeymap(a);
+            } else if (a.show_settings) {
+                drawSettings(a, now_ms);
+            } else {
+                drawTelemetry(a, now_ms);
+            }
         }
         drawSession(a, now_ms);
 
@@ -2002,6 +2437,40 @@ int main(int argc, char** argv) {
         simViewUrl(a, a.sim_url, sizeof a.sim_url, false);
         a.stream.start(a.sim_url);
     }
+    // The bench: bridge telemetry and cameras. Failure to resolve is logged,
+    // not fatal -- a console that cannot reach mira should still show that.
+    if (o.bench != nullptr) {
+        if (a.bench.open(o.bench, kBenchPort)) {
+            // Everything the bench panel shows is also in the session JSONL.
+            a.bench.setSink(
+                [](void* ctx, const char* d, size_t n, double t) {
+                    App* app = static_cast<App*>(ctx);
+                    if (app->rec.active()) app->rec.bench(t, d, n);
+                },
+                &a);
+            logEvent(a, "bench", "subscribing to %s", a.bench.target());
+        } else {
+            logEvent(a, "ERROR", "--bench-telemetry %s: %s", o.bench,
+                     a.bench.err());
+        }
+    }
+    if (o.cam_relay != nullptr) {
+        // HOST or HOST:PORT -> always host:port for the URLs.
+        if (strchr(o.cam_relay, ':') != nullptr) {
+            snprintf(a.cam_host, sizeof a.cam_host, "%s", o.cam_relay);
+        } else {
+            snprintf(a.cam_host, sizeof a.cam_host, "%s:%d", o.cam_relay,
+                     kCamPort);
+        }
+        logEvent(a, "cam", "camera relay http://%s/", a.cam_host);
+        for (int i = 0; i < o.n_cams; ++i) {
+            for (int c = 0; c < kCamCount; ++c) {
+                if (!strcmp(o.cams[i], kCamNames[c])) camSelect(a, i, c);
+            }
+        }
+    }
+    a.bench_view = (o.bench != nullptr || o.cam_relay != nullptr) &&
+                   !o.drive_view;
     // Record by default. A take you forgot to arm the recorder for is a take
     // you cannot compare against a sim eval afterwards, and the frames are
     // cheap: ~90 bytes each at 20 Hz, so an hour of driving is a few MB.
@@ -2067,6 +2536,8 @@ int main(int argc, char** argv) {
         a.rec.stop();
     }
     stopSim(a);
+    for (App::CamPane& c : a.cam) c.stream.stop();
+    a.bench.close();
     a.link.close();
     logEvent(a, "quit", "sent disarm (%u frames total)", a.link.sent);
     if (a.logf != nullptr) fclose(a.logf);
