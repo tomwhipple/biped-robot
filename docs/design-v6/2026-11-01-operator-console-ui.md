@@ -1,6 +1,8 @@
 # Operator console v2: UI design (2026-11-01)
 
-*A proposed design, not built. It replaces `bimo_gui` ([`link/gui.cpp`](../../link/gui.cpp),
+*A design record; the console is built from it as `link/bimo_console.py`
+([console.md](../console.md)), and §17 lists where the build departs from it.
+It replaces `bimo_gui` ([`link/gui.cpp`](../../link/gui.cpp),
 C++ Dear ImGui) with a native Qt window in Python: tabs, a 3D view of the robot's
 measured pose with commanded / sim / camera overlays, commanded-vs-measured
 graphs for every joint, a Bluetooth gamepad, and a pre-arm checklist. Every
@@ -429,3 +431,24 @@ uv run --no-project --with PyQt6 --with pyqtgraph --with mujoco==3.15.0 \
 
 writes the nine `figs/console_ui_*.png` beside the script. Every image carries
 "MOCKUP · synthetic data"; camera panes are placeholders.
+
+## 17. As built (2026-11-02)
+
+Where the build ([console.md](../console.md)) departs from the sections above:
+
+- **E-STOP ends the run.** It is the out-of-band hard stop, so the robot benches
+  (`DISARMED_STOP`) with torque off; STAND does not bring it back, re-arming
+  does. For a driver it also sets the classic latch, for older firmware.
+- **RESET SERVOS is refused while a stop burst is still going out** (1 s after
+  HOLD or E-STOP): a hard-stop frame releases torque on a benched robot, so the
+  rest of the burst would undo the reset. The stop wins, and the note says how
+  long is left.
+- **A focused text field takes every key**, the keymap's included (§4 said the
+  ARM / STAND / HOLD / E-STOP keys would work whatever has focus). Typing a host
+  name with an `a` in it must not arm the robot; the on-screen buttons never take
+  focus and are always there.
+- **Ports for flight records**: robot records on UDP 4221 (forwarded by mira's
+  collector), the sim's on 4222.
+- **`bimo_gui` stays until the new console has run a hardware session** (§13
+  step 8, §15 decision 3): parity on the bench cannot be claimed from the twins
+  alone.
