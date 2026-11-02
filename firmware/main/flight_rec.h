@@ -103,8 +103,9 @@ uint32_t recordBench(scsbus::Bus* bus, const BenchView& v);
 
 // Housekeeping events (text may be nullptr). Trailing CR/LF are dropped.
 void event(flightrec::Ev code, const char* text, int32_t a = 0, int32_t b = 0);
-// The CLI sink wrapper's half: one printed line, split on CR/LF.
-void outputText(const char* text);
+// The CLI sink wrapper's half: one printed line, split on CR/LF. `chan` is
+// flightrec::kChanTether / kChanWifi (the event's `a`).
+void outputText(const char* text, int32_t chan = flightrec::kChanTether);
 // Called every housekeeping iteration: mode handover events.
 void houseTick();
 // The idle sample is due (rate limit + backoff), i.e. recordBench(idle) now.

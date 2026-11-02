@@ -19,7 +19,10 @@ namespace cli {
 using Sink = void (*)(const char* text);
 
 // Execute one line. `line` is NUL-terminated and has no trailing newline.
-void execute(const char* line, Sink out);
+// `remote` = it came over the Wi-Fi CLI (wifi_cli.cpp): the persistent
+// writers (NVS, servo EEPROM) and safety-latch clears refuse themselves, and
+// `rec` changes apply in RAM only -- on top of the Wi-Fi allowlist.
+void execute(const char* line, Sink out, bool remote = false);
 
 // The banner printed at boot and by `help`.
 void banner(Sink out);
