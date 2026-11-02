@@ -44,7 +44,7 @@ class SafetyBar(QtWidgets.QFrame):
         self.badge.setFixedHeight(46)
         self.badge.setFixedWidth(230)
         self.badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.arm = btn("ARM", 170, "arm")
+        self.arm = btn("ARM", 230, "arm")
         self.stand = btn("STAND", 132)
         self.hold = btn("HOLD", 132, "hold", h=46)
         self.estop = btn("E-STOP", 230, "estop", h=46)

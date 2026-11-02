@@ -114,6 +114,8 @@ class Window(QtWidgets.QMainWindow):
             w = self._make(mod, cls, title)
             self.tab_widgets[title] = w
             self.tabs.addTab(w, title)
+        if self.pad is not None:
+            self.pad.install(self)
         self.split = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.split.setHandleWidth(6)
         self.split.addWidget(self.view)
