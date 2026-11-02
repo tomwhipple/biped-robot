@@ -288,3 +288,32 @@ SERVO=fast python stand_candidates.py 8 fw_candidates_fast.json fw
 SERVO=fast HARD=1 python stand_candidates.py 8 deployed_fast.json deployed
 SERVO=fast HARD=1 RUNS=<run>,<run> python stand_candidates.py 8 students_fast.json students
 ```
+
+## Hardware results (2026-11-02, 17:43-18:15Z, walk16_act_s128r24, fast servos, this branch)
+
+Recordings and full tables: `hw_sessions/2026-11-02/NOTES.md` (stand5, stand6, stand7).
+
+- **The coast holds the robot still.** Goal jitter is 0.012-0.03 deg at every phase, against
+  0.22 deg with the clock running, and body rate is about 0.002 rad/s (0.04 with the clock
+  running). A 3 min endurance stand held at 1.10 W.
+- **The sim's ranking of phases by power is wrong on the robot.** A fresh-arm stand draws:
+
+  | phase | power (W) |
+  |---|---|
+  | π/2 | 1.04, 1.11 (0.88 in the sweep) |
+  | π | 1.58, 1.49, 1.65 |
+  | 3π/4 | 1.62 (1.04 in the sweep) |
+  | clock running | 1.05-1.09 |
+
+  Holding the same pose right after the STOP draws only 0.05-0.19 W. So the roughly 1 W while
+  armed comes from policy targets the legs can't reach, with the legs pushing against each
+  other through the feet. **The default coast target is now π/2.**
+- **Coast adds margin, as the sim predicted.** With no obsfreeze and a 12 Hz shaper, the
+  clock-running stand shook harder and harder until the flail guard tripped on body rate at
+  21 s. With coast at π/2 the same stand held 40 s, and later 3 min, motionless.
+- **The gyro knob is not needed with coast.** obsfreeze off (gyro gain 1) held 60 s.
+- **The shaper is needed.** With the shaper off, the flail guard tripped on chatter
+  (8.46 rad/s) after 1 s. At 20 Hz it tripped on body rate after 1 s. 15 Hz and 12 Hz held.
+  walk16_act needs a command low-pass of about 15 Hz or lower. A policy-driven fix would
+  train with the shaper in the loop.
+- The boot default is still `run`, because walk-to-stop with coast is untested on hardware.
