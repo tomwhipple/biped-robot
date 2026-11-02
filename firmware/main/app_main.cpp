@@ -22,6 +22,7 @@
 #include "flight_rec.h"
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
+#include "obs/assembler.h"
 #include "shared.h"
 #include "wifi_link.h"
 #include "wifi_cli.h"
@@ -54,6 +55,8 @@ std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+std::atomic<uint8_t> g_stand_clock{static_cast<uint8_t>(obs::StandClock::kRun)};
+std::atomic<float> g_stand_phase{3.14159265f};
 std::atomic<uint32_t> g_obs_freeze{0};
 std::atomic<float> g_obs_gyro_gain{1.0f};
 QueueHandle_t g_cmd_mailbox = nullptr;

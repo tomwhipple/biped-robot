@@ -125,6 +125,11 @@ const char* sil_last_error(void);
 // ctrl_task reseeding from measured q on a torque (re)engage.
 void sil_set_shaper(float pole_hz);
 
+// The stand-clock option, the mirror of ctrl_task's g_stand_clock (CLI
+// `standclock`): 0 run (as trained, the boot state sil_init restores),
+// 1 freeze, 2 coast to stand_phase (rad). See obs::StandClock.
+void sil_set_stand_clock(int mode, float stand_phase);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

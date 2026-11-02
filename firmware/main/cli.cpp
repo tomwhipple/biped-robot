@@ -11,6 +11,7 @@
 #include "flailguard/flailguard.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
+#include "obs/assembler.h"
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
 #include "scsbus/bus.h"
@@ -1557,6 +1558,41 @@ void cmdShape(Sink out, int argc, char** argv) {
             "speed\r\n", static_cast<double>(hz));
     } else {
         out("shape: off (raw targets, max-speed slew)\r\n");
+    }
+}
+
+void cmdStandClock(Sink out, int argc, char** argv) {
+    // standclock [run|freeze|coast [<phase rad>]] -- what the gait clock does
+    // at a plain stand (obs::StandClock; experiments/policy/stand-still).
+    // Live, one writer (here), one reader (ctrl); not persistent: boot = run.
+    if (argc >= 2) {
+        obs::StandClock m;
+        if (!strcmp(argv[1], "run") || !strcmp(argv[1], "off")) m = obs::StandClock::kRun;
+        else if (!strcmp(argv[1], "freeze")) m = obs::StandClock::kFreeze;
+        else if (!strcmp(argv[1], "coast")) m = obs::StandClock::kCoast;
+        else { out("standclock: run|freeze|coast [phase rad, -3.1416..3.1416]\r\n"); return; }
+        if (argc >= 3) {
+            const float ph = strtof(argv[2], nullptr);
+            if (!(ph >= -3.1416f && ph <= 3.1416f)) {
+                out("standclock: phase must be -3.1416..3.1416 rad\r\n");
+                return;
+            }
+            robot::g_stand_phase.store(ph);
+        }
+        robot::g_stand_clock.store(static_cast<uint8_t>(m));
+    }
+    const auto m = static_cast<obs::StandClock>(robot::g_stand_clock.load());
+    if (obs::kClockStandFreeze) {
+        out("standclock: this policy was trained with the clock HELD at a stand -- "
+            "it always holds (option ignored)\r\n");
+    }
+    if (m == obs::StandClock::kCoast) {
+        say(out, "standclock: coast -- at a plain stand the clock keeps 1.5 Hz until phase "
+            "%.3f rad, then holds\r\n", static_cast<double>(robot::g_stand_phase.load()));
+    } else if (m == obs::StandClock::kFreeze) {
+        out("standclock: freeze -- at a plain stand the clock holds where it is\r\n");
+    } else {
+        out("standclock: run -- the clock runs at a stand, as trained (default)\r\n");
     }
 }
 
@@ -3744,6 +3780,7 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
+    out("  standclock [run|freeze|coast [ph]]  gait clock at a stand (coast: hold at ph)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
@@ -3840,6 +3877,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
+    else if (!strcmp(c, "standclock")) cmdStandClock(out, argc, argv);
     else if (!strcmp(c, "obsfreeze")) cmdObsFreeze(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
     else if (!strcmp(c, "batt")) cmdBatt(out, argc, argv);

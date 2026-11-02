@@ -10,6 +10,8 @@
 #include "obs/assembler.h"
 #include <string.h>
 
+#include <initializer_list>
+
 #include "test_util.h"
 // <> not "": a policy profile build (POLICY=...) puts its own vectors/
 // first on the include path, ahead of this directory.
@@ -150,6 +152,87 @@ void testGaitClockWraps() {
     c2.setPhase(0.0f);
     for (int i = 0; i < 100; ++i) c2.advance(1.0f / 150.0f);   // exactly 1 rev
     CHECK_NEAR(c2.phase(), 0.0, 1e-3);
+}
+
+// Coast: the trained rate until the stand phase, then held exactly there --
+// never a jump, never a slower step than training's (the policy only ever
+// sees running-clock frames, then a constant phase).
+void testGaitClockCoast() {
+    const float pi = 3.14159265f;
+    const float step = 2.0f * pi * 0.02f * 1.5f;
+    obs::GaitClock c(1.5f);
+    c.setPhase(0.2f);
+    int held_at = -1;
+    float prev = c.phase();
+    for (int i = 0; i < 100; ++i) {
+        const bool held = c.coastTo(0.02f, pi);
+        float d = c.phase() - prev;
+        if (d < -pi) d += 2.0f * pi;
+        CHECK(d >= -1e-6f && d <= step + 1e-5f);      // forward, at most one trained step
+        if (held && held_at < 0) held_at = i;
+        if (held_at >= 0) CHECK_NEAR(c.phase(), -pi, 1e-6);   // pi wraps to -pi, exactly
+        prev = c.phase();
+    }
+    // 0.2 -> pi is (pi - 0.2) / step ticks away
+    CHECK(held_at >= 0 && held_at <= static_cast<int>((pi - 0.2f) / step) + 1);
+    // Already past the target: it goes round (forward only), not back.
+    obs::GaitClock c2(1.5f);
+    c2.setPhase(-1.0f);
+    CHECK(!c2.coastTo(0.02f, -1.2f));
+    CHECK(c2.phase() > -1.0f);
+    // Sitting on the target: held, no motion.
+    obs::GaitClock c3(1.5f);
+    c3.setPhase(1.0f);
+    CHECK(c3.coastTo(0.02f, 1.0f));
+    CHECK_NEAR(c3.phase(), 1.0, 1e-6);
+    // A hair past the target (float rounding): held, not sent round a cycle.
+    obs::GaitClock c4(1.5f);
+    c4.setPhase(1.0f + 2e-6f);
+    CHECK(c4.coastTo(0.02f, 1.0f));
+    CHECK_NEAR(c4.phase(), 1.0, 1e-6);
+}
+
+// tickGaitClock: the one clock rule ctrl_task and the SIL share.
+void testTickGaitClock() {
+    float stand[obs::kNumCmd], walk[obs::kNumCmd];
+    for (int i = 0; i < obs::kNumCmd; ++i) stand[i] = walk[i] = 0.0f;
+    if (obs::kNumCmd > 3) stand[3] = walk[3] = 1.0f;
+    walk[0] = 0.3f;
+    CHECK(obs::plainStand(stand));
+    CHECK(!obs::plainStand(walk));
+    float liftc[obs::kNumCmd];
+    memcpy(liftc, stand, sizeof liftc);
+    if (obs::kNumCmd > 4) {
+        liftc[4] = 0.6f;
+        CHECK(!obs::plainStand(liftc));
+    }
+    // Under a locomotion command every mode advances like the speed clock.
+    for (auto m : {obs::StandClock::kRun, obs::StandClock::kFreeze, obs::StandClock::kCoast}) {
+        obs::GaitClock a(1.5f), ref(1.5f);
+        obs::tickGaitClock(a, walk, m, 0.0f);
+        ref.advanceSpeedClock(obs::kControlDt, 0.3f);
+        CHECK_NEAR(a.phase(), ref.phase(), 0.0);
+    }
+    // At a plain stand: a freeze-trained run always holds; any other follows
+    // the mode.
+    obs::GaitClock r(1.5f), f(1.5f), k(1.5f);
+    r.setPhase(0.5f); f.setPhase(0.5f); k.setPhase(0.5f);
+    for (int i = 0; i < 200; ++i) {
+        obs::tickGaitClock(r, stand, obs::StandClock::kRun, 2.0f);
+        obs::tickGaitClock(f, stand, obs::StandClock::kFreeze, 2.0f);
+        obs::tickGaitClock(k, stand, obs::StandClock::kCoast, 2.0f);
+    }
+    CHECK_NEAR(f.phase(), 0.5, 0.0);
+    if (obs::kClockStandFreeze) {
+        CHECK_NEAR(r.phase(), 0.5, 0.0);
+        CHECK_NEAR(k.phase(), 0.5, 0.0);
+    } else {
+        obs::GaitClock ref(1.5f);
+        ref.setPhase(0.5f);
+        for (int i = 0; i < 200; ++i) ref.advance(obs::kControlDt);
+        CHECK_NEAR(r.phase(), ref.phase(), 1e-5);
+        CHECK_NEAR(k.phase(), 2.0, 1e-6);
+    }
 }
 
 void testActionToAngles() {
@@ -676,6 +759,8 @@ int main() {
     testFramesMatchTheSim();
     testHistoryOrdering();
     testGaitClockWraps();
+    testGaitClockCoast();
+    testTickGaitClock();
     testActionToAngles();
     testAngleToSteps();
     testBusAngleToStepsRaw();
