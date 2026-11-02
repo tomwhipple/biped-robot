@@ -1,0 +1,18 @@
+{
+  "run": "robot_legs_walk16_act_s256r24",
+  "profile": "v6legs256",
+  "proxy": "robot_legs_walk16_act_s256r24_q8",
+  "obs": 3494,
+  "rollouts": 16,
+  "rollout_terminations": 14,
+  "int8_vs_float": {
+    "rms": 0.0030277639161795378,
+    "p99": 0.01006161980330944,
+    "max": 0.04634259268641472
+  },
+  "proxy_vs_int8": {
+    "rms": 2.8542312065837905e-05,
+    "p99": 9.657606278778985e-05,
+    "max": 0.0002780817449092865
+  }
+}

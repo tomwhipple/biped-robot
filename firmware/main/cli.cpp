@@ -22,6 +22,7 @@
 #include "flight_rec.h"
 #include "imu_sampler.h"
 #include "mech_envelope.h"
+#include "net_bench.h"
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
@@ -1948,6 +1949,17 @@ bool armRefused(Sink out) {
             "weights (docs/training.md section 9)\r\n", policy::kWeightsRun);
         return true;
     }
+    // An int8 image checks its own net at boot (policy::init): the forward
+    // pass must reproduce the generator's numpy action. If it does not, the
+    // image is not running the net it was built from.
+    if (!policy::status().selftest_ok) {
+        robot::g_arm_result.store(
+            static_cast<uint8_t>(linkproto::ArmResult::kRefusedPolicy));
+        say(out, "REFUSED: the policy self-test failed at boot (action err "
+            "%.3g) -- `nettime` shows the details; do not run this image\r\n",
+            static_cast<double>(policy::status().selftest_err));
+        return true;
+    }
     // Every joint the policy drives must be fitted: the loop reads and writes
     // fitted servos only, and a policy joint that is not on the wire would be
     // fed a stale angle forever.
@@ -2219,6 +2231,15 @@ void cmdStat(Sink out) {
     say(out, "policy: %s, %d joints, obs %d, run %s\r\n",
         policy::kWeightsArePlaceholder ? "PLACEHOLDER WEIGHTS" : "exported",
         obs::kNumJoints, obs::kObsDim, obs::kRunName);
+    {
+        const policy::Status& ps = policy::status();
+        say(out, "  net: %s, %u B weights, %d/%d layers in RAM, kernel %s, "
+                 "self-test %s (`nettime` times it)\r\n",
+            ps.quantized ? "int8" : "float", static_cast<unsigned>(ps.weight_bytes),
+            ps.layers_in_ram, ps.num_layers,
+            ps.quantized ? policy::kernelName(ps.kernel) : "f32",
+            !ps.selftest_ran ? "n/a" : (ps.selftest_ok ? "ok" : "FAILED"));
+    }
     say(out, "bus: %d of %d servos fitted (cal)\r\n",
         robot::fittedBusJoints(robot::calibration(), nullptr, nullptr),
         obs::kNumBusJoints);
@@ -3790,6 +3811,8 @@ void banner(Sink out) {
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");
     out("  rec [status|<ip>[:port]|on|off|idle <hz>]   flight recorder -> UDP collector\r\n");
     out("  stat                 tick timing and fault counters\r\n");
+    out("  nettime [n]          time the policy forward pass every way this image\r\n"
+        "                       can run it (benched; n passes, default 20)\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 }
 
@@ -3895,6 +3918,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "ntp")) cmdNtp(out, argc, argv);
     else if (!strcmp(c, "rec")) cmdRec(out, argc, argv);
     else if (!strcmp(c, "stat")) cmdStat(out);
+    else if (!strcmp(c, "nettime")) robot::netTime(out, argc >= 2 ? atoi(argv[1]) : 20);
     else if (!strcmp(c, "obsdump")) cmdObsDump(out, argc, argv);
     else out("? (try `help`)\r\n");
 }

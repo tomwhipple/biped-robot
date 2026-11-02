@@ -196,11 +196,11 @@ void buildSpec() {
     snprintf(buf, sizeof buf,
              "\"ready\":%s,\"gait_freq_hz\":%.9g,"
              "\"policy\":{\"source\":\"%s\",\"builtin\":%s,"
-             "\"activation\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
+             "\"activation\":\"%s\",\"quant\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
              "\"placeholder_weights\":%s,\"layer_sizes\":[",
              g_ready ? "true" : "false", static_cast<double>(g_gait_hz),
              g_net.source().c_str(), g_net.builtin() ? "true" : "false",
-             g_net.activation().c_str(), g_net.obsDim(), g_net.actDim(),
+             g_net.activation().c_str(), g_net.quant(), g_net.obsDim(), g_net.actDim(),
              (g_net.builtin() && policy::kWeightsArePlaceholder) ? "true"
                                                                  : "false");
     g_spec += buf;
@@ -368,7 +368,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     g_hist.build(g_frame, g_obs);
 
     // -- act ----------------------------------------------------------------
-    policy::forwardNet(g_net.net(), g_obs, g_action);
+    g_net.forward(g_obs, g_action);    // float, or the int8 net (sil_net.h)
     g_hist.push(g_frame);            // after the policy has been fed
     memcpy(g_prev_action, g_action, sizeof g_prev_action);
 
