@@ -603,6 +603,11 @@ class BimoMJXEnv:
         # stand drew ~1 W against 0.05-0.19 W for a static hold of the same pose -- targets
         # the legs cannot reach, squeezing through the feet (2026-11-02). Tracks the servo's
         # P-loop effort; tau^2 (power_w) ranked stand poses wrongly.
+        squeeze_lash_band: bool = False,  # w_squeeze: subtract half the backlash from
+        # the error (the sim PD's torque dead zone). Off = the FULL error, which is what
+        # the STS servo's output-side encoder makes its P-loop push on (a squeeze inside
+        # the lash still loads the gears). walk17_shp10 / walk18_shp10lg trained with it ON
+        # (the roll lash DR 0.5-2 deg then hid the hip/ankle-roll squeeze: rolls unchanged).
         stop_grace_s: float = 0.0,  # gait shaping stays on this long after a
         # walk -> stand stop (the closing step; see step(), 2026-10-29)
         w_pitch_hinge: float = 0.0,
@@ -1296,6 +1301,7 @@ class BimoMJXEnv:
         assert not (clock_stand_freeze and self.clock_stand_coast is not None), \
             "clock_stand_freeze and clock_stand_coast are exclusive"
         self.w_squeeze = float(w_squeeze)
+        self.squeeze_lash_band = bool(squeeze_lash_band)
         self.stop_grace_s = float(stop_grace_s)
         # torso-pitch MAGNITUDE hinge (mirrors walker_env): quadratic penalty
         # on |pitch| past a free deadband, pitch only (roll is untouched --
@@ -3253,8 +3259,9 @@ class BimoMJXEnv:
             sq_gate = ((~cmd_moving)
                        & ((~lifted) & (state.cmd[3] >= 0.97) if self.ext_cmd else True)
                        & (state.recovered > 0.5))
-            sq_err = jp.maximum(jp.abs(served_end - data.qpos[self._jq0:self._jq1])
-                                - 0.5 * lash, 0.0)
+            sq_err = jp.abs(served_end - data.qpos[self._jq0:self._jq1])
+            if self.squeeze_lash_band:
+                sq_err = jp.maximum(sq_err - 0.5 * lash, 0.0)
             squeeze = jp.sum(self._p(sq_err))
             reward -= self.w_squeeze * jp.where(sq_gate, 1.0, 0.0) * squeeze
         if self.w_stand_zero:

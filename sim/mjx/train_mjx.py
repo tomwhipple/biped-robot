@@ -433,6 +433,9 @@ def make_parser():
                         "|served target - q| (rad, less the backlash band): the "
                         "robot's armed stand drew ~1 W on targets the legs cannot "
                         "reach vs 0.05-0.19 W for a static hold (2026-11-02)")
+    p.add_argument("--squeeze-lash-band", action="store_true",
+                   help="--w-squeeze ignores errors inside half the backlash (the sim PD's "
+                        "dead zone); default: the full error the servo's encoder sees")
     p.add_argument("--stop-grace-s", type=float, default=None,
                    help="keep the gait shaping on this many seconds after a "
                         "walk -> stand stop, so the closing step is shaped "
@@ -992,6 +995,8 @@ def build_env_kw(args):
         env_kw["clock_stand_coast"] = float(args.clock_coast_stand)
     if args.w_squeeze is not None:
         env_kw["w_squeeze"] = args.w_squeeze
+    if args.squeeze_lash_band:
+        env_kw["squeeze_lash_band"] = True
     if args.stop_grace_s is not None:
         env_kw["stop_grace_s"] = args.stop_grace_s
     if args.mimic_crouch_gate:

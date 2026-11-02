@@ -71,6 +71,9 @@ PROBES = {
     "walk 0.3 -> stop": dict(cmd_schedule=[(0.0, walk(0.3)), (4.0, STAND_CMD)], run_s=14.0),
     "walk 0.2 -> stop": dict(cmd_schedule=[(0.0, walk(0.2)), (4.0, STAND_CMD)], run_s=14.0),
     "walk 0.15 -> stop": dict(cmd_schedule=[(0.0, walk(0.15)), (4.0, STAND_CMD)], run_s=14.0),
+    "x2": dict(out_gain=2.0, run_s=20.0),
+    "push 0.5": dict(push=0.5, run_s=12.0),
+    "slow servo": dict(typed=dict(simh.MEAS_SERVO), run_s=20.0),
     "stride1 0.6": dict(cmd_schedule=stride(0.6), run_s=8.0),
     "stride1 0.4": dict(cmd_schedule=stride(0.4), run_s=8.0),
     "stride1 0.3": dict(cmd_schedule=stride(0.3), run_s=8.0),
@@ -141,7 +144,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     obs = np.concatenate([first] + list(env._obs_hist))
     qm = first[:nj].astype(np.float64)
     sh = simh.Shaper(v["shaper_hz"]); sh.reset(qm)
-    sv = simh.TypedServo(**FAST); sv.reset(qm)
+    sv = simh.TypedServo(**v.get("typed", FAST)); sv.reset(qm)
     out_gain = v.get("out_gain", 1.0); push = v.get("push", 0.0)
     hold = qm.copy(); cur = {"t": hold}
     env._action_to_ctrl = lambda a_: cur["t"]
