@@ -73,10 +73,38 @@ class GaitClock {
     void setFrequency(float hz) { freq_ = hz; }
     float phase() const { return phase_; }
     void setPhase(float p) { phase_ = p; }
+    // Coast: advance(dt) as usual until the phase reaches `target` (moving
+    // forward only), then hold exactly there. Stateless -- once the phase IS
+    // the (wrapped) target it stays; any advance() moves it off again.
+    // Returns true while held at the target.
+    bool coastTo(float dt, float target);
 
   private:
     float phase_ = 0.0f;
     float freq_;
 };
+
+// What the clock does at a PLAIN STAND for a policy trained with it running
+// (kClockStandFreeze false) -- a firmware option, CLI `standclock`, default
+// kRun (the as-trained behaviour). The 2026-11-02 policy stand: the phase
+// kept running at 1.5 Hz at the stand command and every joint goal jittered
+// 0.1-0.5 deg rms at exactly 1.5 and 3 Hz (experiments/policy/stand-still).
+//   kRun     advance as trained
+//   kFreeze  hold the phase where the stand began
+//   kCoast   keep the trained rate until the phase reaches the stand phase,
+//            then hold there: the policy never sees the clock jump or slow,
+//            and the stand always settles at the same (chosen) phase
+// A policy trained with the clock frozen (kClockStandFreeze) always holds.
+enum class StandClock : uint8_t { kRun = 0, kFreeze = 1, kCoast = 2 };
+
+// Training's plain-stand gate (env_mjx plain_stand): no locomotion command
+// and no lift. cmd: kNumCmd wide, AFTER policy::pinFrozen.
+bool plainStand(const float* cmd);
+
+// One control tick of the gait clock: the speed clock under a locomotion
+// command, the StandClock rule at a plain stand. THE clock rule -- ctrl_task
+// and the SIL harness both call it, so the two cannot drift apart.
+void tickGaitClock(GaitClock& clk, const float* cmd, StandClock mode,
+                   float stand_phase);
 
 }  // namespace obs

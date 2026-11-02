@@ -47,6 +47,10 @@
 
 namespace {
 
+#ifdef POLICY_WEIGHTS_Q8
+constexpr double kQ8BraxTol = 0.08;
+#endif
+
 std::string join(const std::string& dir, const std::string& name) {
     return dir.empty() ? name : dir + "/" + name;
 }
@@ -293,6 +297,15 @@ void runPolicyFile(const std::string& path, const siljson::Value& root,
     if (const siljson::Value* a = root.get("activation")) {
         if (a->isStr()) CHECK(a->str == net.activation());
     }
+#ifdef POLICY_WEIGHTS_Q8
+    // An int8 profile against brax's FLOAT actions: the golden pins that the
+    // int8 net is still this run's policy, to the quantization error (the
+    // GPTQ-rounded walk14 (256,256) student: <= 0.05 on these normal-z
+    // cases, ~0.004 rms on its own rollouts; tools/gen_policy_weights.py
+    // prints both). Bit-parity of the int8 arithmetic itself is test_policy's
+    // job, against tools/policy_q8.py's vectors at 2e-6.
+    if (atol < kQ8BraxTol) atol = kQ8BraxTol;
+#endif
 
     ++g_files;
     printf("  %s: %zu policy cases vs %s (atol %g)\n", path.c_str(),

@@ -186,6 +186,51 @@ def bcd_x(x0, x1, y, z, roll=0):
             for dy, dz in ((r, 0), (-r, 0), (0, r), (0, -r))]
 
 
+def _rect2(u0, u1, v0, v1):
+    return Pos((u0 + u1) / 2, (v0 + v1) / 2) * Rectangle(u1 - u0, v1 - v0)
+
+
+def letter_2d(ch, h, w=None):
+    """Capital L or R, h tall and centred on the origin, as a face in the (u, v)
+    plane (v up), drawn from strokes of width w (default h / 6). Strokes, not a
+    font: a font's outline depends on the fonts of the machine that builds it,
+    and the STLs it cuts are committed."""
+    w = w or h / 6
+    hh = h / 2
+    if ch == "L":
+        hw = 0.3 * h
+        return _rect2(-hw, -hw + w, -hh, hh) + _rect2(-hw, hw, -hh, -hh + w)
+    if ch != "R":
+        raise ValueError(f"letter_2d draws L and R, not {ch!r}")
+    hw = 0.34 * h
+    rb = 0.28 * h                                  # the bowl's outer radius
+    uc, vc = hw - rb, hh - rb                      # its centre
+    vm = hh - 2 * rb                               # the bowl's foot: the leg starts here
+    face = _rect2(-hw, -hw + w, -hh, hh)           # stem
+    face += _rect2(-hw, uc, hh - w, hh) + _rect2(-hw, uc, vm, vm + w)
+    face += (Pos(uc, vc) * (Circle(rb) - Circle(rb - w))) & _rect2(uc, hw + 1, vc - rb, vc + rb)
+    # the leg: from under the bowl's foot to the bottom right corner, w wide
+    # across its own direction
+    top_u, top_v, bot_v = uc - w / 2, vm + w, -hh
+    k = w / math.sin(math.atan2(top_v - bot_v, hw - top_u))   # its width along u
+    bot_u = hw - k / 2
+    face += Polygon((top_u - k / 2, top_v), (bot_u - k / 2, bot_v),   # counter-clockwise,
+                    (bot_u + k / 2, bot_v), (top_u + k / 2, top_v),   # so its normal is +v x u
+                    align=None)
+    return face
+
+
+def letter_y(ch, y_face, outward, x, z, h, depth):
+    """The void that debosses letter_2d(ch, h) `depth` into a Y-normal face at
+    y = y_face whose outside is +y (outward = +1) or -y (-1), centred at (x, z),
+    upright along +z and reading correctly from outside. Cut it AFTER any
+    mirror: a mirrored letter reads backwards."""
+    plane = Plane(origin=(x, y_face, z), x_dir=(-outward, 0, 0), z_dir=(0, outward, 0))
+    s = extrude(plane * letter_2d(ch, h), amount=depth + 0.2)
+    lo = y_face - depth if outward > 0 else y_face - 0.2     # 0.2 mm proud of the face
+    return Pos(0, lo - s.bounding_box().min.Y, 0) * s
+
+
 # ---------------------------------------------------------------- yoke_roll
 # MODELLED SUPPORT FINS DELETED 2026-07-30 (user: "none of the supports break
 # away or are done very well ... it's actually pretty terrible"). Both yokes

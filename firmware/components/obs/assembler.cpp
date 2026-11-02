@@ -67,4 +67,59 @@ void GaitClock::advanceSpeedClock(float dt, float v_planar) {
     advance(dt * speedScale(v_planar));   // freq * scale == same step at dt * scale
 }
 
+namespace {
+constexpr float kTwoPi = 6.283185307179586f;
+constexpr float kPi = 3.141592653589793f;
+// The same wrap advance() applies: into [-pi, pi).
+float wrapPi(float p) {
+    p = fmodf(p + kPi, kTwoPi);
+    if (p < 0.0f) p += kTwoPi;
+    return p - kPi;
+}
+}  // namespace
+
+bool GaitClock::coastTo(float dt, float target) {
+    const float t = wrapPi(target);
+    const float step = kTwoPi * dt * freq_;
+    float to_go = fmodf(t - phase_, kTwoPi);      // forward distance, [0, 2pi)
+    if (to_go < 0.0f) to_go += kTwoPi;
+    // <= one step to go -- or a hair PAST the target (float rounding of the
+    // wrap), which must not send the clock round a whole cycle
+    if (to_go <= step || to_go >= kTwoPi - 1e-4f) {
+        phase_ = t;
+        return true;
+    }
+    advance(dt);
+    return false;
+}
+
+bool plainStand(const float* cmd) {
+    const float vy = kNumCmd > 1 ? cmd[1] : 0.0f;
+    const float lift = kNumCmd > 4 ? cmd[4] : 0.0f;
+    return !(fabsf(cmd[0]) > 0.05f || fabsf(vy) > 0.05f || fabsf(cmd[2]) > 0.05f ||
+             fabsf(lift) >= 0.5f);
+}
+
+void tickGaitClock(GaitClock& clk, const float* cmd, StandClock mode,
+                   float stand_phase) {
+    const float vy = kNumCmd > 1 ? cmd[1] : 0.0f;
+    const float v_planar = sqrtf(cmd[0] * cmd[0] + vy * vy);
+    if (!plainStand(cmd)) {
+        clk.advanceSpeedClock(kControlDt, v_planar);
+        return;
+    }
+    if (kClockStandFreeze) return;                // trained with the clock held
+    switch (mode) {
+        case StandClock::kFreeze:
+            return;
+        case StandClock::kCoast:
+            (void)clk.coastTo(kControlDt * GaitClock::speedScale(v_planar), stand_phase);
+            return;
+        case StandClock::kRun:
+        default:
+            clk.advanceSpeedClock(kControlDt, v_planar);
+            return;
+    }
+}
+
 }  // namespace obs

@@ -149,7 +149,8 @@ Also:
 | `wifi_link` | 0 | 5 | UDP command frames in on 4210; the 10 Hz telemetry beacon out on 4211 |
 | `imu` | 0 | 4 | the 250 Hz IMU sampler and fusion |
 | `flightrec` | 0 | 3 | drains the flight recorder's two rings to UDP 4220, 1 Hz hello ([flight-recorder.md](flight-recorder.md)) |
-| `housekeeping` | 0 | 2 | the CLI, arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
+| `housekeeping` | 0 | 2 | the CLI (tether and Wi-Fi lines, one queue), arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
+| `wcli` | 0 | 1 | the authenticated Wi-Fi CLI's socket on UDP 4213: authenticates, queues lines for `housekeeping`, sends their output ([wifi-cli.md](wifi-cli.md)). Lowest on purpose: a datagram flood can starve only this task |
 
 The WiFi/LwIP tasks stay on core 0 (IDF default), so nothing they do can
 preempt `ctrl`. All tasks are created once at init, and the control loop is
@@ -219,7 +220,7 @@ graph LR
     OBS --> NET[policy MLP<br/>147-128-128-20]
     NET --> SHP[command shaper<br/>+ takeover ramp]
     SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
-    SAFE[link watchdog, fall latch fallguard,<br/>pack guard, overrun => torque off] --- LOOP
+    SAFE[link watchdog, fall latch fallguard,<br/>pack guard, operator stop, overrun => torque off;<br/>flail guard => hold] --- LOOP
   end
   CAL[NVS: servo cal, IMU cal] --> OBS
   LOOP -->|telemetry, pose, obsdump| HK[housekeeping + beacon<br/>core 0]
@@ -235,6 +236,7 @@ graph LR
 | `components/battguard/` | pack under-voltage guard | yes |
 | `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
 | `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
+| `components/flailguard/` | the armed loop's judge of the POLICY: pose / rate / tilt / chatter (§5.6 "Flail guard") | yes, incl. a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`) |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
 
 ### 5.1 Observation
@@ -295,7 +297,11 @@ and are clamped to that range.
   the same run.
 - `policy::forwardNet` takes the weights as a parameter and `forward()`
   binds it to the generated header, so the SIL library runs an exported
-  `.silw` through the identical arithmetic.
+  `.silw` through the identical arithmetic. Only the act_dim mean logits of
+  the head are computed; the log-std half is never read at inference.
+- A policy profile may instead carry an **int8** net (`--quant int8`,
+  `POLICY_WEIGHTS_Q8`, `policy/q8.h`): the way a net wider than (128, 128)
+  fits the tick. §6.1 has the budget and the arithmetic.
 
 ### 5.3 Command shaper and goal speed
 
@@ -412,15 +418,27 @@ In the order the tick applies them:
    or re-arms; the bench half takes the latch over and homes the robot (ends
    released) once it is picked up. Re-arming is a fresh ARM edge or `run`.
    `StubImu` pins `up_z` at 1, so an IMU-less board never trips it.
-3. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
+3. **Operator stop** (`linkproto::kFlagStop`, out of band: the link tasks
+   count it in `g_op_stops` and never pass it to the latches or the
+   watchdog). Hard (with `ESTOP`): release torque this tick, `DISARMED_STOP`,
+   bench. Soft: hold (below), `DISARMED_STOP`, bench. `tools/estop.py` sends
+   it; [control-channel.md](control-channel.md) has the wire rules.
+4. **Link watchdog** (`linkproto::Watchdog`, armed only): `STAND` after
    250 ms without a valid frame (the command decays to the trained stand),
    `RELAX` after 5 s (torque off), `ESTOP` on the operator's flag (torque
    off, latched until a frame with `ENABLE` off). See
    [control-channel.md](control-channel.md).
-4. **Overrun**: a tick longer than 40 ms releases torque (§4).
+5. **Flail guard** (`components/flailguard`, after the policy and the
+   shaper, before the write; see "Flail guard" below): the policy doing
+   something clearly wrong for its command. Hold, `DISARMED_FLAIL`, bench.
+6. **Overrun**: a tick longer than 40 ms releases torque (§4).
 
 Every limp state releases torque with one broadcast frame and invalidates
-the shaper, so a re-engage reseeds from wherever the joints are.
+the shaper, so a re-engage reseeds from wherever the joints are. The two
+**holds** (the flail guard and the soft operator stop) are the exception: the
+tick writes every fitted servo's goal to the position it reported this tick
+(one SYNC WRITE, torque on) and the bench handover that follows skips its
+release, so the robot ends the run stiff where it was, not sagging.
 
 The **mechanical envelope** (`main/mech_envelope.h`) is the per-bus-joint
 measured or CAD-verified travel; the leg rows are the prototype's, and the
@@ -507,6 +525,48 @@ the bench guard / its autohome off (the armed latch is not switchable). Every
 step is a flight-recorder `fall` event (code 10: a = motion, b = fell / picked
 up / cleared), next to the `out` lines that say the same in words. A get-up
 policy (which works lying down) will need its own rule when it is deployed.
+
+**Flail guard** (`components/flailguard`, `flail`). The fall guard only fires
+once the torso is going over. On 2026-11-01 the first armed policy stand
+stood ~3.3 s, then the policy's targets chattered and swung (hip rolls to
+-24/+22 deg, knees to -35..-95 deg, feet kicked high) and the robot never fell
+on its own: the operator had to grab it and tilt it past 45 deg. The flail
+guard judges the policy itself, every acting tick; any criterion trips:
+
+| criterion | signal | limit | when |
+|---|---|---|---|
+| pose | any joint's written (shaped) target vs the trained stand pose | > 15 deg (per-joint table `poseLimitDeg`) for 300 ms | stand command only, after the 1 s takeover ramp |
+| rate | torso \|gyro\|, EMA tau 0.2 s | > 1.5 rad/s | always |
+| tilt | torso tilt | > 20 deg for 200 ms | always |
+| chatter | mean over joints of \|d raw target / dt\| (before the shaper), EMA tau 0.1 s | > 7.0 rad/s (8 deg per tick) | always |
+
+Tuned on that recording (`tools/gen_flail_vectors.py` freezes its first 4 s
+into `firmware/host/vectors/flail_vectors.h`; `test_flailguard` replays it):
+in the clean first 3 s the peaks are rate 1.07 rad/s, chatter 3.9 rad/s,
+written-target deviation 10.9 deg (never sustained), tilt 3.7 deg. On their
+own, rate and chatter trip at 3.31 s, pose at 3.55 s; tilt never reached
+20 deg until the operator tilted the robot (it would have tripped at 9.23 s;
+the 45 deg fall guard tripped at 9.96 s). The guard as flashed trips at
+**3.31 s**, about when the flailing became visible.
+
+On a trip the policy's targets for that tick are not written; the servos
+**hold** where they are (above), `DISARMED_FLAIL` goes in the beacon, the loop
+benches without releasing torque, and housekeeping takes the hold over
+(`g_armed_holds`; `cli.cpp` `flailTick`): flight-recorder `flail` event (code
+11: a = criterion, b = held), then, once the robot is within 20 deg of
+upright and |gyro| < 0.35 rad/s for 1 s, the ordinary `home` (2.5 s smooth,
+play take-up, readback, torque released). Freeze-then-home rather than a
+1 s ramp to home from inside the loop: the freeze stops putting energy in on
+the trip tick, the trip comes early enough that the frozen pose is near the
+stand, and the way back is the bench's verified `home` rather than a new
+trajectory into a robot mid-disturbance. Past the bench fall line (30 deg /
+100 ms) the bench fall guard goes limp and its pick-up rule takes over, as for
+any bench fall; limp is never the flail guard's answer. `bench`, `release`,
+`home`, `pose`/`move` or `run` take the hold over; `fall autohome off` leaves
+it held for a typed `home`. `flail` prints the limits and the holds since
+boot; `flail off` stops judging (for deliberate experiments only). The
+operator's soft stop runs the same hold. The SIL library does not mirror the
+guard (it is a hardware stop, and the sim's columns must not move).
 
 ### 5.7 Position-loop gains (Plan B)
 
@@ -598,6 +658,127 @@ is described in [training.md](training.md) §9.
 The referee gates the deployed artifact: the distilled net is scored on both
 scorecard columns — the python referee and the SIL column through the
 firmware's own code — before its headers are generated and flashed.
+
+### 6.1 The forward-pass budget, and int8 for a wider net
+
+The 2026-11-02 distillation study put most of the student-vs-teacher gap on
+student width: on walk14 a (256, 256) student scores 62/160 and a
+teacher-sized (512, 256, 128) one 69/160, against 37/160 for (128, 128)
+(teacher 79). The question is what fits the 20 ms tick. On the robot
+(2026-11-01, `stat`, 12 servos, the v6legs (128, 128) float net) the tick is
+servo read 3.55 ms, IMU 0.02, obs 0.04, **net 7.8**, write 0.09, other
+0.6: worst 13.2 ms. Everything but the net is ~5.4 ms, so the net may take
+about 14 ms and still leave the tick ~1 ms of margin, and the wider the net
+the less of that is left.
+
+**Where the 7.8 ms goes.** The weights are `constexpr` in flash `.rodata`,
+read through the 32 KB flash cache, and the 162 KB (128, 128) net is five
+times that cache: every tick streams all of it over QIO SPI at 80 MHz
+(40 MB/s raw, ~1.1 µs per 32-byte cache line). The float inner loop
+(`lsi, lsi, madd.s, ssi`, 6 instructions per MAC in a zero-overhead loop)
+is ~6–10 cycles per MAC, 1.0–1.7 ms for 40 576 MACs, and swish through
+libm's `expf` (a call chain through `__ieee754_expf`, `finitef` and
+`__divsf3`) ~200 cycles a unit, 0.2 ms. The remaining ~6 ms is the flash
+stream: **~37 µs per KB of weights** (36–40), a number every option below
+inherits. Weights cannot sit in RAM instead: static DRAM is 89 % used (the
+`.bss` is 136 KB) and the robot reports ~105 KB of free heap with WiFi up.
+
+**The options for a (256, 256) or (192, 192) net**, in ms per forward pass at
+240 MHz (estimates from the generated code and the flash rate above;
+`nettime` measures them, see below):
+
+| net | storage, kernel | weight bytes | flash stream | compute + act. | **net** | worst tick |
+|---|---|---|---|---|---|---|
+| (128, 128) | float, flash (as deployed) | 162 KB | ~6.1 | 1.3–2.0 | **7.8 measured** | 13.2 measured |
+| (128, 128) | int8, MAC16, flash | 39 KB | 1.5 | 0.5 | **~2.0** | ~7.4 |
+| (128, 128) | int8, MAC16, RAM (fits the boot budget) | 39 KB | 0 | 0.5 | **~0.6** | ~6.0 |
+| (192, 192) | float, flash | 286 KB | 10.6 | 2.6 | **~13** | ~18.5 |
+| (192, 192) | int8, MAC16, flash | 71 KB | 2.6 | 0.9 | **~3.6** | ~9.0 |
+| (256, 256) | float, flash | 445 KB | 16.5 | 4.2 | **~21** | > 20: does not fit |
+| (256, 256) | float, rows split over both cores | 445 KB | 16.5 (one SPI bus) | 2.1 | **~19** | does not fit |
+| (256, 256) | int16 weights, MAC16 `mula.dd` (1 cycle/MAC), flash | 218 KB | 8.1 | 0.7 | **~9** | ~14.5 |
+| (256, 256) | **int8, C kernel, flash** | 109 KB | 4.0 | 3.1 | **~7.1** | ~12.5 |
+| (256, 256) | **int8, MAC16, flash** | 109 KB | 4.0 | 1.4 | **~5.4** | **~10.8** |
+| (256, 256) | int8, MAC16, all in RAM (needs ~109 KB of heap) | 109 KB | 0 | 1.4 | **~1.4** | ~6.8 |
+
+Splitting rows across the cores does not help the float net: both cores'
+caches fill over the one SPI flash bus, so the stream does not parallelise.
+It would also put the control tick at the mercy of core 0, where WiFi's
+interrupts and tasks take hundreds of microseconds at a time, and it would
+cost three cross-core barriers per tick. ESP-NN's optimised kernels are for
+the S3's SIMD; on the classic ESP32 it falls back to plain C. ESP-DSP's
+`dotprod_s16` uses the same MAC16 unit as the kernel below but needs int16
+weights. **int8 weights in flash, MAC16 kernel** is the one option that fits
+a (256, 256) net with margin and needs no RAM: ~5.4 ms against 7.8 today, so
+the wider net makes the tick *faster*.
+
+**The int8 arithmetic** (`policy/q8.h`, `q8.cpp`, `q8_mac16.S`; numpy mirror
+`tools/policy_q8.py`):
+
+- Weights are int8 with one float scale per output channel, stored
+  **output-major** (row j is output j, zero-padded to a multiple of 4
+  inputs), so each output is one dot product. Activations are int16, scaled
+  per tensor at run time from their max |x| (the int16 step loses <2e-4 of
+  action; the weights are where the error is). The integer sum is exact in
+  int32. Then y = acc · (s_x · s_j) + b_j and a polynomial swish
+  (`swishFast`: e^z by 2^n · 2^f with a degree-6 polynomial, ~1e-6 from
+  brax's swish, and about a fifth of `expf`'s cost).
+- The **MAC16 kernel** (`q8RowsMac16`, in IRAM) splits each word of four
+  int8 weights with one shift and two masks into int16 halves holding
+  w << 8, and feeds four `mula.da` multiply-accumulates. Two of them also
+  load the next activation words, so the loop is 9 instructions per 4 MACs,
+  ~2.3 cycles per MAC. The 40-bit accumulator holds 256 · sum exactly for
+  inputs up to 512 wide. The C kernel (`q8RowsC`, 22 instructions per 4
+  MACs) computes the same integers.
+- Every float step is one IEEE operation in a fixed order, and `q8.cpp`
+  builds with `-ffp-contract=off`. So the robot, the host build (SIL) and
+  the numpy mirror agree to the bit, up to the final `tanhf`; the host test
+  holds the golden vectors to 2e-6.
+- **Rounding.** Plain round-to-nearest int8 costs the walk14 (256, 256)
+  student ~0.007 rms / 0.06 max in action on its own rollouts. The
+  generator therefore rounds with **GPTQ** error feedback: each kernel's
+  inputs are rounded in turn and the error is folded into the inputs not yet
+  rounded, weighted by the layer's input covariance on CPU-plant rollouts of
+  the float net. That is about half the error, with the same format at run
+  time: 0.004 rms, 0.03–0.07 max. Frozen channels, which never move in
+  calibration, are rounded first and handed nobody's error. No retraining
+  or GPU is needed. Quantization-aware fine-tuning is the next step if a
+  deployed int8 net ever needs the last 0.004.
+
+**Boot.** `policy::init()` (from `app_main`, before the control task) copies
+int8 layers into internal RAM, largest first, while they fit the free heap
+minus a 64 KB reserve for WiFi's dynamic buffers. Today that is the small
+head, or the first layer when the heap allows; the rest streams from flash,
+with the same arithmetic. It then runs the generator's self-test case
+(`kSelfTestObs` → `kSelfTestAction`): the C path must reproduce numpy's
+action to 1e-4 or `run` refuses, and the MAC16 path must reproduce the C
+path **to the bit** or `forward()` stays on C. The MAC16 instruction
+semantics are pinned on the host only by an instruction-level emulation in
+`test_policy`; the silicon is checked here, on every boot. `stat` prints the
+result on its `net:` line.
+
+**Measuring it on the robot: `nettime [n]`** (benched; ~2 s at n = 20). It
+runs on core 1 below the control task and prints min / median / max µs for
+every way this image can run its net:
+
+- an int8 image: as run (the boot placement and kernel), C from flash,
+  MAC16 from flash, MAC16 with every layer the heap allows in RAM, then each
+  layer's kernel alone from flash and from RAM. The last pair is the flash
+  cost per KB directly.
+- a float image: as run, the same net with its weights copied to RAM as far
+  as the heap allows, and the net quantized to int8 on the spot with plain
+  rounding (`policy::quantizeDense`; for timing, not accuracy), with the C
+  and MAC16 kernels.
+- both: 512 swish units through `expf` and through `swishFast`.
+
+`stat` then gives the armed number (`net`) and the worst tick.
+
+The profile **`v6legs256`** carries the walk14 (256, 256) student
+`robot_legs_walk14_s256r24` as an int8 test net for this budget and the
+parity checks. It is a legacy run, not a deploy candidate. Its SIL golden
+(brax float vs firmware int8) holds to 0.08 (worst 0.066). The closed-loop
+SIL scorecard, float vs int8 through the firmware stack, is recorded in
+[design-v6/2026-11-02-esp32-int8-policy.md](design-v6/2026-11-02-esp32-int8-policy.md).
 
 ## 7. Test and deploy (host first, hardware last)
 

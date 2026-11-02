@@ -104,6 +104,59 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>
+    <p><b>Get-up: the firmware-sized network can do it without distillation.</b>
+    Trained directly with PPO at (128, 128), w13k_s1 passes 48/48 across joint
+    friction 0.05 – 0.5. It learns as fast as the big network. The other seed
+    (w13k) stands and then sinks from supine ph (31/48), and both small-net
+    seeds lose more shoves than the big ones (7 – 8/16 at 15 N against
+    12 – 15/16). The stock student of the deployable teacher w12k is much
+    better than w9k's (44/48 against 32/48), but it keeps only 4/16 under
+    shoves. Twice the distillation data made it worse. A big network from
+    scratch (w14k) sweeps 48/48, so the old init is not needed. Tonight:
+    action noise during distillation, a teacher-sized student, a (256, 256)
+    PPO network, a third seed, and less residual authority for the small
+    network.</p>
+    <p><b>Legs: a stand policy with margin on the measured actuator; the walk is the open problem.</b>
+    After 11-01's flail (the STS3215s have ~70 ms dead time), the
+    actuator-randomised student walk16_act_s128r24 survives 1.5× loop gain,
+    the pessimistic actuator fit and 100 ms dead time with 0/8 falls. It is
+    the hardware-stand candidate. On that plant the walk does not come back:
+    training falls stay at ~0.9 over 1.1B steps and foot peaks stay ≤ 1.2 cm.
+    Tonight tests the cadence (commanded speed capped at 0.35 m/s) against
+    the dead-time tails (40 – 100 ms DR narrowed to 60 – 80 ms). On the
+    no-dead-time line, a (256, 256) student recovers 25 of the 42 seed-passes
+    the (128, 128) student lost (62 vs 37/160; teacher 79). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w13k_s1_supine_ph.jpg" src="_clips/robot_getup_w13k_s1_supine_ph.mp4"></video>
+      <figcaption><b>robot_getup_w13k_s1</b> · a firmware-sized (128, 128) get-up trained with PPO, no distil: 48/48 over friction 0.05-0.5, 8/16 under 15 N shoves<br>recover_supine_ph 8/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w13k_supine_ph.jpg" src="_clips/robot_getup_w13k_supine_ph.mp4"></video>
+      <figcaption><b>robot_getup_w13k</b> · the same recipe, seed 0: it stands at 21.7 s, then sinks to 0.29 m (supine ph 1/8 at friction 0.35; sweep 31/48)<br>recover_supine_ph 1/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_walk16_act_s128r24_stand.jpg" src="_clips/robot_legs_walk16_act_s128r24_stand.mp4"></video>
+      <figcaption><b>robot_legs_walk16_act_s128r24</b> · the hardware-stand candidate: 0/8 falls on the measured actuator at x1.5 loop gain (shown on the no-dead-time referee, where it drifts)<br>stand_10s 6/8
+        · seed 1/8 takes, verdict burned in · 9s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_walk16_act_walk_steps.jpg" src="_clips/robot_legs_walk16_act_walk_steps.mp4"></video>
+      <figcaption><b>robot_legs_walk16_act</b> · the actuator-DR teacher stands but does not step: peaks <= 1 cm (walk14 without dead time: 5/8 at >= 3 cm)<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 2s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·01 · night 11: the deployable get-up + the student gate</span></p>
     <p><b>Get-up: it holds on everything the robot's firmware imposes.</b>
     Trained on the factory P32 gains the robot runs (w11k, w11k_s1: 46 and

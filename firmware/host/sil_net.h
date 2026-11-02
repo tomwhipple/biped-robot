@@ -37,6 +37,14 @@ namespace sil {
 // design doc) also loads: then the sidecar is required, and whether the
 // normalizer leads the floats is decided by the blob's length.
 //
+// On an int8 profile build (policy/q8.h) the int8 weights were rounded
+// offline with calibration data a .silw does not carry (tools/policy_q8.py,
+// GPTQ), so they cannot be rebuilt from one. Loading the .silw of the
+// compiled-in run (same run name and layer widths) therefore switches
+// forward() to the compiled-in int8 net -- what the robot runs; the float
+// layers stay reachable through net(). Any other .silw runs float, exactly
+// as on a float build, and quant() says which.
+//
 // The sidecar is looked for at <path>.json first, then <path minus
 // extension>.json; passing the sidecar itself as `path` also works.
 class LoadedNet {
@@ -54,8 +62,12 @@ class LoadedNet {
     const std::string& activation() const { return activation_; }
     const std::vector<int>& layerSizes() const { return sizes_; }
 
-    // Convenience: normalise + forward, using this net's storage.
+    // Convenience: normalise + forward, using this net's storage -- on an
+    // int8 profile build, the compiled-in int8 net when that is what was
+    // loaded (see load()).
     void forward(const float* obs, float* action) const;
+    // "int8" when forward() runs the compiled-in int8 net, else "none".
+    const char* quant() const { return q8_ ? "int8" : "none"; }
 
   private:
     void bind();
@@ -69,6 +81,14 @@ class LoadedNet {
     std::vector<policy::Dense> layers_;
     mutable std::vector<float> scratch_a_, scratch_b_;
     policy::Net net_;
+    bool q8_ = false;
+#ifdef POLICY_WEIGHTS_Q8
+    mutable std::vector<float> q_xf_;
+    mutable std::vector<int16_t> q_xq_;
+    mutable std::vector<int32_t> q_acc_;
+    policy::NetQ8 netq8_;
+    void bindQ8();
+#endif
 };
 
 // JSON calibration: an array of {bus_id, zero_steps, dir}, or an object with

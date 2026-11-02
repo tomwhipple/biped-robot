@@ -33,6 +33,11 @@ sys.path.insert(0, os.path.join(ROOT, "sim"))
 from design_gates import JN, minjerk  # noqa: E402
 
 
+# The firmware's default roll balance (roll_pi.h Config), 2026-11-01-floors-fit.md: kp 0.15, ki 1.0,
+# kd 0 (no gyro term), clamp 10 deg, |ki*I| <= 3 deg. kp 0.3 / kd 0.03 before (hard-floor oscillation).
+DEFAULT = dict(kp=0.15, ki=1.0, kd=0.0, clamp=math.radians(10.0), i_lim=math.radians(3.0))
+
+
 class RollPI:
     def __init__(self, kp, ki, clamp, kd=0.0, i_lim=0.0):
         """i_lim: |ki*I| limit (rad of u), 0 = none -- roll_pi.h Config::i_lim_rad (the firmware
@@ -184,3 +189,11 @@ if __name__ == "__main__":
     p = RollPI(0.3, 1.0, math.radians(10), i_lim=math.radians(3))
     for e in (0.05, 0.05, 0.05, 0.05, 0.05, 0.05, -0.02, -0.02):
         print(f"{e:.3f} -> u {p.step(e, 0.5):.6f}  i {p.i:.6f}")
+    # the firmware DEFAULT config (DEFAULT) at the bench tick dt 0.026: (err, rate) -> u, i
+    p = RollPI(DEFAULT["kp"], DEFAULT["ki"], DEFAULT["clamp"], kd=DEFAULT["kd"], i_lim=DEFAULT["i_lim"])
+    rows = []
+    for k, (e, w) in enumerate([(0.05, 0.3)] * 60 + [(-0.02, -0.5)] * 4):
+        u = p.step(e, 0.026, w)
+        if k in (0, 1, 30, 39, 40, 41, 59, 60, 61, 63):
+            rows.append(f"{{{k}, {u:.6f}f, {p.i:.6f}f}},")
+    print("DEFAULT_ROWS", " ".join(rows))

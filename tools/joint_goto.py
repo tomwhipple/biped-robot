@@ -20,6 +20,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rom_sweep import ENC_HI, ENC_LO, K, Abort, Port, board_joint, settle, utc  # noqa: E402
+import sweep_guard as G  # noqa: E402
 
 
 def main():
@@ -33,6 +34,13 @@ def main():
     ap.add_argument("--load-stop", type=int, default=450)
     ap.add_argument("--hold", action="store_true", help="leave torque on at the target")
     ap.add_argument("--port", default="/dev/ttyUSB0")
+    ap.add_argument("--rise-w", type=float, default=1.5, help="abort above at-rest power + this (W)")
+    ap.add_argument("--step-w", type=float, default=0.35, help="abort above last step + trend + this (W)")
+    ap.add_argument("--abs-w", type=float, default=4.0, help="abort above this power, any joint (W)")
+    ap.add_argument("--torque-limit", type=int, default=400,
+                    help="the servo's RAM torque limit during the move, /1000 (reg 48); restored after")
+    ap.add_argument("--allow-contact", action="store_true",
+                    help="lift the inward hip-roll cap (the other leg must be moved clear)")
     a = ap.parse_args()
     sid, tgt = a.id, a.to
     if not ENC_LO <= tgt <= ENC_HI:
@@ -40,7 +48,7 @@ def main():
     log = open(a.log, "a")
     say = lambda s: (print(s, flush=True), log.write(s + "\n"), log.flush())
     p = Port(a.port, log)
-    orig, start = None, None
+    orig, start, tl_orig = None, None, None
     try:
         for i in [int(x) for x in a.check_ids.split(",")]:
             if p.torque_reg(i) != 0:
@@ -49,6 +57,12 @@ def main():
         row = board_joint(p, sid)               # by the flashed firmware's map
         if row:
             orig = row[1:4]
+            capped = G.cap_angle(row[0], (tgt - orig[0]) * orig[1] / K, a.allow_contact)
+            ctgt = orig[0] + orig[1] * round(capped * K)
+            if ctgt != tgt:
+                say(f"  {row[0]} target {tgt} is inward past {G.INWARD_CAP_DEG:.0f} deg (leg-leg contact): "
+                    f"capped to {ctgt} (--allow-contact lifts it)")
+                tgt = ctgt
             lo, hi = row[4]
             mid = (start + tgt) // 2                   # centre the window on the move
             zero = max(0, min(4095, mid - round((lo + hi) / 2 * K)))
@@ -58,11 +72,18 @@ def main():
             if "zero <-" not in p.cmd(f"cal set {sid} {zero} 1", r"zero <- .*\n|usage"):
                 raise Abort(f"cal set {sid} failed")
         say(f"# {utc()} joint_goto id {sid}: {start} -> {tgt} ({(tgt - start) / K:+.1f} deg)")
+        tl_orig = G.read_torque_limit(p, sid)
+        say(f"  id {sid} torque limit {tl_orig} -> {G.set_torque_limit(p, sid, a.torque_limit)} for the move")
         p.cmd(f"torque {sid}", r"torque \S+: \S+\r?\n")
         if abs(p.pos(sid)["pos"] - start) > 20:
             p.release(sid)
             raise Abort(f"id {sid} moved at torque-on (released)")
         p.move(sid, start, a.speed)
+        r0 = settle(p, sid)
+        volts = r0["volt"] or 12.0
+        guard = G.PowerGuard(rise_w=a.rise_w, step_w=a.step_w, abs_w=a.abs_w)
+        guard.baseline(G.sample_power(p, sid, volts, 0.4))
+        say(f"  power {guard.base_w:.2f} W at rest")
         prev, step = start, round(a.step_deg * K)
         sgn = 1 if tgt > start else -1
         n = 0
@@ -72,9 +93,13 @@ def main():
             if (nxt - tgt) * sgn > 0:
                 nxt = tgt
             p.move(sid, nxt, a.speed)
-            time.sleep(step / a.speed)
+            pw = G.sample_power(p, sid, volts, step / a.speed)       # DURING the move
             r = settle(p, sid)
+            pw += G.sample_power(p, sid, volts, 0.0)
             moved = (r["pos"] - prev) * sgn
+            why = guard.check(max(pw), r["load"], following=n == 1 or moved >= 0.4 * step)
+            if why:
+                raise Abort(f"stopped at {r['pos']} (target {nxt}): {why}")
             # the first step is not judged for following: a joint that starts
             # pressed against something (or already strained) moves less than
             # a step out of it (2026-10-23: a hip pitch backing off a contact)
@@ -113,6 +138,11 @@ def main():
             say(f"!! recovery failed ({e2!r}): broadcast release")
             p.cmd("release", r"release \S+: \S+\r?\n")
     finally:
+        if tl_orig is not None:
+            try:
+                say(f"  id {sid} torque limit restored: {G.set_torque_limit(p, sid, tl_orig)}")
+            except Exception as e4:
+                say(f"!! torque limit restore failed: {e4!r} (a servo power cycle restores it)")
         if orig:
             p.cmd(f"cal set {sid} {orig[0]} {orig[1]}", r"zero <- .*\n|usage")
             if not orig[2]:

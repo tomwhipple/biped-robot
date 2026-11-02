@@ -77,6 +77,8 @@ float g_gait_hz = 1.5f;
 // actually runs.
 obs::CommandShaper g_shaper;
 float g_shape_hz = obs::kShaperPoleHz;
+obs::StandClock g_stand_clock = obs::StandClock::kRun;   // ctrl_task g_stand_clock
+float g_stand_phase = 3.14159265f;
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 
@@ -194,11 +196,11 @@ void buildSpec() {
     snprintf(buf, sizeof buf,
              "\"ready\":%s,\"gait_freq_hz\":%.9g,"
              "\"policy\":{\"source\":\"%s\",\"builtin\":%s,"
-             "\"activation\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
+             "\"activation\":\"%s\",\"quant\":\"%s\",\"obs_dim\":%d,\"act_dim\":%d,"
              "\"placeholder_weights\":%s,\"layer_sizes\":[",
              g_ready ? "true" : "false", static_cast<double>(g_gait_hz),
              g_net.source().c_str(), g_net.builtin() ? "true" : "false",
-             g_net.activation().c_str(), g_net.obsDim(), g_net.actDim(),
+             g_net.activation().c_str(), g_net.quant(), g_net.obsDim(), g_net.actDim(),
              (g_net.builtin() && policy::kWeightsArePlaceholder) ? "true"
                                                                  : "false");
     g_spec += buf;
@@ -255,9 +257,17 @@ int sil_init(const char* weights_path, const char* cal_path,
     g_clock.setFrequency(g_gait_hz);
     // init == boot: shaping back to the firmware default (see sil.h).
     sil_set_shaper(obs::kShaperPoleHz);
+    sil_set_stand_clock(0, 3.14159265f);      // boot: as trained (ctrl_task g_stand_clock)
     g_ready = true;
     sil_reset();
     return 0;
+}
+
+void sil_set_stand_clock(int mode, float stand_phase) {
+    g_stand_clock = mode == 1   ? obs::StandClock::kFreeze
+                    : mode == 2 ? obs::StandClock::kCoast
+                                : obs::StandClock::kRun;
+    g_stand_phase = stand_phase;
 }
 
 void sil_set_shaper(float pole_hz) {
@@ -326,15 +336,10 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     float cmd[obs::kNumCmd];
     memcpy(cmd, in->cmd, sizeof cmd);
     policy::pinFrozenNet(g_net.net(), obs::kOffCmd, obs::kNumCmd, cmd);
-    const float sil_vy = obs::kNumCmd > 1 ? cmd[1] : 0.0f;
-    const float sil_lift = obs::kNumCmd > 4 ? cmd[4] : 0.0f;
-    if (!obs::kClockStandFreeze
-        || fabsf(cmd[0]) > 0.05f || fabsf(sil_vy) > 0.05f
-        || fabsf(cmd[2]) > 0.05f || fabsf(sil_lift) >= 0.5f) {
-        // speed clock: same scale as ctrl_task.cpp (kSpeedClock)
-        g_clock.advanceSpeedClock(obs::kControlDt,
-                                  sqrtf(cmd[0] * cmd[0] + sil_vy * sil_vy));
-    }
+    // THE clock rule, shared with ctrl_task.cpp (obs::tickGaitClock): speed
+    // clock under a command; at a plain stand a freeze-trained run holds and
+    // any other follows the stand-clock option (sil_set_stand_clock).
+    obs::tickGaitClock(g_clock, cmd, g_stand_clock, g_stand_phase);
 
     obs::Inputs inp{};
     memcpy(inp.q, q, sizeof q);
@@ -363,7 +368,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     g_hist.build(g_frame, g_obs);
 
     // -- act ----------------------------------------------------------------
-    policy::forwardNet(g_net.net(), g_obs, g_action);
+    g_net.forward(g_obs, g_action);    // float, or the int8 net (sil_net.h)
     g_hist.push(g_frame);            // after the policy has been fed
     memcpy(g_prev_action, g_action, sizeof g_prev_action);
 

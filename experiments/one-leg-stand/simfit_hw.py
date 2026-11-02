@@ -25,10 +25,44 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-HW_DIR = os.environ.get("ONELEG_HW_DIR", "/home/claw/code/robot/hw_sessions/2026-10-30")
-SESSIONS = {"214513": "flight_20261030T214513Z_oneleg_rec",     # R and L held; feedback reads mostly missing
-            "222031": "flight_20261030T222031Z_oneleg_rec",     # R held, L aborted outward
-            "222727": "flight_20261030T222727Z_oneleg_rec"}     # R held, L aborted outward
+HW_ROOT = os.environ.get("ONELEG_HW_ROOT", "/home/claw/code/robot/hw_sessions")
+HW_DIR = os.environ.get("ONELEG_HW_DIR", os.path.join(HW_ROOT, "2026-10-30"))     # the 10-30 sessions
+# tag -> (directory, file stem, floor, firmware balance as run: the sim Ctl fields that differ
+# from the bench default).  The 10-30 firmware had no integrator cap; 11-01 ran the 3 deg cap.
+_ILIM3 = dict(i_max=math.radians(3.0))
+SESSIONS = {"214513": (HW_DIR, "flight_20261030T214513Z_oneleg_rec", "carpet", {}),   # R and L held; feedback reads mostly missing
+            "222031": (HW_DIR, "flight_20261030T222031Z_oneleg_rec", "carpet", {}),   # R held, L aborted outward
+            "222727": (HW_DIR, "flight_20261030T222727Z_oneleg_rec", "carpet", {}),   # R held, L aborted outward
+            # 2026-11-01, fw ccbacba-era (3 deg I cap), clr.sh poses
+            "194709": (os.path.join(HW_ROOT, "2026-11-01"), "flight_20261101T194709Z_ilim_stands", "carpet", _ILIM3),  # 3x R + 3x L, all held
+            "203257": (os.path.join(HW_ROOT, "2026-11-01"), "flight_20261101T203257Z_ilim_stands", "hard", _ILIM3),    # R: 1.6 Hz oscillation, abort 7.7 s
+            "203534": (os.path.join(HW_ROOT, "2026-11-01"), "flight_20261101T203534Z_ilim_stands", "hard", _ILIM3),   # R: 1.9 Hz oscillation, abort 5.7 s
+            "203759": (os.path.join(HW_ROOT, "2026-11-01"), "flight_20261101T203759Z_ilim_stands", "hard", _ILIM3)}   # R, L, R, L held; R#3 oscillated, abort
+# the stands each session holds: (side, rep) -- rep counts the side's 10 mm lifts in the session
+STANDS = {"214513": [("R", 1), ("L", 1)], "222031": [("R", 1), ("L", 1)], "222727": [("R", 1), ("L", 1)],
+          "194709": [("R", 1), ("L", 1), ("R", 2), ("L", 2), ("R", 3), ("L", 3)],
+          "203257": [("R", 1)], "203534": [("R", 1)],
+          "203759": [("R", 1), ("L", 1), ("R", 2), ("L", 2), ("R", 3)]}
+
+
+def stand_id(tag, side, rep=1):
+    return f"{tag}{side}" + (f"{rep}" if rep > 1 else "")
+
+
+def parse_id(sid):
+    """"222031L" -> ("222031", "L", 1); "194709R3" -> ("194709", "R", 3)"""
+    m = re.fullmatch(r"(\d{6})([LR])(\d?)", sid)
+    if not m:
+        raise ValueError(sid)
+    return m.group(1), m.group(2), int(m.group(3) or 1)
+
+
+def floor_of(tag):
+    return SESSIONS[tag][2]
+
+
+def all_ids(floor=None):
+    return [stand_id(t, s, r) for t in SESSIONS for (s, r) in STANDS[t] if floor in (None, floor_of(t))]
 # `pose` bus order (one_leg.BUS)
 BUS = ["R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "L_hip_roll", "L_hip_pitch", "L_knee",
        "L_ankle", "R_hip_yaw", "L_hip_yaw", "R_ankle_roll", "L_ankle_roll"]
@@ -55,6 +89,13 @@ class Stand:
     abort_err_deg: float | None = None
     refs_deg: dict = field(default_factory=dict)     # stage -> the robot's printed ref roll
     cal: dict = field(default_factory=dict)          # joint -> (zero, dir) from the session's rad columns
+    rep: int = 1
+    floor: str = "carpet"
+    fw: dict = field(default_factory=dict)           # the balance as the firmware ran it (sim Ctl overrides)
+
+    @property
+    def id(self):
+        return stand_id(self.session, self.side, self.rep)
 
     def stage(self, name):
         return next(m for m in self.moves if m.name == name)
@@ -68,12 +109,26 @@ class Stand:
         return self.moves[i].t0, t1
 
 
+def _path(tag, what):
+    d, stem = SESSIONS[tag][:2]
+    return os.path.join(d, f"{stem}_{what}.csv")
+
+
+_CACHE = {}
+
+
 def _events(tag):
-    return pd.read_csv(os.path.join(HW_DIR, SESSIONS[tag] + "_events.csv"), low_memory=False)
+    k = (tag, "events")
+    if k not in _CACHE:
+        _CACHE[k] = pd.read_csv(_path(tag, "events"), low_memory=False)
+    return _CACHE[k]
 
 
 def _ticks(tag):
-    return pd.read_csv(os.path.join(HW_DIR, SESSIONS[tag] + "_ticks.csv"), low_memory=False)
+    k = (tag, "ticks")
+    if k not in _CACHE:
+        _CACHE[k] = pd.read_csv(_path(tag, "ticks"), low_memory=False)
+    return _CACHE[k]
 
 
 def _cal_from(d):
@@ -92,7 +147,9 @@ def _cal_from(d):
     return cal
 
 
-def load_stand(tag, side):
+def load_stand(tag, side=None, rep=1):
+    if side is None:
+        tag, side, rep = parse_id(tag)
     e = _events(tag)
     d = _ticks(tag)
     cmds = e[e.kind == "cmd"].reset_index(drop=True)
@@ -112,7 +169,7 @@ def load_stand(tag, side):
         poses.append(dict(t_cmd=r.t_utc, t0=float(ts[0]) if len(ts) else r.t_utc, dur=dur, ticks=ticks, B=B))
     # the stand: the 10 mm B<side> lift, the shift just before it, and what follows up to the
     # crouch (the next pose whose L and R hip rolls are both back at their zeros-ish)
-    il10 = next(i for i, p in enumerate(poses) if p["B"] == side and abs(p["dur"] - 6.0) < 1e-6)
+    il10 = [i for i, p in enumerate(poses) if p["B"] == side and abs(p["dur"] - 6.0) < 1e-6][rep - 1]
     seq = poses[il10 - 1: il10 + 5]
     names = ["shift", "l10", "lower10", "l30", "lower30", "crouch"]
     t_utc0 = seq[0]["t0"]
@@ -120,7 +177,12 @@ def load_stand(tag, side):
     if len(seq) < 5 or not (seq[3]["B"] == side and abs(seq[3]["dur"] - 4.0) < 1e-6):
         raise ValueError(f"{tag} {side}: unexpected pose sequence")
     if abs(seq[4]["dur"] - 2.5) > 1e-6:                 # aborted: the runner went straight to the crouch
-        moves = moves[:4] + [Move("crouch", seq[4]["t0"] - t_utc0, seq[4]["dur"], seq[4]["ticks"], None)]
+        moves = moves[:4]
+        k = 4
+        if abs(seq[4]["dur"] - 1.5) < 1e-6 and len(seq) > 5:   # regress.sh GUARD (|err| > 9): the shift in 1.5 s first
+            moves.append(Move("guard", seq[4]["t0"] - t_utc0, seq[4]["dur"], seq[4]["ticks"], None))
+            k = 5
+        moves.append(Move("crouch", seq[k]["t0"] - t_utc0, seq[k]["dur"], seq[k]["ticks"], None))
     t_end = t_utc0 + moves[-1].t0 + moves[-1].dur + 1.0
     # an abort cuts the protocol short: the runner then sends the crouch
     ab = outs[outs.text.astype(str).str.contains("balance ABORT") & (outs.t_utc > t_utc0) & (outs.t_utc < t_end)]
@@ -142,11 +204,12 @@ def load_stand(tag, side):
         w.loc[bad, f"{j}.pos"] = np.nan
         w.loc[bad, f"{j}.pos_rad"] = np.nan
         w.loc[bad, f"{j}.load"] = np.nan
-    return Stand(tag, side, t_utc0, moves, w.reset_index(drop=True), abort_t, abort_err, refs, _cal_from(d))
+    return Stand(tag, side, t_utc0, moves, w.reset_index(drop=True), abort_t, abort_err, refs, _cal_from(d),
+                 rep=rep, floor=floor_of(tag), fw=dict(SESSIONS[tag][3]))
 
 
-def all_stands():
-    return [load_stand(tag, s) for tag in SESSIONS for s in ("R", "L")]
+def all_stands(floor=None):
+    return [load_stand(i) for i in all_ids(floor)]
 
 
 def summary(st: Stand):
@@ -178,7 +241,7 @@ def summary(st: Stand):
 
 if __name__ == "__main__":
     for st in all_stands():
-        print(st.session, st.side, "abort", st.abort_t, st.abort_err_deg, "refs", st.refs_deg)
+        print(st.id, st.floor, "abort", st.abort_t, st.abort_err_deg, "refs", st.refs_deg)
         print("   moves", [(m.name, round(m.t0, 2), m.dur, m.B) for m in st.moves])
         for k, v in summary(st).items():
             print("  ", k, {a: (round(b, 2) if isinstance(b, float) else b) for a, b in v.items()})

@@ -8,9 +8,9 @@ it.*
 
 | | |
 |---|---|
-| policy | `robot_legs_walk14_s1_s128r24`: (128, 128) student of `robot_legs_walk14_s1`, action map `full`, as-built (factory P 32 / D 32) stiffness |
+| policy | `robot_legs_walk16_act_s128r24` (from 2026-11-02; the 11-01 stand ran `robot_legs_walk14_s1_s128r24`): (128, 128) student of `robot_legs_walk16_act`, action map `full`, as-built (factory P 32 / D 32) stiffness, trained with actuator DR (per-servo dead time, kp/kd ranges; branch `policy-stand-rca`) -- [§8, walk16](#walk16_act_s128r24-the-second-stand-2026-11-02) |
 | image | `make firmware POLICY=v6legs` → `build/firmware-v6legs/bimo_firmware.bin` (or `idf.py -C firmware -B build/firmware-v6legs -DBIMO_POLICY=v6legs build`) |
-| headers | `firmware/policies/v6legs/` (`make deploy RUN=robot_legs_walk14_s1_s128r24 POLICY=v6legs`) |
+| headers | `firmware/policies/v6legs/` (`make deploy RUN=robot_legs_walk16_act_s128r24 POLICY=v6legs`) |
 | sim evidence | `sim/mjx/eval_stand_arm.py` (below) |
 
 The mechanics described here are the code as of this branch: `ctrl_task.cpp`,
@@ -52,7 +52,7 @@ Tethered serial console, robot benched (boot state). Every item must pass.
 
 | # | command | pass |
 |---|---|---|
-| 1 | `stat` | `policy: exported, 12 joints, obs 165, run robot_legs_walk14_s1_s128r24` (not `PLACEHOLDER WEIGHTS`) and `bus: N of 17 servos fitted` with the 12 leg servos among them (item 3) |
+| 1 | `stat` | `policy: exported, 12 joints, obs 165, run robot_legs_walk16_act_s128r24` (not `PLACEHOLDER WEIGHTS`) and `bus: N of 17 servos fitted` with the 12 leg servos among them (item 3) |
 | 2 | `volt` | pack ≥ 11.4 V (3S). The guard warns at 10.5 V and lands at 9.9 V. After a pack swap, run `batt reset`, then `batt` should show not latched |
 | 3 | `cal show` | as-built calibration loaded from NVS; all 12 leg joints fitted (`run` refuses otherwise) |
 | 4 | `gains` | all 12 leg servos read P 32 / D 32, matching `servo_gains.h`. `run` re-reads them and refuses on any difference (`REFUSED_GAINS`) |
@@ -62,6 +62,9 @@ Tethered serial console, robot benched (boot state). Every item must pass.
 | 8 | `shape` | 10 Hz. **Never 0**: the policy relies on the shaper's lag. With no lag in the plant, the referee's run of this same student chatters, with 65 deg single-tick target jumps and 150 W |
 | 9 | `obsfreeze` | `none` |
 | 10 | `fall` | guard ON. Set `fall autohome on` if you want the pickup → autohome behaviour |
+| 10a | `flail` | flail guard ON (the default; limits pose 15 deg / 300 ms, rate 1.5 rad/s, tilt 20 deg / 200 ms, chatter 7 rad/s) |
+| 10b | on mira: `tools/estop.py --button` in its own terminal, then `s` once with the robot benched | it prints `SOFT STOP CONFIRMED ... BENCH` (or HARD for any other key). The button now stays open for the run. `estop -> <ip> [...]` must name the robot (`--host`/`$BIMO_HOST` if the flight collector has not heard it) |
+| 10c | the operator | one hand **on the servo power switch** (pack switch / connector), for the whole run |
 | 11 | `rec`, and on mira `tools/flight_session.sh start policy_stand1` | rec ON → 192.168.2.5, wifi up, utc synced; collector running |
 | 12 | robot on the floor, then `home` | `home readback: all 12 joints at their zeros -- torque released`. The robot now stands on gear friction, legs parallel |
 | 13 | eyes | the robot stands upright on its own after `home` (tilt < 3 deg by eye; the `imu` up vector is about (0, 0, 1)). Floor is hard and flat or low-pile carpet, with 1 m clear all round. Spotter's hands are ~5 cm either side of the torso, not touching |
@@ -78,6 +81,10 @@ With no radio commander running, the link watchdog never hears a frame, so it
 stays in STAND. The policy gets the trained stand command (0, 0, 0, 1, 0, 0, 0)
 for as long as it runs; nothing times out.
 
+> `tools/estop.py` is safe to use during a tethered run: its frames are
+> out of band (they never reach the watchdog or the arm latch), so it is a
+> stop button, not a commander.
+>
 > Do not start `commander.py`, `bimo_gui` or `arm_script.py` during a tethered
 > run. Once any frame arrives, the watchdog follows that sender. If its frames
 > then stop, it decays to STAND after 250 ms and to **RELAX (torque off) after
@@ -95,26 +102,75 @@ When the duration ends, the frames stop: 5 s later the watchdog releases
 torque. The spotter must be holding the robot by then, or run
 `--phase disarm` while holding it.
 
-## 4. Stopping: disarm and E-stop
+## 4. Stopping: disarm, E-stop and the flail guard
 
-**Every way out of a run releases torque.** The robot does not hold its pose
-after a disarm; it sags onto gear friction and will tip if nobody has it.
-So the normal end of a run is:
+**The operator keeps a hand on the servo power switch** (the pack switch or
+connector) for the whole run. It is the one stop that needs no radio, no
+firmware and no thought: on 2026-11-01 the policy flailed for seconds while
+the spotter wrestled the robot, and cutting servo power would have ended it at
+once.
+
+**Every way out of a run releases torque**, except the two holds below (the
+flail guard and the soft stop). The robot does not hold its pose after a
+disarm; it sags onto gear friction and will tip if nobody has it. So the
+normal end of a run is:
 
 1. The spotter takes a firm hold of the torso and carries its weight.
 2. Then disarm: type `bench` (`benched -- control loop released torque ...`),
    or send ARM-off frames (`arm_script.py --phase disarm`).
 3. Set the robot down (or keep holding it upright) and run `home` to re-zero.
 
-E-stop (immediate, robot goes limp):
+E-stop (immediate):
 
+- hardware: the servo power switch (pack switch or connector). Always works;
+- **`tools/estop.py` on mira** (no session, no commander needed; works during
+  a tethered `run`): HARD stop, torque off within one control tick, run ended
+  (`DISARMED_STOP`). `tools/estop.py --soft` instead stops the policy and
+  HOLDS every joint stiff where it is, then homes once the robot is upright
+  and still; a soft stop the robot does not confirm in 400 ms becomes hard.
+  Best kept open as `tools/estop.py --button` (any key = hard, `s` = soft):
+  ~50 ms from key to first frame, 100 frames over 1 s, then it prints what the
+  robot reports. Exit status 0 = confirmed by the beacon, 2 = sent but not
+  heard. Robot address: `--host`, `$BIMO_HOST`, or the one the flight
+  collector last heard (`hw_sessions/robot_addr`), plus the LAN broadcast;
 - tethered: `bench`;
 - radio: ESTOP (gamepad B in `commander.py`, the E-stop key in `bimo_gui`). It
-  latches until a frame with ENABLE off arrives;
-- hardware: the pack switch or connector.
+  latches until a frame with ENABLE off arrives.
 
-If the operator is also the spotter, use the radio with the gamepad in one
-hand, so the E-stop is a button and not a typed command.
+To put the E-stop on one key: `tools/estop.py` is one command, so any key
+binder runs it. GNOME on the machine at hand: Settings → Keyboard → View and
+Customise Shortcuts → Custom Shortcuts → `+`, command
+`/home/claw/code/robot/tools/estop.py` (`--soft` for a second key), shortcut
+e.g. Pause or F12. Or, from a shell:
+
+```bash
+# a bash alias on mira
+alias estop='/home/claw/code/robot/tools/estop.py'
+# sxhkd / xbindkeys (X11): Pause = hard stop, Shift+Pause = soft stop
+#   Pause            /home/claw/code/robot/tools/estop.py
+#   shift + Pause    /home/claw/code/robot/tools/estop.py --soft
+# from a laptop, a key bound to:  ssh mira /home/claw/code/robot/tools/estop.py
+#   (adds the ssh round trip; copying tools/estop.py + link/protocol.py to the
+#    laptop and binding it there is faster -- stdlib python only)
+```
+
+If the operator is also the spotter, the stop must be a button, not a typed
+command: the `--button` terminal or a bound key, or the gamepad.
+
+**Flail guard (automatic).** The firmware judges the policy every armed tick
+(`flail`; [firmware-design.md](firmware-design.md) §5.6 "Flail guard"): at
+the stand command, any written joint target more than 15 deg from the stand
+for 300 ms; the torso's rate (|gyro| low-passed over 0.2 s) above 1.5 rad/s;
+the torso past 20 deg for 200 ms; or the raw targets chattering (mean
+8 deg per tick, low-passed over 0.1 s). Any one stops the policy and **holds
+every joint stiff where it is** (torque on, not limp), reports
+`DISARMED_FLAIL`, benches, and logs a `flail` event saying which criterion.
+Hold the robot: once it is upright (< 20 deg) and still for 1 s, it homes
+itself (2.5 s) and releases. `bench` goes limp at once instead. Replayed on
+the 2026-11-01 recording, it trips at **3.31 s** after the arm (rate and
+chatter together; pose alone at 3.55 s), where that run flailed on until the
+operator tilted it past the fall guard at 9.96 s. Real falls are unchanged:
+past 45 deg for 200 ms the fall guard goes limp.
 
 **Fall handling while armed.** Tilt past the threshold, debounced 200 ms →
 FALLEN → torque off and the loop benches itself (`DISARMED_FALL` in the
@@ -124,7 +180,9 @@ on, picking the robot up and holding it upright and still for 2 s homes it.
 
 ## 5. Abort conditions
 
-Catch the robot and `bench` at once on any of:
+The flail guard trips by itself on gross misbehaviour; do not wait for it.
+Catch the robot and stop it at once (estop key, `bench`, or the power switch)
+on any of:
 
 - torso tilt beyond ~10 deg that is not coming back within 1 s. In sim the
   policy never passes 4 deg at a zero command without a shove;
@@ -163,7 +221,8 @@ One record per armed tick (`tools/flight_reader.py csv <file>.frec`):
 - timing: `read0`/`read1` bracket a ~3.5 ms sync read.
 
 A FALLEN tick, a torque-off tick before the `bench`, or a hole in the tick
-sequence is the first thing to look for. `tools/flight_reader.py plot ...
+sequence is the first thing to look for. A `flail` event (criterion and value
+in its text) marks a flail-guard hold, a `stop` event an operator stop. `tools/flight_reader.py plot ...
 --joints L_ankle_roll,R_ankle_roll,L_knee,R_knee` overlays goal and position.
 
 ## 8. The sim evidence
@@ -236,6 +295,35 @@ CUDA_VISIBLE_DEVICES= JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/eval_stand_arm.
     --scenarios stand_10s,arm_home,arm_off,push,walk_small --seeds 16
 # + --sil: the firmware stack acts (libctrl_sil, POLICY=v6legs); --pin-clock for the python column beside it
 ```
+
+### walk16_act_s128r24: the second stand (2026-11-02)
+
+The 11-01 stand with walk14_s1 flailed. The RCA (PR #189,
+`experiments/policy/rca/`) traced it to the actuator: the STS3215's ~68 ms
+dead time and low damping cut walk14_s1's loop-gain margin to about ×1.25.
+`robot_legs_walk16_act` continues walk14_s1_actar with 400M steps of actuator
+DR (per-servo dead time `sts3215=2:5, sts3250=0:1` ticks, kp ×0.6-1.2, kd
+0.12-1.0, lag 2-8 Hz). Its nominal stiffness is still the as-built preset, so
+`servo_gains.h`'s static check holds unchanged. Its student is the
+hardware-stand candidate from the 2026-11-02 morning plan
+([getup-campaign ledger, night 12](design-v6/getup-campaign-2026-10.md)).
+On the measured actuator, 8 seeds per cell: 0/8 falls measured, at ×1.25 and
+at ×1.5 loop gain, on the sweep-only fit, with 100 ms dead time, and with
+gyro ×2.5; 8/8 at ×2, like every policy (walk14_s1: 1/8 measured, 8/8 from
+×1.25).
+
+On this page's two plants (`eval_stand_arm.py`, 8 seeds, python policy, no
+dead time), against walk14_s1:
+
+| student | plant | stand_10s | arm_home falls / tilt 0-2 s worst | arm_off ±4° | push 0.4 m/s falls (kicks survived) | joint torque Nm |
+|---|---|---|---|---|---|---|
+| **walk16_act_s128r24** | train | 0/8 | 0/8 / 3.6° | 0/6 (+2 tipped in the hold) | 1/8 (29/32) | 0.077 |
+| | fit | 0/8 | 0/8 / 1.0° | 0/8 | 0/8 (32/32) | 0.154 |
+| walk14_s1_s128r24 | train | 0/8 | 0/8 / 3.8° | 0/6 (+2 tipped in the hold) | 4/8 (20/32) | 0.079 |
+| | fit | 0/8 | 0/8 / 1.4° | 0/8 | 0/8 (32/32) | 0.124 |
+
+The exporter pins the same frozen command channels as walk14_s1 (crouch 1,
+lift and foot 0), so everything in §1 about pinned channels still applies.
 
 ### Firmware vs python, closed loop (SIL)
 

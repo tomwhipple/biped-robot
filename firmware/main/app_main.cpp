@@ -11,6 +11,7 @@
 #include "ctrl_task.h"
 #include "imu_sampler.h"
 #include "driver/uart.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "imu/imu.h"
@@ -22,8 +23,10 @@
 #include "flight_rec.h"
 #include "policy/mlp.h"
 #include "scs_port_idf.h"
+#include "obs/assembler.h"
 #include "shared.h"
 #include "wifi_link.h"
+#include "wifi_cli.h"
 
 namespace robot {
 
@@ -34,10 +37,30 @@ std::atomic<uint32_t> g_link_arm_edges{0};
 std::atomic<uint32_t> g_link_home_edges{0};
 std::atomic<uint32_t> g_armed_falls{0};
 std::atomic<float> g_armed_fall_tilt_deg{0.0f};
+std::atomic<uint32_t> g_armed_holds{0};
+std::atomic<uint8_t> g_armed_hold_trip{0};
+std::atomic<float> g_armed_hold_value{0.0f};
+std::atomic<int> g_armed_hold_joint{-1};
+std::atomic<bool> g_armed_hold_torque{false};
+std::atomic<bool> g_flail_on{true};
+std::atomic<uint32_t> g_op_stops{0};
+std::atomic<uint32_t> g_op_estops{0};
+
+bool takeOperatorStop(const linkproto::Command& cmd) {
+    if (!cmd.stop()) return false;
+    if (cmd.estop()) g_op_estops.fetch_add(1);   // before g_op_stops: shared.h
+    g_op_stops.fetch_add(1);
+    return true;
+}
 std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+std::atomic<uint8_t> g_stand_clock{static_cast<uint8_t>(obs::StandClock::kRun)};
+// The kCoast target. pi/2, measured on the robot 2026-11-02 (walk16_act, fast servos):
+// pi/2 draws 0.88-1.11 W, pi 1.49-1.65 W (the sim's ranking does not hold); see
+// experiments/policy/stand-still/2026-11-02-stand-still.md.
+std::atomic<float> g_stand_phase{1.57079633f};
 std::atomic<uint32_t> g_obs_freeze{0};
 std::atomic<float> g_obs_gyro_gain{1.0f};
 QueueHandle_t g_cmd_mailbox = nullptr;
@@ -236,10 +259,36 @@ extern "C" void app_main(void) {
                  creds ? ssid : "");
     }
     startWifiLink();
+    // The authenticated Wi-Fi CLI (wifi_cli.h): after the CLI queue and the
+    // network stack. Inert until `wcli key` has provisioned a key.
+    startWifiCli();
     // The flight recorder (flight_rec.h): its NVS config and sender task.
     // Producers check enabled() themselves, so the order against the tasks
     // below does not matter; it only has to follow the WiFi bring-up.
     flight::start();
+
+    // The policy's boot half (policy/mlp.h init): an int8 net copies what it
+    // can into internal RAM -- every byte there is a byte the 32 KB flash
+    // cache does not stream each tick -- leaving kPolicyHeapReserve for
+    // WiFi's dynamic buffers, then self-tests (MAC16 vs C, and the
+    // generator's own case; a failure refuses `run`). A float net only
+    // reports. After WiFi and the recorder have taken their heap, before the
+    // control task can call forward().
+    {
+        constexpr size_t kPolicyHeapReserve = 64 * 1024;
+        constexpr uint32_t kCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+        const size_t free_now = heap_caps_get_free_size(kCaps);
+        policy::init([](size_t n) { return heap_caps_malloc(n, kCaps); },
+                     free_now > kPolicyHeapReserve ? free_now - kPolicyHeapReserve : 0);
+        const policy::Status& ps = policy::status();
+        ESP_LOGI(kTag, "policy net: %s, %u B, %d/%d layers in RAM (%u B, heap was %u B), "
+                 "kernel %s, self-test %s (err %.2g)",
+                 ps.quantized ? "int8" : "float", static_cast<unsigned>(ps.weight_bytes),
+                 ps.layers_in_ram, ps.num_layers, static_cast<unsigned>(ps.ram_bytes),
+                 static_cast<unsigned>(free_now), policy::kernelName(ps.kernel),
+                 !ps.selftest_ran ? "n/a" : (ps.selftest_ok ? "ok" : "FAILED"),
+                 static_cast<double>(ps.selftest_err));
+    }
     esp_log_level_set("*", ESP_LOG_NONE);
 
     startHousekeepingTask();

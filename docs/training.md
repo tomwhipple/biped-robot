@@ -756,19 +756,36 @@ include-order mistake cannot compile the wrong policy. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 
+**Int8 profiles.** `make deploy RUN=<run> POLICY=<name> QUANT=int8`
+(`gen_policy_weights.py --quant int8`) writes the profile's net as int8
+(`policy/q8.h`): GPTQ-rounded on CPU-plant rollouts of the float net, which
+the generator runs itself (~10 s), and the head cut to its mean logits. A
+regeneration keeps an int8 profile int8. This is how a net wider than
+(128, 128) fits the 20 ms tick ([firmware-design.md §6.1](firmware-design.md)).
+The SIL library of an int8 build runs the compiled-in int8 net when given
+that run's `.silw` (any other run runs float, and the spec's `policy.quant`
+says which). Several profiles can share a plant; `eval_precision.py --sil`
+takes the first, and `SIL_PROFILE=<name>` picks another.
+
+**`v6legs256`**: the `v6legs` plant and obs layout with the walk14 (256, 256)
+student `robot_legs_walk14_s256r24` as an int8 net (165 → 256 → 256 → 24,
+109 KB). It is a timing and parity test net for §6.1 of the firmware design,
+not a deploy candidate.
+
 **`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
 `--robot`, action map `full`. 12 policy joints in the sim's actuator order —
 `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
 same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
 (`q 0, dq 12, up 24, linvel 27, gyro 30, prev_action 33, height 45, phase 46,
 cmd 48`, 7 command channels), 3 frames, network 165 → 128 → 128 → 24. The
-profile carries **`robot_legs_walk14_s1_s128r24`**, the (128, 128) student of
-`robot_legs_walk14_s1`, trained at the as-built factory gains (servo_kp_scale
-2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its static check passes)
-with the ankle pitch inside its stops (policy range ±40 deg). It was chosen
-for the first armed test, a stand at zero command started standing on the
-floor, by `sim/mjx/eval_stand_arm.py` on the training plant and the fitted
-plant. The comparison, the closed-loop SIL parity and the hardware procedure
+profile carries **`robot_legs_walk16_act_s128r24`** (from 2026-11-02), the
+(128, 128) student of `robot_legs_walk16_act`, trained at the as-built factory
+gains (servo_kp_scale 2.8 / 4.0 = `servo_gains.h`'s `kSimKpScale` rows, so its
+static check passes) plus actuator DR around them (per-servo dead time, kp/kd
+ranges; branch `policy-stand-rca`), with the ankle pitch inside its stops
+(policy range ±40 deg). It replaced `robot_legs_walk14_s1_s128r24`, the first
+armed test's policy, after the stand RCA (PR #189): 0/8 falls at ×1.5 loop
+gain on the measured actuator, where walk14_s1 fell from ×1.25. The comparison, the closed-loop SIL parity and the hardware procedure
 are in [first-policy-stand.md](first-policy-stand.md). Its frozen command
 channels (crouch 1, lift and foot 0) are pinned by the firmware
 (sil-harness.md finding 2). `tools/make_test_policy_run.py` still makes the

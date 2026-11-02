@@ -13,6 +13,7 @@
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
 #include "fallguard/fallguard.h"
+#include "flailguard/flailguard.h"
 #include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -128,6 +129,21 @@ bool g_ramp_held = false;             // g_ramp_hold captured yet?
 // same module (cli.cpp fallTick) and takes this latch over after the disarm.
 fallguard::Detector g_fall;
 
+// Flail guard (loop-owned; components/flailguard has the criteria, the
+// limits and the recording they were tuned on). It judges the POLICY every
+// acting tick; on a trip -- or a soft operator stop -- the loop holds
+// instead of going limp: holdAndDisarm() below.
+flailguard::Detector g_flail;
+float g_flail_limit[obs::kNumJoints];      // rad, per policy joint (poseLimitDeg)
+// Set on a hold: the bench handover that follows keeps torque ON (the servos
+// keep the hold goals) instead of releasing it, and housekeeping takes the
+// hold over (shared.h g_armed_holds). Every other way to bench still releases.
+bool g_hold_on_bench = false;
+// Operator stops this loop has seen (shared.h g_op_stops): synced every
+// benched tick, so only a stop that arrives while armed -- or in the very
+// tick of the handover -- acts.
+uint32_t g_stops_seen = 0, g_estops_seen = 0;
+
 // Rolling late-tick statistics for telemetry.
 uint32_t g_ticks = 0, g_late = 0;
 
@@ -147,6 +163,49 @@ void releaseAll() {
 void engageAll() {
     if (g_bus) g_bus->torqueEnable(scsbus::kBroadcastId, true);
     g_torque_on = true;
+}
+
+// The hold (flail guard / soft operator stop): every fitted servo's goal to
+// the position it reported THIS tick, written with torque as it is -- one
+// SYNC WRITE, speed field 0 (the servo's own maximum: stop where you are,
+// stiffly). A servo that did not answer this tick keeps its last goal.
+// Returns the frame size, for the flight record.
+//
+// Why freeze rather than ramp to home: it stops putting energy in on this very
+// tick; the trip comes early (the guard is tuned to fire within ~0.3 s of the
+// first sign), so the frozen pose is still near the stand; and a new
+// trajectory from inside the loop into a robot mid-disturbance is exactly the
+// kind of motion nobody has validated. The way back to home is the bench's
+// own, verified `home` (2.5 s minimum-jerk, play take-up, readback), which
+// housekeeping runs once the robot is upright and still (cli.cpp flailTick).
+int writeHoldHere() {
+    int nwr = 0;
+    for (int k = 0; k < g_nfit; ++k) {
+        const int b = g_fit_bus[k];
+        if (!g_fb_ok[b]) continue;
+        g_wr_id[nwr] = g_fit_id[k];
+        g_wr_steps[nwr] = g_fb[b].position;
+        g_wr_speed[nwr] = 0;
+        ++nwr;
+    }
+    if (g_bus && g_torque_on && nwr > 0) {
+        g_bus->syncWritePositions(g_wr_id, g_wr_steps, static_cast<size_t>(nwr));
+    }
+    return nwr;
+}
+
+// End the run HOLDING: the policy has stopped (the caller writes nothing of
+// it this tick), the servos keep the hold goals, the bench handover on the
+// next tick skips its torque release, and housekeeping is told why.
+void holdAndDisarm(linkproto::ArmResult why, uint8_t trip, float value, int joint) {
+    g_hold_on_bench = g_torque_on;
+    g_armed_hold_trip.store(trip);
+    g_armed_hold_value.store(value);
+    g_armed_hold_joint.store(joint);
+    g_armed_hold_torque.store(g_torque_on);
+    g_arm_result.store(static_cast<uint8_t>(why));
+    g_armed_holds.fetch_add(1);
+    g_mode_request.store(Mode::kBench);     // toward bench only: shared.h
 }
 
 uint32_t fittedMask() {
@@ -268,8 +327,18 @@ void ctrlTask(void*) {
 
         // -- bench handover ------------------------------------------------
         if (benched) {
+            // Operator stops arriving while benched are housekeeping's
+            // (shared.h g_op_stops); this loop forgets them, so none is
+            // stored up for the next arm. Read order: stops, then estops.
+            g_stops_seen = g_op_stops.load();
+            g_estops_seen = g_op_estops.load();
             if (g_ctrl_owns_bus.load()) {
-                releaseAll();               // never hand the CLI a live robot
+                // Never hand the CLI a live robot -- except a HOLD (flail
+                // guard / soft stop), which housekeeping takes over by name
+                // (cli.cpp flailTick) and which must not sag on the way.
+                if (!g_hold_on_bench) releaseAll();
+                g_hold_on_bench = false;
+                g_torque_on = false;        // ctrl's view ends here; a re-arm engages
                 g_ctrl_owns_bus.store(false);
                 g_primed = false;
                 g_shaper.invalidate();
@@ -294,6 +363,9 @@ void ctrlTask(void*) {
             // clear (and a disarm + arm the wireless one), and the operator
             // doing it is looking at the robot.
             g_fall.clear();
+            // ... and a fresh flail guard: every filter, run and the latch.
+            g_flail.reset();
+            g_hold_on_bench = false;
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
             // that actually writes targets (the link may sit RELAX for a
@@ -420,6 +492,40 @@ void ctrlTask(void*) {
             }
         }
 
+        // -- operator stop (linkproto::kFlagStop; shared.h g_op_stops) ------
+        // Out of band: no latch or watchdog saw the frame, so nothing another
+        // sender does can undo it. HARD (kFlagEstop too): torque off on this
+        // tick and the run is over. SOFT: the policy never runs again; the
+        // servos hold where they are, torque on, and the run is over.
+        {
+            const uint32_t stops = g_op_stops.load();      // stops, then estops
+            const uint32_t estops = g_op_estops.load();
+            if (stops != g_stops_seen && g_fall.fallen()) {
+                // Fallen this tick: already limp and benching, and the beacon
+                // must keep saying FALL. Nothing to add.
+                g_stops_seen = stops;
+                g_estops_seen = estops;
+            } else if (stops != g_stops_seen) {
+                const bool hard = estops != g_estops_seen;
+                g_stops_seen = stops;
+                g_estops_seen = estops;
+                if (hard) {
+                    releaseAll();
+                    g_shaper.invalidate();
+                    g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kDisarmedStop));
+                    g_mode_request.store(Mode::kBench);
+                    recordFlight(t0, t_read0, t_read1, state, s, 0, nullptr, vbat_dv);
+                } else {
+                    const int nwr = writeHoldHere();
+                    holdAndDisarm(linkproto::ArmResult::kDisarmedStop, kHoldTripOperator, 0.0f, -1);
+                    recordFlight(t0, t_read0, t_read1, state, s, nwr, nullptr, vbat_dv);
+                }
+                publish(state, faults, s.up, vbat_dv,
+                        static_cast<uint32_t>(esp_timer_get_time() - t0));
+                continue;
+            }
+        }
+
         // -- safety --------------------------------------------------------
         // The pack guard outranks the link: an operator holding a live command
         // cannot keep the robot walking on a flat pack, and once the guard has
@@ -486,20 +592,17 @@ void ctrlTask(void*) {
         const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
         const float wz = in.cmd[2];
         const float lift = obs::kNumCmd > 4 ? in.cmd[4] : 0.0f;
-        // clock_stand_freeze runs generated per-policy: a policy trained
-        // with the frozen-at-stand clock must see it here too, or the
-        // stand obs oscillate in a way training never produced. Training's
-        // gate (env_mjx plain_stand): no locomotion command AND no lift --
-        // marches/balances keep their clock.
-        if (!obs::kClockStandFreeze
-            || fabsf(vx) > 0.05f || fabsf(vy) > 0.05f || fabsf(wz) > 0.05f
-            || fabsf(lift) >= 0.5f) {
-            // speed clock (kSpeedClock, 2026-09-08): cadence follows the
-            // commanded planar speed exactly as in training; the base
-            // frequency alone ran the robot 7-25 % slow on every drive
-            // since loco_v32. Mirror of sil_lib.cpp.
-            g_clock.advanceSpeedClock(obs::kControlDt, sqrtf(vx * vx + vy * vy));
-        }
+        // The gait clock (obs::tickGaitClock, shared with sil_lib.cpp): the
+        // speed clock under a locomotion command (kSpeedClock, 2026-09-08:
+        // cadence follows the commanded planar speed exactly as in
+        // training). At a plain stand -- training's gate, no locomotion
+        // command AND no lift -- a clock_stand_freeze run always holds (it
+        // must see the frozen clock here too, or the stand obs oscillate in
+        // a way training never produced); any other run follows the
+        // `standclock` option (shared.h g_stand_clock; default: as trained).
+        obs::tickGaitClock(g_clock, in.cmd,
+                           static_cast<obs::StandClock>(g_stand_clock.load()),
+                           g_stand_phase.load());
 
         memcpy(in.q, g_q, sizeof g_q);
         memcpy(in.dq, g_dq, sizeof g_dq);
@@ -532,6 +635,10 @@ void ctrlTask(void*) {
 
         float angle[obs::kNumJoints];
         obs::actionToAngles(g_action, angle);
+        // The RAW targets, before the shaper and the ramp: the flail guard's
+        // chatter criterion judges these (the shaper would hide it).
+        float raw_angle[obs::kNumJoints];
+        memcpy(raw_angle, angle, sizeof raw_angle);
 
         // -- shape (see g_shaper above; docs/firmware-design.md) -------------
         const float shape_hz = g_shape_hz.load();
@@ -556,6 +663,43 @@ void ctrlTask(void*) {
                             static_cast<float>(kArmRampTicks);
             for (int i = 0; i < obs::kNumJoints; ++i) {
                 angle[i] = g_ramp_hold[i] + r * (angle[i] - g_ramp_hold[i]);
+            }
+        }
+
+        // -- flail guard (components/flailguard) -----------------------------
+        // Judges what this tick is about to WRITE (pose), the raw targets
+        // (chatter) and the torso (rate, tilt -- the real IMU, not the
+        // obsfreeze'd copy). A trip: nothing of the policy is written, the
+        // servos freeze where they are with torque ON, and the run ends.
+        if (g_flail_on.load()) {
+            flailguard::Input fin;
+            fin.n = obs::kNumJoints;
+            fin.target = angle;
+            fin.raw = raw_angle;
+            fin.stand = obs::kJointDefault;
+            fin.pose_limit = g_flail_limit;
+            // The plain stand: the same gate as the clock freeze above, plus
+            // crouch at 1 and the foot offsets at 0 (all after pinFrozen).
+            const auto cmd_at = [&in](int i, float dflt) {
+                return i < obs::kNumCmd ? in.cmd[i] : dflt;
+            };
+            fin.stand_cmd = fabsf(vx) <= 0.05f && fabsf(vy) <= 0.05f && fabsf(wz) <= 0.05f &&
+                            fabsf(lift) < 0.5f && fabsf(cmd_at(3, 1.0f) - 1.0f) <= 0.05f &&
+                            fabsf(cmd_at(5, 0.0f)) <= 0.005f && fabsf(cmd_at(6, 0.0f)) <= 0.005f;
+            fin.pose_armed = g_ramp_ticks >= kArmRampTicks;
+            fin.imu_valid = s.valid;
+            fin.up = s.up;
+            fin.gyro = s.gyro;
+            const flailguard::Trip trip =
+                g_flail.update(fin, static_cast<uint32_t>(kTickUs / 1000));
+            if (trip != flailguard::Trip::kNone) {
+                const int nwr = writeHoldHere();
+                holdAndDisarm(linkproto::ArmResult::kDisarmedFlail, static_cast<uint8_t>(trip),
+                              g_flail.tripValue(), g_flail.tripJoint());
+                recordFlight(t0, t_read0, t_read1, rep_state, s, nwr, &in, vbat_dv);
+                publish(rep_state, faults, s.up, vbat_dv,
+                        static_cast<uint32_t>(esp_timer_get_time() - t0));
+                continue;
             }
         }
 
@@ -682,6 +826,9 @@ void startCtrlTask(imu::Imu& imu) {
     memset(g_q, 0, sizeof g_q);
     memset(g_dq, 0, sizeof g_dq);
     g_vel.reset(g_q);
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        g_flail_limit[i] = flailguard::poseLimitDeg(obs::kJointNames[i]) / 57.29578f;
+    }
 
     // Highest application priority, pinned to core 1. WiFi/LwIP stay on core 0
     // by IDF default, so nothing they do can preempt this.

@@ -19,7 +19,10 @@ namespace cli {
 using Sink = void (*)(const char* text);
 
 // Execute one line. `line` is NUL-terminated and has no trailing newline.
-void execute(const char* line, Sink out);
+// `remote` = it came over the Wi-Fi CLI (wifi_cli.cpp): the persistent
+// writers (NVS, servo EEPROM) and safety-latch clears refuse themselves, and
+// `rec` changes apply in RAM only -- on top of the Wi-Fi allowlist.
+void execute(const char* line, Sink out, bool remote = false);
 
 // The banner printed at boot and by `help`.
 void banner(Sink out);
@@ -57,6 +60,13 @@ void homeVerify(Sink out);
 void poseTick(Sink out);
 // Bench fall guard (cli.cpp): every housekeeping tick, before poseTick.
 void fallTick(Sink out);
+// STS3215 RAM response config (regs 85/81): re-applied when a benched check finds it reset.
+void servoRamTick(Sink out);
+// Flail guard + operator stop, bench half (cli.cpp flailTickImpl): every
+// housekeeping tick, right after fallTick. Takes over an armed-loop HOLD
+// (shared.h g_armed_holds) and homes it once upright and still; stops bench
+// motion on an operator stop (shared.h g_op_stops).
+void flailTick(Sink out);
 // Flight recorder, bench side (main/flight_rec.h): call right after poseTick
 // every housekeeping iteration. Records the stream tick that just ran (one
 // SYNC READ of the fitted servos, after the goal write), or an idle sample

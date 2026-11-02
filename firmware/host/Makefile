@@ -47,7 +47,7 @@ else
   GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
 endif
 
-CXXFLAGS  = -std=c++17 -O1 -g \
+CXXFLAGS  = -std=c++17 -O1 -g -ffp-contract=off \
             -Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-conversion \
             -fno-exceptions -fno-rtti \
             $(POLICY_FLAGS) \
@@ -59,7 +59,9 @@ CXXFLAGS  = -std=c++17 -O1 -g \
             -I$(COMPONENTS)/battguard/include \
             -I$(COMPONENTS)/balance/include \
             -I$(COMPONENTS)/fallguard/include \
-            -I$(COMPONENTS)/flightrec/include
+            -I$(COMPONENTS)/flailguard/include \
+            -I$(COMPONENTS)/flightrec/include \
+            -I$(COMPONENTS)/wcli/include
 
 # Kept before the sanitizers are folded in: the SIL shared library cannot use
 # them (see the `sil` target below).
@@ -85,27 +87,34 @@ SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
             $(COMPONENTS)/linkproto/framing.cpp
 SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/imu/imu.cpp
-SRC_POL   = $(COMPONENTS)/policy/mlp.cpp
+SRC_POL   = $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
+SRC_FLAIL = $(COMPONENTS)/flailguard/flailguard.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
+SRC_WCLI  = $(COMPONENTS)/wcli/sha256.cpp $(COMPONENTS)/wcli/wcli.cpp \
+            $(COMPONENTS)/wcli/policy.cpp
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_fallguard \
-        test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_fallguard test_flailguard \
+        test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec \
+        test_wcli
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
+# Not a test: the Wi-Fi CLI's robot half on a host UDP socket, which
+# tests/test_wcli.py drives with the real Python client (wcli_twin.cpp).
+WCLI_TWIN = $(BUILD)/wcli_twin
 
 # The software-in-the-loop library (docs/sil-harness.md): the same component
 # sources the tests use, plus the C boundary python loads with ctypes.
 SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
 SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
-            $(COMPONENTS)/policy/mlp.cpp
+            $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
 
 .PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
-all: $(BINS) $(SIL_LIB)
+all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
 # 7-wide intent, the arm-sync rule and the short-vs-long frame decision. Only
@@ -114,7 +123,7 @@ all: $(BINS) $(SIL_LIB)
 SRC_CLIENT = ../../link/client.cpp
 CLIENT_HDRS= ../../link/client.h
 GUI_HDRS   = $(CLIENT_HDRS) ../../link/keymap.h ../../link/recorder.h \
-             ../../link/mjpeg.h ../../link/simproc.h
+             ../../link/mjpeg.h ../../link/simproc.h ../../link/bench.h
 
 # The operator's console (link/tui.cpp): the firmware's own linkproto
 # sources plus ncurses, no sanitizers (it is a tool, not a test), exceptions
@@ -223,6 +232,7 @@ GUI = $(BUILD)/bimo_gui
 gui: $(GUI)
 $(GUI): ../../link/gui.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
         ../../link/recorder.cpp ../../link/mjpeg.cpp ../../link/simproc.cpp \
+        ../../link/bench.cpp \
         $(SRC_LINK) $(GUI_HDRS) ../../link/jpeg.h $(COMP_HDRS) \
         $(IMGUI_OBJ) | $(BUILD)
 	$(CXX) $(CXXFLAGS_NOSAN) $(GUI_INC) $(GUI_DEFS) \
@@ -251,7 +261,7 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 # the tools that link the same sources.
 $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                       ../../link/mjpeg.cpp ../../link/recorder.cpp \
-                      $(SRC_LINK) $(GUI_HDRS) \
+                      ../../link/bench.cpp $(SRC_LINK) $(GUI_HDRS) \
                       test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
@@ -280,11 +290,29 @@ $(BUILD)/test_roll_pi: test_roll_pi.cpp $(SRC_BAL) test_util.h $(COMP_HDRS) | $(
 $(BUILD)/test_fallguard: test_fallguard.cpp $(SRC_FALL) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
+# The flail guard, replayed against the 2026-11-01 policy-stand failure
+# (vectors/flail_vectors.h, tools/gen_flail_vectors.py).
+$(BUILD)/test_flailguard: test_flailguard.cpp $(SRC_FLAIL) vectors/flail_vectors.h \
+                          test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
 # The flight recorder's wire format against vectors from tools/flightrec.py
 # (`make vectors` at the repo root regenerates them).
 $(BUILD)/test_flightrec: test_flightrec.cpp $(SRC_FREC) vectors/flightrec_vectors.h \
                          test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The Wi-Fi CLI's pure half: SHA-256/HMAC against the published vectors,
+# the wire format against link/wcliproto.py (`make vectors`), the session's
+# auth/replay/at-most-once logic and the Wi-Fi allowlist.
+$(BUILD)/test_wcli: test_wcli.cpp $(SRC_WCLI) vectors/wcli_vectors.h \
+                    test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+# The same session logic on a real UDP socket (sanitizers ON: it parses
+# untrusted datagrams), for the end-to-end client tests in tests/.
+$(WCLI_TWIN): wcli_twin.cpp $(SRC_WCLI) $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(CXXFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS) -lpthread
 
 # The fusion filter is the half of the IMU driver that has no hardware in it,
 # which is exactly why it lives in components/imu/ next to the pure maths
@@ -347,7 +375,7 @@ $(SIL_LIB): $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) \
 $(BUILD):
 	mkdir -p $(BUILD)
 
-test: $(BINS) $(SIL_LIB)
+test: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
 	@rc=0; for t in $(BINS); do $(GOLDEN_ENV) ./$$t || rc=1; done; \
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN$(if $(POLICY), (policy profile $(POLICY)))"; \
 	 else echo "FAILURES$(if $(POLICY), (policy profile $(POLICY)))"; fi; \
@@ -415,10 +443,13 @@ vectors:
 #
 #   make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs
 #
+# QUANT=int8 writes an int8 profile (policy/q8.h; an int8 profile stays int8
+# when regenerated without it).
+#
 deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
 	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
-	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 
 clean:
 	rm -rf $(BUILD)

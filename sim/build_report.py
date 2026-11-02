@@ -436,6 +436,30 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-02 card: night 12 -- a (128,128) get-up trained directly with PPO
+# sweeps 48/48 on one seed (w13k_s1; the other seed sinks after standing);
+# the w12k student sweeps 44/48 but loses shoves (4/16). Legs: the
+# actuator-DR student walk16_act_s128r24 passes x1.5 loop gain on the
+# measured actuator (the hardware-stand candidate); the walk does not
+# return under actuator DR.
+fig_1102 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w13k_s1', ['recover_supine_ph'],
+                 'robot_getup_w13k_s1_supine_ph',
+                 'a firmware-sized (128, 128) get-up trained with PPO, no distil: '
+                 '48/48 over friction 0.05-0.5, 8/16 under 15 N shoves'),
+    video_figure('robot_getup_w13k', ['recover_supine_ph'],
+                 'robot_getup_w13k_supine_ph',
+                 'the same recipe, seed 0: it stands at 21.7 s, then sinks to '
+                 '0.29 m (supine ph 1/8 at friction 0.35; sweep 31/48)'),
+    video_figure('robot_legs_walk16_act_s128r24', ['stand_10s'],
+                 'robot_legs_walk16_act_s128r24_stand',
+                 'the hardware-stand candidate: 0/8 falls on the measured actuator at '
+                 'x1.5 loop gain (shown on the no-dead-time referee, where it drifts)'),
+    video_figure('robot_legs_walk16_act', ['walk_steps_L'],
+                 'robot_legs_walk16_act_walk_steps',
+                 'the actuator-DR teacher stands but does not step: peaks <= 1 cm '
+                 '(walk14 without dead time: 5/8 at >= 3 cm)'),
+] if f)
 # 2026-11-01 card: night 11 -- the get-up holds on the full deploy contract
 # (w12k: asbuilt P32, quantizer, clip within stops: 48/48, 15 N 14/16); the
 # first get-up student (w9k -> (128,128)) loses 16/48. Legs: walk14 79/160 is
@@ -844,6 +868,36 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>
+    <p><b>Get-up: the firmware-sized network can do it without distillation.</b>
+    Trained directly with PPO at (128, 128), w13k_s1 passes 48/48 across joint
+    friction 0.05 – 0.5. It learns as fast as the big network. The other seed
+    (w13k) stands and then sinks from supine ph (31/48), and both small-net
+    seeds lose more shoves than the big ones (7 – 8/16 at 15 N against
+    12 – 15/16). The stock student of the deployable teacher w12k is much
+    better than w9k's (44/48 against 32/48), but it keeps only 4/16 under
+    shoves. Twice the distillation data made it worse. A big network from
+    scratch (w14k) sweeps 48/48, so the old init is not needed. Tonight:
+    action noise during distillation, a teacher-sized student, a (256, 256)
+    PPO network, a third seed, and less residual authority for the small
+    network.</p>
+    <p><b>Legs: a stand policy with margin on the measured actuator; the walk is the open problem.</b>
+    After 11-01's flail (the STS3215s have ~70 ms dead time), the
+    actuator-randomised student walk16_act_s128r24 survives 1.5× loop gain,
+    the pessimistic actuator fit and 100 ms dead time with 0/8 falls. It is
+    the hardware-stand candidate. On that plant the walk does not come back:
+    training falls stay at ~0.9 over 1.1B steps and foot peaks stay ≤ 1.2 cm.
+    Tonight tests the cadence (commanded speed capped at 0.35 m/s) against
+    the dead-time tails (40 – 100 ms DR narrowed to 60 – 80 ms). On the
+    no-dead-time line, a (256, 256) student recovers 25 of the 42 seed-passes
+    the (128, 128) student lost (62 vs 37/160; teacher 79). Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1102}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·01 · night 11: the deployable get-up + the student gate</span></p>

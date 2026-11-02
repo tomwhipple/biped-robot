@@ -739,6 +739,11 @@ NECK_BOSS_R = 3.5                                                     # boss on 
 NECK_BOSS_H = 9.0                                                     # boss on the tube wall, z 0..9 (prints base-down)
 NECK_BOSS_PILOT = 7.0                                                 # 2.05 pilot depth; M2.5 x 8 bites 6.0
 NECK_LEAD_WIN = (-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 1.0)        # x band under the connector trench
+# edge rails on the floor's top, under the tube walls, full length: they tie the
+# plate's fore and aft halves across the lead window (on +y as a bridge over the
+# leads' exit), so the plate is a closed ring, not a U (Tom, 2026-10-24)
+NECK_RAIL_HY0 = NECK_WELL_HW[0]                                       # 12.66: the tube's inner face, 0.3 off the case
+NECK_RAIL_TOP = -0.3                                                  # 0.3 under the case face and the tube's bottom
 assert NECK_FLOOR_Z[0] - (BATT_Z[1]) >= 4.0, "neck floor must keep >= 4 mm over the pack"
 assert NECK_FLOOR_X[0] <= -max(D.YAW_CASE_HOLES_IDLER) - NECK_PAD_R + 0.1, "aft pads must fit on the floor"
 # head: a carrier bolted to the neck horn (4x M3x6 on the O14 BCD + the
@@ -873,6 +878,36 @@ assert GIRDLE_Y1 < ARM_HORN_FACE_Y, \
 GIRDLE_ARM_CLR = ARM_HORN_FACE_Y - GIRDLE_Y1             # 0.70 mm of air, arm vs girdle
 GIRDLE_WIDTH = 2 * GIRDLE_Y1                             # 200.30
 assert GIRDLE_WIDTH <= D.BED, "the girdle must fit the print bed in one piece"
+# The IDLER side has no screws for the same access reason, so the inboard wall
+# is the case's only hold on that face. The shoulder servos go in WITHOUT their
+# idler disc (Tom, 2026-10-24; the hip-yaw rule, docs/assembly.md 2: nothing
+# rides that face), so the wall can bear on the bare case face: it keeps a hole
+# for the free-hub post, which turns with the shaft, and four CRUSH PADS on its
+# seat face take up the bay's GRIP_SEAT_CLR. The cheek's screws (below) push
+# the case home onto them, so the case is clamped between the wall and the
+# cheek and nothing rattles.
+GIRDLE_HUB_CLR = 0.3                     # free-hub post: radial air in its hole (the yaw ceiling's)
+GIRDLE_PAD_H = 0.40                      # crush pad, proud of the seat face
+GIRDLE_PAD_W = 1.2                       # its base across the pad; 0.4 flat crest
+GIRDLE_PAD_L = 2.0                       # its length up the seat face
+GIRDLE_PAD_CRUSH = GIRDLE_PAD_H - D.GRIP_SEAT_CLR        # 0.25 interference with the case face
+assert 0.15 <= GIRDLE_PAD_CRUSH <= 0.35, \
+    "crush pads must bite, but the cheek's four screws have to be able to squash them"
+# The servo cannot DROP into its bay (Tom, 2026-11-01: "impossible to insert a
+# servo into their slots due to the conformal features"): everything it has on
+# both faces -- the O19.6 output boss and the horn-side rib outboard, the
+# back-cover platform and the free-hub post inboard -- stands proud ALONG THE
+# AXIS into a closed pocket of a full-height wall. So the servo goes in along
+# its own axis, from outboard, and the outboard grip plate is its own print,
+# the SHOULDER CHEEK, offered on the same axis once the servo is home and
+# screwed to four lugs on the pod's end walls.
+GIRDLE_CHEEK_SCREW_DX = 2.8      # cheek screw centre, outboard of the bay's end (x): 1.78 of lug
+                                 # between its pilot and the bay
+GIRDLE_CHEEK_EDGE = 0.6          # cheek edge past those screws' countersink mouths
+GIRDLE_CHEEK_CLR = 0.2           # cheek in its rebate, each end
+GIRDLE_RIM_W = 1.6               # the rebate's rims: the pod boxes the cheek in x, not its screws
+GIRDLE_LUG_D = 7.5               # lug depth inboard of the cheek's seat plane
+GIRDLE_CHEEK_PILOT_DEPTH = 6.0   # M2.5x8 flat head through the 2.4 cheek: 5.6 of thread in the lug
 # DEVIATION 2 (lateral): the plant hung the arm at 80.35. 103.35 here, +23.0.
 # Round 4 was +7.7 and it was forced by the Pi slot; this one is forced by the
 # deck edge (above) -- and it is ALSO what the walk gate wants once the
@@ -1026,6 +1061,14 @@ ARM_HAND_R = 12.0                # hand knuckle radius == the plant's hand spher
                                  # (12 mm, friction 1.0 0.02 0.001). BARE PETG here;
                                  # the robustness sweep covered mu 0.3-1.0, 6/6.
 ARM_EDGE_R = 3.0                 # outer vertical edge fillet ("no sharp corners")
+# each arm link's side, L or R, debossed in its outboard rail's outer face:
+# a vertical wall in print, upright when the arm hangs. Toward the distal end,
+# where the rail's bending moment is lower; the 2.6 rail keeps 2.0 behind it.
+ARM_LABEL_H = 8.0
+ARM_LABEL_DEPTH = 0.6
+ARM_LABEL_X = -4.0               # centre: mid-rail (bed face -15.16, front >= 6.6 there)
+ARM_LABEL_Z_UPPER = -92.0        # upper arm: on the shaft, above the jog (-108)
+ARM_LABEL_Z_FORE = -125.0        # forearm: on the shaft, above the hand (r 12 at -160)
 ARM_R16_BUFFER = 1.0             # how far the forearm's fork web stands off the
                                  # elbow servo's output-end corners (r = hypot(
                                  # SV_WID/2, SV_AXIS_FROM_OUT_END) = 15.97 -- the
