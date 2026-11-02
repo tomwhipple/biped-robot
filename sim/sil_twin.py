@@ -15,6 +15,19 @@ sim twin, hanging, does the same thing for the same reasons).
 Live view: --stream-port serves MJPEG on 0.0.0.0 (http://mira:<port>/) so
 the rendered sim is watchable next to the physical robot. --record writes
 the same frames to an mp4 on exit (hw_sessions/... is the natural home).
+
+Flight records: --flight HOST:PORT (off by default) sends the stream the
+robot's flight recorder sends -- HELLO at 1 Hz, a TICK every control tick
+(goal written, nominal target and measured position per joint, IMU, the
+command the policy saw), events for arm/home edges, mode, link state and
+operator stops -- encoded by tools/flightrec.py, to a console or to mira's
+collector (tools/flight_collector.py, UDP 4220). sim/sil_twin_wire.py builds
+the packets; docs/flight-recorder.md lists which fields the sim fills.
+
+    .venv/bin/python sim/sil_twin.py --hang --flight 127.0.0.1:4221
+
+The beacon follows the firmware's rules: joint angles for a commander that
+asks with FLAG_POSE, the up-vector x/y for one that asks with FLAG_ATT.
 """
 import argparse
 import io
@@ -46,9 +59,9 @@ for p in ("mjx", "sil", ""):
 sys.path.insert(0, os.path.join(ROOT, "link"))
 
 from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
-                      LinkState,
-                      ProtocolError, Supervisor, Telemetry, decode_command,
-                      encode_telemetry)
+                      ProtocolError, Supervisor, decode_command)
+import sil_twin_wire as W                                   # noqa: E402
+import flightrec as FR                                      # noqa: E402  (W put tools/ on the path)
 
 # Needs BOTH a sim/runs/<name>/config.json and an exported
 # sim/sil/weights/<name>.silw.json; the previous default had only the weights,
@@ -207,6 +220,46 @@ def run(args):
     _root = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, "root")
     root_adr = int(env.model.jnt_qposadr[_root]) if _root >= 0 else -1
 
+    # Flight records (--flight): the robot's recorder stream, from the SIL
+    # controller's targets and the plant's joints (sim/sil_twin_wire.py).
+    flight = None
+    spec = lib.spec
+    plant_jnt = {}                       # bus joint name -> (qpos adr, dof adr)
+    imu_sid = -1
+    if args.flight:
+        if tuple(H.BUS_NAMES) != tuple(FR.BUS_JOINT_NAMES):
+            raise SystemExit("sil_twin: obs/bus_map.h and tools/flightrec.py "
+                             "disagree on the bus joint order")
+        for k, jn in enumerate(spec.joint_names):
+            b = W.BUS_INDEX[jn]
+            if H.BUS_IDS[b] != int(spec.servo_id[k]):
+                raise SystemExit(f"sil_twin: {jn} is servo {spec.servo_id[k]} in "
+                                 f"obs_spec.h, but bus slot {b} is servo "
+                                 f"{H.BUS_IDS[b]} in bus_map.h")
+        for jn in FR.BUS_JOINT_NAMES:
+            jid = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, jn)
+            if jid >= 0:
+                plant_jnt[jn] = (int(env.model.jnt_qposadr[jid]),
+                                 int(env.model.jnt_dofadr[jid]))
+        flight_cal = W.bus_calibration(
+            plant_jnt, H.BUS_IDS,
+            {jn: (int(lib.cal.zero_steps[k]), int(lib.cal.dir[k]))
+             for k, jn in enumerate(spec.joint_names)})
+        try:
+            flight_send = W.UdpSend(*args.flight)
+        except OSError as e:
+            raise SystemExit(f"sil_twin: --flight {args.flight[0]}:"
+                             f"{args.flight[1]}: cannot resolve ({e})")
+        flight = W.TwinFlight(f"sil_twin {args.run_name}", flight_cal,
+                              send=flight_send,
+                              idle_hz=int(round(1.0 / env.control_dt)))
+        imu_sid = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_SITE, "imu")
+        print(f"sil_twin: flight records -> {flight_send.addr[0]}:"
+              f"{flight_send.addr[1]} (boot {flight.boot_id:08x}, "
+              f"{sum(flight_cal.fitted)} joints"
+              f"{'' if imu_sid >= 0 else ', no imu site: IMU block not valid'})",
+              flush=True)
+
     def up_to_quat(up):
         """Torso orientation from the robot's up vector, as a wxyz quaternion.
 
@@ -242,11 +295,21 @@ def run(args):
     stream = Mjpeg(args.stream_port) if args.stream_port else None
     frames = []
     peer = None
+    want_att = False
     was_armed = args.boot_armed
     last_state = None
+    flight_mode = None                   # last EV_MODE value recorded
+    worst_us = 0
     t0 = time.monotonic()
     late = 0
     dt = env.control_dt
+
+    def boot_us():
+        return int((time.monotonic() - t0) * 1e6)
+
+    def utc_us():
+        return time.time_ns() // 1000
+
     print(f"sil_twin: {args.run_name} on :{args.port} (tlm -> :{args.tlm_port})"
           f"  plant={os.path.basename(xml) if xml else 'run default'}"
           f"  spec={info['spec'][:60]}...")
@@ -286,6 +349,14 @@ def run(args):
         while args.duration is None or i * dt < args.duration:
             tick = time.monotonic()
             now_ms = (tick - t0) * 1000.0
+            if flight is not None:
+                # The TICK's header stamps are the tick start (ctrl's t0);
+                # HELLOs and events carry the instant they are posted
+                # (flight_rec.cpp pushEvent / buildHello).
+                tick_boot_us, tick_utc_us = int((tick - t0) * 1e6), utc_us()
+                if flight.hello_due(tick_boot_us):
+                    flight.post(flight.hello(boot_us(), utc_us(), ticks=i,
+                                             late=late, worst_us=worst_us))
 
             for cmd in _stdin_commands():
                 if cmd.startswith("pose "):
@@ -332,8 +403,22 @@ def run(args):
                     pkt = decode_command(buf)
                 except ProtocolError:
                     continue
+                arm_level, homes, armed_before = (dog.latch.level, dog.homes,
+                                                  dog.armed)
                 dog.accept(pkt, now_ms)
+                # Like the firmware's Commander: both levels come from the
+                # latest valid frame, replaced together.
                 want_pose = pkt.pose
+                want_att = pkt.att
+                if flight is not None:
+                    tb, tu = boot_us(), utc_us()
+                    if pkt.stop:            # out of band: no latch saw it
+                        flight.post(flight.stop(tb, tu, pkt.estop, armed_before))
+                    elif arm_level is not None and dog.latch.level != arm_level:
+                        flight.post(flight.event(tb, tu, FR.EV_ARM_EDGE,
+                                                 a=int(dog.latch.level)))
+                    if dog.homes != homes:
+                        flight.post(flight.event(tb, tu, FR.EV_HOME_EDGE))
 
             if args.viewer:
                 # VISUALISE ONLY. No policy, no env.step, no integration, no
@@ -381,6 +466,15 @@ def run(args):
             if dog.armed and not was_armed:
                 act.begin_episode()
             was_armed = dog.armed
+            if flight is not None:
+                # EV_MODE as flight_rec.cpp houseTick: a = run | ctrl owns
+                # the bus << 1 (both, armed), b = the ArmResult.
+                mode = 3 if dog.armed else 0
+                if mode != flight_mode:
+                    flight_mode = mode
+                    flight.post(flight.event(
+                        boot_us(), utc_us(), FR.EV_MODE, a=mode,
+                        b=dog.result.value, text="run" if mode & 1 else "bench"))
 
             # Full 7-wide ext_cmd off the link (vx, vy, wz, crouch, lift,
             # foot_dx, foot_dz) -- extended frames drive the foot-target
@@ -417,7 +511,34 @@ def run(args):
                                   f"{d.geom_xpos[env._sole_gids[0]][2] - env._sole_z0:.4f},"
                                   f"{d.geom_xpos[env._sole_gids[1]][2] - env._sole_z0:.4f},"
                                   f"{y_sep:.4f},{float(env._cmd[0]):.2f}\n")
+            if flight is not None:
+                # What the tick STARTED from -- the robot's record carries the
+                # positions its SYNC READ fed the policy, not the ones after
+                # the goals went out. Policy joints: the obs the SIL stack
+                # was fed (its servo-side view); any other plant joint: qpos.
+                torque_now = dog.torque_on(now_ms)
+                f_in = act.split_obs(obs)
+                measured = {jn: (float(env.data.qpos[qa]), float(env.data.qvel[da]))
+                            for jn, (qa, da) in plant_jnt.items()}
+                for k, jn in enumerate(spec.joint_names):
+                    measured[jn] = (float(f_in["q"][k]), float(f_in["dq"][k]))
+                imu_truth = None
+                if imu_sid >= 0:
+                    # The IMU site's true attitude and specific force (m/s^2,
+                    # site = body frame, gravity included: MuJoCo's
+                    # accelerometer). rnePostConstraint only fills cacc /
+                    # cfrc_*, which nothing here reads and mj_step recomputes.
+                    qw = np.zeros(4)
+                    mujoco.mju_mat2Quat(qw, env.data.site_xmat[imu_sid])
+                    mujoco.mj_rnePostConstraint(env.model, env.data)
+                    acc6 = np.zeros(6)
+                    mujoco.mj_objectAcceleration(env.model, env.data,
+                                                 mujoco.mjtObj.mjOBJ_SITE,
+                                                 imu_sid, acc6, 1)
+                    imu_truth = (qw, acc6[3:].copy())
             obs, _, _, _, step_info = env.step(a)
+            # the beacon's up vector: the same sample as step_info["up_z"]
+            up_now = env.data.sensordata[env._up_id:env._up_id + 3].copy()
 
             if (stream or args.record) and i % 3 == 0:      # ~16 fps
                 rgb = env.render()
@@ -444,13 +565,11 @@ def run(args):
                     frames.append(rgb)
 
             if peer and i % 5 == 0:                          # 10 Hz beacon
-                tx.sendto(encode_telemetry(Telemetry(
+                tx.sendto(W.beacon(
                     seq_echo=dog.seq_echo(now_ms), state=state,
-                    vbat_v=float(env.supply_voltage),
-                    up_z=float(step_info.get("up_z", 0.0)),
+                    vbat_v=float(env.supply_voltage), up=up_now,
                     vx_est=float(step_info.get("vx_body", 0.0)),
                     wz_est=float(step_info.get("wz", 0.0)),
-                    servo_err=0,
                     loop_late_pct=int(100 * late / max(1, i)),
                     t_us=int(time.time() * 1e6),   # the host clock IS ours
                     # Only for a commander that asked. obs frame_offsets put
@@ -459,7 +578,32 @@ def run(args):
                     joints=(tuple(float(obs[j]) if j >= 0 else 0.0
                                   for j in beacon_src)
                             if want_pose else ()),
-                )), (peer, args.tlm_port))
+                    att=want_att,
+                ), (peer, args.tlm_port))
+
+            if flight is not None:
+                # SilActAdapter keeps the tick's SilTargets (no skip ticks here).
+                view = W.sil_view(H, lib, act._last_targets)
+                # The controller's targets are reported while the loop is
+                # armed or the plant tracks them (a homed hold); goals only
+                # while it does (torque on).
+                reported = dog.armed or torque_now
+                imu = (dict(accel=imu_truth[1], gyro=view["gyro"],
+                            quat=imu_truth[0], up=view["up"])
+                       if imu_truth is not None else None)
+                work_us = int((time.monotonic() - tick) * 1e6)
+                worst_us = max(worst_us, work_us)
+                code = W.link_state_code(state)
+                flight.post(flight.tick(tick_boot_us, tick_utc_us, W.tick_body(
+                    tick=i, armed=dog.armed, torque=torque_now, link_state=code,
+                    work_us=work_us,
+                    joints=W.joint_block(flight_cal, measured,
+                                         view["targets"] if reported else None,
+                                         written=torque_now),
+                    imu=imu, view=view if reported else None,
+                    vbat_mv=int(round(env.supply_voltage * 1000)))))
+                if dog.armed:               # ctrl's link-state events
+                    flight.post(flight.link_change(boot_us(), utc_us(), code))
 
             i += 1
             slack = dt - (time.monotonic() - tick)
@@ -470,6 +614,10 @@ def run(args):
     except KeyboardInterrupt:
         print("\nsil_twin: stopped")
     finally:
+        if flight is not None:
+            flight_send.close()
+            print(f"sil_twin: flight records: {flight.sent} sent, "
+                  f"{flight.drop_net} failed sends (boot {flight.boot_id:08x})")
         if obs_writer is not None:
             obs_writer.close()
             print(f"sil_twin: obs capture closed ({obs_writer.n} records)")
@@ -524,7 +672,23 @@ def main():
                         "The plant is posed from `pose` lines on stdin and "
                         "rendered. This is what mirror mode wants -- a picture "
                         "of the real robot, not a second robot beside it.")
-    run(p.parse_args())
+    p.add_argument("--flight", default=None, type=flight_dest,
+                   metavar="HOST:PORT",
+                   help="send flight records here (the robot's recorder "
+                        "stream, tools/flightrec.py: HELLO 1 Hz, a TICK per "
+                        "control tick, events) -- a console, or mira's "
+                        "collector on 4220. Off by default")
+    args = p.parse_args()
+    if args.flight and args.viewer:
+        p.error("--flight needs the twin's control loop; --viewer runs none")
+    run(args)
+
+
+def flight_dest(s):
+    try:
+        return FR.parse_hostport(s)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
 
 
 if __name__ == "__main__":

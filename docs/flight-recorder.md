@@ -140,6 +140,36 @@ The collector's summary and `flight_reader.py summary` report the achieved
 median rate and the 5–95 % period per source, and per joint the share of
 ticks it answered.
 
+## The SIL twin as a source
+
+`sim/sil_twin.py --flight HOST:PORT` sends the same stream from the
+simulation: the firmware's control code (`libctrl_sil`) driving the CPU
+plant ([control-channel.md](control-channel.md#simulated-robots-behind-the-link)). The packets are
+`tools/flightrec.py`'s, built by the pure functions in
+`sim/sil_twin_wire.py`; point it at a console, or at the collector
+(`--flight mira:4220`), which files it like a robot. It fills only what the
+sim has, and leaves the rest 0 with the flags saying so:
+
+| field | the twin's value |
+|---|---|
+| header | random `boot_id` per run; one `seq` for every packet; `t_boot_us` from the twin's start; `t_utc_us` from the host clock; `drop_ring` 0; `drop_net` = sends that failed |
+| HELLO, 1 Hz | `fw` = `sil_twin <run>` (31 B cap); `utc_synced` 1, `enabled` 1, `idle_hz` = the control rate, `cal_ok` 1; per bus joint `id` (`bus_map.h`), `fitted` = the plant has the joint, `dir`/`zero` = the calibration below; counters `produced`, `sent`, `drop_net`, ctrl ticks, overruns, worst tick, uptime — the rest 0 |
+| TICK source and rate | `ctrl` while armed, `idle` while benched; one per control tick in both, at the twin's loop rate (paced to the 50 Hz control rate; the summary reports what it achieved) |
+| tick flags | torque = the plant's torque is on; wrote = it tracked the goals this tick; feedback read; IMU valid (the plant has its `imu` site). Never traj, home, balance or fallen: the twin has no bench streams, balance loop or fall guard |
+| `link_state`, `tick`, `work_us` | `Supervisor.state` (BENCH while benched), the loop's tick count, the tick's work time. `fb_off_us`, `fb_read_us`, `imu_age_us` 0: no bus, no IMU latency |
+| IMU, at the tick start | `up`, `gyro`: the frame the SIL library fed its policy. `quat`: the `imu` site's true body→world attitude; `roll`, `pitch` from it (ZYX, as `rollPitchFromQuat`). `accel`: the site's true specific force, m/s², body frame, gravity included (MuJoCo's accelerometer) |
+| balance block | 0 (state OFF, no buses) |
+| control block | `cmd`: the 7-wide command the policy saw; `phase`: the library's gait clock — both from the frame it assembled; `vbat_mv`: the plant's supply voltage. `batt`, `home_stage` 0 |
+| per joint | every plant joint on the bus, ascending bus index. `pos`, `speed`: the sim's angle and rate at the tick start — for a policy joint the observation the library was fed (its servo-side view), otherwise `qpos`/`qvel`. `nominal`: the raw action through `actionToAngles` (the robot's nominal). `goal`, `goal_speed`: `SilTargets.goal_ticks` / `goal_speed`, the shaped SYNC WRITE. `status`, `temp_c`, `voltage_dv`, `moving`, `load`, `current` 0 |
+| joint flags | answered: always. Driven and nominal valid: while the controller's output is reported (armed, or torque on after a home). Goal valid and written: while torque is on |
+| events | arm edge (`a` = level), home edge, mode (`bench`/`run`, `a` = run \| owns-bus << 1, `b` = ArmResult), link state while armed (`a` = old or −1, `b` = new), operator stop (once per 2 s burst) |
+
+Every step value is in one calibration per bus joint, the one the HELLO
+sends: for the policy's joints the SIL library's own (the calibration
+`goal_ticks` is written in), for the rest (2048, +1). `flight_reader`
+therefore gives back the sim's angles in the joint frame, exactly as it
+does the robot's.
+
 ## Timing
 
 **Armed.** The record is built after the SYNC WRITE from what the tick holds;
