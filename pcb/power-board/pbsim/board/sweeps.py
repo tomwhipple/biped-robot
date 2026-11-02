@@ -1,16 +1,12 @@
 """Continuous inputs swept across their range on the whole board: temperature
 (leakage), PACK+ voltage, the ESP32's drive levels, the servo-rail current,
-and the protection thresholds' datasheet tolerances. Plus the design
-what-ifs: each finding's proposed fix, re-simulated.
+and the protection thresholds' datasheet tolerances.
 """
 from __future__ import annotations
 
-from dataclasses import replace
-
-
 from .board import Board, Esp32, Scenario, steps
 from .ics import BqLimits, BqOtp, TpsLimits
-from .sequences import (SEQ, _q3_zener, on, save_trace)
+from .sequences import (SEQ, on, save_trace)
 
 SWEEPS = {}
 
@@ -21,19 +17,18 @@ def _reg(name, fn):
 
 # ---- W1: a switched-off board at temperature: does it wake itself? -------
 
-def _hot(t_c, corner, fix=False):
+def _hot(t_c, corner):
     def build():
         # wake comparators disabled: the run measures where TS2 and LD settle
         # in SHUTDOWN, which is then compared with DS 6.3's threshold range
-        sc = Scenario(name=f"hot_off_{t_c}C_{corner}{'_fix' if fix else ''}",
+        sc = Scenario(name=f"hot_off_{t_c}C_{corner}",
                       t_stop=0.05, temp_c=t_c, leak=corner,
-                      bq=BqLimits(v_wake_ts2=-1.0, v_wake_ld=99.0),
-                      d2_silicon=fix, patch={"R10": "100k"} if fix else {})
+                      bq=BqLimits(v_wake_ts2=-1.0, v_wake_ld=99.0))
 
         def run(r, b):
             ts2 = float(r.w["ts2"][-1])
             ld = float(r.w["ld"][-1])
-            m = {"temp_C": t_c, "corner": corner, "fix": fix,
+            m = {"temp_C": t_c, "corner": corner,
                  "ts2_V": ts2, "ld_V": ld, "pack_V": float(r.w["pack"][-1]),
                  "wakes_if_threshold_1.1V": ts2 < 1.1,
                  "wakes_if_threshold_0.9V": ts2 < 0.9,
@@ -48,22 +43,20 @@ for _c in ("typ", "max"):
     # 70 °C is left out: ngspice's operating point does not converge there
     for _t in (-20, 0, 10, 25, 40, 50, 60, 65, 75, 80, 85, 95, 105):
         _reg(f"hot_off_{_t}C_{_c}", _hot(_t, _c))
-        _reg(f"hot_off_{_t}C_{_c}_fix", _hot(_t, _c, fix=True))
 
 
-def _pressed_level(t_c, fix):
+def _pressed_level(t_c):
     """POWER pressed on a switched-off board: TS2's level against the wake
-    threshold, at temperature, with and without the D2 fix."""
+    threshold, at temperature."""
     def build():
-        sc = Scenario(name=f"pressed_{t_c}C{'_fix' if fix else ''}",
+        sc = Scenario(name=f"pressed_{t_c}C",
                       t_stop=0.02, temp_c=t_c,
                       power_btn=steps((0, 0), (0.01, 1)),
                       bq=BqLimits(v_wake_ts2=-1.0, v_wake_ld=99.0),
-                      d2_silicon=fix, patch={"R10": "100k"} if fix else {},
                       usb=steps((0, 1)))
 
         def run(r, b):
-            return {"temp_C": t_c, "fix": fix,
+            return {"temp_C": t_c,
                     "ts2_pressed_V": float(r.w["ts2"][-1]),
                     "pwr_int_n_pressed_V": float(r.w["pwr_int_n"][-1]),
                     "ts2_released_V": r.at("ts2", 0.009)}
@@ -72,8 +65,7 @@ def _pressed_level(t_c, fix):
 
 
 for _t in (-20, 0, 25, 60, 85):
-    _reg(f"pressed_{_t}C", _pressed_level(_t, False))
-    _reg(f"pressed_{_t}C_fix", _pressed_level(_t, True))
+    _reg(f"pressed_{_t}C", _pressed_level(_t))
 
 
 # ---- W2: PACK+ voltage: the rail's UVLO on the drawn divider ---------------
@@ -187,68 +179,6 @@ for _a in (16.0, 17.0, 18.0, 19.0, 21.0, 25.0):
     for _o in (-4.0, 0.0, 4.0):
         for _iw in (1.136, 1.19, 1.224):     # TPS 6.5 V(SNS_WRN) 29.2/30.6/31.5 mV
             _reg(f"select_{_a:g}A_ocd{_o:+g}_iwrn{_iw:.3f}", _select(_a, _o, _iw))
-
-
-# ---- what-ifs: each proposed fix, re-simulated -------------------------------
-
-def _packplus_bulk(b):
-    """2 × 10 µF 25 V X7R on PACK+ at Q3 (C22's part), 50 % DC-bias derated."""
-    p = b.net("PACK+")
-    return [f"c_fix_pk1 {p} fixpk1 5u", "r_fix_pk1 fixpk1 0 3m",
-            f"c_fix_pk2 {p} fixpk2 5u", "r_fix_pk2 fixpk2 0 3m"]
-
-
-def _packplus_bulk_series(b):
-    """The same four parts as two series pairs (TI's EVM pattern, C30/C32:
-    one cracked capacitor cannot short PACK+): 2 × (10 µF + 10 µF in series),
-    each 10 µF derated to 5 µF, so 2 × 2.5 µF."""
-    p = b.net("PACK+")
-    return [f"c_fix_ps1a {p} fixps1 5u", "c_fix_ps1b fixps1 fixps1r 5u",
-            "r_fix_ps1 fixps1r 0 6m", "r_fix_ps1m fixps1 0 1e9",
-            f"c_fix_ps2a {p} fixps2 5u", "c_fix_ps2b fixps2 fixps2r 5u",
-            "r_fix_ps2 fixps2r 0 6m", "r_fix_ps2m fixps2 0 1e9"]
-
-
-def _vc0_tie(b):
-    """1 kΩ from J2.1 (balance B−) to BAT− on the board (TI DS §8.3 note)."""
-    return [f"r_fix_vc0 {b.node('J2', 1)} {b.net('BAT-')} 1k"]
-
-
-def _wrap(base, name, **changes):
-    def build():
-        sc, check = SEQ[base]()
-        ch = dict(changes)
-        extra = list(sc.extra) + ch.pop("extra", [])
-        sc = replace(sc, name=name, extra=extra, **ch)
-        return sc, check
-    return build
-
-
-WHATIF = {
-    "fix_q3zener_ocd_cut_17A": _wrap("rail_load_17A_ocd_low_corner",
-                                     "fix_q3zener_ocd_cut_17A", extra=[_q3_zener]),
-    "fix_packbulk_short_J4": _wrap("short_servo_lead_J4", "fix_packbulk_short_J4",
-                                   extra=[_packplus_bulk]),
-    "fix_packbulk_series_short_J4": _wrap("short_servo_lead_J4",
-                                          "fix_packbulk_series_short_J4",
-                                          extra=[_packplus_bulk_series]),
-    "fix_bleed_shutdown_rail_dropped": _wrap(
-        "shutdown_rail_dropped_first", "fix_bleed_shutdown_rail_dropped",
-        patch={"R38": "4.7k", "R39": "1k"}),
-    "otp_scdl1_persistent_short": None,      # covered by the sequence itself
-}
-for _k, _v in WHATIF.items():
-    if _v is not None:
-        SWEEPS[_k] = _v
-
-
-def _hotplug_fix():
-    sc, check = SEQ["hotplug_xt60_after_balance"]()
-    return replace(sc, name="fix_vc0tie_hotplug_xt60_after_balance",
-                   extra=[_vc0_tie]), check
-
-
-SWEEPS["fix_vc0tie_hotplug_xt60_after_balance"] = _hotplug_fix
 
 
 def all_sweeps():

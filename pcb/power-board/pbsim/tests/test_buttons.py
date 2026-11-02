@@ -39,6 +39,8 @@ from pbsim.scenarios import BootAndHoldOn as _FirmwareOn
 from pbsim.scenarios import run as _run
 from pbsim.sequencer_sim import (BoardState, Buttons, Esp32Stub, PowerBoard)
 
+ESP32_VIL = 0.25 * 3.3     # ESP32 datasheet V(IL): 0.25 x VDD
+
 
 class _ShutdownOnPwrInt(Esp32Stub):
     """Firmware behaviour per design §7 POWER-pressed-while-on: see
@@ -66,7 +68,7 @@ class _ShutdownOnPwrInt(Esp32Stub):
         if board.pwr_int_n_v > 2.0:
             self._released_before_repress = t_s
         rail_was_on = board.rail_state == "ON"
-        if board.pwr_int_n_v < 0.5 and rail_was_on \
+        if board.pwr_int_n_v < ESP32_VIL and rail_was_on \
                 and self._released_before_repress is not None \
                 and t_s - self._released_before_repress > 0.1:
             self.kill_at = t_s

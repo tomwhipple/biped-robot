@@ -27,19 +27,21 @@ PASS = ["power_on_full_sequence", "power_tap_20ms", "kill_pulse_short",
         "rail_cb_latch_reset_by_servo_en", "short_servo_lead_J4",
         "short_packplus_board", "power_while_kill_held_usb",
         "usb_only_pack_unplugged_outputs_driven", "full_pack_cov",
-        "hotplug_xt60_after_balance"]
+        "hotplug_xt60_after_balance", "shutdown_rail_dropped_first",
+        "tether_power_on_12V"]
+# What remains of the 2026-10-24 findings on rev B depends on the BQ76922's OTP
+# image, which the model keeps at TI's defaults plus design record §5.5; the
+# chosen settings are written at bring-up (otp_* sequences show their effect).
 FINDINGS = {
-    "shutdown_rail_dropped_first":
-        "F-1: after KILL, SERVO+ (through Q3's body diode) and the General "
-        "Driver's input capacitance hold LD up; the BQ76922 waits in soft "
-        "shutdown and ignores POWER",
     "ocd_trip_then_power_press":
-        "F-3: after an OCD cut POWER cannot switch the board back on",
+        "F-3: after an OCD cut POWER cannot switch the board back on (kept: TI's "
+        "default, latched until the pack is unplugged)",
     "rail_load_17A_ocd_low_corner":
-        "F-4/F-5: OCD acts before the rail breaker; Q3's gate rides above "
-        "U2's 16 V PU/PD−SRC rating as PACK+ collapses",
+        "F-4: OCD acts before the rail breaker at OCD1's -4 mV corner (OTP: OCD1 "
+        "at 30 mV)",
     "cuv_weak_cell_under_load":
-        "F-6: the board switches itself back on after a CUV cut",
+        "F-6: the board switches itself back on after a CUV cut (OTP: Shutdown "
+        "Cell Voltage = CUV, Low V Shutdown Delay 0)",
 }
 TRUTH = ["on-Ac-Bc-en_high-pwrR-usb0-gd_on-pack_both",
          "on-Ao-Bo-en_high-pwrR-usb0-gd_on-pack_both",

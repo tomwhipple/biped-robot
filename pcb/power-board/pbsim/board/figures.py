@@ -1,15 +1,18 @@
 """Figures for the whole-board simulation record, drawn from the campaign's
 saved traces and sweep results (run ``make pbfull`` first):
 
-    python -m pbsim.board.figures        (from pcb/power-board)
+    python -m pbsim.board.figures [prefix]        (from pcb/power-board)
 
-writes ``docs/design-v6/figs/pbfull_*.png``. Static PNGs for a markdown
+writes ``docs/design-v6/figs/<prefix>_*.png``: ``pbfull`` (the default) is the
+2026-10-24 record's rev A set, ``pbrevb`` the rev B record's. A figure whose
+runs the campaign no longer has (rev A's what-ifs) is skipped. Static PNGs for a markdown
 record: one quantity per axis, fixed series colours (the reference palette's
 first slots, in order), a legend for every multi-series panel.
 """
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -24,6 +27,7 @@ FIGS = Path(__file__).resolve().parents[4] / "docs" / "design-v6" / "figs"
 S = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]      # categorical slots 1–4
 INK, INK2, GRID, SURF = "#0b0b0b", "#52514e", "#e6e5e1", "#fcfcfb"
 BAND = "#d9d8d3"
+PREFIX = "pbfull"
 
 plt.rcParams.update({
     "figure.facecolor": SURF, "axes.facecolor": SURF, "savefig.facecolor": SURF,
@@ -45,7 +49,7 @@ def results(suite):
 
 def _save(fig, name):
     FIGS.mkdir(parents=True, exist_ok=True)
-    p = FIGS / f"pbfull_{name}.png"
+    p = FIGS / f"{PREFIX}_{name}.png"
     fig.savefig(p, bbox_inches="tight")
     plt.close(fig)
     print("wrote", p)
@@ -109,7 +113,7 @@ def hot_wake():
                                   ((True, "typ"), S[2], "silicon pair + R10 100k, typical"),
                                   ((True, "max"), S[3], "silicon pair + R10 100k, datasheet maximum")):
         pts = sorted((x["metrics"]["temp_C"], x["metrics"]["ts2_V"]) for x in r.values()
-                     if x["name"].startswith("hot_off_") and x["metrics"].get("fix") == fix
+                     if x["name"].startswith("hot_off_") and x["metrics"].get("fix", False) == fix
                      and x["metrics"].get("corner") == corner)
         if pts:
             ax.plot(*zip(*pts), color=c, marker="o", ms=4, label=lab)
@@ -163,6 +167,8 @@ def q3_vgs():
 
 
 def main():
+    global PREFIX
+    PREFIX = sys.argv[1] if len(sys.argv) > 1 else PREFIX
     for f in (power_on, kill_hang, hot_wake, short_j4, q3_vgs):
         try:
             f()

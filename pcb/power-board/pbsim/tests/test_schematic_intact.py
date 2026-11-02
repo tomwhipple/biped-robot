@@ -13,15 +13,17 @@ import pytest
 from pbsim.schematicsnapshot import load, parse_si_value
 
 
-# C3's verified values, keyed by ref. Read directly from the verification
-# record's C3 table (2026-10-07-power-board-verification.md §C3) — these are
-# not re-derived here so a mismatch means either the schematic or the record
-# changed (both are review material).
+# C3's verified values, keyed by ref, from the verification record's C3 table
+# (2026-10-07-power-board-verification.md §C3), with rev B's changes from the
+# 2026-10-24 records (full simulation F-1, F-2, F-5, F-7, F-9; pin audit F3, F4).
+# They are not re-derived here, so a mismatch means either the schematic or the
+# records changed (both are review material).
 C3_VALUES = {
     "R24": 2e-3,           # servo-rail sense
     "R25": 100.0,          # CS+ filter
     "R26": 4.64e3,         # ISC programming (sets short-circuit threshold)
-    "R30": 560e3,          # EN/UVLO divider top
+    "R29": 10e3,           # E-STOP feed (audit F3)
+    "R30": 549e3,          # EN/UVLO divider top (audit F3)
     "R31": 100e3,          # EN/UVLO divider bottom
     "R34": 30.1e3,         # circuit-breaker threshold (with R25)
     "R35": 100e3,          # latch-off pull
@@ -31,8 +33,13 @@ C3_VALUES = {
     "C19": 680e-9,         # fault timer
     "C21": 1e-3,           # rail bulk capacitor
     "C22": 10e-6,          # rail bulk capacitor (MLCC, secondary)
-    "R38": 47e3,           # RAIL_V divider top (change 3)
-    "R39": 10e3,           # RAIL_V divider bottom
+    "R38": 4.7e3,          # RAIL_V divider top, also the rail's bleed (F-1)
+    "R39": 1e3,            # RAIL_V divider bottom
+    "R41": 4.7e3,          # PACK+ bleed (F-1)
+    "R10": 100e3,          # PWR_INT_N pull-up (F-2)
+    "R42": 1e3,            # VC0 lead to VSS (F-9)
+    "C24": 10e-6, "C25": 10e-6, "C26": 10e-6, "C27": 10e-6,   # PACK+ bulk, series pairs (F-7)
+    "C28": 1e-9,           # across Q5 (audit F4)
     "R12": 1e3,            # KILL series
     "R11": 10e3,           # KILL pulldown
     "R32": 1e3,            # SERVO_EN series (drives INP)
@@ -46,6 +53,7 @@ C3_VALUES = {
     "D3": 16.0,            # V (zener, gate clamps)
     "D5": 16.0,
     "D6": 16.0,
+    "D10": 15.0,           # V, Q3 gate to source (F-5)
 }
 
 

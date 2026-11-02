@@ -59,8 +59,13 @@ LEAK = {
     # Diodes 1N4148W: 25 nA max at 20 V / 25 °C, 30 µA max at 25 V / 150 °C;
     # typical a tenth of max.
     "1N4148W": Leak(((25, 2.5e-9), (150, 3e-6)), 10.0, "Diodes 1N4148W"),
+    # Diodes BAV70 (D2 from rev B): 25 nA max at 20 V / 25 °C, 30 µA max at 25 V /
+    # 150 °C, the same limits as the 1N4148W; typical a tenth of max.
+    "BAV70": Leak(((25, 2.5e-9), (150, 3e-6)), 10.0, "Diodes BAV70"),
     # Diodes MMSZ5246B: 0.1 µA max at 12 V / 25 °C; typical a tenth; ×2/10 °C.
     "MMSZ5246B": Leak(_doubling(1e-8), 10.0, "Diodes MMSZ5246B table"),
+    # Diodes MMSZ5245B (D10, 15 V): 0.1 µA max at 11 V / 25 °C; as MMSZ5246B.
+    "MMSZ5245B": Leak(_doubling(1e-8), 10.0, "Diodes MMSZ5245B table"),
     # Bourns SMBJ15A: 1 µA max at VRWM 15 V / 25 °C; typical a tenth; ×2/10 °C.
     "SMBJ15A": Leak(_doubling(1e-7), 10.0, "Bourns SMBJ15A table"),
     # TI CSD17556Q5B IDSS: 1 µA max at 24 V / 25 °C; no typical, no curve:
@@ -80,8 +85,14 @@ DIODE_MODELS = {
               "eg=0.69 xti=2)",
     "1N4148W": ".model d_1n4148w d (is=2.52n rs=0.568 n=1.752 bv=100 "
                "ibv=100u cjo=2p m=0.333 vj=0.5 tt=20n)",
+    # BAV70: VF ≤ 715 mV @ 1 mA, 855 mV @ 10 mA, 1 V @ 50 mA (the 1N4148W's limits)
+    "BAV70": ".model d_bav70 d (is=2.52n rs=0.568 n=1.752 bv=75 "
+             "ibv=2.5u cjo=2p m=0.333 vj=0.5 tt=6n)",
     # 16 V zener: VZ 15.2–16.8 V @ IZT 7.8 mA, ZZT 17 Ω.
     "MMSZ5246B": ".model d_mmsz5246b d (is=1e-14 n=1 rs=1 bv=16 ibv=7.8m "
+                 "nbv=1.2 cjo=60p)",
+    # 15 V zener: VZ 14.25–15.75 V @ IZT 8.5 mA, ZZT 16 Ω.
+    "MMSZ5245B": ".model d_mmsz5245b d (is=1e-14 n=1 rs=1 bv=15 ibv=8.5m "
                  "nbv=1.2 cjo=60p)",
     # TVS: VBR 16.7–18.5 V @ 1 mA, VC 24.4 V @ 24.6 A (10/1000 µs).
     "SMBJ15A": ".model d_smbj15a d (is=1e-12 n=1.2 rs=0.28 bv=17.6 ibv=1m "

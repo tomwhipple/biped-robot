@@ -78,25 +78,21 @@ def sweeps():
     r = load("sweep")
     print("### Sweeps\n")
     print("#### Switched-off board at temperature: TS2 (V) and LD (V)\n")
-    print("| °C | as drawn, typ | as drawn, max | fix, typ | fix, max | LD typ / max |")
-    print("|---|---|---|---|---|---|")
+    print("| °C | TS2, typ | TS2, max | LD typ / max |")
+    print("|---|---|---|---|")
     temps = sorted({x["metrics"]["temp_C"] for k, x in r.items() if k.startswith("hot_off_")})
     for t in temps:
-        def g(c, f, key="ts2_V"):
-            k = f"hot_off_{t}C_{c}{'_fix' if f else ''}"
+        def g(c, key="ts2_V"):
+            k = f"hot_off_{t}C_{c}"
             return r[k]["metrics"][key] if k in r else float("nan")
-        print(f"| {t} | {g('typ', 0):.2f} | {g('max', 0):.2f} | {g('typ', 1):.2f} | "
-              f"{g('max', 1):.2f} | {g('typ', 0, 'ld_V'):.2f} / {g('max', 0, 'ld_V'):.2f} |")
+        print(f"| {t} | {g('typ'):.2f} | {g('max'):.2f} | {g('typ', 'ld_V'):.2f} / {g('max', 'ld_V'):.2f} |")
     print("\n#### POWER pressed: levels (V)\n")
-    print("| °C | TS2, drawn | PWR_INT_N, drawn | TS2, fix | PWR_INT_N, fix |")
-    print("|---|---|---|---|---|")
+    print("| °C | TS2 | PWR_INT_N |")
+    print("|---|---|---|")
     for t in (-20, 0, 25, 60, 85):
         a = r.get(f"pressed_{t}C", {}).get("metrics", {})
-        b = r.get(f"pressed_{t}C_fix", {}).get("metrics", {})
         print(f"| {t} | {a.get('ts2_pressed_V', float('nan')):.3f} | "
-              f"{a.get('pwr_int_n_pressed_V', float('nan')):.3f} | "
-              f"{b.get('ts2_pressed_V', float('nan')):.3f} | "
-              f"{b.get('pwr_int_n_pressed_V', float('nan')):.3f} |")
+              f"{a.get('pwr_int_n_pressed_V', float('nan')):.3f} |")
     print("\n#### Rail UVLO on the drawn divider\n")
     for k in ("uvlo_down", "uvlo_up", "uvlo_down_min", "uvlo_down_max"):
         if k in r:
@@ -132,12 +128,6 @@ def sweeps():
                              if k.startswith(f"select_{a}A_ocd{o:+g}_")})
             cells.append(" / ".join(firsts))
         print(f"| {a} | " + " | ".join(cells) + " |")
-    print("\n#### What-ifs\n")
-    for k, x in r.items():
-        if k.startswith("fix_"):
-            m = {kk: (round(v, 4) if isinstance(v, float) else v)
-                 for kk, v in x["metrics"].items() if kk != "abs_max"}
-            print(f"- `{k}`: fail={x['fail']} {json.dumps(m, default=str)}")
     print()
 
 

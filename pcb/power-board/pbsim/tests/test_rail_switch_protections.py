@@ -259,7 +259,7 @@ def test_tps48111_constants_follow_from_the_schematic(schematic):
     these parts fails here until the model moves too."""
     r24, r25, r26 = (_val(schematic, r) for r in ("R24", "R25", "R26"))
     r34, r35, c19 = (_val(schematic, r) for r in ("R34", "R35", "C19"))
-    r30, r31 = _val(schematic, "R30"), _val(schematic, "R31")
+    r29, r30, r31 = (_val(schematic, r) for r in ("R29", "R30", "R31"))
 
     i_oc = 11.9 * r25 / (r24 * r34)                         # Eq. 6
     i_sc = (r26 + 464.0) * 15.6e-6 / r24                    # Eq. 11
@@ -268,9 +268,12 @@ def test_tps48111_constants_follow_from_the_schematic(schematic):
     assert SC_TRIP_A == pytest.approx(i_sc, rel=0.02)
     assert CB_DELAY_S == pytest.approx(t_oc, rel=0.03)
 
-    k = (r30 + r31) / r31
-    assert VU_VLO_RISING * k == pytest.approx(7.79, rel=0.01)   # C3
-    assert VU_VLO_FALLING * k == pytest.approx(7.39, rel=0.01)  # C3
+    k = (r29 + r30 + r31) / r31      # R29 feeds R30 through J11's contact A
+    # C3's thresholds are for rev A's 1k + 560k; rev B's 10k + 549k (audit F3)
+    # keep the divider within 0.3 %, so C3's figures scale with it
+    k_c3 = (1e3 + 560e3 + 100e3) / 100e3
+    assert VU_VLO_RISING * k == pytest.approx(7.79 * k / k_c3, rel=0.01)   # C3
+    assert VU_VLO_FALLING * k == pytest.approx(7.39 * k / k_c3, rel=0.01)  # C3
 
 
 def test_board_model_resistors_match_the_schematic(schematic):

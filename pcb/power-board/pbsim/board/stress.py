@@ -5,16 +5,21 @@ gate to source, a capacitor's two ends) with the limits its datasheet gives.
 A run records each check's extremes; a scenario passes only if none is
 exceeded. Sources: BQ76922 DS 6.1, TPS4811-Q1 TPS 6.1, CSD17556Q5B §5.1
 (VDS 30 V, VGS ±20 V), Vishay 2N7002K (VDS 60 V, VGS ±20 V), the ESP32
-datasheet (GPIO −0.3 V to VDD + 0.3 V), and each capacitor's rated voltage
+datasheet (GPIO −0.3 V to 3.6 V; above VDD, the input clamp's current, 1 mA),
+and each capacitor's rated voltage
 from its MPN.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from typing import Callable
 
 from .netlist import Netlist, node_name, si
+
+
+ESD_IS, ESD_VT = 1e-15, 0.02585      # the ESP32 input clamp as board.py models it (d_esd)
 
 
 @dataclass
@@ -98,11 +103,18 @@ def checks(nl: Netlist) -> list[Check]:
     j9 = nl.parts["J9"].pins
     j12 = nl.parts["J12"].pins
     rail = n[j9["1"]]
+    # Above the ESP32's VDD the question is the current its input clamp
+    # conducts, as for RAIL_V below: when +3V3_HOST collapses, a pin held up by
+    # its pull-up and the lead's capacitance lags it (with rev B's R10 of
+    # 100 kΩ, PWR_INT_N by about 0.6 V for 8–21 µs). The current is the model's
+    # clamp (board.py d_esd) at that voltage; 1 mA taken as the limit.
     for pn, nm in (("1", "KILL"), ("2", "SERVO_EN"), ("4", "PWR_INT_N"),
                    ("6", "ESTOP_N")):
         node = n[j12[pn]]
-        C.append(Check(f"ESP32 {nm} above VDD", lambda g, a=node, b=rail:
-                       g(a) - max(g(b), 0.0), -10, 0.3, "ESP32 datasheet"))
+        C.append(Check(f"ESP32 {nm} clamp current above VDD (A)",
+                       lambda g, a=node, b=rail: ESD_IS * math.expm1(
+                           min(max(g(a) - max(g(b), 0.0), 0.0), 1.0) / ESD_VT),
+                       -1.0, 1e-3, "1 mA injection taken as the limit"))
         C.append(Check(f"ESP32 {nm}", pin(node), -0.3, 3.6, "ESP32 datasheet"))
     # RAIL_V comes from SERVO+ through R38, so above the ESP32's VDD the real
     # question is the clamp current it injects (amps, 1 mA taken as the limit:

@@ -236,8 +236,12 @@ class Engine:
         m = re.search(r"timestep too small; time = ([0-9.eE+-]+)", out, re.I)
         if m and t_valid is not None and float(m.group(1)) >= t_valid:
             return out
-        for bad in ("timestep too small", "singular matrix", "simulation(s) aborted",
-                    "doanalyses: ", "transient solution failed"):
+        # an operating point's "Warning: singular matrix" that gmin stepping
+        # resolves is not a failure: the run goes on; an aborted run says so
+        for bad in ("timestep too small", "simulation(s) aborted",
+                    "doanalyses: ", "transient solution failed", "gmin stepping failed"):
             if bad in low:
-                raise SimError(f"ngspice failed: {out[-3000:]}")
+                i = low.index(bad)
+                raise SimError(f"ngspice failed ({out[max(0, i - 160):i + 120]!r}): "
+                               f"{out[-3000:]}")
         return out
