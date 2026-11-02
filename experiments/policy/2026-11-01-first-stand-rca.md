@@ -251,10 +251,12 @@ a more responsive plant. Morning grading: `ACT=meas` and `ACT=hard` `candidates.
 Its dead time matches this analysis: ~70 ms on the STS3215, ~15 ms on the STS3250, damping
 well below the old model. The two dead-time implementations overlap. This branch's
 `--act-delay-types` draws each servo's delay independently over a range (2-5 / 0-1 ticks).
-#192 uses a fixed +3 ticks plus a shared 0-1. Before #189 merges, rebase it onto main and keep
-one mechanism. The suggestion is main's flags plus a per-servo range option if the morning
-grading shows the spread matters. Tonight's jobs were trained and graded with this branch's
-flags, which is why they use them.
+#192 uses a fixed +3 ticks plus a shared 0-1. Resolved in the merge of main into this branch
+(2026-11-02): there is now ONE dead-time mechanism. Each servo's delay is its per-episode draw
+(a per-servo vector under `--act-delay-types`, else the scalar `--act-delay-max` draw) plus its
+fixed `--act-delay-extra`, clipped to the target ring. Each flag alone behaves as before; together
+they add (`tests/test_actuator_per_servo.py::test_mjx_types_and_extra_compose`). Tonight's jobs use
+`--act-delay-types` alone, so their plant is unchanged.
 
 Deploy caveat for #192-trained students: #192's `--servo-kp-scale hip_roll=5.6,...` is a sim
 calibration of the same factory P32/D32 servos, not a gain change. `servo_gains.h`'s
