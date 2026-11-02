@@ -139,13 +139,16 @@ pin for pin. The netlist's 5 other nets are the single pins of no-connect pins.
 
 ## Open before ordering
 
-- **A firm quote.** The instant quotes of 2026-10-24
-  ([record](../../docs/design-v6/2026-10-24-power-board-quote.md)) put 2 assembled boards at
-  about $203 at PCBWay with 1 oz copper. A firm price needs `fab/` uploaded to an account for
-  review. J1 (XT60PW-M) and F1/F2's holders (Keystone 3568) were out of stock at LCSC: they
-  are do-not-populate in the schematic, `fab.sh` exports the BOM and placement files with
-  `--exclude-dnp`, and they are soldered by hand from Jameco and Digi-Key stock (quote
-  record).
+- **The order: 2 or 3 boards.** PCBWay's reviewed quote, before shipping
+  ([record](../../docs/design-v6/2026-11-02-power-board-rev-b-quote.md)), is $218.54 for 2
+  assembled boards and $299.13 for 3, with 30–35 days' lead time. Both are in Tom's PCBWay
+  cart, approved and awaiting payment. Before paying:
+  - ask why the 2-board assembly is $29.00 and the 3-board $88.00;
+  - answer PCBWay's notes on D1's stock and J4–J8's part number.
+
+  J1 (XT60PW-M) and F1/F2's holders (Keystone 3568) are do-not-populate. `fab.sh` exports
+  the BOM and placement files with `--exclude-dnp`, and Tom solders the three by hand. Their
+  parts were ordered from Jameco and Digi-Key on 2026-10-30.
 - **The order form:** 1 oz inner copper, a 0.10–0.12 mm stencil, J1, F1 and F2 not
   populated, J1's 0.25 mm overhang (for panels and rails, whoever solders it), the placement
   file's negated Y, and a check of every polarized part in the assembler's preview (layout
