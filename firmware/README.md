@@ -63,9 +63,9 @@ profile** is named: `idf.py -C firmware -B build/firmware-v6legs
 legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
 profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
 `v6legs` profile holds the (128, 128) walk14 student
-([training.md §9](../docs/training.md), "Policy profiles"). `v6legs256` holds an **int8** (256, 256) test net
-(`robot_legs_walk14_s256r24`, legacy: it is for the timing budget and parity,
-not a deploy candidate), the way a net wider than (128, 128) fits the tick
+([training.md §9](../docs/training.md), "Policy profiles"). `v6legs256` holds an **int8** (256, 256) deploy candidate
+(`robot_legs_walk16_act_s256r24`, the fast-servo distill of walk16_act;
+experiments/policy/int8-256), the way a net wider than (128, 128) fits the tick
 ([firmware-design.md §6.1](../docs/firmware-design.md)).
 
 ## On-target bring-up
