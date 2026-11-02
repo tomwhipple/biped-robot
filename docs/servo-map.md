@@ -375,6 +375,33 @@ hip pitch went +25° freely. Check it before any backward hip motion on the stan
 Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
 cannot express it. The plant handles it with inter-leg collision geoms.
 
+### 3.3a Powered sweeps: guards (after the 2026-11-02 hip break)
+
+On 2026-11-02 a sweep stepped the right hip roll inward to +30° (the policy's limit) with
+the robot hanging on the stand. The legs touch at about 9°, and the hip rolls (51/52) are
+not on the firmware's clamp map, so nothing capped the move. The right leg drove into the
+left and broke the hip. The only force check was |load| > 400–450, read after each step;
+the load rose 0 → 8 → 64 → 144, then **fell** to 56 and 8 while the joint kept following,
+which is the part yielding.
+
+`tools/rom_sweep.py` and `tools/joint_goto.py` now apply `tools/sweep_guard.py` to every step:
+
+- **Power, sampled during the move.** Power is |present current| (reg 69) × bus voltage,
+  sampled during the move and after it. A step aborts above the last step's power plus its
+  trend plus `--step-w` (0.35 W). That catches a contact landing on top of a hanging leg's
+  smooth gravity load. A step also aborts above the at-rest baseline plus `--rise-w`
+  (1.5 W), or above `--abs-w` (4 W).
+- **Load drop while following.** |load| falling by more than half from ≥ 100 while the
+  joint still follows aborts.
+- **Torque limit.** The swept servo's RAM torque limit (reg 48, via `regw`) is
+  `--torque-limit` (400/1000) for the sweep, and is restored afterwards, also on an abort.
+- **Inward hip roll.** Inward hip roll is capped at 6°, short of leg-leg contact, unless
+  `--allow-contact` is given, and that is only for when the other leg has been moved clear.
+  The tool applies the cap because the firmware does not.
+
+Never sweep to the policy's or the sim's limits: they are not the robot's collision-free
+envelope.
+
 ### 3.4 Model-range sweep and measured knee ROM
 
 These are prototype measurements.
