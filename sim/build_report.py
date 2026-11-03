@@ -436,6 +436,29 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-03 card: night 13 -- the DART-noise distil gives the first
+# firmware-sized get-up at the teacher's level (w12k_s128r24an3: 48/48, 15 N
+# 16/16); PPO small nets stay at 7-9/16. Legs: the +600M shaper continuations
+# (walk19) lost the x1.5 loop-gain margin; walk18_shp10sq_s128r24 stays the
+# candidate; the distil gap is closed on the shaper line; walk_steps still 0/8.
+fig_1103 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w12k_s128r24an3', ['recover_prone_fall'],
+                 'robot_getup_w12k_s128r24an3_prone_fall',
+                 'the deployable (128, 128) get-up, distilled with noise on the executed '
+                 'actions: 48/48 over friction 0.05-0.5, 16/16 under 15 N shoves (teacher 14)'),
+    video_figure('robot_getup_w16k', ['recover_supine_ph'],
+                 'robot_getup_w16k_supine_ph',
+                 'a (128, 128) get-up trained directly with PPO at residual 0.075: '
+                 '48/48 but 9/16 under shoves, like every PPO small net'),
+    video_figure('robot_legs_walk19_shp8_12sq_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk19_shp8_12sq_s128r24_walk_steps',
+                 'shaper-trained student, 64/160 (teacher 59): the walk is smooth but the '
+                 'lowest step peaks at 1.3 cm (gate 3 cm), and it lost the x1.5 margin'),
+    video_figure('robot_legs_walk19_shp10sq_s128r24', ['stand_10s'],
+                 'robot_legs_walk19_shp10sq_s128r24_stand',
+                 '+600M on the candidate\'s recipe: stands 8/8 here, but falls 8/8 at x1.5 '
+                 'loop gain on the fast actuator (walk18_shp10sq_s128r24: 0/8)'),
+] if f)
 # 2026-11-02 card: night 12 -- a (128,128) get-up trained directly with PPO
 # sweeps 48/48 on one seed (w13k_s1; the other seed sinks after standing);
 # the w12k student sweeps 44/48 but loses shoves (4/16). Legs: the
@@ -868,6 +891,38 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·03 · night 13: a deployable get-up student; the walk's margin and clearance</span></p>
+    <p><b>Get-up: the firmware-sized network now matches the teacher.</b>
+    Distilling w12k into the (128, 128) network with noise on the executed
+    actions during the rollouts (DART) gives w12k_s128r24an3. It sweeps 48/48
+    across joint friction 0.05 – 0.5 and holds 16/16 under 15 N shoves, better
+    than its teacher (14/16) and far better than the stock student (4/16). The
+    stock student never saw the states after a shove; the noise puts them in
+    its data. A teacher-sized student also reaches 16/16, so capacity is
+    another way to close the gap, but only the noise works at the deployable
+    size. Training the small network directly with PPO stays at 7 – 9/16 under
+    shoves, whether at (256, 256) or with less residual authority. That route
+    stops here. Tonight: the noise recipe on a second teacher and at 0.6, and
+    the get-up retrained on the robot's fast servos, then through the firmware
+    command shaper.</p>
+    <p><b>Legs: longer training lost the hardware margin; the low steps are the gate.</b>
+    Last night's two 600M continuations of the shaper-trained recipe
+    (walk19) walk as smoothly as walk18 and distil with no loss (teacher → student
+    61 → 58 and 59 → 64/160). But on the fast measured actuator both students
+    fall 8/8 at 1.5× loop gain (walk18_shp10sq_s128r24: 0/8), at every shaper pole
+    from 8 to 20 Hz, and the stand squeeze rose from 2.0° to 3.3 – 5.1°.
+    walk18_shp10sq_s128r24 stays the hardware candidate. Every walk_steps row
+    is still 0/8: the lowest step peaks at 1.0 – 1.8 cm, against the 3 cm gate.
+    The no-shaper fast-servo runs (walk17) trip the flail guard and are
+    dropped. Tonight: walk18's 300M budget on a new seed, and the same with 3×
+    the per-step clearance penalty. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1103}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>

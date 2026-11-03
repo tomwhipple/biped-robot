@@ -104,6 +104,61 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·03 · night 13: a deployable get-up student; the walk's margin and clearance</span></p>
+    <p><b>Get-up: the firmware-sized network now matches the teacher.</b>
+    Distilling w12k into the (128, 128) network with noise on the executed
+    actions during the rollouts (DART) gives w12k_s128r24an3. It sweeps 48/48
+    across joint friction 0.05 – 0.5 and holds 16/16 under 15 N shoves, better
+    than its teacher (14/16) and far better than the stock student (4/16). The
+    stock student never saw the states after a shove; the noise puts them in
+    its data. A teacher-sized student also reaches 16/16, so capacity is
+    another way to close the gap, but only the noise works at the deployable
+    size. Training the small network directly with PPO stays at 7 – 9/16 under
+    shoves, whether at (256, 256) or with less residual authority. That route
+    stops here. Tonight: the noise recipe on a second teacher and at 0.6, and
+    the get-up retrained on the robot's fast servos, then through the firmware
+    command shaper.</p>
+    <p><b>Legs: longer training lost the hardware margin; the low steps are the gate.</b>
+    Last night's two 600M continuations of the shaper-trained recipe
+    (walk19) walk as smoothly as walk18 and distil with no loss (teacher → student
+    61 → 58 and 59 → 64/160). But on the fast measured actuator both students
+    fall 8/8 at 1.5× loop gain (walk18_shp10sq_s128r24: 0/8), at every shaper pole
+    from 8 to 20 Hz, and the stand squeeze rose from 2.0° to 3.3 – 5.1°.
+    walk18_shp10sq_s128r24 stays the hardware candidate. Every walk_steps row
+    is still 0/8: the lowest step peaks at 1.0 – 1.8 cm, against the 3 cm gate.
+    The no-shaper fast-servo runs (walk17) trip the flail guard and are
+    dropped. Tonight: walk18's 300M budget on a new seed, and the same with 3×
+    the per-step clearance penalty. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w12k_s128r24an3_prone_fall.jpg" src="_clips/robot_getup_w12k_s128r24an3_prone_fall.mp4"></video>
+      <figcaption><b>robot_getup_w12k_s128r24an3</b> · the deployable (128, 128) get-up, distilled with noise on the executed actions: 48/48 over friction 0.05-0.5, 16/16 under 15 N shoves (teacher 14)<br>recover_prone_fall 8/8
+        · seed 1/8 takes, verdict burned in · 38s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_getup_w16k_supine_ph.jpg" src="_clips/robot_getup_w16k_supine_ph.mp4"></video>
+      <figcaption><b>robot_getup_w16k</b> · a (128, 128) get-up trained directly with PPO at residual 0.075: 48/48 but 9/16 under shoves, like every PPO small net<br>recover_supine_ph 8/8
+        · seed 1/8 takes, verdict burned in · 27s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_walk19_shp8_12sq_s128r24_walk_steps.jpg" src="_clips/robot_legs_walk19_shp8_12sq_s128r24_walk_steps.mp4"></video>
+      <figcaption><b>robot_legs_walk19_shp8_12sq_s128r24</b> · shaper-trained student, 64/160 (teacher 59): the walk is smooth but the lowest step peaks at 1.3 cm (gate 3 cm), and it lost the x1.5 margin<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 5s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_walk19_shp10sq_s128r24_stand.jpg" src="_clips/robot_legs_walk19_shp10sq_s128r24_stand.mp4"></video>
+      <figcaption><b>robot_legs_walk19_shp10sq_s128r24</b> · +600M on the candidate's recipe: stands 8/8 here, but falls 8/8 at x1.5 loop gain on the fast actuator (walk18_shp10sq_s128r24: 0/8)<br>stand_10s 8/8
+        · seed 1/8 takes, verdict burned in · 9s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>
     <p><b>Get-up: the firmware-sized network can do it without distillation.</b>
     Trained directly with PPO at (128, 128), w13k_s1 passes 48/48 across joint
