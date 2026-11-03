@@ -56,6 +56,13 @@ if os.environ.get("GRADE_XML"):     # grade every run on one plant (e.g. bimo_bi
     simh.ESA._xml = lambda cfg: _GX if os.path.isabs(_GX) else os.path.join(rec.ROOT, "sim", _GX)
 
 FAST = dict(simh.MEAS_SERVO, dead15=20.0, tau15=33.0)
+# the actuator refit (experiments/policy/actuator-refit, 2026-11-03): the hanging 60 deg max-speed
+# moves + the robot's stride1 swing (R hip pitch -31 deg at +180 ms) -- hip pitch / knee
+# torque-speed envelope at the robot's 12.0 V, and the fast servo's dead time under the
+# stride's large goal steps (40 ms; the 7 deg stepresp steps give 18-27)
+REFIT_PLANT = dict(supply_v=12.0, stall_scale=dict(hip_pitch=2.0, knee=2.0),
+                   w0_scale=dict(hip_pitch=1.325, knee=1.281))
+REFIT_SERVO = dict(FAST, dead15=40.0)
 STAND_CMD = simh.STAND
 P2 = math.pi / 2
 DT = 0.02
@@ -89,6 +96,10 @@ PROBES = {
     # in 180 ms on a smooth board (TPU sole, mu ~0.4-0.6)
     "stride1 0.6 mu0.4": dict(cmd_schedule=stride(0.6), run_s=8.0, contact=dict(mu=0.4, torsion=0.005)),
     "stride1 0.6 mu0.3": dict(cmd_schedule=stride(0.6), run_s=8.0, contact=dict(mu=0.3, torsion=0.002)),
+    # the same on the REFIT actuator, where walk18_shp10sq's leg swings as fast as on the robot
+    "stride1 0.6 refit": dict(cmd_schedule=stride(0.6), run_s=8.0, plant=REFIT_PLANT, typed=REFIT_SERVO),
+    "stride1 0.6 mu0.4 refit": dict(cmd_schedule=stride(0.6), run_s=8.0, plant=REFIT_PLANT, typed=REFIT_SERVO,
+                                    contact=dict(mu=0.4, torsion=0.005)),
 }
 
 
@@ -184,7 +195,8 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env._action_to_ctrl = lambda a_: cur["t"]
     fg = FlailGuard(env._default)
     n = int(round(run_s / DT)); nh = int(round(hold_s / DT))
-    GO, GY, PW, TL, SQ, X, YW, QM = [], [], [], [], [], [], [], []
+    GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
+    import mujoco
     fell = False; ema = None; last_tgt = hold
     x0 = float(env.data.qpos[0])
     for i in range(n + nh):
@@ -220,11 +232,20 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         GO.append(tgt.copy()); GY.append(gyro); PW.append(float(info.get("power_w", np.nan)))
         TL.append(tilt); SQ.append(np.degrees(np.abs(tgt - q_meas))); X.append(float(d.qpos[0]) - x0)
         YW.append(body_yaw(d.qpos[3:7])); QM.append(q_meas)
+        QD.append(np.array(d.qvel[env._sqvel])); AC.append(np.array(a, float)); mujoco.mj_subtreeVel(env.model, d)
+        LM.append(np.array(d.subtree_angmom[env._torso_bid]))
         if term:
             fell = True
             break
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
-    m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()),
+    # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
+    # sum qdd^2 (servo DOFs, rad/s^2) and sum (a_t - 2 a_t-1 + a_t-2)^2 over the policy part
+    qd_all = np.array(QD); ac = np.array(AC); npol = min(n, len(ac))
+    qdd_all = np.diff(qd_all, axis=0) / DT
+    m_smooth = dict(qacc_sq=float(np.mean(np.sum(qdd_all[:npol] ** 2, axis=1))) if len(qdd_all) else float("nan"),
+                    action_acc=float(np.mean(np.sum(np.diff(ac[:npol], 2, axis=0) ** 2, axis=1))) if npol > 2 else float("nan"),
+                    action_rate=float(np.mean(np.sum(np.diff(ac[:npol], axis=0) ** 2, axis=1))) if npol > 1 else float("nan"))
+    m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()), **m_smooth,
              trip=fg.trip, trips_by=fg.first, peak_rate=fg.peak_rate, peak_rate_xyz=fg.peak_rax.tolist(), peak_chatter=fg.peak_chat,
              dx=float(X[-1]))
     walks = [ts for ts, c in sched if not S.stand_gate(c)]
@@ -243,6 +264,23 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
             m["walk_yaw_180ms"] = float(yw[j0 + 9] - y_ref)
             m["walk_yaw_max"] = float(np.abs(yw[j0:j0 + int(1.0 / DT)] - y_ref).max())
             m["walk_gz_max"] = float(np.abs(GY[j0:j0 + int(1.0 / DT), 2]).max())
+            # smoothness (Tom 2026-11-03: "avoid big jerks, especially when a joint comes to a
+            # stop"): qdd = the tick's mean joint acceleration (rad/s^2, servo DOFs, 50 Hz
+            # differences of qvel -- a lower bound on the substep peak); deceleration = the part
+            # of qdd that opposes the joint's motion. start = the first 300 ms of the walk
+            # command, stop = 300 ms .. 1.2 s (the swing ends, the stride's last step, the stop)
+            qd = np.array(QD); lm = np.array(LM)
+            qdd = np.diff(qd, axis=0, prepend=qd[:1]) / DT
+            dec = np.maximum(-np.sign(np.vstack([qd[:1], qd[:-1]])) * qdd, 0.0)
+            w0, w3, w12 = j0, min(len(qd), j0 + int(0.3 / DT)), min(len(qd), j0 + int(1.2 / DT))
+            ref = lm[j0 - 1] if j0 > 0 else lm[0]
+            m["walk_qdd_start"] = float(np.abs(qdd[w0:w3]).max())
+            m["walk_qdd_stop"] = float(np.abs(qdd[w3:w12]).max()) if w12 > w3 else float("nan")
+            m["walk_decel_start"] = float(dec[w0:w3].max())
+            m["walk_decel_stop"] = float(dec[w3:w12].max()) if w12 > w3 else float("nan")
+            m["walk_wz_300ms"] = float(np.abs(GY[w0:w3, 2]).max())
+            m["walk_dL_300ms"] = float(np.linalg.norm(lm[w0:w3] - ref, axis=1).max())
+            m["walk_dLz_300ms"] = float(np.abs(lm[w0:w3, 2] - ref[2]).max())
             if v.get("trace"):
                 m["trace"] = dict(gz=GY[j0:j0 + 30, 2].tolist(), yaw=(yw[j0:j0 + 30] - y_ref).tolist(),
                                   goal=np.degrees(np.array(GO[j0:j0 + 30])).tolist(),
@@ -306,7 +344,9 @@ def summarize(res, variants, probes):
                            peak_rate_max=float(np.max([r.get("peak_rate", np.nan) for r in e])))
             for key in ("goal_rms_mean", "goal_rms_max", "rate_x", "rate_y", "rate_z", "power_w",
                         "power_hold_w", "squeeze_deg", "squeeze_hold_deg", "walk_dx_2s5",
-                        "walk_tilt_max", "walk_yaw_180ms", "walk_yaw_max", "walk_gz_max", "tilt_max"):
+                        "walk_tilt_max", "walk_yaw_180ms", "walk_yaw_max", "walk_gz_max", "walk_qdd_start",
+                    "walk_qdd_stop", "walk_decel_start", "walk_decel_stop", "walk_wz_300ms",
+                    "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate", "tilt_max"):
                 vals = [r[key] for r in (ok if key != "tilt_max" else e) if key in r]
                 if vals:
                     row[pn][key] = float(np.nanmean(vals))
@@ -332,7 +372,10 @@ def table(rows, probes):
             if p.startswith("stride1") or p.startswith("walk"):
                 txt += f" (rate {c['peak_rate']:.2f}/{c['peak_rate_max']:.2f}, dx {_f(c.get('walk_dx_2s5'), 2)}"
                 if p.startswith("stride1"):
-                    txt += f", yaw180 {_f(c.get('walk_yaw_180ms'), 1)}"
+                    txt += (f", yaw180 {_f(c.get('walk_yaw_180ms'), 1)}, wz300 {_f(c.get('walk_wz_300ms'), 2)}, "
+                            f"dL300 {_f(c.get('walk_dL_300ms'), 3)}, qdd {_f(c.get('walk_qdd_start'), 0)}/"
+                            f"{_f(c.get('walk_qdd_stop'), 0)}, dec {_f(c.get('walk_decel_start'), 0)}/"
+                            f"{_f(c.get('walk_decel_stop'), 0)}")
                 txt += ")"
             cells.append(txt)
         L.append(f"| {r['variant']} | {_f(s.get('goal_rms_mean'))} / {_f(s.get('goal_rms_max'))} "
@@ -345,7 +388,10 @@ def table(rows, probes):
              "criterion would trip, judged separately]; walk cells add the guard's peak "
              "EMA body rate (mean/max over seeds, trip at 1.5 rad/s) and the torso's forward "
              "travel over the 2.5 s after the walk command (m); stride1 cells add the body yaw "
-             "180 ms after the command (deg; the robot 2026-11-03: -19). `mu` probes force the "
+             "180 ms after the command (deg; the robot 2026-11-03: -19), the peak body yaw rate "
+             "(rad/s) and whole-body angular momentum change (N m s) in its first 300 ms, and the "
+             "peak joint acceleration / deceleration (rad/s^2, 50 Hz qvel differences) at the "
+             "start (0-300 ms) / the swing ends and stop (0.3-1.2 s). `mu` probes force the "
              "effective contact friction (sliding mu, torsion) on the floor and the pads.")
     return "\n".join(L)
 

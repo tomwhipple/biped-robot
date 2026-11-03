@@ -304,6 +304,12 @@ def make_parser():
                    help="free torso-pitch band in DEGREES before "
                         "--w-pitch-hinge bites (default 5)")
     p.add_argument("--w-action-rate", type=float, default=None)
+    p.add_argument("--w-action-acc", type=float, default=None,
+                   help="weight on the action's second difference sum (a_t - 2a_t-1 + a_t-2)^2 "
+                        "(smooth starts and stops; default 0)")
+    p.add_argument("--w-qacc", type=float, default=None,
+                   help="weight on sum qdd^2 of the servo DOFs, qdd = the tick's mean joint "
+                        "acceleration in rad/s^2 (default 0)")
     p.add_argument("--w-symmetry", type=float, default=None,
                    help="gait-symmetry penalty: on touchdown, the swing-duration\nmismatch vs the other foot. Was pinned at 1.0 and untunable until 2026-08-06.")
     p.add_argument("--w-power", type=float, default=None)
@@ -353,6 +359,15 @@ def make_parser():
     p.add_argument("--servo-3250", default=None,
                    help="comma roles/actuators given the STS3250 stall/speed "
                         "envelope on top of the robot's (e.g. knee): a servo-set study")
+    p.add_argument("--servo-envelope", default=None,
+                   help="role_or_actuator=STALL:W0[,...]: a measured torque-speed envelope, stall "
+                        "torque and no-load speed as ratios to the STS3215 model (2.94 N*m, "
+                        "4.04 rad/s per 12 V), e.g. hip_pitch=1.3:1.5,knee=1.0:1.1 (the fit of "
+                        "experiments/policy/actuator-refit/refit.py); applied after --servo-3250. "
+                        "The referee inherits it from config.json (servo_types)")
+    p.add_argument("--supply-voltage", type=float, default=None,
+                   help="servo bus volts the envelope scales with (default 11.1; the robot's "
+                        "servos read ~12.0 V on the board, flight 2026-11-03)")
     p.add_argument("--robot-arms", action="store_true",
                    help="with --robot: the policy drives the shoulders and "
                         "elbows (the neck stays held); for the get-up")
@@ -760,6 +775,8 @@ def build_env_kw(args):
         if len(v) != 4 or not (0 < v[0] <= v[1] and 0 < v[2] <= v[3]):
             raise SystemExit("--floor-contact wants k_lo,k_hi,b_lo,b_hi (all > 0, lo <= hi)")
         env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
+    if getattr(args, "supply_voltage", None) is not None:
+        env_kw["supply_voltage"] = float(args.supply_voltage)
     for flag, key in (("contact_mu", "contact_mu_range"), ("contact_torsion", "contact_torsion_range")):
         if getattr(args, flag, None) is not None:
             v = [float(x) for x in getattr(args, flag).split(",")]
@@ -784,6 +801,16 @@ def build_env_kw(args):
         if args.servo_3250:
             env_kw["servo_types"] = dict(env_kw.get("servo_types") or {},
                                          **{r.strip(): "sts3250" for r in args.servo_3250.split(",") if r.strip()})
+        if getattr(args, "servo_envelope", None):
+            env = {}
+            for kv in args.servo_envelope.split(","):
+                k, _, v = kv.strip().partition("=")
+                a, _, b = v.partition(":")
+                try:
+                    env[k] = [float(a), float(b)]
+                except ValueError:
+                    raise SystemExit(f"--servo-envelope {kv!r}: want role=STALL:W0")
+            env_kw["servo_types"] = dict(env_kw.get("servo_types") or {}, **env)
         if args.robot_arms:
             env_kw["held_joints"] = {k: v for k, v in env_kw["held_joints"].items()
                                      if robot_plant._role(k) not in ("shoulder", "elbow")}
@@ -924,6 +951,10 @@ def build_env_kw(args):
         env_kw["pitch_deadband_deg"] = args.pitch_deadband
     if args.w_action_rate is not None:
         env_kw["w_action_rate"] = args.w_action_rate
+    if getattr(args, "w_action_acc", None) is not None:
+        env_kw["w_action_acc"] = args.w_action_acc
+    if getattr(args, "w_qacc", None) is not None:
+        env_kw["w_qacc"] = args.w_qacc
     if args.w_symmetry is not None:
         env_kw["w_symmetry"] = args.w_symmetry
     if args.w_low_swing:

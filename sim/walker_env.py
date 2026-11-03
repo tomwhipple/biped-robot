@@ -286,9 +286,23 @@ SERVO_TYPES = {"sts3215": (1.0, 1.0),
                "sts3250": (4.90 / 2.94, 7.87 * 0.86 / 4.04)}
 
 
+def _envelope(t):
+    """A servo_types value: a SERVO_TYPES name, or an explicit (stall ratio, no-load
+    ratio) pair relative to the STS3215 -- a measured refit (experiments/policy/
+    actuator-refit) that has no type name."""
+    if isinstance(t, (list, tuple)):
+        if len(t) != 2 or not all(float(x) > 0 for x in t):
+            raise ValueError(f"servo envelope {t!r}: want (stall ratio, no-load ratio) > 0")
+        return float(t[0]), float(t[1])
+    if t not in SERVO_TYPES:
+        raise ValueError(f"unknown servo type {t!r} (have {sorted(SERVO_TYPES)})")
+    return SERVO_TYPES[t]
+
+
 def servo_envelope_vectors(names, spec):
-    """(stall_prof, w0_prof) per actuator from {actuator or role: type name}
-    (mirror of env_mjx). None -> all ones (one STS3215 envelope)."""
+    """(stall_prof, w0_prof) per actuator from {actuator or role: type name, or a
+    (stall ratio, no-load ratio) pair} (mirror of env_mjx). None -> all ones (one
+    STS3215 envelope). An actuator key wins over its role's."""
     n = len(names)
     stall, w0 = np.ones(n), np.ones(n)
     if not spec:
@@ -298,13 +312,12 @@ def servo_envelope_vectors(names, spec):
     bad = [k for k in spec if k not in known]
     if bad:
         raise ValueError(f"servo_types keys {bad} match no actuator of this plant")
-    for k, t in spec.items():
-        if t not in SERVO_TYPES:
-            raise ValueError(f"unknown servo type {t!r} (have {sorted(SERVO_TYPES)})")
+    for t in spec.values():
+        _envelope(t)
     for i, (nm, r) in enumerate(zip(names, roles)):
         t = spec.get(nm, spec.get(r))
         if t is not None:
-            stall[i], w0[i] = SERVO_TYPES[t]
+            stall[i], w0[i] = _envelope(t)
     return stall, w0
 
 

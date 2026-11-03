@@ -28,13 +28,22 @@ def job(a):
         v["typed"] = dict(G.FAST, **{k: float(x) for k, x in
                                      (kv.split("=") for kv in os.environ["TYPED"].split(","))})
     if os.environ.get("PLANT"):     # plant knobs on top of JF_PLANT (simh.apply_model), e.g. kp_scale=1.5
-        v["plant"] = {k: float(x) for k, x in (kv.split("=") for kv in os.environ["PLANT"].split(","))}
+        v["plant"] = json.loads(os.environ["PLANT"]) if os.environ["PLANT"].startswith("{") else \
+            {k: float(x) for k, x in (kv.split("=") for kv in os.environ["PLANT"].split(","))}
     try:
         m = G.episode(v, seed=seed, run_s=6.0)
     except Exception as e:  # noqa: BLE001
         m = dict(error=repr(e), fell=True)
     m.update(run=run, mu=mu, torsion=tor, seed=seed)
+    tr = m.get("trace")
+    if tr:   # the robot's R hip pitch / knee at +180 ms: -31 / -31 deg (11-03 stride1)
+        q = np.array(tr["q"]); m["rhip_180"], m["rknee_180"] = float(q[9, 8]), float(q[9, 9])
     return m
+
+
+def _hk(e):
+    x = next((x for x in e if "rhip_180" in x), None)
+    return "-" if x is None else f"{x['rhip_180']:+.0f} / {x['rknee_180']:+.0f}"
 
 
 def main():
@@ -46,8 +55,9 @@ def main():
         res = list(ex.map(job, jobs, chunksize=1))
     json.dump(res, open(out, "w"), indent=1, default=str)
     L = ["| run | mu | torsion | falls | guard trips [rate/pose/tilt/chatter] | first trip (s after cmd) | "
-         "peak rate EMA mean/max | peak abs gyro z mean/max | yaw @+180 ms mean [min..max] (deg) | max abs yaw 1 s (deg) |",
-         "|---|---|---|---|---|---|---|---|---|---|"]
+         "peak rate EMA mean/max | peak abs gyro z mean/max | yaw @+180 ms mean [min..max] (deg) | max abs yaw 1 s (deg) | "
+         "R hip / knee @+180 ms, seed 0 (robot -31 / -31) |",
+         "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         for mu in MUS:
             for t in TORS:
@@ -63,7 +73,8 @@ def main():
                          f"{np.nanmean([x.get('peak_rate', np.nan) for x in e]):.2f}/{np.nanmax([x.get('peak_rate', np.nan) for x in e]):.2f} | "
                          f"{np.nanmean([x.get('walk_gz_max', np.nan) for x in e]):.2f}/{np.nanmax([x.get('walk_gz_max', np.nan) for x in e]):.2f} | "
                          f"{np.nanmean(y):+.1f} [{np.nanmin(y):+.1f}..{np.nanmax(y):+.1f}] | "
-                         f"{np.nanmean([x.get('walk_yaw_max', np.nan) for x in e]):.1f} |")
+                         f"{np.nanmean([x.get('walk_yaw_max', np.nan) for x in e]):.1f} | "
+                         f"{_hk(e)} |")
     md = "\n".join(L)
     open(os.path.splitext(out)[0] + ".md", "w").write(md + "\n")
     print(md)

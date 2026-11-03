@@ -325,6 +325,7 @@ class State(NamedTuple):
                               # on the real plant. Train so the policy cannot
                               # depend on a crisp, exact rate.
     metrics: dict[str, jax.Array]
+    prev_action2: jax.Array   # (n_act,) the action two ticks back (w_action_acc)
 
 
 def _quat_yaw(q):
@@ -510,6 +511,11 @@ class BimoMJXEnv:
         w_height: float = 0.0,
         w_energy: float = 0.002,
         w_action_rate: float = 0.05,
+        w_action_acc: float = 0.0,     # -w sum (a_t - 2 a_t-1 + a_t-2)^2: the action's
+        # second difference (Tom 2026-11-03: "avoid big jerks, especially when a joint
+        # comes to a stop"), next to w_action_rate's first difference
+        w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
+        # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
         fall_cost: float = 1.0,
         w_feet_air: float = 0.0,
         air_time_target: float = 0.3,
@@ -1265,6 +1271,8 @@ class BimoMJXEnv:
         self.w_height = w_height
         self.w_energy = w_energy
         self.w_action_rate = w_action_rate
+        self.w_action_acc = float(w_action_acc)
+        self.w_qacc = float(w_qacc)
         self.fall_cost = fall_cost
         self.w_feet_air = w_feet_air
         self.air_time_target = air_time_target
@@ -1510,7 +1518,9 @@ class BimoMJXEnv:
             types = {n: "sts3215" for n in self._servo_names}
             for k, v in (self.servo_types or {}).items():
                 for n in self._servo_names:
-                    if n == k or joint_role(n) == k:
+                    # an explicit (stall, no-load) envelope pair is a refit STS3215
+                    # (walker_env._envelope): its dead time stays the 3215's
+                    if (n == k or joint_role(n) == k) and isinstance(v, str):
                         types[n] = v
             lo = np.array([self.act_delay_types.get(types[n], (0, 0))[0] for n in self._servo_names])
             hi = np.array([self.act_delay_types.get(types[n], (0, 0))[1] for n in self._servo_names])
@@ -2509,6 +2519,7 @@ class BimoMJXEnv:
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
+                     prev_action2=prev_action,
                      last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
@@ -2590,7 +2601,7 @@ class BimoMJXEnv:
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
-            prev_action=prev_action,
+            prev_action=prev_action, prev_action2=prev_action,
             last_target=self._sdefault.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
             since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
@@ -2793,6 +2804,9 @@ class BimoMJXEnv:
         qd_j = data.qvel[self._jv0:self._jv1]
         energy = jp.sum(jp.abs(tau) * jp.abs(qd_j))
         action_rate = jp.sum((action - state.prev_action) ** 2)
+        action_acc = jp.sum((action - 2.0 * state.prev_action + state.prev_action2) ** 2)
+        qdd_j = (qd_j - state.data.qvel[self._jv0:self._jv1]) / self.control_dt
+        qacc_sq = jp.sum(qdd_j ** 2)
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
 
         # command tracking (exp kernels sigma=0.5; cmd_dense option)
@@ -2998,6 +3012,8 @@ class BimoMJXEnv:
                   - self.w_height * jp.abs(height - h_ref)
                   - self.w_energy * energy
                   - self.w_action_rate * action_rate
+                  - self.w_action_acc * action_acc
+                  - self.w_qacc * qacc_sq
                   - self.w_power * power_w)
 
         # gait shaping: on for moving commands, double-support bonus for stand
@@ -3489,6 +3505,7 @@ class BimoMJXEnv:
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
+                     prev_action2=state.prev_action,
                      last_target=served_end, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
                      since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
