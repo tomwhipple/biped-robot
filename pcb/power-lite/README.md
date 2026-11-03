@@ -2,7 +2,8 @@
 
 *The choices behind it are in
 [2026-11-02-power-lite-options.md](../../docs/design-v6/2026-11-02-power-lite-options.md). It
-replaces the custom [power board](../power-board/README.md) for the robot.*
+replaces the custom [power board](../power-board/README.md) for the robot. How to solder and
+wire it: [assembly.md](assembly.md).*
 
 ![Power lite, top](../../docs/design-v6/figs/powerlite_top.png)
 
