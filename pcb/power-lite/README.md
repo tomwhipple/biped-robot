@@ -84,6 +84,35 @@ pack balance lead (J2) ─ BMS cell taps                                      �
    connected. Switch the rail on with `SERVO_EN` ten times; the BMS must not trip. If it does,
    the options are a smaller C1, or a pre-charge resistor in series with C1.
 
+## Ordering (two robots)
+
+The quantities include spares. Prices are Digi-Key's, as listed on 2026-11-02.
+- **Boards:** `fab/power-lite-gerbers.zip`, 2 layers, 1.6 mm, 1 oz, HASL. PCBWay: 5 for $31.55
+  with DHL, plus duty.
+- **BMS:** ShillehTek CF-3SJH25A-C, $6.99 each.
+- **Already bought:** the XT60PW-M connectors and the Keystone 3568 fuse holders.
+
+| part | Digi-Key | qty | each |
+|---|---|---|---|
+| relay TE 1-1414610-0 | 17-1-1414610-0-ND | 2 | $13.37 |
+| main switch Cole Hersee 57000-01 | F8885-ND | 2 | $19.11 |
+| E-stop: E-Switch 100SP2T1B1M1QEH toggle, wired to its NC throw | EG2373-ND | 2 | $3.59 |
+| fuse 15 A 0297015.WXNV / 3 A 0297003.WXNV | F992-ND / F987-ND | 5 / 5 | $0.33 / $0.35 |
+| TVS 1.5KE16A | 1.5KE16ACT-ND | 5 | $1.06 |
+| 1N4007 | 4786-1N4007CT-ND | 3 | $0.16 |
+| 1000 µF 25 V EEU-FR1E102 | P14424-ND | 3 | $1.42 |
+| PN2222ATA | PN2222ATACT-ND | 3 | $0.32 |
+| resistors MFR-25FBF52: 470R, 10k, 47k, 4K7 | MFR-25FBF52-470R-ND etc. | 10 each | $0.04 |
+| LEDs WP710A10GD / WP710A10ID | 754-1603-ND / 754-1606-ND | 3 / 3 | $0.24 |
+| headers B4B-XH-A, B2B-XH-A, B2B-PH-K-S, B8B-PH-K-S | 455-B4B-XH-A-ND, 455-B2B-XH-A-ND, 455-1704-ND, 455-1710-ND | 3 each | $0.10–0.35 |
+| servo headers Molex 22-03-5035 | 900-0022035035-ND | 11 | $0.20 |
+| housings XHP-2, PHR-2, PHR-8 and crimps SXH-001T-P0.6, SPH-002T-P0.5S | 455-2266-ND, 455-1165-ND, 455-1189-ND, 455-1135-100-ND, SPH strip | as needed | |
+
+- **Total:** about $104 for two robots before shipping and tax. The relay, switch and E-stop
+  are about $93 of it.
+- **The rocker's rating:** "25 A DC" is listed at 12 V; check it against the pack's 12.6 V
+  in Littelfuse's catalog.
+
 ## Regenerating
 
 The KiCad files are generated: edit the tools, not the files.
@@ -102,6 +131,8 @@ datasheet; the XT60's is the custom board's.
 ## Open
 
 - **The BMS bench check** (above).
-- **The E-stop switch:** any latching switch with an NC contact rated 0.5 A at 12 V or more.
+- **The E-stop switch:** the E-Switch toggle above, or any latching switch with an NC contact
+  rated 0.5 A at 12 V or more. Confirm on the toggle's datasheet which throw opens when it is
+  thrown to "stop".
 - **The torso mounting:** the four M2.5 holes sit 3.2 mm in from the corners, as on the custom
   board (#108). The BMS (56 × 45 mm) and the switch mount in the torso on their wires.
