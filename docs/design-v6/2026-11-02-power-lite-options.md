@@ -135,7 +135,10 @@ Then: schematic and a 2-layer through-hole layout, simulation of the relay closi
 - the TE 1-1414610-0 70 A relay;
 - the Cole Hersee 57000-01 rocker;
 - PCBWay for the bare boards;
-- the E-stop left at the IDEC XW1E-BV402M-R.
+- **no $50 E-stop unit** (Tom: "we don't need the $50 e-stop unit"):
+  - Its contact carries only the relay coil's current, about 0.13 A, so any small latching
+    switch will do, and it plugs into a 2-pin connector on the board.
+  - The ESP32 senses the E-stop through a divider on the coil side, so one contact is enough.
 
 ## Sources
 
