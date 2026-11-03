@@ -19,7 +19,7 @@ with schemdraw.Drawing(show=False) as d:
     elm.Line().at((0, 3.6)).down().length(2.6)
     elm.RBox().at((0, 1.0)).right().length(3.0).label("BMS 3S (ShillehTek CF-3SJH25A-C)\nB- in (W1), P- out (W2)", loc="bottom")
     elm.Line().at((3.0, 1.0)).right().length(1.6)
-    elm.Ground().at((4.6, 1.0)).label("P- = system GND", loc="right", fontsize=9)
+    elm.Ground().at((4.6, 1.0)).label("P- = system GND", loc="bottom", fontsize=9)
     elm.Label().at((0.3, 2.0)).label("J2 balance lead → BMS taps W3–W5", loc="right", fontsize=8)
     elm.Line().at((0, TOP)).right().length(1.0)
     elm.Switch().at((1.0, TOP)).right().length(2.4).label("main switch\n57000-01 (W6/W7)", loc="top")
@@ -71,22 +71,31 @@ with schemdraw.Drawing(show=False) as d:
     elm.Line().at((7.6, LOW)).right().length(1.2)
     elm.Button(nc=True).at((8.8, LOW)).right().length(2.4).label("E-STOP (NC, latching)\nJ11", loc="top")
     elm.Dot().at((11.2, LOW))
-    elm.Label().at((12.3, LOW + 0.35)).label("COIL_HI", fontsize=9)
-    elm.Line().at((11.2, LOW)).right().length(2.2)
-    # ESTOP_N divider
-    elm.Resistor().at((11.2, LOW)).down().length(1.5).label("R5 47k", loc="top")
-    elm.Dot().at((11.2, LOW - 1.5)).label("ESTOP_N → J12.6 (IO4)", loc="left", fontsize=8)
-    elm.Resistor().at((11.2, LOW - 1.5)).down().length(1.5).label("R6 10k", loc="top")
-    elm.Ground().at((11.2, LOW - 3.0))
+    elm.Label().at((13.0, LOW + 0.35)).label("COIL_HI", fontsize=9)
+    elm.Line().at((11.2, LOW)).right().length(3.4)
+    # ESTOP_N: Q2 pulls it low while the coil supply is up; the ESP32's IO4 pull-up gives the high
+    elm.Resistor().at((11.2, LOW)).down().length(2.2).label("R5 47k", loc="bottom")
+    elm.Dot().at((11.2, LOW - 2.2))
+    elm.Resistor().at((11.2, LOW - 2.2)).down().length(1.3).label("R6 10k", loc="bottom")
+    elm.Ground().at((11.2, LOW - 3.5))
+    elm.Line().at((11.2, LOW - 2.2)).left().length(0.5)
+    # base on the right, emitter down: rotate 180 and mirror
+    q2 = elm.BjtNpn(circle=True).theta(180).flip().at((10.7, LOW - 2.2)).anchor("base")
+    elm.Label().at((q2.emitter[0] - 0.55, q2.base[1] - 0.1)).label("Q2", fontsize=10)
+    elm.Ground().at(q2.emitter)
+    elm.Line().at(q2.collector).up().length(0.3)
+    elm.Dot(open=True).at((q2.collector[0], q2.collector[1] + 0.3)).label(
+        "ESTOP_N → J12.6, IO4\nlow = run, high = stop", loc="top", fontsize=8)
     # coil, flyback diode, Q1
-    elm.Dot().at((13.4, LOW))
-    elm.Inductor2(loops=3).at((13.4, LOW)).down().length(2.2).label("K1 coil\n90 Ω, 0.13 A", loc="top")
-    elm.Dot().at((13.4, LOW - 2.2)).label("COIL_LO", loc="left", fontsize=8)
-    elm.Line().at((13.4, LOW)).right().length(1.4)
-    elm.Diode().at((14.8, LOW - 2.2)).up().length(2.2).label("D1\n1N4007", loc="bottom")
-    elm.Line().at((13.4, LOW - 2.2)).right().length(1.4)
-    q = elm.BjtNpn(circle=True).at((13.4, LOW - 4.2)).anchor("collector").label("Q1\nPN2222A", loc="right")
-    elm.Line().at((13.4, LOW - 2.2)).to(q.collector)
+    cx = 14.6
+    elm.Dot().at((cx, LOW))
+    elm.Inductor2(loops=3).at((cx, LOW)).down().length(2.2).label("K1 coil\n90 Ω, 0.13 A", loc="top")
+    elm.Dot().at((cx, LOW - 2.2)).label("COIL_LO", loc="left", fontsize=8)
+    elm.Line().at((cx, LOW)).right().length(1.4)
+    elm.Diode().at((cx + 1.4, LOW - 2.2)).up().length(2.2).label("D1\n1N4007", loc="bottom")
+    elm.Line().at((cx, LOW - 2.2)).right().length(1.4)
+    q = elm.BjtNpn(circle=True).at((cx, LOW - 4.2)).anchor("collector").label("Q1\nPN2222A", loc="right")
+    elm.Line().at((cx, LOW - 2.2)).to(q.collector)
     elm.Ground().at(q.emitter)
     bx, by = q.base[0] - 0.6, q.base[1]
     elm.Line().at(q.base).left().length(0.6)
@@ -96,7 +105,7 @@ with schemdraw.Drawing(show=False) as d:
     elm.Resistor().at((bx, by)).down().length(1.4).label("R2 10k", loc="bottom")
     elm.Ground().at((bx, by - 1.4))
     # the coil works the contact
-    elm.Line(ls="--", color="gray").at((13.0, LOW - 0.35)).to((9.2, TOP - 0.3))
+    elm.Line(ls="--", color="gray").at((cx - 0.4, LOW - 0.35)).to((9.2, TOP - 0.3))
 
     elm.Label().at((0, -6.6)).label(
         "Power lite rev A (pcb/power-lite). The E-stop opens the coil circuit, so K1 drops SERVO+ without firmware; "

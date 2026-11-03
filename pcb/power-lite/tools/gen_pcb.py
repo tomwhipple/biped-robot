@@ -46,12 +46,13 @@ PLACE = {
     "D1": (46.0, 40.0, 0), "Q1": (57.0, 45.5, 0), "R1": (66.0, 42.0, 270), "R2": (69.5, 42.0, 270),
     "R3": (74.0, 44.0, 270), "R4": (77.5, 44.0, 270), "R8": (81.0, 44.0, 270),
     "R5": (49.5, 47.0, 270), "R6": (53.0, 47.0, 270), "R7": (44.0, 47.0, 270),
+    "Q2": (57.5, 51.5, 0), "C2": (72.0, 57.5, 0),
     "LED1": (34.0, 50.0, 0), "LED2": (82.0, 60.0, 0),
     "J3": (28.0, 59.5, 0), "J11": (40.0, 61.0, 0), "J12": (52.0, 61.0, 0),
 }
 HOLES = [(3.2, 3.2), (W - 3.2, 3.2), (3.2, H - 3.2), (W - 3.2, H - 3.2)]
 # silkscreen references that the footprints' defaults would put on a neighbour
-REF_AT = {"K1": (61.0, 22.0), "D3": (29.6, 46.4), "J2": (6.0, 31.4),
+REF_AT = {"K1": (61.0, 22.0), "D3": (29.6, 46.4), "J2": (6.0, 31.4), "Q2": (60.0, 55.2), "C2": (74.5, 60.6),
           "W3": (14.0, 42.5), "W4": (14.0, 38.5), "W5": (14.0, 34.5)}
 
 # top-layer pours for the high-current nets: (net, polygon)
@@ -69,6 +70,9 @@ TRACKS = [(pcbnew.F_Cu, 1.5, "SERVOP", [(85.0, y - 2.5), (88.0, y - 2.5)]) for y
 # plane directly and the servo return current does not detour around a cut
 TRACKS += [(pcbnew.B_Cu, 0.5, "SERVO_DATA", [(88.0, 53.0), (89.9, 53.0), (89.9, 9.0), (88.0, 9.0)])]
 TRACKS += [(pcbnew.B_Cu, 0.5, "SERVO_DATA", [(88.0, y), (89.9, y)]) for y in (20.0, 31.0, 42.0)]
+# the two transistors' emitters tied to J12's GND pin on the top, so their ground does not depend on
+# whichever patch of the bottom plane the signal traces leave around them
+TRACKS += [(pcbnew.F_Cu, 0.6, "GND", [(57.0, 45.5), (57.5, 51.5), (56.0, 61.0)])]
 # (J2.4 up the left side, past the BATN pour, into the BATP pour; W5 across to it)
 TRACKS += [(pcbnew.F_Cu, 1.0, "BATP", [(4.0, 36.0), (4.0, 14.4)]),
            (pcbnew.F_Cu, 0.6, "BATP", [(11.0, 34.5), (4.0, 34.5)]),

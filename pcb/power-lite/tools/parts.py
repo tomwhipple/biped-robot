@@ -101,8 +101,15 @@ part("J8", "Connector_Generic:Conn_01x03", "Data from H5", "Connector_Molex:Mole
 # ---- telemetry to the ESP32 (J12 keeps rev B's pin order; KILL, PWR_INT_N, IMON, FLT are gone)
 R("R3", "47k", "SERVOP", "RAIL_V", "Yageo MFR-25FBF52-47K", "RAIL_V: 2.21 V at 12.6 V")
 R("R4", "10k", "RAIL_V", "GND", "Yageo MFR-25FBF52-10K")
-R("R5", "47k", "COIL_HI", "ESTOP_N", "Yageo MFR-25FBF52-47K", "ESTOP_N high = E-stop released (2.21 V at 12.6 V)")
-R("R6", "10k", "ESTOP_N", "GND", "Yageo MFR-25FBF52-10K")
+# ESTOP_N: Q2 pulls it low while the coil supply is up (E-stop released); with the E-stop pressed, the
+# board unpowered or the lead unplugged, the ESP32's IO4 pull-up reads it high, as rev B's ESTOP_N
+R("R5", "47k", "COIL_HI", "Q2_B", "Yageo MFR-25FBF52-47K", "Q2's base drive from the coil supply")
+R("R6", "10k", "Q2_B", "GND", "Yageo MFR-25FBF52-10K", "holds Q2 off when the coil supply is down")
+part("Q2", "Transistor_BJT:PN2222A", "PN2222A", "Package_TO_SOT_THT:TO-92_Inline_Wide",
+     {"1": "GND", "2": "Q2_B", "3": "ESTOP_N"}, "onsemi PN2222A",
+     "ESTOP_N open collector: low = E-stop released; the ESP32's pull-up on IO4 gives the high")
+part("C2", "Device:C", "100n 50V", "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm", {"1": "RAIL_V", "2": "GND"},
+     "KEMET C322C104K5R5TA", "RAIL_V filter for the ESP32's ADC")
 part("J12", "Connector_Generic:Conn_01x08", "Control (ESP32)", "Connector_JST:JST_PH_B8B-PH-K_1x08_P2.00mm_Vertical",
      {"1": None, "2": "SERVO_EN", "3": "GND", "4": None, "5": "RAIL_V", "6": "ESTOP_N", "7": None, "8": None},
      "JST B8B-PH-K-S", "rev B's order: 2 SERVO_EN (IO16), 3 GND, 5 RAIL_V (GPIO34), 6 ESTOP_N (IO4)")

@@ -1035,6 +1035,163 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Device:C"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C"
+				(at 0.635 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Unpolarized capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "cap capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "C_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "C_0_1"
+				(polyline
+					(pts
+						(xy -2.032 0.762)
+						(xy 2.032 0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.032 -0.762)
+						(xy 2.032 -0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "C_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Device:C_Polarized"
 			(pin_numbers
 				(hide yes)
@@ -5445,7 +5602,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "ESTOP_N high = E-stop released (2.21 V at 12.6 V)"
+		(property "Description" "Q2's base drive from the coil supply"
 			(at 287.02 152.4 0)
 			(effects
 				(font
@@ -5543,7 +5700,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" ""
+		(property "Description" "holds Q2 off when the coil supply is down"
 			(at 287.02 167.64 0)
 			(effects
 				(font
@@ -5571,6 +5728,216 @@
 			(project "power-lite"
 				(path "/9343f495-4590-5215-bf08-81919a25dc5f"
 					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 312.42 165.1)
+			(xy 312.42 167.64)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a2db82c3-1183-5625-909c-750cd27a5ff7")
+	)
+	(wire
+		(pts
+			(xy 304.8 160.02)
+			(xy 302.26 160.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e559e110-169c-5375-8bf4-c977f9f9adb9")
+	)
+	(wire
+		(pts
+			(xy 312.42 154.94)
+			(xy 312.42 152.4)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "eaff4168-9a13-57de-a213-91fb5c5c9792")
+	)
+	(symbol
+		(lib_id "Transistor_BJT:PN2222A")
+		(at 309.88 160.02 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "bc86bf45-96c0-5b0f-bfbe-eb8ccde2e320")
+		(property "Reference" "Q2"
+			(at 314.96 158.115 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "PN2222A"
+			(at 314.96 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline_Wide"
+			(at 309.88 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.onsemi.com/pdf/datasheet/pn2222a-d.pdf"
+			(at 309.88 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "ESTOP_N open collector: low = E-stop released; the ESP32's pull-up on IO4 gives the high"
+			(at 309.88 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "onsemi PN2222A"
+			(at 309.88 160.02 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "f136d8ee-d860-57b3-ae10-f6d551ea9abe")
+		)
+		(pin "2"
+			(uuid "9f369fec-77d8-51a9-a186-30e2b7978bd9")
+		)
+		(pin "3"
+			(uuid "b6388300-073c-5942-b0ba-f0a24cd5360f")
+		)
+		(instances
+			(project "power-lite"
+				(path "/9343f495-4590-5215-bf08-81919a25dc5f"
+					(reference "Q2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 264.16 181.61)
+			(xy 264.16 179.07)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "cab83d59-62a8-59c8-a9ba-7c6ea81eed0d")
+	)
+	(wire
+		(pts
+			(xy 264.16 189.23)
+			(xy 264.16 191.77)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0e674756-756e-5044-848a-9dc533511c65")
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 264.16 185.42 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "483d54bb-09c6-5f02-9258-87bc44505caa")
+		(property "Reference" "C2"
+			(at 264.795 182.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100n 50V"
+			(at 264.795 187.96 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm"
+			(at 264.16 185.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 264.16 185.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "RAIL_V filter for the ESP32's ADC"
+			(at 264.16 185.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "KEMET C322C104K5R5TA"
+			(at 264.16 185.42 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "fce66ef9-5b04-5c46-9d5d-5a960b5c0977")
+		)
+		(pin "2"
+			(uuid "b44eba73-2a5a-55a1-9760-c87f6a6d5023")
+		)
+		(instances
+			(project "power-lite"
+				(path "/9343f495-4590-5215-bf08-81919a25dc5f"
+					(reference "C2")
 					(unit 1)
 				)
 			)
@@ -6755,7 +7122,7 @@
 		)
 		(uuid "ef9ae80b-0749-55cf-b548-ee824bfdb003")
 	)
-	(label "ESTOP_N"
+	(label "Q2_B"
 		(at 287.02 158.75 270)
 		(fields_autoplaced yes)
 		(effects
@@ -6764,9 +7131,9 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "a4890671-94f9-53f6-b2e7-b638923041d2")
+		(uuid "b6389cb8-52d6-5658-9f40-4d0f431e6f91")
 	)
-	(label "ESTOP_N"
+	(label "Q2_B"
 		(at 287.02 161.29 90)
 		(fields_autoplaced yes)
 		(effects
@@ -6775,7 +7142,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "1d2caeec-513b-57fe-9191-d5bebc268855")
+		(uuid "0d60e521-87b5-5070-a731-1a865c1e3bc1")
 	)
 	(label "GND"
 		(at 287.02 173.99 270)
@@ -6788,6 +7155,61 @@
 		)
 		(uuid "00f43ec1-c297-5c68-9bd5-1aa1ace1f507")
 	)
+	(label "GND"
+		(at 312.42 167.64 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "dff0ed0a-571a-54c8-81d5-5b3a5a28f39f")
+	)
+	(label "Q2_B"
+		(at 302.26 160.02 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "dad22412-9d3a-53d6-ab6f-4b86ce8276f4")
+	)
+	(label "ESTOP_N"
+		(at 312.42 152.4 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "262e4fff-336e-5e2a-910d-27284438ea7d")
+	)
+	(label "RAIL_V"
+		(at 264.16 179.07 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "cfdbf30f-a5a2-5b68-91a4-c1a3f5492c85")
+	)
+	(label "GND"
+		(at 264.16 191.77 270)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5e3c81b0-2b7e-5a7d-b132-c3242eab0a7e")
+	)
 	(label "SERVO_EN"
 		(at 327.66 154.94 180)
 		(fields_autoplaced yes)
@@ -6797,7 +7219,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "4b7c56de-1002-5c63-8675-a98b3a08e668")
+		(uuid "c669fbfd-9cea-52df-b72a-bdd6364f923b")
 	)
 	(label "GND"
 		(at 327.66 157.48 180)
@@ -6808,7 +7230,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "2874f3fa-adbd-53cc-a67f-0547c0b065dd")
+		(uuid "0b0d7d8a-4548-5d04-9468-211fa30574d2")
 	)
 	(label "RAIL_V"
 		(at 327.66 162.56 180)
@@ -6819,7 +7241,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "6560c941-ca7d-5ff7-ad99-5b40a2bbd671")
+		(uuid "6a9b50ef-eb05-57a2-945b-4e8aa2c272ba")
 	)
 	(label "ESTOP_N"
 		(at 327.66 165.1 180)
@@ -6830,7 +7252,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "0fecc0af-3cae-508e-90e4-1a84b69e0028")
+		(uuid "d56320ec-b222-5987-9d91-79851d00900d")
 	)
 	(label "LOGIC"
 		(at 218.44 146.05 90)
@@ -6841,7 +7263,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "93473777-b591-5df6-9690-eed9330212f7")
+		(uuid "03aea669-2cc6-5c64-a940-d45345ef25f4")
 	)
 	(label "LED1_A"
 		(at 218.44 158.75 270)
@@ -6852,7 +7274,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "b4ec060e-1ec4-5463-a7a0-1920489b0b8f")
+		(uuid "4b26ca9b-55d3-5970-a44f-2777846e6b85")
 	)
 	(label "GND"
 		(at 218.44 173.99 270)
@@ -6863,7 +7285,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "0b0d7d8a-4548-5d04-9468-211fa30574d2")
+		(uuid "53c53a79-f80c-50c6-af9c-b2b8a1e3b71c")
 	)
 	(label "LED1_A"
 		(at 218.44 161.29 90)
@@ -6874,7 +7296,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "36f43cf9-ecab-5917-9528-840819c77cf0")
+		(uuid "db9fc0a3-14c3-5987-9a30-744f8e36bca7")
 	)
 	(label "SERVOP"
 		(at 241.3 146.05 90)
@@ -6885,7 +7307,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "5826056c-bec1-59b5-9b8b-8df9eb4f2018")
+		(uuid "b132b7ef-86fa-5f04-93c2-ab19f6c97407")
 	)
 	(label "LED2_A"
 		(at 241.3 158.75 270)
@@ -6896,7 +7318,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "60a6dd68-019f-5375-b99b-135b1312dc45")
+		(uuid "1466e9e1-27a5-5d5f-acc1-f9c9546abae0")
 	)
 	(label "GND"
 		(at 241.3 173.99 270)
@@ -6907,7 +7329,7 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "fd4f9fc8-141d-5274-8d89-ca6171d3c191")
+		(uuid "492d1ae3-5bfd-5974-8ff6-65cc2e2444e0")
 	)
 	(label "LED2_A"
 		(at 241.3 161.29 90)
@@ -6918,7 +7340,7 @@
 			)
 			(justify left bottom)
 		)
-		(uuid "27fb41a2-9a37-547b-a4a9-5e6b48eb860e")
+		(uuid "ce2184cc-cbbd-52b6-bfe0-b6ccfbbaba3f")
 	)
 	(no_connect
 		(at 330.2 116.84)

@@ -20,8 +20,8 @@ LABELS = [  # text, x, y, size, back side
     ("J4 R LEG  J5 R UPPER  J6 L LEG", 63.0, 3.0, 0.8, True),
     ("J7 L UPPER  J8 DATA IN (D V G)", 63.0, 5.0, 0.8, True),
     ("F1 15A SERVO  F2 3A LOGIC", 63.0, 7.0, 0.8, True),
-    ("J12 2 SRV_EN", 64.0, 50.0, 0.8, True), ("3 GND 5 RAIL_V", 64.0, 52.0, 0.8, True),
-    ("6 ESTOP_N", 64.0, 54.0, 0.8, True),
+    ("J12 2 SRV_EN", 47.0, 51.6, 0.8, True), ("3 GND 5 RAIL_V", 47.0, 53.4, 0.8, True),
+    ("6 ESTOP_N", 47.0, 55.2, 0.8, True),
 ]
 
 W, H = 97.0, 64.5
