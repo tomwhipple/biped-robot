@@ -141,17 +141,22 @@ board's I²C header P1.
 The power path runs pack → protection board → fuse → switch → board inlet. A
 bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 
-**Current is open (#77):**
+**Current** (the sim budget is in
+[wiring.md, "Current: measured budget"](wiring.md#current-measured-budget-issue-77), #77):
 
 - The General Driver's XH inlet contact is rated **3 A**.
 - Waveshare's FAQ limits the board's servo power path to **5 A continuous**
   (about 5 STS3215s, not stalled at once).
 - The robot puts 17 servos on that path. The prototype measured 6.8 A peaks on
   10.
+- The sim budget for the two scripted motions: a **4.54 A** bus peak on the
+  seat-push get-up and a **2.46 A** worst per-port peak on the Gate D walk.
+  It is a sim figure; the bench number with a watt meter on the pack lead is
+  still owed.
 - The fix under consideration is to solder the power lead to the inlet pads
   instead of using the XH plug.
-- The fuse, the bulk capacitor and a current budget are required before the
-  first powered floor run.
+- The fuse and the bulk capacitor are required before the first powered floor
+  run.
 
 | item | qty | spec / filter | have |
 |---|---|---|---|
@@ -167,9 +172,9 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | LiPo charging bag | 1 | fits the pack | |
 
 - **Pack**
-  - The torso's battery layer is sized to its listed envelope (`BATT` and
-    `BATT_MASS` in `cad/v6/dimensions_v6.py`). It is not measured yet: measure
-    and weigh it on arrival and put the values there.
+  - The torso's battery layer is sized to the pack (`BATT` and `BATT_MASS` in
+    `cad/v6/dimensions_v6.py`). Its mass is weighed (205 g); its size is still
+    the listing's 96 × 44.5 × 25.5 mm: measure it and put the values there.
   - It lies on two 1.5 mm adhesive foam pads and is held down by the neck
     floor; it has no belt ([DESIGN.md §5.3](../DESIGN.md)).
   - An HV pack charges to 13.05 V, above the 12.6 V the servo listing and the
@@ -221,8 +226,10 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   to the 20 AWG lead and heat-shrink the joint. Pigtail wire colours are not
   standard: check polarity against the silkscreen. This is not a balance-lead
   connector.
-- **Servo extension leads.** Which hops need them has not been measured on this
-  robot (#77). On the prototype, the hip-roll → hip-pitch hop routed at 170 mm.
+- **Servo extension leads.** Per-hop lengths from the v6 CAD are in
+  [wiring.md](wiring.md) (`cad/v6/lead_lengths.py`, #77): every hop rides a
+  stock 150 mm lead except **shoulder → elbow, both arms** (152 mm needed with
+  the shoulder fold's loop): buy two ~200 mm leads for it.
 
 ## 5. Hip-yaw bearing
 
