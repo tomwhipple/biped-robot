@@ -130,6 +130,13 @@ include one.
 Then: schematic and a 2-layer through-hole layout, simulation of the relay closing
 (inrush against the BMS), and an order.
 
+**Decided (Tom, 2026-11-02):**
+- the ShillehTek BMS, with the bench characterisation, as an exception to the datasheet rule;
+- the TE 1-1414610-0 70 A relay;
+- the Cole Hersee 57000-01 rocker;
+- PCBWay for the bare boards;
+- the E-stop left at the IDEC XW1E-BV402M-R.
+
 ## Sources
 
 - **Research agents, 2026-11-02:** Digi-Key product pages, and the datasheets of the TE
