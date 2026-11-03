@@ -23,6 +23,7 @@ const char* gainWriteName(GainWrite r) {
         case GainWrite::kLockFailed: return "lock-failed";
         case GainWrite::kReadbackFailed: return "readback-failed";
         case GainWrite::kMismatch: return "mismatch";
+        case GainWrite::kAckLost: return "landed, ack lost";
     }
     return "?";
 }
@@ -49,20 +50,28 @@ GainWrite writePositionGains(Bus& bus, uint8_t id, PositionGains g,
         return GainWrite::kUnlockFailed;
     }
     const uint8_t pd[2] = {g.p, g.d};
-    if (bus.write(id, kRegPosP, pd, 2) != Status::kOk) {
-        bus.lockEeprom(id);
-        return GainWrite::kWriteFailed;
-    }
-    if (bus.lockEeprom(id) != Status::kOk) return GainWrite::kLockFailed;
+    const bool acked = bus.write(id, kRegPosP, pd, 2) == Status::kOk;
+    const bool lock_acked = bus.lockEeprom(id) == Status::kOk;
+    if (acked && !lock_acked) return GainWrite::kLockFailed;
     if (settle) settle();
 
     PositionGains got{0, 0};
     if (readPositionGains(bus, id, got) != Status::kOk) {
-        return GainWrite::kReadbackFailed;
+        return acked ? GainWrite::kReadbackFailed : GainWrite::kWriteFailed;
     }
     if (readback) *readback = got;
-    return (got.p == g.p && got.d == g.d) ? GainWrite::kOk
-                                          : GainWrite::kMismatch;
+    const bool equal = got.p == g.p && got.d == g.d;
+    if (acked) return equal ? GainWrite::kOk : GainWrite::kMismatch;
+
+    // Not acknowledged (#101): the read-back decides. Landed only counts
+    // with the EEPROM locked again.
+    if (!equal) return GainWrite::kWriteFailed;
+    uint8_t lock = 0;
+    if (bus.readU8(id, kRegEepromLock, lock) != Status::kOk || lock != 1) {
+        bus.lockEeprom(id);
+        return GainWrite::kLockFailed;
+    }
+    return GainWrite::kAckLost;
 }
 
 size_t checkPositionGains(Bus& bus, const GainExpect* expect, size_t n,

@@ -46,6 +46,8 @@ enum class GainWrite : uint8_t {
     kLockFailed,     // gains written, but the re-lock not acknowledged
     kReadbackFailed, // written and locked; the read-back did not answer
     kMismatch,       // written and locked; the read-back differs
+    kAckLost,        // the write was not acknowledged, but it landed: the
+                     // read-back equals the request and reg 55 reads locked
 };
 
 const char* gainWriteName(GainWrite r);
@@ -59,6 +61,11 @@ const char* gainWriteName(GainWrite r);
 //   5. `settle()` (the ESP side waits for the EEPROM commit, as `id` does;
 //      nullptr on the host);
 //   6. read 21/22 back and compare.
+// A write that CHANGES an EEPROM cell can ack late or not at all and still
+// land (#101: on the 2026-09-30..10-02 bench every lost ack had landed). So
+// an unacknowledged write still goes through 4-6, and the servo decides:
+// equal gains and reg 55 = 1 is kAckLost (a success, reported as such);
+// anything else is kWriteFailed (or kLockFailed if only the lock is open).
 // `readback` (optional) receives what step 6 read.
 GainWrite writePositionGains(Bus& bus, uint8_t id, PositionGains g,
                              PositionGains* readback = nullptr,

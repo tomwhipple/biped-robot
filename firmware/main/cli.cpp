@@ -216,9 +216,10 @@ void cmdId(Sink out, int argc, char** argv) {
                  "same id will not enumerate\r\n", b);
         return;
     }
-    const scsbus::Status st = bus->setId(static_cast<uint8_t>(a),
-                                         static_cast<uint8_t>(b));
-    if (st != scsbus::Status::kOk) {
+    const uint8_t old_id = static_cast<uint8_t>(a), new_id = static_cast<uint8_t>(b);
+    bool ack_lost = false;
+    const scsbus::Status st = bus->setId(old_id, new_id, &ack_lost);
+    if (st == scsbus::Status::kBadArg) {
         say(out, "id %ld -> %ld: %s\r\n", a, b, statusName(st));
         return;
     }
@@ -227,14 +228,44 @@ void cmdId(Sink out, int argc, char** argv) {
     // -- exactly how a servo set through the vendor web UI came back as ID 1
     // on 2026-07-26. Hold, then prove the servo answers to the new ID before
     // saying anything reassuring, so nobody unplugs on the strength of "ok".
+    // The servo decides the verdict, not the ack: a rename can land with its
+    // ack lost (#101), so read reg 5 back from whichever id answers, then reg
+    // 55, and re-lock an EEPROM left open.
     vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs));
-    if (!bus->ping(static_cast<uint8_t>(b))) {
-        say(out, "id %ld -> %ld: WROTE BUT DID NOT VERIFY -- rescan before "
-                 "trusting it\r\n", a, b);
+    uint8_t got = 0xFF;
+    const bool at_new = bus->readU8(new_id, scsbus::kRegId, got) == scsbus::Status::kOk &&
+                        got == new_id;
+    const bool at_old = !at_new && bus->readU8(old_id, scsbus::kRegId, got) == scsbus::Status::kOk &&
+                        got == old_id;
+    if (!at_new && !at_old) {
+        say(out, "id %ld -> %ld: %s, and NEITHER id answers after commit -- rescan "
+                 "before trusting it\r\n", a, b, statusName(st));
         return;
     }
-    say(out, "id %ld -> %ld: ok, verified after commit -- safe to power down\r\n",
-        a, b);
+    const uint8_t now_id = at_new ? new_id : old_id;
+    uint8_t lock = 0xFF;
+    if (bus->readU8(now_id, scsbus::kRegEepromLock, lock) == scsbus::Status::kOk && lock == 0) {
+        bus->lockEeprom(now_id);
+        lock = 0xFF;
+        bus->readU8(now_id, scsbus::kRegEepromLock, lock);
+    }
+    const char* lock_note = lock == 1   ? "EEPROM locked"
+                            : lock == 0 ? "EEPROM STILL UNLOCKED: `gains` with torque off re-locks it"
+                                        : "EEPROM lock unread: `reg <id> 55` before trusting it";
+    if (!at_new) {
+        say(out, "id %ld -> %ld: NOT renamed (%s); id %ld answers, %s\r\n", a, b,
+            statusName(st), a, lock_note);
+        return;
+    }
+    if (ack_lost) {
+        say(out, "  note: id %ld -> %ld: the ID write's ack was lost, but the servo "
+                 "answers to %ld\r\n", a, b, b);
+    } else if (st != scsbus::Status::kOk) {
+        say(out, "  note: id %ld -> %ld reported %s, but the servo answers to %ld\r\n",
+            a, b, statusName(st), b);
+    }
+    say(out, "id %ld -> %ld: ok, verified after commit -- safe to power down (%s)\r\n",
+        a, b, lock_note);
 }
 
 void cmdPos(Sink out, int argc, char** argv) {
@@ -1896,8 +1927,15 @@ void cmdGains(Sink out, int argc, char** argv) {
     scsbus::PositionGains rb{0, 0};
     const scsbus::GainWrite r =
         scsbus::writePositionGains(*bus, sid, want, &rb, &eepromSettle);
+    if (r == scsbus::GainWrite::kAckLost) {
+        // #101: an EEPROM write that changes the cell can ack late or not at
+        // all; the read-back and reg 55 say this one landed and is locked
+        say(out, "  note: id %ld: the write's ack was lost, but the read-back "
+            "matches and the EEPROM reads locked\r\n", id);
+    }
     switch (r) {
         case scsbus::GainWrite::kOk:
+        case scsbus::GainWrite::kAckLost:
             say(out, "id %ld: P %u D %u, verified after commit -- safe to "
                 "power down\r\n", id, static_cast<unsigned>(rb.p),
                 static_cast<unsigned>(rb.d));

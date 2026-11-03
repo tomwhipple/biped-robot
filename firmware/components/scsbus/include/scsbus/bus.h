@@ -112,7 +112,11 @@ class Bus {
     // Change a servo's ID. Unlocks EEPROM, writes reg 5, re-locks against the
     // NEW id -- getting that order wrong is why hand-rolled ID changes leave
     // servos with an unlocked EEPROM.
-    Status setId(uint8_t old_id, uint8_t new_id);
+    // An ID write can land with its ack lost (late, or sent from the new id;
+    // #101): on a failed write, setId pings `new_id` and, when it answers,
+    // locks under it and returns that lock's status with `*ack_lost` = true.
+    // Otherwise it re-locks under `old_id` and returns the write's failure.
+    Status setId(uint8_t old_id, uint8_t new_id, bool* ack_lost = nullptr);
     // "Set Middle Position": latch the current shaft angle as 2048 by writing
     // 128 to the torque-enable register. Leaves torque OFF afterwards, which
     // is the state you want while assembling.
