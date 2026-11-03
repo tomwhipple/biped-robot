@@ -51,7 +51,7 @@ def main():
     log = open(a.log, "a")
     say = lambda s: (print(s, flush=True), log.write(s + "\n"), log.flush())
     p = Port(a.port, log)
-    orig, start, tl_orig = None, None, None
+    orig, start, tl_orig, good = None, None, None, None
     try:
         for i in [int(x) for x in a.check_ids.split(",")]:
             if p.torque_reg(i) != 0:
@@ -83,6 +83,7 @@ def main():
             raise Abort(f"id {sid} moved at torque-on (released)")
         p.move(sid, start, a.speed)
         r0 = settle(p, sid)
+        good = r0["pos"]                        # last position every check passed at
         volts = r0["volt"] or 12.0
         guard = G.PowerGuard(rise_w=a.rise_w, step_w=a.step_w, abs_w=a.abs_w)
         guard.baseline(G.sample_power(p, sid, volts, 0.4))
@@ -110,7 +111,7 @@ def main():
                     n > 1 and moved < 0.4 * min(step, abs(nxt - prev) or step)
                     and abs(r["pos"] - nxt) > 0.6 * step):
                 raise Abort(f"stopped at {r['pos']} (target {nxt}): load {r['load']}, err {r['err']}, moved {moved}")
-            prev = r["pos"]
+            prev = good = r["pos"]
             if nxt == tgt:
                 break
         r = settle(p, sid, 3.0)
@@ -132,8 +133,18 @@ def main():
         say(f"!! STOPPED: {e!r}")
         try:
             if p.torque_reg(sid):
-                if a.hold:
-                    say(f"  holding torque at {p.pos(sid)['pos']} (--hold)")
+                if a.hold and good is not None:
+                    # never hold AT the stop: the goal is past the contact, and the torque
+                    # limit is restored to full on the way out (2026-11-02, a leg held
+                    # against the test stand). Back off to the last good step, hold there.
+                    p.move(sid, good, a.speed)
+                    time.sleep(abs(p.pos(sid)["pos"] - good) / a.speed + 0.3)
+                    r = settle(p, sid, 3.0)
+                    say(f"  backed off the stop to {r['pos']} (last good step {good}), "
+                        f"holding there (--hold), load {r['load']}")
+                elif a.hold:
+                    p.release(sid)
+                    say(f"  no good position to hold at: released at {p.pos(sid)['pos']}")
                 else:
                     p.release(sid)
                     say(f"  released at {p.pos(sid)['pos']}")

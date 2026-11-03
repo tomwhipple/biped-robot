@@ -172,3 +172,36 @@ def test_torque_limit_lowered_then_restored_never_overshooting():
     order = [l for l in fake.log if l.startswith("regw")]
     assert re.match(r"regw 52 49 ", order[0])     # lowering: high byte first
     assert re.match(r"regw 52 48 ", order[2])     # raising: low byte first
+
+
+# -- joint_goto --hold must not hold AT a contact (2026-11-02: a leg held against the stand) --
+
+class FakeHipPitch(FakeJoint):
+    """R_hip_pitch (id 6, zero 1997, dir +1) with the test stand at +16 deg backward."""
+
+    def __init__(self):
+        super().__init__(6, 1997, +1, contact_deg=16.0, inward=+1)
+        self.s = types.SimpleNamespace(close=lambda: None)
+
+    def cmd(self, line, until=None, timeout=1.0):
+        if line == "cal show":
+            return "  R_hip_pitch  id  6  zero 1997  dir +1  fitted\n   loaded from NVS at boot\n"
+        if line.startswith("reg ") and line.split()[2] == "40" and line.split()[1] != "6":
+            return f"id {line.split()[1]} reg 40 = 0 (0x00)\n"          # every other servo limp
+        return super().cmd(line, until, timeout)
+
+
+def test_joint_goto_hold_backs_off_a_contact(tmp_path, monkeypatch):
+    import joint_goto
+    fake = FakeHipPitch()
+    monkeypatch.setattr(joint_goto, "Port", lambda dev, log: fake)
+    tgt = 1997 + round(17.0 * rom_sweep.K)                       # +17 deg: past the stand
+    monkeypatch.setattr(sys, "argv", ["joint_goto.py", "--id", "6", "--to", str(tgt), "--check-ids", "2,6",
+                                      "--hold", "--speed", "100000", "--log", str(tmp_path / "g.log")])
+    joint_goto.main()
+    log = (tmp_path / "g.log").read_text()
+    assert "STOPPED" in log and "backed off the stop" in log
+    assert not fake.blocked                                      # off the contact
+    assert fake.angle(fake.tick) < 16.0
+    assert fake.torque == 1                                      # still held
+    assert fake.tl == 1000                                       # limit restored, but clear of the stand
