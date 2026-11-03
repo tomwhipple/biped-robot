@@ -355,22 +355,48 @@ sim joint frame.
 | hip roll | 25° adduction / **55° abduction** | CAD buffer sweep: 0.60 mm at 55°, under the buffer at 70°, touching at 90°. Creep-verify on hardware before a full 55° sweep |
 | hip pitch | −110° … **+90°** | +90° backward: 0.70 mm CAD buffer, hardware-verified with both hips at +90° |
 | knee | **±95°** | measured, both directions, ≤ 5.9 % load |
-| ankle | ±40° | plant range; the toes clear the shin at both extremes |
-| ankle roll (11, 12) | ±25° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
+| ankle | ±40° | plant range; the toes clear the shin at both extremes (on the v6 legs ±40 is not a stop: free to ±78, 2026-11-02) |
+| ankle roll (11, 12) | ±25° | plant range (`sim/bimo_biped_v6ar.xml`); measured 2026-11-02: stop at +27.9 L / −26.9 R on the outer-edge-up side only, inner side free past 46 (table below) |
 | neck yaw (13) | ±90° | plant range; never probed |
 | shoulder (14, 16) | −90° … +200° | plant range (`sim/gen_plant_v6.py`: 0 hanging, 90 straight back, 180 up along the torso); never probed |
 | elbow (15, 17) | ±150° | plant range; never probed |
 
 The leg rows (the ten prototype joints) are the **prototype's** legs, measured on it. The
-robot's legs are different mechanisms: its knee was expected to hyperextend only 5° (measured 2026-10-23: at least 30° from the standing pose, both knees, no stop) (the
-prototype's +95° row would let the bench drive it past its stop) and its hip
-pitch flexes to −125°. They need their own rows, probed on the robot, before
-the bench drives the robot's legs toward either limit.
+robot's legs are different mechanisms. The firmware's `kMechLoV6Legs` / `kMechHiV6Legs`
+rows are the v6 legs plant's policy range, and those values have not changed. The robot's
+**measured** stops are below.
 
-**Open, seen 2026-10-23 on the stand:** the right hip pitch (ID 6) was blocked at
-about **+23° of extension** (backward) from the standing pose, load −168 — something
-behind the right leg (not identified; the stand, a cable, or the frame). The left
-hip pitch went +25° freely. Check it before any backward hip motion on the stand.
+#### Measured on the robot, 2026-11-02 (v6 legs)
+
+Every leg joint was swept in both directions: guarded sweeps (§3.3a), robot hanging,
+sim angle conventions. The CAD was probed at the same angles and agrees with every row.
+Source: `hw_sessions/2026-11-02/NOTES.md` ("ROM pass 3"). The sim carries these stops
+in `sim/bimo_biped_v6legs_meas.xml` / `_v6ar_meas.xml` (`gen_plant_v6.MEASURED_STOPS`).
+The policy ranges there are unchanged.
+
+| joint | measured (L / R) | CAD | was assumed | sim `_meas` stop |
+|---|---|---|---|---|
+| hip yaw | free to +85.9…86.7 / −86.5…86.7 | no stop (1.8 mm gap, constant) | ±45 | ±90 |
+| hip roll | outward ≥ 57.7 (L; R start offset 51.3); inward −24.0 / +27.3 free with the other leg forward | clear to 55 | ±55 | ±58 |
+| hip pitch | forward **stop −125.1 / −123.6**; backward +104.8 light touch (L) / +84 free (R) | wall meets flange from −118.4; clear to 90 back | −120 … +90 | −124 … +104 |
+| knee | flexion ≥ 130.4; hyperextension ≥ 93.8 | ~132 hard / 95 | −130 … +95 (policy: +5) | −132 … +95 |
+| ankle pitch | free to ±78 both legs (sweep ceiling) | no stop (32 mm clear at 76) | ±40 ("stops") | ±80 |
+| ankle roll | outer edge up: **stop +27.9 / −26.9** (roll vs pitch servo cases); inner edge up free to −46.4 / +46.5 | cases 1.05 mm at 25, overlap at 27.9; 7 mm clear at 46.5 | ±25 | L −50 … +27.5, R −27.5 … +50 |
+
+- Ankle pitch ±40 is a design range, not a stop.
+- The knee's +5 is a policy cap. The mechanism hyperextends to ~95.
+- Ankle roll has a stop on the outer-edge-up side only. The policy's ±25 stays 2.5° inside it.
+- Leg-on-leg contact, from the CAD: with one hip rolled inward and the other leg at 0, the
+  feet touch at 8° and the shins overlap from 9°. With the other leg pitched −70°, the
+  thighs touch at ~27–30°.
+
+**Resolved: the right hip pitch "block" at +23° on 2026-10-23 was the test stand.** It
+was seen as about +23° of extension, load −168. On 2026-11-02 it showed up again at
++18.8°. With the leg straight, ID 6 stopped at +15.5° against the stand post. With the
+right hip roll held out at −41°, the same joint went to +58.9° with no stop. The left
+hip's backward "stop" at +52.6° was the stand too: +78.7° with the roll held out, and
++104.8° in pass 3. Clear the stand, with the roll held out, before any backward hip
+motion on the stand.
 
 Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
 cannot express it. The plant handles it with inter-leg collision geoms.

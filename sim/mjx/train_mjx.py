@@ -230,7 +230,12 @@ def make_parser():
                         "circles; severe fall cost; as-built plant default")
     p.add_argument("--xml", default=None,
                    help="plant override (default: v2; precision default: "
-                        "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
+                        "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet). "
+                        "A basename resolves in sim/. bimo_biped_v6legs_meas.xml / "
+                        "bimo_biped_v6ar_meas.xml: the v6 plants with the joint stops "
+                        "measured on the robot 2026-11-02; under --ctrl-within-stops "
+                        "their action map is the old plants', so --init-from a "
+                        "v6legs/v6ar checkpoint is unchanged (not under --ctrl-physical)")
     p.add_argument("--robot", action="store_true",
                    help="train on the ROBOT's plant (robot_plant.py): "
                         "bimo_biped_v6ar.xml, the 12 leg joints as the "

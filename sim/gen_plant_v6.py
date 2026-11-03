@@ -30,6 +30,7 @@ sim/build_v6_inertia.py --write generates, and a test compares it byte for byte.
     .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar_lumped.xml
     .venv/bin/python sim/gen_plant_v6.py --knee bwd -o /tmp/bwd.xml
     .venv/bin/python sim/gen_plant_v6.py --set hip_sep=0.070 thigh=0.11 -o /tmp/x.xml
+    .venv/bin/python sim/gen_plant_v6.py --measured-stops -o /tmp/meas.xml   # MEASURED_STOPS (2026-11-02)
 """
 from __future__ import annotations
 
@@ -78,7 +79,8 @@ class DesignParams:
     knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
                                  # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
-    yaw_range: float = 45.0
+    yaw_range: float = 45.0      # stop AND policy range. NOT a stop on the robot: free to +-86.7
+                                 # (2026-11-02), the CAD has a constant 1.8 mm gap (MEASURED_STOPS)
     # JOINT STOPS vs POLICY RANGES (2026-10-11, Tom: "make sure the servo limits are correct for the
     # physical design and not set too conservatively"): every joint's MJCF range is the CAD envelope
     # (cad/v6/dimensions_v6.ROM / ARM_ROM -- the mechanical stop); the actuator ctrlrange stays the
@@ -87,17 +89,40 @@ class DesignParams:
     hip_roll_add: float = 30.0   # adduction (toward the other leg) -- policy range
     hip_roll_abd: float = 45.0   # abduction -- policy range
     hip_roll_phys: float = 55.0  # the stop both ways (dimensions_v6.ROM["hip_roll"]; the legs meet
-                                 # before it in adduction, which the collision pairs model)
-    ankle_phys: float = 40.0     # ankle pitch stop (dimensions_v6.ROM["ankle_pitch"])
+                                 # before it in adduction, which the collision pairs model).
+                                 # The robot went outward to 57.7 free (2026-11-02; CAD 0.5 mm at 55)
+    ankle_phys: float = 40.0     # ankle pitch "stop" (dimensions_v6.ROM["ankle_pitch"]). NOT a stop:
+                                 # +-40 is a design range -- the CAD has 32 mm clear at 76 and the
+                                 # robot went to +-78 free both legs (2026-11-02, MEASURED_STOPS)
     elbow_phys: tuple = (-100.0, 10.0)   # dimensions_v6.ARM_ROM["elbow"] (the fork meets the grip channel)
-    hip_pitch_range: tuple = (-120.0, 90.0)   # stop AND policy range: -125 was never reachable (the thigh's
-                                              # front wall meets the roll flange from -118.4; dimensions_v6.ROM)
-    knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14)
-    knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5)
+    hip_pitch_range: tuple = (-120.0, 90.0)   # stop AND policy range. The thigh's front wall meets the roll
+                                              # flange from -118.4 (dimensions_v6.ROM), but that is first touch,
+                                              # not the stop: the robot's hard stop is -125.1 L / -123.6 R, and
+                                              # backward it went +104.8 (L, light touch) -- 2026-11-02
+    knee_flex: float = 130.0     # flexion travel (either direction); 95 -> 130 with the leg-link relief cuts (cad/v6, 2026-09-14);
+                                 # CAD hard limit ~132, the robot flexed to 130.4 free (2026-11-02)
+    knee_hyper: float = 5.0      # hyperextension cap (modelling cap, v5) -- a POLICY cap: the v6 knee
+                                 # hyperextends to 93.8 on the robot (2026-11-02; CAD 95, knee_back)
     knee_back: float = 95.0      # CAD ROM the OTHER way (cad/v6/dimensions_v6.ROM["knee"]
                                  # is (-95, +130) with + = human flexion), used by knee="both"
-    ankle_range: float = 45.0    # ankle pitch +/-
-    ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py)
+    ankle_range: float = 45.0    # ankle pitch +/- (the policy range; the joint stop is min(this, ankle_phys))
+    ankle_roll_range: float = 25.0   # the roll servo case sweep under the ankle link (cad/v6/dimensions_v6.py).
+                                     # A stop on the OUTER-edge-up side only: the roll and pitch servo
+                                     # cases meet at 27.9 L / 26.9 R on the robot (CAD: 1.05 mm at 25);
+                                     # inner edge up is free past 46 (2026-11-02, MEASURED_STOPS)
+    # ---- MEASURED stops (2026-11-02, hw_sessions/2026-11-02/NOTES.md "ROM pass 3": every
+    # v6 leg joint swept both ways on the robot, guarded, hanging; CAD-probed at the same
+    # angles). None everywhere = the joint stop is the field above, which is what
+    # bimo_biped_v6legs.xml / bimo_biped_v6ar.xml carry, byte for byte. Set together by
+    # measured_stops() below for the *_meas plants; the POLICY ranges (the
+    # ctrlranges) stay those plants' effective ones -- see measured_stops().
+    yaw_phys: float | None = None          # hip yaw stop +/-; None = yaw_range
+    hip_pitch_phys: tuple | None = None    # hip pitch stop (lo, hi); None = hip_pitch_range
+    knee_flex_phys: float | None = None    # knee flexion stop; None = knee_flex
+    ankle_ctrl: float | None = None        # ankle pitch POLICY range +/-; None = ankle_range
+    ankle_roll_phys: tuple | None = None   # ankle roll stop (outer edge up, inner edge up), deg
+                                           # magnitudes; L = (-inner, +outer), R = (-outer, +inner)
+                                           # (+ roll lifts the L foot's outer edge). None = +-ankle_roll_range
     # ---- masses (kg) ------------------------------------------------------
     servo_mass: float = 0.055    # STS3215; STS3250 = 0.0745
     m_pelvis: float = 0.174      # v7 torso print (CAD 2026-09-14 final: 174.2 g)
@@ -336,7 +361,56 @@ class DesignParams:
                 f"{('torso v7 (Pi 4B + head)  ' if self.head else 'torso v7 (control board only: no pack, Pi, head)  ') if self.torso_v7 else ''}"
                 f"{f'arms {1e3*self.arm_len:.0f}+{1e3*self.arm_fore_len:.0f} mm (shoulder + elbow), at rest shoulder {self.arm_hold:g} / elbow {self.arm_elbow_hold:g} deg  ' if self.arms and self.arm_elbow else ''}"
                 f"yaw axis {1e3*self.z_yaw_above_sole:.0f} mm, deck top "
-                f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm")
+                f"{1e3*(self.z_yaw_above_sole+self.deck_bot+self.deck_t):.0f} mm"
+                f"{', joint stops MEASURED on the robot 2026-11-02 (policy ranges unchanged)' if self.measured else ''}")
+
+    @property
+    def measured(self) -> bool:
+        """any joint stop taken from the 2026-11-02 robot measurement (measured_stops)"""
+        return any(v is not None for v in (self.yaw_phys, self.hip_pitch_phys, self.knee_flex_phys,
+                                           self.ankle_ctrl, self.ankle_roll_phys))
+
+
+# The v6 legs' joint stops as MEASURED on the robot, 2026-11-02 (hw_sessions/2026-11-02/
+# NOTES.md, "ROM pass 3": every leg joint, both directions, guarded sweeps, robot hanging,
+# sim angle conventions; the CAD probed at the same angles agrees with every row). deg.
+#                 measured (L / R)                         CAD                       stop chosen
+#  hip yaw        free to +85.9..86.7 / -86.5..86.7         no stop (1.8 mm, constant) +-90  (no stop: just past the travel seen)
+#  hip roll       outward >= 57.7 (L; R start offset 51.3)  0.5 mm clear at 55         +-58  (inward: the legs meet first, the pairs model it)
+#  hip pitch      fwd STOP -125.1 / -123.6                  wall meets flange -118.4   -124  (the mean hard stop)
+#                 back +104.8 light touch (L) / free +84 (R) clear to 90               +104
+#  knee           flexion >= 130.4                          hard ~132                  -132
+#                 hyperextension >= 93.8                    95                         +95   (unchanged: knee_back)
+#  ankle pitch    free to +-78 both legs (sweep ceiling)    no stop (+-40 is a design  +-80
+#                                                           range, 32 mm clear at 76)
+#  ankle roll     outer edge up: STOP +27.9 L / -26.9 R     cases meet 25 (1.05 mm) .. 27.9 (overlap)   27.5 outer
+#                 inner edge up: free to -46.4 L / +46.5 R  7 mm clear at 46.5          50 inner
+# Ankle roll is asymmetric per side: L (-50, +27.5), R (-27.5, +50). One magnitude for both
+# legs (the parts are a mirrored pair; the 1 deg L/R spread is calibration), which also
+# keeps the plant mirror-symmetric (sim/mjx/mirror.py checks mirrored ranges).
+MEASURED_STOPS = dict(
+    yaw_phys=90.0, hip_roll_phys=58.0, hip_pitch_phys=(-124.0, 104.0), knee_flex_phys=132.0,
+    ankle_range=80.0, ankle_phys=80.0,        # the joint is min(ankle_range, ankle_phys); ankle_ctrl below
+    ankle_roll_phys=(27.5, 50.0),
+    # the POLICY range (walker_env.policy_range): ctrlrange == what the plant before this one
+    # effectively trained in. The old plants' ankle ctrlrange is +-45 over a +-40 stop, so
+    # within-stops gave +-40 and plain +-45; here the stop is +-80, so the ctrlrange says +-40
+    # outright and plain == within-stops == +-40. Every other ctrlrange is untouched (yaw +-45,
+    # hip roll -30..45 / -45..30, hip pitch -120..90, knee -130..5, ankle roll +-25), and each
+    # lies inside its new stop, so within-stops changes nothing either.
+    ankle_ctrl=40.0)
+
+
+def measured_stops(p: DesignParams | None = None) -> DesignParams:
+    """p with the joint stops measured on the robot on 2026-11-02 (MEASURED_STOPS)
+    and the policy ranges (ctrlranges) the old plants effectively train in.
+
+    The action map under ctrl_within_stops (and plain, which now equals it) is
+    therefore identical to bimo_biped_v6legs.xml's under ctrl_within_stops: a
+    checkpoint trained there warm-starts here with the same joint targets.
+    ctrl_physical is NOT preserved -- its policy range IS the joint range, which
+    this plant widens -- so physical-mode runs stay on the old plants."""
+    return dataclasses.replace(p or DesignParams(), **MEASURED_STOPS)
 
 
 def _fc(p) -> str:
@@ -355,6 +429,38 @@ def _selfaff(p) -> int:
 
 def _f(x: float) -> str:
     return f"{x:.5f}".rstrip("0").rstrip(".") if abs(x) > 1e-9 else "0"
+
+
+def _dg(x: float) -> str:
+    """a joint-range number in degrees: whole degrees exactly as the plants
+    have always spelled them ({x:.0f}), a fractional measured stop (27.5) as is."""
+    return f"{x:.0f}" if float(x).is_integer() else f"{x:g}"
+
+
+def joint_stops(p: DesignParams, side: str) -> dict:
+    """joint -> (lo, hi) deg: the MJCF joint range (the mechanical stop) of
+    each leg joint on `side`. The actuator ctrlranges (the policy ranges) are
+    build_xml's; the two differ wherever a plant splits them."""
+    kr = p.knee_range
+    flex = p.knee_flex if p.knee_flex_phys is None else p.knee_flex_phys
+    # the knee's STOP: a human ("fwd") knee also bends backward to knee_back in the CAD
+    # (dimensions_v6.ROM["knee"] = (-95, +130), + = flexion); the policy range keeps kr
+    kj = (-flex, p.knee_back) if p.knee == "fwd" else kr
+    yaw = p.yaw_range if p.yaw_phys is None else p.yaw_phys
+    ank = min(p.ankle_range, p.ankle_phys)
+    if p.ankle_roll_phys is None:
+        ar = (-p.ankle_roll_range, p.ankle_roll_range)
+    else:
+        outer, inner = p.ankle_roll_phys
+        ar = (-inner, outer) if side == "L" else (-outer, inner)
+    return {
+        "hip_yaw": (-yaw, yaw),
+        "hip_roll": (-p.hip_roll_phys, p.hip_roll_phys),
+        "hip_pitch": tuple(p.hip_pitch_range if p.hip_pitch_phys is None else p.hip_pitch_phys),
+        "knee": kj,
+        "ankle": (-ank, ank),
+        "ankle_roll": ar,
+    }
 
 
 def _pads(p: DesignParams, side: str) -> str:
@@ -400,12 +506,7 @@ def _leg(p: DesignParams, side: str) -> str:
         roll_rng = (-p.hip_roll_add, p.hip_roll_abd)
     else:
         roll_rng = (-p.hip_roll_abd, p.hip_roll_add)
-    ar = p.ankle_roll_range
-    kr = p.knee_range
-    # the knee's STOP: a human ("fwd") knee also bends backward to knee_back in the CAD
-    # (dimensions_v6.ROM["knee"] = (-95, +130), + = flexion); the policy range keeps kr
-    kj = (-p.knee_flex, p.knee_back) if p.knee == "fwd" else kr
-    hp = p.hip_pitch_range
+    js = {k: f"{_dg(lo)} {_dg(hi)}" for k, (lo, hi) in joint_stops(p, side).items()}
     sv = p.servo_mass
     servo_rgba = "0.22 0.23 0.27 1"
     link_rgba = "0.82 0.84 0.87 1"
@@ -425,35 +526,35 @@ def _leg(p: DesignParams, side: str) -> str:
     sole_z = -p.roll_h
     return f"""
       <body name="{side}_hip_yaw" pos="0 {_f(y)} {_f(p.hip_z)}">
-        <joint name="{side}_hip_yaw" axis="0 0 1" range="{-p.yaw_range:.0f} {p.yaw_range:.0f}"/>
+        <joint name="{side}_hip_yaw" axis="0 0 1" range="{js['hip_yaw']}"/>
         <!-- yaw carrier print + the hip ROLL servo riding in it (axis X) -->
         <geom type="box" pos="0 0 {_f(-p.d_yaw_roll/2)}" size="0.014 0.020 {_f(p.d_yaw_roll/2)}" mass="{p.m_carrier}" rgba="{link_rgba}" group="1"/>
         <geom class="servo" type="box" pos="0 0 {_f(-p.d_yaw_roll + z_servo_case_up)}" size="{_f(sx_v[0])} {_f(sx_v[1])} {_f(sx_v[2])}" mass="{sv}"/>
         <body name="{side}_hip" pos="0 0 {_f(-p.d_yaw_roll)}">
-          <joint name="{side}_hip_roll" axis="1 0 0" range="{-p.hip_roll_phys:.0f} {p.hip_roll_phys:.0f}"/>
+          <joint name="{side}_hip_roll" axis="1 0 0" range="{js['hip_roll']}"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 {_f(-p.d_roll_pitch/2)}" size="0.0175 0.0125 {_f(p.d_roll_pitch/2)}" mass="{p.m_hip_yokes}" rgba="{link_rgba}" group="1"/>
           <body name="{side}_thigh" pos="0 0 {_f(-p.d_roll_pitch)}">
-            <joint name="{side}_hip_pitch" axis="0 1 0" range="{hp[0]:.0f} {hp[1]:.0f}"/>
+            <joint name="{side}_hip_pitch" axis="0 1 0" range="{js['hip_pitch']}"/>
             <!-- hip-pitch servo case sits in the thigh, axis at its upper end -->
             <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
             <geom {_fc(p)}type="box" pos="0 0 {_f(-p.thigh/2)}" size="0.012 0.019 {_f(p.thigh/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
             <geom name="{side}_col_thigh" class="legcol" fromto="0 0 0 0 0 -0.030"/>
             <body name="{side}_shin" pos="0 0 {_f(-p.thigh)}">
-              <joint name="{side}_knee" axis="0 -1 0" range="{kj[0]:.0f} {kj[1]:.0f}"/>
+              <joint name="{side}_knee" axis="0 -1 0" range="{js['knee']}"/>
               <geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>
               <geom name="{side}_shin_link" {_fc(p)}type="box" pos="0 0 {_f(-p.shank/2)}" size="0.012 0.019 {_f(p.shank/2)}" mass="{p.m_leg_link}" rgba="{link_rgba}" group="1"/>
               <geom name="{side}_col_shank" class="legcol" fromto="0 0 0 0 0 -0.030"/>
 {_shank_ankle_servos(p, side)}
               <body name="{side}_ankle_blk" pos="0 0 {_f(-p.shank)}">
-                <joint name="{side}_ankle" axis="0 1 0" range="{-min(p.ankle_range, p.ankle_phys):.0f} {min(p.ankle_range, p.ankle_phys):.0f}"/>
+                <joint name="{side}_ankle" axis="0 1 0" range="{js['ankle']}"/>
                 <!-- ankle-pitch servo case hangs below the axis inside the
                      ankle link (the hip's roll->pitch stack, upside down) -->
                 {"" if p.ankle_servos_in_shank else f'<geom class="servo" type="box" pos="0 0 {_f(z_servo_case_dn)}" size="{_f(sy[0])} {_f(sy[1])} {_f(sy[2])}" mass="{sv}"/>'}
                 <geom {_fc(p)}type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.020 0.016 {_f(p.d_ankle/2)}" mass="{p.m_ankle_link if not p.ankle_servos_in_shank else p.m_ankle_link * 0.6 + p.m_linkage}" rgba="{link_rgba}" group="1"/>
                 <geom name="{side}_col_ankle" type="box" pos="0 0 {_f(-p.d_ankle/2)}" size="0.021 0.017 {_f(p.d_ankle/2)}" contype="0" conaffinity="0" mass="0" group="4" rgba="0.85 0.35 0.25 0.3"/>
                 <body name="{side}_foot" pos="0 0 {_f(-p.d_ankle)}">
-                  <joint name="{side}_ankle_roll" axis="1 0 0" range="{-ar:.0f} {ar:.0f}"/>
+                  <joint name="{side}_ankle_roll" axis="1 0 0" range="{js['ankle_roll']}"/>
                   <!-- ankle-ROLL servo lies across the foot, output axis X,
                        case bottom on the sole plate; the ankle link forks
                        onto its horn (front) and idler (rear) -->
@@ -779,12 +880,13 @@ def build_xml(p: DesignParams) -> str:
                     else (-p.hip_roll_abd, p.hip_roll_add))
         kr = p.knee_range
         hp = p.hip_pitch_range
+        ank_ctrl = p.ankle_range if p.ankle_ctrl is None else p.ankle_ctrl
         for jn, lo, hi in (
             ("hip_yaw", -p.yaw_range, p.yaw_range),
             ("hip_roll", roll_rng[0], roll_rng[1]),
             ("hip_pitch", hp[0], hp[1]),
             ("knee", kr[0], kr[1]),
-            ("ankle", -p.ankle_range, p.ankle_range),
+            ("ankle", -ank_ctrl, ank_ctrl),
             ("ankle_roll", -p.ankle_roll_range, p.ankle_roll_range),
         ):
             acts.append(f'    <position name="{side}_{jn}" joint="{side}_{jn}" '
@@ -898,8 +1000,11 @@ def params_from_args(argv=None) -> tuple[DesignParams, argparse.Namespace]:
                     help="servo mass everywhere (case is identical)")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL",
                     help="override any DesignParams field")
+    ap.add_argument("--measured-stops", action="store_true",
+                    help="the joint stops measured on the robot 2026-11-02 (measured_stops), "
+                         "policy ranges unchanged")
     a = ap.parse_args(argv)
-    p = DesignParams()
+    p = measured_stops() if a.measured_stops else DesignParams()
     if a.knee:
         p.knee = a.knee
     if a.torso_v7:
