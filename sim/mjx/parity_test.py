@@ -208,10 +208,27 @@ def robot_blocks():
         kw.update(over)
         return kw
 
-    def envs_for(kw):
+    # The airborne blocks (R1, R3, R4) gate ARITHMETIC, so both engines run
+    # the constraint solver to convergence: opt.tolerance ARITH_TOL instead
+    # of the plant's 1e-8 (#128). At 1e-8 the C and MJX Newton solvers stop
+    # at different iterates on the held joints' frictionloss rows (dry
+    # friction at ~zero velocity, stick/slip): on the v6ar plant, R1 read
+    # |dqpos| 1.8e-8 / |dqvel| 2.9e-6, all of it on R_shoulder at 2 of 100
+    # steps, every other step 1e-11 (MuJoCo 3.15, CPU jax, 2026-11-03). Run
+    # to 1e-10 -- or with frictionloss disabled -- every step agrees to
+    # 9.5e-12. That is the solvers' stopping rule, not a port error, so the
+    # gates stay where they are; training and the referee keep the plant's
+    # tolerance. R2 (grounded, looser gates) runs the plant as it is.
+    ARITH_TOL = 1e-10
+
+    def envs_for(kw, solver_tol=None):
         c = BimoWalkerEnv(actuator_model="sts3215", command_mode=True,
                           domain_rand=False, **kw)
         g = BimoMJXEnv(domain_rand=False, **kw)
+        if solver_tol is not None:
+            c.model.opt.tolerance = solver_tol
+            g.mj_model.opt.tolerance = solver_tol
+            g.model = g._put_model(g.mj_model)
         return c, g, jax.jit(g.step)
 
     def air_acts(env):
@@ -246,7 +263,7 @@ def robot_blocks():
                 and np.allclose(held_q, want_q)
                 and c.observation_space.shape[0] == g.obs_size == 3 * 55)
 
-    c1, g1, s1 = envs_for(rob_kw())
+    c1, g1, s1 = envs_for(rob_kw(), solver_tol=ARITH_TOL)
     lay1 = layout_ok(c1, g1, 17, 5)
     okr1 = run_block(
         "R1. ROBOT plant airborne arithmetic (12 policy + neck held, Plan B "
@@ -260,7 +277,7 @@ def robot_blocks():
 
     # R4. the IK swing-lift imitation reference (--mimic-lift) under the same
     # moving command: the mimic term of the reward carries it
-    c4, g4, s4 = envs_for(rob_kw(mimic_lift=0.05))
+    c4, g4, s4 = envs_for(rob_kw(mimic_lift=0.05), solver_tol=ARITH_TOL)
     okr4 = run_block(
         "R4. ROBOT plant airborne arithmetic, IK swing-lift reference "
         "(mimic_lift 5 cm)", 100, air_acts(c4), hoist,
@@ -280,7 +297,7 @@ def robot_blocks():
     with tempfile.TemporaryDirectory() as td:
         xml17 = robot_plant.write_arms_test_plant(
             os.path.join(td, "arms17.xml"))
-        c3, g3, s3 = envs_for(rob_kw(xml17))
+        c3, g3, s3 = envs_for(rob_kw(xml17), solver_tol=ARITH_TOL)
         lay3 = layout_ok(c3, g3, 17, 5)
         okr3 = run_block(
             "R3. 17-servo plant (arms held at the folded rest pose) "
