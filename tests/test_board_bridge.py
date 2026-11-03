@@ -328,6 +328,13 @@ def test_beacon_relay_is_byte_for_byte():
             src.sendto(p, ("127.0.0.1", relay.port))
         got = [watcher.recvfrom(2048)[0] for _ in payloads]
         assert got == payloads                   # not parsed, not re-framed
+        # the relay thread counts a datagram after sendto() returns, so the
+        # watcher can hold the last one before `forwarded` moves: wait for the
+        # counters rather than racing them (seen once in the pre-push gate,
+        # 2026-11-03: received 4, forwarded 3; #148)
+        deadline = time.monotonic() + 2.0
+        while relay.forwarded < len(payloads) and time.monotonic() < deadline:
+            time.sleep(0.005)
         assert relay.received == relay.forwarded == len(payloads)
     finally:
         relay.close()
