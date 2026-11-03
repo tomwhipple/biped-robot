@@ -1,4 +1,4 @@
-# Power lite: assembling the boardi
+# Power lite: assembling the board
 
 *How to solder and check the [power lite](README.md) board, make its leads, and wire the BMS
 and main switch. The powered checks are the README's
@@ -20,28 +20,27 @@ of this board (`tools/asm_figs.py`), so each one shows the board after its step.
 
 **Parts for one board:**
 
-| ref        | part                                                                          | qty    |
-| ---------- | ----------------------------------------------------------------------------- | ------ |
-| R1         | 470 Ω, ¼ W, 1 %, axial                                                        | 1      |
-| R2, R4, R6 | 10 kΩ                                                                         | 3      |
-| R3, R5     | 47 kΩ                                                                         | 2      |
-| R7, R8     | 4.7 kΩ                                                                        | 2      |
-| D1         | 1N4007                                                                        | 1      |
-| C2         | 100 nF, 50 V, ceramic                                                         | 1      |
-| Q1, Q2     | PN2222A, TO-92                                                                | 2      |
-| LED1, LED2 | 3 mm LED: green (LED1), red (LED2)                                            | 2      |
-| D2, D3     | 1.5KE16A TVS                                                                  | 2      |
-| J2, J3     | JST B4B-XH-A, B2B-XH-A                                                        | 1 each |
-| J11, J12   | JST B2B-PH-K-S (or a straight 2-pin PH header from the IWISS kit), B8B-PH-K-S | 1 each |
-| J4–J8      | Molex 22-03-5035                                                              | 5      |
-| F1, F2     | Keystone 3568 MINI fuse holder                                                | 2      |
-| C1         | 1000 µF, 25 V electrolytic                                                    | 1      |
-| J1         | Amass XT60PW-M                                                                | 1      |
-| K1         | TE 1-1414610-0 relay                                                          | 1      |
-| fuses      | MINI blade, 15 A (F1) and 3 A (F2)                                            | 1 each |
+| ref | part | qty |
+|---|---|---|
+| R1 | 470 Ω, ¼ W, 1 %, axial | 1 |
+| R2, R4, R6 | 10 kΩ | 3 |
+| R3, R5 | 47 kΩ | 2 |
+| R7, R8 | 4.7 kΩ | 2 |
+| D1 | 1N4007 | 1 |
+| C2 | 100 nF, 50 V, ceramic | 1 |
+| Q1, Q2 | PN2222A, TO-92 | 2 |
+| LED1, LED2 | 3 mm LED: green (LED1), red (LED2) | 2 |
+| D2, D3 | 1.5KE16A TVS | 2 |
+| J2, J3 | JST B4B-XH-A, B2B-XH-A | 1 each |
+| J11, J12 | JST B2B-PH-K-S (or a straight 2-pin PH header from the IWISS kit), B8B-PH-K-S | 1 each |
+| J4–J8 | Molex 22-03-5035 | 5 |
+| F1, F2 | Keystone 3568 MINI fuse holder | 2 |
+| C1 | 1000 µF, 25 V electrolytic | 1 |
+| J1 | Amass XT60PW-M | 1 |
+| K1 | TE 1-1414610-0 relay | 1 |
+| fuses | MINI blade, 15 A (F1) and 3 A (F2) | 1 each |
 
 **Tools and supplies:**
-
 - A temperature-controlled iron with a chisel tip, solder and flux.
 - Desoldering braid or a pump, flush cutters and wire strippers.
 - A multimeter with a diode range.
@@ -53,21 +52,17 @@ of this board (`tools/asm_figs.py`), so each one shows the board after its step.
 
 - **Every part goes on the top**, the side printed "BIPED POWER LITE rev A". Solder from the
   bottom, and trim each lead to about 1.5 mm after its joint.
-
 - **Lowest parts first.** The board then lies flat on the new parts while you solder them.
-
-- **Some pads take more heat.** These join the bottom ground plane with full copper, not thermal spokes, because they carry the return current:
-  
+- **Some pads take more heat.** These join the bottom ground plane with full copper, not thermal
+  spokes, because they carry the return current:
   - W2, C1's − lead, and the unbanded ends of D2 and D3;
   - pin 3 of J4–J8 and J12, and pin 2 of J3;
   - the emitters of Q1 and Q2.
-  
+
   The large pads in the top copper pours also soak up heat: J1, W1, W6, W7, F1, F2, K1's
   contacts, C1's + lead, and the banded ends of D2 and D3. Use more flux and hold the iron until the solder
   flows through the hole to the top.
-
 - **Check the bare board** with the meter. Each of these should read open:
-  
   - W6 to W1, the pack's + and −;
   - W7 to W2, the switched input and ground;
   - the + pad of C1 to W2.
@@ -80,12 +75,12 @@ of this board (`tools/asm_figs.py`), so each one shows the board after its step.
 
 Lay them flat, leads bent to 10 mm (0.4"). Either way round is fine.
 
-| ref        | value  | bands (5-band, 1 %)                 |
-| ---------- | ------ | ----------------------------------- |
-| R1         | 470 Ω  | yellow violet black **black** brown |
-| R7, R8     | 4.7 kΩ | yellow violet black **brown** brown |
-| R3, R5     | 47 kΩ  | yellow violet black **red** brown   |
-| R2, R4, R6 | 10 kΩ  | brown black black red brown         |
+| ref | value | bands (5-band, 1 %) |
+|---|---|---|
+| R1 | 470 Ω | yellow violet black **black** brown |
+| R7, R8 | 4.7 kΩ | yellow violet black **brown** brown |
+| R3, R5 | 47 kΩ | yellow violet black **red** brown |
+| R2, R4, R6 | 10 kΩ | brown black black red brown |
 
 470 Ω, 4.7 kΩ and 47 kΩ differ only in the fourth band, so measure each one before you fit it.
 
@@ -203,17 +198,17 @@ then faces the servo headers. A backwards electrolytic on the 12 V rail fails, a
    Look hardest at J12, J2, J3 and the TO-92 legs.
 3. **Meter checks, with no power and the fuses out:**
 
-| between                                                | reads                                                                                                          | it checks                |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| J1's + pin and W6; J1's − pin and W1                   | 0 Ω                                                                                                            | J1's polarity            |
-| W6 and W1                                              | open                                                                                                           | no short across the pack |
-| diode range, red on W2, black on W7                    | a diode drop, about 0.5–0.7 V; open with the leads swapped                                                     | D3 the right way round   |
-| diode range, red on W2, black on C1's + lead           | a diode drop, after a second or two as C1 charges. A reading that keeps climbing to open means D2 is backwards | D2 the right way round   |
-| K1's pin 85 (red) and 86 (black)                       | about 75 Ω: the 90 Ω coil with its built-in 470 Ω                                                              | the relay coil           |
-| J3 pin 1 and F2's right-hand pins                      | 0 Ω                                                                                                            | J3 the right way round   |
-| J3 pin 2, J12 pin 3, and pin 3 of each of J4–J8, to W2 | 0 Ω                                                                                                            | the grounds              |
-| pin 2 of each of J4–J7, to C1's + lead                 | 0 Ω                                                                                                            | the servo rail           |
-| pin 1 of each of J4–J7, to J8 pin 1                    | 0 Ω                                                                                                            | the servo data line      |
+| between | reads | it checks |
+|---|---|---|
+| J1's + pin and W6; J1's − pin and W1 | 0 Ω | J1's polarity |
+| W6 and W1 | open | no short across the pack |
+| diode range, red on W2, black on W7 | a diode drop, about 0.5–0.7 V; open with the leads swapped | D3 the right way round |
+| diode range, red on W2, black on C1's + lead | a diode drop, after a second or two as C1 charges. A reading that keeps climbing to open means D2 is backwards | D2 the right way round |
+| K1's pin 85 (red) and 86 (black) | about 75 Ω: the 90 Ω coil with its built-in 470 Ω | the relay coil |
+| J3 pin 1 and F2's right-hand pins | 0 Ω | J3 the right way round |
+| J3 pin 2, J12 pin 3, and pin 3 of each of J4–J8, to W2 | 0 Ω | the grounds |
+| pin 2 of each of J4–J7, to C1's + lead | 0 Ω | the servo rail |
+| pin 1 of each of J4–J7, to J8 pin 1 | 0 Ω | the servo data line |
 
 ## Make the leads
 
@@ -221,29 +216,25 @@ then faces the servo headers. A backwards electrolytic on the 12 V rail fails, a
 insulation sits in its insulation barrel. Push each contact into its housing until it clicks,
 then tug the wire to check it is held.
 
-| lead                          | board end                               | far end    | wire                                  | pins                                              |
-| ----------------------------- | --------------------------------------- | ---------- | ------------------------------------- | ------------------------------------------------- |
-| J3 to the General Driver's H1 | XHP-2                                   | XHP-2      | 22 or 24 AWG (XH contacts take 22–28) | pin 1 to pin 1; H1 pin 1 is + (harness check P3)  |
-| J11 to the E-stop             | PHR-2                                   | the switch | 24–26 AWG (PH contacts take 24–30)    | across the two terminals that are closed in "run" |
-| J12 to the General Driver     | PHR-8                                   | P3, H3, H2 | 24–26 AWG                             | below                                             |
-| J4–J8 to the servos           | stock servo leads, 5264-03 at both ends |            |                                       | J8 to the General Driver's H5                     |
+| lead | board end | far end | wire | pins |
+|---|---|---|---|---|
+| J3 to the General Driver's H1 | XHP-2 | XHP-2 | 22 or 24 AWG (XH contacts take 22–28) | pin 1 to pin 1; H1 pin 1 is + (harness check P3) |
+| J11 to the E-stop | PHR-2 | the switch | 24–26 AWG (PH contacts take 24–30) | across the two terminals that are closed in "run" |
+| J12 to the General Driver | PHR-8 | P3, H3, H2 | 24–26 AWG | below |
+| J4–J8 to the servos | stock servo leads, 5264-03 at both ends | | | J8 to the General Driver's H5 |
 
 - **The E-stop:** any latching switch rated 0.5 A DC or more will do; the coil current is about
   0.16 A at a full pack. With the switch at "run" its two wires read 0 Ω, and at "stop" open.
-
 - **J12** uses pins 2, 3, 5 and 6 only. Their far ends follow the
   [harness](../power-board/harness.md#j9-and-j12-control-to-the-general-driver):
-  
   - pin 2 `SERVO_EN` to P3 pin 4 (IO16);
   - pin 3 GND to P3 pin 3;
   - pin 5 `RAIL_V` to H3 pin 4 (GPIO34);
   - pin 6 `ESTOP_N` to H2 pin 1 (IO4).
-  
+
   The far-end housings depend on the General Driver's headers (harness check P5). The elechawk
   kit has 2.54 mm Dupont housings.
-
 - **The servo leads** must put the General Driver's GND wire on pin 3 here (harness check P4).
-
 - **J2 takes the pack's balance plug directly.** Meter the plug first (harness check P2): pin 1
   must be B−.
 
@@ -259,12 +250,24 @@ then tug the wire to check it is held.
 
 Do this after the BMS's bench check (the README's step 1) and the first power.
 
-| pad        | to                              | wire                   |
-| ---------- | ------------------------------- | ---------------------- |
-| W1         | the BMS's B−                    | 14 AWG silicone, black |
-| W2         | the BMS's P−, the system ground | 14 AWG silicone, black |
-| W3, W4, W5 | the BMS's B3, B2 and B1+        | 24 AWG                 |
-| W6, W7     | the main switch's two terminals | 14 AWG silicone, red   |
+The pack plugs into the board itself: its XT60 into J1, its balance plug into J2. The BMS
+([ShillehTek 3S, 25 A](https://shillehtek.com/products/3s-12v-18650-lithium-battery-protection-board-11-1v-12-6v-balanced-25a))
+is a separate module beside the board, wired to it:
+
+```
+pack ─XT60─> J1 ─┬─ + ─> W6 ─wire─> main switch ─wire─> W7 ─> fuses, relay, servos
+                 └─ − ─> W1 ─wire─> BMS B−  [BMS switch]  BMS P− ─wire─> W2 = system ground
+balance plug ─> J2 ─> W3, W4, W5 ─wires─> BMS B3, B2, B1+   (cell-voltage sensing)
+```
+
+The BMS sits in the pack's negative lead, so a trip cuts the whole robot off from the pack.
+
+| pad | to | wire |
+|---|---|---|
+| W1 | the BMS's B− | 14 AWG silicone, black |
+| W2 | the BMS's P−, the system ground | 14 AWG silicone, black |
+| W3, W4, W5 | the BMS's B3, B2 and B1+ | 24 AWG |
+| W6, W7 | the main switch's two terminals | 14 AWG silicone, red |
 
 - **Tin each wire end**, push it through from the top, and solder from the bottom until the hole
   is full.
