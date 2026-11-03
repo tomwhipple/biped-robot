@@ -13,16 +13,18 @@ to. Values marked ASSUMED are not measured: they bound the results and are check
 - the General Driver on J3: 11 Ohm (1 A) with 100 uF (ASSUMED);
 - the servos: a current source with 200 uF of input capacitance in all (ASSUMED).
 """
+import importlib.util
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "tools"))
-import parts as PD  # noqa: E402
+# loaded by path: in a full pytest run "parts" is already cad/parts.py
+_spec = importlib.util.spec_from_file_location("power_lite_parts", HERE.parent / "tools" / "parts.py")
+PD = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(PD)
 
 NGSPICE = shutil.which("ngspice")
 OPERATE_A, RELEASE_A = 7.2 / 90.0, 1.6 / 90.0

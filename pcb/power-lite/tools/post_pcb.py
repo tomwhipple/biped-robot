@@ -25,7 +25,11 @@ LABELS = [  # text, x, y, size, back side
 ]
 
 W, H = 97.0, 64.5
-SOLID_GND = {("J3", "2"), ("J11", "2"), ("J12", "3")}   # small connector pads: a thermal would starve
+# pads the plane joins with full copper: small pads a thermal would starve (the connectors, the
+# TO-92 emitters), and the return path (W2 takes all of it, up to 15 A; J4-J7 a branch each; C1, D2
+# and D3 the pulses), where four 0.5 mm spokes are 2 mm of 1 oz copper
+SOLID_GND = {("J3", "2"), ("J11", "2"), ("J12", "3"), ("Q1", "1"), ("Q2", "1"), ("W2", "1"), ("J4", "3"),
+             ("J5", "3"), ("J6", "3"), ("J7", "3"), ("J8", "3"), ("C1", "2"), ("D2", "2"), ("D3", "2")}
 
 board = pcbnew.LoadBoard(BOARD)
 assert pcbnew.ImportSpecctraSES(board, SES), "SES import failed"
