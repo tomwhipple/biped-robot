@@ -16,6 +16,11 @@ A 2-layer board, 97 × 64.5 mm, with through-hole parts only, soldered by hand. 
 
 ## How power flows
 
+![Power lite, circuit](../../docs/design-v6/figs/powerlite_circuit.png)
+
+*The circuit as a wired drawing: `tools/draw_circuit.py`, with the same parts and nets as
+`tools/parts.py`. The KiCad schematic carries the same nets as labels on every pin.*
+
 ```
 pack XT60 (J1) ─ BMS (W1-W5, cuts the negative lead) ─ main switch (W6/W7) ─┬─ F2 3 A ─ J3 ─ General Driver H1 (and the Pi)
 pack balance lead (J2) ─ BMS cell taps                                      ├─ F2 3 A ─ J11 E-stop NC ─ K1 coil ─ Q1 ─ GND
