@@ -97,6 +97,36 @@ def load_netlist(path):
     return comps
 
 
+MODEL3D = "${KIPRJMOD}/power-lite.3dshapes/"
+
+
+WIRES = {"W1": "wire_heavy_black", "W2": "wire_heavy_black", "W6": "wire_heavy_red", "W7": "wire_heavy_red",
+         "W3": "wire_tap_blue", "W4": "wire_tap_green", "W5": "wire_tap_red"}
+
+
+def set_3d_models(ref, fp):
+    """The 3D viewer's picture: the stock LED model is red, this KiCad has no Mini-SPOX model, the
+    holders' blade fuses are not footprints, and the W pads take wires (bodies from tools/gen_3d.py).
+    Models() hands back copies, so a model is replaced by clearing the list and adding a new one."""
+    def only(filename):
+        ms = fp.Models()
+        ms.clear()
+        m = pcbnew.FP_3DMODEL()
+        m.m_Filename = filename
+        ms.push_back(m)
+
+    if ref == "LED1":
+        only("${KICAD10_3DMODEL_DIR}/LED_THT.3dshapes/LED_D3.0mm_Green.step")
+    elif ref in ("J4", "J5", "J6", "J7", "J8"):
+        only(MODEL3D + "Molex_SPOX_5267-03A_body.step")
+    elif ref in WIRES:
+        only(MODEL3D + WIRES[ref] + ".step")
+    elif ref in ("F1", "F2"):
+        m = pcbnew.FP_3DMODEL()
+        m.m_Filename = MODEL3D + ("MINI_fuse_15A.step" if ref == "F1" else "MINI_fuse_3A.step")
+        fp.Models().push_back(m)
+
+
 def check_courtyards(board):
     boxes = []
     for fp in board.GetFootprints():
@@ -177,6 +207,7 @@ def main():
         for f in ("Datasheet", "Description", "MPN"):
             if fp.HasField(f):
                 fp.GetField(f).SetVisible(False)
+        set_3d_models(ref, fp)
         board.Add(fp)
         x, y, rot = PLACE[ref]
         fp.SetPosition(P(x, y))

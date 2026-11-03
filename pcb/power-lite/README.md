@@ -136,8 +136,13 @@ datasheet; the XT60's is the custom board's.
 
 ![Power lite, populated](../../docs/design-v6/figs/powerlite_3d.png)
 
-The XT60 and the relay show as simple bodies drawn from the makers' outlines (`tools/gen_3d.py`,
-`power-lite.3dshapes/`). The other parts use KiCad's stock 3D models.
+Bodies drawn by `tools/gen_3d.py` (in `power-lite.3dshapes/`) stand in where this KiCad has no 3D
+model, or where the part is not a footprint:
+- the XT60, the relay and the Mini-SPOX servo headers, from the makers' outlines;
+- the blade fuses in their holders, 15 A light blue and 3 A violet;
+- wire stubs on the W pads, for the BMS and switch leads.
+
+The other parts use KiCad's stock models; LED1 uses the green one.
 
 ![Power lite, bottom](../../docs/design-v6/figs/powerlite_bottom.png)
 
