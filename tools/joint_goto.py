@@ -19,7 +19,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rom_sweep import ENC_HI, ENC_LO, K, Abort, Port, board_joint, settle, utc  # noqa: E402
+from rom_sweep import ENC_HI, ENC_LO, K, Abort, Port, board_joint, settle, use_body, utc  # noqa: E402
 import sweep_guard as G  # noqa: E402
 
 
@@ -41,7 +41,10 @@ def main():
                     help="the servo's RAM torque limit during the move, /1000 (reg 48); restored after")
     ap.add_argument("--allow-contact", action="store_true",
                     help="lift the inward hip-roll cap (the other leg must be moved clear)")
+    ap.add_argument("--body", choices=("v6legs", "proto"), default="v6legs",
+                    help="which mech_envelope.h table the flashed firmware clamps to")
     a = ap.parse_args()
+    use_body(a.body)
     sid, tgt = a.id, a.to
     if not ENC_LO <= tgt <= ENC_HI:
         sys.exit(f"target {tgt} is outside {ENC_LO}..{ENC_HI} (encoder wrap)")
