@@ -146,12 +146,56 @@ def test_command_reply_is_the_cli_text(twin):
     ("batt reset", "pack-guard latch"),
     ("run", "ARM edge"),
 ])
-def test_persistent_writers_are_refused(twin, line, why):
+def test_persistent_writers_are_refused(twin, line, why, monkeypatch):
+    # the client never sends the secret-carrying lines (test_secret_lines_*);
+    # switch that guard off here so the ROBOT's refusal is what is tested
+    monkeypatch.setattr(W, "secret_line", lambda line: None)
     c = twin.client()
     r = c.command(line)
     assert r.status == "refused" and r.refused
     assert r.text.startswith("refused over Wi-Fi (tether only): ")
     assert why in r.text and r.text.endswith("\r\n")
+
+
+@pytest.mark.parametrize("line, shown", [
+    ("wcli key " + "ab" * 32, "wcli key <redacted>"),
+    ("  wcli\tkey   " + "ab" * 32, "wcli key <redacted>"),
+    ("wifi homenet hunter22", "wifi homenet <redacted>"),
+    ("wifi homenet hunter22 extra", "wifi homenet <redacted>"),
+    ("wcli key clear", None),
+    ("wcli key", None),
+    ("wcli drop", None),
+    ("wcli", None),
+    ("wifi", None),
+    ("wifi clear", None),
+    ("ping wcli key " + "ab" * 32, None),
+])
+def test_secret_line(line, shown):
+    assert W.secret_line(line) == shown
+
+
+def test_secret_lines_are_never_sent():
+    """#193: the robot refuses these over Wi-Fi, but the client must not put
+    the key or the PSK on the air in the first place."""
+    robot = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    robot.bind(("127.0.0.1", 0))
+    robot.settimeout(0.3)
+    notes = []
+    c = W.Client("127.0.0.1", KEY, robot.getsockname()[1],
+                 on_note=notes.append)
+    try:
+        for line in ("wcli key " + "ab" * 32, "wifi homenet hunter22"):
+            r = c.command(line)
+            assert (r.status, r.refused) == ("refused", True)
+            assert r.text.startswith(W.NOT_SENT + ": ")
+            assert "ab" * 32 not in r.text and "hunter22" not in r.text
+        assert len(notes) == 2
+        assert not any("ab" * 32 in n or "hunter22" in n for n in notes)
+        with pytest.raises(socket.timeout):
+            robot.recvfrom(2048)        # nothing at all was sent
+    finally:
+        c.close()
+        robot.close()
 
 
 @needs_twin
@@ -310,6 +354,20 @@ def test_bridge_writes_the_tether_log_format(twin, tmp_path):
     assert body[k + 1] == "T   pose: streaming"
     assert "T   pose: done" in body[k + 2:]     # async, before the quit
     assert body[-1] == "T # bridge closed"
+
+
+@needs_twin
+def test_bridge_never_sends_or_logs_a_secret(twin, tmp_path):
+    secret = "ab" * 32
+    rc, log = _run_bridge(tmp_path, twin.port, twin.key,
+                          ["wcli key " + secret, "wifi homenet hunter22",
+                           "ping A"])
+    assert rc == 0
+    body = [re.sub(f"^{STAMP} ", "", ln) for ln in log]
+    assert f"# {W.NOT_SENT}: wcli key <redacted>" in body
+    assert f"# {W.NOT_SENT}: wifi homenet <redacted>" in body
+    assert "> ping A" in body                 # the bridge carried on
+    assert not any(secret in b or "hunter22" in b for b in body)
 
 
 @needs_twin

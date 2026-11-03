@@ -762,6 +762,13 @@ void testPolicy() {
         {"sweep", false, Verdict::kRefuseTether},
         {"sweep 20 1 2", false, Verdict::kRefuseTether},
         {"stepresp 7 40", false, Verdict::kRefuseTether},
+        // servo RAM tools (#195): the servocfg read only (#193)
+        {"servocfg", false, Verdict::kAllow},
+        {"servocfg fast", false, Verdict::kRefuseTether},
+        {"servocfg factory", false, Verdict::kRefuseTether},
+        {"regw", false, Verdict::kRefuseTether},
+        {"regw 2 85 0", false, Verdict::kRefuseTether},
+        {"servocfg", true, Verdict::kRefuseArmed},
         // default deny
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},

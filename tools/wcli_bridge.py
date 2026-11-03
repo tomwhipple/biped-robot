@@ -29,6 +29,10 @@ What the log may say that the tether's never did:
   # OUTCOME UNKNOWN (...)   the session was lost after sending (robot
                             rebooted?) -- the line is NOT re-sent
   # TIMEOUT (...)           no output for --timeout s; it may still run
+  # KEY NOT SENT (tether only): wcli key <redacted>
+                            a line carrying the CLI key or a Wi-Fi PSK
+                            (`wcli key <hex>`, `wifi <ssid> <psk>`): never
+                            sent, and logged only redacted
   # link lost / restored    no answer from the robot / session re-made
   [wcli: N chunk(s) of robot output lost]   (as a reply line) output the
                             robot could not re-send: a gap, not silence
@@ -155,6 +159,12 @@ def run(a) -> int:
             log.note("bridge closed")
             cli.close()
             return 0
+        shown = W.secret_line(line)
+        if shown is not None:
+            # never on the air, and never in the log: not even a DROPPED or
+            # WRITE FAILED note below may echo the raw line (#193)
+            log.note(f"{W.NOT_SENT}: {shown}")
+            continue
         waited = time.monotonic() - t_in
         if waited > a.stale:
             log.note(f"DROPPED (stale: waited {waited:.1f} s behind earlier "
