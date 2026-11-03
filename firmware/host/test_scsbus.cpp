@@ -42,6 +42,11 @@ class FakePort : public Port {
             return 0;
         }
         std::vector<uint8_t>& head = rx.front();
+        if (head.empty()) {             // queueSilence(): this one times out
+            rx.pop_front();
+            t_us += timeout_us;
+            return 0;
+        }
         const size_t k = cap < head.size() ? cap : head.size();
         for (size_t i = 0; i < k; ++i) o[i] = head[i];
         head.erase(head.begin(), head.begin() + static_cast<long>(k));
@@ -54,6 +59,10 @@ class FakePort : public Port {
     // is about to happen.
     void flushInput() override { ++flushes; }
     uint64_t nowUs() const override { return t_us; }
+
+    // No reply to the next transaction at all (a lost ack): the empty
+    // packet is popped by that transaction's first read, which times out.
+    void queueSilence() { rx.emplace_back(); }
 
     void queueStatus(uint8_t id, uint8_t err, std::vector<uint8_t> params) {
         std::vector<uint8_t> p;
@@ -466,6 +475,53 @@ bool touchesGoalOrTorqueWrite(const std::vector<Req>& rs) {
     return false;
 }
 
+void testBusSetIdAckLostLocksTheNewId() {
+    // #101: the rename lands but its ack is lost. The servo now answers only
+    // to the NEW id, so the lock must go there -- a lock sent to the old id
+    // never lands and leaves the EEPROM open.
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(11, 0, {});    // unlock ack
+    p.queueSilence();            // the ID write: no ack
+    p.queueStatus(30, 0, {});    // ping 30: it answers
+    p.queueStatus(30, 0, {});    // lock ack, from 30
+    bool ack_lost = false;
+    CHECK_EQ(static_cast<int>(bus.setId(11, 30, &ack_lost)),
+             static_cast<int>(Status::kOk));
+    CHECK(ack_lost);
+    const std::vector<Req> rs = requests(p.tx);
+    CHECK_EQ(rs.size(), 4u);
+    if (rs.size() == 4) {
+        CHECK_EQ(rs[2].inst, static_cast<uint8_t>(Inst::kPing));
+        CHECK_EQ(rs[2].id, 30);
+        CHECK_EQ(rs[3].id, 30);
+        CHECK_EQ(rs[3].addr, kRegEepromLock);
+        CHECK_EQ(rs[3].b0, 1);
+    }
+}
+
+void testBusSetIdFailedWriteRelocksTheOldId() {
+    // The ID write fails and the new id is silent: the rename did not land,
+    // so re-lock under the old id and report the write's failure.
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(11, 0, {});    // unlock ack
+    p.queueSilence();            // the ID write: no ack
+    p.queueSilence();            // ping 30: nobody
+    p.queueStatus(11, 0, {});    // lock ack, from 11
+    bool ack_lost = true;
+    CHECK_EQ(static_cast<int>(bus.setId(11, 30, &ack_lost)),
+             static_cast<int>(Status::kTimeout));
+    CHECK(!ack_lost);
+    const std::vector<Req> rs = requests(p.tx);
+    CHECK_EQ(rs.size(), 4u);
+    if (rs.size() == 4) {
+        CHECK_EQ(rs[3].id, 11);
+        CHECK_EQ(rs[3].addr, kRegEepromLock);
+        CHECK_EQ(rs[3].b0, 1);
+    }
+}
+
 void testGainWriteHappyPath() {
     FakePort p;
     Bus bus(p);
@@ -548,12 +604,64 @@ void testGainWriteRelocksOnFailure() {
     const GainWrite r = writePositionGains(bus, 2, PositionGains{64, 40});
     CHECK_EQ(static_cast<int>(r), static_cast<int>(GainWrite::kWriteFailed));
     const std::vector<Req> rs = requests(p.tx);
+    // torque read, unlock, the gain write, then the lock (and the read-back
+    // that lets a landed write through, #101 -- silent here)
+    CHECK(rs.size() >= 4u);
+    if (rs.size() >= 4) {
+        CHECK_EQ(rs[2].addr, kRegPosP);
+        CHECK_EQ(rs[3].addr, kRegEepromLock);
+        CHECK_EQ(rs[3].b0, 1);
+    }
+    CHECK(!touchesGoalOrTorqueWrite(rs));
+}
+
+void testGainWriteAckLostButLanded() {
+    // #101 (bench 2026-09-30..10-02): a write that changes the EEPROM cell
+    // can ack late or not at all and still land. The read-back decides.
+    FakePort p;
+    Bus bus(p);
+    p.queueStatus(2, 0, {0});          // torque off
+    p.queueStatus(2, 0, {});           // unlock ack
+    p.queueSilence();                  // the gain write: ack lost
+    p.queueStatus(2, 0, {});           // lock ack
+    p.queueStatus(2, 0, {64, 40});     // read-back: it landed
+    p.queueStatus(2, 0, {1});          // reg 55: locked
+    PositionGains rb{0, 0};
+    CHECK_EQ(static_cast<int>(writePositionGains(bus, 2, PositionGains{64, 40}, &rb)),
+             static_cast<int>(GainWrite::kAckLost));
+    CHECK_EQ(rb.p, 64);
+    CHECK_EQ(rb.d, 40);
+    CHECK(!touchesGoalOrTorqueWrite(requests(p.tx)));
+
+    // Landed, but the lock reads open: not a success -- re-locked, reported.
+    FakePort q;
+    Bus bus2(q);
+    q.queueStatus(2, 0, {0});
+    q.queueStatus(2, 0, {});
+    q.queueSilence();
+    q.queueSilence();                  // the lock: no ack either
+    q.queueStatus(2, 0, {64, 40});
+    q.queueStatus(2, 0, {0});          // reg 55: OPEN
+    q.queueStatus(2, 0, {});           // the second lock's ack
+    CHECK_EQ(static_cast<int>(writePositionGains(bus2, 2, PositionGains{64, 40})),
+             static_cast<int>(GainWrite::kLockFailed));
+    const std::vector<Req> rs = requests(q.tx);
     CHECK(!rs.empty());
     if (!rs.empty()) {
         CHECK_EQ(rs.back().addr, kRegEepromLock);
         CHECK_EQ(rs.back().b0, 1);
     }
-    CHECK(!touchesGoalOrTorqueWrite(rs));
+
+    // Not acked and not landed: a failed write, as before.
+    FakePort f;
+    Bus bus3(f);
+    f.queueStatus(2, 0, {0});
+    f.queueStatus(2, 0, {});
+    f.queueSilence();
+    f.queueStatus(2, 0, {});
+    f.queueStatus(2, 0, {32, 32});     // still the old gains
+    CHECK_EQ(static_cast<int>(writePositionGains(bus3, 2, PositionGains{64, 40})),
+             static_cast<int>(GainWrite::kWriteFailed));
 }
 
 void testGainWriteDetectsAMismatchedReadback() {
@@ -628,6 +736,8 @@ int main() {
     testBusTorqueBroadcast();
     testBusSyncWritePerServoSpeed();
     testBusSetIdLocksTheNewId();
+    testBusSetIdAckLostLocksTheNewId();
+    testBusSetIdFailedWriteRelocksTheOldId();
     testBusSetMiddle();
     testBusSyncReadFeedback();
     testSyncReadStopsAtTheLastListedServo();
@@ -638,6 +748,7 @@ int main() {
     testGainWriteRefusesWithTorqueOn();
     testGainWriteRejectsBadArgsBeforeTheWire();
     testGainWriteRelocksOnFailure();
+    testGainWriteAckLostButLanded();
     testGainWriteDetectsAMismatchedReadback();
     testGainCheck();
     testExpectedGainTable();
