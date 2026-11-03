@@ -82,7 +82,7 @@ part("D1", "Device:D", "1N4007", "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal",
 part("J11", "Connector_Generic:Conn_01x02", "E-STOP (NC)", "Connector_JST:JST_PH_B2B-PH-K_1x02_P2.00mm_Vertical",
      {"1": "LOGIC", "2": "COIL_HI"}, "JST B2B-PH-K-S",
      "a latching switch's NC contact; opening it drops K1. PH, unlike J3's XH, so the leads cannot swap")
-part("Q1", "Transistor_BJT:PN2222A", "PN2222A", "Package_TO_SOT_THT:TO-92_Inline",
+part("Q1", "Transistor_BJT:PN2222A", "PN2222A", "Package_TO_SOT_THT:TO-92_Inline_Wide",
      {"1": "GND", "2": "Q1_B", "3": "COIL_LO"}, "onsemi PN2222A", "coil switch, driven by the ESP32's SERVO_EN")
 R("R1", "470", "SERVO_EN", "Q1_B", "Yageo MFR-25FBF52-470R", "base drive, ~5 mA from 3.3 V")
 R("R2", "10k", "Q1_B", "GND", "Yageo MFR-25FBF52-10K", "holds the rail off until the ESP32 drives SERVO_EN")

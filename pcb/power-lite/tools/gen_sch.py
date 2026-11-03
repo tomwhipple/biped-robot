@@ -101,8 +101,10 @@ for ref, d in PD.parts.items():
         X, Y = xform(float(a[1]), float(a[2]), rot)
         return [r3(x + X), r3(y + Y + dy), 0]
 
+    # the W parts are solder pads for wires, not parts to buy
     s = ["symbol", ["lib_id", Q(d["lib_id"])], ["at", x, y, rot], ["unit", 1], ["exclude_from_sim", "no"],
-         ["in_bom", "yes"], ["on_board", "yes"], ["dnp", "no"], ["uuid", uid("sym", ref)],
+         ["in_bom", "no" if ref.startswith("W") else "yes"], ["on_board", "yes"], ["dnp", "no"],
+         ["uuid", uid("sym", ref)],
          ["property", Q("Reference"), Q(ref), ["at"] + field("Reference", 0), font()],
          ["property", Q("Value"), Q(d["value"]), ["at"] + field("Value", 0), font()],
          ["property", Q("Footprint"), Q(d["fp"]), ["at", x, y, 0], font(hide=True)],
