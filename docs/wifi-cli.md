@@ -121,12 +121,13 @@ purpose (`firmware/components/wcli/policy.cpp`).
 | `cal`, `cal show` | every other `cal` form -- the calibration (live or NVS) |
 | `imu`, `imu scan/raw/ring/avg/ae/reinit`, `imu gscale`, `imu mount` (reads) | `imu bias`, `imu gscale x y z`, `imu mount w x y z`, `imu forget` -- NVS |
 | `wifi` (status) | `wifi <ssid> <psk>`, `wifi clear` -- credentials (NVS) |
-| `wcli` (status) | `wcli key ...`, `wcli drop` -- the key itself |
+| `wcli` (status) | `wcli key ...` -- the key itself; `wcli drop` -- ends the Wi-Fi session: not sensitive, kept on the tether with the other `wcli` controls |
 | `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot) |
 | `stream status`, `stream dump` | `stream <id> ...` -- drives a servo with no torque gate and no envelope clamp |
 | `obsdump`, `obsdump show/off` | `obsdump on/once` -- streams to the tether UART only |
 | `fall`, `flail` (status) | `fall on/off/autohome/clear`, `flail on/off` -- switch a safety guard (fall guard, flail guard) |
 | `sweep stop` | `sweep ...`, `stepresp ...` -- bench identification experiments, run from the tether |
+| `servocfg` (read and verify regs 85/81) | `servocfg fast/factory`, `regw ...` -- write servo RAM registers (actuator experiments) |
 | | `run` -- arming is the commander's ARM edge |
 | | anything else -- not on the allowlist |
 
@@ -254,7 +255,12 @@ the key file, or physical access to the robot (those own the robot anyway).
   not print, nor fake a "done".
 - *Persistent damage over the air*: the NVS/EEPROM writers and the pack-guard
   reset are refused over Wi-Fi twice over (allowlist + CLI); the key can only
-  be set over the tether and is never sent over the air.
+  be set over the tether and is never sent over the air: the client
+  (`link/wcliproto.py`, so `wcli.py` and `wcli_bridge.py` too) refuses to send
+  `wcli key <hex>` or `wifi <ssid> <psk>` at all and logs only `KEY NOT SENT
+  (tether only)` with the line redacted. That is enforced by this client; a
+  hand-rolled client that sent the line anyway would still be refused by the
+  robot, after the secret had crossed the air.
 - *Motion while armed*: refused; the Wi-Fi CLI is bench-only.
 - *Secrets in the flight recorder*: it ships CLI lines over UDP in clear, so
   `wcli key <hex>` and the PSK of `wifi <ssid> <psk>` are redacted before

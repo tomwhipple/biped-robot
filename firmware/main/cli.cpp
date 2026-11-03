@@ -687,8 +687,9 @@ void cmdStepResp(Sink out, int argc, char** argv) {
 // actuator experiments (2026-11-02: STS3215 vs STS3250 differ in undocumented regs 81/84/85/86;
 // the STS3215 has ~70 ms dead time). RAM only: EEPROM (addr < 40) is refused, so nothing persists
 // past a power cycle. Torque enable (40) and goal registers (42-47) are refused too -- use
-// torque/move/pose. Bench only (claimBus); the Wi-Fi CLI allowlist does not include it.
+// torque/move/pose. Bench only (claimBus); tether only (the Wi-Fi allowlist refuses it too).
 void cmdRegw(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`regw` writes a servo register")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 4) { out("usage: regw <id> <addr 41|48-86 RAM> <value 0-255>   (RAM only, lost at power-off)\r\n"); return; }
@@ -1836,6 +1837,7 @@ void servoRamTickImpl(Sink out) {
 
 // `servocfg [fast|factory]` -- show / set the STS3215 response config (RAM regs 85/81).
 void cmdServocfg(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`servocfg fast|factory` rewrites servo registers")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc >= 2 && !strcmp(argv[1], "fast")) s_servo_fast = true;

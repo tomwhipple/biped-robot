@@ -163,6 +163,15 @@ Decision classify(const char* line, bool armed) {
         return tether("`sweep` is a bench identification experiment (roll "
                       "sweep), run from the tether");
     }
+    if (is(c, "servocfg")) {
+        if (argc == 1) return allow();   // read and verify regs 85/81 only
+        return tether("`servocfg fast|factory` rewrites the STS3215 response "
+                      "registers (servo RAM)");
+    }
+    if (is(c, "regw")) {
+        return tether("`regw` writes a servo register (an actuator "
+                      "experiment tool)");
+    }
     if (is(c, "stepresp")) {
         return tether("`stepresp` is a bench identification experiment (one "
                       "servo's step response), run from the tether");
