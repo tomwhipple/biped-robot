@@ -19,6 +19,9 @@ Probes (falls / flail-guard trips out of the seeds):
   stride1 <v>      link/sources.py `stride1`: stand, at t = 2 s vx <v> for one gait cycle
                    (0.667 s at 1.5 Hz), then the stand -- the robot's first walk command
                    (walk16_act, v 0.6) tripped the guard on body rate 0.28 s in
+  stride1 0.6 mu<m> the same on a slippery floor: effective contact friction mu (and a low
+                   torsion) on the floor AND the pads (set_contact) -- walk18_shp10sq on the
+                   robot (2026-11-03, smooth board) yawed -19 deg in 180 ms and fell
 The flail guard (firmware/components/flailguard, kLimits): rate EMA(|gyro|, 0.2 s) >
 1.5 rad/s; tilt > 20 deg for 200 ms; chatter EMA(mean |d raw target / dt|, 0.1 s) >
 7 rad/s; pose (plain stand, after the ramp) any written target > 15 deg from the stand pose
@@ -77,7 +80,30 @@ PROBES = {
     "stride1 0.6": dict(cmd_schedule=stride(0.6), run_s=8.0),
     "stride1 0.4": dict(cmd_schedule=stride(0.4), run_s=8.0),
     "stride1 0.3": dict(cmd_schedule=stride(0.3), run_s=8.0),
+    # the low-friction walk-start gate (experiments/policy/friction-dr): effective contact mu
+    # and torsion forced on the floor AND the pads -- the robot's 2026-11-03 stride1 spun -19 deg
+    # in 180 ms on a smooth board (TPU sole, mu ~0.4-0.6)
+    "stride1 0.6 mu0.4": dict(cmd_schedule=stride(0.6), run_s=8.0, contact=dict(mu=0.4, torsion=0.005)),
+    "stride1 0.6 mu0.3": dict(cmd_schedule=stride(0.6), run_s=8.0, contact=dict(mu=0.3, torsion=0.002)),
 }
+
+
+def set_contact(env, mu=None, torsion=None):
+    """Force the EFFECTIVE foot/floor contact friction: MuJoCo takes the elementwise MAX of
+    the two geoms' friction, so the floor alone cannot go below the pads' 1.0 -- set the
+    floor, every sole pad and the reference soles together (sliding mu, torsional m)."""
+    mm = env.model
+    gids = [mm.geom("floor").id] + [g for pads in env._pad_gids for g in pads] + list(env._sole_gids)
+    for g in gids:
+        if mu is not None:
+            mm.geom_friction[g, 0] = float(mu)
+        if torsion is not None:
+            mm.geom_friction[g, 1] = float(torsion)
+
+
+def body_yaw(q):
+    w, x, y, z = (float(c) for c in q)
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
 
 class FlailGuard:
@@ -127,6 +153,10 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env._imu_gyro_bias = rng.uniform(-0.01, 0.01, 3)
     env.domain_rand = True
     simh.apply_model(env, simh.JF_PLANT)
+    if v.get("plant"):
+        simh.apply_model(env, dict(simh.JF_PLANT, **v["plant"]))
+    if v.get("contact"):
+        set_contact(env, **v["contact"])
     nj = env._nq_act
     env.set_command(*STAND_CMD)
     simh.place_and_hold(env, np.clip(S.arm_pose(), env._lo, env._hi), settle_s)
@@ -150,7 +180,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env._action_to_ctrl = lambda a_: cur["t"]
     fg = FlailGuard(env._default)
     n = int(round(run_s / DT)); nh = int(round(hold_s / DT))
-    GO, GY, PW, TL, SQ, X = [], [], [], [], [], []
+    GO, GY, PW, TL, SQ, X, YW, QM = [], [], [], [], [], [], [], []
     fell = False; ema = None; last_tgt = hold
     x0 = float(env.data.qpos[0])
     for i in range(n + nh):
@@ -185,6 +215,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         q_meas = obs[:nj].astype(np.float64)
         GO.append(tgt.copy()); GY.append(gyro); PW.append(float(info.get("power_w", np.nan)))
         TL.append(tilt); SQ.append(np.degrees(np.abs(tgt - q_meas))); X.append(float(d.qpos[0]) - x0)
+        YW.append(body_yaw(d.qpos[3:7])); QM.append(q_meas)
         if term:
             fell = True
             break
@@ -198,6 +229,20 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         seg = slice(i0, min(len(TL), i0 + int(2.5 / DT)))
         m["walk_dx_2s5"] = float(X[min(len(X) - 1, i0 + int(2.5 / DT))] - X[i0]) if len(X) > i0 else float("nan")
         m["walk_tilt_max"] = float(TL[seg].max()) if len(TL) > i0 else float("nan")
+        # the robot's 2026-11-03 stride1 spin: yaw -19 deg at +180 ms, |gyro z| 3.9 rad/s.
+        # Step i0 - 1 is the first one under the walk command (set before its step).
+        yw = np.degrees(np.unwrap(np.array(YW)))
+        j0 = max(i0 - 1, 0)
+        if len(yw) > j0 + 9:
+            y_ref = yw[j0 - 1] if j0 > 0 else yw[0]
+            m["walk_yaw_180ms"] = float(yw[j0 + 9] - y_ref)
+            m["walk_yaw_max"] = float(np.abs(yw[j0:j0 + int(1.0 / DT)] - y_ref).max())
+            m["walk_gz_max"] = float(np.abs(GY[j0:j0 + int(1.0 / DT), 2]).max())
+            if v.get("trace"):
+                m["trace"] = dict(gz=GY[j0:j0 + 30, 2].tolist(), yaw=(yw[j0:j0 + 30] - y_ref).tolist(),
+                                  goal=np.degrees(np.array(GO[j0:j0 + 30])).tolist(),
+                                  q=np.degrees(np.array(QM[j0:j0 + 30])).tolist(),
+                                  ncon_feet=None)
     w = slice(int(5.0 / DT), min(n, len(GO)))
     if not fell and n - 250 > 100:
         m.update(S.J.jitter(GO[w], GY[w]))
@@ -257,7 +302,7 @@ def summarize(res, variants, probes):
                            peak_rate_max=float(np.max([r.get("peak_rate", np.nan) for r in e])))
             for key in ("goal_rms_mean", "goal_rms_max", "rate_x", "rate_y", "rate_z", "power_w",
                         "power_hold_w", "squeeze_deg", "squeeze_hold_deg", "walk_dx_2s5",
-                        "walk_tilt_max", "tilt_max"):
+                        "walk_tilt_max", "walk_yaw_180ms", "walk_yaw_max", "walk_gz_max", "tilt_max"):
                 vals = [r[key] for r in (ok if key != "tilt_max" else e) if key in r]
                 if vals:
                     row[pn][key] = float(np.nanmean(vals))
@@ -281,7 +326,10 @@ def table(rows, probes):
             if bk:
                 txt += " [" + " ".join(f"{k} {n}" for k, n in bk.items()) + "]"
             if p.startswith("stride1") or p.startswith("walk"):
-                txt += f" (rate {c['peak_rate']:.2f}/{c['peak_rate_max']:.2f}, dx {_f(c.get('walk_dx_2s5'), 2)})"
+                txt += f" (rate {c['peak_rate']:.2f}/{c['peak_rate_max']:.2f}, dx {_f(c.get('walk_dx_2s5'), 2)}"
+                if p.startswith("stride1"):
+                    txt += f", yaw180 {_f(c.get('walk_yaw_180ms'), 1)}"
+                txt += ")"
             cells.append(txt)
         L.append(f"| {r['variant']} | {_f(s.get('goal_rms_mean'))} / {_f(s.get('goal_rms_max'))} "
                  f"({s.get('falls', '?')}/{s.get('trips', '?')}) | "
@@ -292,7 +340,9 @@ def table(rows, probes):
     L.append("Cells: falls/flail-guard trips out of the seeds [episodes in which each guard "
              "criterion would trip, judged separately]; walk cells add the guard's peak "
              "EMA body rate (mean/max over seeds, trip at 1.5 rad/s) and the torso's forward "
-             "travel over the 2.5 s after the walk command (m).")
+             "travel over the 2.5 s after the walk command (m); stride1 cells add the body yaw "
+             "180 ms after the command (deg; the robot 2026-11-03: -19). `mu` probes force the "
+             "effective contact friction (sliding mu, torsion) on the floor and the pads.")
     return "\n".join(L)
 
 

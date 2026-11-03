@@ -677,6 +677,14 @@ class BimoMJXEnv:
         # and sets solref = (-k, -b) on the floor and every sole pad (MuJoCo direct
         # stiffness/damping). The carpet..hard-floor range of the 2026-11-01 floors fit
         # (experiments/one-leg-stand/2026-11-01-floors-fit.md). Training only; None = off.
+        contact_mu_range: tuple | None = None,  # (lo, hi): batch-level EFFECTIVE foot/floor
+        # sliding friction -- each env draws mu ~ U(lo, hi) and sets it on the floor AND every
+        # sole pad. MuJoCo combines a contact's friction as the MAX of its two geoms, so
+        # friction_range (floor only) can never take the contact below the pads' 1.0; this
+        # supersedes it for the floor when set. Training only; None = off.
+        contact_torsion_range: tuple | None = None,  # (lo, hi) m: batch-level torsional
+        # friction U(lo, hi) on the floor and every pad (same MAX rule). The plant's 0.02 m
+        # per 3 mm pad is a ~2 cm patch radius: a yaw brake no small sole pad has.
         zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
@@ -1348,6 +1356,10 @@ class BimoMJXEnv:
             [g for g in range(self.mj_model.ngeom)
              if g == self._floor_gid or "_pad_" in (self.mj_model.geom(g).name or "")], dtype=np.int32)
         self._nom_solref = jp.asarray(np.array(self.mj_model.geom_solref))
+        self.contact_mu_range = (None if contact_mu_range is None
+                                 else tuple(float(v) for v in contact_mu_range))
+        self.contact_torsion_range = (None if contact_torsion_range is None
+                                      else tuple(float(v) for v in contact_torsion_range))
         self._nom_ipos = jp.asarray(np.array(self.mj_model.body_ipos))
         self._torso_bid = int(self.mj_model.body("torso").id)
         self.backlash_rad = float(np.deg2rad(backlash_deg))
@@ -3509,7 +3521,8 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      joint_frictionloss_range=None, nom_frictionloss=None,
                      jv=(0, 0), torso_bid=None, torso_mass_range=None,
                      torso_com_y=0.0, nom_ipos=None,
-                     floor_contact_range=None, contact_gids=None, nom_solref=None):
+                     floor_contact_range=None, contact_gids=None, nom_solref=None,
+                     contact_mu_range=None, contact_torsion_range=None):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3529,7 +3542,13 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
 
     floor_contact_range ((k_lo, k_hi), (b_lo, b_hi)): per-env foot/floor contact, k and b drawn
     log-uniformly, solref = (-k, -b) on contact_gids (the floor and the sole pads) -- carpet
-    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md."""
+    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md.
+
+    contact_mu_range (lo, hi) / contact_torsion_range (lo, hi): per-env EFFECTIVE foot/floor
+    sliding / torsional friction, ONE draw each set on the floor and every pad (contact_gids):
+    the pair friction is the elementwise max of the two geoms, so only setting both reaches
+    below the pads' nominal (experiments/policy/friction-dr). contact_mu_range replaces the
+    floor-only friction_range draw."""
     nbody = model.body_mass.shape[0]
     g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
     # (float() here breaks under jit: domain_randomize is traced inside
@@ -3555,6 +3574,14 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                                 maxval=1 + friction_range)
         friction = nom_friction.at[floor_gid, 0].set(
             nom_friction[floor_gid, 0] * ff)
+        if contact_mu_range is not None:
+            mu = jax.random.uniform(jax.random.fold_in(r_f, 21), minval=contact_mu_range[0],
+                                    maxval=contact_mu_range[1])
+            friction = friction.at[contact_gids, 0].set(mu)
+        if contact_torsion_range is not None:
+            tq = jax.random.uniform(jax.random.fold_in(r_f, 22), minval=contact_torsion_range[0],
+                                    maxval=contact_torsion_range[1])
+            friction = friction.at[contact_gids, 1].set(tq)
         if payload_max is not None and payload_bid is not None:
             mp = jax.random.uniform(r_p, maxval=payload_max)
             mass = mass.at[payload_bid].set(mp)

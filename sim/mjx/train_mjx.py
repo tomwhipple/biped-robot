@@ -104,7 +104,9 @@ class BatchedEnv(brax_base.Env):
                     torso_bid=e._torso_bid, torso_mass_range=e.torso_mass_range,
                     torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos,
                     floor_contact_range=e.floor_contact_range,
-                    contact_gids=e._contact_gids, nom_solref=e._nom_solref)
+                    contact_gids=e._contact_gids, nom_solref=e._nom_solref,
+                    contact_mu_range=e.contact_mu_range,
+                    contact_torsion_range=e.contact_torsion_range)
         return self._dr_cache[n]
 
     @property
@@ -335,6 +337,14 @@ def make_parser():
                         "(1/s^2) and damping b (1/s) drawn log-uniformly, solref=(-k,-b) on "
                         "the floor and the sole pads; needs DR on (--precision). The carpet.."
                         "hard range of experiments/one-leg-stand/2026-11-01-floors-fit.md")
+    p.add_argument("--contact-mu", default=None,
+                   help="lo,hi: per-env EFFECTIVE foot/floor sliding friction, one draw set on "
+                        "the floor AND the sole pads (MuJoCo takes the max of the pair, so the "
+                        "floor-only friction DR never goes below the pads' 1.0); replaces the "
+                        "floor friction draw; needs DR on (--precision). experiments/policy/friction-dr")
+    p.add_argument("--contact-torsion", default=None,
+                   help="lo,hi m: per-env torsional friction on the floor and the sole pads "
+                        "(plant: 0.02); needs DR on (--precision)")
     p.add_argument("--joint-frictionloss-range", default=None,
                    help="lo,hi N*m: per-env joint friction DR (one draw for "
                         "every servo DOF), e.g. 0.05,0.5; needs DR on "
@@ -750,6 +760,12 @@ def build_env_kw(args):
         if len(v) != 4 or not (0 < v[0] <= v[1] and 0 < v[2] <= v[3]):
             raise SystemExit("--floor-contact wants k_lo,k_hi,b_lo,b_hi (all > 0, lo <= hi)")
         env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
+    for flag, key in (("contact_mu", "contact_mu_range"), ("contact_torsion", "contact_torsion_range")):
+        if getattr(args, flag, None) is not None:
+            v = [float(x) for x in getattr(args, flag).split(",")]
+            if len(v) != 2 or not (0 <= v[0] <= v[1]):
+                raise SystemExit(f"--{flag.replace('_', '-')} wants lo,hi (0 <= lo <= hi)")
+            env_kw[key] = (v[0], v[1])
     if args.joint_frictionloss_range is not None:
         # get-up campaign 2026-10-22: friction DR (training only; the referee
         # grades at joint_frictionloss, or eval_precision --joint-frictionloss)
