@@ -9,8 +9,8 @@ OX, OY = 100.0, 60.0
 BOARD, SES = sys.argv[1], sys.argv[2]
 LABELS = [  # text, x, y, size, back side
     ("BIPED POWER LITE rev A", 48.0, 2.2, 1.0, False),
-    ("PACK", 2.0, 24.6, 1.0, False), ("BAL", 1.2, 31.4, 1.0, False),
-    ("BMS B-", 22.0, 3.6, 0.8, False), ("BMS P-", 28.6, 3.6, 0.8, False), ("SW", 20.4, 26.6, 0.8, False),
+    ("PACK", 1.5, 25.6, 1.0, False), ("BAL", 1.2, 31.4, 1.0, False),
+    ("BMS B-", 19.6, 15.4, 0.8, False), ("BMS P-", 19.6, 29.8, 0.8, False), ("SW", 25.4, 4.8, 0.8, False),
     ("15A", 34.0, 13.4, 1.0, False), ("3A", 34.0, 29.0, 1.0, False),
     # every part is on top, so the connector legends go on the back, in the pad-free areas;
     # mirrored text runs left from its anchor as seen from the front

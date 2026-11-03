@@ -55,6 +55,9 @@ pack balance lead (J2) ─ BMS cell taps                                      �
 | W1–W5 | the BMS | wire pads | W1 B−, W2 P− (system GND), W3 B3, W4 B2, W5 B1+ |
 | W6/W7 | the main switch | wire pads | W6 pack B+, W7 switched (VIN) |
 
+- **J1's plug faces out of the left edge.** The XT60's mating face overhangs the edge by 0.25 mm,
+  with its pins 16.1 mm in, as on the custom board. Ask the board house for no rail or panel on
+  that edge.
 - **J3 and J11 are different families** (XH and PH), so the two 2-pin leads cannot swap.
 - **The ESP32's readings:**
   - `RAIL_V` is SERVO+ divided by 5.7, giving 2.21 V at 12.6 V.
@@ -125,6 +128,11 @@ The KiCad files are generated: edit the tools, not the files.
 
 The relay's footprint (`power-lite.pretty/TE_PowerRelay_F7_PCB`) is drawn from TE's V23134
 datasheet; the XT60's is the custom board's.
+
+![Power lite, populated](../../docs/design-v6/figs/powerlite_3d.png)
+
+The XT60 and the relay show as simple bodies drawn from the makers' outlines (`tools/gen_3d.py`,
+`power-lite.3dshapes/`). The other parts use KiCad's stock 3D models.
 
 ![Power lite, bottom](../../docs/design-v6/figs/powerlite_bottom.png)
 

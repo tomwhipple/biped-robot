@@ -32,8 +32,10 @@ def rect(x0, y0, x1, y1):
 # ref: (x, y, rotation) in board mm, y down, rotation CCW as KiCad
 PLACE = {
     # pack, BMS and switch pads (left)
-    "J1": (5.0, 11.0, 270), "W1": (25.0, 9.0, 0), "W2": (31.0, 9.0, 0), "W6": (25.0, 27.0, 0),
-    "W7": (31.0, 27.0, 0), "J2": (4.0, 43.5, 90), "W5": (11.0, 34.5, 0), "W4": (11.0, 38.5, 0),
+    # J1 as rev B's board: the mating face (the footprint's straight edge) 0.25 mm past the left edge,
+    # the pins 16.1 mm in; pin 2 (B+) above pin 1 (B-)
+    "J1": (16.1, 19.0, 90), "W6": (23.0, 9.0, 0), "W7": (31.0, 9.0, 0), "W1": (23.0, 19.0, 0),
+    "W2": (23.0, 26.0, 0), "J2": (4.0, 43.5, 90), "W5": (11.0, 34.5, 0), "W4": (11.0, 38.5, 0),
     "W3": (11.0, 42.5, 0), "D3": (22.0, 42.0, 0),
     # fuses, relay, servo rail (top band)
     "F1": (30.0, 17.8, 0), "F2": (30.0, 33.0, 0), "K1": (68.0, 22.0, 90),
@@ -54,9 +56,9 @@ REF_AT = {"K1": (61.0, 22.0), "D3": (29.6, 46.4), "J2": (6.0, 31.4),
 
 # top-layer pours for the high-current nets: (net, polygon)
 F_ZONES = [
-    ("BATN", rect(1.0, 6.4, 28.0, 13.6)),
-    ("BATP", rect(1.0, 14.6, 27.6, 30.2)),
-    ("VIN", [(28.4, 15.6), (34.6, 15.6), (34.6, 44.8), (20.0, 44.8), (20.0, 39.4), (28.4, 39.4)]),
+    ("BATP", rect(1.0, 6.4, 26.4, 15.0)),
+    ("BATN", rect(8.0, 15.8, 26.4, 23.0)),
+    ("VIN", [(28.4, 6.0), (34.6, 6.0), (34.6, 44.8), (20.0, 44.8), (20.0, 39.4), (28.4, 39.4)]),
     ("SRV_F", rect(38.4, 15.4, 56.4, 25.4)),
     ("SERVOP", rect(64.4, 1.4, 85.6, 38.6)),
 ]
@@ -67,9 +69,10 @@ TRACKS = [(pcbnew.F_Cu, 1.5, "SERVOP", [(85.0, y - 2.5), (88.0, y - 2.5)]) for y
 # plane directly and the servo return current does not detour around a cut
 TRACKS += [(pcbnew.B_Cu, 0.5, "SERVO_DATA", [(88.0, 53.0), (89.9, 53.0), (89.9, 9.0), (88.0, 9.0)])]
 TRACKS += [(pcbnew.B_Cu, 0.5, "SERVO_DATA", [(88.0, y), (89.9, y)]) for y in (20.0, 31.0, 42.0)]
-TRACKS += [(pcbnew.F_Cu, 1.0, "BATP", [(4.0, 36.0), (4.0, 29.6)]),
-           (pcbnew.F_Cu, 0.6, "BATP", [(11.0, 34.5), (11.0, 29.6)]),
-           (pcbnew.B_Cu, 0.8, "BATN", [(4.0, 43.5), (8.6, 43.5), (8.6, 11.0), (5.0, 11.0)])]
+# (J2.4 up the left side, past the BATN pour, into the BATP pour; W5 across to it)
+TRACKS += [(pcbnew.F_Cu, 1.0, "BATP", [(4.0, 36.0), (4.0, 14.4)]),
+           (pcbnew.F_Cu, 0.6, "BATP", [(11.0, 34.5), (4.0, 34.5)]),
+           (pcbnew.B_Cu, 0.8, "BATN", [(4.0, 43.5), (6.6, 43.5), (6.6, 19.0), (16.1, 19.0)])]
 POWER_NETS = ("BATP", "BATN", "VIN", "SRV_F", "SERVOP", "GND")
 WIDE_NETS = ("LOGIC", "COIL_HI", "COIL_LO")
 
@@ -190,6 +193,8 @@ def main():
         elif ref in REF_AT:
             rf.SetPosition(P(*REF_AT[ref]))
             rf.SetTextAngleDegrees(0)
+        elif ref in ("W1", "W2", "W6", "W7"):   # the silk labels "BMS B-", "BMS P-" and "SW" name these
+            rf.SetVisible(False)
         for pad in fp.Pads():
             n = c["pins"].get(pad.GetNumber())
             if n:
