@@ -351,7 +351,14 @@ size (`domain_randomize`, the standard MJX pattern):
 
 - body mass and inertia × U(0.85, 1.15), per body; `--torso-mass-range r` draws the torso's scale from U(1−r, 1+r) instead (the legs-only runs use 0.4: the as-built torso is an unweighed estimate);
 - `--torso-com-y c`: the torso's CoM shifted laterally by U(−c, +c) m (±15 mm in the legs-only runs: the same model weight shift balanced ~3° better on one stance foot than the other);
-- floor friction × U(0.6, 1.4);
+- floor friction × U(0.6, 1.4). MuJoCo takes the MAX of a contact's two geom
+  frictions, so this alone never takes a foot contact below the sole pads' 1.0.
+  `--contact-mu lo,hi` draws the EFFECTIVE sliding μ instead and sets it on the
+  floor and every pad. `--contact-torsion lo,hi` does the same for the torsional
+  coefficient (plant 0.02 m, a yaw brake no 3 mm pad has). Both are off by
+  default. The sole's μ on the robot's floors is not measured; the guess is TPU
+  on wood ≈ 0.4–0.6
+  ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md));
 - gravity tilted by U(0, `--tilt-max`)° about a random azimuth — an un-level
   floor, as the IMU sees it (off by default);
 - payload mass U(0, `payload_max`), when that is set.

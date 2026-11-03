@@ -51,6 +51,10 @@ def _run_root(run):
 
 simh.run_root = _run_root
 
+if os.environ.get("GRADE_XML"):     # grade every run on one plant (e.g. bimo_biped_v6legs_meas.xml)
+    _GX = os.environ["GRADE_XML"]
+    simh.ESA._xml = lambda cfg: _GX if os.path.isabs(_GX) else os.path.join(rec.ROOT, "sim", _GX)
+
 FAST = dict(simh.MEAS_SERVO, dead15=20.0, tau15=33.0)
 STAND_CMD = simh.STAND
 P2 = math.pi / 2
@@ -230,9 +234,10 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         m["walk_dx_2s5"] = float(X[min(len(X) - 1, i0 + int(2.5 / DT))] - X[i0]) if len(X) > i0 else float("nan")
         m["walk_tilt_max"] = float(TL[seg].max()) if len(TL) > i0 else float("nan")
         # the robot's 2026-11-03 stride1 spin: yaw -19 deg at +180 ms, |gyro z| 3.9 rad/s.
-        # Step i0 - 1 is the first one under the walk command (set before its step).
+        # the command is set after tick i0 - 1's action, so tick i0 writes the first walk goal
+        # (the robot's +0 ms: the first goal off the stand); yaw from the tick before it
         yw = np.degrees(np.unwrap(np.array(YW)))
-        j0 = max(i0 - 1, 0)
+        j0 = i0
         if len(yw) > j0 + 9:
             y_ref = yw[j0 - 1] if j0 > 0 else yw[0]
             m["walk_yaw_180ms"] = float(yw[j0 + 9] - y_ref)
@@ -241,8 +246,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
             if v.get("trace"):
                 m["trace"] = dict(gz=GY[j0:j0 + 30, 2].tolist(), yaw=(yw[j0:j0 + 30] - y_ref).tolist(),
                                   goal=np.degrees(np.array(GO[j0:j0 + 30])).tolist(),
-                                  q=np.degrees(np.array(QM[j0:j0 + 30])).tolist(),
-                                  ncon_feet=None)
+                                  q=np.degrees(np.array(QM[j0:j0 + 30])).tolist())
     w = slice(int(5.0 / DT), min(n, len(GO)))
     if not fell and n - 250 > 100:
         m.update(S.J.jitter(GO[w], GY[w]))
