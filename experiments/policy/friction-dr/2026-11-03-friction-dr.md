@@ -19,6 +19,16 @@ than the sim's (−31° vs −19° at +180 ms). The sim reaches the robot's numb
 **both** a faster leg (instant servo set point) **and** low friction (μ ≤ 0.4, torsion
 ≤ 0.005): yaw −16 to −21° at +180 ms, rate trip.*
 
+*The robot's hanging 60° moves and this swing were then used to refit the hip pitch / knee
+envelope ([actuator-refit](../actuator-refit/2026-11-03-actuator-refit.md)). On the refit
+plant, walk18 trips the flail guard on body rate:*
+
+- *4/8 seeds at μ 1;*
+- *8/8 at μ 0.4–0.5 with torsion 0.005;*
+- *peak |gz| 3–4.4 rad/s.*
+
+*Its yaw at +180 ms still reaches only −5 to −9°, and nothing falls.*
+
 *Low friction is still a real, unmodelled gap. **walk16_act** (which also spun on the robot,
 11-02) spins in the low-μ sim the way walk18 did on the robot: at μ 0.3, torsion 0.005 it
 yaws −17° at +180 ms, peaks at 4.2 rad/s, and trips on rate at +0.36 s. Training could never
@@ -166,3 +176,117 @@ forced on the floor and the pads. stride1 cells also report yaw at +180 ms.
 It separates walk16_act (trips on rate 8/8, yaw −14 / −17°) from walk18 (0/0, −4 / −5°).
 It cannot catch walk18's robot spin, because the plant's leg is too slow (§1). Pass means "no
 trip, yaw at +180 ms within a few degrees of the μ 1 value".
+
+**The refit gates.** The actuator refit
+([actuator-refit](../actuator-refit/2026-11-03-actuator-refit.md)) matches the robot's
+stride1 swing. On that plant, walk18_shp10sq_s128r24 trips on rate 4/8 at μ 1 and 8/8 at
+μ 0.4, so the gate does catch it there. grade.py adds two probes:
+
+- `stride1 0.6 refit`: the refit plant (`REFIT_PLANT`, 12 V) with the fast servo at dead
+  40 ms;
+- `stride1 0.6 mu0.4 refit`: the same at μ 0.4, torsion 0.005.
+
+## 4. Smoothness (Tom 2026-11-03: "avoid big jerks, especially when a joint comes to a stop")
+
+**Grader metrics.** Every walk probe reports these (stride1 cells print them):
+
+- `walk_qdd_start` / `walk_qdd_stop`: the peak |joint acceleration| (rad/s², servo DOFs;
+  50 Hz differences of qvel, so a lower bound on the 2 ms peak). Start covers 0–300 ms after
+  the walk command; stop covers the swing ends, the last step and the stop, 0.3–1.2 s.
+- `walk_decel_*`: the same restricted to the part opposing the joint's motion.
+- `walk_wz_300ms`: the peak body yaw rate in the first 300 ms.
+- `walk_dL_300ms` (`_dLz`): the whole-body angular momentum change about the CoM.
+- `qacc_sq`, `action_acc`, `action_rate`: the per-tick means of the training terms below.
+
+**Training terms** (env_mjx, off by default):
+
+- `--w-qacc w` adds −w Σ qdd², with qdd the tick's mean joint acceleration;
+- `--w-action-acc w` adds −w Σ (a_t − 2a_{t−1} + a_{t−2})².
+
+They sit next to `w_action_rate` 0.3. On walk18_shp10sq's sim walk at 0.3 m/s, the per-tick
+means are Σqdd² ≈ 2300 (stand 0.4), action second difference 0.034, action rate 0.027. The
+weights chosen are:
+
+- w_qacc 4e-5, about 0.09 per tick on a walk (about 3 % of the tick's reward), with spikes
+  at the stops;
+- w_action_acc 1.0, about 0.035 per tick.
+
+These are starting points. The walk scores of a run that uses them confirm or reject them.
+
+walk18_shp10sq_s128r24, fast servo, μ 1 (`grade_base_meas.md`):
+
+| probe | peak qdd start / stop | peak wz 300 ms | dL 300 ms |
+|---|---|---|---|
+| stride1 0.6 | 73 / 97 rad/s² | 0.79 rad/s | 0.059 N·m·s |
+| stride1 0.6 refit | 114 / 170 rad/s² | 1.34 rad/s | 0.058 N·m·s |
+| stride1 0.6 mu0.4 refit | 118 / 170 rad/s² | 2.02 rad/s | 0.059 N·m·s |
+
+**The next fine-tune** (`night/1103fric03-robot_legs_walk21_fricact`, `…fric04-distill…`)
+combines:
+
+- the friction DR;
+- the refit actuator (`--supply-voltage 12 --servo-envelope hip_pitch=2.0:1.325,knee=2.0:1.281`);
+- the smoothness terms.
+
+Once its PR lands, it also takes the motion limiter (branch `motion-limiter`, flag
+`--fw-limit …`). Its gate is the two refit probes.
+
+## 5. The friction-DR student: `robot_legs_walk20_fric_s128r24`
+
+**The run.** `robot_legs_walk20_fric` fine-tunes walk18_shp10sq for 300M steps on
+`bimo_biped_v6legs_meas.xml`:
+
+- the job is `night/1103fric01…`, with seed 14;
+- it ran daytime on mira's GPU in 38 min (`gpu/fric_gpu.sh`, `gpu/train_robot_legs_walk20_fric.log`);
+- it was distilled with the stock 24-round DAgger in 151 s.
+
+Both are copied to `~/code/robot-mjx/sim/runs`.
+
+**The CPU referee walk gate** (meas plant):
+
+- stand_10s 8/8, drift 2.5 cm;
+- walk_steps_L/R 0/8 each, min peak 1.2 cm, median swing peak 2.9 cm;
+- falls 0 %.
+
+walk18_shp10sq_s128r24's own partial card is on the v6legs plant: stand 0/8, falls 67 %,
+median swing peak 1.5 cm.
+
+**grade.py, 8 seeds.** The baseline is `grade_base_meas.md`, the student is
+`grade_walk20_fric.md`. In walk / stride1 cells, "rate" is the peak rate EMA.
+
+| probe | walk18_shp10sq_s128r24 | walk20_fric_s128r24 |
+|---|---|---|
+| stand jitter mean / max | 0.126 / 0.280° | 0.113 / 0.200° |
+| power / hold | 0.58 / 0.21 W | 1.22 / 1.35 W |
+| squeeze / hold | 2.04 / 1.15° | 2.77 / 2.77° |
+| x1.5 · push 0.4 | 0/0 · 0/0 | 0/0 · 0/0 |
+| walk 0.3 → stop | 0/0, rate 0.78, dx 0.62 | 0/0, rate 0.95, dx 0.59 |
+| x2 | 8/8 | 8/8 |
+| push 0.5 | 6/6 falls/trips | 1/8 |
+| stride1 0.6 (μ 1) | 0/0, rate 0.73, yaw180 −3.0, qdd 73/97 | 0/0, rate 0.88, yaw180 −2.8, qdd 65/84 |
+| stride1 0.6 mu0.4 | 0/0, rate 0.98, yaw180 −4.7 | 0/0, rate 1.18, yaw180 −3.1 |
+| stride1 0.6 mu0.3 | 0/0, rate 1.09, yaw180 −6.2 | 0/0, rate 1.19, yaw180 −4.8 |
+| stride1 0.6 refit | 0/4 rate trips, rate 1.56 | 0/8 rate trips, rate 1.68 |
+| stride1 0.6 mu0.4 refit | 0/8, rate 2.03, yaw180 −8.9 | 0/8, rate 1.83, yaw180 −4.4 |
+
+The friction DR does what it targets:
+
+- on a slippery floor the body yaws less at +180 ms (−3 to −5° against −5 to −6°;
+  `sweep_walk20_fric.md`);
+- push 0.5 falls 1/8 instead of 6/6;
+- the stand is quieter.
+
+The costs:
+
+- the stand squeeze rises 2.0 → 2.8° and the hold power 0.2 → 1.35 W;
+- the guard's rate peak on stride1 and walks rises 0.73 → 0.88–1.19 rad/s, still under the
+  1.5 trip.
+
+On the refit actuator it is no fix: rate trips 8/8 at every μ (`sweep_refit_walk20_fric.md`),
+because it never trained on that leg. The trips fall at +0.90–0.96 s, after the stride's
+0.667 s cycle, i.e. at the **stop**, not the start (walk18 at μ 0.4: +0.66 s).
+
+**Verdict.** It is not a deploy candidate over walk18_shp10sq_s128r24: the squeeze and hold
+power regressed, and the refit gate is not passed. It is the control for the combined run
+(`night/1103fric03`: friction DR + refit actuator + the smoothness terms, plus the limiter
+once its PR lands).
