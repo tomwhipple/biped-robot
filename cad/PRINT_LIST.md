@@ -16,7 +16,7 @@ for the collar's flange screws.
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `power_bracket_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -41,7 +41,8 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `pelvis_v8` | 1 | 56.4 | 114.5 × 56 × 36 | ceiling down, the cell walls rising | no | holds the legs: both yaw cells under one 2.6 mm ceiling (a hole for each servo's free-hub post, a window for its back-cover platform, a slit over its connector trench), the windows for the torso's snap fingers, and the bearing housing's five pilot bosses; glued into `torso_v8` ([assembly §7a](../docs/assembly.md)) |
 | `torso_v8` | 1 | 125.3 | 128.4 × 122.5 × 71.5 | deck top down | **in its wide windows only**: 26 enforcer boxes in `print_settings.json` (manual supports, snug) | the deck with the girdle's ten pilots, the skins, the battery layer, the bay for the Pi + General Driver stack forward, the power bay aft and the battery door's opening in the +y skin; the windows are flat-topped |
 | `front_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the board-stack bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
-| `power_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the power bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
+| `power_cover_v8` | 1 | 25.0 | 122.5 × 71.5 × 15.3 | outer face down | no | the power bay's cap, 4.7 mm proud of the torso and 2.0 mm over the relay K1: the skins and deck carried aft to a plate with vent slots, a lip inside the torso, three corner blocks (pilots teardropped); 3 × M2.5 × 8 flat-heads in through the skins ([assembly §9c](../docs/assembly.md)) |
+| `power_bracket_v8` | 1 | 4.1 | 64.7 × 44.4 × 4.7 | the face that sits on the standoffs down | no | the BMS's tray: a 2.5 mm plate on two M2.5 × 15 standoffs in the power board's +y holes, 2 × M2.5 × 6 flat-heads; a ledge and two stops rise to the BMS's PCB ([assembly §9c](../docs/assembly.md)) |
 | `battery_door_v8` | 1 | 11.4 | 79.8 × 29.6 × 12.4 | outer face down | no | the +y skin over the pack and the power board's J1: a bevelled tab aft, one M2.5 × 8 flat-head forward, two ribs that stop the pack ([assembly §10](../docs/assembly.md)) |
 | `yaw_bearing_housing` | 1 | 25.2 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into `pelvis_v8`'s bosses. **A housing printed for `pelvis_v7` does not fit them: reprint it** |
 | `yaw_carrier_v6` | 2 | 27.3 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.48, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
@@ -59,14 +60,16 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 **Part notes:**
 
-- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `battery_door_v8`**
-  - The torso is five prints (the pelvis, the torso, two covers and the
-    battery door) on two plates (`print_settings.json` `plates`, `make slice`):
-    `torso_frame` (the torso, the pelvis and the door: 6 h 26 m, 192 g) and
-    `torso_covers` (both covers: 1 h 12 m, 35 g). The covers do not fit beside
-    the torso. The pelvis, the covers and the door print without
-    supports: the pelvis's ceiling is on the bed, the covers' vent slots are
-    cut through flat plates, and the door's tab is bevelled 40° off vertical.
+- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `power_bracket_v8`, `battery_door_v8`**
+  - The torso is six prints (the pelvis, the torso, two covers, the BMS
+    bracket and the battery door) on two plates (`print_settings.json`
+    `plates`, `make slice`): `torso_frame` (the torso, the pelvis and the door:
+    6 h 26 m, 192 g) and `torso_covers` (both covers and the BMS bracket:
+    1 h 32 m, 45 g). The covers do not fit beside the torso. The pelvis,
+    the covers, the bracket and the door print without supports: the pelvis's
+    ceiling is on the bed, the covers' vent slots are cut through flat plates,
+    everything on the cap and the bracket rises from its plate, and the
+    door's tab is bevelled 40° off vertical.
   - The torso's windows have flat tops. Printed deck down, a window's bottom
     edge is the top of its opening, so each one wider than an 8 mm bridge (26
     of them, the door's opening among them) gets support inside it and

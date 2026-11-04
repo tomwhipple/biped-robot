@@ -226,11 +226,21 @@ def part_front_cover():
 
 
 def part_power_cover():
+    """The power bay's cap, PCAP_PROUD aft of the torso (torso_v8.py)."""
     s, ok = _try("torso_v8", "power_cover_v8")
     if ok:
         return s
-    return Pos((V.HOUSING_X[0] + V.PWRB_AFT_X) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
-        V.PWRB_AFT_X - V.HOUSING_X[0], 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+    return Pos((V.PCAP_X[0] + V.PCAP_X[1]) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
+        V.PCAP_X[1] - V.PCAP_X[0], 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+
+
+def part_power_bracket():
+    """The BMS's tray on two standoffs in the power board's +y holes (torso_v8.py)."""
+    s, ok = _try("torso_v8", "power_bracket_v8")
+    if ok:
+        return s
+    return Pos((V.PBR_X[0] + V.PBR_X[1]) / 2, (V.BMS_Y[0] + V.BMS_Y[1]) / 2, (V.BMS_Z[0] + V.BMS_Z[1]) / 2) * Box(
+        V.PBR_X[0] - V.PBR_X[1], V.BMS_Y[1] - V.BMS_Y[0], V.BMS_Z[1] - V.BMS_Z[0])
 
 
 def part_battery_door():
@@ -295,9 +305,21 @@ def mock_gd():
 
 
 def mock_power_board():
-    """The power board's PCB and tall parts (torso_v8.mock_pwrb)."""
+    """The power board (power lite): its PCB and tall parts (torso_v8.mock_pwrb)."""
     import torso_v8
     return torso_v8.mock_pwrb()
+
+
+def mock_power_standoffs():
+    """The BMS bracket's two M2.5 x 15 standoffs on the power board (torso_v8.mock_pwrb_standoffs)."""
+    import torso_v8
+    return torso_v8.mock_pwrb_standoffs()
+
+
+def mock_bms():
+    """The BMS, ShillehTek CF-3SJH25A-C, on the bracket (torso_v8.mock_bms)."""
+    import torso_v8
+    return torso_v8.mock_bms()
 
 
 def mock_roll_servo_in_foot(side):
@@ -408,6 +430,9 @@ def _torso_pieces():
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
         (0, "power_board_mock", COL_MOCK, Pos(0, 0, z) * mock_power_board()),
+        (0, "power_standoffs_mock", COL_MOCK, Pos(0, 0, z) * mock_power_standoffs()),
+        (0, "power_bracket_v8", COL_PRINT, Pos(0, 0, z) * part_power_bracket()),
+        (0, "bms_mock", COL_MOCK, Pos(0, 0, z) * mock_bms()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
         (0, "neck_floor", COL_PRINT, Pos(0, 0, z) * part_neck_floor()),
         (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,

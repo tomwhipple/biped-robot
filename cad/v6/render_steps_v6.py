@@ -57,7 +57,10 @@ BENCH = {
     "servo_hip_roll_L": (0, 0, -1),      # up into the downward-open bay (cad/check_assembly SERVO_INSERT yaw_carrier)
     "neck_floor": (0, 0, -1),            # up into the tube from below, on the bench (neck_floor.INSERT)
     "pelvis_v8": (0, 0, -1),             # up into the torso from below, snapped and glued (torso_v8)
-    "power_board_mock": (-1, 0, 0),      # onto its standoffs from aft, the cover off
+    "power_board_mock": (-1, 0, 0),      # onto its standoff bosses from aft, the cap off
+    "power_standoffs_mock": (-1, 0, 0),  # the BMS bracket's standoffs in its +y holes
+    "power_bracket_v8": (-1, 0, 0),      # then the BMS bracket onto them, the BMS onto its tape (torso_v8)
+    "bms_mock": (-1, 0, 0),
     "power_cover_v8": (-1, 0, 0),
     "pi4_mock": (1, 0, 0),               # the stack goes in from the front, the front cover off
     "gd_mock": (1, 0, 0),
@@ -77,7 +80,9 @@ HIP_R = [n[:-1] + "R" for n in HIP]
 HOUSING = ["yaw_bearing_housing"]
 TORSO = ["pelvis_v8", "torso_v8"]
 TORSO_DONE = TORSO + HOUSING                                            # once the hips are built
-BOARDS = ["pi4_mock", "gd_mock", "front_cover_v8", "power_board_mock", "power_cover_v8"]
+STACK = ["pi4_mock", "gd_mock", "front_cover_v8", "power_board_mock", "power_standoffs_mock"]
+POWER_BAY = ["power_bracket_v8", "bms_mock", "power_cover_v8"]
+BOARDS = STACK + POWER_BAY
 PACK = ["pack_mock", "battery_door_v8"]
 NECK = ["shoulder_girdle_v6", "neck_floor", "servo_neck"]
 ARM = ["servo_shoulder_L", "arm_upper_L", "servo_elbow_L", "arm_fore_L"]
@@ -115,8 +120,13 @@ STEPS = [
      ["yaw_carrier_L", "servo_hip_roll_L"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
      TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
-    ("11_boards", "9. The Pi with the General Driver on it in from the front, then the power board from aft; the covers",
-     TORSO_DONE + HIP + HIP_R + LEG + LEG_R, BOARDS, 45, (150, -20), ["torso_v8"]),
+    ("11_boards", "9. The Pi with the General Driver on it in from the front, then the power board from aft",
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R, STACK, 45, (150, -20), ["torso_v8"]),
+    ("11b_power_bay", "9c. The BMS bracket onto its standoffs, then the BMS onto its tape",
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK, POWER_BAY[:2], 35, (-25, -15),
+     ["power_board_mock", "power_bracket_v8", "bms_mock"]),
+    ("11c_power_cap", "9c. The cap over them: three screws in through the skins",
+     TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK + POWER_BAY[:2], POWER_BAY[2:], 40, (-40, -20), ["torso_v8"]),
     ("12_pack", "10. The pack in sideways through the battery door's opening, then the door: one screw",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS, PACK, 45, (-60, -20), ["torso_v8"]),
     ("13_neck_floor", "11 (bench). Neck floor up into the girdle's tube, four screws into the bosses",
@@ -151,7 +161,7 @@ STEPS = [
 # per-step camera distance, in units of "the framed box's diagonal just fits"
 ZOOM = {"07_yaw_servo": 1.3, "08_bearings_into_housing": 1.3, "09_housing": 1.3, "09a_yaw_carrier": 2.0,
         "09b_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
-        "13_neck_floor": 2.4, "14_neck_servo": 1.4, "16b_shoulder_cheeks": 1.2, "17_upper_arm": 1.5}
+        "11b_power_bay": 1.5, "13_neck_floor": 2.4, "14_neck_servo": 1.4, "16b_shoulder_cheeks": 1.2, "17_upper_arm": 1.5}
 
 
 def comes_from(label):

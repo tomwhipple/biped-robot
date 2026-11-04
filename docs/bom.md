@@ -161,7 +161,7 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | item | qty | spec / filter | have |
 |---|---|---|---|
 | **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
-| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso has no pocket for it: its power bay holds the custom power board (#112) | |
+| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso holds a 56 × 45 × 8 mm one (the ShillehTek CF-3SJH25A-C's datasheet size) on the BMS bracket in its power bay (#213) | |
 | inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
 | mini blade fuses | 1 pack | 10 A and 15 A | |
 | bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
@@ -180,9 +180,12 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   - An HV pack charges to 13.05 V, above the 12.6 V the servo listing and the
     board's silkscreen allow.
 - **Protection board**
-  - No board is selected yet.
-  - The torso has no pocket for a separate protection board and buck: its power
-    bay holds the custom power board (#112; [DESIGN.md §5.3](../DESIGN.md)).
+  - The ShillehTek CF-3SJH25A-C, characterised on the bench before it goes in
+    the robot (Tom, 2026-11-02:
+    [the power-lite options](design-v6/2026-11-02-power-lite-options.md)).
+  - The torso holds one 56 × 45 × 8 mm board on the BMS bracket over the power
+    board ([DESIGN.md §5.3](../DESIGN.md), [assembly.md §9c](assembly.md)); a
+    bigger one has no place.
   - The UART "smart" boards that give per-cell telemetry are the JBD SP04S010
     (80 × 60 × 12 mm) and the Daly R05J (100 × 65 × 13 mm).
 - **The Pi's 5 V** comes from the General Driver's own buck, through the
@@ -274,12 +277,15 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **128** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front and power covers to the torso 8, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **127** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front cover 4 and power cap 3 to the torso, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
 | M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
 | 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
-| M2.5 × 6 pan self-tap | 4 | the power board onto its standoff bosses | |
+| M2.5 × 6 pan self-tap | 2 | the power board onto its −y standoff bosses | |
+| M2.5 × 15 male-female standoff, 6 mm male | 2 | the power board onto its +y standoff bosses; the BMS bracket screws onto them | |
+| M2.5 × 6 flat-head (90° countersunk), machine | 2 | the BMS bracket onto its standoffs | |
+| double-sided foam tape, about 1 mm | 1 strip | the BMS onto the BMS bracket (#213) | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
 

@@ -219,7 +219,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
-    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "battery_door_v8", carrier,
+    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "power_bracket_v8", "battery_door_v8", carrier,
               "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
@@ -238,9 +238,12 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     if p.m_pi4 > 0:
         t.append(box_props(V.PI4_MASS * 1e-3, [(V.PI_PCB_X0 + V.PI_COMP_X) / 2, (V.PI_Y[0] + V.PI_Y[1]) / 2, zdeck + V.PI_CZ], [V.PI_COMP_TOP + V.PI_PCB_T, V.PI_OUTLINE[0], V.PI_OUTLINE[1]]))
     t.append(box_props(V.GD_MASS * 1e-3, [(V.GD_PCB_X0 + V.GD_COMP_X) / 2, 0, zdeck + (V.GD_BOT_Z + V.GD_TOP_Z) / 2], [V.D.BOARD_GD_COMP + V.D.BR_PCB_T, V.D.BOARD_GD_OUTLINE[0], V.D.BOARD_GD_OUTLINE[1]]))
-    if p.m_power > 0:
+    if p.m_power > 0:   # the power board, and its BMS on the BMS bracket
         t.append(box_props(V.PWR_MASS * 1e-3, [(V.PWR_X[0] + V.PWR_X[1]) / 2, (V.PWR_Y[0] + V.PWR_Y[1]) / 2,
                                                 zdeck + (V.PWR_Z[0] + V.PWR_Z[1]) / 2], [V.PWR_BOARD[1], V.PWR_BOARD[0], V.PWR_BOARD[2]]))
+        t.append(box_props(V.BMS_MASS * 1e-3, [V.BMS_C[0], V.BMS_C[1], zdeck + V.BMS_C[2]],
+                           [V.BMS_BOX[1], V.BMS_BOX[0], V.BMS_BOX[2]]))
+        t.append(mesh_props(stl("power_bracket_v8"), [0, 0, zdeck]))
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     if p.arms:
         t += [mesh_props(stl("shoulder_girdle_v6"), [0, 0, zdeck]),

@@ -151,8 +151,8 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
 | §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
-| §9c power board | M2.5 × 6 pan | 4 |
-| §9c power cover | M2.5 × 8 flat | 4 |
+| §9c power board: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
+| §9c BMS bracket onto the standoffs / power cap | M2.5 × 6 flat / M2.5 × 8 flat | 2 / 3 |
 | §10 battery door | M2.5 × 8 flat | 1 |
 | §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
@@ -422,7 +422,8 @@ Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
 The Pi and the General Driver go in as one stack, in the bay in front of the
 pelvis, with the front cover off: the Pi on four standoffs off the front inner
 wall, the General Driver plugged onto it as a HAT. The power board goes into
-the bay right behind the pelvis, with the aft cover off.
+the bay right behind the pelvis, with the cap off, and its BMS on a bracket
+over it.
 
 ![The stack in from the front, the power board from aft](assembly/v6_11_boards.png)
 
@@ -457,22 +458,76 @@ the bay right behind the pelvis, with the aft cover off.
 - **The front cover:** set it between the skins' front ends and drive **4 ×
   M2.5 × 8 flat-heads** in through the skins into its corner blocks.
 
-### 9c. Power board and cover
+### 9c. Power board, BMS bracket, BMS and cap
 
-- **The power board** is the custom board of PR #112. It goes into the bay
-  behind the pelvis from aft, with the cover off: vertical, parts facing aft,
-  onto the four 6 mm standoff bosses on the aft inner wall, with **4 × M2.5 ×
-  6 pan** screws through its corner holes.
-- J1, the XT60 for the pack, is on the board's +y edge. The pack's lead comes
+The power bay holds the power board (power lite, PR #209,
+[pcb/power-lite](../pcb/power-lite/README.md)), its BMS (a ShillehTek
+CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
+(`power_bracket_v8`), and the **cap** (`power_cover_v8`) over them (#213).
+
+![The power bay from aft: exploded; the board, bracket and BMS in place; the cap on; a section at z = −25](assembly/power_bay_v8.png)
+
+1. **Wire the BMS to the board first**, on the bench, after the BMS's bench
+   check: power lite's [assembly guide](../pcb/power-lite/assembly.md), step 13
+   (W1 → B−, W2 → P−, W3/W4/W5 → B3/B2/B1+).
+   - Cut the wires for the BMS's place in the bay: it sits 18.5 mm off the
+     board's parts face, over the W pads, its P−/P+ edge up and its B− and B3
+     corners toward the fuses.
+   - The two 14 AWG wires loop over the BMS's top edge to B− and P−: there are
+     7 mm between that edge and the deck.
+   - The 24 AWG cell taps come up to B3, B2 and B1+ from below, through their
+     corner pads' plated holes. The corner pads stand past the bracket's edges.
+   - The BMS then hangs on its wires while the board goes in.
+2. **The board** goes in from aft: vertical, parts facing aft, onto the four
+   6 mm standoff bosses on the aft inner wall.
+   - Its −y holes (H2, H4): **2 × M2.5 × 6 pan** screws.
+   - Its +y holes (H1 at the top, H3 at the bottom): **2 × M2.5 × 15
+     male-female standoffs**, their 6 mm male thread through the board into the
+     bosses. Turn them with a 5 mm nut driver.
+3. **The BMS bracket** onto the two standoffs: **2 × M2.5 × 6 flat-heads**
+   into their tops, countersunk in the bracket. The bottom screw ends up under
+   the BMS, so it goes in first.
+4. **The BMS** onto the bracket, component side aft, on double-sided foam tape.
+   - Press it straight in from aft. It sits between three stops on the
+     bracket: a ledge under its bottom edge, a stop over its top edge, and a
+     stop at its −y edge.
+   - The +y skin is 0.9 mm off its other edge, and the cap is 2.2 mm off its
+     parts, so it stays put if the tape lets go.
+   - Its four corner pads carry pack voltage: nothing metal may touch them.
+   - **Its size, pads and margins are the datasheet's (DS-NA405), not
+     measured.** Measure it on arrival and put the values in `BMS_*` in
+     `cad/v6/dimensions_v6.py`. The stops bear on a 2 mm margin at its edge
+     that is assumed to be free of parts.
+
+   ![The BMS bracket onto its standoffs, then the BMS onto its tape](assembly/v6_11b_power_bay.png)
+5. **The cap** goes on from aft: its plate stands 4.7 mm aft of the torso and
+   2.0 mm over the relay K1. Drive **3 × M2.5 × 8 flat-heads** in through the
+   skins into its corner blocks: the +y top, −y top and −y bottom holes.
+   - The torso's +y bottom hole stays empty: the BMS's lower corner is where
+     a block there would stand.
+
+   ![The cap over them: three screws in through the skins](assembly/v6_11c_power_cap.png)
+
+**What is reached how:**
+
+- **F1/F2**, the fuses, pull straight out aft with the cap off. The BMS stands
+  1.0 mm past their +y ends and 2.2 mm above their tops. Grip their wide faces,
+  or use a MINI fuse puller.
+- **J1**, the pack's XT60, is on the board's +y edge. The pack's lead comes
   through the aft wall's +y end window and loops into it in the 17.4 mm beside
-  the board's edge. Whether the plug and its 12 AWG lead fit there is **not
-  checked**: check it at the first fit. The servo headers J4–J8 are on the −y
-  edge and the control connectors along the bottom edge.
-- The fuses F1/F2 and every connector are reached with the cover off.
-- Its wiring is the power-circuit design's (PR #112, [wiring.md](wiring.md)).
-  The current budget and the inlet are open (#77; [bom.md §3](bom.md#3-power)).
-- **The cover:** set it between the skins' aft ends and drive **4 × M2.5 × 8
-  flat-heads** in through the skins into its corner blocks.
+  that edge, under the bracket. It is unplugged through the battery door
+  (§10). Whether the plug and its 12 AWG lead fit there is **not checked**:
+  check it at the first fit.
+- **J2**, the pack's balance plug, is under the BMS and below the door's sill.
+  How it is unplugged at a pack swap is **open**.
+- **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
+  along its bottom edge: all reached with the cap off.
+- The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
+  The main switch (W6/W7) has **no place in the torso yet**.
+
+The cap and the bracket print without supports:
+
+![The cap and the BMS bracket as they lie on the bed](assembly/power_bay_prints_v8.png)
 
 ## 10. The pack and the battery door
 
@@ -490,7 +545,8 @@ The pack goes in and out sideways, through the **battery door** in the +y skin
    blocks under the deck rail.
 4. **Plug it in:** its lead runs aft from its +y end, through the aft wall's
    +y end window into the power bay, and loops into J1 on the power board's +y
-   edge (§9c), all inside the door's opening.
+   edge (§9c), all inside the door's opening. Its balance plug goes into J2,
+   under the BMS (§9c).
 5. **Close the door:** hook its tab (the bevelled aft edge) behind the power
    bay's skin, swing the front edge in, and drive **1 × M2.5 × 8 flat-head**
    through it into the post on the front inner wall. The door's two inner ribs
@@ -509,7 +565,8 @@ The pack goes in and out sideways, through the **battery door** in the +y skin
    unpowered shoulder holds it there is not measured: hold it.
 2. **The door:** the screw out, the front edge swung out about the tab to
    about 40° (so the tab's tip clears the jamb), then the door lifted away.
-3. **Pull the XT60 off J1** and back through the aft wall's window.
+3. **Pull the XT60 off J1** and back through the aft wall's window, and the
+   balance plug off J2 (§9c: how is open).
 4. **Slide the pack out** sideways from under the neck floor's pad.
 5. Fit the new one as steps 3–5 above.
 
@@ -723,5 +780,8 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 | item | where |
 |---|---|
 | ID map, harness, lead lengths, current budget | #77 |
-| room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #112 |
+| room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #209 |
+| the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
+| unplugging the balance plug at J2 at a pack swap (under the BMS, below the door's sill) | §9c, §10; #213 |
+| where the main switch (W6/W7) mounts, or none | §9c; #213 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |

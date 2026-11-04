@@ -83,7 +83,9 @@ PARTS = [
     ("front_cover_v8", _lazy("torso_v8", "front_cover_v8"), 1,
      "outer face down, no supports; the board-stack bay's front wall, 4 screws through the skins"),
     ("power_cover_v8", _lazy("torso_v8", "power_cover_v8"), 1,
-     "outer face down, no supports; the power bay's aft wall, 4 screws through the skins"),
+     "outer face down, no supports; the power bay's cap (K1 under it), 3 screws through the skins"),
+    ("power_bracket_v8", _lazy("torso_v8", "power_bracket_v8"), 1,
+     "flat, no supports; the BMS's tray on two standoffs in the power board's +y holes"),
     ("battery_door_v8", _lazy("torso_v8", "battery_door_v8"), 1,
      "outer face down, no supports; the +y skin over the pack and J1: a bevelled tab aft, one screw forward"),
     ("yaw_bearing_housing", _lazy("yaw_bearing_housing", "yaw_bearing_housing"), 1,
@@ -199,7 +201,7 @@ def main(argv=None):
             out.append(f"{name:20s} {qty:3d} {'-':>7s} {'-':>22s}  {note}")
         else:
             out.append(f"{name:20s} {qty:3d} {m:7.1f} {dims[0]:6.1f}x{dims[1]:6.1f}x{dims[2]:6.1f}  {note}")
-    elec = V.BATT_MASS + V.PI4_MASS + V.GD_MASS + V.PWR_MASS + V.CAM3_MASS + V.WIRING_MASS
+    elec = V.BATT_MASS + V.PI4_MASS + V.GD_MASS + V.PWR_MASS + V.BMS_MASS + V.CAM3_MASS + V.WIRING_MASS
     servos = servo_mass_g()
     counts = ", ".join(f"{n} x {k}" for k, n in SERVO_COUNT.items() if n)
     out.append("")

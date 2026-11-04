@@ -551,31 +551,29 @@ assert PI_TOP_Z < -DECK_T, "Pi 4B must be fully under the deck"
 assert PI_Y[1] + PI_USB_PROUD < TORSO_IN_HW, "Pi 4B does not fit across the torso"
 assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
-# --- AFT BAY: the power board (pcb/power-board on design/power-circuit, PR
-# #112): 97 x 64.5 x 1.6, every part on the top side, four M2.5 holes 3.2 in
-# from the corners. Vertical, right behind the pelvis and so beside the pack
-# (Tom, 2026-10-14), parts facing aft behind a screwed cover (power_cover_v8).
-# Its tallest part is C21, a Panasonic EEU-FR1E102 can, 10 x 20 (+-2) mm; its
-# THT leads stand <= 2.5 mm below it, and its 6 mm standoffs keep them clear of
-# the bearing housing's rear lugs (x >= -43.3). Seen from the parts side its
-# left edge (J1, the XT60, mating along the board) is at +y, so the board sits
-# hard to -y: the pack's lead comes through the aft wall's +y window and loops
-# into the plug in the room beside that edge. The servo headers J4-J8 are on
-# its -y edge, the control connectors along its bottom edge, the fuses along
-# its top edge.
+# --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
+# 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
+# side, four M2.5 holes 3.2 in from the corners. Vertical, right behind the
+# pelvis and so beside the pack (Tom, 2026-10-14), parts facing aft, on four
+# 6 mm standoff bosses off the aft inner wall; its THT leads stand <= 2.5 mm
+# below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
+# the parts side (from aft) its left edge is at +y: J1, the pack's XT60, mates
+# along the board out of that edge, so the board sits hard to -y and the
+# pack's lead comes through the aft wall's +y window and loops into the plug in
+# the room beside that edge. The servo headers J4-J8 are on its -y edge, J3,
+# J11 and J12 along its bottom edge, and the relay K1 (the tallest part) and
+# the fuses F1/F2 in its upper middle. Its BMS (below) is wired to its W pads
+# and rides a bracket over the board's +y part, beside the fuses; the cover is
+# a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
 PWRB_HOLE_D = 2.7
 PWRB_T = 1.6
-PWRB_COMP = 22.0                              # C21's can at its +2 tolerance
-PWRB_COMP_AIR = 2.0
 PWRB_UNDER = 2.5                              # THT leads below the board
 PWRB_STANDOFF = 6.0                           # wall face .. solder side
 PWRB_WALL_X = AFT_WALL_X                      # its standoffs grow off the aft inner wall
 PWRB_PCB_X1 = PWRB_WALL_X[0] - PWRB_STANDOFF  # -46.81 solder face
 PWRB_PCB_X0 = PWRB_PCB_X1 - PWRB_T            # -48.41 parts face
-PWRB_COMP_X = PWRB_PCB_X0 - PWRB_COMP         # -70.41
-PWRB_AFT_X = PWRB_COMP_X - PWRB_COMP_AIR      # -72.41 the cover's inner face
 PWRB_Y = (-(TORSO_IN_HW - 0.5), -(TORSO_IN_HW - 0.5) + PWRB_OUTLINE[0])   # -56.96..+40.04
 PWRB_TOP_Z = -DECK_T - 0.5                    # -5.5
 PWRB_BOT_Z = PWRB_TOP_Z - PWRB_OUTLINE[1]     # -70.0
@@ -584,9 +582,99 @@ PWRB_HOLES_YZ = [(y, z) for y in (PWRB_Y[0] + PWRB_HOLE_INSET, PWRB_Y[1] - PWRB_
                  for z in (PWRB_BOT_Z + PWRB_HOLE_INSET, PWRB_TOP_Z - PWRB_HOLE_INSET)]
 # room beside the board's +y edge for the pack's XT60 plug and the loop of its lead
 PWRB_XT60_ROOM = TORSO_IN_HW - PWRB_Y[1]      # 17.42
-HOUSING_X = (PWRB_AFT_X - COVER_T, HOUSING_FRONT_X)                   # -75.01..+53.34 outer
+
+
+def pwrb_yz(bx, by):
+    """Board coords (power-lite.kicad_pcb: origin at the top-left corner seen
+    from the parts side, bx right, by down) -> pelvis-local (y, z)."""
+    return PWRB_Y[1] - bx, PWRB_TOP_Z - by
+
+
+# Its parts above the resistors' 2.5 mm, from power-lite.kicad_pcb (PR #209)
+# and its STEP (kicad-cli pcb export step, 2026-11-03): (ref, bx0, bx1, by0,
+# by1, height off the parts face; a plug's mated height where one mates).
+# Heights from the makers' drawings: Amass XT60PW (8.4), JST XH and PH (9.8 and
+# 8.0 mated), Keystone K75 p.48 (the 3568 holder, 7.37), TE V23134 F7 (the
+# relay cover, 25.2 max, on 1.5 standoffs), Littelfuse MINI (16.3 overall: the
+# bound, blade tips on the board), Panasonic EEU-FR (10 x 20, +2 as before).
+# The Molex 22-03-5035 + 5264 mated height is NOT verified (15 assumed).
+PWRB_PARTS = (
+    ("J1", -0.25, 17.95, 7.65, 23.15, 8.4),
+    ("J2", 1.65, 7.40, 33.55, 45.95, 9.8),        # the pack's balance plug in it
+    ("F1", 26.96, 42.96, 16.13, 22.86, 7.37),     # the holders
+    ("F2", 26.96, 42.96, 31.33, 38.06, 7.37),
+    ("F1 fuse", 29.51, 40.41, 17.60, 21.40, 16.3),
+    ("F2 fuse", 29.51, 40.41, 32.80, 36.60, 16.3),
+    ("K1", 44.50, 70.70, 8.90, 35.10, 26.7),
+    ("C1", 73.50, 83.50, 26.00, 36.00, 22.0),
+    ("D2", 73.39, 78.61, 5.50, 21.74, 5.7),       # the TVS diodes, DO-201 lying down
+    ("D3", 21.50, 37.74, 39.38, 44.62, 5.7),
+    ("J3", 25.55, 32.95, 57.15, 62.90, 9.8),
+    ("J11", 38.05, 43.95, 59.25, 63.80, 8.0),
+    ("J12", 50.05, 67.95, 59.25, 63.80, 8.0),
+    ("J4-J8", 84.90, 89.80, 1.55, 55.45, 15.0),
+    ("Q1-Q2", 56.75, 62.83, 43.09, 52.83, 7.3),
+    ("LED1", 33.77, 37.17, 48.10, 51.90, 8.3),
+    ("LED2", 81.77, 85.17, 58.10, 61.90, 8.3),
+    ("C2", 71.75, 77.25, 56.25, 58.75, 5.1),
+)
+PWRB_LOW_H = 3.3                              # the rest: resistors, D1 (DO-41)
+PWRB_COMP = max(p[5] for p in PWRB_PARTS)     # 26.7, K1
+PWRB_COMP_AIR = 2.0
+PWRB_COMP_X = PWRB_PCB_X0 - PWRB_COMP         # -75.11 K1's top
+PWRB_AFT_X = PWRB_COMP_X - PWRB_COMP_AIR      # -77.11 the cover's inner face
+PWRB_FUSE_END_Y = min(pwrb_yz(p[1], 0)[0] for p in PWRB_PARTS if p[0].endswith("fuse"))   # 10.53 F1/F2's +y end
+# The torso's aft end and the cover's seat: the torso (its skins, deck, skin
+# windows and the cover's skin screw holes) was drawn round a flat cover 24.0
+# off the board's parts face, and stays so; the cover is a cap (power_cover_v8)
+# whose inner face is PWRB_AFT_X, PCAP_PROUD aft of the torso's end.
+PCOV_SEAT_X = PWRB_PCB_X0 - 24.0              # -72.41 where the torso's aft-bay features are drawn from
+TORSO_AFT_X = PCOV_SEAT_X - COVER_T           # -75.01 the skins' and the deck's aft end
+PCOV_SCREW_X = PCOV_SEAT_X + 4.0              # -68.41 the cover's skin screws (torso_v8 COVER_BLOCK)
+PCOV_SCREW_Z = (-DECK_T - 0.2 - 3.0, TORSO_BOT_Z + 3.0)                # -8.2 / -68.5
+PCAP_X = (PWRB_AFT_X - COVER_T, PWRB_AFT_X)   # -79.71..-77.11 the cap's plate
+PCAP_PROUD = TORSO_AFT_X - PCAP_X[0]          # 4.70 aft of the torso
+PCAP_BLOCK_H = 5.8                            # its corner blocks, tall (z): 3.0 to the deck side of the screw
+HOUSING_X = (TORSO_AFT_X, HOUSING_FRONT_X)    # -75.01..+53.34 the torso, outer
 HOUSING_LEN = HOUSING_X[1] - HOUSING_X[0]                             # 128.35
 assert HOUSING_LEN <= D.BED, "torso does not fit the bed"
+assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
+# The BMS: ShillehTek CF-3SJH25A-C ("3S 12V 18650 Lithium Battery Protection
+# Board with Balancing 25A", Tom 2026-11-02), wired to the board's W1-W5 (no
+# connectors). NOT BOUGHT YET: its outline and thickness are its datasheet
+# DS-NA405 rev 1.0's (the PCB's own silkscreen: 56 x 45 x 1.2; no drawing,
+# no mounting holes, only the four corner pads, live at pack potential, with
+# a plated hole each) and its overall 8 mm is the older ShillehTek manual's
+# (which gives 58 x 45 x 8) -- MEASURE ALL OF IT ON ARRIVAL. It goes component
+# side aft on double-sided foam tape on the bracket, 45 across (y), its P+/P-
+# edge up; its pads, approximate (datasheet figure 1): B- top -y, B2 top +y,
+# B3 bottom -y, B1+ bottom +y, P- and P+ along the top edge.
+BMS_L = 56.0                                  # tall (z)
+BMS_W = 45.0                                  # across (y)
+BMS_PCB_T = 1.2
+BMS_H = 8.0                                   # overall: PCB + its TO-252 MOSFETs etc.
+BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
+BMS_MASS = 15.0                               # the listing's
+BMS_TAPE = 1.0                                # foam tape, bracket .. its bare side
+# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs in
+# the board's +y holes (H1, H3; 6 mm male into the bosses, as the board's
+# screws were), screwed to them with flat heads
+PWRB_SO_L = 15.0                              # M2.5 x 15 standoffs
+PBR_T = 2.5
+PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 on the standoffs, -65.91 aft face
+BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts
+# across: from 1.0 past F1/F2's end (their fuses pull straight out aft) to the +y skin
+BMS_Y = (PWRB_FUSE_END_Y + 1.0, PWRB_FUSE_END_Y + 1.0 + BMS_W)         # 11.53..56.53
+# down from 1.0 under the cap's +y top corner block
+BMS_Z = (PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 1.0 - BMS_L,
+         PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 1.0)                  # -68.0..-12.0
+assert BMS_Y[1] <= TORSO_IN_HW - 0.5, "the BMS does not fit beside the fuses"
+assert BMS_X[1] >= PWRB_AFT_X + 1.5, "the BMS is too close to the cap"
+assert BMS_X[0] <= PWRB_PCB_X0 - max(p[5] for p in PWRB_PARTS if p[0].endswith("fuse")) - 2.0, \
+    "the BMS must stand clear over the fuses' tops"
+assert BMS_Z[0] >= TORSO_BOT_Z + 3.5, "no room for the bracket's ledge under the BMS"
+# a 58 mm one (the older manual's) fits only with 0.5 under the cap's block and
+# a 1.2 mm ledge (torso_v8 PBR_RIM_T): re-check BMS_L when it is measured
 # battery: OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07), WEIGHED
 # 205 g (Tom, 2026-10-14); its size is still the listing's 96 x 44.5 x 25.5 mm
 # -- measure it. Transverse, centred on the cells, on the pelvis's ceiling (the
@@ -636,6 +724,9 @@ PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
 PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)
 PWR_Y = PWRB_Y
 PWR_Z = (PWRB_BOT_Z, PWRB_TOP_Z)
+# the BMS's (the rollup's box)
+BMS_BOX = (BMS_W, BMS_H, BMS_L)               # y, x, z
+BMS_C = ((BMS_X[0] + BMS_X[1]) / 2, (BMS_Y[0] + BMS_Y[1]) / 2, (BMS_Z[0] + BMS_Z[1]) / 2)
 # hip-yaw bearing HOUSING (yaw_bearing_housing.py): the bearings' outer-race
 # seats (skirt, recess, shoulder) for both hips in one print, screwed UP to
 # the underside of the cell block after the yaw servos, with the bearings in

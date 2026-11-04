@@ -41,7 +41,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
 | height | deck top 465 mm, camera 534 mm, head top 560 mm |
-| mass | ≈ 2.37 kg as drawn (§7) |
+| mass | ≈ 2.42 kg as drawn (§7) |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
@@ -268,19 +268,20 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 ### 5.3 Torso
 
-Two prints, two covers and a door (`cad/v6/torso_v8.py`): the **pelvis**
-holds the legs, and the **torso** around it holds the pack, the board stack
-(the Pi with the General Driver on it) and the power board. The pack sits in
-the middle over the hips, the board stack in a bay in front of the pelvis and
-the power board in a bay right behind it. The pelvis is glued into the torso
-for good; the pack comes out sideways through the **battery door**, one
-screw. The pelvis, the covers and the door print without supports; the torso
+Two prints, two covers, a door and the BMS bracket (`cad/v6/torso_v8.py`):
+the **pelvis** holds the legs, and the **torso** around it holds the pack, the
+board stack (the Pi with the General Driver on it) and the power board with
+its BMS. The pack sits in the middle over the hips, the board stack in a bay
+in front of the pelvis and the power board in a bay right behind it. The
+pelvis is glued into the torso for good; the pack comes out sideways through
+the **battery door**, one screw. The pelvis, the covers, the door and the
+bracket print without supports; the torso
 prints with slicer support in its wide windows and nowhere else. Frame: deck
 top at z = 0, +x forward, the legs at y = ±42 mm.
 
-![The pelvis, the torso, the two covers and the battery door as they lie on the bed](docs/img/torso_v8.png)
+![The pelvis, the torso, the two covers, the BMS bracket and the battery door as they lie on the bed](docs/img/torso_v8.png)
 
-![Exploded with the boards and the pack; assembled, from below; the door off with the pack half out; a section at y = +14 mm through the snap fingers](docs/img/torso_v8_assembly.png)
+![Exploded with the boards, the BMS on its bracket and the pack; assembled, from below; the door off with the pack half out; a section at y = +14 mm through the snap fingers](docs/img/torso_v8_assembly.png)
 
 **`pelvis_v8`** (56 g, 114.5 × 56.0 × 36.0 mm), printed ceiling down, the cell
 walls rising; the bearing housing (§5.2) screws under it:
@@ -361,33 +362,47 @@ cover off:
 - Four M2.5 × 17 male-female standoffs hold the Pi (their 6 mm male thread into
   the bosses); the General Driver goes on top with four M2.5 × 6.
 
-**The power board** is the custom board of PR #112 (`pcb/power-board/` on
-branch `design/power-circuit`, not merged): 97 × 64.5 × 1.6 mm, every part on
-the top side, four M2.5 holes 3.2 mm in from the corners, which the torso uses
-as they are.
+**The power board** is power lite (PR #209, `pcb/power-lite/`, not merged):
+97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes 3.2 mm
+in from the corners, which the torso uses as they are (#213).
 
 - It stands vertical in the aft bay, right behind the pelvis and so beside the
-  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall
-  (4 × M2.5 × 6 pan). The 6 mm keeps its leads clear of the bearing housing's
-  rear lugs.
-- The bay is 24 mm deep from the board's parts face to the cover, for its
-  tallest part, C21 (a Ø10 × 20 mm can, +2 mm tolerance).
+  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall:
+  2 × M2.5 × 6 pan in its −y holes, and in its +y holes the BMS bracket's two
+  M2.5 × 15 male-female standoffs. The 6 mm keeps its leads clear of the
+  bearing housing's rear lugs.
+- Its tallest part is the relay K1, 26.7 mm off it; the cap stands 2.0 mm over
+  it. The fuses F1/F2 (16.3 mm with the fuse in) pull straight out aft with
+  the cap off.
 - The board sits hard to −y (y −56.96 … +40.04). The pack's lead comes through
   the aft wall's +y end window and loops into J1 (the XT60, mating sideways out
   of the board's +y edge) in the 17.4 mm beside that edge, behind the battery
   door; whether that room is enough for the plug and its 12 AWG lead is **not
-  checked**.
-- Its servo headers J4–J8 are on its −y edge and the control connectors along
-  its bottom edge. The fuses F1/F2 and every connector are reached with the
-  cover off.
-- The torso is sized for this board (#108): there is no separate pocket for a
-  protection board and buck.
+  checked**. The balance plug goes into J2, below the door's sill and under
+  the BMS.
+- Its servo headers J4–J8 are on its −y edge and J3, J11 and J12 along its
+  bottom edge, all reached with the cap off.
+- **The BMS** (a ShillehTek CF-3SJH25A-C, 56 × 45 × 8 mm from its datasheet,
+  not measured) is wired to the board's W pads, with no connectors. It rides
+  the **BMS bracket** (`power_bracket_v8`, 4 g, a 2.5 mm plate on the two
+  standoffs, 2 × M2.5 × 6 flat-heads), component side aft on foam tape, 18.5 mm
+  off the board: over J1, J2 and the W pads, beside the fuses (1.0 mm past
+  their ends, 2.2 mm over their tops), 0.9 mm off the +y skin. A ledge and two
+  stops on the bracket hold it in place; the cap is 2.2 mm off its parts.
 
-**The covers** (`front_cover_v8`, `power_cover_v8`, 18 g each, 114.5 × 66.3 ×
-10.6 mm), printed outer face down: a flat plate between the skins' ends, under
-the deck, with vent slots and a corner block in each corner. 4 × M2.5 × 8
-flat-heads per cover go in through the skins, countersunk in their outer
-faces, into the blocks.
+**The covers** (printed outer face down, no supports):
+
+- `front_cover_v8` (18 g, 114.5 × 66.3 × 10.6 mm): a flat plate between the
+  skins' ends, under the deck, with vent slots and a corner block in each
+  corner. 4 × M2.5 × 8 flat-heads go in through the skins, countersunk in
+  their outer faces, into the blocks.
+- `power_cover_v8`, the **cap** (25 g, 122.5 × 71.5 × 15.3 mm): the torso's
+  skins and deck carried 4.7 mm aft of its end to a plate with vent slots, a
+  lip in under the deck and inside the −y skin, and three corner blocks that
+  reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
+  (+y top, −y top, −y bottom); the +y bottom hole stays empty, because the
+  BMS's corner is where its block would stand. The torso's skin holes,
+  windows and deck pockets are where they were for the flat cover.
 
 **The battery door** (`battery_door_v8`, 11 g, 79.8 × 29.6 × 12.4 mm),
 printed outer face down, is the +y skin from the power board's J1 to the front
@@ -414,7 +429,7 @@ strain). They hold it while the glue cures: CA or epoxy on the web faces, the
 ledge and the skins. The joint is permanent, and nothing needs the pelvis out:
 
 - the board stack comes out of the front bay and the power board out of the
-  aft bay with their covers off;
+  aft bay with their covers off (the BMS and its bracket first);
 - the yaw stator screws are reached from above through the deck aperture, with
   the pack out. The four outboard ones (y ±52.25) need a driver shank of 5 mm
   or less: the aperture's edge (y ±54.66) is beside the girdle's rail pilot at
@@ -558,11 +573,11 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.37 kg (the plant: 2.375 kg) |
+| robot | ≈ 2.42 kg (the plant: 2.418 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.86 + 0.05 kg: pelvis 56 g, torso 125 g, two covers 18 g each, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.89 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 25 g, BMS bracket 4 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
-| pack / boards + wiring | 205 g (weighed) / ≈ 180 g |
+| pack / boards, BMS + wiring | 205 g (weighed) / ≈ 195 g |
 
 With STS3215s at the hip rolls too it is 39 g lighter, and with STS3250s at
 all six roll and knee joints 78 g heavier. The P × 4 table in §4 and the gates

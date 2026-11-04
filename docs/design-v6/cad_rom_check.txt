@@ -2,7 +2,6 @@
 HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
 arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); leg rows sweep the leg against the arms HANGING (torque off) and at REST (folded: shoulder -15, elbow -95).
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
-  [girdle] top edges eased: 34/42
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
   [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
   [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
@@ -115,11 +114,13 @@ shoulder     arm_upper_L            head                          0.00     67.98
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
+shoulder     arm_upper_L            shoulder_cheek_L              0.00      1.50   -90.0  ok   upper arm vs the cheek it turns 0.7 mm off, whole sweep
+shoulder     arm_fore_L             shoulder_cheek_L              0.00    106.32   127.5  ok   forearm vs the cheek, FOLDED
 shoulder     arm_fore_L             torso_v8                      0.00     52.24    55.0  ok   forearm vs the torso through the whole sweep, hanging
 shoulder     arm_fore_L             battery_door_v8               0.00     72.98    55.0  ok   forearm vs the battery door, whole sweep, hanging
 shoulder     arm_fore_L             head                          0.00     82.95   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
 shoulder     arm_fore_L             torso_v8                      0.00     43.81    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
-shoulder     arm_fore_L             shoulder_girdle_v6            0.00    106.20    55.0  ok   forearm vs the girdle, FOLDED
+shoulder     arm_fore_L             shoulder_girdle_v6            0.00    103.71    55.0  ok   forearm vs the girdle, FOLDED
 shoulder     servo_elbow_L          torso_v8                      0.00     35.67    55.0  ok   the elbow servo case vs the torso through the sweep
 shoulder     servo_elbow_L          battery_door_v8               0.00     53.34    55.0  ok   the elbow servo case vs the battery door, whole sweep
 elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm fork vs the upper arm's grip channel (sets V.ARM_ROM)
@@ -182,13 +183,26 @@ static       yaw_bearing_housing    pelvis_v8                     0.00      0.00
 static       yaw_bearing_housing    torso_v8                      0.00      0.50          ok   housing under the torso's bottom edge (>= 0.4 mm)
 static       pelvis_v8              torso_v8                      0.00      0.00          ok   pelvis snapped and glued into the torso: must not intersect
 static       front_cover_v8         torso_v8                      0.00      0.20          ok   front cover screwed between the skins: must not intersect
-static       power_cover_v8         torso_v8                      0.00      0.20          ok   aft cover screwed between the skins: must not intersect
+static       power_cover_v8         torso_v8                      0.00      0.00          ok   the power cap on the torso's aft end, its lip inside the skins: must not intersect
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
+static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
-static       power_board_mock       power_cover_v8                0.00      2.00          ok   power board's tallest part (C21) vs the cover (>= 1.5 mm)
+static       power_board_mock       power_cover_v8                0.00      1.80          ok   power board's parts vs the cap (K1 2.0 under its plate) (>= 1.5 mm)
+static       power_standoffs_mock   power_board_mock              0.00      0.00          ok   the BMS bracket's standoffs on the board: must not intersect
+static       power_standoffs_mock   torso_v8                      0.00      0.80          ok   the BMS bracket's standoffs vs the torso (>= 0.4 mm)
+static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
+static       power_bracket_v8       power_board_mock              0.00      4.50          ok   the BMS bracket over the board's parts (>= 2.0 mm)
+static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
+static       power_bracket_v8       power_cover_v8                0.00      1.00          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       bms_mock               power_bracket_v8              0.00      0.30          ok   the BMS on the bracket's foam tape, between its stops: must not intersect
+static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
+static       bms_mock               power_cover_v8                0.00      1.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -196,11 +210,20 @@ static       servo_hip_yaw_L        pelvis_v8                     0.00      0.00
 static       servo_hip_yaw_L        pack_mock                     0.00      1.50          ok   the yaw servo's free-hub post under the pack (on its 1.5 mm foam pads) (>= 0.8 mm)
 static       yaw_bearing_housing    pi4_mock                      0.00      0.50          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
 static       yaw_bearing_housing    gd_mock                       0.00      4.00          ok   the General Driver's bottom edge over the housing: must not intersect
+static       servo_shoulder_L       shoulder_girdle_v6            1.09      0.00          ok   shoulder servo on its inboard wall: the crush pads' bite (designed 1.1 mm3)
+static       servo_shoulder_R       shoulder_girdle_v6            1.09      0.00          ok   shoulder servo on its inboard wall: the crush pads' bite (designed 1.1 mm3)
+static       shoulder_cheek_L       servo_shoulder_L              0.00      0.00          ok   cheek on the case's horn face, over the boss: must not intersect
+static       shoulder_cheek_R       servo_shoulder_R              0.00      0.00          ok   cheek on the case's horn face, over the boss: must not intersect
+static       shoulder_cheek_L       shoulder_girdle_v6            0.00      0.00          ok   cheek in its rebate, on the end lugs: must not intersect
+static       shoulder_cheek_R       shoulder_girdle_v6            0.00      0.00          ok   cheek in its rebate, on the end lugs: must not intersect
+static       shoulder_cheek_L       torso_v8                      0.00     36.52          ok   cheek vs the torso skin (>= 10.0 mm)
 insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v8, 1 mm out)  ok
 insert       7b bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
 insert       7c housing + bearings up under the cells no overlap                         approach clearance  1.00 mm (vs pelvis_v8, 1 mm out)  ok
 insert       7d carrier up through the bearing    no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
 insert       7e roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
+insert       11c shoulder servo in from outboard  no overlap                         approach clearance  6.65 mm (vs torso_v8, 1 mm out)  ok
+insert       11c cheek on over the boss           no overlap                         approach clearance  0.20 mm (vs shoulder_girdle_v6, 1 mm out)  ok
 insert       press fits allowed along the paths: inner race on the hub 261.5 mm3, outer race in the housing 28.6 mm3 (designed)
 access       bearing-housing screws, before the carriers           5 screws, 7 mm driver: no part in the way  ok
 access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
@@ -212,7 +235,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (175 s)
+=> ALL CLEAR  (190 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -347,13 +370,26 @@ static       yaw_bearing_housing    pelvis_v8                     0.00      0.00
 static       yaw_bearing_housing    torso_v8                      0.00      0.50          ok   housing under the torso's bottom edge (>= 0.4 mm)
 static       pelvis_v8              torso_v8                      0.00      0.00          ok   pelvis snapped and glued into the torso: must not intersect
 static       front_cover_v8         torso_v8                      0.00      0.20          ok   front cover screwed between the skins: must not intersect
-static       power_cover_v8         torso_v8                      0.00      0.20          ok   aft cover screwed between the skins: must not intersect
+static       power_cover_v8         torso_v8                      0.00      0.00          ok   the power cap on the torso's aft end, its lip inside the skins: must not intersect
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
+static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
-static       power_board_mock       power_cover_v8                0.00      2.00          ok   power board's tallest part (C21) vs the cover (>= 1.5 mm)
+static       power_board_mock       power_cover_v8                0.00      1.80          ok   power board's parts vs the cap (K1 2.0 under its plate) (>= 1.5 mm)
+static       power_standoffs_mock   power_board_mock              0.00      0.00          ok   the BMS bracket's standoffs on the board: must not intersect
+static       power_standoffs_mock   torso_v8                      0.00      0.80          ok   the BMS bracket's standoffs vs the torso (>= 0.4 mm)
+static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
+static       power_bracket_v8       power_board_mock              0.00      4.50          ok   the BMS bracket over the board's parts (>= 2.0 mm)
+static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
+static       power_bracket_v8       power_cover_v8                0.00      1.00          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       bms_mock               power_bracket_v8              0.00      0.30          ok   the BMS on the bracket's foam tape, between its stops: must not intersect
+static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
+static       bms_mock               power_cover_v8                0.00      1.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -377,7 +413,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (123 s)
+=> ALL CLEAR  (119 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
@@ -485,11 +521,15 @@ check_assembly_v6 (ARMS=0): PASS
   PASS
 
 == power_cover_v8  [outer face on bed]
-  first-layer contact    5731 mm2  (75.5% of 66x115 bbox)
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
+  first-layer contact    6819 mm2  (77.8% of 72x123 bbox)
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+  PASS
+
+== power_bracket_v8  [standoff face on bed]
+  first-layer contact    1350 mm2  (47.0% of 65x44 bbox)
+    BEAM          6 mm2    1.5 x   5.2 mm  at z   2.8  through-wall strip, 5 mm between anchors
   PASS
 
 == battery_door_v8  [outer face on bed]

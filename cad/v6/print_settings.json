@@ -54,9 +54,10 @@
     "torso_covers": {
       "parts": [
         "front_cover_v8",
-        "power_cover_v8"
+        "power_cover_v8",
+        "power_bracket_v8"
       ],
-      "note": "the torso's second print: both covers, outer face down, no supports"
+      "note": "the torso's second print: both covers (the power bay's is a cap) and the BMS bracket, flat, no supports"
     },
     "arms": {
       "parts": [
@@ -282,7 +283,12 @@
     "power_cover_v8": {
       "orient": "RY_XUP",
       "supports": false,
-      "note": "outer face down, corner blocks rising; no supports"
+      "note": "outer face down, the rim, the lip and the three corner blocks rising; no supports"
+    },
+    "power_bracket_v8": {
+      "orient": "RY_XDOWN",
+      "supports": false,
+      "note": "the face that sits on the standoffs down, the ledge and the BMS stops rising; no supports"
     },
     "battery_door_v8": {
       "orient": "RY_YDOWN",
