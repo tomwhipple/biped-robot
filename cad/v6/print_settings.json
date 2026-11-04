@@ -56,10 +56,9 @@
         "front_cover_v8",
         "power_cover_v8",
         "power_bracket_v8",
-        "balance_park_v8",
-        "estop_guard_v8"
+        "balance_park_v8"
       ],
-      "note": "the torso's second print: both covers (the power bay's is a cap), the BMS bracket, the balance park and the E-stop's guard, no supports"
+      "note": "the torso's second print: both covers (the power bay's is a cap), the BMS bracket and the balance park, no supports"
     },
     "arms": {
       "parts": [
@@ -290,12 +289,7 @@
     "switch_pod_v8": {
       "orient": "RY_XUP",
       "supports": false,
-      "note": "aft face down, every wall rising, the main switch's bore teardropped; no supports"
-    },
-    "estop_guard_v8": {
-      "orient": "RY_XDOWN",
-      "supports": false,
-      "note": "the base's face on the cap down, the wings and the bar rising; no supports"
+      "note": "aft face down, every wall rising, the toggles' bores teardropped; no supports"
     },
     "power_bracket_v8": {
       "orient": "RY_XDOWN",

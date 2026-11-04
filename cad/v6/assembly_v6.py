@@ -323,29 +323,18 @@ def mock_bms():
 
 
 def part_switch_pod():
-    """The box on the cap that holds the main switch (torso_v8.py)."""
+    """The block on the cap that holds both toggles side by side (torso_v8.py)."""
     s, ok = _try("torso_v8", "switch_pod_v8")
     if ok:
         return s
     return Pos((V.SWP_X[0] + V.SWP_X[1]) / 2, 0, (V.SWP_BOT_Z + V.SWP_WELL_Z) / 2) * Box(
-        V.SWP_X[1] - V.SWP_X[0], 2 * (V.SWP_IN_HY + V.SWP_SIDE), V.SWP_WELL_Z - V.SWP_BOT_Z)
+        V.SWP_X[1] - V.SWP_X[0], 2 * V.SWP_HW, V.SWP_WELL_Z - V.SWP_BOT_Z)
 
 
 def mock_switches():
-    """The main switch in the pod and the E-stop through the cap (torso_v8.mock_switches)."""
+    """The main switch and the E-stop in the pod (torso_v8.mock_switches)."""
     import torso_v8
     return torso_v8.mock_switches()
-
-
-def part_estop_guard():
-    """The guard round the E-stop's lever, on the cap under its nut (torso_v8.py)."""
-    s, ok = _try("torso_v8", "estop_guard_v8")
-    if ok:
-        return s
-    hy = V.ESG_GAP / 2 + V.ESG_WALL
-    zb = V.ESG_BAR_Z - V.ESG_WALL
-    return Pos(V.PCAP_X[0] - V.ESG_PROUD / 2, V.ES_Y, (zb + V.ESG_TOP_Z) / 2) * Box(
-        V.ESG_PROUD, 2 * hy, V.ESG_TOP_Z - zb)
 
 
 def part_balance_park():
@@ -482,7 +471,6 @@ def _torso_pieces():
         (0, "bms_mock", COL_MOCK, Pos(0, 0, z) * mock_bms()),
         (0, "balance_park_v8", COL_PRINT, Pos(0, 0, z) * part_balance_park()),
         (0, "switch_pod_v8", COL_PRINT, Pos(0, 0, z) * part_switch_pod()),
-        (0, "estop_guard_v8", COL_PRINT, Pos(0, 0, z) * part_estop_guard()),
         (0, "switches_mock", COL_MOCK, Pos(0, 0, z) * mock_switches()),
         (0, "balance_male_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_male()),
         (0, "balance_lead_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_lead()),

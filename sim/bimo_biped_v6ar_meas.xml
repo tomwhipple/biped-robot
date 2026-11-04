@@ -61,7 +61,6 @@
     <mesh name="cad_power_bracket_v8" file="cad/v6/stl/power_bracket_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_balance_park_v8" file="cad/v6/stl/balance_park_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_switch_pod_v8" file="cad/v6/stl/switch_pod_v8.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="cad_estop_guard_v8" file="cad/v6/stl/estop_guard_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_battery_door_v8" file="cad/v6/stl/battery_door_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_bearing_housing" file="cad/v6/stl/yaw_bearing_housing.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_neck_floor" file="cad/v6/stl/neck_floor.stl" scale="0.001 0.001 0.001"/>
@@ -85,7 +84,7 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0153 0.0006 0.0491" quat="0.6988 -0.0864 0.0794 -0.7057" mass="1.1256" diaginertia="2.2314e-03 3.2211e-03 3.4429e-03"/>
+        <inertial pos="-0.0162 0.0008 0.0490" quat="0.7078 -0.0536 0.0482 -0.7028" mass="1.1378" diaginertia="2.3162e-03 3.2522e-03 3.5403e-03"/>
         <geom name="torso_cad_pelvis_v8" class="cad" mesh="cad_pelvis_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_torso_v8" class="cad" mesh="cad_torso_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_front_cover_v8" class="cad" mesh="cad_front_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
@@ -93,7 +92,6 @@
         <geom name="torso_cad_power_bracket_v8" class="cad" mesh="cad_power_bracket_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_balance_park_v8" class="cad" mesh="cad_balance_park_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_switch_pod_v8" class="cad" mesh="cad_switch_pod_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
-        <geom name="torso_cad_estop_guard_v8" class="cad" mesh="cad_estop_guard_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_battery_door_v8" class="cad" mesh="cad_battery_door_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_neck_floor" class="cad" mesh="cad_neck_floor" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>

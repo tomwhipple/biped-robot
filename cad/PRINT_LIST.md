@@ -16,7 +16,7 @@ for the collar's flange screws.
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `estop_guard_v8`, `power_bracket_v8`, `balance_park_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
@@ -41,11 +41,10 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `pelvis_v8` | 1 | 56.4 | 114.5 × 56 × 36 | ceiling down, the cell walls rising | no | holds the legs: both yaw cells under one 2.6 mm ceiling (a hole for each servo's free-hub post, a window for its back-cover platform, a slit over its connector trench), the windows for the torso's snap fingers, and the bearing housing's five pilot bosses; glued into `torso_v8` ([assembly §7a](../docs/assembly.md)) |
 | `torso_v8` | 1 | 125.3 | 128.4 × 122.5 × 71.5 | deck top down | **in its wide windows only**: 26 enforcer boxes in `print_settings.json` (manual supports, snug) | the deck with the girdle's ten pilots, the skins, the battery layer, the bay for the Pi + General Driver stack forward, the power bay aft and the battery door's opening in the +y skin; the windows are flat-topped |
 | `front_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the board-stack bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
-| `power_cover_v8` | 1 | 29.0 | 122.5 × 71.5 × 15.3 | outer face down | no | the power bay's cap, 4.7 mm proud of the torso and 2.0 mm over the relay K1, every edge square: the skins and deck carried aft to a plate with two vent slots, the switch pod's four screw holes and its wires' passage, the E-stop's keyed hole, a lip inside the torso, three corner blocks (pilots teardropped); 3 × M2.5 × 8 flat-heads in through the skins ([assembly §9c](../docs/assembly.md)) |
+| `power_cover_v8` | 1 | 28.8 | 122.5 × 71.5 × 15.3 | outer face down | no | the power bay's cap, 4.7 mm proud of the torso and 2.0 mm over the relay K1, every edge square: the skins and deck carried aft to a plate with two vent slots, the switch pod's four screw holes and its wires' passage, a lip inside the torso, three corner blocks (pilots teardropped); 3 × M2.5 × 8 flat-heads in through the skins ([assembly §9c](../docs/assembly.md)) |
 | `power_bracket_v8` | 1 | 4.1 | 64.7 × 44.4 × 4.7 | the face that sits on the standoffs down | no | the BMS's tray: a 2.5 mm plate on two M2.5 × 15 standoffs in the power board's +y holes, 2 × M2.5 × 6 flat-heads; a ledge and two stops rise to the BMS's PCB ([assembly §9c](../docs/assembly.md)) |
 | `balance_park_v8` | 1 | 0.6 | 15.9 × 9.2 × 6.6 | floor down | no | a cup for the balance extension lead's male end, pins up; foam-taped to the aft inner wall's aft face, its top at the battery door's sill ([assembly §9c](../docs/assembly.md)) |
-| `switch_pod_v8` | 1 | 33.6 | 85.8 × 55.0 × 26.0 | aft face down | no | the box on the cap's outer face at its top that holds the main switch, lever up through its 3 mm top panel in a well, a tab in the hole in the bushing's keyway (its size assumed: `SW_KEY_*`); 4 × M2.5 × 8 flat-heads in from the cap's inner face ([assembly §9c](../docs/assembly.md)) |
-| `estop_guard_v8` | 1 | 2.5 | 20.6 × 19.0 × 18.2 | base down | no | the guard round the E-stop's lever: a base clamped onto the cap's outer face by the E-stop's nut (its hole keyed to the bushing), two wings and a bar under the lever, 1.5 mm past its tip, open above ([assembly §9c](../docs/assembly.md)) |
+| `switch_pod_v8` | 1 | 48.4 | 78.8 × 74.5 × 26.0 | aft face down | no | the block on the cap's outer face at its top that holds the main switch and the E-stop side by side, levers up: the main switch in a well, the E-stop on a shelf at the −y end, each hole with a tab in its bushing's keyway (the main one's size assumed: `SW_KEY_*`); 4 × M2.5 × 8 flat-heads in from the cap's inner face into its side walls ([assembly §9c](../docs/assembly.md)) |
 | `battery_door_v8` | 1 | 11.4 | 79.8 × 29.6 × 12.4 | outer face down | no | the +y skin over the pack and the power board's J1: a bevelled tab aft, one M2.5 × 8 flat-head forward, two ribs that stop the pack ([assembly §10](../docs/assembly.md)) |
 | `yaw_bearing_housing` | 1 | 25.2 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into `pelvis_v8`'s bosses. **A housing printed for `pelvis_v7` does not fit them: reprint it** |
 | `yaw_carrier_v6` | 2 | 27.3 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.48, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
@@ -63,19 +62,19 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 **Part notes:**
 
-- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `estop_guard_v8`, `power_bracket_v8`, `balance_park_v8`, `battery_door_v8`**
-  - The torso is nine prints (the pelvis, the torso, two covers, the switch
-    pod, the E-stop's guard, the BMS bracket, the balance park and the
-    battery door): the switch pod on its own, the rest on two plates
-    (`print_settings.json` `plates`, `make slice`): `torso_frame` (the torso,
-    the pelvis and the door: 6 h 26 m, 192 g) and `torso_covers` (both
-    covers, the BMS bracket, the balance park and the E-stop's guard:
-    1 h 41 m, 51 g; the switch pod alone 54 m, 33 g). The covers do not fit
-    beside the torso. The pelvis, the covers, the bracket, the park, the
-    guard and the door print without supports: the pelvis's ceiling is on the
-    bed, the covers' vent slots are cut through flat plates, everything on
-    the cap, the bracket and the guard rises from its plate, the park is a
-    cup printed floor down, and the door's tab is bevelled 40° off vertical.
+- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `battery_door_v8`**
+  - The torso is eight prints (the pelvis, the torso, two covers, the switch
+    pod, the BMS bracket, the balance park and the battery door): the switch
+    pod on its own, the rest on two plates (`print_settings.json` `plates`,
+    `make slice`): `torso_frame` (the torso, the pelvis and the door:
+    6 h 26 m, 192 g) and `torso_covers` (both covers, the BMS bracket and
+    the balance park: 1 h 34 m, 48 g; the switch pod alone 1 h 9 m, 43 g).
+    The covers do not fit beside the torso. The pelvis, the covers, the
+    bracket, the park, the pod and the door print without supports: the
+    pelvis's ceiling is on the bed, the covers' vent slots are cut through
+    flat plates, everything on the cap and the bracket rises from its plate,
+    every wall of the pod rises from its aft face, the park is a cup printed
+    floor down, and the door's tab is bevelled 40° off vertical.
   - The torso's windows have flat tops. Printed deck down, a window's bottom
     edge is the top of its opening, so each one wider than an 8 mm bridge (26
     of them, the door's opening among them) gets support inside it and

@@ -88,7 +88,7 @@ check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms
 
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
 V6_GLUED := hip_yoke_glued ankle_link_glued
-V6_POWER_BAY := power_bay_v8 power_bay_prints_v8
+V6_POWER_BAY := power_bay_v8 power_bay_prints_v8 switch_pod_v8
 V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png docs/img/arm_side_labels.png $(V6_GLUED:%=docs/img/%.png) \
 	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS) \
 	$(V6_POWER_BAY:%=docs/assembly/%.png)
@@ -134,8 +134,8 @@ docs/assembly/assembly_v6_flyin_strip.png: build/v6/movies/assembly_v6_flyin_str
 	cp $< $@
 docs/assembly/v6_%.png: build/v6/renders/v6_%.png
 	cp $< $@
-# the power bay (assembly.md 9c): torso_v8.py --figures renders both strips and writes nothing else
-build/%/renders/power_bay_v8.png build/%/renders/power_bay_prints_v8.png: $(PYDEPS_cad/v6/torso_v8.py)
+# the power bay (assembly.md 9c): torso_v8.py --figures renders its three strips and writes nothing else
+build/%/renders/power_bay_v8.png build/%/renders/power_bay_prints_v8.png build/%/renders/switch_pod_v8.png: $(PYDEPS_cad/v6/torso_v8.py)
 	$(PY) cad/v6/torso_v8.py --figures > /dev/null
 $(V6_POWER_BAY:%=docs/assembly/%.png): docs/assembly/%.png: build/v6/renders/%.png
 	cp $< $@

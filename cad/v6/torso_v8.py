@@ -13,10 +13,8 @@
                   holes. Printed flat.
   balance_park_v8 the cup that holds the free end of the balance lead's
                   extension, taped to the aft inner wall. Printed floor down.
-  switch_pod_v8   the box on the cap that holds the main switch, lever up
-                  in a well. Printed aft face down.
-  estop_guard_v8  the guard round the E-stop's lever, which goes through the
-                  cap itself: clamped under its nut. Printed base down.
+  switch_pod_v8   the block on the cap that holds the main switch and the
+                  E-stop side by side, levers up. Printed aft face down.
   battery_door_v8 the +y skin over the battery layer and the power board's
                   J1: one screw, one tab. Printed flat, outer face down.
 
@@ -64,8 +62,8 @@ aft with the cap off. The torso itself is as it was: its skin holes,
 windows and deck pockets are drawn from the flat cover's seat
 (dimensions_v6 PCOV_SEAT_X), and the cap's fourth hole (+y, bottom) stays
 empty because the BMS's corner is where its block would be. The main switch
-hangs in the switch pod on the cap; the E-stop, a miniature toggle, goes
-through the cap's plate itself in its guard (dimensions_v6 SW_*, ES_*).
+and the E-stop hang side by side in the switch pod on the cap (dimensions_v6
+SW_*, ES_*, SWP_*).
 
 WINDOWS have flat tops. Each one whose top (its model-bottom edge, the
 print-top in the deck-down torso) spans more than a bridge (BRIDGE_OK) gets
@@ -111,8 +109,8 @@ OUT_STL = os.path.join(HERE, "stl")
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
-PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "estop_guard_v8",
-          "power_bracket_v8", "balance_park_v8", "battery_door_v8")
+PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "power_bracket_v8",
+          "balance_park_v8", "battery_door_v8")
 # rows = print axes in model coords (check_printability's convention)
 IDENT = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 RX180 = ((1.0, 0.0, 0.0), (0.0, -1.0, 0.0), (0.0, 0.0, -1.0))
@@ -128,7 +126,6 @@ PRINT_ORIENT = {
     "power_bracket_v8": RY_XDOWN,  # the face on the standoffs (+x) on the bed, the tray's ledge and stops rise
     "balance_park_v8": IDENT,    # its floor on the bed, the cup's walls rise
     "switch_pod_v8": RY_XUP,     # its aft face (-x) on the bed, every wall rises
-    "estop_guard_v8": RY_XDOWN,  # its base's face on the cap (+x) on the bed, the wings and the bar rise
     "battery_door_v8": RY_YDOWN, # outer face (+y) on the bed, ribs and tongue rise
 }
 
@@ -757,9 +754,9 @@ def front_cover_v8():
 # THE POWER BAY: the cap (power_cover_v8) and the BMS's bracket (power_bracket_v8)
 # ============================================================================
 PCAP_SPIGOT = (1.6, 1.2)          # the cap's locating lip inside the torso: long (x), thick
-PCAP_VENT_Y = (-51.5, 51.5)       # its vent slots, outboard of the pod and the E-stop (the bay is open below too)
-SWP_EAR = 6.0                     # the switch pod's four screw ears, square
-SWP_EARS_YZ = [(sy * (V.SWP_IN_HY + V.SWP_SIDE + SWP_EAR / 2), ez) for sy in (1, -1) for ez in (-10.0, -50.0)]
+PCAP_VENT_Y = (-50.0, 50.0)       # its vent slots, either side of the switch pod (the bay is open below too)
+SWP_SCREWS_YZ = [(sy * (V.SWP_HW - V.SWP_SIDE / 2), ez) for sy in (1, -1) for ez in (-15.0, -52.0)]   # in the
+                                  # switch pod's side walls' front edges
 SWP_SCREW_L = 8.0                 # M2.5 x 8 flat head, in through the cap's plate from inside: 5.4 into an ear
 PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 deep, as the flat cover's
 
@@ -786,9 +783,8 @@ def power_cover_v8():
     skin; three corner blocks reach forward inside the skins to the torso's
     skin screws (dimensions_v6 PCOV_SCREW_*), pilots teardropped toward the
     print's up (+x). The switch pod screws onto its outer face from inside
-    (SWP_EARS_YZ) over a passage for the main switch's wires (SW_PASS); the
-    E-stop goes through the plate in the top -y corner, its hole keyed
-    (dimensions_v6 ES_*); a vent slot near either side."""
+    (SWP_SCREWS_YZ) over a passage for the switches' wires (SW_PASS); a
+    vent slot either side of the pod."""
     lo = Pos(0, 0, zt) * _cap_plan(V.HOUSING_BOT_HW)
     hi = Pos(0, 0, zd) * _cap_plan(V.HOUSING_HW)
     c = loft([lo.faces()[0], hi.faces()[0]])
@@ -811,20 +807,10 @@ def power_cover_v8():
         c -= box(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, yv - 2.0, yv + 2.0, zt + 12.0, ztop - 12.0)
     (py0, py1), (pz0, pz1) = V.SW_PASS
     c -= box(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, py0, py1, pz0, pz1)
-    for ey, ez in SWP_EARS_YZ:
+    for ey, ez in SWP_SCREWS_YZ:
         c -= cyl_x(D.CASE_SCREW_CLEAR / 2, V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, ey, ez)
         c -= csk_x(ey, ez, V.PCAP_X[1], +1)
-    c -= _es_hole(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1)
     return c
-
-
-def _es_hole(x0, x1):
-    """The E-stop's bushing hole along x, less its anti-rotation tab at the
-    bottom (-z, the keyway's side): ES_KEY_W wide, its face ES_KEY_R off the
-    axis (the datasheet's panel cut-out, p.7)."""
-    r = V.ES_HOLE_D / 2
-    tab = box(x0, x1, V.ES_Y - V.ES_KEY_W / 2, V.ES_Y + V.ES_KEY_W / 2, V.ES_Z - r - 0.5, V.ES_Z - V.ES_KEY_R)
-    return cyl_x(r, x0, x1, V.ES_Y, V.ES_Z) - tab
 
 
 PBR_SCREW_L = 6.0                 # M2.5 x 6 flat head into each standoff's female thread: 3.5 in
@@ -950,8 +936,8 @@ def balance_lead_length():
 
 
 # ============================================================================
-# THE SWITCH POD (switch_pod_v8) for the main switch, and the E-stop's guard
-# (estop_guard_v8): dimensions_v6 SW_*, ES_*
+# THE SWITCH POD (switch_pod_v8): the main switch and the E-stop side by side
+# (dimensions_v6 SW_*, ES_*, SWP_*)
 # ============================================================================
 def _teardrop_z(r, z0, z1, x, y):
     """A vertical bore with a capped 45 deg roof toward +x (the pod prints
@@ -962,65 +948,46 @@ def _teardrop_z(r, z0, z1, x, y):
     return cyl_z(r, z0, z1, x, y) + roof
 
 
-def _sw_key():
-    """The main switch's anti-rotation tab in its hole (dimensions_v6
-    SW_KEY_*, all to measure): SW_KEY_W wide, reaching SW_KEY_IN into the
-    bushing's keyway past the thread's crest, down SW_KEY_L from the panel's
-    top, at SW_KEY_ANG round the hole."""
-    r0 = V.SW_BUSH_D / 2 - V.SW_KEY_IN
-    t = box(r0, V.SW_HOLE_D / 2 + 0.5, -V.SW_KEY_W / 2, V.SW_KEY_W / 2, V.SWP_TOP_Z - V.SW_KEY_L, V.SWP_TOP_Z)
-    return Pos(V.SW_AXIS_X, V.SW_Y, 0) * Rot(0, 0, V.SW_KEY_ANG) * t
+def _key_tab(x, y, r_face, r_out, w, z0, z1, ang):
+    """An anti-rotation tab in a vertical hole at (x, y): w wide, its face
+    r_face off the axis, out to r_out, at ang degrees about z from +x."""
+    return Pos(x, y, 0) * Rot(0, 0, ang) * box(r_face, r_out, -w / 2, w / 2, z0, z1)
 
 
 def switch_pod_v8():
-    """THE SWITCH POD: a box on the cap's outer face at its top, open toward
-    the cap, that holds the main switch's body outside the bay in a
-    TERM_MARGIN of room with its terminals' lugs (SW_ENV), with a channel
-    under it to the cap's wire passage. The bushing goes up through its
-    SW_PANEL_T top panel at the deck's level, the nut on top, a tab in the
-    hole in the bushing's keyway; its sides and aft wall stand on up past
-    the lever's tip, a well open forward and up, so a fall on the back or a
-    side lands on the walls. Four ears take the screws in from the cap's
-    inner face. Printed aft face down: every wall rises; the bushing's bore
-    is teardropped."""
+    """THE SWITCH POD: one block on the cap's outer face at its top, open
+    toward the cap, both switches' bodies hanging in it outside the bay in a
+    TERM_MARGIN of room with their terminals' lugs (SW_ENV, ES_ENV), a
+    channel under them to the cap's wire passage. The main switch's bushing
+    goes up through its panel 8 mm under the deck's top, into the WELL: the
+    side wall, the aft wall and the wall between the switches stand 2 mm or
+    more over both levers' tips, open forward and up. The E-stop's goes up through
+    the SHELF at the -y end, flush with the deck's top and open outboard, aft
+    and up. Each hole has its tab in the bushing's keyway (SW_KEY_*, ES_KEY_*).
+    Four screws from the cap's inner face into the side walls' front edges
+    (SWP_SCREWS_YZ). Printed aft face down: every wall rises; the bushings'
+    bores are teardropped."""
     x0, x1 = V.SWP_X
-    hy = V.SWP_IN_HY + V.SWP_SIDE
+    hy = V.SWP_HW
     xi = x1 - V.SWP_IN_X
-    p = box(x0, x1, -hy, hy, V.SWP_BOT_Z, V.SWP_TOP_Z)
-    p -= box(xi, x1 + 1, -V.SWP_IN_HY, V.SWP_IN_HY, V.SWP_FLOOR_Z, V.SWP_TOP_Z - V.SW_PANEL_T)
-    for sy in (1, -1):                                                   # the well's sides
-        a, b = sorted((sy * V.SWP_IN_HY, sy * hy))
-        p += box(x0, x1, a, b, V.SWP_TOP_Z - 0.3, V.SWP_WELL_Z)
-    p += box(x0, x0 + V.SWP_WALL, -hy, hy, V.SWP_TOP_Z - 0.3, V.SWP_WELL_Z)   # and its aft wall
-    for ey, ez in SWP_EARS_YZ:
-        sy = 1 if ey > 0 else -1
-        a, b = sorted((sy * (hy - 0.3), sy * (hy + SWP_EAR)))
-        p += box(x0, x1, a, b, ez - SWP_EAR / 2, ez + SWP_EAR / 2)
+    zp = V.SWP_TOP_Z - V.SW_PANEL_T                                      # the main panel's underside
+    ze = V.ES_SHELF_Z - V.SW_PANEL_T                                     # the shelf's underside
+    yd0, yd1 = V.SWP_DIV_Y
+    p = box(x0, x1, -hy, hy, V.SWP_BOT_Z, V.ES_SHELF_Z)                  # the block to the shelf's top
+    p += box(x0, x1, yd0, hy, V.ES_SHELF_Z - 0.3, V.SWP_WELL_Z)          # the well, to its rim
+    p -= box(xi, x1 + 1, yd1, hy - V.SWP_SIDE, V.SWP_TOP_Z, V.SWP_WELL_Z + 1)     # its inside, open forward
+    inner = (-hy + V.SWP_SIDE, hy - V.SWP_SIDE)
+    p -= box(xi, x1 + 1, *inner, V.SWP_FLOOR_Z, zp)                      # under both panels
+    p -= box(xi, x1 + 1, inner[0], yd0, V.SWP_FLOOR_Z, ze)               # and under the shelf
+    for ey, ez in SWP_SCREWS_YZ:
         p -= cyl_x(D.M25_TAP / 2, x1 + 0.1, x1 - (SWP_SCREW_L - 2.0), ey, ez)
-    p -= _teardrop_z(V.SW_HOLE_D / 2, V.SWP_TOP_Z - V.SW_PANEL_T - 1, V.SWP_TOP_Z + 1, V.SW_AXIS_X, V.SW_Y) - _sw_key()
+    x = V.SW_AXIS_X
+    p -= _teardrop_z(V.SW_HOLE_D / 2, zp - 1, V.SWP_TOP_Z + 1, x, V.SW_Y) - _key_tab(
+        x, V.SW_Y, V.SW_BUSH_D / 2 - V.SW_KEY_IN, V.SW_HOLE_D / 2 + 0.5, V.SW_KEY_W,
+        V.SWP_TOP_Z - V.SW_KEY_L, V.SWP_TOP_Z + 2, V.SW_KEY_ANG)
+    p -= _teardrop_z(V.ES_HOLE_D / 2, ze - 1, V.ES_SHELF_Z + 1, x, V.ES_Y) - _key_tab(
+        x, V.ES_Y, V.ES_KEY_R, V.ES_HOLE_D / 2 + 0.5, V.ES_KEY_W, ze - 2, V.ES_SHELF_Z + 2, V.ES_KEY_ANG)
     return p
-
-
-def estop_guard_v8():
-    """THE E-STOP GUARD (dimensions_v6 ESG_*): a base plate on the cap's outer
-    face round the E-stop's bushing, clamped there by the E-stop's own nut,
-    its hole keyed to the bushing as the cap's is; two wings either side of
-    the lever and a bar under it stand ESG_PROUD aft of the cap, 1.5 past the
-    lever's tip at either throw, so a fall on the back lands on them. Open
-    above: the wings stop at the bushing's axis, so the lever, UP in run,
-    stands clear of them to be slapped down to STOP, and a bump from below
-    cannot throw it back up. Printed base down: the wings and the bar rise."""
-    x0 = V.PCAP_X[0]
-    xb, xt = x0 - V.ESG_T, x0 - V.ESG_PROUD
-    hy = V.ESG_GAP / 2 + V.ESG_WALL
-    zb = V.ESG_BAR_Z - V.ESG_WALL
-    y = V.ES_Y
-    g = box(xb, x0, y - hy, y + hy, zb, V.ESG_TOP_Z)
-    for s in (1, -1):
-        a, b = sorted((y + s * V.ESG_GAP / 2, y + s * hy))
-        g += box(xt, x0, a, b, zb, V.ESG_WING_TOP_Z)
-    g += box(xt, x0, y - hy, y + hy, zb, V.ESG_BAR_Z)
-    return g - _es_hole(xb - 1, x0 + 1)
 
 
 def _rod(a, b, r):
@@ -1033,16 +1000,16 @@ def _rod(a, b, r):
 
 
 def mock_switches():
-    """Both toggles as they sit: the main switch in the pod -- body and
-    terminal screws under the panel, the bushing and nut over it, the lever
-    upright -- and the E-stop through the cap -- body and its three solder
-    lugs inside, the bushing through the cap and the guard's base, the
-    lockwasher and nut on it, and the lever thrown UP (run)."""
-    zp = V.SWP_TOP_Z - V.SW_PANEL_T                                     # the panel's underside
-    zb = zp - V.SW_BODY[2]
-    hx, hl = V.SW_BODY[1] / 2, V.SW_BODY[0] / 2
+    """Both toggles as they sit in the pod, levers up: the main switch --
+    body and terminal screws under its panel, the bushing and nut over it,
+    the lever upright -- and the E-stop -- body and its three solder lugs
+    under the shelf, the bushing, lockwasher and nut over it, the lever
+    thrown OUT (-y: run). Each bushing has its keyway, on its tab."""
     nut_r = V.SW_NUT_AF / 2 / math.cos(math.radians(30))
     x, y = V.SW_AXIS_X, V.SW_Y
+    zp = V.SWP_TOP_Z - V.SW_PANEL_T
+    zb = zp - V.SW_BODY[2]
+    hx, hl = V.SW_BODY[1] / 2, V.SW_BODY[0] / 2
     m = box(x - hx, x + hx, y - hl, y + hl, zb, zp)
     m += box(x - hx + 2, x + hx - 2, y - hl + 3, y + hl - 3, zb - V.SW_TERM_L, zb)
     kw, kd = V.SW_KEYWAY
@@ -1050,21 +1017,21 @@ def mock_switches():
     m += cyl_z(V.SW_BUSH_D / 2, zp, zp + V.SW_THREAD_L, x, y) - Pos(x, y, 0) * Rot(0, 0, V.SW_KEY_ANG) * slot
     m += cyl_z(nut_r, V.SWP_TOP_Z, V.SWP_TOP_Z + V.SW_WASHER_T + V.SW_NUT_T, x, y)
     m += cyl_z(V.SW_LEVER_D / 2, zp + V.SW_THREAD_L, V.SW_LEVER_TOP_Z, x, y)
-    xi, y, z = V.PCAP_X[1], V.ES_Y, V.ES_Z                              # the E-stop, from the cap's inner face
-    by, bz = V.ES_BODY[1] / 2, V.ES_BODY[0] / 2
-    m += box(xi, xi + V.ES_BODY[2], y - by, y + by, z - bz, z + bz)
-    for tz in V.ES_TERM_Z.values():
-        m += box(xi + V.ES_BODY[2], xi + V.ES_BODY[2] + V.ES_LUG_L, y - V.ES_LUG_W / 2, y + V.ES_LUG_W / 2,
-                 tz - V.ES_LUG_T / 2, tz + V.ES_LUG_T / 2)
-    xe = xi - V.ES_BUSH_L                                                 # the bushing's end
+    y = V.ES_Y
+    ze = V.ES_SHELF_Z - V.SW_PANEL_T                                     # the shelf's underside
+    zb = ze - V.ES_BODY[2]
+    m += box(x - V.ES_BODY[1] / 2, x + V.ES_BODY[1] / 2, y - V.ES_BODY[0] / 2, y + V.ES_BODY[0] / 2, zb, ze)
+    for ty in V.ES_TERM_Y.values():
+        m += box(x - V.ES_LUG_W / 2, x + V.ES_LUG_W / 2, ty - V.ES_LUG_T / 2, ty + V.ES_LUG_T / 2,
+                 zb - V.ES_LUG_L, zb)
     kw, kd = V.ES_KEYWAY
-    m += cyl_x(V.ES_BUSH_D / 2, xe, xi, y, z) - box(xe - 1, xi + 1, y - kw / 2, y + kw / 2, z - V.ES_BUSH_D / 2 - 1,
-                                                     z - V.ES_BUSH_D / 2 + kd)
-    xw = V.PCAP_X[0] - V.ESG_T
-    m += cyl_x(V.ES_NUT_AF / 2 / math.cos(math.radians(30)), xw - V.ES_WASHER_T - V.ES_NUT_T, xw, y, z)
+    slot = box(V.ES_BUSH_D / 2 - kd, V.ES_BUSH_D / 2 + 1, -kw / 2, kw / 2, ze - 1, ze + V.ES_BUSH_L + 1)
+    ztop = ze + V.ES_BUSH_L                                               # the bushing's end
+    m += cyl_z(V.ES_BUSH_D / 2, ze, ztop, x, y) - Pos(x, y, 0) * Rot(0, 0, V.ES_KEY_ANG) * slot
+    m += cyl_z(V.ES_NUT_AF / 2 / math.cos(math.radians(30)), V.ES_SHELF_Z,
+               V.ES_SHELF_Z + V.ES_WASHER_T + V.ES_NUT_T, x, y)
     a = math.radians(V.ES_THROW_DEG)
-    tip = (xi - V.ES_TIP * math.cos(a), y, z + V.ES_TIP * math.sin(a))
-    m += _rod((xe + 0.5, y, z), tip, V.ES_LEVER_D / 2)
+    m += _rod((x, y, ztop - 0.5), (x, y - V.ES_TIP * math.sin(a), ze + V.ES_TIP * math.cos(a)), V.ES_LEVER_D / 2)
     return m
 
 
@@ -1073,19 +1040,21 @@ def switch_keepouts():
     and wires (TERM_MARGIN round the body's outline; SW_ENV, ES_ENV deep), and
     each lever's throw (each way, plus its girth, and TERM_MARGIN)."""
     out = {}
-    zp = V.SWP_TOP_Z - V.SW_PANEL_T
-    hx, hl, t = V.SW_BODY[1] / 2 + V.TERM_MARGIN, V.SW_BODY[0] / 2 + V.TERM_MARGIN, V.TERM_MARGIN
+    t = V.TERM_MARGIN
     x, y = V.SW_AXIS_X, V.SW_Y
+    zp = V.SWP_TOP_Z - V.SW_PANEL_T
+    hx, hl = V.SW_BODY[1] / 2 + t, V.SW_BODY[0] / 2 + t
     out["main switch's terminals"] = box(x - hx, x + hx, y - hl, y + hl, zp - V.SW_ENV, zp - V.SW_BODY[2])
     reach = V.SW_LEVER_L * math.sin(math.radians(V.SW_THROW_DEG)) + V.SW_LEVER_D / 2
     out["main switch's lever"] = box(x - V.SW_LEVER_D / 2 - t, x + V.SW_LEVER_D / 2 + t, y - reach, y + reach,
                                      zp + V.SW_THREAD_L, V.SW_LEVER_TOP_Z)
-    xi, y, z = V.PCAP_X[1], V.ES_Y, V.ES_Z
-    by, bz = V.ES_BODY[1] / 2 + t, V.ES_BODY[0] / 2 + t
-    out["E-stop's body, lugs and wires"] = box(xi, xi + V.ES_ENV, y - by, y + by, z - bz, z + bz)
-    xn = V.PCAP_X[0] - V.ESG_T - V.ES_WASHER_T - V.ES_NUT_T
-    out["E-stop's lever"] = box(V.PCAP_X[0] - V.ES_TIP_PROUD - t, xn, y - V.ES_LEVER_D / 2 - t,
-                                y + V.ES_LEVER_D / 2 + t, z - V.ES_REACH - t, z + V.ES_REACH + t)
+    y = V.ES_Y
+    ze = V.ES_SHELF_Z - V.SW_PANEL_T
+    hx, hl = V.ES_BODY[1] / 2 + t, V.ES_BODY[0] / 2 + t
+    out["E-stop's body, lugs and wires"] = box(x - hx, x + hx, y - hl, y + hl, ze - V.ES_ENV, ze)
+    zn = V.ES_SHELF_Z + V.ES_WASHER_T + V.ES_NUT_T
+    out["E-stop's lever"] = box(x - V.ES_LEVER_D / 2 - t, x + V.ES_LEVER_D / 2 + t, y - V.ES_REACH - t,
+                                y + V.ES_REACH + t, zn, ze + V.ES_TIP)
     return out
 
 
@@ -1094,11 +1063,10 @@ def switch_keepouts():
 # hz) half sizes). A pair of 14 AWG side by side is WIRE_OD_14 wide each.
 # The main switch's pair runs through an inline two-pin disconnect parked
 # over the board's low parts behind the cap (DISC_*), so the cap comes off
-# with its switches; the E-stop's comes off at J11. The E-stop's pair runs
-# flat on the cap's inner face over C1 and under K1.
+# with its switches; the E-stop's comes off at J11.
 DISC = (26.0, 11.0, 6.0)          # ASSUMED (an XT30 pair, mated): long (y), tall (z), thick (x) -- check it
 DISC_C = (V.PWRB_PCB_X0 - 16.0, -24.0, -51.0)   # its centre: over Q1/Q2 and the resistors, clear of J8
-LANE_Y = sum(V.SW_PASS[0]) / 2                    # -11.0 the main pair's lane through the cap's passage
+LANE_Y = {"main": -11.0, "estop": -21.5}          # each pair's lane through the cap's passage (SW_PASS)
 
 
 def _pair14():
@@ -1108,9 +1076,6 @@ def _pair14():
 WIRE_14_W = V.WIRE_OD_14 + V.WIRE_MARGIN          # 5.4: half a side-by-side pair and its margin, across
 WIRE_14_T = V.WIRE_OD_14 / 2 + V.WIRE_MARGIN      # 3.7: half its thickness and its margin
 WIRE_24 = V.WIRE_OD_24 + V.WIRE_MARGIN            # 3.4: half a 24 AWG pair side by side and its margin, across
-WIRE_24_T = V.WIRE_OD_24 / 2 + V.WIRE_MARGIN      # 2.7: half its thickness, lying flat, and its margin
-ES_FLAT_X = V.PCAP_X[1] + WIRE_24_T + 0.1         # -74.31 the E-stop pair, flat on the cap's inner face
-ES_RUN_Z = -46.5                                   # its run across, under K1 and C1
 
 
 def wire_paths():
@@ -1128,19 +1093,17 @@ def wire_paths():
     es_path = estop_lead_path()
     return [
         ("main switch's pair, in the pod and to the disconnect", [
-            (xax, V.SW_Y, z_env), (xax, V.SW_Y, zch), (xax, LANE_Y, zch),
-            (dx, LANE_Y, zch), (dx, dy - DISC[0] / 2 - 2, zch), (dx, dy - DISC[0] / 2 - 2, dz)],
+            (xax, V.SW_Y, z_env), (xax, V.SW_Y, zch), (xax, LANE_Y["main"], zch),
+            (dx, LANE_Y["main"], zch), (dx, dy - DISC[0] / 2 - 2, zch), (dx, dy - DISC[0] / 2 - 2, dz)],
          _pair14()),
         ("main switch's pair, the disconnect to W6/W7", [
             (dx, dy + DISC[0] / 2, dz), (dx, y_up, dz), (x0 - 22.5, y_up, dz), (x0 - 22.5, y_up, w6[1]),
             (x0 - 9.5, y_up, w6[1]), (x0 - 9.5, (w6[0] + w7[0]) / 2, w6[1]),
             (x0 - V.PWRB_LOW_H, (w6[0] + w7[0]) / 2, w6[1])],
          _pair14()),
-        # off lugs 2 and 3, down past the body, back to the cap's face and
-        # flat on it down over C1, across under K1 and C1, down to J11
-        ("E-stop pair, its lugs to J11", es_path,
-         [(WIRE_24,) * 3, (WIRE_24,) * 3, (WIRE_24_T, WIRE_24, WIRE_24), (WIRE_24_T, WIRE_24, WIRE_24),
-          (WIRE_24_T, WIRE_24, WIRE_24), (WIRE_24,) * 3]),
+        # off lugs 2 and 3, down the pod to its channel, through the cap's
+        # passage, down under it and across under the disconnect to J11
+        ("E-stop pair, in the pod and to J11", es_path, (WIRE_24,) * 3),
         # out of W1 and W2 (7 apart in z), up past the bracket's top, over the
         # BMS's top edge one behind the other, P-'s on along the edge
         ("BMS's 14 AWG pair, W1/W2 over its top edge", [
@@ -1158,13 +1121,13 @@ def estop_lead_path():
     j11 = [p for p in V.PWRB_PARTS if p[0] == "J11"][0]
     (j11y0, j11z0), (j11y1, j11z1) = V.pwrb_yz(j11[1], j11[3]), V.pwrb_yz(j11[2], j11[4])
     jy, jz = (j11y0 + j11y1) / 2, (j11z0 + j11z1) / 2
-    xl = V.PCAP_X[1] + V.ES_BODY[2] + V.ES_LUG_L                         # the lugs' tips
-    z23 = (V.ES_TERM_Z[2] + V.ES_TERM_Z[3]) / 2
-    c1 = [p for p in V.PWRB_PARTS if p[0] == "C1"][0]
-    c1_top_z = max(V.pwrb_yz(c1[1], c1[3])[1], V.pwrb_yz(c1[2], c1[4])[1])
-    z_turn = c1_top_z + WIRE_24 + 0.4                                         # its turn aft, over C1's top edge
-    return [(xl, V.ES_Y, z23), (xl, V.ES_Y, z_turn), (ES_FLAT_X, V.ES_Y, z_turn), (ES_FLAT_X, V.ES_Y, ES_RUN_Z),
-            (ES_FLAT_X, jy, ES_RUN_Z), (ES_FLAT_X, jy, jz), (x0 - j11[5], jy, jz)]
+    xax = V.SW_AXIS_X
+    y23 = (V.ES_TERM_Y[2] + V.ES_TERM_Y[3]) / 2
+    z_env = V.ES_SHELF_Z - V.SW_PANEL_T - V.ES_ENV
+    zch = sum(V.SW_PASS[1]) / 2
+    ly = LANE_Y["estop"]
+    return [(xax, y23, z_env), (xax, y23, zch), (xax, ly, zch), (x0 - 25.0, ly, zch), (x0 - 25.0, ly, -61.0),
+            (x0 - 25.0, jy, -61.0), (x0 - 25.0, jy, jz), (x0 - j11[5], jy, jz)]
 
 
 def estop_lead_length():
@@ -1365,9 +1328,9 @@ def SCREWS():
             s.append(dict(name=f"pwrb_{hy:+.0f}_{hz:+.0f}", part="torso_v8",
                           kind="M2.5x6 self-tap, pan head (standoff boss)", axis=(1, 0, 0),
                           pos=(V.PWRB_PCB_X0, hy, hz), length=PWRB_SCREW_L, clamp=V.PWRB_T, pilot=PWRB_PILOT))
-    for ey, ez in SWP_EARS_YZ:
+    for ey, ez in SWP_SCREWS_YZ:
         s.append(dict(name=f"switch_pod_{ey:+.0f}_{ez:+.0f}", part="switch_pod_v8",
-                      kind="M2.5x8 self-tap, flat head (through the cap into the switch pod's ear)",
+                      kind="M2.5x8 self-tap, flat head (through the cap into the switch pod's side wall)",
                       axis=(-1, 0, 0), pos=(V.PCAP_X[1], ey, ez), length=SWP_SCREW_L, clamp=V.COVER_T,
                       pilot=SWP_SCREW_L - 2.0))
     sx, sz = V.DOOR_SCREW
@@ -1538,8 +1501,7 @@ POWER_BAY_GAPS = (("the cap over the board's parts (K1 2.0 under its plate)", "c
                   ("the pack's balance plug on the park vs J1's plug", "plug", "j1", 1.0),
                   ("the balance park vs the board's +y edge", "park", "board", 0.4),
                   ("the balance lead vs the BMS bracket", "lead", "bracket", 1.0),
-                  ("the E-stop's guard vs the switch pod's ear", "guard", "pod", 0.5),
-                  ("the E-stop's guard vs the cap's vent slot", "guard", "vent", 0.5))
+                  ("the switch pod vs the cap's vent slot", "pod", "vent", 2.0))
 
 
 def check_fits(pieces):
@@ -1573,9 +1535,9 @@ def check_fits(pieces):
                  "BMS bracket in from aft onto its standoffs")
     ok &= _sweep(bms, tor + pwrb + so + br + park + male + lead, ((-30.0, 0, 0), (0, 0, 0)),
                  "BMS in from aft onto the bracket")
-    pod, guard, sw = pieces["switch_pod_v8"], pieces["estop_guard_v8"], mock_switches()
+    pod, sw = pieces["switch_pod_v8"], mock_switches()
     ko, env = switch_keepouts(), wire_envelopes()
-    capset = pc + pod + guard + sw
+    capset = pc + pod + sw
     ok &= _sweep(capset, tor + pel + bay, ((-30.0, 0, 0), (0, 0, 0)), "the cap on from aft, its pod and switches on it")
     _, barbs = _snap_fingers()
     ok &= _sweep(pel, tor - barbs, ((0, 0, -45.0), (0, 0, 0)), "pelvis up into the torso (barbs aside)", n=46)
@@ -1607,21 +1569,21 @@ def check_fits(pieces):
     v = (pel & barbs).volume
     print(f"  barbs vs seated pelvis: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
     ok &= v < 0.05
-    rest = {"torso": tor, "pelvis": pel, "cap": pc, "switch pod": pod, "E-stop guard": guard, "door": door,
-            "board": mock_pwrb(), "standoffs": so, "BMS bracket": br, "BMS": bms, "balance park": park}
+    rest = {"torso": tor, "pelvis": pel, "cap": pc, "switch pod": pod, "door": door, "board": mock_pwrb(),
+            "standoffs": so, "BMS bracket": br, "BMS": bms, "balance park": park}
     print("  keep-outs (TERM_MARGIN, WIRE_MARGIN in them) vs every part, mm (0.00 = touching where it ends):")
     for nm, k in [*ko.items(), *env.items()]:
         bad = [(n, (k & b).volume) for n, b in rest.items() if (k & b).volume > 0.01]
         near = min((k.distance_to(b), n) for n, b in rest.items())
         ok &= not bad
         print(f"    {nm}: {'PASS' if not bad else 'FAIL ' + str(bad)}, nearest {near[1]} {near[0]:.2f}")
-    v = (sw & pod).volume + (sw & pc).volume + (sw & guard).volume
-    print(f"  seated switches in the pod, the cap and the guard: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
+    v = (sw & pod).volume + (sw & pc).volume
+    print(f"  seated switches in the pod: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
     ok &= v < 0.05
     vent = box(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, PCAP_VENT_Y[0] - 2.0, PCAP_VENT_Y[0] + 2.0, zt + 12.0, zd - 12.0)
     solids = {"cap": pc, "board": mock_pwrb(), "bms": bms, "bracket": br, "bms+bracket": bms + br, "door": door,
               "park": park, "park+plug": park + male, "plug": male, "j1": mock_j1_plug(), "lead": lead,
-              "guard": guard, "pod": pod, "vent": vent}
+              "pod": pod, "vent": vent}
     print(f"  the balance lead's route, J2 to the park: {balance_lead_length():.0f} mm")
     print(f"  the E-stop pair's route, its lugs to J11: {estop_lead_length():.0f} mm")
     for nm, a, b, need in POWER_BAY_GAPS:
@@ -1669,8 +1631,7 @@ def mass_g(s):
 def build(arm_mounts=True):
     return {"pelvis_v8": pelvis_v8(), "torso_v8": torso_v8(arm_mounts=arm_mounts),
             "front_cover_v8": front_cover_v8(), "power_cover_v8": power_cover_v8(),
-            "switch_pod_v8": switch_pod_v8(), "estop_guard_v8": estop_guard_v8(),
-            "power_bracket_v8": power_bracket_v8(),
+            "switch_pod_v8": switch_pod_v8(), "power_bracket_v8": power_bracket_v8(),
             "balance_park_v8": balance_park_v8(),
             "battery_door_v8": battery_door_v8()}
 
@@ -1755,7 +1716,6 @@ def render(pieces, out_dir):
                ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.6),
                ([(in_print_orient(pieces["balance_park_v8"], "balance_park_v8"), C_BRACKET)], 135, -45, 2.6),
                ([(in_print_orient(pieces["switch_pod_v8"], "switch_pod_v8"), C_BRACKET)], 135, -45, 2.6),
-               ([(in_print_orient(pieces["estop_guard_v8"], "estop_guard_v8"), C_BRACKET)], 135, -45, 2.6),
                ([(in_print_orient(door, "battery_door_v8"), C_COVER)], 135, -55, 2.6)]
     boards = (mock_stack(plugs=True) + mock_pwrb() + mock_pwrb_standoffs() + br + mock_bms()
               + pieces["balance_park_v8"] + mock_balance_male() + mock_balance_lead())
@@ -1789,14 +1749,14 @@ def render_power_bay(pieces, out_dir):
                              the keep-outs (yellow: the switches' terminals and
                              levers, every lead's swept envelope, the
                              disconnect) with the cap off; the cap carries the
-                             switch pod with the main switch, and the E-stop
-                             in its guard;
-    power_bay_prints_v8.png  the cap, the bracket, the park, the switch pod and
-                             the E-stop's guard as they lie on the bed."""
-    pel, tor, pc, br, pk, pod, gd = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8",
-                                                         "power_bracket_v8", "balance_park_v8", "switch_pod_v8",
-                                                         "estop_guard_v8"))
-    capset = [(pc, C_COVER), (pod, C_BRACKET), (gd, C_BRACKET), (mock_switches(), C_PARTS)]
+                             switch pod with both switches;
+    power_bay_prints_v8.png  the cap, the bracket, the park and the switch pod
+                             as they lie on the bed;
+    switch_pod_v8.png        the switch pod on the cap from outside: from aft
+                             and -y, from aft and above, and from +y."""
+    pel, tor, pc, br, pk, pod = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8",
+                                                     "power_bracket_v8", "balance_park_v8", "switch_pod_v8"))
+    capset = [(pc, C_COVER), (pod, C_BRACKET), (mock_switches(), C_PARTS)]
     aft = box(-120.0, -20.0, -200, 200, -200, 200)
     pcb, parts = mock_pwrb_split()
     so, bms = mock_pwrb_standoffs(), mock_bms()
@@ -1815,18 +1775,21 @@ def render_power_bay(pieces, out_dir):
     prints = [([(in_print_orient(pc, "power_cover_v8"), C_COVER)], 135, -55, 2.4),
               ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.4),
               ([(in_print_orient(pk, "balance_park_v8"), C_BRACKET)], 135, -45, 2.6),
-              ([(in_print_orient(pod, "switch_pod_v8"), C_BRACKET)], 135, -45, 2.6),
-              ([(in_print_orient(gd, "estop_guard_v8"), C_BRACKET)], 135, -45, 2.6)]
+              ([(in_print_orient(pod, "switch_pod_v8"), C_BRACKET)], 135, -45, 2.6)]
+    aft = box(-200.0, -30.0, -200, 200, -200, 200)
+    back = [(tor & aft, C_TORSO), *capset]
+    pod_views = [(back, 35, -25, 1.9), (back, 0, -55, 1.9), (back, -40, -20, 1.9)]
     return (_render_strip(bay, os.path.join(out_dir, "power_bay_v8.png")),
-            _render_strip(prints, os.path.join(out_dir, "power_bay_prints_v8.png")))
+            _render_strip(prints, os.path.join(out_dir, "power_bay_prints_v8.png")),
+            _render_strip(pod_views, os.path.join(out_dir, "switch_pod_v8.png")))
 
 
 def power_bay_step(pieces, path, board_step=None):
     """The power bay as one STEP for FreeCAD (File > Open): the pelvis, the
     torso, the battery door and the pack, the power board, its standoffs, the
     BMS bracket, the BMS, the balance park with the extension lead's male end
-    (and the pack's plug on it) and the lead, the cap with the switch pod, the
-    E-stop's guard and the two toggles, and the keep-outs the checks hold everything off (the
+    (and the pack's plug on it) and the lead, the cap with the switch pod and
+    the two toggles in it, and the keep-outs the checks hold everything off (the
     switches' terminals and levers, every lead's envelope), each a named part. board_step: power
     lite's own STEP (kicad-cli pcb export step --user-origin 100x60mm, its
     origin the top-left corner of the parts side) placed on the bosses in
@@ -1845,8 +1808,7 @@ def power_bay_step(pieces, path, board_step=None):
                     ("balance_park_v8", pieces["balance_park_v8"]),
                     ("balance_extension_male_and_pack_plug", mock_balance_male()),
                     ("balance_extension_lead", mock_balance_lead()),
-                    ("switch_pod_v8", pieces["switch_pod_v8"]), ("estop_guard_v8", pieces["estop_guard_v8"]),
-                    ("toggles_main_and_estop", mock_switches()),
+                    ("switch_pod_v8", pieces["switch_pod_v8"]), ("toggles_main_and_estop", mock_switches()),
                     *[(f"keepout {k}", v) for k, v in switch_keepouts().items()],
                     *[(f"keepout {k}", v) for k, v in wire_envelopes().items()],
                     ("power_cover_v8", pieces["power_cover_v8"])):
