@@ -113,20 +113,26 @@ class Window(QtWidgets.QMainWindow):
                 continue
             w = self._make(mod, cls, title)
             self.tab_widgets[title] = w
-            self.tabs.addTab(w, title)
+            # A tab bigger than its share of the screen scrolls; it never
+            # makes the window bigger than the screen.
+            sa = QtWidgets.QScrollArea()
+            sa.setWidgetResizable(True)
+            sa.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+            sa.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            sa.setWidget(w)
+            self.tabs.addTab(sa, title)
         if self.pad is not None:
             self.pad.install(self)
         self.split = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.split.setHandleWidth(6)
         self.split.addWidget(self.view)
         self.split.addWidget(wrap(vbox(self.tabs, margins=(4, 8, 12, 4))))
-        self.split.setSizes([760, 1160])
         lay = vbox(self.bar, self.split, spacing=0)
         lay.setStretchFactor(self.split, 1)
         root.setLayout(lay)
         self.setCentralWidget(root)
         self.statusBar().showMessage(f"log {ctl.log.path or '(none)'}")
-        self.resize(1920, 1080)
+        self.fit_to_screen()
         bench = "Bench" in self.tab_widgets and not opts.drive_view   # bimo_gui's bench view
         self.select_tab(opts.tab or ("Bench" if bench else DEFAULT_TAB))
 
@@ -171,6 +177,19 @@ class Window(QtWidgets.QMainWindow):
                 return Placeholder(title)
             raise
         return getattr(m, cls)(self)
+
+    def fit_to_screen(self) -> None:
+        """Size the window to the screen it opens on, never larger: an
+        operator console whose E-STOP is off the bottom of a laptop screen
+        is not one. The view pane gets about 40 % of the width."""
+        scr = self.screen() or QtWidgets.QApplication.primaryScreen()
+        avail = scr.availableGeometry() if scr is not None else QtCore.QRect(0, 0, 1920, 1080)
+        w = min(2560, avail.width())
+        h = min(1440, avail.height() - 32)          # the title bar
+        self.resize(w, h)
+        self.move(avail.x() + (avail.width() - w) // 2, avail.y())
+        view = max(380, min(760, int(w * 0.38)))
+        self.split.setSizes([view, w - view])
 
     def select_tab(self, name: str) -> bool:
         for i in range(self.tabs.count()):
@@ -256,7 +275,7 @@ class Window(QtWidgets.QMainWindow):
         self.bar.update_from(st, now)
         if hasattr(self.view, "update_from"):
             self.view.update_from(st, now)
-        w = self.tabs.currentWidget()
+        w = self.tab_widgets.get(self.tabs.tabText(self.tabs.currentIndex()))
         if hasattr(w, "update_from"):
             w.update_from(st, now)
         for title, tw in self.tab_widgets.items():

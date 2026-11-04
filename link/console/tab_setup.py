@@ -67,7 +67,8 @@ class SetupTab(QtWidgets.QWidget):
         keyg = group(f"KEYMAP   {app.ctl.keymap_path or '(no $HOME)'}",
                      vbox(self.keys, self.key_hint, hbox(restore, save, "stretch")))
         # -- screenshot ------------------------------------------------------
-        self.shot = edit(os.path.join(o.sessions, "console.png"), 360)
+        self.shot = edit(os.path.join(o.sessions, "console.png"))
+        self.shot.setMinimumWidth(220)
         shot_btn = btn("save screenshot", 160, h=30)
         shot_btn.clicked.connect(lambda: app.screenshot(self.shot.text()))
         shotg = group("SCREENSHOT   the window, no screen-recording permission",
@@ -75,7 +76,7 @@ class SetupTab(QtWidgets.QWidget):
         self.gamepad_box = QtWidgets.QVBoxLayout()
         padg = group("GAMEPAD", self.gamepad_box)
         self.setLayout(hbox(vbox(link, data, shotg, "stretch", spacing=10),
-                            vbox(keyg, spacing=10), vbox(padg, "stretch", spacing=10),
+                            vbox(keyg, padg, "stretch", spacing=10),
                             spacing=12, margins=(12, 12, 12, 12)))
         self.refresh_keys()
 

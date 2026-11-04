@@ -149,3 +149,22 @@ def test_mjpeg_parser_takes_parts_split_anywhere():
     p = mjpeg.Parser()
     p.feed(b"--f\r\nContent-Length: 999999999\r\n\r\n")
     assert p.overflow and p.take() is None
+
+
+def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
+    """Everything that must be seen -- the safety bar above all -- fits a
+    1440 x 860 pt laptop area; a tab bigger than its share scrolls instead of
+    growing the window off the screen."""
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        pump(qapp, 0.3)
+        bar = w.bar.minimumSizeHint()
+        assert bar.width() <= 1440, bar
+        whole = w.centralWidget().minimumSizeHint()
+        assert whole.width() <= 1440 and whole.height() <= 860, whole
+        for i in range(w.tabs.count()):
+            assert isinstance(w.tabs.widget(i), QtWidgets.QScrollArea), w.tabs.tabText(i)
+        scr = w.screen().availableGeometry()
+        assert w.width() <= max(scr.width(), whole.width())
+    finally:
+        w.close()

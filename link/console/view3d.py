@@ -213,16 +213,21 @@ class ViewPane(QtWidgets.QWidget):
         self.lay_group, lay_lay = _segmented(["PiP", "split"])
         self.lay_group.idClicked.connect(lambda i: self.set_split(i == 1))
         row1 = hbox(src_lay, 18, self.show_cmd, self.show_sim, self.show_pip, "stretch",
-                    self.preset, spacing=12)
-        row2 = hbox(lab("camera", DIM), self.cam_pick, lay_lay, "stretch",
-                    lab("not registered to the 3D view: never drawn under the model", FAINT, 11),
+                    spacing=12)
+        row2 = hbox(lab("camera", DIM), self.cam_pick, lay_lay, "stretch", self.preset,
                     spacing=10)
+        note = lab("camera: not registered to the 3D view, never drawn under the model",
+                   FAINT, 11)
+        note.setWordWrap(True)
+        note.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored,
+                           QtWidgets.QSizePolicy.Policy.Preferred)
         self.canvas = _Canvas(self)
         self.status = lab("", rich=True)
         self.status.setWordWrap(True)
         self.status.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored,
                                   QtWidgets.QSizePolicy.Policy.Preferred)
-        lay = vbox(row1, row2, self.canvas, self.status, spacing=8, margins=(12, 10, 8, 8))
+        lay = vbox(row1, row2, note, self.canvas, self.status, spacing=8,
+                   margins=(12, 10, 8, 8))
         lay.setStretchFactor(self.canvas, 1)
         self.setLayout(lay)
 

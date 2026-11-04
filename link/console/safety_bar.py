@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import time
 
-from PyQt6 import QtCore, QtWidgets
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from . import core
 from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, RED, STATE_COLOUR, btn, hbox,
@@ -42,14 +42,23 @@ class SafetyBar(QtWidgets.QFrame):
         self.setObjectName("safety")
         self.badge = lab("")
         self.badge.setFixedHeight(46)
-        self.badge.setFixedWidth(230)
+        # Fixed at the widest text it can show, so it never clips and never
+        # changes width (a field that moves has to be re-read).
+        f = QtGui.QFont(self.badge.font())
+        f.setPixelSize(19)
+        f.setWeight(QtGui.QFont.Weight.ExtraBold)
+        fm = QtGui.QFontMetrics(f)
+        widest = max(fm.horizontalAdvance(f"●  {t} · WATCH")
+                     for t in ("NO BEACON", "LINK LOST", "STOPPED", "FALLEN", "FLAIL",
+                               "BENCH", "ESTOP", "VLAND", "VSAFE", "RELAX", "STAND", "LIVE"))
+        self.badge.setFixedWidth(widest + 32)
         self.badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.arm = btn("ARM", 230, "arm")
-        self.stand = btn("STAND", 132)
-        self.hold = btn("HOLD", 132, "hold", h=46)
-        self.estop = btn("E-STOP", 230, "estop", h=46)
-        self.reset = btn("RESET SERVOS", 190, "reset")
-        self.control = btn("TAKE CONTROL", 160, "take", h=34)
+        self.arm = btn("ARM", 212, "arm")
+        self.stand = btn("STAND", 124)
+        self.hold = btn("HOLD", 124, "hold", h=46)
+        self.estop = btn("E-STOP", 204, "estop", h=46)
+        self.reset = btn("RESET SERVOS", 176, "reset")
+        self.control = btn("TAKE CONTROL", 150, "take", h=34)
         self.arm.clicked.connect(lambda: c.fire("arm"))
         self.stand.clicked.connect(lambda: c.fire("stand"))
         self.hold.clicked.connect(c.hold)
@@ -64,21 +73,23 @@ class SafetyBar(QtWidgets.QFrame):
         self.pad_sub = lab("keyboard / mouse", DIM, 11)
         self.rec = lab("○ not recording", DIM, 14, True)
         self.rec_sub = lab("", DIM, 11)
-        for w, width in ((self.vbat, 110), (self.servo, 170), (self.pad, 190), (self.rec, 160)):
-            w.setMinimumWidth(width)
+        self.vbat.setMinimumWidth(110)
+        # Two rows, so the bar fits a laptop screen (1440 pt wide): the
+        # controls on top, the readouts beneath them.
         row1 = hbox(self.badge, 6, self.arm, self.stand, 14, self.hold, self.estop, 22,
-                    self.reset, "stretch",
-                    vbox(self.vbat, self.vbat_sub, spacing=0), 18,
-                    vbox(self.servo, self.servo_sub, spacing=2), 18,
-                    vbox(self.pad, self.pad_sub, spacing=2), 18,
-                    vbox(self.rec, self.rec_sub, spacing=2), 18, self.control, spacing=10)
+                    self.reset, "stretch", self.control, spacing=10)
+        row2 = hbox(self.vbat, self.vbat_sub, 28, self.servo, self.servo_sub, 28,
+                    self.pad, self.pad_sub, 28, self.rec, self.rec_sub, "stretch", spacing=8)
         self.link = lab("", mono=True, rich=True)
         self.bench = lab("", rich=True)
-        self.bench.setWordWrap(True)
         self.note = lab("", rich=True)
-        self.note.setWordWrap(True)
-        self.setLayout(vbox(row1, self.link, self.bench, self.note, spacing=7,
-                            margins=(14, 12, 14, 9)))
+        # Text never sets the window's width: it wraps to whatever is there.
+        for w in (self.link, self.bench, self.note):
+            w.setWordWrap(True)
+            w.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored,
+                            QtWidgets.QSizePolicy.Policy.Preferred)
+        self.setLayout(vbox(row1, row2, self.link, self.bench, self.note, spacing=6,
+                            margins=(14, 10, 14, 8)))
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
                            QtWidgets.QSizePolicy.Policy.Fixed)
         self._labels()
