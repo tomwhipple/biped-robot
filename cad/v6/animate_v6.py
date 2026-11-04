@@ -101,6 +101,7 @@ INSERT = [
     ("servo_shoulder_",    (0, 1, 0), 17),
     ("shoulder_cheek_",    (0, 1, 0), 17),
     ("arm_upper_",         (0, 1, 0), 18),
+    ("arm_head_insert_",   (0, 1, 0), 18),   # glued into the upper arm's head on the bench: arrives with it
     ("servo_elbow_",       (1, 0, 0), 19),
     ("arm_fore_",          (0, 0, -1), 20),
 ]

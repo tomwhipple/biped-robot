@@ -1271,6 +1271,25 @@ ARM_HEAD_WALL_Z = (-ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR - LL_WALL_T,
                    -ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR)               # (-13.2, -10.8)
 assert ARM_HEAD_WALL_Z[1] < -(D.BCD / 2 + D.M3_HEAD_D / 2), \
     "the head's end wall sits on the lowest disc screw's head"
+# The head's glued insert (arm_v6.arm_head_insert_v6, issue #199). Tom,
+# 2026-11-02: the horn plate is "a single pane of plastic connecting to the
+# servo that's unsecured on two sides" -- its front and top edges are free, so
+# the head twists and the arm wobbles -- "build a small insert to glue in to
+# close those sides. Make sure there's a lip to guide placement." The insert
+# fills the C between the two flanges along the head's front and top (and both
+# chamfers), outside the access bore's cylinder, and glues to both flanges'
+# inner faces, the web and the end wall. A lip round its outer edge laps the
+# horn plate's front and top edges: that edge face is the stop that seats it.
+# It is a separate print because, in RY_XUP, the closing wall is the
+# unbridgeable ceiling described above; printed flat, it is a plain prism.
+ARM_INSERT_GLUE = 0.15        # per side, insert to each flange's inner face (a glue line)
+ARM_INSERT_SEAT_CLR = 0.2     # insert to the web's inner face and the end wall's top
+ARM_INSERT_BORE_R = ARM_HEAD_ACCESS_R + 0.2   # 10.5: keeps the driver's path and the heads clear
+ARM_INSERT_LIP = 1.2          # lip thickness, proud of the head's front / top edge faces
+ARM_INSERT_LIP_Y0 = -D.PLATE / 2 + 0.2        # -1.3: 0.2 short of the horn plate's horn face
+ARM_INSERT_FRONT_X0 = 6.0     # below the axis the insert closes the front only, x >= this
+assert ARM_INSERT_BORE_R > D.BCD / 2 + D.M3_HEAD_D / 2 + 0.5, \
+    "the head insert sits on a disc screw's head"
 
 ARM_SHAFT_CLR = 1.5
 ARM_SHAFT_Y = (GIRDLE_Y1 + ARM_SHAFT_CLR - ARM_Y, 10.5)     # (-1.70, 10.5)

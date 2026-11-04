@@ -542,6 +542,12 @@ target.
   servo turns with the upper arm, and its lead crosses only the shoulder. The
   elbow clears −118° … +60° as drawn. Each link's side, L or R, is debossed
   0.6 mm into its outboard rail, 8 mm tall and upright as the arm hangs.
+- **Upper-arm head insert** (`arm_head_insert_v6`, mirror pair, 1.8 g): the
+  head's U is open at the front and the top, so the horn plate's front and top
+  edges are free and the head twists. A separate flat print is glued into the
+  U between the flanges, outside the access bore, and closes both sides. Its
+  lip laps the horn plate's front and top edges and seats it. The disc screws
+  still go in through the bore after it is glued (#199).
 - Hand: a 12 mm-radius knuckle, bare PETG.
 - **Rest pose: folded** — shoulder 15° forward, elbow folded 95°, so the
   forearm points forward and 20° up (`ARM_REST` in `cad/v6/dimensions_v6.py`;

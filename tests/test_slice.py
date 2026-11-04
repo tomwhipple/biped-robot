@@ -87,6 +87,8 @@ ORIENT_SOURCES = {
     "foot_R": ("foot_v6", "PRINT_ORIENT", None),
     "arm_upper_v6_L": ("arm_v6", "PRINT_ORIENT", "arm_upper_v6"),
     "arm_upper_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_upper_v6"),
+    "arm_head_insert_v6_L": ("arm_v6", "PRINT_ORIENT", "arm_head_insert_v6_L"),
+    "arm_head_insert_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_head_insert_v6_R"),
     "arm_fore_v6_L": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "arm_fore_v6_R": ("arm_v6", "PRINT_ORIENT", "arm_fore_v6"),
     "neck_floor": ("neck_floor", "PRINT_ORIENT", "neck_floor"),

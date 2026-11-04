@@ -766,7 +766,15 @@ letter faces out and reads upright with the arm hanging.
 
 ![The four arm links from outboard as they hang, left pair then right pair, over a close-up of each letter](img/arm_side_labels.png)
 
-1. **Upper arm onto the shoulder horn.** Offer it straight in along the joint
+1. **Glue the head insert into the upper arm first**, on the bench
+   (`arm_head_insert_v6`, a mirror pair: the right one for an arm is the one
+   whose lip lands on the horn plate). Lower it into the head's U from above,
+   lip toward the horn plate, until the lip sits on the horn plate's front and
+   top edges. Apply CA or epoxy on both flanges' inner faces, the web and the
+   end wall. It closes the U's open front and top,
+   which otherwise leave the horn plate free on two edges, so the arm wobbles
+   (#199). The access bore stays open, so the disc screws still go in after.
+2. **Upper arm onto the shoulder horn.** Offer it straight in along the joint
    axis, with the shoulder at zero (arm hanging). It is a single-sided horn
    joint.
    - **4 × M3 × 6** (the horn plate sits on a 1 mm seating boss: a 4.0 mm
@@ -774,7 +782,7 @@ letter faces out and reads upright with the arm hanging.
 
    ![Upper arm onto the shoulder horn](assembly/v6_17_upper_arm.png)
 
-2. **Elbow servo into the upper arm.** Slide it into the grip channel at the
+3. **Elbow servo into the upper arm.** Slide it into the grip channel at the
    upper arm's lower end from the front, output end down, horn outboard, so the
    case runs up the arm. **6 × M2.5 × 8 flat-heads**: four from outboard, two
    from inboard. Plug the shoulder-to-elbow lead in first and take it out
@@ -782,7 +790,7 @@ letter faces out and reads upright with the arm hanging.
 
    ![Elbow servo into the upper arm](assembly/v6_18_elbow_servo.png)
 
-3. **Forearm onto the elbow servo.** Lift it up so its fork tines pass either
+4. **Forearm onto the elbow servo.** Lift it up so its fork tines pass either
    side of the servo's output end onto the two discs, with the elbow straight:
    - horn side **4 × M3 × 5**;
    - idler side **4 × M3 × 6**.
