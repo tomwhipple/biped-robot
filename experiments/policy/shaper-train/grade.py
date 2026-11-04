@@ -153,9 +153,24 @@ class FlailGuard:
                     self.trip = (name, round(i * DT, 2), round(float(val), 3))
 
 
+def _decel_peaks(qv, dt, win=5):
+    """Peak joint DECELERATION (rad/s^2) per joint from physics-substep joint velocities
+    qv (T, n): acceleration as the velocity change over `win` substeps (a ~10 ms window,
+    so a single-substep contact spike does not count), deceleration where it opposes the
+    velocity."""
+    if len(qv) <= win:
+        return np.zeros(qv.shape[1] if qv.ndim == 2 else 0)
+    acc = (qv[win:] - qv[:-win]) / (win * dt)
+    vm = 0.5 * (qv[win:] + qv[:-win])
+    dec = np.where(acc * vm < 0, np.abs(acc), 0.0)
+    return dec.max(0)
+
+
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     """stand_sim.episode with the flail guard, the squeeze and walk progress recorded.
-    v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase."""
+    v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase,
+    limit (the firmware motion limiter, 'vmax,amax[,jmax]' deg units; after the shaper and
+    the takeover ramp, as in ctrl_task)."""
     run = v["run"]; settle_s = 1.5
     env, act, zoff = simh.build("fit", run=run, ep_s=run_s + hold_s + settle_s + 1.0)
     rng = np.random.default_rng(1000 + seed)
@@ -189,6 +204,9 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     obs = np.concatenate([first] + list(env._obs_hist))
     qm = first[:nj].astype(np.float64)
     sh = simh.Shaper(v["shaper_hz"]); sh.reset(qm)
+    lim = simh.Limiter(v["limit"]) if v.get("limit") else None
+    if lim is not None:
+        lim.reset(qm)
     sv = simh.TypedServo(**v.get("typed", FAST)); sv.reset(qm)
     out_gain = v.get("out_gain", 1.0); push = v.get("push", 0.0)
     hold = qm.copy(); cur = {"t": hold}
@@ -199,6 +217,29 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     import mujoco
     fell = False; ema = None; last_tgt = hold
     x0 = float(env.data.qpos[0])
+    # physics-substep joint velocities and body yaw rate (the stride's deceleration / spin)
+    import mujoco as _mj
+    QV, WZ = [], []
+    _step0 = _mj.mj_step
+
+    def _rec_step(m_, d_):
+        _step0(m_, d_)
+        QV.append(np.array(d_.qvel[env._sqvel])); WZ.append(float(d_.qvel[5]))
+    _mj.mj_step = _rec_step
+    try:
+        res = _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
+                            out_gain, push, n, nh, last_tgt, x0, nj)
+    finally:
+        _mj.mj_step = _step0
+    GO, GY, PW, TL, SQ, X, fell = res
+    return _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed,
+                            np.array(QV), np.array(WZ))
+
+
+def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
+                  out_gain, push, n, nh, last_tgt, x0, nj):
+    GO, GY, PW, TL, SQ, X = [], [], [], [], [], []
+    fell = False; ema = None
     for i in range(n + nh):
         holding = i >= n
         if not holding:
@@ -211,6 +252,8 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
             tgt = sh(raw)
             if i < S.RAMP:
                 tgt = hold + (i + 1) / S.RAMP * (tgt - hold)
+            if lim is not None:
+                tgt, _ = lim(tgt)
             last_tgt = tgt
         else:
             tgt = last_tgt; raw = last_tgt; a = env._prev_action.copy()
@@ -237,6 +280,10 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         if term:
             fell = True
             break
+    return GO, GY, PW, TL, SQ, X, fell
+
+
+def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ):
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
     # sum qdd^2 (servo DOFs, rad/s^2) and sum (a_t - 2 a_t-1 + a_t-2)^2 over the policy part
@@ -248,6 +295,26 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()), **m_smooth,
              trip=fg.trip, trips_by=fg.first, peak_rate=fg.peak_rate, peak_rate_xyz=fg.peak_rax.tolist(), peak_chatter=fg.peak_chat,
              dx=float(X[-1]))
+    # the written goals' own peak acceleration (what the limiter bounds), deg/s^2
+    if len(GO) > 2:
+        ga = np.abs(np.diff(GO, 2, axis=0)) / DT ** 2
+        m["goal_acc_peak_dps2"] = float(np.degrees(ga.max()))
+    sub = env.sim_dt
+    walks0 = [ts for ts, c in sched if not S.stand_gate(c)]
+    if len(QV):
+        # from the first walk command to 2.5 s after the last command change (the walk
+        # and the stop that ends it; the whole run without a walk)
+        k_per = env.n_substeps
+        i0 = int(round(walks0[0] / DT)) * k_per if walks0 else 0
+        t1 = max(ts for ts, _ in sched) + 2.5 if walks0 else None
+        i1 = min(len(QV), int(round(t1 / DT)) * k_per) if walks0 else len(QV)
+        dec = _decel_peaks(QV[i0:i1], sub)
+        m["joint_decel_peak_dps2"] = float(np.degrees(dec.max())) if dec.size else float("nan")
+        m["joint_decel_by"] = dict(zip(rec.POL, np.round(np.degrees(dec), 0).tolist()))
+        m["joint_vel_peak_dps"] = float(np.degrees(np.abs(QV[i0:i1]).max()))
+        wz = WZ[i0:i1]
+        m["yaw_rate_peak"] = float(np.abs(wz).max())
+        m["yaw_deg_2s5"] = float(np.degrees(np.sum(wz) * sub))
     walks = [ts for ts, c in sched if not S.stand_gate(c)]
     if walks:
         t_walk = walks[0]; i0 = int(round(t_walk / DT))
@@ -344,9 +411,10 @@ def summarize(res, variants, probes):
                            peak_rate_max=float(np.max([r.get("peak_rate", np.nan) for r in e])))
             for key in ("goal_rms_mean", "goal_rms_max", "rate_x", "rate_y", "rate_z", "power_w",
                         "power_hold_w", "squeeze_deg", "squeeze_hold_deg", "walk_dx_2s5",
-                        "walk_tilt_max", "walk_yaw_180ms", "walk_yaw_max", "walk_gz_max", "walk_qdd_start",
-                    "walk_qdd_stop", "walk_decel_start", "walk_decel_stop", "walk_wz_300ms",
-                    "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate", "tilt_max"):
+                        "walk_tilt_max", "tilt_max", "goal_acc_peak_dps2", "joint_decel_peak_dps2",
+                        "joint_vel_peak_dps", "yaw_rate_peak", "yaw_deg_2s5", "walk_yaw_180ms",
+                        "walk_yaw_max", "walk_gz_max", "walk_qdd_start", "walk_qdd_stop", "walk_decel_start",
+                        "walk_decel_stop", "walk_wz_300ms", "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate"):
                 vals = [r[key] for r in (ok if key != "tilt_max" else e) if key in r]
                 if vals:
                     row[pn][key] = float(np.nanmean(vals))
