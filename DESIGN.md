@@ -399,17 +399,19 @@ in from the corners, which the torso uses as they are (#213).
 - **The switches:** the main switch (W6/W7), a 20 A toggle whose body is
   27 mm deep with its terminals, too deep for the bay, and the E-stop (J11),
   a miniature toggle (E-Switch 100SP1T1B1M1QEH), hang side by side in the
-  **switch pod** (`switch_pod_v8`, 48 g), one block screwed onto the cap's
+  **switch pod** (`switch_pod_v8`, 49 g), one block screwed onto the cap's
   outer face at its top, 26 mm proud of it, from the cap's inside into its
-  side walls. Both levers stand up and throw across the robot. The main
-  switch's is in a well whose walls stand 3 mm over its tip, a tab in its
-  hole keyed to the bushing; the E-stop's stands on a shelf at the pod's −y
-  end, flush with the deck, open outboard, aft and up, OUT in run: slapped
-  IN to stop, and the well's wall beside it stands over its tip, so nothing
-  can push it back out. Both pairs go through a passage in the cap: the
-  main pair to an inline disconnect parked behind the cap, the E-stop's to
-  J11, so the cap comes off whole. The checks keep 3 mm round every
-  terminal and lug and 2 mm round every lead (one run: 1.5 mm).
+  side walls. Its top is flush with the deck's and is one pocket, walled
+  all round, with both levers' tips 2 mm under its rim; it reaches 3 mm
+  under the torso's bottom. Both levers stand up and throw across the
+  robot. The main switch's hole is keyed to its bushing. The E-stop stands
+  on a platform at the pocket's −y end, IN (toward the main switch) in run:
+  pushed OUT to stop, toward the end wall, which leaves its tip only 3 mm,
+  so nothing can push it back in. Both pairs go through a notch in the
+  cap's bottom edge: the main pair to an inline disconnect parked behind the
+  cap, the E-stop's to J11, so the cap comes off whole. The checks keep 3 mm
+  round every terminal and lug and 2 mm round every lead (one run:
+  1.5 mm).
 
 **The covers** (printed outer face down, no supports):
 
@@ -595,9 +597,9 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.47 kg (the plant: 2.471 kg), without the cap's two toggles (not weighed) |
+| robot | ≈ 2.47 kg (the plant: 2.472 kg), without the cap's two toggles (not weighed) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.95 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 29 g, switch pod 48 g, BMS bracket 4 g, balance park 0.6 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.95 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 29 g, switch pod 49 g, BMS bracket 4 g, balance park 0.6 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards, BMS + wiring | 205 g (weighed) / ≈ 195 g |
 

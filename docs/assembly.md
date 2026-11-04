@@ -523,44 +523,49 @@ the main switch and the E-stop side by side in the **switch pod**
    ![The BMS bracket onto its standoffs, then the BMS onto its tape](assembly/v6_11b_power_bay.png)
 6. **The switch pod onto the cap**, on the bench. The cap carries the main
    switch and the E-stop side by side in the **switch pod**
-   (`switch_pod_v8`), one block on the cap's outer face at its top. The main
-   switch's body (27 mm behind the panel with its terminals) does not fit
-   between the cap and the board, so both bodies hang in the pod, outside
-   the bay. Both levers stand up and throw across the robot (y).
+   (`switch_pod_v8`), one block on the cap's outer face at its top, its top
+   flush with the deck's. The main switch's body (27 mm behind the panel with
+   its terminals) does not fit between the cap and the board, so both bodies
+   hang in the pod, outside the bay; the pod reaches 3 mm under the torso's
+   bottom. Its top is one **pocket** round both levers, walled on every side
+   (the cap's face is its front), each lever's tip 2 mm or more under the
+   rim. Both levers stand up and throw across the robot (y).
    - **The main switch** (a 20 A SPST toggle with screw terminals) goes up
-     through the panel at the bottom of the pod's **well**, 8 mm under the
-     deck's top, lever up; put its nut on over the panel (it has no washer).
-     The panel is 3 mm thick, so the 9.25 mm thread leaves about 3.8 mm past
-     a 2.4 mm nut (the nut is not measured).
+     through the pocket's floor at +y, 25 mm under the deck's top, lever up;
+     put its nut on over the floor (it has no washer). The floor is 3 mm
+     thick, so the 9.25 mm thread leaves about 3.8 mm past a 2.4 mm nut (the
+     nut is not measured).
    - A tab in its hole engages the bushing's keyway, so the switch cannot
      turn. It sits at the hole's −y side, on the lever's throw axis, and runs
-     the top 2 mm of the panel. **Its width (1.0 mm), its reach into the
+     the top 2 mm of the floor. **Its width (1.0 mm), its reach into the
      keyway (0.5 mm) and its place round the hole are assumed, for a keyway
      about 1.5 mm wide:** measure the keyway and set `SW_KEY_*` in
      `cad/v6/dimensions_v6.py`.
    - **The E-stop** (an E-Switch 100SP1T1B1M1QEH: a miniature toggle, SPDT
      ON-NONE-ON, a 1/4-40 bushing, solder lugs) goes up through the
-     **shelf** at the pod's −y end, flush with the deck's top. Turn it so its
-     terminal 1 is outboard (−y): its keyway is then inboard, on the tab in
-     the shelf's hole, the lever **OUT is RUN** (terminals 2 and 3 closed,
-     the datasheet's position 1) and **IN is STOP**. Put its lockwasher and
-     nut on over the shelf.
+     **platform** at the pod's −y end, higher than the main switch's floor,
+     behind a step, close to the pod's end wall. Turn it so its terminal 1
+     is inboard (+y): its keyway is then outboard, on the tab in the
+     platform's hole, the lever **IN (toward the main switch) is RUN**
+     (terminals 2 and 3 closed, the datasheet's position 1) and **OUT
+     (toward the end wall) is STOP**. Put its lockwasher and nut on over the
+     platform.
    - The datasheet's B1 bushing is 8.89 mm long; the length of its thread is
-     not dimensioned. The 3 mm shelf, the lockwasher and the nut (0.5 and
+     not dimensioned. The 3 mm platform, the lockwasher and the nut (0.5 and
      2.4 mm, assumed: the datasheet does not draw them) leave 3.0 mm of it:
      measure the thread when the switch arrives.
    - **The main switch's wires:** a 14 AWG pair with ring lugs on its two
-     terminals, down the pod's channel under the switches and through the
-     passage in the cap's plate, to the cap's half of a two-pin inline
+     terminals, down to the channel along the pod's floor and through the
+     notch in the cap's bottom edge, to the cap's half of a two-pin inline
      disconnect (an XT30-size pair; its rating is to be checked against the
      maker's datasheet). The board's half runs from W6/W7 out over the fuses,
      between K1 and the BMS, and down to the disconnect, which parks mated
      over the board's low parts behind the cap (Q1/Q2 and the resistors).
      It is soldered to W6/W7 in step 1.
    - **The E-stop's wires:** a 24–26 AWG pair soldered to lugs 2 (common)
-     and 3, down the same channel and through the same passage, down under
-     it and across to a PHR-2 that plugs into J11 on the board's bottom edge:
-     about 100 mm.
+     and 3, down the same channel and through the same notch, across over
+     J12 to a PHR-2 that plugs into J11 on the board's bottom edge: about
+     80 mm.
    - Drive **4 × M2.5 × 8 flat-heads** from the cap's inner face, through
      the cap, into the front edges of the pod's side walls.
 7. **The cap** goes on from aft, its switches with it: its plate stands
@@ -575,7 +580,7 @@ the main switch and the E-stop side by side in the **switch pod**
 
    ![The cap, its switch pod on it, over them: three screws in through the skins](assembly/v6_11c_power_cap.png)
 
-   ![The switch pod on the cap from outside: from aft and −y (the E-stop on its shelf), from aft and above (the main switch in its well), from aft and +y](assembly/switch_pod_v8.png)
+   ![The switch pod on the cap from outside, its top flush with the deck: from aft and −y, from above and aft (the main switch at left, the E-stop on its platform at right, lever IN: run), from aft and +y](assembly/switch_pod_v8.png)
 
 **What is reached how:**
 
@@ -593,16 +598,15 @@ the main switch and the E-stop side by side in the **switch pod**
   extension's female end in it, is reached with the cap and the BMS off.
 - **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
   along its bottom edge: all reached with the cap off.
-- **The main switch's lever** stands up in the pod's well, 3 mm under its
-  walls' tops (its sides and aft wall), so a fall on the back or a side lands
-  on the walls. Reach in from above or from the front (over the deck) to
-  throw it.
-- **The E-stop's lever** stands up on the shelf at the pod's −y end, outside
-  the well, OUT (−y) in run: slap or push it IN, toward the middle of the
-  robot, to stop. The shelf is open outboard, aft and above; the well's wall
-  beside the lever stands 2 mm over its tip, so anything that reaches it
-  from outside can only throw it to STOP, and nothing can push it back OUT.
-  A fall on the robot's right side stops it.
+- **Both levers** stand up in the pod's pocket, their tips 2 mm under its
+  rim, the deck's top: a fall on the back or a side lands on the rim. Reach
+  in from above to throw them.
+- **The E-stop's lever** is at the pocket's −y end, IN (toward the main
+  switch) in run: push it OUT, toward the end wall, to stop. On its RUN side
+  there are 14 mm clear to the main switch's lever for a finger; on its
+  STOP side, thrown, its tip stands 3 mm off the end wall, so nothing can
+  get behind it to push it back IN. Anything that reaches it in the pocket
+  can only push it OUT.
 - The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
   The sim current budget is in
   [wiring.md](wiring.md#current-measured-budget-issue-77); the bench figure and
@@ -615,12 +619,12 @@ not zero-margin fits). Each lead is a swept envelope in the checks
 | keep-out | margin it holds | the tightest spot |
 |---|---|---|
 | the main switch's terminals: its body's outline, its 8 mm of screws, the lugs | 3 mm round them; 7 mm past the screws for a 14 AWG ring lug and its turn | the pod's walls, 0.5 mm |
-| the E-stop's body and solder lugs, 12.9 mm under its shelf | 3 mm round them; 4 mm past the lugs for a 24–26 AWG wire's turn | the pod's side wall, 0.5 mm |
-| each lever's throw (the main switch's 15° each way, an estimate; the E-stop's 25°, the datasheet's) | 3 mm | the main switch's well, 5.8 mm; the E-stop's, the well's wall beside it, at the margin's edge |
-| the main switch's 14 AWG pair, in the pod, through the cap, to the disconnect | 2 mm round two 3.4 mm wires side by side | J4–J8, 0.5 mm; the cap's passage, 0.6 mm |
+| the E-stop's body and solder lugs, 12.9 mm under its platform | 3 mm round them; 4 mm past the lugs for a 24–26 AWG wire's turn | the platform's step, 0.5 mm |
+| each lever's throw (the main switch's 15° each way, an estimate; the E-stop's 25°, the datasheet's) | 3 mm | the pocket's walls: the main switch's 5.8 mm; the E-stop's, the end wall, at the margin's edge |
+| the main switch's 14 AWG pair, in the pod, through the cap, to the disconnect | 2 mm round two 3.4 mm wires side by side | the pod's floor, 0.1 mm; J4–J8, 0.5 mm; the cap's notch, 0.6 mm |
 | the disconnect (an XT30-size pair, 26 × 11 × 6 mm assumed) | 2 mm | the board's parts, 2.0 mm |
 | the board's half of that pair, up over the fuses to W6/W7 | 2 mm | the BMS bracket's side stop, 0.2 mm |
-| the E-stop's 24–26 AWG pair, in the pod, through the cap, to J11 | 2 mm | the cap's passage, 0.3 mm |
+| the E-stop's 24–26 AWG pair, in the pod, through the cap, to J11 | 2 mm | the cap's notch, 0.3 mm |
 | the BMS's 14 AWG pair, W1/W2 over its top edge | 2 mm | the deck, the BMS and the bracket, 0.3 mm each: 8 mm over the edge for a 3.4 mm wire |
 | the balance extension, J2 to the park | 1.5 mm across its ribbon, under the BMS bracket; 2 mm elsewhere | J2's plug and the bracket, 0.35 mm |
 

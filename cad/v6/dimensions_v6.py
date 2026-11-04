@@ -794,9 +794,9 @@ SW_ENV = SW_BODY[2] + SW_TERM_L + LUG_14 + TERM_MARGIN             # 37: body, t
 # (B1), solder lugs (M1), silver contacts, epoxy seal, with its hardware (H)
 # -- on J11 (a PHR-2 lead, 24-26 AWG on the lugs), across its terminals 2
 # (common) and 3, which close with the lever thrown toward terminal 1 (the
-# datasheet's POS. 1). Terminal 1 is outboard (-y): lever OUT is RUN and IN
-# (+y, toward the main switch) is STOP. Its keyway, on terminal 3's side, is
-# then inboard. From the datasheet (E-Switch 100 series, 11.4.2025: function
+# datasheet's POS. 1). Terminal 1 is inboard (+y): lever IN (toward the
+# main switch) is RUN and OUT (-y, toward the pod's end wall) is STOP. Its
+# keyway, on terminal 3's side, is then outboard. From the datasheet (E-Switch 100 series, 11.4.2025: function
 # p.2, lever p.5, bushing p.6-7, lugs p.8); its hardware is not drawn there
 # (ASSUMED, measure it).
 ES_BODY = (12.70, 6.86, 8.89)                 # along the throw (y), across it (x), deep behind the panel
@@ -810,7 +810,7 @@ ES_BUSH_L = 8.89                              # B1: the threaded bushing's lengt
 ES_KEY_W = 0.85                               # the panel's anti-rotation tab (p.7), in the bushing's 1.02 keyway
 ES_KEY_R = ES_BUSH_D / 2 - 0.55               # 2.63 its face from the axis: 0.55 into the 6.35 hole
 ES_KEYWAY = (1.02, 0.67)                      # the bushing's keyway, wide and deep (p.6)
-ES_KEY_ANG = 90.0                             # the tab's side of the hole, deg about z from +x: inboard (+y)
+ES_KEY_ANG = -90.0                            # the tab's side of the hole, deg about z from +x: outboard (-y)
 ES_LEVER_L = 10.41                            # T1: past the bushing's end
 ES_LEVER_D = 2.9
 ES_THROW_DEG = 25.0                           # each way
@@ -824,46 +824,57 @@ ES_ENV = ES_BODY[2] + ES_LUG_L + LUG_24 + TERM_MARGIN               # 19.85 behi
 # along the axis, 9.6 off it either way with its girth
 ES_TIP = ES_BUSH_L + ES_LEVER_L               # 19.30 from the body's face
 ES_REACH = ES_TIP * math.sin(math.radians(ES_THROW_DEG)) + ES_LEVER_D / 2   # 9.61
-# THE POD: one block on the cap's outer face at its top, 26 mm proud, the
-# switches' bodies hanging in it. Across (y), from -y: a side wall, the
-# E-stop's room, the wall between them, the main switch's room, a side wall.
-# The main switch's panel is 8 mm under the deck's top, in the WELL, whose
-# walls (its sides and aft) stand 2 mm over the higher lever's tip (the
-# E-stop's) and which is open forward (over the deck) and up. The E-stop's panel is the SHELF at the
-# pod's -y end, flush with the deck's top, open outboard, aft and up: its
-# lever stands there outside the well, to be slapped IN to stop, and the
-# well's wall beside it stands over its tip, so nothing can push it back
-# OUT. Four M2.5 x 8 flat heads from the cap's inner face into the side
-# walls' front edges: no ears.
+# THE POD: one block on the cap's outer face at its top, 26 mm proud, its
+# top flush with the deck's (Tom, 2026-11-04), the switches' bodies hanging
+# in it. Its top is one POCKET round both levers, walled on every side (the
+# cap's face is its front), each lever's tip 2 mm or more under the rim. The
+# main switch's panel is its floor at +y; the E-stop stands on a PLATFORM at
+# the -y end, higher, so its tip is 2 mm under the rim too. The E-stop sits
+# with its STOP side close to the pod's end wall (its lever's keep-out
+# touching it) and its RUN side open to the pocket, ES_FINGER clear of the
+# main switch's lever: a finger reaches in and pushes it OUT to stop; in
+# STOP its tip is 3 mm off the end wall, so nothing can get behind it to
+# push it back IN, and anything that reaches it from the pocket can only
+# push it OUT. Four M2.5 x 8 flat heads from the cap's inner face into the
+# side walls' front edges: no ears.
 SWP_IN_X = SW_BODY[1] + 2 * TERM_MARGIN + 2.0                     # 23.5 deep inside: the body, margins, a nut socket
 SWP_WALL = 2.5                                # its aft wall and floor
 SWP_X = (PCAP_X[0] - SWP_IN_X - SWP_WALL, PCAP_X[0])              # -105.71..-79.71
 SW_AXIS_X = PCAP_X[0] - SWP_IN_X / 2                              # -91.46 both bushings' axes
 SWP_SIDE = 6.0                                # the side walls: the screws go into their front edges
-SWP_DIV = 3.0                                 # the well's wall between the switches
+SWP_RIM_Z = 0.0                               # the pod's top: the deck's top
 SW_ROOM_HY = SW_BODY[0] / 2 + TERM_MARGIN + 0.5                   # 18.5 half the main switch's room
-ES_ROOM = (0.5 + ES_BODY[0] / 2 + TERM_MARGIN, ES_REACH + TERM_MARGIN)   # its room out of and in from its axis
-SWP_HW = (2 * SWP_SIDE + sum(ES_ROOM) + SWP_DIV + 2 * SW_ROOM_HY) / 2    # 37.23 half the pod's width
-ES_Y = -SWP_HW + SWP_SIDE + ES_ROOM[0]                            # -21.38 the E-stop's axis
-SWP_DIV_Y = (ES_Y + ES_ROOM[1], ES_Y + ES_ROOM[1] + SWP_DIV)       # -8.77..-5.77 the wall between
-SW_Y = SWP_DIV_Y[1] + SW_ROOM_HY                                  # 12.73 the main switch's axis
-SWP_TOP_Z = -8.0                              # the main switch's panel's top
-ES_SHELF_Z = 0.0                              # the E-stop's panel's top: the deck's
-SWP_FLOOR_Z = -58.0                           # the floor's top: a channel under the terminals for the wires
-SWP_BOT_Z = SWP_FLOOR_Z - SWP_WALL
-SW_TERM_END_Z = SWP_TOP_Z - SW_PANEL_T - SW_BODY[2] - SW_TERM_L   # -38.0
-SW_LEVER_TOP_Z = SWP_TOP_Z - SW_PANEL_T + SW_THREAD_L + SW_LEVER_L  # 15.25
-ES_TIP_Z = ES_SHELF_Z - SW_PANEL_T + ES_TIP   # 16.30 the E-stop's lever upright
-SWP_WELL_Z = max(SW_LEVER_TOP_Z, ES_TIP_Z) + 2.0                  # 18.30 the well's walls: 2 mm over both tips
-ES_TERM_Y = {k: ES_Y + (k - 2) * ES_LUG_PITCH for k in (1, 2, 3)}  # terminal 1 outboard
-# the cap's passage for both switches' wires, into the bay over the board's
-# low parts, under K1: (y0, y1), (z0, z1)
-SW_PASS = ((-26.0, -5.0), (-56.0, -44.0))
-assert SWP_TOP_Z - SW_PANEL_T - SW_ENV > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_14, \
-    "no room under the main switch's terminals for its wires"
+ES_REACH_KO = ES_REACH + TERM_MARGIN          # 12.61 the E-stop's lever keep-out, each way along its throw
+SW_REACH_KO = SW_LEVER_L * math.sin(math.radians(SW_THROW_DEG)) + SW_LEVER_D / 2   # 7.40 the main's, across
+ES_FINGER = 14.0                              # a fingertip, between the E-stop's tip at RUN and the main's lever
+ES_STEP = 2.0                                 # the wall at the E-stop platform's inboard edge
+ES_ROOM_IN = ES_BODY[0] / 2 + TERM_MARGIN + 0.5                   # 9.85 its body's room inboard of its axis
+SW_ES_DY = max(ES_REACH + ES_FINGER + SW_REACH_KO,                # 31.01 the axes apart
+               ES_ROOM_IN + ES_STEP + SW_ROOM_HY)
+SWP_HW = (2 * SWP_SIDE + ES_REACH_KO + SW_ES_DY + SW_ROOM_HY) / 2  # 37.06 half the pod's width
+ES_Y = -SWP_HW + SWP_SIDE + ES_REACH_KO                           # -18.45 the E-stop's axis
+SW_Y = ES_Y + SW_ES_DY                                            # 12.56 the main switch's axis
+ES_STEP_Y = (ES_Y + ES_ROOM_IN, ES_Y + ES_ROOM_IN + ES_STEP)      # the platform's inboard wall
+SW_LEVER_TOP_Z = SWP_RIM_Z - 2.0                                  # -2.0 the main lever's tip
+SWP_TOP_Z = SW_LEVER_TOP_Z + SW_PANEL_T - SW_THREAD_L - SW_LEVER_L  # -25.25 the main switch's panel's top
+ES_TIP_Z = SWP_RIM_Z - 2.0                                        # -2.0 the E-stop's lever's tip, upright
+ES_SHELF_Z = ES_TIP_Z + SW_PANEL_T - ES_TIP                       # -18.30 its platform's top
+SWP_WELL_Z = SWP_RIM_Z
+SW_TERM_END_Z = SWP_TOP_Z - SW_PANEL_T - SW_BODY[2] - SW_TERM_L   # -55.25
+ES_TERM_Y = {k: ES_Y + (2 - k) * ES_LUG_PITCH for k in (1, 2, 3)}  # terminal 1 inboard
+# the cap's passage for both switches' wires, a notch in its bottom edge into
+# the bay over the board's bottom parts (J11, J12): (y0, y1), (z0, z1); the
+# pod's channel runs at its middle, under the main switch's terminals' room
+SWP_CH_Z = SWP_TOP_Z - SW_PANEL_T - SW_ENV - 1.25                 # -66.5
+SW_PASS = ((-26.0, -5.0), (SWP_CH_Z - 6.0, SWP_CH_Z + 6.0))
+SWP_FLOOR_Z = SWP_CH_Z - WIRE_OD_14 - WIRE_MARGIN - 0.1           # -72.0 the floor's top
+SWP_BOT_Z = SWP_FLOOR_Z - SWP_WALL                                # -74.5 3.0 under the torso's bottom
+assert SWP_TOP_Z - SW_PANEL_T - SW_ENV >= SWP_CH_Z, "the channel is in the main switch's terminals' room"
 assert ES_SHELF_Z - SW_PANEL_T - ES_ENV > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_24
+assert ES_SHELF_Z > SWP_TOP_Z, "the E-stop's platform is under the main switch's panel"
 assert -SWP_HW + SWP_SIDE < SW_PASS[0][0] and SW_PASS[0][1] < SWP_HW - SWP_SIDE, "the passage is not inside the pod"
 assert ES_BODY[1] / 2 + TERM_MARGIN <= SWP_IN_X / 2 and SW_BODY[1] / 2 + TERM_MARGIN <= SWP_IN_X / 2
+assert ES_Y - ES_BODY[0] / 2 - TERM_MARGIN >= -SWP_HW + SWP_SIDE + 0.5, "the E-stop's body is in the end wall"
 assert SWP_HW + 6.0 <= HOUSING_BOT_HW, "the switch pod is wider than the torso"
 # power board envelope (the rollup's box, sim/build_v6_inertia.py)
 PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
