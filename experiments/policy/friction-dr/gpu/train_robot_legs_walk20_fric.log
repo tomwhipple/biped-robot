@@ -1,0 +1,29 @@
+Warp 1.18.0 initialized:
+   CUDA Toolkit 13.4, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4070 Ti" (12 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /home/claw/.cache/warp/1.18.0
+warm-starting from robot_legs_walk18_shp10sq/params.pkl
+[    24.9s]            0 steps  ep_len  333.0/500  reward    1573.8
+[   168.7s]   16,384,000 steps  ep_len  336.8/500  reward    1586.8
+[   307.1s]   32,768,000 steps  ep_len  329.4/500  reward    1551.4
+[   422.6s]   49,152,000 steps  ep_len  332.0/500  reward    1553.0
+[   538.4s]   65,536,000 steps  ep_len  312.9/500  reward    1493.7
+[   654.2s]   81,920,000 steps  ep_len  335.3/500  reward    1597.6
+[   769.8s]   98,304,000 steps  ep_len  312.4/500  reward    1517.0
+[   885.3s]  114,688,000 steps  ep_len  320.5/500  reward    1501.7
+[  1000.8s]  131,072,000 steps  ep_len  295.4/500  reward    1428.3
+[  1116.5s]  147,456,000 steps  ep_len  304.5/500  reward    1439.2
+[  1232.0s]  163,840,000 steps  ep_len  338.1/500  reward    1592.0
+[  1347.6s]  180,224,000 steps  ep_len  329.0/500  reward    1568.0
+[  1463.3s]  196,608,000 steps  ep_len  272.7/500  reward    1291.3
+[  1579.2s]  212,992,000 steps  ep_len  339.7/500  reward    1633.2
+[  1695.0s]  229,376,000 steps  ep_len  345.7/500  reward    1655.0
+[  1810.8s]  245,760,000 steps  ep_len  327.2/500  reward    1553.5
+[  1926.3s]  262,144,000 steps  ep_len  310.2/500  reward    1467.1
+[  2041.8s]  278,528,000 steps  ep_len  319.8/500  reward    1534.3
+[  2157.4s]  294,912,000 steps  ep_len  327.2/500  reward    1573.7
+[  2272.9s]  311,296,000 steps  ep_len  306.0/500  reward    1427.0
+saved -> /home/claw/code/robot-friction/sim/mjx/../runs/robot_legs_walk20_fric  (2273s total)

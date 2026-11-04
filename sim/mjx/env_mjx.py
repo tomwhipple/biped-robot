@@ -325,6 +325,7 @@ class State(NamedTuple):
                               # on the real plant. Train so the policy cannot
                               # depend on a crisp, exact rate.
     metrics: dict[str, jax.Array]
+    prev_action2: jax.Array   # (n_act,) the action two ticks back (w_action_acc)
 
 
 def _quat_yaw(q):
@@ -510,6 +511,11 @@ class BimoMJXEnv:
         w_height: float = 0.0,
         w_energy: float = 0.002,
         w_action_rate: float = 0.05,
+        w_action_acc: float = 0.0,     # -w sum (a_t - 2 a_t-1 + a_t-2)^2: the action's
+        # second difference (Tom 2026-11-03: "avoid big jerks, especially when a joint
+        # comes to a stop"), next to w_action_rate's first difference
+        w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
+        # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
         fall_cost: float = 1.0,
         w_feet_air: float = 0.0,
         air_time_target: float = 0.3,
@@ -677,6 +683,14 @@ class BimoMJXEnv:
         # and sets solref = (-k, -b) on the floor and every sole pad (MuJoCo direct
         # stiffness/damping). The carpet..hard-floor range of the 2026-11-01 floors fit
         # (experiments/one-leg-stand/2026-11-01-floors-fit.md). Training only; None = off.
+        contact_mu_range: tuple | None = None,  # (lo, hi): batch-level EFFECTIVE foot/floor
+        # sliding friction -- each env draws mu ~ U(lo, hi) and sets it on the floor AND every
+        # sole pad. MuJoCo combines a contact's friction as the MAX of its two geoms, so
+        # friction_range (floor only) can never take the contact below the pads' 1.0; this
+        # supersedes it for the floor when set. Training only; None = off.
+        contact_torsion_range: tuple | None = None,  # (lo, hi) m: batch-level torsional
+        # friction U(lo, hi) on the floor and every pad (same MAX rule). The plant's 0.02 m
+        # per 3 mm pad is a ~2 cm patch radius: a yaw brake no small sole pad has.
         zero_offset_deg: float = 0.0,   # per-episode per-joint zero offset
         # drawn uniform(-z, +z) deg (calibration-error DR, 2026-09-03)
         act_lag_hz: float = 0.0,
@@ -1257,6 +1271,8 @@ class BimoMJXEnv:
         self.w_height = w_height
         self.w_energy = w_energy
         self.w_action_rate = w_action_rate
+        self.w_action_acc = float(w_action_acc)
+        self.w_qacc = float(w_qacc)
         self.fall_cost = fall_cost
         self.w_feet_air = w_feet_air
         self.air_time_target = air_time_target
@@ -1348,6 +1364,10 @@ class BimoMJXEnv:
             [g for g in range(self.mj_model.ngeom)
              if g == self._floor_gid or "_pad_" in (self.mj_model.geom(g).name or "")], dtype=np.int32)
         self._nom_solref = jp.asarray(np.array(self.mj_model.geom_solref))
+        self.contact_mu_range = (None if contact_mu_range is None
+                                 else tuple(float(v) for v in contact_mu_range))
+        self.contact_torsion_range = (None if contact_torsion_range is None
+                                      else tuple(float(v) for v in contact_torsion_range))
         self._nom_ipos = jp.asarray(np.array(self.mj_model.body_ipos))
         self._torso_bid = int(self.mj_model.body("torso").id)
         self.backlash_rad = float(np.deg2rad(backlash_deg))
@@ -1498,7 +1518,9 @@ class BimoMJXEnv:
             types = {n: "sts3215" for n in self._servo_names}
             for k, v in (self.servo_types or {}).items():
                 for n in self._servo_names:
-                    if n == k or joint_role(n) == k:
+                    # an explicit (stall, no-load) envelope pair is a refit STS3215
+                    # (walker_env._envelope): its dead time stays the 3215's
+                    if (n == k or joint_role(n) == k) and isinstance(v, str):
                         types[n] = v
             lo = np.array([self.act_delay_types.get(types[n], (0, 0))[0] for n in self._servo_names])
             hi = np.array([self.act_delay_types.get(types[n], (0, 0))[1] for n in self._servo_names])
@@ -2497,6 +2519,7 @@ class BimoMJXEnv:
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
+                     prev_action2=prev_action,
                      last_target=self._sdefault.astype(jp.float32),
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
@@ -2578,7 +2601,7 @@ class BimoMJXEnv:
         metrics = {k: jp.zeros(()) for k in self._metric_keys}
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
-            prev_action=prev_action,
+            prev_action=prev_action, prev_action2=prev_action,
             last_target=self._sdefault.astype(jp.float32), step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
             since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
@@ -2781,6 +2804,9 @@ class BimoMJXEnv:
         qd_j = data.qvel[self._jv0:self._jv1]
         energy = jp.sum(jp.abs(tau) * jp.abs(qd_j))
         action_rate = jp.sum((action - state.prev_action) ** 2)
+        action_acc = jp.sum((action - 2.0 * state.prev_action + state.prev_action2) ** 2)
+        qdd_j = (qd_j - state.data.qvel[self._jv0:self._jv1]) / self.control_dt
+        qacc_sq = jp.sum(qdd_j ** 2)
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
 
         # command tracking (exp kernels sigma=0.5; cmd_dense option)
@@ -2986,6 +3012,8 @@ class BimoMJXEnv:
                   - self.w_height * jp.abs(height - h_ref)
                   - self.w_energy * energy
                   - self.w_action_rate * action_rate
+                  - self.w_action_acc * action_acc
+                  - self.w_qacc * qacc_sq
                   - self.w_power * power_w)
 
         # gait shaping: on for moving commands, double-support bonus for stand
@@ -3477,6 +3505,7 @@ class BimoMJXEnv:
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
+                     prev_action2=state.prev_action,
                      last_target=served_end, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
                      since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
@@ -3509,7 +3538,8 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                      joint_frictionloss_range=None, nom_frictionloss=None,
                      jv=(0, 0), torso_bid=None, torso_mass_range=None,
                      torso_com_y=0.0, nom_ipos=None,
-                     floor_contact_range=None, contact_gids=None, nom_solref=None):
+                     floor_contact_range=None, contact_gids=None, nom_solref=None,
+                     contact_mu_range=None, contact_torsion_range=None):
     """Batch-level model DR (brax randomization_fn style): per-env body
     mass/inertia scale, floor friction scale, payload mass draw, and --
     when tilt_max_deg > 0 -- a per-env GRAVITY TILT. Returns
@@ -3529,7 +3559,13 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
 
     floor_contact_range ((k_lo, k_hi), (b_lo, b_hi)): per-env foot/floor contact, k and b drawn
     log-uniformly, solref = (-k, -b) on contact_gids (the floor and the sole pads) -- carpet
-    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md."""
+    (soft, lossy) to hard floor (stiff, lively); 2026-11-01-floors-fit.md.
+
+    contact_mu_range (lo, hi) / contact_torsion_range (lo, hi): per-env EFFECTIVE foot/floor
+    sliding / torsional friction, ONE draw each set on the floor and every pad (contact_gids):
+    the pair friction is the elementwise max of the two geoms, so only setting both reaches
+    below the pads' nominal (experiments/policy/friction-dr). contact_mu_range replaces the
+    floor-only friction_range draw."""
     nbody = model.body_mass.shape[0]
     g0 = model.opt.gravity[2]           # -9.81 nominal; stays a jax scalar
     # (float() here breaks under jit: domain_randomize is traced inside
@@ -3555,6 +3591,14 @@ def domain_randomize(model, rng: jax.Array, mass_range: float = 0.15,
                                 maxval=1 + friction_range)
         friction = nom_friction.at[floor_gid, 0].set(
             nom_friction[floor_gid, 0] * ff)
+        if contact_mu_range is not None:
+            mu = jax.random.uniform(jax.random.fold_in(r_f, 21), minval=contact_mu_range[0],
+                                    maxval=contact_mu_range[1])
+            friction = friction.at[contact_gids, 0].set(mu)
+        if contact_torsion_range is not None:
+            tq = jax.random.uniform(jax.random.fold_in(r_f, 22), minval=contact_torsion_range[0],
+                                    maxval=contact_torsion_range[1])
+            friction = friction.at[contact_gids, 1].set(tq)
         if payload_max is not None and payload_bid is not None:
             mp = jax.random.uniform(r_p, maxval=payload_max)
             mass = mass.at[payload_bid].set(mp)
