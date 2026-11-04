@@ -63,7 +63,8 @@ def parts(arms=True, head=True):
         out["head"] = [("head", (0, 0, 0), PLA)]
     for s in ("L", "R"):
         out[f"{s}_hip_yaw"] = [("yaw_carrier_v6", (0, 0, 0), PLA)]
-        out[f"{s}_hip"] = [("hip_yoke_v6", (0, 0, 0), PLA)]
+        # the glued hip yoke: two prints glued into one link, same frame
+        out[f"{s}_hip"] = [("hip_yoke_glued_roll", (0, 0, 0), PLA), ("hip_yoke_glued_pitch", (0, 0, 0), PLA)]
         out[f"{s}_thigh"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_shin"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_ankle_blk"] = [("ankle_link", (0, 0, 0), PLA)]

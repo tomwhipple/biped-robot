@@ -121,12 +121,9 @@ DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-55.0, 55.0),
-    "hip_pitch": (-120.0, 90.0),   # -110 -> -125 (yoke_pitch_v6 flange chamfer, 2026-09-14) -> -120
-                                   # (2026-09-24): -125 was never reachable -- the thigh's front wall met
-                                   # the ROLL flange from -118.4 in BOTH yoke variants, a pair the split
-                                   # sweep never listed. -120 is the deepest the joint clears at the
-                                   # 0.7 mm rule with LL_HIP_RELIEF_X0; past it the thigh's own servo case
-                                   # is next. The get-up needs >= 119 (getup_search_r5_asdrawn_hip*.txt).
+    "hip_pitch": (-120.0, 90.0),   # -120: the thigh's front wall vs the hip yoke's ROLL flange, held to
+                                   # the 0.7 mm rule (with LL_HIP_RELIEF_X0). The get-up needs >= 119
+                                   # (getup_search_r5_asdrawn_hip*.txt).
     "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_KNEE_POCKET + LL_FOLD_CHAMFER; hard limit ~132
     "ankle_pitch": (-40.0, 40.0),
     "ankle_roll": (-25.0, 25.0),
@@ -294,7 +291,7 @@ LL_TOP_WALL_Z = (LL_CABLE_WINDOW_Z[0] - 2.0 - LL_WALL_T, LL_CABLE_WINDOW_Z[0] - 
 # deep knee flexion the shin's web swings up inside the thigh's fork to ~33 mm
 # above the knee axis, all across the channel.
 LL_BOT_WALL_Z = (LL_WEB_END + 2.0, LL_WEB_END + 2.0 + LL_WALL_T)
-# HIP-FLEXION RELIEF (2026-09-24, hip-yoke-single-print.md section 6 item 1).
+# HIP-FLEXION RELIEF (2026-09-24, docs/archive/hip-yoke-single-print.md section 6 item 1).
 # At deep hip flexion the roll flange's front-bottom edge meets the grip
 # plates' front strip just above the jog blocks, 0.54 mm forward of the servo
 # case face (SV_WID/2 + FIT = 12.66), so that sliver locates nothing.
@@ -328,13 +325,6 @@ LL_KNEE_POCKET_RAMP = 1.3
 # across (Tom, 2026-10-06). Above the screws it is only the ~1 mm outer wall
 # over the idler-platform detent; LL_FLEX_CUT still trims its rear corner.
 LL_IDLER_PLATE_TOP = -D.CASE_HOLES_BOT[1] + D.CASE_CS_D / 2 + 5.0     # -25.05
-# hip flexion: the thigh's grip plates' front edge sweeps the pitch yoke's
-# flange front-bottom corner (x 16, z 26 above the axis) at 123 deg; the
-# plate cannot be relieved (the lower grip screw's countersink sits exactly
-# there), so the FLANGE corner gets a 45 deg chamfer instead (yoke_pitch_v6).
-# 4 mm leaves the M3 heat-set bores (x +-10, r 2.05) untouched and moves the
-# limit to ~127 deg; a bigger one runs into the bores, so the hip ROM is 125.
-YOKE_FLEX_CHAMFER = 4.0
 # The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
 # meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
 # about the knee) lands on the thigh's rear face 33 mm above the knee (the

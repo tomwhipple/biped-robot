@@ -52,10 +52,8 @@ INSERT = [
     ("servo_knee_",        (0, 0, 1), 4),
     ("thigh_",             (0, 0, 1), 5),
     ("servo_hip_pitch_",   (0, 0, 1), 5),
-    ("yoke_pitch_",        (0, 0, 1), 6),
-    ("yoke_roll_",         (0, 0, 1), 6),
-    ("hip_yoke_",          (0, 0, 1), 6),    # HIP_YOKE_VARIANT=single: the one-print yoke lowered onto the pitch servo
-                                              # discs from above (same path the pair took; the roll servo then slides in)
+    ("hip_yoke_",          (0, 0, 1), 6),    # the yoke lowered onto the pitch servo discs from above
+                                              # (the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
     ("yaw_bearing_housing", (0, 0, 1), 8),   # housing DOWN with both bearings pressed into it, the inner
@@ -188,8 +186,6 @@ def main():
         r.update_scene(d, cam)
         frames.append(r.render().copy())
     suffix = ""
-    if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
-        suffix += "_" + A.hip_yoke_variant()
     if A.ankle_link_variant() != "box":
         suffix += "_ankle_" + A.ankle_link_variant()
     if A.arms_on():

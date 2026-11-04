@@ -80,7 +80,8 @@ def test_a_plate_whose_parts_disagree_is_refused():
 # test_yaw_carrier_horn_plate_down.
 ORIENT_SOURCES = {
     "leg_link_v6": ("leg_link_v6", "PRINT_ORIENT", None),
-    "hip_yoke_v6": ("hip_yoke_v6", "PRINT_ORIENT", None),
+    "hip_yoke_glued_roll": ("hip_yoke_glued", "PRINT_ORIENT", "hip_yoke_glued_roll"),
+    "hip_yoke_glued_pitch": ("hip_yoke_glued", "PRINT_ORIENT", "hip_yoke_glued_pitch"),
     "ankle_link": ("ankle_link", "PRINT_ORIENT", None),
     "foot_L": ("foot_v6", "PRINT_ORIENT", None),
     "foot_R": ("foot_v6", "PRINT_ORIENT", None),

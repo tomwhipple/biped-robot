@@ -349,7 +349,7 @@ The five arm insertion paths are the bench order, and it is not arbitrary:
 ## 7. What stayed byte-identical, and how that was checked
 
 Every new behaviour is behind `ARMS=1` (`assembly_v6.arms_on()`), the same
-contract `YAW_BEARING_VARIANT` and `HIP_YOKE_VARIANT` keep. Nothing sets it.
+contract `YAW_BEARING_VARIANT` keeps. Nothing sets it.
 
 - **Default assembly, piece for piece:** 33 pieces, identical labels, volumes
   and bounding boxes to 1e-6 before and after the change.

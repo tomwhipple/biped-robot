@@ -852,6 +852,7 @@ void testRedact() {
 
 }  // namespace
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
 int main() {
     testSha256();
     testHmacRfc4231();

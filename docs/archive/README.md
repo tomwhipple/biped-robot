@@ -30,6 +30,7 @@ what the current design answers.
 | [2026-07-sheetcut-eval.md](2026-07-sheetcut-eval.md) | whether any printed part should be sheet-cut instead |
 | [2026-09-16-study-side-mounted-legs.md](2026-09-16-study-side-mounted-legs.md) | get-up study of side-mounted ("bird") hips — the documented fallback body if the arm get-up fails on hardware |
 | [2026-09-17-study-wide-hip-gait.md](2026-09-17-study-wide-hip-gait.md) | a static gait for the wide-hip bird body |
+| [hip-yoke-single-print.md](hip-yoke-single-print.md) | the hip roll and pitch clevises fused into one print (`hip_yoke_v6`), 2026-09-19 to 24, with its CAD gate outputs `hip_yoke_check_single.txt` / `hip_yoke_check_split.txt`; the glued two-piece yoke replaced it |
 
 The raw logs, scripts and filmstrips behind the two bird-body studies were
 removed from the tree on 2026-09-29 and remain in git history

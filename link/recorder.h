@@ -63,7 +63,7 @@ struct Recorder {
     void bench(double now_ms, const char* datagram, size_t n);
     // Which camera a pane was pointed at, when: the join between this file
     // and the relay's <stamp>_<source>.mp4/.pts (tools/cam_relay.py --record).
-    void cam(double now_ms, int pane, const char* src, const char* url);
+    void cam(double now_ms, int pane, const char* src, const char* url) const;
 
     // Host wall clock, epoch seconds (CLOCK_REALTIME). Public so a test can
     // bracket a record with it.

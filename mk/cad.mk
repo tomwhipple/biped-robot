@@ -2,7 +2,7 @@
 .PHONY: cad cad-v6 cad-v5 cad-bench-v2 cad-bench-v3 freecad slice check-cad
 
 # The robot to print; a variant's own parts are built with the variant's setting.
-V6_ENV := ARMS=1 HIP_YOKE_VARIANT=single SERVO_PLAN=hips
+V6_ENV := ARMS=1 SERVO_PLAN=hips
 V6_ALL_PARTS := $(V6_PARTS) $(V6_VARIANT_PARTS)
 V6_ROLLUP := build/v6/reports/parts_v6_rollup.txt
 
@@ -121,7 +121,7 @@ build/%/renders/arm_side_labels.png: $(PYDEPS_cad/v6/arm_v6.py) $(foreach l,uppe
 	$(PY) cad/v6/arm_v6.py --labels-figure $@ > /dev/null
 docs/img/arm_side_labels.png: build/v6/renders/arm_side_labels.png
 	cp $< $@
-# the glued test parts: each module writes its STLs, STEPs and its strip
+# the glued parts: each module writes its STLs, STEPs and its strip
 build/%/renders/hip_yoke_glued.png: $(PYDEPS_cad/v6/hip_yoke_glued.py)
 	$(PY) cad/v6/hip_yoke_glued.py > /dev/null
 build/%/renders/ankle_link_glued.png: $(PYDEPS_cad/v6/ankle_link_glued.py)
