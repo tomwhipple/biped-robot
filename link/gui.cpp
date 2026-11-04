@@ -254,7 +254,6 @@ struct App {
     CamPane cam[kCamPanes];
     char cam_host[96] = "";              // host:port of the relay
     bool bench_view = false;
-    char last_bench_note[160] = "";
     bool bench_was_live = false;
 
     // host_port is a display string ("host:port"); sized to hold a 63-byte
