@@ -35,7 +35,10 @@ pack balance lead (J2) ─ BMS cell taps                                      �
     goes only to the BMS, through J2.
   - Its thresholds are not documented, so it is characterised on the bench before it goes in
     the robot (below).
-- **The main switch** is a Cole Hersee 57000-01 panel rocker (25 A DC), on W6 and W7.
+- **The main switch** is a 20 A panel toggle on W6 and W7, in the power bay's switch pod
+  (#213). It is marked 20 A 125 VAC, with no DC rating: carrying 15 A is within it, but
+  breaking DC under load is not rated. So turn it off only after the E-stop has dropped the
+  servo rail, and it breaks only the logic's 1 A or so.
 - **The servo rail** is fed through the TE 1-1414610-0 relay (K1; 70 A, operates at 7.2 V).
   - The relay's coil current, about 0.13 A, flows only while the E-stop's NC contact (J11) is
     closed and the ESP32 holds `SERVO_EN` high.
@@ -146,14 +149,14 @@ The quantities include spares. Prices are Digi-Key's, as listed on 2026-11-02.
   $48.49 for 3 from OSH Park (made in the US, no duty). The quotes are in
   [the 2026-11-03 record](../../docs/design-v6/2026-11-03-power-lite-quotes.md).
 - **BMS:** ShillehTek CF-3SJH25A-C, $6.99 each.
-- **Already bought:** the XT60PW-M connectors and the Keystone 3568 fuse holders.
+- **Already on hand:** the XT60PW-M connectors, the Keystone 3568 fuse holders, MINI blade
+  fuses, the main-switch toggles, hook-up wire, and a JST PH kit (housings, contacts, 2–7 pin
+  headers: J11's header and the PHR-2 housing come from it).
 
 | part | Digi-Key | qty | each |
 |---|---|---|---|
 | relay TE 1-1414610-0 | 17-1-1414610-0-ND | 2 | $13.37 |
-| main switch Cole Hersee 57000-01 | F8885-ND | 2 | $19.11 |
-| E-stop: E-Switch 100SP2T1B1M1QEH toggle, wired to its NC throw | EG2373-ND | 2 | $3.59 |
-| fuse 15 A 0297015.WXNV / 3 A 0297003.WXNV | F992-ND / F987-ND | 5 / 5 | $0.33 / $0.35 |
+| E-stop: E-Switch 100SP1T1B1M1QEH miniature toggle (5 A @ 28 VDC), wired across terminals 2 and 3 | EG2350-ND | 3 | $3.08 |
 | TVS 1.5KE16A | 1.5KE16ACT-ND | 5 | $1.06 |
 | 1N4007 | 4786-1N4007CT-ND | 3 | $0.16 |
 | 1000 µF 25 V EEU-FR1E102 | P14424-ND | 3 | $1.42 |
@@ -161,17 +164,15 @@ The quantities include spares. Prices are Digi-Key's, as listed on 2026-11-02.
 | 100 nF 50 V X7R radial KEMET C322C104K5R5TA (C2) | 399-4329-ND | 6 | $1.49 |
 | resistors Yageo 1 % ¼ W metal film: 470R, 10k, 47k, 4K7 | MFR-25FBF52-470R-ND, 10.0KXBK-ND, 13-MFR-25FRF52-47KCT-ND, 13-MFR-25FRF52-4K7CT-ND | 10 each (10k: 20) | $0.04 |
 | LEDs WP710A10GD / WP710A10ID | 754-1603-ND / 754-1606-ND | 3 / 3 | $0.24 |
-| headers B4B-XH-A, B2B-XH-A, B2B-PH-K-S, B8B-PH-K-S | 455-B4B-XH-A-ND, 455-B2B-XH-A-ND, 455-1704-ND, 455-1710-ND | 3 each | $0.10–0.35 |
+| headers B4B-XH-A, B2B-XH-A, B8B-PH-K-S | 455-B4B-XH-A-ND, 455-B2B-XH-A-ND, 455-1710-ND | 3–4 each | $0.10–0.35 |
 | servo headers Molex 22-03-5035 | 900-0022035035-ND | 11 | $0.20 |
-| housings XHP-2, PHR-2, PHR-8 and crimps SXH-001T-P0.6, SPH-002T-P0.5S | 455-2266-ND, 455-1165-ND, 455-1189-ND, 455-1135-100-ND, SPH strip | as needed | |
+| housings XHP-2, PHR-8 and XH crimps SXH-001T-P0.6 | 455-2266-ND, 455-1189-ND, 455-1135-100-ND | 6, 3, 100 | |
 
 - **The 47k and 4K7 resistors** are MFR-25FRF52: the MFR-25FBF52 values in `tools/parts.py`
   are out of stock at Digi-Key until 2027-03. The two series have the same rating, size and
   tempco.
-- **Total:** about $104 for two robots before shipping and tax. The relay, switch and E-stop
-  are about $93 of it. The Digi-Key cart, with spares, hook-up wire and crimps, is $163.30.
-- **The rocker's rating:** "25 A DC" is listed at 12 V; check it against the pack's 12.6 V
-  in Littelfuse's catalog.
+- **Total:** the Digi-Key cart for two robots, with spares, was $60.22 before shipping, tariff
+  and tax on 2026-11-04. The two relays are the largest part of it.
 
 ## Regenerating
 
@@ -201,8 +202,5 @@ The other parts use KiCad's stock models; LED1 uses the green one.
 ## Open
 
 - **The BMS bench check** (above).
-- **The E-stop switch:** the E-Switch toggle above, or any latching switch with an NC contact
-  rated 0.5 A at 12 V or more. Confirm on the toggle's datasheet which throw opens when it is
-  thrown to "stop".
-- **The torso mounting:** the four M2.5 holes sit 3.2 mm in from the corners, as on the custom
-  board (#108). The BMS (56 × 45 mm) and the switch mount in the torso on their wires.
+- **The torso mounting:** the power bay (#213) holds the board on the torso's aft bosses, the
+  BMS on a bracket over its +y end, and the switches on the cap.

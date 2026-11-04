@@ -219,12 +219,14 @@ then tug the wire to check it is held.
 | lead | board end | far end | wire | pins |
 |---|---|---|---|---|
 | J3 to the General Driver's H1 | XHP-2 | XHP-2 | 22 or 24 AWG (XH contacts take 22–28) | pin 1 to pin 1; H1 pin 1 is + (harness check P3) |
-| J11 to the E-stop | PHR-2 | the switch | 24–26 AWG (PH contacts take 24–30) | across the two terminals that are closed in "run" |
+| J11 to the E-stop | PHR-2 | the E-Switch's solder lugs 2 and 3 | 24–26 AWG (PH contacts take 24–30) | below |
 | J12 to the General Driver | PHR-8 | P3, H3, H2 | 24–26 AWG | below |
 | J4–J8 to the servos | stock servo leads, 5264-03 at both ends | | | J8 to the General Driver's H5 |
 
-- **The E-stop:** any latching switch rated 0.5 A DC or more will do; the coil current is about
-  0.16 A at a full pack. With the switch at "run" its two wires read 0 Ω, and at "stop" open.
+- **The E-stop** is an E-Switch 100SP1T1B1M1QEH miniature toggle (5 A at 28 V DC; the coil
+  current is about 0.16 A at a full pack). It is a 2-position changeover: solder the lead to
+  terminal 2, the middle one, and terminal 3. Check with the meter that the two wires read 0 Ω
+  in the position you call "run" and open in "stop".
 - **J12** uses pins 2, 3, 5 and 6 only. Their far ends follow the
   [harness](../power-board/harness.md#j9-and-j12-control-to-the-general-driver):
   - pin 2 `SERVO_EN` to P3 pin 4 (IO16);
