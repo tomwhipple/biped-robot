@@ -801,7 +801,7 @@ void headlessLine(App& a, char* line, double now_ms) {
             if (arg2 != nullptr && !strcmp(arg2, kCamNames[c])) src = c;
         }
         if (pane < 0 || pane >= kCamPanes ||
-            (src < 0 && (arg2 == nullptr || strcmp(arg2, "off")))) {
+            (src < 0 && (arg2 == nullptr || strcmp(arg2, "off") != 0))) {
             printf("note: cam <0|1> emeet|brio|sony|off\n");
         } else if (a.cam_host[0] == 0) {
             printf("note: no --cam-relay\n");

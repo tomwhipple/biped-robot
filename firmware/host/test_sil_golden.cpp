@@ -397,6 +397,7 @@ void runFile(const std::string& path) {
 
 }  // namespace
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
 int main() {
     const std::string dir = findGoldenDir();
     if (dir.empty()) {

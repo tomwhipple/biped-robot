@@ -40,7 +40,7 @@ Event Detector::update(Motion m, bool valid, const float up[3], const float gyro
             fall_cand_ = true;
             fall_since_ = now_ms;
         }
-        if (static_cast<uint32_t>(now_ms - fall_since_) < L.debounce_ms) return Event::kNone;
+        if ((now_ms - fall_since_) < L.debounce_ms) return Event::kNone;
         fallen_ = true;
         fell_in_ = m;
         fall_tilt_deg_ = tiltDeg(up);
@@ -57,7 +57,7 @@ Event Detector::update(Motion m, bool valid, const float up[3], const float gyro
         up_cand_ = true;
         up_since_ = now_ms;
     }
-    if (static_cast<uint32_t>(now_ms - up_since_) < kPickupHoldMs) return Event::kNone;
+    if ((now_ms - up_since_) < kPickupHoldMs) return Event::kNone;
     up_cand_ = false;          // one event per hold; the caller clears (or not: autohome off)
     up_since_ = now_ms;
     return Event::kPickedUp;
