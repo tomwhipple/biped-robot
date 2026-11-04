@@ -18,7 +18,7 @@ not a version among others.
 | [shoulder-girdle.md](shoulder-girdle.md) | shoulders into the torso in the hip plane; assembly order; §11 the get-up re-run on the robot as drawn |
 | [arms.md](arms.md) | the arm parts in CAD, their ROM and open items |
 | [elbow-servo-upper-arm-2026-10-07.md](elbow-servo-upper-arm-2026-10-07.md) | the elbow servo's case moves from the forearm to the upper arm; both arm links take the leg link's open-U section with end walls; before/after on every gate |
-| [hip-yoke-single-print.md](hip-yoke-single-print.md) | the hip roll and pitch clevises as one print; hip-flexion relief to −120° |
+| [2026-11-02-hip-yoke-roll-failure.md](2026-11-02-hip-yoke-roll-failure.md) | the first glued hip yoke's roll horn arm broke on the robot: the fracture read, FEM of the yoke under the servos' stall torques and two leg forces in the print frame, the redesign (toe, fin, webs, idler plate), its swept-clearance checks and its costs |
 | [failure_sweep_2026-10-07.md](failure_sweep_2026-10-07.md) | failure modes of the kinematic walk on the robot plant: 434k random walks; roll play, lift height, actuation lag and swing time decide falls and lift |
 | [foot_outline_2026-10-07.md](foot_outline_2026-10-07.md) | the printed foot sat 12 mm outboard of the spec; at the spec the feet touch at 2.1° of mutual hip-roll adduction. Gate D margin vs adduction clearance at three sole placements (open, for Tom) |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E and their checks; A selected 2026-10-06 (#75) |
@@ -54,7 +54,7 @@ leans on:
 | `gateCD_sweep*.txt`, `gateD_*.txt` | the open-loop walk across the adversity matrix |
 | `no3250_{walk,sweep,envelope,arms_walk,getup}.txt`, `no3250_{walk,arms_walk}_plant17.txt`, `no3250_*_elbow_upper.txt` | Plan B: every gate with STS3215s and raised P; the walk on the regenerated 17-actuator plant; the elbow-servo move against main |
 | `getup_search_r6_asdrawn*.txt`, `getup_search_r5_asdrawn*.txt`, `getup_search_shoulder_*.txt`, `getup_search_girdle_*.txt`, `getup_search_hipplane_*.txt`, `getup_search_legroll*.txt` | the get-up on the as-drawn robot, the arm choice, the prone roll |
-| `cad_rom_check.txt`, `girdle_check_assembly.txt`, `hip_yoke_check_single.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
+| `cad_rom_check.txt`, `girdle_check_assembly.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
 | `deep_flexion_sweep.txt` | knee 130° / hip flexion limits |
 
 The part masses and the print rollup are written by `make cad` to

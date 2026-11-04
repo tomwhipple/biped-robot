@@ -262,9 +262,19 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
     rectangular carrier; screwed race retention) and checks:
     [study-yaw-bearing.md](docs/design-v6/study-yaw-bearing.md) (option A,
     #75).
-- **`hip_yoke_v6`** (×2): the hip-roll clevis and hip-pitch clevis fused into
-  one print, straddling the roll servo's discs and the pitch servo's discs. No
-  flange bolts or inserts.
+- **`hip_yoke_glued_roll` + `hip_yoke_glued_pitch`** (×2 sets): the hip-roll
+  clevis straddling the roll servo's discs and the hip-pitch clevis straddling
+  the pitch servo's discs (`cad/v6/hip_yoke_glued.py`). Each is a U-channel
+  that prints on edge, without supports or brim, at 100 % infill; they snap
+  together on two split-prong clips and are glued on a lap of about 1058 mm²
+  (CA or epoxy). No flange bolts or inserts. The roll servo's torque
+  (4.9 N·m stall) goes from the roll horn arm across the roll flange onto the
+  lap by way of the pitch flange's toe, a fin along the roll flange's +y edge
+  and a web beside each roll arm; the pitch idler arm is a plate the width of
+  its hub. FEM at the servos' stall torques puts the worst stress across a
+  piece's layers at 14 MPa (roll), 13 MPa (pitch) and the glue at 18 MPa
+  ([record](docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)). The pair
+  weighs 28.85 g.
 
 ### 5.3 Torso
 

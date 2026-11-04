@@ -23,7 +23,7 @@ forward.
     python3 cad/slice.py feet            # a plate: both feet, one project
     python3 cad/slice.py --all           # every plate, and every part on no plate
     python3 cad/slice.py --harvest       # only read saved projects back
-    python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant's plate
+    python3 cad/slice.py --variant ankle_link_glued ankle_link_glued   # a build variant's plate
 
 On the Mac it drives /Applications/OrcaSlicer.app; elsewhere the Flathub
 flatpak under xvfb (docs/slicing.md). Standard library only.
@@ -202,7 +202,7 @@ def save_settings(spec, path=SETTINGS):
 def with_variants(spec, names):
     """``spec`` with each named entry of its 'variants' added to 'parts' and
     'plates', for this run: parts of a build variant (assembly_v6's
-    HIP_YOKE_VARIANT and the like) that the default print table leaves out.
+    ANKLE_LINK_VARIANT and the like) that the default print table leaves out.
     The entries are the variant's own dicts, so a GUI save that harvest()
     reads back lands in 'variants' when the base spec is saved."""
     if not names:

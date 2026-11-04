@@ -433,7 +433,7 @@ extra bit sticking off the elbow end?") and — it turned out — was also what
 the forearm hit at elbow +20°: without it the CAD elbow range is −101..+60.
 
 So: modelled support geometry is gone, and parts that need supports say so
-instead — `CP.SUPPORTED[...]` (the `hip_yoke_v6` precedent) and the
+instead — `CP.SUPPORTED[...]` and the
 "supports" column of `print-list.md`. What a slicer cannot clean up is still
 designed in: small horizontal bores stay teardropped.
 
@@ -487,7 +487,7 @@ arm-vs-leg contacts (`getup_search_r5_asdrawn_walk.txt`).
 flexion, and the hardware could only ever reach ~118.4° — the thigh's front
 wall meets the roll flange there in *both* hip-yoke variants, a pair the
 sweep never checked. With `LL_HIP_RELIEF` the joint now reaches **−120** at
-the 0.7 mm rule (`hip-yoke-single-print.md` §6 item 1), which is **1° of
+the 0.7 mm rule ([`hip-yoke-single-print.md`](../archive/hip-yoke-single-print.md) §6 item 1), which is **1° of
 margin** over the sim's threshold. That margin is thin, and it is a sim
 number: the bench should confirm the tuck, and if it proves marginal the
 next lever is the get-up sequence (more arm push to carry the CoM forward),
