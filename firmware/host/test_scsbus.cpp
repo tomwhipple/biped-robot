@@ -125,7 +125,7 @@ void testSyncWriteShape() {
     uint8_t buf[kMaxPacket];
     const uint8_t ids[] = {1, 2, 3};
     const int32_t pos[] = {2048, 1024, 3072};
-    uint8_t payload[3 * kPosExStride];
+    uint8_t payload[3 * kPosExStride] = {};
     for (int i = 0; i < 3; ++i) {
         packPosEx(payload + i * kPosExStride, pos[i], 0, 0, 0);
     }

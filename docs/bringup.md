@@ -8,8 +8,8 @@ assembled robot to a first armed run. The references it uses:
 - the CLI and firmware internals: [firmware/README.md](../firmware/README.md)
 - the link: [control-channel.md](control-channel.md)
 
-The firmware carries the robot's 17-servo bus (the proposed ID map,
-[servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)): `cal`,
+The firmware carries the robot's 17-servo bus (the ID map,
+[servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)): `cal`,
 `pose`, `home`, `ping` and the gain check cover all 17, and touch only the
 servos the calibration marks fitted. The compiled policy drives the
 prototype's 10 joints. On the robot, the IMU check scripts in `tools/` still
@@ -90,8 +90,9 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 
 ## 2. Servo IDs and gains
 
-The robot's ID map is **proposed, awaiting sign-off** ([servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)).
-Assign IDs only from the signed-off map. Every servo ships as ID 1, so set IDs
+The robot's ID map is [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled).
+The leg IDs are the ones on the robot; the neck and arm IDs (13–17) are still a
+proposal (#77), so assign those only once they are signed off. Every servo ships as ID 1, so set IDs
 **one servo on the bus at a time**.
 
 ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](img/servo_map.png)

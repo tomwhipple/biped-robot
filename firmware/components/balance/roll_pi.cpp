@@ -120,33 +120,33 @@ State RollBalance::update(float roll_rad, float dt_s, float roll_rate_rad_s) {
         return state_;
     }
     rate_ = roll_rate_rad_s;
-    const float err = roll_rad - ref_;
-    if (!isfinite(err) || fabsf(err) > cfg_.abort_rad) {
-        if (isfinite(err)) err_ = err;         // else the last finite error is the one worth reporting
+    const float e = roll_rad - ref_;
+    if (!isfinite(e) || fabsf(e) > cfg_.abort_rad) {
+        if (isfinite(e)) err_ = e;             // else the last finite error is the one worth reporting
         abort(State::kAbortTip);
         return state_;
     }
-    err_ = err;
+    err_ = e;
     if (state_ == State::kArmed) {
         // watching only: u stays 0, I stays 0 -- unless the lean is real (see ARMED)
-        if (!(cfg_.arm_start_rad > 0.0f && fabsf(err) > cfg_.arm_start_rad)) return state_;
+        if (!(cfg_.arm_start_rad > 0.0f && fabsf(e) > cfg_.arm_start_rad)) return state_;
         engage(roll_rad);                      // reference here; the PI acts from the next tick
         rate_ = roll_rate_rad_s;
         return state_;
     }
-    const float unsat = cfg_.kp * err + cfg_.ki * i_ + cfg_.kd * roll_rate_rad_s;
-    float u = unsat;
-    if (u > cfg_.clamp_rad) u = cfg_.clamp_rad;
-    if (u < -cfg_.clamp_rad) u = -cfg_.clamp_rad;
-    const bool pushing_into_clamp = (u != unsat) && ((err > 0.0f) == (u > 0.0f));
-    if (!pushing_into_clamp) i_ += err * dt_s;
+    const float unsat = cfg_.kp * e + cfg_.ki * i_ + cfg_.kd * roll_rate_rad_s;
+    float sat = unsat;
+    if (sat > cfg_.clamp_rad) sat = cfg_.clamp_rad;
+    if (sat < -cfg_.clamp_rad) sat = -cfg_.clamp_rad;
+    const bool pushing_into_clamp = (sat != unsat) && ((e > 0.0f) == (sat > 0.0f));
+    if (!pushing_into_clamp) i_ += e * dt_s;
     if (cfg_.i_lim_rad > 0.0f && cfg_.ki > 0.0f) {
         // the integral's share of u stays within +-i_lim_rad (it limits the next tick's u)
         const float lim = cfg_.i_lim_rad / cfg_.ki;
         if (i_ > lim) i_ = lim;
         if (i_ < -lim) i_ = -lim;
     }
-    u_ = u;
+    u_ = sat;
     return state_;
 }
 

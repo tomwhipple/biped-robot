@@ -126,11 +126,14 @@ void testPose() {
         CHECK_EQ(at, 300u);
         CHECK_EQ(d.tripJoint(), 3);
         CHECK_NEAR(d.tripValue(), 16.0, 1e-3);
+        CHECK_EQ(d.ticks(), at / kDt + 1);   // counted up to the tripping tick
         // ... and only once.
         CHECK(run(d, r, 2000) == Trip::kNone);
         CHECK(d.trip() == Trip::kPose);
+        CHECK_EQ(d.ticks(), at / kDt + 1);   // a tripped guard stops counting
         d.reset();
         CHECK(!d.tripped());
+        CHECK_EQ(d.ticks(), 0u);
     }
     {
         // 14 deg: inside the limit, forever.

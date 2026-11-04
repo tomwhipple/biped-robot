@@ -171,9 +171,9 @@ The robot has no heat-set inserts and no washers.
 2. **IDs, one servo at a time.** Servos ship as ID 1, and two servos with the
    same ID do not enumerate. Assign each ID alone on the bus and label the
    case.
-   - The ID map for the 17 joints is **proposed, awaiting sign-off** (#77):
-     [servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map), drawn
-     below. The procedure is [bringup.md §2](bringup.md#2-servo-ids-and-gains).
+   - The ID map is [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled),
+     drawn below. The leg IDs are the ones on the robot; the neck and arm IDs
+     (13–17) are still a proposal (#77). The procedure is [bringup.md §2](bringup.md#2-servo-ids-and-gains).
 
    ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](img/servo_map.png)
 3. **Centre each servo at 2048, then fit its horn** with the centre screw.
@@ -523,7 +523,10 @@ CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
 - **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
   along its bottom edge: all reached with the cap off.
 - The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
-  The main switch (W6/W7) has **no place in the torso yet**.
+  The sim current budget is in
+  [wiring.md](wiring.md#current-measured-budget-issue-77); the bench figure and
+  the inlet are open (#77; [bom.md §3](bom.md#3-power)). The main switch
+  (W6/W7) has **no place in the torso yet**.
 
 The cap and the bracket print without supports:
 
@@ -693,11 +696,14 @@ letter faces out and reads upright with the arm hanging.
 
 ## 12. Cabling
 
-**The harness is not drawn yet** (#77): the 17-joint ID map is proposed, not
-signed off ([servo-map.md §2.1](servo-map.md#21-the-robot-the-proposed-map)),
-the per-hop lead lengths are measured from the CAD
-([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)), and there
-is no current budget.
+**The harness is not drawn yet** (#77): the leg IDs are as assembled but the
+neck and arm IDs (13–17) and the splitter topology are still a proposal
+([servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)), the
+per-hop lead lengths are measured from the CAD
+([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)), and the
+current budget is a sim figure
+([wiring.md](wiring.md#current-measured-budget-issue-77)) with the bench
+number still owed.
 
 **What the CAD provides for it:**
 
@@ -738,9 +744,10 @@ is no current budget.
 
 Bare board to first arm: [bringup.md](bringup.md).
 
-**The firmware currently drives the prototype's 10 joints.** The 17-joint port
-(IDs, calibration blob, observation spec, and the register-21 check at boot) is
-open (#81). The procedure is the one the prototype uses:
+**The compiled policy still drives the prototype's 10 joints.** The firmware's
+bus side carries all 17 servos: the bus map, calibration blob v3, and the gain
+check at boot and before every arm. The 17-servo bench steps and a robot-plant
+policy are open (#81, #86). The procedure is the one the prototype uses:
 
 1. **Zero.** Standing is angle zero for every joint.
    - Hold the robot in the CAD standing pose on a stand, then run `cal zero` and
