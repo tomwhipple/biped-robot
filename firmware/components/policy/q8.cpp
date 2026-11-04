@@ -35,6 +35,8 @@ Q8_HOT inline int32_t roundHalfAway(float v) {
         const float t = v + 0.5f;
         return static_cast<int32_t>(t);
     }
+    // cppcheck-suppress knownConditionTrueFalse -- NaN fails both v >= 0 and v < 0;
+    // cppcheck does not model NaN, so it reads this guard as dead.
     if (!(v < 0.0f)) return 0;
     const float t = 0.5f - v;
     return -static_cast<int32_t>(t);
