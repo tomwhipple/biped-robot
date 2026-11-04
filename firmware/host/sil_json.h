@@ -81,9 +81,9 @@ struct Value {
 namespace detail {
 
 struct Cursor {
-    const char* s;
-    size_t n;
-    size_t i;
+    const char* s = nullptr;
+    size_t n = 0;
+    size_t i = 0;
     std::string err;
 };
 

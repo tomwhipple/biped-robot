@@ -94,6 +94,26 @@ def apply_model(env, m):
             env._kd_prof = env._kd_prof0 * vec(m["kd_scale"])
         if m.get("kp_scale") is not None:
             env._kp_prof = env._kp_prof0 * vec(m["kp_scale"])
+    if m.get("supply_v") is not None:
+        # the DC-motor envelope scales with the supply (walker_env: stall, no-load x V/12);
+        # training and the plant use 11.1 V, the robot's bus reads ~12.0 V on the board
+        if not hasattr(env, "_servo_env0"):
+            env._servo_env0 = np.array(env._servo[2:4], float).copy()
+        env._servo[2:4] = env._servo_env0 * float(m["supply_v"]) / float(env.supply_voltage)
+    if m.get("stall_scale") is not None or m.get("w0_scale") is not None:
+        # torque-speed envelope per joint role or a float: {'hip_pitch': x, 'knee': y} (other
+        # joints 1.0 unless 'other' is given) -- the actuator refit's knobs (friction-dr)
+        def evec(v):
+            if isinstance(v, dict):
+                return np.array([v.get(n[2:], v.get("other", 1.0)) for n in env._servo_names])
+            return np.full(len(env._servo_names), float(v))
+        if not hasattr(env, "_stall_prof0"):
+            env._stall_prof0 = np.array(env._stall_prof, float).copy()
+            env._w0_prof0 = np.array(env._w0_prof, float).copy()
+        if m.get("stall_scale") is not None:
+            env._stall_prof = env._stall_prof0 * evec(m["stall_scale"])
+        if m.get("w0_scale") is not None:
+            env._w0_prof = env._w0_prof0 * evec(m["w0_scale"])
     if m.get("frictionloss") is not None:
         mm.dof_frictionloss[env._sqvel] = float(m["frictionloss"])
     if m.get("armature") is not None:

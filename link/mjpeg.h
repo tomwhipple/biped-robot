@@ -29,6 +29,8 @@ class MjpegParser {
   public:
     MjpegParser();
     ~MjpegParser();
+    MjpegParser(const MjpegParser&) = delete;
+    MjpegParser& operator=(const MjpegParser&) = delete;
 
     void feed(const uint8_t* data, size_t n);
 
@@ -59,6 +61,8 @@ class MjpegStream {
   public:
     MjpegStream();
     ~MjpegStream();
+    MjpegStream(const MjpegStream&) = delete;
+    MjpegStream& operator=(const MjpegStream&) = delete;
 
     // http://host:port/path. Stops any stream already running.
     bool start(const char* url);

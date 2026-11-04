@@ -16,8 +16,8 @@ namespace {
 constexpr int kMaxArgs = 8;   // only the first few tokens decide anything
 
 struct Tokens {
-    char buf[kMaxLine + 1];
-    const char* argv[kMaxArgs];
+    char buf[kMaxLine + 1] = {};
+    const char* argv[kMaxArgs] = {};
     int argc = 0;    // tokens seen (capped at kMaxArgs + 1: "more than")
 };
 

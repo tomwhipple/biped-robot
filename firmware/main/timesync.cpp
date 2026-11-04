@@ -30,6 +30,8 @@ constexpr char kFallback[] = "pool.ntp.org";
 // clock would have been: the previous reply's time plus the crystal-clocked
 // microseconds since. That is the number an operator wants -- "the clock
 // jumped 340 ms" (link or server trouble) versus "it moved 1 ms" (normal).
+// cppcheck-suppress constParameterCallback -- esp_sntp_time_cb_t fixes the
+// signature (a non-const timeval*).
 void onSync(timeval* tv) {
     const int64_t now_boot = esp_timer_get_time();
     const uint64_t now_epoch =

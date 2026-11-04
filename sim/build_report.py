@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-04 card: night 14 -- the get-up on the full deploy chain (the measured
+# fast servo + the firmware shaper: w18k 48/48, 15 N 16/16); the DART student
+# replicates. Legs: walk18 fell on its first robot stride1 (11-03); every walk18
+# continuation raises the stand squeeze; all students fail the refit-actuator gate.
+fig_1104 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w18k', ['recover_prone_fall'],
+                 'robot_getup_w18k_prone_fall',
+                 'the get-up through the robot\'s whole actuator chain (fast servo, '
+                 'firmware shaper 10 Hz): 48/48 over friction 0.05-0.5, 16/16 under 15 N shoves'),
+    video_figure('robot_getup_w12k_s1_s128r24an3', ['recover_supine_ph'],
+                 'robot_getup_w12k_s1_s128r24an3_supine_ph',
+                 'the DART-noise (128, 128) student on a second teacher: 47/48, 16/16 '
+                 'at 15 N: the noise recipe, not one lucky teacher'),
+    video_figure('robot_legs_walk20_lowsw30_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk20_lowsw30_s128r24_walk_steps',
+                 '3x the per-step clearance penalty: 71 % of swings reach 3 cm (63 % '
+                 'without), but the lowest step still peaks at 1.3-1.4 cm'),
+    video_figure('robot_legs_walk20_b300_s128r24', ['stand_10s'],
+                 'robot_legs_walk20_b300_s128r24_stand',
+                 'walk18\'s 300M budget on a new seed: stands 8/8 here, but the squeeze rose '
+                 '2.0 -> 3.4 deg and it falls 1/8 at x1.5 loop gain'),
+] if f)
 # 2026-11-03 card: night 13 -- the DART-noise distil gives the first
 # firmware-sized get-up at the teacher's level (w12k_s128r24an3: 48/48, 15 N
 # 16/16); PPO small nets stay at 7-9/16. Legs: the +600M shaper continuations
@@ -891,6 +913,37 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·04 · night 14: the get-up on the robot's actuator chain; the walk's first real step</span></p>
+    <p><b>Get-up: the robot's servos and firmware shaper cost nothing.</b>
+    Retrained on the measured fast STS3215 (w17k), the get-up sweeps 48/48
+    across joint friction 0.05 – 0.5 and holds 16/16 under 15 N shoves, at least
+    as well as on the old stand-in actuator. With the firmware's command
+    shaper also in the loop (w18k), the scores are the same. The noise-distilled
+    (128, 128) student replicates on a second teacher (47/48, 16/16) and on the
+    fast-actuator teacher (47/48, 16/16). Doubling the distil noise does not
+    lift the 30 N shoves (6/16). Today's fix: every episode used to start with
+    the servo chain seeded at the standing pose, a yank the robot never makes.
+    <code>--seed-chain-at-q</code> now seeds it at the lying pose, as the
+    firmware does. Tonight: the shaper-chain student, the get-up on the
+    faithful start (and its seed and student), then a smoothness penalty.</p>
+    <p><b>Legs: walk18 stood on the robot, then fell on its first stride.</b>
+    On 11-03 the robot stood 60 s under walk18_shp10sq_s128r24. Its first
+    stride kicked the right leg so fast that the body spun −19° in 180 ms, and
+    it fell. The sim's leg swings about 1.6× slower than the robot's. The robot
+    session refit the hip and knee actuator from that swing (PR #214, merged
+    today). On the refit actuator every student we have trips the flail guard
+    8/8 at that stride. Last night's two walk18 continuations did not help:
+    the 300M replicate lost the stand margin (1/8 at 1.5× loop gain, squeeze
+    2.0 → 3.4°), so walk18's quiet stand looks like seed luck. The clearance
+    penalty raised the share of 3 cm swings to 71 %, but the lowest steps stay
+    at 1.3 cm. Tonight the legs train on the refit actuator, then add Tom's
+    smoothness terms. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1104}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·03 · night 13: a deployable get-up student; the walk's margin and clearance</span></p>
