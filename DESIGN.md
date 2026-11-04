@@ -268,14 +268,15 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 
 ### 5.3 Torso
 
-Two prints, two covers, a door and the BMS bracket (`cad/v6/torso_v8.py`):
+Two prints, two covers, a door, the BMS bracket and the balance park
+(`cad/v6/torso_v8.py`):
 the **pelvis** holds the legs, and the **torso** around it holds the pack, the
 board stack (the Pi with the General Driver on it) and the power board with
 its BMS. The pack sits in the middle over the hips, the board stack in a bay
 in front of the pelvis and the power board in a bay right behind it. The
 pelvis is glued into the torso for good; the pack comes out sideways through
-the **battery door**, one screw. The pelvis, the covers, the door and the
-bracket print without supports; the torso
+the **battery door**, one screw. The pelvis, the covers, the door, the
+bracket and the park print without supports; the torso
 prints with slicer support in its wide windows and nowhere else. Frame: deck
 top at z = 0, +x forward, the legs at y = ±42 mm.
 
@@ -389,6 +390,12 @@ in from the corners, which the torso uses as they are (#213).
   off the board: over J1, J2 and the W pads, beside the fuses (1.0 mm past
   their ends, 2.2 mm over their tops), 0.9 mm off the +y skin. A ledge and two
   stops on the bracket hold it in place; the cap is 2.2 mm off its parts.
+- **The balance lead:** J2 is under the BMS and below the door's sill, so a
+  3S JST-XH balance extension lead stays plugged into it and parks its male
+  end, pins up, in the **balance park** (`balance_park_v8`, a 0.6 g cup
+  foam-taped to the aft inner wall's aft face beside the board's +y edge), its
+  top at the door's sill, 1.5 mm under J1's plug: the pack's balance plug goes
+  onto it through the door.
 
 **The covers** (printed outer face down, no supports):
 
@@ -396,8 +403,9 @@ in from the corners, which the torso uses as they are (#213).
   skins' ends, under the deck, with vent slots and a corner block in each
   corner. 4 × M2.5 × 8 flat-heads go in through the skins, countersunk in
   their outer faces, into the blocks.
-- `power_cover_v8`, the **cap** (25 g, 122.5 × 71.5 × 15.3 mm): the torso's
-  skins and deck carried 4.7 mm aft of its end to a plate with vent slots, a
+- `power_cover_v8`, the **cap** (25 g, 122.5 × 71.5 × 15.3 mm, every edge
+  square): the torso's skins and deck carried 4.7 mm aft of its end to a plate
+  with vent slots, a
   lip in under the deck and inside the −y skin, and three corner blocks that
   reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
   (+y top, −y top, −y bottom); the +y bottom hole stays empty, because the
@@ -573,9 +581,9 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.42 kg (the plant: 2.418 kg) |
+| robot | ≈ 2.42 kg (the plant: 2.419 kg) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.89 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 25 g, BMS bracket 4 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.89 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 25 g, BMS bracket 4 g, balance park 0.6 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards, BMS + wiring | 205 g (weighed) / ≈ 195 g |
 

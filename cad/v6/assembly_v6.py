@@ -322,6 +322,27 @@ def mock_bms():
     return torso_v8.mock_bms()
 
 
+def part_balance_park():
+    """The cup that holds the balance extension lead's male end (torso_v8.py)."""
+    s, ok = _try("torso_v8", "balance_park_v8")
+    if ok:
+        return s
+    return Pos(sum(V.BAL_IN_X) / 2, V.BAL_Y, (V.BAL_FLOOR_Z + V.BAL_RIM_Z) / 2) * Box(
+        V.BAL_X0 - V.BAL_IN_X[1], V.BAL_IN_Y[1] - V.BAL_IN_Y[0], V.BAL_RIM_Z - V.BAL_FLOOR_Z)
+
+
+def mock_balance_male():
+    """The extension lead's male end in the park, the pack's plug on it (torso_v8.mock_balance_male)."""
+    import torso_v8
+    return torso_v8.mock_balance_male()
+
+
+def mock_balance_lead():
+    """The balance extension lead, J2 to the park (torso_v8.mock_balance_lead)."""
+    import torso_v8
+    return torso_v8.mock_balance_lead()
+
+
 def mock_roll_servo_in_foot(side):
     """roll servo lying across the foot: output axis +X (horn forward), case
     length along +y OUTBOARD (cable end), width vertical. Built from v5's
@@ -433,6 +454,9 @@ def _torso_pieces():
         (0, "power_standoffs_mock", COL_MOCK, Pos(0, 0, z) * mock_power_standoffs()),
         (0, "power_bracket_v8", COL_PRINT, Pos(0, 0, z) * part_power_bracket()),
         (0, "bms_mock", COL_MOCK, Pos(0, 0, z) * mock_bms()),
+        (0, "balance_park_v8", COL_PRINT, Pos(0, 0, z) * part_balance_park()),
+        (0, "balance_male_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_male()),
+        (0, "balance_lead_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_lead()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
         (0, "neck_floor", COL_PRINT, Pos(0, 0, z) * part_neck_floor()),
         (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,

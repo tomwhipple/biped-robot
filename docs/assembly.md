@@ -153,6 +153,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
 | §9c power board: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
 | §9c BMS bracket onto the standoffs / power cap | M2.5 × 6 flat / M2.5 × 8 flat | 2 / 3 |
+| §9c BMS onto its bracket / balance park onto the aft wall | double-sided foam tape, 1 mm | — |
 | §10 battery door | M2.5 × 8 flat | 1 |
 | §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
@@ -463,9 +464,10 @@ over it.
 The power bay holds the power board (power lite, PR #209,
 [pcb/power-lite](../pcb/power-lite/README.md)), its BMS (a ShillehTek
 CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
-(`power_bracket_v8`), and the **cap** (`power_cover_v8`) over them (#213).
+(`power_bracket_v8`), the **balance park** (`balance_park_v8`) for the
+balance lead's free end, and the **cap** (`power_cover_v8`) over them (#213).
 
-![The power bay from aft: exploded; the board, bracket and BMS in place; the cap on; a section at z = −25](assembly/power_bay_v8.png)
+![The power bay from aft: exploded; the board, bracket and BMS in place; the cap on; a section at z = −25; from +y with the skin cut away, the balance park under J1](assembly/power_bay_v8.png)
 
 1. **Wire the BMS to the board first**, on the bench, after the BMS's bench
    check: power lite's [assembly guide](../pcb/power-lite/assembly.md), step 13
@@ -484,10 +486,24 @@ CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
    - Its +y holes (H1 at the top, H3 at the bottom): **2 × M2.5 × 15
      male-female standoffs**, their 6 mm male thread through the board into the
      bosses. Turn them with a 5 mm nut driver.
-3. **The BMS bracket** onto the two standoffs: **2 × M2.5 × 6 flat-heads**
+3. **The balance lead.** A 3S JST-XH balance extension lead stays plugged into
+   J2, and its free end parks where the battery door reaches it: J2 itself is
+   under the BMS and below the door's sill.
+   - Plug the lead's female end into J2.
+   - Tape the **balance park** (`balance_park_v8`) onto the aft inner wall's
+     aft face, in the room beside the board's +y edge, under J1: its top at
+     the door's sill, 1 mm of foam tape.
+   - Run the lead out of J2 aft, across +y under where the bracket goes, past
+     the board's edge, under the park and up through the slot in its floor
+     (about 42 mm), and drop its male end into the park, pins up. Fold the
+     slack under the park.
+   - The male end is taken as JST's B4B-XH-A body (12.4 × 5.75 × 7.0 mm):
+     **measure the lead's end on arrival** (`BAL_MALE` in
+     `cad/v6/dimensions_v6.py`).
+4. **The BMS bracket** onto the two standoffs: **2 × M2.5 × 6 flat-heads**
    into their tops, countersunk in the bracket. The bottom screw ends up under
    the BMS, so it goes in first.
-4. **The BMS** onto the bracket, component side aft, on double-sided foam tape.
+5. **The BMS** onto the bracket, component side aft, on double-sided foam tape.
    - Press it straight in from aft. It sits between three stops on the
      bracket: a ledge under its bottom edge, a stop over its top edge, and a
      stop at its −y edge.
@@ -500,7 +516,7 @@ CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
      that is assumed to be free of parts.
 
    ![The BMS bracket onto its standoffs, then the BMS onto its tape](assembly/v6_11b_power_bay.png)
-5. **The cap** goes on from aft: its plate stands 4.7 mm aft of the torso and
+6. **The cap** goes on from aft: its plate stands 4.7 mm aft of the torso and
    2.0 mm over the relay K1. Drive **3 × M2.5 × 8 flat-heads** in through the
    skins into its corner blocks: the +y top, −y top and −y bottom holes.
    - The torso's +y bottom hole stays empty: the BMS's lower corner is where
@@ -518,8 +534,10 @@ CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
   that edge, under the bracket. It is unplugged through the battery door
   (§10). Whether the plug and its 12 AWG lead fit there is **not checked**:
   check it at the first fit.
-- **J2**, the pack's balance plug, is under the BMS and below the door's sill.
-  How it is unplugged at a pack swap is **open**.
+- **The pack's balance plug** goes onto the extension's male end in the
+  balance park, and comes off it, through the door's opening (§10): the park
+  holds it at the sill, 1.5 mm under J1's plug. J2 itself, with the
+  extension's female end in it, is reached with the cap and the BMS off.
 - **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
   along its bottom edge: all reached with the cap off.
 - The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
@@ -528,9 +546,9 @@ CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
   the inlet are open (#77; [bom.md §3](bom.md#3-power)). The main switch
   (W6/W7) has **no place in the torso yet**.
 
-The cap and the bracket print without supports:
+The cap, the bracket and the park print without supports:
 
-![The cap and the BMS bracket as they lie on the bed](assembly/power_bay_prints_v8.png)
+![The cap, the BMS bracket and the balance park as they lie on the bed](assembly/power_bay_prints_v8.png)
 
 ## 10. The pack and the battery door
 
@@ -548,8 +566,8 @@ The pack goes in and out sideways, through the **battery door** in the +y skin
    blocks under the deck rail.
 4. **Plug it in:** its lead runs aft from its +y end, through the aft wall's
    +y end window into the power bay, and loops into J1 on the power board's +y
-   edge (§9c), all inside the door's opening. Its balance plug goes into J2,
-   under the BMS (§9c).
+   edge (§9c), all inside the door's opening. Its balance plug goes onto the
+   balance lead's male end in the park, at the opening's sill (§9c).
 5. **Close the door:** hook its tab (the bevelled aft edge) behind the power
    bay's skin, swing the front edge in, and drive **1 × M2.5 × 8 flat-head**
    through it into the post on the front inner wall. The door's two inner ribs
@@ -568,8 +586,9 @@ The pack goes in and out sideways, through the **battery door** in the +y skin
    unpowered shoulder holds it there is not measured: hold it.
 2. **The door:** the screw out, the front edge swung out about the tab to
    about 40° (so the tab's tip clears the jamb), then the door lifted away.
-3. **Pull the XT60 off J1** and back through the aft wall's window, and the
-   balance plug off J2 (§9c: how is open).
+3. **Pull the XT60 off J1** and the balance plug off the lead's male end in
+   the balance park (hold the male end down), and both back through the aft
+   wall's window.
 4. **Slide the pack out** sideways from under the neck floor's pad.
 5. Fit the new one as steps 3–5 above.
 
@@ -789,6 +808,6 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 | ID map, harness, lead lengths, current budget | #77 |
 | room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #209 |
 | the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
-| unplugging the balance plug at J2 at a pack swap (under the BMS, below the door's sill) | §9c, §10; #213 |
+| the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
 | where the main switch (W6/W7) mounts, or none | §9c; #213 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |

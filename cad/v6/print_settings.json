@@ -55,9 +55,10 @@
       "parts": [
         "front_cover_v8",
         "power_cover_v8",
-        "power_bracket_v8"
+        "power_bracket_v8",
+        "balance_park_v8"
       ],
-      "note": "the torso's second print: both covers (the power bay's is a cap) and the BMS bracket, flat, no supports"
+      "note": "the torso's second print: both covers (the power bay's is a cap), the BMS bracket and the balance park, no supports"
     },
     "arms": {
       "parts": [
@@ -289,6 +290,11 @@
       "orient": "RY_XDOWN",
       "supports": false,
       "note": "the face that sits on the standoffs down, the ledge and the BMS stops rising; no supports"
+    },
+    "balance_park_v8": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "floor down, the cup's walls rising; no supports"
     },
     "battery_door_v8": {
       "orient": "RY_YDOWN",

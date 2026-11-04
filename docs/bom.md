@@ -162,6 +162,7 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 |---|---|---|---|
 | **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
 | **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso holds a 56 × 45 × 8 mm one (the ShillehTek CF-3SJH25A-C's datasheet size) on the BMS bracket in its power bay (#213) | |
+| 3S balance extension lead | 1 | JST-XH 4-pin, female (into the power board's J2) to male (pins, takes the pack's balance plug), about 100 mm; parks its male end in `balance_park_v8` ([assembly.md §9c](assembly.md)). Its male end's body is taken as JST's B4B-XH-A (12.4 × 5.75 × 7.0 mm): measure it | |
 | inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
 | mini blade fuses | 1 pack | 10 A and 15 A | |
 | bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
@@ -285,7 +286,7 @@ M2.5, not M3.
 | M2.5 × 6 pan self-tap | 2 | the power board onto its −y standoff bosses | |
 | M2.5 × 15 male-female standoff, 6 mm male | 2 | the power board onto its +y standoff bosses; the BMS bracket screws onto them | |
 | M2.5 × 6 flat-head (90° countersunk), machine | 2 | the BMS bracket onto its standoffs | |
-| double-sided foam tape, about 1 mm | 1 strip | the BMS onto the BMS bracket (#213) | |
+| double-sided foam tape, about 1 mm | 1 strip | the BMS onto the BMS bracket, the balance park onto the aft inner wall (#213) | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
 

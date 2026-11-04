@@ -68,7 +68,10 @@ INSERT = [
     ("pi4_mock",           (1, 0, 0), 11),
     ("front_cover_v8",     (1, 0, 0), 13),   # then the front cover
     ("power_board_mock",   (-1, 0, 0), 11),  # power board onto its standoff bosses from aft
-    ("power_standoffs_mock", (-1, 0, 0), 11),  # with the BMS bracket's two standoffs in its +y holes
+    ("power_standoffs_mock", (-1, 0, 0), 11),  # with the BMS bracket's two standoffs in its +y holes,
+    ("balance_park_v8",    (-1, 0, 0), 11),  # the balance park onto the aft wall, the extension's male end in it,
+    ("balance_male_mock",  (-1, 0, 0), 11),  # its lead from J2 (plugged in with the board)
+    ("balance_lead_mock",  (-1, 0, 0), 11),
     ("power_bracket_v8",   (-1, 0, 0), 12),  # the BMS bracket onto them from aft,
     ("bms_mock",           (-1, 0, 0), 12),  # the BMS onto the bracket's tape (wired to the board)
     ("power_cover_v8",     (-1, 0, 0), 13),  # then its cover

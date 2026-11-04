@@ -96,6 +96,7 @@ ORIENT_SOURCES = {
     "front_cover_v8": ("torso_v8", "PRINT_ORIENT", "front_cover_v8"),
     "power_cover_v8": ("torso_v8", "PRINT_ORIENT", "power_cover_v8"),
     "power_bracket_v8": ("torso_v8", "PRINT_ORIENT", "power_bracket_v8"),
+    "balance_park_v8": ("torso_v8", "PRINT_ORIENT", "balance_park_v8"),
     "battery_door_v8": ("torso_v8", "PRINT_ORIENT", "battery_door_v8"),
     "yaw_bearing_housing": ("yaw_bearing_housing", "PRINT_ORIENT", None),
     "head_shell": ("head", "PRINT_ORIENT", None),

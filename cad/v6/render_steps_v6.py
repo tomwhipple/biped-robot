@@ -61,6 +61,9 @@ BENCH = {
     "power_standoffs_mock": (-1, 0, 0),  # the BMS bracket's standoffs in its +y holes
     "power_bracket_v8": (-1, 0, 0),      # then the BMS bracket onto them, the BMS onto its tape (torso_v8)
     "bms_mock": (-1, 0, 0),
+    "balance_park_v8": (-1, 0, 0),       # the balance park onto the aft wall, its lead from J2, before the bracket
+    "balance_male_mock": (-1, 0, 0),
+    "balance_lead_mock": (-1, 0, 0),
     "power_cover_v8": (-1, 0, 0),
     "pi4_mock": (1, 0, 0),               # the stack goes in from the front, the front cover off
     "gd_mock": (1, 0, 0),
@@ -80,7 +83,8 @@ HIP_R = [n[:-1] + "R" for n in HIP]
 HOUSING = ["yaw_bearing_housing"]
 TORSO = ["pelvis_v8", "torso_v8"]
 TORSO_DONE = TORSO + HOUSING                                            # once the hips are built
-STACK = ["pi4_mock", "gd_mock", "front_cover_v8", "power_board_mock", "power_standoffs_mock"]
+STACK = ["pi4_mock", "gd_mock", "front_cover_v8", "power_board_mock", "power_standoffs_mock",
+         "balance_park_v8", "balance_male_mock", "balance_lead_mock"]
 POWER_BAY = ["power_bracket_v8", "bms_mock", "power_cover_v8"]
 BOARDS = STACK + POWER_BAY
 PACK = ["pack_mock", "battery_door_v8"]
@@ -120,7 +124,7 @@ STEPS = [
      ["yaw_carrier_L", "servo_hip_roll_L"]),
     ("10_leg_to_hip", "8. The leg offered up: the yoke's roll clevis onto the roll servo",
      TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
-    ("11_boards", "9. The Pi with the General Driver on it in from the front, then the power board from aft",
+    ("11_boards", "9. The Pi with the General Driver on it in from the front; the power board and the balance park from aft",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R, STACK, 45, (150, -20), ["torso_v8"]),
     ("11b_power_bay", "9c. The BMS bracket onto its standoffs, then the BMS onto its tape",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK, POWER_BAY[:2], 35, (-25, -15),

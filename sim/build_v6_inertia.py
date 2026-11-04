@@ -219,7 +219,8 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
-    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "power_bracket_v8", "battery_door_v8", carrier,
+    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "power_bracket_v8", "balance_park_v8",
+              "battery_door_v8", carrier,
               "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
@@ -244,6 +245,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
         t.append(box_props(V.BMS_MASS * 1e-3, [V.BMS_C[0], V.BMS_C[1], zdeck + V.BMS_C[2]],
                            [V.BMS_BOX[1], V.BMS_BOX[0], V.BMS_BOX[2]]))
         t.append(mesh_props(stl("power_bracket_v8"), [0, 0, zdeck]))
+        t.append(mesh_props(stl("balance_park_v8"), [0, 0, zdeck]))
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     if p.arms:
         t += [mesh_props(stl("shoulder_girdle_v6"), [0, 0, zdeck]),

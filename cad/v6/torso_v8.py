@@ -11,6 +11,8 @@
                   board's relay. Printed outer face down.
   power_bracket_v8 the BMS's tray, on two standoffs in the power board's +y
                   holes. Printed flat.
+  balance_park_v8 the cup that holds the free end of the balance lead's
+                  extension, taped to the aft inner wall. Printed floor down.
   battery_door_v8 the +y skin over the battery layer and the power board's
                   J1: one screw, one tab. Printed flat, outer face down.
 
@@ -103,8 +105,10 @@ OUT_STL = os.path.join(HERE, "stl")
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
-PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "power_bracket_v8", "battery_door_v8")
+PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "power_bracket_v8", "balance_park_v8",
+          "battery_door_v8")
 # rows = print axes in model coords (check_printability's convention)
+IDENT = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 RX180 = ((1.0, 0.0, 0.0), (0.0, -1.0, 0.0), (0.0, 0.0, -1.0))
 RY_XUP = ((0.0, 0.0, -1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0))
 RY_XDOWN = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))
@@ -116,6 +120,7 @@ PRINT_ORIENT = {
     "front_cover_v8": RY_XDOWN,  # outer face (+x) on the bed, corner blocks rise
     "power_cover_v8": RY_XUP,    # outer face (-x) on the bed, rim and corner blocks rise
     "power_bracket_v8": RY_XDOWN,  # the face on the standoffs (+x) on the bed, the tray's ledge and stops rise
+    "balance_park_v8": IDENT,    # its floor on the bed, the cup's walls rise
     "battery_door_v8": RY_YDOWN, # outer face (+y) on the bed, ribs and tongue rise
 }
 
@@ -754,13 +759,11 @@ def _pcap_blocks_yz():
     return [(y, z) for y, z in _cover_blocks_yz() if not (y > 0 and z < (zt + zd) / 2)]
 
 
-def _cap_plan(hw, r=2.0):
+def _cap_plan(hw):
     """The cap's plan outline at half width hw: from its outer face to the
-    torso's aft end, the front corners R r like the torso's (a split line);
-    the aft ones sharp, on the bed."""
+    torso's aft end, every corner square (Tom, 2026-11-04)."""
     x0, x1 = V.PCAP_X[0], V.TORSO_AFT_X
-    face = Pos((x0 + x1) / 2, 0) * Rectangle(x1 - x0, 2 * hw)
-    return fillet([v for v in face.vertices() if v.X > (x0 + x1) / 2], r)
+    return Pos((x0 + x1) / 2, 0) * Rectangle(x1 - x0, 2 * hw)
 
 
 def power_cover_v8():
@@ -842,6 +845,71 @@ def power_bracket_v8():
         p -= cyl_x(D.CASE_SCREW_CLEAR / 2, xf + 1, xa - 1, sy, sz)
         p -= csk_x(sy, sz, xa, -1)
     return p
+
+
+BAL_SLOT = (11.0, 2.4)            # the floor's slot for the lead's four wires: across, deep
+
+
+def balance_park_v8():
+    """THE BALANCE PARK (dimensions_v6 BAL_*): an open-topped cup that holds
+    the balance extension lead's male end, pins up, its top at the door's
+    sill. Its forward wall goes on the aft inner wall's aft face on foam tape;
+    the lead's wires leave through a slot in its floor, too narrow for the
+    male to drop through. Printed floor down: walls rising, no bridges."""
+    w = V.BAL_WALL
+    x1, x2 = V.BAL_IN_X
+    y1, y2 = V.BAL_IN_Y
+    c = box(V.BAL_X0, x2 - w, y1 - w, y2 + w, V.BAL_FLOOR_Z - w, V.BAL_RIM_Z)
+    c -= box(x1, x2, y1, y2, V.BAL_FLOOR_Z, V.BAL_RIM_Z + 1)
+    sx, sy = (x1 + x2) / 2, V.BAL_Y
+    c -= box(sx - BAL_SLOT[1] / 2, sx + BAL_SLOT[1] / 2, sy - BAL_SLOT[0] / 2, sy + BAL_SLOT[0] / 2,
+             V.BAL_FLOOR_Z - w - 1, V.BAL_FLOOR_Z + 0.1)
+    return c
+
+
+def mock_balance_male():
+    """The extension lead's male end in the park, and the pack's balance plug
+    on it with the turn of its wires (BAL_PLUG_ABOVE)."""
+    x1, x2 = V.BAL_IN_X
+    c = V.BAL_CLR
+    m = box(x1 - c, x2 + c, V.BAL_IN_Y[0] + c, V.BAL_IN_Y[1] - c, V.BAL_FLOOR_Z, V.BAL_TOP_Z)
+    m += box(x1 - c, x2 + c, V.BAL_IN_Y[0] + c, V.BAL_IN_Y[1] - c, V.BAL_TOP_Z, V.BAL_TOP_Z + V.BAL_PLUG_ABOVE)
+    return m
+
+
+BAL_LEAD_R = 1.5                  # the lead's four 26 AWG wires, bundled
+BAL_LEAD_X = -60.5                # its run aft of J2's plug, under the BMS bracket's plate
+BAL_LEAD_Z = -52.0                # its run under the park
+
+
+def balance_lead_path():
+    """The extension lead's route, as points: out of the top of its plug in
+    J2, aft, across +y under the BMS bracket and past the board's +y edge,
+    down, forward under the park and up into the park's floor slot."""
+    j2 = [p for p in V.PWRB_PARTS if p[0] == "J2"][0]
+    (ya, za), (yb, zb_) = V.pwrb_yz(j2[1], j2[3]), V.pwrb_yz(j2[2], j2[4])
+    y0, z0, x0 = (ya + yb) / 2, (za + zb_) / 2, V.PWRB_PCB_X0 - j2[5]
+    sx = sum(V.BAL_IN_X) / 2
+    return [(x0, y0, z0), (BAL_LEAD_X, y0, z0), (BAL_LEAD_X, V.BAL_Y, z0), (BAL_LEAD_X, V.BAL_Y, BAL_LEAD_Z),
+            (sx, V.BAL_Y, BAL_LEAD_Z), (sx, V.BAL_Y, V.BAL_FLOOR_Z - V.BAL_WALL)]
+
+
+def mock_balance_lead():
+    """The lead along balance_lead_path, as boxes BAL_LEAD_R round each leg."""
+    pts, r, m = balance_lead_path(), BAL_LEAD_R, None
+    for a, b in zip(pts, pts[1:]):
+        lo = [min(u, v) - r for u, v in zip(a, b)]
+        hi = [max(u, v) + r for u, v in zip(a, b)]
+        i = [k for k in range(3) if abs(a[k] - b[k]) > 1e-9][0]     # the leg's own axis keeps its ends
+        lo[i], hi[i] = min(a[i], b[i]), max(a[i], b[i])
+        s = box(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
+        m = s if m is None else m + s
+    return m
+
+
+def balance_lead_length():
+    pts = balance_lead_path()
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
 
 
 # ============================================================================
@@ -1189,16 +1257,20 @@ POWER_BAY_GAPS = (("the cap over the board's parts (K1 2.0 under its plate)", "c
                   ("the BMS under the cap (its +y top block)", "bms", "cap", 1.0),
                   ("the BMS bracket over the board's parts", "bracket", "board", 2.0),
                   ("the BMS bracket under the cap", "bracket", "cap", 1.0),
-                  ("the BMS and its bracket vs the battery door", "bms+bracket", "door", 1.0))
+                  ("the BMS and its bracket vs the battery door", "bms+bracket", "door", 1.0),
+                  ("the balance park and the pack's plug on it vs the door", "park+plug", "door", 1.0),
+                  ("the pack's balance plug on the park vs J1's plug", "plug", "j1", 1.0),
+                  ("the balance park vs the board's +y edge", "park", "board", 0.4),
+                  ("the balance lead vs the BMS bracket", "lead", "bracket", 1.0))
 
 
 def check_fits(pieces):
     """The installs and the seated fit, each a sweep or an intersection:
     - the Pi + General Driver stack goes in from the front onto its four
       standoffs (front cover off), and the power board from aft (the cap
-      off), each with its parts and its solder side; then, from aft, the BMS
-      bracket onto its two standoffs, the BMS onto the bracket's tape and the
-      cap over them;
+      off), each with its parts and its solder side; then, from aft, the
+      balance park onto the aft wall, the BMS bracket onto its two standoffs,
+      the BMS onto the bracket's tape and the cap over them;
     - the pelvis goes up into the torso from below -- the barbs are left out,
       they ride the webs by design (SNAP_BARB);
     - the battery swap: the door swung off about its tongue (the plug still
@@ -1214,16 +1286,20 @@ def check_fits(pieces):
     ok = True
     stack, pwrb = mock_stack(), mock_pwrb(plug=False)
     so, bms = mock_pwrb_standoffs(), mock_bms()
-    bay = mock_pwrb() + so + br + bms
+    park, male, lead = pieces["balance_park_v8"], mock_balance_male(), mock_balance_lead()
+    bay = mock_pwrb() + so + br + bms + park + male + lead
     ok &= _sweep(stack, tor, ((40.0, 0, 0), (0, 0, 0)), "Pi + General Driver stack in from the front")
     ok &= _sweep(pwrb, tor, ((-40.0, 0, 0), (0, 0, 0)), "power board in from aft")
-    ok &= _sweep(br, tor + pwrb + so, ((-40.0, 0, 0), (0, 0, 0)), "BMS bracket in from aft onto its standoffs")
-    ok &= _sweep(bms, tor + pwrb + so + br, ((-30.0, 0, 0), (0, 0, 0)), "BMS in from aft onto the bracket")
+    ok &= _sweep(park, tor + pel + pwrb, ((-30.0, 0, 0), (0, 0, 0)), "balance park in from aft onto the aft wall")
+    ok &= _sweep(br, tor + pwrb + so + park + male + lead, ((-40.0, 0, 0), (0, 0, 0)),
+                 "BMS bracket in from aft onto its standoffs")
+    ok &= _sweep(bms, tor + pwrb + so + br + park + male + lead, ((-30.0, 0, 0), (0, 0, 0)),
+                 "BMS in from aft onto the bracket")
     ok &= _sweep(pc, tor + pel + bay, ((-30.0, 0, 0), (0, 0, 0)), "the cap on from aft")
     _, barbs = _snap_fingers()
     ok &= _sweep(pel, tor - barbs, ((0, 0, -45.0), (0, 0, 0)), "pelvis up into the torso (barbs aside)", n=46)
     ok &= _door_swing(door, tor + pel + mock_pack() + bay)
-    ok &= _sweep(mock_j1_plug(), tor + pel + so + br + bms, ((0, 0, 0), (0, 22.0, 0)),
+    ok &= _sweep(mock_j1_plug(), tor + pel + so + br + bms + park + male, ((0, 0, 0), (0, 22.0, 0)),
                  "J1's plug pulled off and out through the door")
     ok &= _sweep(mock_pack(), tor + pel, ((0, 0, 0), (0, 2 * V.BATT_HY + 16.0, 0)),
                  "pack slid out through the door (door off)", n=57)
@@ -1237,6 +1313,9 @@ def check_fits(pieces):
               ("standoffs vs torso+covers+power board", so, shell + mock_pwrb()),
               ("BMS bracket vs torso+covers+standoffs", br, shell + so),
               ("BMS vs torso+covers+bracket+power board", bms, shell + br + mock_pwrb()),
+              ("balance park vs torso+covers+power board", park, shell + mock_pwrb()),
+              ("balance lead's male end and the pack's plug vs torso+covers+park", male, shell + mock_pwrb() + park),
+              ("balance lead vs torso+covers+board+bracket+BMS+park", lead, shell + mock_pwrb() + br + bms + park),
               ("GD service plugs vs the Pi's USB/Ethernet end", mock_gd_plugs(), pi_jacks),
               ("GD service plugs vs torso+covers", mock_gd_plugs(), shell)]
     for nm, a, b in seated:
@@ -1247,7 +1326,9 @@ def check_fits(pieces):
     v = (pel & barbs).volume
     print(f"  barbs vs seated pelvis: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
     ok &= v < 0.05
-    solids = {"cap": pc, "board": mock_pwrb(), "bms": bms, "bracket": br, "bms+bracket": bms + br, "door": door}
+    solids = {"cap": pc, "board": mock_pwrb(), "bms": bms, "bracket": br, "bms+bracket": bms + br, "door": door,
+              "park": park, "park+plug": park + male, "plug": male, "j1": mock_j1_plug(), "lead": lead}
+    print(f"  the balance lead's route, J2 to the park: {balance_lead_length():.0f} mm")
     for nm, a, b, need in POWER_BAY_GAPS:
         d = solids[a].distance_to(solids[b])
         good = d >= need
@@ -1293,7 +1374,8 @@ def mass_g(s):
 def build(arm_mounts=True):
     return {"pelvis_v8": pelvis_v8(), "torso_v8": torso_v8(arm_mounts=arm_mounts),
             "front_cover_v8": front_cover_v8(), "power_cover_v8": power_cover_v8(),
-            "power_bracket_v8": power_bracket_v8(), "battery_door_v8": battery_door_v8()}
+            "power_bracket_v8": power_bracket_v8(), "balance_park_v8": balance_park_v8(),
+            "battery_door_v8": battery_door_v8()}
 
 
 def in_print_orient(solid, name):
@@ -1344,7 +1426,7 @@ def _render_strip(shots, png_path, px=640):
 
 C_PELVIS, C_TORSO, C_COVER, C_BOARD, C_PACK = ((0.45, 0.62, 0.90), (0.82, 0.84, 0.87), (0.90, 0.70, 0.40),
                                                (0.30, 0.62, 0.38), (0.25, 0.25, 0.28))
-C_BRACKET, C_BMS, C_PARTS = (0.95, 0.52, 0.12), (0.20, 0.36, 0.78), (0.20, 0.20, 0.22)
+C_BRACKET, C_BMS, C_PARTS, C_LEAD = (0.95, 0.52, 0.12), (0.20, 0.36, 0.78), (0.20, 0.20, 0.22), (0.80, 0.15, 0.15)
 
 
 def mock_pwrb_split():
@@ -1373,8 +1455,10 @@ def render(pieces, out_dir):
                ([(in_print_orient(fc, "front_cover_v8"), C_COVER)], 135, -55, 2.6),
                ([(in_print_orient(pc, "power_cover_v8"), C_COVER)], 135, -55, 2.6),
                ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.6),
+               ([(in_print_orient(pieces["balance_park_v8"], "balance_park_v8"), C_BRACKET)], 135, -45, 2.6),
                ([(in_print_orient(door, "battery_door_v8"), C_COVER)], 135, -55, 2.6)]
-    boards = mock_stack(plugs=True) + mock_pwrb() + mock_pwrb_standoffs() + br + mock_bms()
+    boards = (mock_stack(plugs=True) + mock_pwrb() + mock_pwrb_standoffs() + br + mock_bms()
+              + pieces["balance_park_v8"] + mock_balance_male() + mock_balance_lead())
     keep = box(-200, 200, -200, SNAP_Y, -200, 200)
     assembly = [([(Pos(0, 0, -55) * pel, C_PELVIS), (tor, C_TORSO), (Pos(40, 0, 0) * fc, C_COVER),
                   (Pos(-40, 0, 0) * pc, C_COVER), (Pos(0, 45, 0) * door, C_COVER),
@@ -1397,23 +1481,31 @@ def render_power_bay(pieces, out_dir):
                              standoffs, then the BMS bracket, the BMS and the
                              cap backed off along their way in), in place with
                              the cap off (from aft and -y, the fuses beside
-                             the BMS), the cap on, and a section at
-                             z = -25 through J1, F1 and K1, seen from above
-                             (forward up, +y to the left);
-    power_bay_prints_v8.png  the cap and the bracket as they lie on the bed."""
-    pel, tor, pc, br = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8", "power_bracket_v8"))
+                             the BMS), the cap on, a section at z = -25
+                             through J1, F1 and K1 seen from above (forward
+                             up, +y to the left), and from +y with the +y skin
+                             cut away (J1's plug, the balance park with the
+                             pack's balance plug on it, the lead from J2);
+    power_bay_prints_v8.png  the cap, the bracket and the park as they lie on
+                             the bed."""
+    pel, tor, pc, br, pk = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8", "power_bracket_v8",
+                                                "balance_park_v8"))
     aft = box(-120.0, -20.0, -200, 200, -200, 200)
     pcb, parts = mock_pwrb_split()
     so, bms = mock_pwrb_standoffs(), mock_bms()
-    base = [(pel & aft, C_PELVIS), (tor & aft, C_TORSO), (pcb, C_BOARD), (parts, C_PARTS), (so, C_PARTS)]
+    base = [(pel & aft, C_PELVIS), (tor & aft, C_TORSO), (pcb, C_BOARD), (parts, C_PARTS), (so, C_PARTS),
+            (pk, C_BRACKET), (mock_balance_male(), C_PARTS), (mock_balance_lead(), C_LEAD)]
     cut = box(-200, 200, -200, 200, -200, -25.0)
+    skin = box(-200, 200, -200, V.TORSO_IN_HW - 0.01, -200, 200)
     bay = [([*base, (Pos(-35, 0, 0) * br, C_BRACKET), (Pos(-70, 0, 0) * bms, C_BMS),
              (Pos(-110, 0, 0) * pc, C_COVER)], -40, -20, 2.4),
            ([*base, (br, C_BRACKET), (bms, C_BMS)], 25, -15, 2.3),
            ([*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)], -40, -20, 2.3),
-           ([(s & cut, c) for s, c in [*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)]], 0, -89, 2.5)]
+           ([(s & cut, c) for s, c in [*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)]], 0, -89, 2.5),
+           ([(s & skin, c) for s, c in [*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)]], -90, -20, 2.3)]
     prints = [([(in_print_orient(pc, "power_cover_v8"), C_COVER)], 135, -55, 2.4),
-              ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.4)]
+              ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.4),
+              ([(in_print_orient(pk, "balance_park_v8"), C_BRACKET)], 135, -45, 2.6)]
     return (_render_strip(bay, os.path.join(out_dir, "power_bay_v8.png")),
             _render_strip(prints, os.path.join(out_dir, "power_bay_prints_v8.png")))
 
@@ -1421,7 +1513,8 @@ def render_power_bay(pieces, out_dir):
 def power_bay_step(pieces, path, board_step=None):
     """The power bay as one STEP for FreeCAD (File > Open): the pelvis, the
     torso, the battery door and the pack, the power board, its standoffs, the
-    BMS bracket, the BMS and the cap, each a named part. board_step: power
+    BMS bracket, the BMS, the balance park with the extension lead's male end
+    (and the pack's plug on it) and the lead, and the cap, each a named part. board_step: power
     lite's own STEP (kicad-cli pcb export step --user-origin 100x60mm, its
     origin the top-left corner of the parts side) placed on the bosses in
     place of the mock, when given."""
@@ -1436,6 +1529,9 @@ def power_bay_step(pieces, path, board_step=None):
                     ("battery_door_v8", pieces["battery_door_v8"]), ("pack", mock_pack()),
                     ("power_lite_board", board), ("standoffs_m2.5x15", mock_pwrb_standoffs()),
                     ("power_bracket_v8", pieces["power_bracket_v8"]), ("bms_cf_3sjh25a", mock_bms()),
+                    ("balance_park_v8", pieces["balance_park_v8"]),
+                    ("balance_extension_male_and_pack_plug", mock_balance_male()),
+                    ("balance_extension_lead", mock_balance_lead()),
                     ("power_cover_v8", pieces["power_cover_v8"])):
         s.label = name
         kids.append(s)

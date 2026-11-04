@@ -719,6 +719,32 @@ DOOR_STOP_Y = BATT_HY + 0.5                   # the pack's end stops (door ribs,
 assert DOOR_Z[0] < BATT_Z[0] and BATT_Z[1] < DOOR_Z[1], "the pack does not pass through the door"
 assert DOOR_X[0] < BATT_X[0] and BATT_X[1] < DOOR_POST_X[0] < DOOR_X[1], "the pack does not pass the door's post"
 assert DOOR_SCREW[1] - 2.5 >= DOOR_POST_BOT_Z + 2.0, "the door screw runs out of its post"
+# The pack's balance plug at a pack swap (Tom, 2026-11-04): J2 is under the
+# BMS and below the door's sill, so a 3S JST-XH balance extension lead stays
+# plugged into J2 and parks its free end -- a male (pin) XH housing, mating
+# face up -- in the BALANCE PARK (balance_park_v8): a cup foam-taped to the aft
+# inner wall's aft face in the room beside the board's +y edge, under J1's
+# plug, the male's top at the door's sill. The pack's balance plug goes onto
+# it, and comes off it, through the door's opening. The male end is taken as
+# JST's B4B-XH-A body (12.4 x 5.75 x 7.0, JST XH drawing): MEASURE THE LEAD'S
+# END ON ARRIVAL; the pack's XHP-4 stands 2.8 over it mated (the XH mated
+# height 9.8 over a 7.0 header) and its wires turn within 5 more.
+BAL_MALE = (12.4, 5.75, 7.0)                  # across (y), deep (x), tall (z: pins up)
+BAL_CLR = 0.15                                # the male in the cup, per side
+BAL_WALL = 1.6
+BAL_TAPE = 1.0
+BAL_PLUG_ABOVE = 9.8 - 7.0 + 5.0              # the pack's plug and its wires' turn over the male's top
+BAL_Y = 48.5                                  # the cup's centre across
+BAL_TOP_Z = DOOR_Z[0]                         # -38.0 the male's top: the door's sill
+BAL_X0 = PWRB_WALL_X[0] - BAL_TAPE            # -41.81 the cup's face on the tape
+BAL_IN_X = (BAL_X0 - BAL_WALL, BAL_X0 - BAL_WALL - BAL_MALE[1] - 2 * BAL_CLR)   # -43.41..-49.46 the pocket
+BAL_IN_Y = (BAL_Y - BAL_MALE[0] / 2 - BAL_CLR, BAL_Y + BAL_MALE[0] / 2 + BAL_CLR)  # 42.15..54.85
+BAL_FLOOR_Z = BAL_TOP_Z - BAL_MALE[2]         # -45.0 the male sits on the floor
+BAL_RIM_Z = BAL_TOP_Z - 2.0                   # -40.0 the cup's rim: 2 mm of the male to grip
+assert BAL_IN_Y[1] + BAL_WALL <= TORSO_IN_HW - 1.0, "the balance park is too close to the +y skin"
+assert BAL_IN_Y[0] - BAL_WALL >= PWRB_Y[1] + 0.4, "the balance park is too close to the board's +y edge"
+assert BAL_TOP_Z + BAL_PLUG_ABOVE <= pwrb_yz(0, PWRB_PARTS[0][4])[1] - 1.0, \
+    "the pack's balance plug on the park runs into J1's plug"
 # power board envelope (the rollup's box, sim/build_v6_inertia.py)
 PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
 PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)

@@ -86,6 +86,8 @@ PARTS = [
      "outer face down, no supports; the power bay's cap (K1 under it), 3 screws through the skins"),
     ("power_bracket_v8", _lazy("torso_v8", "power_bracket_v8"), 1,
      "flat, no supports; the BMS's tray on two standoffs in the power board's +y holes"),
+    ("balance_park_v8", _lazy("torso_v8", "balance_park_v8"), 1,
+     "floor down, no supports; holds the balance extension lead's male end at the door's sill"),
     ("battery_door_v8", _lazy("torso_v8", "battery_door_v8"), 1,
      "outer face down, no supports; the +y skin over the pack and J1: a bevelled tab aft, one screw forward"),
     ("yaw_bearing_housing", _lazy("yaw_bearing_housing", "yaw_bearing_housing"), 1,

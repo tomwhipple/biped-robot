@@ -203,6 +203,16 @@ static       bms_mock               power_board_mock              0.00      2.42
 static       bms_mock               power_cover_v8                0.00      1.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
 static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
 static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
+static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
+static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
+static       balance_male_mock      balance_park_v8               0.00      0.00          ok   the extension's male end in the park: must not intersect
+static       balance_male_mock      power_board_mock              0.00      1.55          ok   the pack's balance plug on the park vs J1's plug (>= 1.0 mm)
+static       balance_male_mock      battery_door_v8               0.00      2.96          ok   the pack's balance plug on the park vs the battery door (>= 1.0 mm)
+static       balance_park_v8        battery_door_v8               0.00      2.51          ok   the balance park vs the battery door (>= 1.0 mm)
+static       balance_lead_mock      power_board_mock              0.00      0.00          ok   the balance lead out of its plug in J2: must not intersect
+static       balance_lead_mock      power_bracket_v8              0.00      1.41          ok   the balance lead under the BMS bracket (>= 1.0 mm)
+static       balance_lead_mock      torso_v8                      0.00      4.12          ok   the balance lead vs the torso (>= 1.0 mm)
+static       balance_lead_mock      pelvis_v8                     0.00      6.93          ok   the balance lead vs the pelvis's lugs (>= 1.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -235,7 +245,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (190 s)
+=> ALL CLEAR  (206 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -390,6 +400,16 @@ static       bms_mock               power_board_mock              0.00      2.42
 static       bms_mock               power_cover_v8                0.00      1.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
 static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
 static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
+static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
+static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
+static       balance_male_mock      balance_park_v8               0.00      0.00          ok   the extension's male end in the park: must not intersect
+static       balance_male_mock      power_board_mock              0.00      1.55          ok   the pack's balance plug on the park vs J1's plug (>= 1.0 mm)
+static       balance_male_mock      battery_door_v8               0.00      2.96          ok   the pack's balance plug on the park vs the battery door (>= 1.0 mm)
+static       balance_park_v8        battery_door_v8               0.00      2.51          ok   the balance park vs the battery door (>= 1.0 mm)
+static       balance_lead_mock      power_board_mock              0.00      0.00          ok   the balance lead out of its plug in J2: must not intersect
+static       balance_lead_mock      power_bracket_v8              0.00      1.41          ok   the balance lead under the BMS bracket (>= 1.0 mm)
+static       balance_lead_mock      torso_v8                      0.00      4.12          ok   the balance lead vs the torso (>= 1.0 mm)
+static       balance_lead_mock      pelvis_v8                     0.00      6.93          ok   the balance lead vs the pelvis's lugs (>= 1.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -413,7 +433,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (119 s)
+=> ALL CLEAR  (141 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
@@ -530,6 +550,10 @@ check_assembly_v6 (ARMS=0): PASS
 == power_bracket_v8  [standoff face on bed]
   first-layer contact    1350 mm2  (47.0% of 65x44 bbox)
     BEAM          6 mm2    1.5 x   5.2 mm  at z   2.8  through-wall strip, 5 mm between anchors
+  PASS
+
+== balance_park_v8  [floor on bed, the cup's walls rising]
+  first-layer contact     121 mm2  (82.0% of 9x16 bbox)
   PASS
 
 == battery_door_v8  [outer face on bed]
