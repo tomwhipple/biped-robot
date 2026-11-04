@@ -814,6 +814,10 @@ class BimoWalkerEnv(gym.Env):
         # through config.json -- it is the robot's firmware, not training DR -- and the
         # referee grades at the deployed pole: fw_shaper_hz, or the middle of a drawn band
         # (fw_shaper_hz_max). 0 = off (2026-11-02).
+        # seed the servo chain (shaper, dead-time ring, act-lag cascade, last target) at
+        # the episode's START pose instead of the stand pose, as the firmware seeds its
+        # shaper at measured q (mirror of env_mjx seed_chain_at_q; 2026-11-04)
+        seed_chain_at_q: bool = False,
         fw_shaper_hz: float = 0.0,
         fw_shaper_hz_max: float | None = None,
         # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
@@ -1001,6 +1005,8 @@ class BimoWalkerEnv(gym.Env):
         self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
         self._lag_y = None       # (3, n_act) cascade state; seeded on 1st step
         self.act_delay_ticks = int(act_delay_ticks)
+        self.seed_chain_at_q = bool(seed_chain_at_q)
+        self._chain0 = None
         self.fw_shaper_hz = (0.5 * (float(fw_shaper_hz) + float(fw_shaper_hz_max))
                              if fw_shaper_hz_max is not None else float(fw_shaper_hz))
         self._shp_y = None       # (3, n_servo) shaper state; seeded on 1st step
@@ -2174,6 +2180,7 @@ class BimoWalkerEnv(gym.Env):
             self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
+        self._chain0 = None                   # chain seed: taken on the first step
         self._shp_y = None                    # re-seed the firmware shaper
         if self.act_lag_dr_max is not None:
             self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
@@ -2193,10 +2200,18 @@ class BimoWalkerEnv(gym.Env):
         # policy targets onto the servo vector (held joints at their hold);
         # everything downstream is per servo
         target = self._to_servo(self._action_to_ctrl(action))
+        if self._chain0 is None:
+            # the pose the servo chain starts from (env_mjx seeds at reset; the first
+            # step's q IS the reset state)
+            if self.seed_chain_at_q:
+                self._chain0 = np.asarray(self.data.qpos[self._sqpos], dtype=np.float64).copy()
+                self._last_target = self._chain0.copy()
+            else:
+                self._chain0 = np.asarray(self._sdefault, dtype=np.float64)
         if self.fw_shaper_hz > 0.0:
             # the firmware shaper, then the goal ticks (mirror of env_mjx step)
             if self._shp_y is None:
-                self._shp_y = np.stack([np.asarray(self._sdefault, dtype=np.float64)] * 3)
+                self._shp_y = np.stack([self._chain0] * 3)
             ks = 1.0 - np.exp(-2.0 * np.pi * self.fw_shaper_hz * self.control_dt)
             self._shp_y[0] += ks * (target - self._shp_y[0])
             self._shp_y[1] += ks * (self._shp_y[0] - self._shp_y[1])
@@ -2209,7 +2224,7 @@ class BimoWalkerEnv(gym.Env):
             # servo dead time: serve the target from act_delay_ticks (+ the actuator's
             # act_delay_extra) ago, BEFORE the lag cascade -- matching env_mjx's act_hist order
             if self._act_hist is None:
-                self._act_hist = [np.asarray(self._sdefault, dtype=np.float64)] * nd
+                self._act_hist = [self._chain0.copy()] * nd
             self._act_hist.append(target.astype(np.float64))
             hist = np.stack(self._act_hist)              # oldest first, newest (this tick) last
             target = hist[nd - self._act_delay_vec, np.arange(hist.shape[1])]
@@ -2221,7 +2236,7 @@ class BimoWalkerEnv(gym.Env):
             if self._lag_y is None:
                 # seeded with the default pose, matching env_mjx reset
                 self._lag_y = np.stack(
-                    [np.asarray(self._sdefault, dtype=np.float64)] * 3)
+                    [self._chain0] * 3)
             k = 1.0 - np.exp(-2.0 * np.pi * self._act_lag_ep * self._act_lag_scale * self.control_dt)
             self._lag_y[0] += k * (target - self._lag_y[0])
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])

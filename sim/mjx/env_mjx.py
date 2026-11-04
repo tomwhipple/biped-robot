@@ -982,6 +982,11 @@ class BimoMJXEnv:
         # the STS3215s +3 ticks behind the STS3250 hip rolls, 2026-11-01 step responses)
         act_lag_scale=None,                     # per-actuator multiplier on the act-lag
         # pole: {actuator | role: x} or a walker_env.ACT_LAG_SCALE_PRESETS name
+        # seed the servo chain (dead-time ring, act-lag cascade, firmware shaper, slew
+        # limiter's last target) at the episode's START pose, not the stand pose: the
+        # firmware seeds its shaper at measured q, so a get-up from lying never sees a
+        # yank toward standing (2026-11-04; the default keeps every past run's chain)
+        seed_chain_at_q: bool = False,
         init_pose_deg: float | None = None,     # start-pose jitter half-width per
                                                 # joint (deg). None keeps the
                                                 # historical +-0.03 rad (1.7 deg).
@@ -1542,6 +1547,7 @@ class BimoMJXEnv:
         assert self._act_hist_len <= 13, "dead time ring holds 12 ticks"
         _ls = role_vector(self._servo_names, act_lag_scale, 1.0, "act_lag_scale")
         self._act_lag_scale = jp.asarray(_ls, dtype=jp.float32) if np.any(_ls != 1.0) else None
+        self.seed_chain_at_q = bool(seed_chain_at_q)
         self.init_pose_deg = (None if init_pose_deg is None
                               else float(init_pose_deg))
         self._init_q_rad = (0.03 if self.init_pose_deg is None
@@ -2492,6 +2498,13 @@ class BimoMJXEnv:
                                 jp.tile(q_init_r[None, :], (self._act_hist_len, 1)),
                                 act_hist)
             lag_y0 = jp.where(crouch_slot > 0, jp.tile(q_init_r, (3, 1)), lag_y0)
+        last_target0 = self._sdefault.astype(jp.float32)
+        if self.seed_chain_at_q:
+            # the chain starts at the start pose (lying, RSI or standing alike)
+            q_start = data.qpos[self._jq0:self._jq1].astype(jp.float32)
+            act_hist = jp.tile(q_start[None, :], (self._act_hist_len, 1))
+            lag_y0 = jp.tile(q_start, (3, 1))
+            last_target0 = q_start
         if self.ext_cmd:
             rng, r_traj = jax.random.split(rng)
             traj = self._draw_traj(r_traj)
@@ -2520,7 +2533,7 @@ class BimoMJXEnv:
         return State(data=data, obs=obs, reward=jp.zeros(()),
                      done=jp.zeros(()), rng=rng, prev_action=prev_action,
                      prev_action2=prev_action,
-                     last_target=self._sdefault.astype(jp.float32),
+                     last_target=last_target0,
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
                      since_move=jp.full((), 1e3),
@@ -2558,6 +2571,10 @@ class BimoMJXEnv:
         gyro_hist = self._gyro_hist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
+        chain0 = self._sdefault.astype(jp.float32)
+        if self.seed_chain_at_q:
+            chain0 = first.data.qpos[self._jq0:self._jq1].astype(jp.float32)
+            act_hist = jp.tile(chain0[None, :], (self._act_hist_len, 1))
         step_i = jp.zeros((), dtype=jp.int32)
         cmd, cmd_next, traj_on = self._sample_cmd(r_cmd, step_i, cmd_crouch)
         if self.ext_cmd:
@@ -2602,7 +2619,7 @@ class BimoMJXEnv:
         return first._replace(
             obs=obs, reward=jp.zeros(()), done=jp.zeros(()), rng=rng,
             prev_action=prev_action, prev_action2=prev_action,
-            last_target=self._sdefault.astype(jp.float32), step_i=step_i,
+            last_target=chain0, step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
             since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
@@ -2615,9 +2632,9 @@ class BimoMJXEnv:
             head_ref=_quat_yaw(first.data.qpos[3:7]), cmd_crouch=cmd_crouch,
             servo=servo, lat_ms=lat_ms, lash=lash, zero_off=zero_off,
             act_lag=act_lag,
-            lag_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
+            lag_y=jp.tile(chain0, (3, 1)),
             shp_hz=self._draw_shaper(r_ep),
-            shp_y=jp.tile(self._sdefault.astype(jp.float32), (3, 1)),
+            shp_y=jp.tile(chain0, (3, 1)),
             lg_gain=self._draw_loop_gain(r_ep),
             lg_ema=jp.zeros(self._nq_act, dtype=jp.float32),
             act_hist=act_hist, act_delay=act_delay,

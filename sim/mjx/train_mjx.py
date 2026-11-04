@@ -644,6 +644,12 @@ def make_parser():
                         "~0.17x the modelled kd at stand amplitudes), e.g. 0.1,1.0")
     p.add_argument("--servo-kp-range", default=None,
                    help="per-episode servo stiffness multiplier DR 'lo,hi', e.g. 0.6,1.2")
+    p.add_argument("--seed-chain-at-q", action="store_true",
+                   help="seed the servo chain (dead-time ring, act-lag cascade, firmware "
+                        "shaper, last target) at the episode's start pose, not the stand "
+                        "pose, as the firmware seeds its shaper at measured q: a get-up "
+                        "from lying no longer starts with a yank toward standing "
+                        "(2026-11-04). config.json records it; the referee inherits it")
     p.add_argument("--init-pose-deg", type=float, default=None,
                    help="episode start-pose jitter half-width per joint, deg "
                         "(unset = the historical 1.7 deg); served target starts "
@@ -903,6 +909,8 @@ def build_env_kw(args):
             env_kw["fw_shaper_hz_max"] = hz[1]
     if args.fw_goal_speed:
         env_kw["fw_goal_speed"] = True
+    if args.seed_chain_at_q:
+        env_kw["seed_chain_at_q"] = True
     if args.loop_gain_range is not None:
         env_kw["loop_gain_range"] = tuple(float(x) for x in args.loop_gain_range.split(","))
     if args.roll_lash_deg is not None:
