@@ -56,6 +56,11 @@ std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+// Limiter off at boot (vmax 0); amax / jmax hold the proposed values so a
+// bare `limit <vmax>` has a sane rest of the config.
+std::atomic<float> g_limit_vmax{0.0f};
+std::atomic<float> g_limit_amax{obs::kLimitAmaxDeg};
+std::atomic<float> g_limit_jmax{obs::kLimitJmaxDeg};
 std::atomic<uint8_t> g_stand_clock{static_cast<uint8_t>(obs::StandClock::kRun)};
 // The kCoast target. pi/2, measured on the robot 2026-11-02 (walk16_act, fast servos):
 // pi/2 draws 0.88-1.11 W, pi 1.49-1.65 W (the sim's ranking does not hold); see

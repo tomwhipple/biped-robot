@@ -1594,6 +1594,64 @@ void cmdShape(Sink out, int argc, char** argv) {
     }
 }
 
+void cmdLimit(Sink out, int argc, char** argv) {
+    // limit [off | on | <vmax deg/s> [<amax deg/s^2> [<jmax deg/s^3>]]]
+    // obs::MotionLimiter, live like `shape`: three atomics, one writer
+    // (here), one reader (ctrl), vmax written last (shared.h g_limit_*).
+    // `on` = the proposed obs::kLimit* settings; an omitted amax / jmax keeps
+    // the current one; jmax 0 = no jerk limit.
+    if (argc >= 2) {
+        if (!strcmp(argv[1], "off")) {
+            robot::g_limit_vmax.store(0.0f);
+        } else {
+            float v = obs::kLimitVmaxDeg, a = obs::kLimitAmaxDeg, j = obs::kLimitJmaxDeg;
+            if (strcmp(argv[1], "on") != 0) {
+                char* end = nullptr;
+                v = strtof(argv[1], &end);
+                if (end == argv[1]) {
+                    out("limit [off|on|<vmax deg/s> [<amax deg/s^2> [<jmax deg/s^3>]]]\r\n");
+                    return;
+                }
+                a = argc >= 3 ? strtof(argv[2], nullptr) : robot::g_limit_amax.load();
+                j = argc >= 4 ? strtof(argv[3], nullptr) : robot::g_limit_jmax.load();
+            }
+            // vmax: the servo's goal-speed register tops out at 3400 steps/s
+            // (299 deg/s); amax: 100 deg/s^2 is a 2 s stop from 200 deg/s
+            if (!(v >= 1.0f && v <= 300.0f)) { out("limit: vmax 1..300 deg/s\r\n"); return; }
+            if (!(a >= 100.0f && a <= 100000.0f)) {
+                out("limit: amax 100..100000 deg/s^2\r\n");
+                return;
+            }
+            if (!(j == 0.0f || (j >= 1000.0f && j <= 1.0e7f))) {
+                out("limit: jmax 0 (off) or 1000..1e7 deg/s^3\r\n");
+                return;
+            }
+            robot::g_limit_amax.store(a);
+            robot::g_limit_jmax.store(j);
+            robot::g_limit_vmax.store(v);     // last: the enable
+        }
+    }
+    const float v = robot::g_limit_vmax.load();
+    const float a = robot::g_limit_amax.load();
+    const float j = robot::g_limit_jmax.load();
+    if (v > 0.0f && a > 0.0f) {
+        const int n = obs::limitTaps(a, j, obs::kControlDt);
+        say(out, "limit: vmax %.0f deg/s  amax %.0f deg/s^2 (stop from vmax: %.0f ms, %.1f deg)\r\n",
+            static_cast<double>(v), static_cast<double>(a),
+            static_cast<double>(1000.0f * v / a), static_cast<double>(0.5f * v * v / a));
+        if (n > 1) {
+            say(out, "       jerk <= %.0f deg/s^3 (S-curve boxcar %d ticks, +%.0f ms delay)\r\n",
+                static_cast<double>(2.0f * a / (static_cast<float>(n) * obs::kControlDt)), n,
+                static_cast<double>(500.0f * static_cast<float>(n - 1) * obs::kControlDt));
+        } else {
+            out("       jerk: unlimited (no S-curve)\r\n");
+        }
+        out("       goal speed = the limited velocity x1.25\r\n");
+    } else {
+        out("limit: off (shaped targets go to the servos unbounded)\r\n");
+    }
+}
+
 void cmdStandClock(Sink out, int argc, char** argv) {
     // standclock [run|freeze|coast [<phase rad>]] -- what the gait clock does
     // at a plain stand (obs::StandClock; experiments/policy/stand-still).
@@ -3841,6 +3899,7 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
+    out("  limit [off|on|vmax [amax [jmax]]]  per-joint motion limiter (deg/s, /s^2, /s^3)\r\n");
     out("  standclock [run|freeze|coast [ph]]  gait clock at a stand (coast: hold at ph)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
@@ -3940,6 +3999,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
+    else if (!strcmp(c, "limit")) cmdLimit(out, argc, argv);
     else if (!strcmp(c, "standclock")) cmdStandClock(out, argc, argv);
     else if (!strcmp(c, "obsfreeze")) cmdObsFreeze(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);

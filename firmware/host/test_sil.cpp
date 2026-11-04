@@ -629,6 +629,130 @@ void testShaping() {
     CHECK(2 * sum_d3 < sum_d1);    // and two ticks closed most of it
 }
 
+// -- 5c. motion limiting (sil_abi 4) ----------------------------------------
+
+void testLimiting() {
+    const std::string nom = g_tmp_prefix + "cal_nominal.json";
+    const std::string wpath = g_tmp_prefix + "net.silw";
+    CHECK_EQ(sil_init(wpath.c_str(), nom.c_str(), 1.5f), 0);
+    obs::Calibration cal;
+    std::string err;
+
+    // Boot state: off, in the spec too.
+    {
+        siljson::Value v;
+        CHECK(siljson::parse(sil_spec(), v, err));
+        const siljson::Value* lim = v.get("limiter");
+        CHECK(lim && lim->isObj());
+        const siljson::Value* d = lim ? lim->get("on") : nullptr;
+        CHECK(d && d->type == siljson::Value::kBool && !d->b);
+        d = lim ? lim->get("max_taps") : nullptr;
+        CHECK(d && static_cast<int>(d->num) == obs::kLimitMaxTaps);
+    }
+
+    SilSensors in{};
+    for (int s = 0; s < obs::kNumBusJoints; ++s) in.pos_ticks[s] = 2048;
+    in.up[2] = 1.0f;
+    in.cmd[3] = 1.0f;
+    float seed[obs::kNumJoints];
+    for (int j = 0; j < obs::kNumJoints; ++j) seed[j] = obs::stepsToAngle(j, 2048, cal);
+
+    // Shaper off, limiter on: the goals are the compiled limiter's trace of
+    // the raw targets from the sensed seed, and the speeds its velocity.
+    constexpr int kT = 12;
+    sil_set_shaper(0.0f);
+    sil_set_limiter(150.0f, 1500.0f, 0.0f);
+    sil_reset();
+    obs::MotionLimiter ref;
+    ref.configure(150.0f * obs::kDegToRad, 1500.0f * obs::kDegToRad, 0.0f,
+                  obs::kControlDt);
+    ref.reset(seed);
+    float tgt_rows[kT * obs::kNumJoints];
+    long moved = 0;
+    for (int t = 0; t < kT; ++t) {
+        SilTargets o{};
+        CHECK_EQ(sil_tick(&in, &o), 0);
+        float* tg = tgt_rows + t * obs::kNumJoints;
+        obs::actionToAngles(o.action, tg);
+        float p[obs::kNumJoints], v[obs::kNumJoints];
+        ref.update(tg, p, v);
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            const int slot = slotOf(j);
+            CHECK_EQ(o.goal_ticks[slot], obs::angleToSteps(j, p[j], cal));
+            CHECK_EQ(o.goal_speed[slot], obs::limitGoalSpeedSteps(v[j]));
+            moved += labs(static_cast<long>(o.goal_ticks[slot]) - 2048);
+        }
+    }
+    CHECK(moved > 10);       // the synth net asks for motion; it was limited
+    // ... and sil_limit_trace (the pure entry point the python pins use) is
+    // that same law, bit for bit.
+    {
+        float pos[kT * obs::kNumJoints], vel[kT * obs::kNumJoints];
+        CHECK_EQ(sil_limit_trace(150.0f, 1500.0f, 0.0f, kT, seed, tgt_rows, pos, vel), 1);
+        obs::MotionLimiter r2;
+        r2.configure(150.0f * obs::kDegToRad, 1500.0f * obs::kDegToRad, 0.0f,
+                     obs::kControlDt);
+        r2.reset(seed);
+        for (int t = 0; t < kT; ++t) {
+            float p[obs::kNumJoints], v[obs::kNumJoints];
+            r2.update(tgt_rows + t * obs::kNumJoints, p, v);
+            for (int j = 0; j < obs::kNumJoints; ++j) {
+                CHECK_NEAR(pos[t * obs::kNumJoints + j], p[j], 0.0);
+                CHECK_NEAR(vel[t * obs::kNumJoints + j], v[j], 0.0);
+            }
+        }
+        CHECK_EQ(sil_limit_trace(200.0f, 2000.0f, 20000.0f, kT, seed, tgt_rows, pos, vel), 10);
+        CHECK(sil_limit_trace(200.0f, 2000.0f, 0.0f, -1, seed, tgt_rows, pos, vel) < 0);
+        CHECK(sil_limit_trace(200.0f, 2000.0f, 0.0f, 1, nullptr, tgt_rows, pos, vel) < 0);
+    }
+
+    // Shaper AND limiter: the chain is shaper -> limiter, both seeded at the
+    // sensed q.
+    sil_set_shaper(obs::kShaperPoleHz);
+    sil_set_limiter(200.0f, 2000.0f, 20000.0f);
+    sil_reset();
+    obs::CommandShaper sh;
+    sh.reset(seed);
+    obs::MotionLimiter r3;
+    r3.configure(200.0f * obs::kDegToRad, 2000.0f * obs::kDegToRad,
+                 20000.0f * obs::kDegToRad, obs::kControlDt);
+    r3.reset(seed);
+    for (int t = 0; t < kT; ++t) {
+        SilTargets o{};
+        CHECK_EQ(sil_tick(&in, &o), 0);
+        float a[obs::kNumJoints], p[obs::kNumJoints], v[obs::kNumJoints];
+        obs::actionToAngles(o.action, a);
+        sh.update(a, a);
+        r3.update(a, p, v);
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            CHECK_EQ(o.goal_ticks[slotOf(j)], obs::angleToSteps(j, p[j], cal));
+            CHECK_EQ(o.goal_speed[slotOf(j)], obs::limitGoalSpeedSteps(v[j]));
+        }
+    }
+    {
+        siljson::Value v;
+        CHECK(siljson::parse(sil_spec(), v, err));
+        const siljson::Value* lim = v.get("limiter");
+        const siljson::Value* d = lim ? lim->get("on") : nullptr;
+        CHECK(d && d->b);
+        d = lim ? lim->get("taps") : nullptr;
+        CHECK(d && static_cast<int>(d->num) == 10);
+        d = lim ? lim->get("vmax_deg_s") : nullptr;
+        CHECK(d && fabs(d->num - 200.0) < 1e-6);
+    }
+
+    // Off again: the shaped wire image, goal speed from the measured gap.
+    sil_set_limiter(0.0f, 2000.0f, 0.0f);
+    sil_reset();
+    SilTargets o{};
+    CHECK_EQ(sil_tick(&in, &o), 0);
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        CHECK_EQ(o.goal_speed[slotOf(j)],
+                 obs::goalSpeedSteps(static_cast<int32_t>(o.goal_ticks[slotOf(j)]), 2048));
+    }
+    sil_set_shaper(obs::kShaperPoleHz);
+}
+
 // -- 6. sil_spec ----------------------------------------------------------
 
 void testSpec() {
@@ -792,7 +916,7 @@ void testBusSlots() {
     siljson::Value v;
     CHECK(siljson::parse(sil_spec(), v, err));
     const siljson::Value* d = v.get("sil_abi");
-    CHECK(d && static_cast<int>(d->num) == 3);
+    CHECK(d && static_cast<int>(d->num) == 4);
     d = v.get("num_bus_joints");
     CHECK(d && static_cast<int>(d->num) == obs::kNumBusJoints);
     d = v.get("bus_servo_id");
@@ -851,6 +975,7 @@ int main(int argc, char** argv) {
     testZeroedSmoke();
     testSequencingAndReset();
     testShaping();             // needs testExportedWeights' net.silw fixture
+    testLimiting();            // the same fixture
     testSpec();
     testBusSlots();
     testErrors();

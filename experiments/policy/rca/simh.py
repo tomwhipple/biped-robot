@@ -11,6 +11,7 @@ import rec
 SIM = os.path.join(rec.ROOT, "sim"); sys.path.insert(0, os.path.join(SIM, "mjx")); sys.path.insert(0, SIM)
 sys.path.insert(0, os.path.join(SIM, "sil"))
 import eval_stand_arm as ESA   # noqa: E402
+import fw_limit                # noqa: E402  (obs::MotionLimiter's numpy copy)
 import eval_precision as _EP   # noqa: E402
 _load_policy = _EP.load_policy
 _POL = {}
@@ -44,7 +45,9 @@ def build(plant, run=RUN_NAME, ep_s=16.0, model=None):
     env, act, zoff = ESA._setup(run, plant, 0.0, ep_s)
     # the firmware chain runs HERE (Shaper / Servo in front of env._action_to_ctrl): a run
     # trained with the shaper in the loop must not be shaped a second time by walker_env
+    # (nor limited: the motion limiter, too, runs in the harness's chain -- Limiter below)
     env.fw_shaper_hz = 0.0
+    env.fw_limit = None
     return env, act, zoff
 
 
@@ -151,6 +154,16 @@ class Shaper:
         y = self.y; k = self.k
         y[0] += k * (x - y[0]); y[1] += k * (y[0] - y[1]); y[2] += k * (y[1] - y[2])
         return y[2].copy()
+
+
+class Limiter(fw_limit.MotionLimiter):
+    """obs::MotionLimiter (sim/fw_limit.py): cfg = (vmax deg/s, amax deg/s^2[, jmax deg/s^3])
+    or 'vmax,amax[,jmax]'; reset(q) at measured q, at rest; __call__(x) -> (pos, vel). In the
+    firmware it runs after the shaper AND the takeover ramp, right before the goal ticks."""
+    def __init__(self, cfg):
+        c = fw_limit.parse(cfg)
+        assert c is not None, f"limiter config {cfg!r} is off"
+        super().__init__(c)
 
 
 def place_and_hold(env, q_pol, settle_s=1.5):

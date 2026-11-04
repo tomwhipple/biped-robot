@@ -630,9 +630,16 @@ def make_parser():
                         "uniform(HZ, HZ_MAX), or fixed at HZ. Deploy with `shape` = "
                         "the trained pole (firmware default obs::kShaperPoleHz = 10)")
     p.add_argument("--fw-goal-speed", action="store_true",
-                   help="with --fw-shaper: the firmware's per-joint goal speed "
+                   help="with --fw-shaper (or --fw-limit): the firmware's per-joint goal speed "
                         "(1.25 x |goal - present| per tick, 50..3400 steps/s): the "
                         "servo set point slews to each new goal within the tick")
+    p.add_argument("--fw-limit", default=None, metavar="VMAX,AMAX[,JMAX]",
+                   help="the firmware's per-joint motion limiter (obs::MotionLimiter, CLI "
+                        "`limit`) after --fw-shaper, before the goal ticks: |v| <= VMAX deg/s, "
+                        "|a| <= AMAX deg/s^2, braking look-ahead (a still target is reached at "
+                        "rest, never passed), optional jerk limit JMAX deg/s^3 (S-curve "
+                        "boxcar). With --fw-goal-speed the goal speed is the limited velocity. "
+                        "Deploy with `limit VMAX AMAX [JMAX]` = the trained values")
     p.add_argument("--loop-gain-range", default=None, metavar="LO,HI",
                    help="loop-gain DR: per episode the served targets follow the action's "
                         "0.5 s mean + g x its deviation, g ~ U(LO, HI); the policy sees its "
@@ -860,6 +867,10 @@ def build_env_kw(args):
             env_kw["fw_shaper_hz_max"] = hz[1]
     if args.fw_goal_speed:
         env_kw["fw_goal_speed"] = True
+    if args.fw_limit is not None:
+        import fw_limit as _fwl
+        cfg = _fwl.parse(args.fw_limit)
+        env_kw["fw_limit"] = None if cfg is None else list(cfg)
     if args.loop_gain_range is not None:
         env_kw["loop_gain_range"] = tuple(float(x) for x in args.loop_gain_range.split(","))
     if args.roll_lash_deg is not None:

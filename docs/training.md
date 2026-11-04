@@ -179,9 +179,29 @@ side's end of the joint's *policy range*: the actuator `ctrlrange` in the
 plant, deliberately inside the mechanical stop. Widening a policy range
 rescales the action map and costs a retrain.
 
-On the robot the targets do not go straight to the bus: `obs::CommandShaper`
-runs three cascaded 10 Hz first-order lags on them, and every SYNC WRITE
-carries a per-servo goal speed ([firmware/README.md](../firmware/README.md)).
+On the robot the targets do not go straight to the bus. `obs::CommandShaper`
+runs three cascaded 10 Hz first-order lags on them. `obs::MotionLimiter`, when
+`limit` turns it on, then bounds every joint's velocity and acceleration with
+a braking look-ahead and an optional jerk limit. Every SYNC WRITE carries a
+per-servo goal speed ([firmware-design.md](firmware-design.md) §5.3, §5.3a).
+Training puts the same chain in the loop, so that the deployed chain is the
+trained one:
+
+| flag | what the env runs | firmware |
+|---|---|---|
+| `--fw-shaper HZ[,HZ_MAX]` | the shaper on the policy's targets, seeded at the start pose; one pole per episode, U(HZ, HZ_MAX) or fixed | `obs::CommandShaper`, `shape` |
+| `--fw-limit VMAX,AMAX[,JMAX]` | after the shaper: per joint \|v\| ≤ VMAX deg/s, \|a\| ≤ AMAX deg/s², the braking look-ahead (a target that holds still is reached at rest and never passed), and with JMAX deg/s³ the S-curve boxcar; seeded where the shaper is, at rest. The law is `sim/fw_limit.py`, which `tests/test_fw_limit.py` pins to the compiled firmware | `obs::MotionLimiter`, `limit VMAX AMAX [JMAX]` |
+| `--fw-goal-speed` | within each tick the PD set point slews to the new goal at the firmware's goal speed: 1.25 × \|goal − present\| / 20 ms, or under `--fw-limit` 1.25 × the limited velocity; 50..3400 steps/s | `obs::goalSpeedSteps` / `obs::limitGoalSpeedSteps`, register 46 |
+
+All three land in config.json. The CPU referee (`walker_env`) rebuilds the
+shaper and the limiter from it, and grades at the deployed setting. Deploy a
+run with `shape` and `limit` set to the trained values: the limiter is off
+at boot, and a run trained without it is graded without it. Do not switch
+the limiter on under a policy trained without it. In sim such a policy trips
+the flail guard on its first stride: its own goals peak at 1200–1500 deg/s
+and 40,000–67,000 deg/s², far beyond any useful limit
+([experiments/policy/motion-limiter](../experiments/policy/motion-limiter/)).
+
 
 ---
 

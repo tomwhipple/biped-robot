@@ -54,7 +54,7 @@ Decision tether(const char* why) { return Decision{Verdict::kRefuseTether, why};
 // through the very same cli::execute().
 const char* const kBenchAny[] = {
     "help", "?", "scan", "ping", "pos", "move", "release", "torque", "pose",
-    "balance", "reg", "sread", "trace", "home", "shape", "obsfreeze", "volt",
+    "balance", "reg", "sread", "trace", "home", "shape", "limit", "obsfreeze", "volt",
     "stat", "ntp", "bno", "rec", "bench", nullptr};
 
 }  // namespace

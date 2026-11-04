@@ -803,6 +803,11 @@ class BimoWalkerEnv(gym.Env):
         # (fw_shaper_hz_max). 0 = off (2026-11-02).
         fw_shaper_hz: float = 0.0,
         fw_shaper_hz_max: float | None = None,
+        # the FIRMWARE motion limiter (obs::MotionLimiter; env_mjx fw_limit): (vmax deg/s,
+        # amax deg/s^2[, jmax deg/s^3]) or 'vmax,amax[,jmax]' after the shaper, before the goal
+        # ticks; seeded where the shaper is, at rest. Inherited from config.json like the
+        # shaper -- it is the robot's firmware. None = off (2026-11-03; sim/fw_limit.py).
+        fw_limit=None,
         # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
         # (or a ACT_DELAY_EXTRA_PRESETS name), and a per-actuator multiplier on the act-lag
         # pole ({actuator | role: x} or a ACT_LAG_SCALE_PRESETS name); mirror of env_mjx
@@ -991,6 +996,9 @@ class BimoWalkerEnv(gym.Env):
         self.fw_shaper_hz = (0.5 * (float(fw_shaper_hz) + float(fw_shaper_hz_max))
                              if fw_shaper_hz_max is not None else float(fw_shaper_hz))
         self._shp_y = None       # (3, n_servo) shaper state; seeded on 1st step
+        import fw_limit as _fwl
+        self.fw_limit = _fwl.parse(fw_limit)
+        self._lim = None         # fw_limit.MotionLimiter; seeded on 1st step
         self.crouch_pose_ref = bool(crouch_pose_ref)
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
         self.crouch_deep = (None if crouch_deep_ref is None
@@ -2162,6 +2170,7 @@ class BimoWalkerEnv(gym.Env):
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
         self._shp_y = None                    # re-seed the firmware shaper
+        self._lim = None                      # ... and the motion limiter
         if self.act_lag_dr_max is not None:
             self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
                                                             self.act_lag_dr_max))
@@ -2189,8 +2198,15 @@ class BimoWalkerEnv(gym.Env):
             self._shp_y[1] += ks * (self._shp_y[0] - self._shp_y[1])
             self._shp_y[2] += ks * (self._shp_y[1] - self._shp_y[2])
             target = self._shp_y[2].copy()
-            if self.quantize_ticks:
-                target = self._quant_angle(target)
+        if self.fw_limit is not None:
+            # the firmware motion limiter, after the shaper (mirror of env_mjx step)
+            if self._lim is None:
+                import fw_limit as _fwl
+                self._lim = _fwl.MotionLimiter(self.fw_limit, dt=self.control_dt)
+                self._lim.reset(np.asarray(self._sdefault, dtype=np.float64))
+            target, self._lim_vel = self._lim(target)
+        if (self.fw_shaper_hz > 0.0 or self.fw_limit is not None) and self.quantize_ticks:
+            target = self._quant_angle(target)
         nd = int(self._act_delay_vec.max())
         if nd > 0:
             # servo dead time: serve the target from act_delay_ticks (+ the actuator's
@@ -2214,7 +2230,7 @@ class BimoWalkerEnv(gym.Env):
             self._lag_y[1] += k * (self._lag_y[0] - self._lag_y[1])
             self._lag_y[2] += k * (self._lag_y[1] - self._lag_y[2])
             target = self._lag_y[2].copy()
-        if self.quantize_ticks and not self.fw_shaper_hz > 0.0:
+        if self.quantize_ticks and not (self.fw_shaper_hz > 0.0 or self.fw_limit is not None):
             # the firmware writes INTEGER goal ticks (SYNC WRITE), so the
             # servo never sees the float target -- quantize before the
             # actuator path (latency buffer, PD, backlash) touches it
