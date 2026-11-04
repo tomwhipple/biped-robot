@@ -41,7 +41,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
 | servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
 | height | deck top 465 mm, camera 534 mm, head top 560 mm |
-| mass | ≈ 2.47 kg as drawn (§7), the cap's two toggles not weighed |
+| mass | ≈ 2.46 kg as drawn (§7), the cap's two toggles not weighed |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
@@ -396,15 +396,22 @@ in from the corners, which the torso uses as they are (#213).
   foam-taped to the aft inner wall's aft face beside the board's +y edge), its
   top at the door's sill, 1.5 mm under J1's plug: the pack's balance plug goes
   onto it through the door.
-- **The switches:** the main switch (W6/W7) and the E-stop (J11) are two
-  identical 20 A toggles (their bodies 27 mm deep with the terminals) in the
-  **switch pod** (`switch_pod_v8`, 47 g), a box screwed onto the cap's outer
-  face at its top, 26 mm proud of it: they hang in it outside the bay, levers
-  up through its 3 mm top panel at the deck's level, in a well whose walls
-  stand 2 mm over the levers' tips. Their wires go through a passage in the
-  cap; the main pair through an inline disconnect parked behind the cap, the
-  E-stop's into J11, so the cap comes off whole. The checks keep 3 mm round
-  every terminal and lug and 2 mm round every lead (one run: 1.5 mm).
+- **The switches:** the main switch (W6/W7) is a 20 A toggle whose body is
+  27 mm deep with its terminals, too deep for the bay. It hangs outside it in
+  the **switch pod** (`switch_pod_v8`, 34 g), a box screwed onto the cap's
+  outer face at its top, 26 mm proud of it: lever up through its 3 mm top
+  panel at the deck's level, in a well whose walls stand 2 mm over the
+  lever's tip, a tab in the hole keyed to the bushing. Its pair goes through
+  a passage in the cap to an inline disconnect parked behind the cap. The
+  E-stop (J11) is a miniature toggle (E-Switch 100SP1T1B1M1QEH, 12.9 mm
+  deep with its lugs) through the cap itself, in its top −y corner beside
+  the pod, where its body clears K1, C1 and J4–J8; lever aft, UP is run,
+  DOWN is stop. The **E-stop guard** (`estop_guard_v8`, 2.5 g), clamped
+  under its nut, stands 1.5 mm past the lever's tip either side of it and
+  under it, and is open above, so a bump from above can only stop the
+  robot. Its pair plugs into J11, so the cap comes off whole. The checks
+  keep 3 mm round every terminal and lug and 2 mm round every lead (one run:
+  1.5 mm).
 
 **The covers** (printed outer face down, no supports):
 
@@ -590,9 +597,9 @@ The robot as drawn, from the CAD-inertial plant
 
 | | |
 |---|---|
-| robot | ≈ 2.47 kg (the plant: 2.470 kg), without the cap's two toggles (not weighed) |
+| robot | ≈ 2.46 kg (the plant: 2.459 kg), without the cap's two toggles (not weighed) |
 | servos | 15 × 55 g + 2 × 74.5 g = 974 g |
-| printed PETG + silicone soles | ≈ 0.95 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 29 g, switch pod 47 g, BMS bracket 4 g, balance park 0.6 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
+| printed PETG + silicone soles | ≈ 0.95 + 0.05 kg: pelvis 56 g, torso 125 g, front cover 18 g, power cap 29 g, switch pod 34 g, E-stop guard 2.5 g, BMS bracket 4 g, balance park 0.6 g, battery door 11 g, bearing housing 25 g, girdle 98 g + two cheeks 3.3 g, arm links 139 g, legs from the yaw carriers down ≈ 0.34 kg, head 35 g, neck floor 4.5 g |
 | hip-yaw bearings | 100 g (2 × 6810-2RS) |
 | pack / boards, BMS + wiring | 205 g (weighed) / ≈ 195 g |
 

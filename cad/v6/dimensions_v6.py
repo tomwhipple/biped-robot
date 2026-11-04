@@ -746,14 +746,14 @@ assert BAL_IN_Y[1] + BAL_WALL <= TORSO_IN_HW - 1.0, "the balance park is too clo
 assert BAL_IN_Y[0] - BAL_WALL >= PWRB_Y[1] + 0.4, "the balance park is too close to the board's +y edge"
 assert BAL_TOP_Z + BAL_PLUG_ABOVE <= pwrb_yz(0, PWRB_PARTS[0][4])[1] - 1.0, \
     "the pack's balance plug on the park runs into J1's plug"
-# --- THE CAP'S SWITCHES (Tom, 2026-11-04): two identical heavy toggles, "20A
-# 125VAC", SPST, two screw terminals on the back: the MAIN SWITCH on W6/W7
-# (14 AWG, up to 15 A) and the E-STOP on J11 (a PHR-2 lead, 0.16 A). Their
-# bodies (27 mm behind the panel) do not fit between the cap and the board
-# (28.7 mm, less the parts and the wires), so they hang in the SWITCH POD
-# (switch_pod_v8), a box screwed onto the cap's outer face at its top, levers
-# UP through its 3 mm top panel at the deck's level, in a well open forward
-# and up. Measured by Tom with calipers, 2026-11-04, except where marked.
+# --- THE CAP'S SWITCHES (Tom, 2026-11-04): the MAIN SWITCH and the E-STOP.
+# The MAIN SWITCH is a heavy toggle, "20A 125VAC", SPST, two screw terminals
+# on the back, on W6/W7 (14 AWG, up to 15 A). Its body (27 mm behind the
+# panel) does not fit between the cap and the board (28.7 mm, less the parts
+# and the wires), so it hangs in the SWITCH POD (switch_pod_v8), a box
+# screwed onto the cap's outer face at its top, lever UP through the pod's
+# 3 mm top panel at the deck's level, in a well open forward and up.
+# Measured by Tom with calipers, 2026-11-04, except where marked.
 SW_BUSH_D = 11.8                              # the bushing's thread
 SW_HOLE_D = SW_BUSH_D + 0.4                   # 12.2, the panel hole (the repo's +0.4 clearance)
 SW_THREAD_L = 9.25                            # its usable thread
@@ -764,41 +764,106 @@ SW_LEVER_D = 6.0                              # ESTIMATE: its girth
 SW_THROW_DEG = 15.0                           # ESTIMATE: each way from upright
 SW_NUT_T = 2.4                                # ASSUMED, to measure: the panel nut
 SW_NUT_AF = 14.3                              # ASSUMED, to measure: across its flats
-SW_WASHER_T = 0.8                             # ASSUMED, to measure (0 without one)
+SW_WASHER_T = 0.0                             # none (Tom)
 SW_ENGAGE = 1.0                               # thread left past the nut, so it engages fully
-SW_PANEL_T = 3.0                              # the pod's top panel the bushings go through
+SW_PANEL_T = 3.0                              # the pod's top panel the bushing goes through
 assert SW_PANEL_T + SW_WASHER_T + SW_NUT_T + SW_ENGAGE <= SW_THREAD_L, \
     "the bushing's thread does not reach through the panel and the nut"
+# Its bushing is keyed (Tom, 2026-11-04: a keyway along its threads), so a
+# tab in the panel's hole stops it turning. The slot's width and depth are
+# TO MEASURE (asked); until then the tab is narrow and shallow, for a slot
+# about 1.5 wide, and runs only the top 2 mm of the 3 mm panel, in case the
+# slot stops short of the body. It sits on the throw's axis, at -y.
+SW_KEY_W = 1.0                                # TO MEASURE: the tab's width (0.25 a side in a 1.5 slot)
+SW_KEY_IN = 0.5                               # TO MEASURE: its reach into the slot, past the thread's crest
+SW_KEY_L = 2.0                                # TO MEASURE: its length, down from the panel's top
+SW_KEY_ANG = -90.0                            # TO MEASURE: its side of the hole, deg about z from +x (-y)
+SW_KEYWAY = (1.5, 0.8)                        # ASSUMED, to measure: the bushing's slot, wide and deep (the mock's)
+assert SW_KEY_L <= SW_PANEL_T
 # clearance buffers (Tom, 2026-11-04: "make sure to add some buffer for
 # clearances for the wires or whatever"): the room the CAD keeps round them
-TERM_MARGIN = 3.0                             # round a screw terminal and its lug, every side
+TERM_MARGIN = 3.0                             # round a terminal and its lug, every side
 LUG_14 = 7.0                                  # a 14 AWG ring lug and its wire's turn, past the terminal screws
-LUG_24 = 4.0                                  # a 24 AWG wire wrapped under the screw
+LUG_24 = 4.0                                  # a 24-26 AWG wire soldered to a lug and its turn, past the lug
 WIRE_MARGIN = 2.0                             # round a free run of wire
 WIRE_OD_14 = 3.4                              # silicone 14 AWG
 WIRE_OD_24 = 1.4
-SW_ENV = {"main": SW_BODY[2] + SW_TERM_L + LUG_14 + TERM_MARGIN,  # 37: body, terminals, lugs, margin
-          "estop": SW_BODY[2] + SW_TERM_L + LUG_24 + TERM_MARGIN}  # 34
+SW_ENV = SW_BODY[2] + SW_TERM_L + LUG_14 + TERM_MARGIN             # 37: body, terminals, lugs, margin
 # the pod, on the cap's outer face at its top (pelvis-local; aft of the cap is "proud")
 SWP_IN_X = SW_BODY[1] + 2 * TERM_MARGIN + 2.0                     # 23.5 deep inside: the body, margins, a nut socket
 SWP_WALL = 2.5
 SWP_X = (PCAP_X[0] - SWP_IN_X - SWP_WALL, PCAP_X[0])              # -105.71..-79.71
-SW_AXIS_X = PCAP_X[0] - SWP_IN_X / 2                              # -91.46 the bushings' axes
-SW_Y = {"main": SW_BODY[0] / 2 + TERM_MARGIN + 0.5, "estop": -(SW_BODY[0] / 2 + TERM_MARGIN + 0.5)}   # +-18.5
-SWP_IN_HY = SW_BODY[0] + 2 * TERM_MARGIN + 0.5                    # 36.5 half the inside, across
+SW_AXIS_X = PCAP_X[0] - SWP_IN_X / 2                              # -91.46 the bushing's axis
+SW_Y = 0.0                                    # the pod is centred
+SWP_IN_HY = SW_BODY[0] / 2 + TERM_MARGIN + 0.5                    # 18.5 half the inside, across
 SWP_SIDE = 3.0
 SWP_TOP_Z = 0.0                               # the top panel's top: the deck's
 SWP_FLOOR_Z = -58.0                           # its floor's top: a channel under the terminals for the wires
 SWP_BOT_Z = SWP_FLOOR_Z - SWP_WALL
 SW_TERM_END_Z = SWP_TOP_Z - SW_PANEL_T - SW_BODY[2] - SW_TERM_L   # -30.0
 SW_LEVER_TOP_Z = SWP_TOP_Z - SW_PANEL_T + SW_THREAD_L + SW_LEVER_L  # 23.25
-SWP_WELL_Z = SW_LEVER_TOP_Z + 2.0             # the well's walls stand 2 mm over the levers' tips
-# the cap's passage for the switches' wires, into the bay over the board's
-# low parts, under C1 and K1: (y0, y1), (z0, z1)
-SW_PASS = ((-27.0, -9.0), (-56.0, -44.0))
-assert SWP_TOP_Z - SW_PANEL_T - max(SW_ENV.values()) > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_14, \
-    "no room under the switches' terminals for their wires"
-assert SWP_IN_HY + SWP_SIDE + 6.0 <= HOUSING_BOT_HW, "the switch pod is wider than the torso"
+SWP_WELL_Z = SW_LEVER_TOP_Z + 2.0             # the well's walls stand 2 mm over the lever's tip
+# the cap's passage for the main switch's wires, into the bay over the
+# board's low parts, under K1: (y0, y1), (z0, z1)
+SW_PASS = ((-17.0, -5.0), (-56.0, -44.0))
+assert SWP_TOP_Z - SW_PANEL_T - SW_ENV > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_14, \
+    "no room under the switch's terminals for its wires"
+assert -SWP_IN_HY < SW_PASS[0][0] and SW_PASS[0][1] < SWP_IN_HY, "the passage is not inside the pod"
+# The E-STOP (Tom, 2026-11-04): an E-Switch 100SP1T1B1M1QEH miniature toggle
+# -- SPDT ON-NONE-ON (SP1), the standard lever (T1), a threaded 1/4-40 bushing
+# (B1), solder lugs (M1), silver contacts, epoxy seal, with its hardware (H)
+# -- on J11 (a PHR-2 lead, 24-26 AWG on the lugs), across its terminals 2
+# (common) and 3, which close with the lever thrown toward terminal 1 (the
+# datasheet's POS. 1). It goes through the cap's plate itself, lever aft, in
+# the plate's top -y corner beside the pod, where its body and lugs, with
+# their margins, clear K1, C1 and J4-J8 behind the plate. Its throw is up and
+# down with terminal 1 up, so lever UP is RUN and DOWN is STOP: a slap or a
+# bump from above stops the robot. Its keyway is on terminal 3's side, so the
+# hole's tab is at its bottom. The ESTOP GUARD (estop_guard_v8), clamped
+# under its nut, stands past the lever's tip either side of it and under it,
+# and is open above. From the datasheet (E-Switch 100 series, 11.4.2025:
+# function p.2, lever p.5, bushing p.6-7, lugs p.8); its hardware is not
+# drawn there (ASSUMED, measure it).
+ES_BODY = (12.70, 6.86, 8.89)                 # along the throw (z), across it (y), deep behind the plate
+ES_LUG_L = 3.96                               # the solder lugs past the body
+ES_LUG_PITCH = 4.70                           # terminals 1-2-3, along the throw
+ES_LUG_W = 2.03                               # each lug: wide (across the throw), thick (p.8)
+ES_LUG_T = 0.76
+ES_BUSH_D = 6.35                              # 1/4-40 UNS
+ES_HOLE_D = ES_BUSH_D + 0.4                   # the datasheet's 6.35 panel hole, +0.4 for a printed hole
+ES_BUSH_L = 8.89                              # B1: the threaded bushing's length (p.6; its thread's is not dimensioned)
+ES_KEY_W = 0.85                               # the panel's anti-rotation tab (p.7), in the bushing's 1.02 keyway
+ES_KEY_R = ES_BUSH_D / 2 - 0.55               # 2.63 its face from the axis: 0.55 into the 6.35 hole
+ES_KEYWAY = (1.02, 0.67)                      # the bushing's keyway, wide and deep (p.6)
+ES_LEVER_L = 10.41                            # T1: past the bushing's end
+ES_LEVER_D = 2.9
+ES_THROW_DEG = 25.0                           # each way
+ES_NUT_AF = 7.94                              # ASSUMED (5/16 in), to measure: its hex nut
+ES_NUT_T = 2.4                                # ASSUMED, to measure
+ES_WASHER_T = 0.5                             # ASSUMED, to measure: its lockwasher
+ESG_T = 2.0                                   # the guard's base, between the plate and the lockwasher
+assert COVER_T + ESG_T + ES_WASHER_T + ES_NUT_T + SW_ENGAGE <= ES_BUSH_L, \
+    "the E-stop's bushing does not reach through the cap, the guard and its nut"
+ES_ENV = ES_BODY[2] + ES_LUG_L + LUG_24 + TERM_MARGIN               # 19.85 behind the plate's inner face
+ES_Y = -38.0                                  # its axis: between K1 (+y) and J4-J8 (-y) behind the plate
+ES_Z = -16.0                                  # under the cap's lip at the deck, over C1
+ES_TERM_Z = {k: ES_Z + (2 - k) * ES_LUG_PITCH for k in (1, 2, 3)}    # terminal 1 up
+# the lever's reach, pivoting at the body's face (a bound): its tip 19.3 out
+# along the axis, 9.6 up or down off it with its girth
+ES_TIP = ES_BUSH_L + ES_LEVER_L               # 19.30 from the body's face
+ES_TIP_PROUD = ES_TIP - COVER_T               # 16.70 aft of the cap's outer face
+ES_REACH = ES_TIP * math.sin(math.radians(ES_THROW_DEG)) + ES_LEVER_D / 2   # 9.61
+ESG_GAP = 15.0                                # between the guard's wings: the lever, and a fingertip's edge
+ESG_WALL = 2.0
+ESG_PROUD = ES_TIP_PROUD + 1.5                # 18.2: the wings and the bar stand 1.5 past the lever's tip
+ESG_BAR_Z = ES_Z - ES_REACH - TERM_MARGIN     # -28.61 the bar's top face: 3 mm under the lever's lowest
+ESG_TOP_Z = ES_Z + 6.0                        # -10.0 the base's top edge: over the nut
+ESG_WING_TOP_Z = ES_Z                         # the wings stop at the axis: the lever's UP half stands clear
+assert ESG_GAP / 2 >= ES_LEVER_D / 2 + TERM_MARGIN, "the guard's wings are in the lever's margin"
+ESG_DRIVER_D = 12.7                           # ASSUMED: a 5/16 in nut driver's socket, on the nut between the wings
+assert ESG_GAP >= ESG_DRIVER_D + 1.0 and ES_Z - ESG_BAR_Z >= ESG_DRIVER_D / 2 + 0.5, \
+    "no room for a nut driver on the E-stop's nut inside its guard"
+assert ES_Z + ES_BODY[0] / 2 + TERM_MARGIN <= -DECK_T - 0.2 - 1.2 - 0.2, "the E-stop runs into the cap's lip"
 # power board envelope (the rollup's box, sim/build_v6_inertia.py)
 PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
 PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)

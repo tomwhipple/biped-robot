@@ -35,6 +35,7 @@ CP.ORIENT.update({
     "power_bracket_v8": (np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float), "standoff face on bed"),
     "balance_park_v8": (IDENT, "floor on bed, the cup's walls rising"),
     "switch_pod_v8": (np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float), "aft face on bed"),
+    "estop_guard_v8": (np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float), "base on bed"),
     "battery_door_v8": (np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]], float), "outer face on bed"),
     "yaw_bearing_housing": (RX180, "upside down: the face against the pelvis on bed"),
     "head": (IDENT, "base down: neck-horn plate on bed"),
@@ -45,7 +46,7 @@ CP.ORIENT.update({
 
 
 def run(names=None):
-    names = names or ["pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "power_bracket_v8", "balance_park_v8",
+    names = names or ["pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "estop_guard_v8", "power_bracket_v8", "balance_park_v8",
                        "battery_door_v8",
                        "yaw_bearing_housing",
                        "head", "head_shell", "head_face"]

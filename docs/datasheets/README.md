@@ -58,6 +58,15 @@ The files are in [`general-driver/`](general-driver/), which has its own
 - the JST XH datasheet;
 - the QMI8658C IMU datasheet.
 
+## E-Switch 100 series: the E-stop
+
+The E-stop is an E-Switch **100SP1T1B1M1QEH** miniature toggle (#213); the
+file is in [`switches/`](switches/).
+
+| file | what it is | source |
+|---|---|---|
+| `e-switch-100-series.pdf` | 100 Series toggle switch catalog, dated 11.4.2025, 18 pp.: the part-number configurator and ratings p.1, function and body (SP1: 12.70 × 6.86 × 8.89 mm, terminal closures, keyway side) p.2, levers (T1) p.5, bushings (B1: 1/4-40, 8.89 mm long, keyway 1.02 × 0.67 mm) and panel cut-outs p.6-7, terminations (M1 solder lugs) p.8. Its hardware (H: nut and lockwasher) is not drawn | E-Switch (e-switch.com), retrieved 2026-11-04 |
+
 ## Not mirrored yet
 
 | document | source | why |
