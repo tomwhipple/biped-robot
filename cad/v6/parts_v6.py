@@ -35,7 +35,8 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
-from build123d import export_step, export_stl  # noqa: E402
+from build123d import export_step  # noqa: E402
+from stable_stl import export_stl_stable  # noqa: E402  (keeps an unchanged part's bytes)
 import dimensions_v6 as V  # noqa: E402
 import paths  # noqa: E402
 D = V.D
@@ -181,7 +182,7 @@ def main(argv=None):
         m = mass_g(s, tpu=name.startswith("sole_tpu"))
         total_print += m * qty
         if export:
-            export_stl(s, os.path.join(OUT_STL, f"{name}.stl"))
+            export_stl_stable(s, os.path.join(OUT_STL, f"{name}.stl"))
             export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))
