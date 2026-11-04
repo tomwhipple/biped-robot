@@ -51,14 +51,20 @@ GUI_INC=(
     -I"$ROOT/third_party/imgui/backends"
     -I"$HOST_DIR/gl-shim"
 )
+# Homebrew's prefix is not on a bare clang-tidy's search path (GLFW lives there).
+if [ -d /opt/homebrew/include ]; then GUI_INC+=(-isystem /opt/homebrew/include); fi
+
+# Extra clang-tidy options (word-split on purpose), e.g. a libc++ the installed
+# clang-tidy can parse; `make tidy-gui` sets it on macOS.
+read -r -a EXTRA <<< "${CLANG_TIDY_EXTRA:-}"
 
 rc=0
 for src in "${GUI_SRCS[@]}"; do
     if [ "$src" = "$ROOT/link/gui.cpp" ]; then
-        clang-tidy -p "$BUILD" "$src" -- -std=c++17 "${GUI_INC[@]}" \
+        clang-tidy -p "$BUILD" ${EXTRA[@]+"${EXTRA[@]}"} "$src" -- -std=c++17 "${GUI_INC[@]}" \
             -DGL_SILENCE_DEPRECATION || rc=1
     else
-        clang-tidy -p "$BUILD" "$src" || rc=1
+        clang-tidy -p "$BUILD" ${EXTRA[@]+"${EXTRA[@]}"} "$src" || rc=1
     fi
 done
 

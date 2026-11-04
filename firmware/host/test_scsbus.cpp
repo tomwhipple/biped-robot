@@ -4,6 +4,7 @@
 // protocol manual (the PDF Waveshare links from the ST3215 wiki page), so this
 // is diffed against the vendor's bytes rather than against our own encoder.
 // The Bus tests drive a scripted FakePort -- no hardware, no serial port.
+#include <algorithm>
 #include <deque>
 #include <vector>
 
@@ -464,15 +465,12 @@ std::vector<Req> requests(const std::vector<uint8_t>& tx) {
 }
 
 bool touchesGoalOrTorqueWrite(const std::vector<Req>& rs) {
-    for (const Req& r : rs) {
-        if (r.inst != static_cast<uint8_t>(Inst::kWrite) &&
-            r.inst != static_cast<uint8_t>(Inst::kSyncWrite) &&
-            r.inst != static_cast<uint8_t>(Inst::kRegWrite)) {
-            continue;
-        }
-        if (r.addr != kRegEepromLock && r.addr != kRegPosP) return true;
-    }
-    return false;
+    return std::any_of(rs.begin(), rs.end(), [](const Req& r) {
+        const bool writes = r.inst == static_cast<uint8_t>(Inst::kWrite) ||
+                            r.inst == static_cast<uint8_t>(Inst::kSyncWrite) ||
+                            r.inst == static_cast<uint8_t>(Inst::kRegWrite);
+        return writes && r.addr != kRegEepromLock && r.addr != kRegPosP;
+    });
 }
 
 void testBusSetIdAckLostLocksTheNewId() {
@@ -726,6 +724,7 @@ void testExpectedGainTable() {
 
 }  // namespace
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
 int main() {
     testVendorPackets();
     testSyncWriteShape();

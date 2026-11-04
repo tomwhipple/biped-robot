@@ -189,9 +189,6 @@ class MotionLimiter {
     // which always holds kLimitMaxTaps ticks).
     void configure(float vmax, float amax, float jmax, float dt);
     bool enabled() const { return vmax_ > 0.0f && amax_ > 0.0f; }
-    float vmax() const { return vmax_; }
-    float amax() const { return amax_; }
-    float jmax() const { return jmax_; }
     int taps() const { return taps_; }
     // Seed every joint at angle_rad, at rest.
     void reset(const float* angle_rad);

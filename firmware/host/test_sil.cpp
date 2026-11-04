@@ -964,6 +964,7 @@ void cleanup() {
 
 }  // namespace
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
 int main(int argc, char** argv) {
     // ctest runs from the build directory, make from firmware/host; either
     // way the fixtures land beside the binary's working directory.
