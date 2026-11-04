@@ -67,10 +67,16 @@ int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in we
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
 const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
-                                          //   layout hash, loaded weights, "sil_abi": 3
+                                          //   layout hash, loaded weights, "sil_abi": 4
 const char* sil_last_error(void);         // text of the last failure, never NULL
 void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw targets;
                                           //   sil_init resets it to the firmware default
+void sil_set_limiter(float vmax_deg_s,    // mirror of the CLI `limit` (deg units);
+                     float amax_deg_s2,   //   vmax 0 = off, the boot state sil_init
+                     float jmax_deg_s3);  //   restores; 0 jmax = no jerk limit
+int  sil_limit_trace(float vmax, float amax, float jmax, int n,   // pure: a fresh limiter
+                     const float* q0, const float* targets,       //   from q0 at rest over n
+                     float* out_pos, float* out_vel);             //   ticks; returns its taps
 ```
 
 - **The arrays are the robot's bus**: 17 slots, one per servo
@@ -96,7 +102,12 @@ void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw 
   sizes its ctypes structs from the same `obs_spec.h` (`$BIMO_POLICY` selects
   a profile's) and refuses a library whose widths differ, so a dimension
   change can never silently reinterpret bytes.
-- `sil_abi` 3 is the current ABI: the 17-slot bus arrays. `sil_abi` 2 added
+- `sil_abi` 4 is the current ABI. It added `sil_set_limiter()` and
+  `sil_limit_trace()`, which mirror the firmware's motion limiter
+  ([firmware-design.md](firmware-design.md) §5.3a). The limiter runs after
+  the shaper; while it is on, each policy slot's goal speed is the limited
+  velocity. `sil_spec()` reports the config under `"limiter"`. `sil_abi` 3
+  brought the 17-slot bus arrays, and `sil_abi` 2 added
   goal speeds in `SilTargets` and `sil_set_shaper()`, mirroring the
   firmware's command shaper ([firmware-design.md](firmware-design.md) §5.3).
   The harness resolves array order with the shaper off (the raw map is the

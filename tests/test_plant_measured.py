@@ -307,6 +307,14 @@ class Poser:
 
 @pytest.fixture(scope="module")
 def pose():
+    # mj_geomDistance is this section's ruler, and before MuJoCo 3.12 ("Rewrote
+    # cleaner box-box SAT collider") it reads 0 for box pairs tens of mm apart:
+    # on 3.10 and 3.11, L_col_ankle-R_col_foot at R hip roll 6 reads 0.0 mm with
+    # its witness points 44 mm apart (3.12 and 3.15: 6.9 mm). The simulator's
+    # own contacts (margin 0) are unaffected. requirements.txt pins 3.15.0.
+    if tuple(int(x) for x in mujoco.__version__.split(".")[:2]) < (3, 12):
+        pytest.fail(f"MuJoCo {mujoco.__version__}: its box-box distances are wrong before 3.12; "
+                    "install requirements.txt's mujoco/mujoco-mjx (3.15.0)")
     return Poser(LEGS_MEAS)
 
 

@@ -785,6 +785,8 @@ void testPolicy() {
         {"release", true, Verdict::kRefuseArmed},
         {"rec on", true, Verdict::kRefuseArmed},
         {"shape 3", true, Verdict::kRefuseArmed},
+        {"limit 200 2000", true, Verdict::kRefuseArmed},
+        {"limit off", false, Verdict::kAllow},
         {"id 1 2", true, Verdict::kRefuseArmed},
         // bytes the tether's line discipline would never deliver
         {"ping\x01", false, Verdict::kRefuseBadLine},

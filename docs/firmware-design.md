@@ -219,7 +219,8 @@ graph LR
     RD --> OBS[obs assembler<br/>3 x 49 = 147]
     OBS --> NET[policy MLP<br/>147-128-128-20]
     NET --> SHP[command shaper<br/>+ takeover ramp]
-    SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
+    SHP --> LIM[motion limiter]
+    LIM --> WR[scsbus SYNC WRITE<br/>+ goal speed]
     SAFE[link watchdog, fall latch fallguard,<br/>pack guard, operator stop, overrun => torque off;<br/>flail guard => hold] --- LOOP
   end
   CAL[NVS: servo cal, IMU cal] --> OBS
@@ -230,7 +231,7 @@ graph LR
 |---|---|---|
 | `components/scsbus/` | Feetech SCS/STS protocol: packet codec and transactions (PING, READ/WRITE, REG WRITE + ACTION, RESET, SYNC READ, SYNC WRITE, torque enable incl. broadcast, EEPROM lock, ID change, set-middle, error-flag decode). The golden packets are the worked examples in Feetech's own protocol manual | tested against a scripted fake port |
 | `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps, the bench diagnostic, the UART demux | golden vectors from the Python reference |
-| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
+| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, `MotionLimiter`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
@@ -326,6 +327,65 @@ stages, both in `components/obs`, so the SIL library runs them too:
 - `shape [hz]` sets the pole live; `shape 0` writes raw targets at unlimited
   speed. The SIL equivalent is `sil_set_shaper()`.
 
+### 5.3a Motion limiter
+
+The shaper smooths the policy's 50 Hz staircase but does not bound it: a large
+target step still comes out as a fast shaped move, and the fast STS3215s
+(~240–275 deg/s at full duty) then stop dead at the goal. The reaction torque
+of such a stop can spin the robot on its stance foot.
+**`obs::MotionLimiter`** (`obs/actuation.h`) bounds what goes to the servo.
+It is the last stage before the angle → tick map, after the shaper and the
+takeover ramp. Each tick, per policy joint, with state position `p` and
+velocity `v`:
+
+```
+e  = target - p
+vb = min(vmax, limitBrakeSpeed(|e|, amax, dt))     braking look-ahead
+v += clamp(sign(e) * vb - v, -amax dt, +amax dt)
+p += v dt
+```
+
+- **Braking look-ahead.** `limitBrakeSpeed` is the exact discrete-time
+  stopping curve: the largest speed from which braking by `amax·dt` per tick
+  stops exactly on the target. With `u = amax·dt²` and `m = dist/u`, take
+  `k = ⌊(√(1+8m) − 1)/2⌋` whole braking ticks; then
+  `v = amax·dt·(k + (m − k(k+1)/2)/(k+1))`. The curve is piecewise linear
+  between the triangular numbers and tends to `√(2·amax·dist)`. A joint
+  whose target holds still arrives on it with zero velocity and never
+  passes it, and the stop takes the trapezoid's own time, rounded to the
+  tick. The joint can overshoot only when the target moves back toward it
+  faster than `amax` allows, and then by at most the `v²/(2·amax)` that the
+  bound costs.
+- **Jerk** (optional, `jmax`). The output is a boxcar (moving average) of
+  the newest `taps = ⌈2·amax/(jmax·dt)⌉` ticks of `(p, v)`, at most 16. The
+  output is a convex mix of limited positions, so it keeps the vmax and
+  amax bounds and still never overshoots. Its jerk is at most
+  `2·amax/(taps·dt) ≤ jmax`, and it delays the trajectory by
+  `(taps − 1)/2` ticks.
+- **Goal speed.** While the limiter is on, every policy joint's goal speed
+  is the limited velocity × 1.25, floor 50, cap 3400 steps/s
+  (`obs::limitGoalSpeedSteps`). The servo therefore slews along the limited
+  profile and reaches each goal just before the next one. It no longer chases
+  the measured gap at whatever speed that gap asks for. Held servos keep the
+  gap law. Unlike the gap law, this speed does not grow under a
+  disturbance. Whether that softens a pushed joint depends on how the servo
+  applies register 46, which is a bench question.
+- **Seeding.** The limiter is seeded from **measured** q at rest. It is
+  invalidated wherever the shaper is: on a bus handover, a torque release,
+  or an operator stop. The state is float, and the only transcendental is
+  `sqrtf`.
+- **Live.** `limit [off|on|<vmax> [<amax> [<jmax>]]]` takes deg/s, deg/s² and
+  deg/s³, and is read every tick from three atomics (`shared.h`
+  `g_limit_*`). vmax is written last, so a tick never sees an enable with
+  half a config. Changing the limits keeps the state. The limiter is **off
+  at boot**. `limit on` sets the proposed 200 deg/s and 2000 deg/s² with no
+  jerk limit (`kLimit*`). A policy has to be trained with the limiter in its
+  loop (`--fw-limit`, [training.md](training.md)) before it is deployed with
+  the limiter on.
+- The SIL equivalents are `sil_set_limiter()`, and `sil_limit_trace()` for
+  the pure law. `tests/test_fw_limit.py` pins the training env, the referee
+  and `sim/fw_limit.py` to the compiled code through `sil_limit_trace()`.
+
 ### 5.4 Calibration in NVS
 
 - **Two mechanisms, not interchangeable.** `middle <id>` writes the servo's
@@ -377,8 +437,8 @@ stages, both in `components/obs`, so the SIL library runs them too:
   between CLI lines, so a wireless arm never lands inside a bench-mode bus
   command. The latch outlives the watchdog, so it sees the 1 → 0 edge that
   ends a run.
-- **Every arm starts clean**: a fresh watchdog, history ring, shaper, fall
-  latch and takeover ramp.
+- **Every arm starts clean**: a fresh watchdog, history ring, shaper,
+  motion limiter, fall latch and takeover ramp.
 - **Takeover ramp** (issue #29). For the first 1000 ms of acting ticks after
   an arm, the written targets blend from the pose measured at takeover to the
   policy's shaped targets. Without it the first acting tick snaps the joints

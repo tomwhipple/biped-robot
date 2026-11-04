@@ -580,6 +580,37 @@ def test_lib_shaper_streams_speed(lib):
     assert np.all(np.asarray(out.goal_speed, dtype=np.int64) == 0)
 
 
+def test_lib_limiter_streams_its_velocity(lib):
+    """sil_abi 4: with the motion limiter on, the goals are obs::MotionLimiter's (its numpy
+    copy, sim/fw_limit.py, seeded at the sensed q at rest) and every policy slot's goal speed
+    is the limited velocity x 1.25 -- not the measured-gap law. Off at boot."""
+    if not lib.has_limiter:
+        pytest.skip("pre-abi-4 library: no sil_set_limiter")
+    import fw_limit as FL
+    assert lib.limiter_spec() and not lib.limiter_spec()["on"], "the limiter boots OFF"
+    n = H.SPEC.num_joints
+    # q = 0 senses exactly zero_steps, so the limiter's seed is exactly 0 rad
+    sensors = lib.make_sensors(np.zeros(n), np.zeros(n), np.array([0.0, 0.0, 1.0]),
+                               np.zeros(3), np.array([0.0, 0, 0, 1, 0, 0, 0]))
+    lib.set_shaper(0.0)
+    lib.set_limiter(150.0, 1500.0, 0.0)
+    lib.reset()
+    assert lib.limiter_spec()["on"]
+    ref = FL.MotionLimiter((150.0, 1500.0, 0.0))
+    ref.reset(np.zeros(n))
+    moved = 0
+    for t in range(10):
+        out = lib.tick_raw(sensors)
+        p, v = ref(H.action_to_angles(np.asarray(out.action, np.float64)))
+        got_ticks = H.from_bus(np.asarray(out.goal_ticks, np.int64), lib.out_order)
+        got_spd = H.from_bus(np.asarray(out.goal_speed, np.int64), lib.out_order)
+        want = H.angle_to_steps(p, lib.cal)
+        assert np.abs(got_ticks - want).max() <= 1, (t, got_ticks, want)
+        assert np.abs(got_spd - FL.goal_speed_steps(v)).max() <= 1, (t, got_spd, v)
+        moved = max(moved, int(np.abs(want - lib.cal.zero_steps).max()))
+    assert moved > 5      # the policy asked for motion and the limiter shaped it
+
+
 def test_lib_obs_matches_python(lib, nominal_env, py_act):
     """Per-tick obs/action divergence (docs/sil-harness.md item 3): with the
     gait clocks aligned, the only difference between the firmware's assembled

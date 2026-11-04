@@ -299,6 +299,9 @@ class State(NamedTuple):
     lag_y: jax.Array          # (3, n_servo) cascaded lag filter state
     shp_hz: jax.Array         # ()  per-episode FIRMWARE shaper pole, Hz (fw_shaper_hz; 0 = off)
     shp_y: jax.Array          # (3, n_servo) firmware shaper (obs::CommandShaper) state
+    lim_hp: jax.Array         # (taps, n_servo) firmware motion limiter (obs::MotionLimiter):
+    lim_hv: jax.Array         # its position / velocity, newest first (row 0 = this tick's
+                              # p, v; the rest the jerk boxcar's history); (1, n) when off
     lg_gain: jax.Array        # ()  per-episode loop gain on the action deviation (1 = off)
     lg_ema: jax.Array         # (n_act,) the action's 0.5 s mean, for lg_gain
     act_hist: jax.Array       # (_act_hist_len, n_servo) recent joint TARGETS,
@@ -712,6 +715,13 @@ class BimoMJXEnv:
         # slews its set point at that speed: within the tick the PD target ramps from the last
         # one instead of stepping. Needs fw_shaper_hz (the firmware writes it only when shaping).
         fw_goal_speed: bool = False,
+        # the FIRMWARE motion limiter in the loop (obs::MotionLimiter, actuation.h; CLI `limit`):
+        # (vmax deg/s, amax deg/s^2[, jmax deg/s^3]) or 'vmax,amax[,jmax]', None = off. After the
+        # shaper, before the goal ticks: per-joint |v| <= vmax, |a| <= amax, braking look-ahead
+        # (arrive at a still target at rest, never past it), optional jerk boxcar. With
+        # fw_goal_speed the goal speed is the limited velocity x 1.25 (obs::limitGoalSpeedSteps).
+        # Seeded where the shaper is, at rest. sim/fw_limit.py has the law (2026-11-03).
+        fw_limit=None,
         # LOOP-GAIN DR: per episode, the served targets follow mean + g x (action - mean),
         # mean = the action's 0.5 s EMA, g ~ uniform(lo, hi); the policy still sees its own
         # raw action. The stand-still study's loop-gain probe (x1.5 = the robot's measured
@@ -1389,10 +1399,20 @@ class BimoMJXEnv:
                                  else float(fw_shaper_hz_max))
         self._fw_shaper = self.fw_shaper_hz > 0.0 or self.fw_shaper_hz_max is not None
         self.fw_goal_speed = bool(fw_goal_speed)
+        import fw_limit as _fwl                       # jax-free, shared with the CPU env
+        self._fwl = _fwl
+        self.fw_limit = _fwl.parse(fw_limit)
+        self._fw_limit = self.fw_limit is not None
+        if self._fw_limit:
+            self._lim_rad = _fwl.to_rad(self.fw_limit)
+            self._lim_taps = _fwl.taps(self._lim_rad[1], self._lim_rad[2], self.control_dt)
+        else:
+            self._lim_rad, self._lim_taps = None, 1
         self.loop_gain_range = (None if loop_gain_range is None
                                 else (float(loop_gain_range[0]), float(loop_gain_range[1])))
-        assert not self.fw_goal_speed or self._fw_shaper, \
-            "fw_goal_speed needs fw_shaper_hz (the firmware writes it with shaped targets)"
+        assert not self.fw_goal_speed or self._fw_shaper or self._fw_limit, \
+            ("fw_goal_speed needs fw_shaper_hz or fw_limit (the firmware writes it with "
+             "shaped or limited targets)")
         self.zero_offset_deg = float(zero_offset_deg)
         self.zero_offset_rad = float(np.deg2rad(zero_offset_deg))
         self.push_prob = (0.01 if domain_rand else 0.0) if push_prob is None else push_prob
@@ -2209,6 +2229,11 @@ class BimoMJXEnv:
                 jax.random.fold_in(rng, 4473), (), 0, self.act_delay_max + 1)
         return jp.zeros((), dtype=jp.int32)
 
+    def _lim0(self, q):
+        """The motion limiter's seed: every history row at q, at rest (obs::MotionLimiter::reset)."""
+        hp = jp.tile(jp.asarray(q, jp.float32), (self._lim_taps, 1))
+        return hp, jp.zeros_like(hp)
+
     def _draw_shaper(self, rng: jax.Array):
         """Per-episode firmware shaper pole, Hz (fold_in 4475: the other draws keep
         their streams). The fixed pole without a max; 0 when the feature is off."""
@@ -2552,6 +2577,7 @@ class BimoMJXEnv:
                      act_lag=act_lag,
                      lag_y=lag_y0,
                      shp_hz=self._draw_shaper(r_ep), shp_y=lag_y0,
+                     lim_hp=self._lim0(lag_y0[0])[0], lim_hv=self._lim0(lag_y0[0])[1],
                      lg_gain=self._draw_loop_gain(r_ep),
                      lg_ema=jp.zeros(self._nq_act, dtype=jp.float32),
                      act_hist=act_hist, act_delay=act_delay,
@@ -2635,6 +2661,7 @@ class BimoMJXEnv:
             lag_y=jp.tile(chain0, (3, 1)),
             shp_hz=self._draw_shaper(r_ep),
             shp_y=jp.tile(chain0, (3, 1)),
+            lim_hp=self._lim0(chain0)[0], lim_hv=self._lim0(chain0)[1],
             lg_gain=self._draw_loop_gain(r_ep),
             lg_ema=jp.zeros(self._nq_act, dtype=jp.float32),
             act_hist=act_hist, act_delay=act_delay,
@@ -2688,9 +2715,29 @@ class BimoMJXEnv:
             s2 = state.shp_y[1] + ks * (s1 - state.shp_y[1])
             s3 = state.shp_y[2] + ks * (s2 - state.shp_y[2])
             shp_y = jp.stack([s1, s2, s3])
-            target = self._quant_angle(s3) if self.quantize_ticks else s3
+            target = s3
         else:
             shp_y = state.shp_y
+        # the FIRMWARE motion limiter (obs::MotionLimiter::update, ctrl_task.cpp "limit"):
+        # vmax / amax with braking look-ahead, then the jerk boxcar; its velocity is the
+        # goal speed below. Same float32 law as sim/fw_limit.py (and the firmware).
+        if self._fw_limit:
+            fwl = self._fwl
+            vmx, amx, _ = self._lim_rad
+            lp, lv = fwl.limit_step(state.lim_hp[0], state.lim_hv[0],
+                                    target.astype(jp.float32), vmx, amx,
+                                    np.float32(self.control_dt), xp=jp)
+            lim_hp = jp.concatenate([lp[None], state.lim_hp[:-1]], axis=0)
+            lim_hv = jp.concatenate([lv[None], state.lim_hv[:-1]], axis=0)
+            if self._lim_taps > 1:
+                target, lim_vel = fwl.boxcar(lim_hp, xp=jp), fwl.boxcar(lim_hv, xp=jp)
+            else:
+                target, lim_vel = lp, lv
+        else:
+            lim_hp, lim_hv, lim_vel = state.lim_hp, state.lim_hv, None
+        if (self._fw_shaper or self._fw_limit) and self.quantize_ticks:
+            # the integer goal ticks the SYNC WRITE carries
+            target = self._quant_angle(target)
         goal_written = target
         # servo dead time DR (see State.act_hist): the actuator serves the
         # target from act_delay ticks ago; row 0 is this tick's. Sits BEFORE
@@ -2724,7 +2771,7 @@ class BimoMJXEnv:
                 target = y3
         else:
             lag_y = state.lag_y
-        if self.quantize_ticks and not self._fw_shaper:
+        if self.quantize_ticks and not (self._fw_shaper or self._fw_limit):
             # the firmware writes INTEGER goal ticks (SYNC WRITE): quantize
             # before the actuator path (latency, PD, backlash) sees the target
             target = self._quant_angle(target)
@@ -2781,6 +2828,11 @@ class BimoMJXEnv:
             gap = jp.abs(goal_written + state.zero_off - q_now)
             v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
                              _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
+            if self._fw_limit:
+                # obs::limitGoalSpeedSteps: the policy joints' goal speed is the LIMITED
+                # velocity x 1.25 (integer steps/s); held servos keep the gap law
+                v_lim = self._fwl.goal_speed_steps(lim_vel, xp=jp) * _TICK_RAD
+                v_goal = v_lim if self._all_pol else v_goal.at[self._pi].set(v_lim[self._pi])
             # where the slewed set point ends this tick (next tick ramps on from there)
             t_end = (self.n_substeps - lat_k).astype(jp.float32) * self.sim_dt
             served_end = last_target + jp.clip(target - last_target,
@@ -3537,6 +3589,7 @@ class BimoMJXEnv:
                      lat_ms=state.lat_ms, lash=state.lash, zero_off=state.zero_off,
                      act_lag=state.act_lag, lag_y=lag_y,
                      shp_hz=state.shp_hz, shp_y=shp_y,
+                     lim_hp=lim_hp, lim_hv=lim_hv,
                      lg_gain=state.lg_gain, lg_ema=lg_ema.astype(jp.float32),
                      act_hist=act_hist, act_delay=state.act_delay,
                      imu_R=state.imu_R,

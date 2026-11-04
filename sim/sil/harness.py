@@ -538,6 +538,13 @@ class SilLib:
             self.has_shaper = True
         except AttributeError:
             self.has_shaper = False
+        # sil_abi 4 (optional on older libraries): the motion limiter.
+        try:
+            self.lib.sil_set_limiter.argtypes = [ctypes.c_float] * 3
+            self.lib.sil_set_limiter.restype = None
+            self.has_limiter = True
+        except AttributeError:
+            self.has_limiter = False
         rc = self.lib.sil_init(weights.encode(), cal_path.encode(),
                                ctypes.c_float(gait_hz))
         if rc != 0:
@@ -586,6 +593,20 @@ class SilLib:
         abi-1 library (which shipped raw targets unconditionally)."""
         try:
             return json.loads(self.spec_string()).get("shaper")
+        except (ValueError, AttributeError):
+            return None
+
+    def set_limiter(self, vmax_deg_s, amax_deg_s2=2000.0, jmax_deg_s3=0.0):
+        """sil_abi 4: the motion limiter (CLI `limit`, deg units); vmax 0 = off (the
+        boot state sil_init restores). No-op on an older library."""
+        if self.has_limiter:
+            self.lib.sil_set_limiter(ctypes.c_float(vmax_deg_s), ctypes.c_float(amax_deg_s2),
+                                     ctypes.c_float(jmax_deg_s3))
+
+    def limiter_spec(self):
+        """The library's CURRENT limiter config from sil_spec(), or None before abi 4."""
+        try:
+            return json.loads(self.spec_string()).get("limiter")
         except (ValueError, AttributeError):
             return None
 
