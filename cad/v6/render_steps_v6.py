@@ -65,6 +65,8 @@ BENCH = {
     "balance_male_mock": (-1, 0, 0),
     "balance_lead_mock": (-1, 0, 0),
     "power_cover_v8": (-1, 0, 0),
+    "switch_pod_v8": (-1, 0, 0),         # on the cap (screwed on at the bench), its toggles in it
+    "switches_mock": (-1, 0, 0),
     "pi4_mock": (1, 0, 0),               # the stack goes in from the front, the front cover off
     "gd_mock": (1, 0, 0),
     "front_cover_v8": (1, 0, 0),
@@ -85,7 +87,7 @@ TORSO = ["pelvis_v8", "torso_v8"]
 TORSO_DONE = TORSO + HOUSING                                            # once the hips are built
 STACK = ["pi4_mock", "gd_mock", "front_cover_v8", "power_board_mock", "power_standoffs_mock",
          "balance_park_v8", "balance_male_mock", "balance_lead_mock"]
-POWER_BAY = ["power_bracket_v8", "bms_mock", "power_cover_v8"]
+POWER_BAY = ["power_bracket_v8", "bms_mock", "power_cover_v8", "switch_pod_v8", "switches_mock"]
 BOARDS = STACK + POWER_BAY
 PACK = ["pack_mock", "battery_door_v8"]
 NECK = ["shoulder_girdle_v6", "neck_floor", "servo_neck"]
@@ -129,7 +131,7 @@ STEPS = [
     ("11b_power_bay", "9c. The BMS bracket onto its standoffs, then the BMS onto its tape",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK, POWER_BAY[:2], 35, (-25, -15),
      ["power_board_mock", "power_bracket_v8", "bms_mock"]),
-    ("11c_power_cap", "9c. The cap over them: three screws in through the skins",
+    ("11c_power_cap", "9c. The cap, its switch pod on it, over them: three screws in through the skins",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK + POWER_BAY[:2], POWER_BAY[2:], 40, (-40, -20), ["torso_v8"]),
     ("12_pack", "10. The pack in sideways through the battery door's opening, then the door: one screw",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + BOARDS, PACK, 45, (-60, -20), ["torso_v8"]),
@@ -165,7 +167,7 @@ STEPS = [
 # per-step camera distance, in units of "the framed box's diagonal just fits"
 ZOOM = {"07_yaw_servo": 1.3, "08_bearings_into_housing": 1.3, "09_housing": 1.3, "09a_yaw_carrier": 2.0,
         "09b_hip_roll_servo": 2.0, "10_leg_to_hip": 1.6,
-        "11b_power_bay": 1.5, "13_neck_floor": 2.4, "14_neck_servo": 1.4, "16b_shoulder_cheeks": 1.2, "17_upper_arm": 1.5}
+        "11b_power_bay": 1.5, "11c_power_cap": 1.45, "13_neck_floor": 2.4, "14_neck_servo": 1.4, "16b_shoulder_cheeks": 1.2, "17_upper_arm": 1.5}
 
 
 def comes_from(label):

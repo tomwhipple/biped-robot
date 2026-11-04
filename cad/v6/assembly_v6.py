@@ -322,6 +322,21 @@ def mock_bms():
     return torso_v8.mock_bms()
 
 
+def part_switch_pod():
+    """The box on the cap that holds its two toggles (torso_v8.py)."""
+    s, ok = _try("torso_v8", "switch_pod_v8")
+    if ok:
+        return s
+    return Pos((V.SWP_X[0] + V.SWP_X[1]) / 2, 0, (V.SWP_BOT_Z + V.SWP_WELL_Z) / 2) * Box(
+        V.SWP_X[1] - V.SWP_X[0], 2 * (V.SWP_IN_HY + V.SWP_SIDE), V.SWP_WELL_Z - V.SWP_BOT_Z)
+
+
+def mock_switches():
+    """The cap's two toggles in the pod (torso_v8.mock_switches)."""
+    import torso_v8
+    return torso_v8.mock_switches()
+
+
 def part_balance_park():
     """The cup that holds the balance extension lead's male end (torso_v8.py)."""
     s, ok = _try("torso_v8", "balance_park_v8")
@@ -455,6 +470,8 @@ def _torso_pieces():
         (0, "power_bracket_v8", COL_PRINT, Pos(0, 0, z) * part_power_bracket()),
         (0, "bms_mock", COL_MOCK, Pos(0, 0, z) * mock_bms()),
         (0, "balance_park_v8", COL_PRINT, Pos(0, 0, z) * part_balance_park()),
+        (0, "switch_pod_v8", COL_PRINT, Pos(0, 0, z) * part_switch_pod()),
+        (0, "switches_mock", COL_MOCK, Pos(0, 0, z) * mock_switches()),
         (0, "balance_male_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_male()),
         (0, "balance_lead_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_lead()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),

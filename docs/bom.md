@@ -163,6 +163,9 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
 | **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso holds a 56 × 45 × 8 mm one (the ShillehTek CF-3SJH25A-C's datasheet size) on the BMS bracket in its power bay (#213) | |
 | 3S balance extension lead | 1 | JST-XH 4-pin, female (into the power board's J2) to male (pins, takes the pack's balance plug), about 100 mm; parks its male end in `balance_park_v8` ([assembly.md §9c](assembly.md)). Its male end's body is taken as JST's B4B-XH-A (12.4 × 5.75 × 7.0 mm): measure it | |
+| toggle switch | 2 | heavy-duty SPST, "20A 125VAC", two screw terminals, 11.8 mm bushing with 9.25 mm of thread, body 30 × 15.5 × 19 mm behind the panel, 27 mm with its terminals (Tom's, measured 2026-11-04): the main switch (W6/W7) and the E-stop (J11), in `switch_pod_v8` on the cap ([assembly.md §9c](assembly.md)) | on hand |
+| inline 2-pin disconnect | 1 pair | in the main switch's 14 AWG pair, so the cap comes off; XT30 size assumed (26 × 11 × 6 mm mated): check its current rating against the maker's datasheet | |
+| 14 AWG ring lugs | 2 | for the main switch's terminal screws | |
 | inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
 | mini blade fuses | 1 pack | 10 A and 15 A | |
 | bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
@@ -278,7 +281,7 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **127** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front cover 4 and power cap 3 to the torso, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **131** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front cover 4 and power cap 3 to the torso, switch pod to the cap 4, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
 | M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |

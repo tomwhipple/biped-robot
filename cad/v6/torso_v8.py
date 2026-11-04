@@ -13,6 +13,9 @@
                   holes. Printed flat.
   balance_park_v8 the cup that holds the free end of the balance lead's
                   extension, taped to the aft inner wall. Printed floor down.
+  switch_pod_v8   the box on the cap that holds its two toggles (the main
+                  switch and the E-stop), levers up in a well. Printed aft
+                  face down.
   battery_door_v8 the +y skin over the battery layer and the power board's
                   J1: one screw, one tab. Printed flat, outer face down.
 
@@ -105,8 +108,8 @@ OUT_STL = os.path.join(HERE, "stl")
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 
-PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "power_bracket_v8", "balance_park_v8",
-          "battery_door_v8")
+PIECES = ("pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "power_bracket_v8",
+          "balance_park_v8", "battery_door_v8")
 # rows = print axes in model coords (check_printability's convention)
 IDENT = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 RX180 = ((1.0, 0.0, 0.0), (0.0, -1.0, 0.0), (0.0, 0.0, -1.0))
@@ -121,6 +124,7 @@ PRINT_ORIENT = {
     "power_cover_v8": RY_XUP,    # outer face (-x) on the bed, rim and corner blocks rise
     "power_bracket_v8": RY_XDOWN,  # the face on the standoffs (+x) on the bed, the tray's ledge and stops rise
     "balance_park_v8": IDENT,    # its floor on the bed, the cup's walls rise
+    "switch_pod_v8": RY_XUP,     # its aft face (-x) on the bed, every wall rises
     "battery_door_v8": RY_YDOWN, # outer face (+y) on the bed, ribs and tongue rise
 }
 
@@ -749,6 +753,10 @@ def front_cover_v8():
 # THE POWER BAY: the cap (power_cover_v8) and the BMS's bracket (power_bracket_v8)
 # ============================================================================
 PCAP_SPIGOT = (1.6, 1.2)          # the cap's locating lip inside the torso: long (x), thick
+PCAP_VENT_Y = (-50.0, 50.0)       # its vent slots, beside the switch pod (the bay is open below too)
+SWP_EAR = 6.0                     # the switch pod's four screw ears, square
+SWP_EARS_YZ = [(sy * (V.SWP_IN_HY + V.SWP_SIDE + SWP_EAR / 2), ez) for sy in (1, -1) for ez in (-10.0, -50.0)]
+SWP_SCREW_L = 8.0                 # M2.5 x 8 flat head, in through the cap's plate from inside: 5.4 into an ear
 PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 deep, as the flat cover's
 
 
@@ -769,11 +777,13 @@ def _cap_plan(hw):
 def power_cover_v8():
     """THE POWER CAP: the aft bay's cover, PCAP_PROUD aft of the torso's end
     so the power board's relay K1 has PWRB_COMP_AIR under it. Its rim carries
-    the torso's skins and deck aft to a flat plate (vent slots), its inner
-    faces 0.2 inside the torso's; a lip off them goes in under the deck and
-    inside the -y skin; three corner blocks reach forward
-    inside the skins to the torso's skin screws (dimensions_v6 PCOV_SCREW_*),
-    pilots teardropped toward the print's up (+x)."""
+    the torso's skins and deck aft to a flat plate, its inner faces 0.2 inside
+    the torso's; a lip off them goes in under the deck and inside the -y
+    skin; three corner blocks reach forward inside the skins to the torso's
+    skin screws (dimensions_v6 PCOV_SCREW_*), pilots teardropped toward the
+    print's up (+x). The switch pod screws onto its outer face from inside
+    (SWP_EARS_YZ) over a passage for the switches' wires (SW_PASS); a vent
+    slot either side of the pod."""
     lo = Pos(0, 0, zt) * _cap_plan(V.HOUSING_BOT_HW)
     hi = Pos(0, 0, zd) * _cap_plan(V.HOUSING_HW)
     c = loft([lo.faces()[0], hi.faces()[0]])
@@ -792,9 +802,13 @@ def power_cover_v8():
         c += box(V.PCAP_X[1] - 0.3, V.PCOV_SCREW_X + COVER_BLOCK[0] / 2, y0, y1, z0, z1)
         c -= teardrop_y(D.M25_TAP / 2, s * (hy + 0.1), s * (hy - (COVER_SCREW_L - 2.0)),
                         V.PCOV_SCREW_X, zb_, roll=90)
-    for k in range(-5, 6):
-        yv = k * 8.0
+    for yv in PCAP_VENT_Y:
         c -= box(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, yv - 2.0, yv + 2.0, zt + 12.0, ztop - 12.0)
+    (py0, py1), (pz0, pz1) = V.SW_PASS
+    c -= box(V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, py0, py1, pz0, pz1)
+    for ey, ez in SWP_EARS_YZ:
+        c -= cyl_x(D.CASE_SCREW_CLEAR / 2, V.PCAP_X[0] - 1, V.PCAP_X[1] + 1, ey, ez)
+        c -= csk_x(ey, ez, V.PCAP_X[1], +1)
     return c
 
 
@@ -878,7 +892,7 @@ def mock_balance_male():
 
 
 BAL_LEAD_R = 1.5                  # the lead's four 26 AWG wires, bundled
-BAL_LEAD_X = -60.5                # its run aft of J2's plug, under the BMS bracket's plate
+BAL_LEAD_X = V.PWRB_PCB_X0 - 12.4  # its run aft of J2's plug (9.8), under the BMS bracket's plate (15)
 BAL_LEAD_Z = -52.0                # its run under the park
 
 
@@ -894,22 +908,176 @@ def balance_lead_path():
             (sx, V.BAL_Y, BAL_LEAD_Z), (sx, V.BAL_Y, V.BAL_FLOOR_Z - V.BAL_WALL)]
 
 
-def mock_balance_lead():
-    """The lead along balance_lead_path, as boxes BAL_LEAD_R round each leg."""
-    pts, r, m = balance_lead_path(), BAL_LEAD_R, None
-    for a, b in zip(pts, pts[1:]):
-        lo = [min(u, v) - r for u, v in zip(a, b)]
-        hi = [max(u, v) + r for u, v in zip(a, b)]
-        i = [k for k in range(3) if abs(a[k] - b[k]) > 1e-9][0]     # the leg's own axis keeps its ends
+def swept(points, half):
+    """Boxes along a polyline of axis-aligned legs: half = (hx, hy, hz) round
+    each leg (or a list of them, one per leg), its own axis ending at its
+    points (a joint is covered by the next leg's cross-section)."""
+    m = None
+    halves = half if isinstance(half, list) else [half] * (len(points) - 1)
+    for (a, b), half in zip(zip(points, points[1:]), halves):
+        lo = [min(u, v) - h for u, v, h in zip(a, b, half)]
+        hi = [max(u, v) + h for u, v, h in zip(a, b, half)]
+        i = [k for k in range(3) if abs(a[k] - b[k]) > 1e-9][0]
         lo[i], hi[i] = min(a[i], b[i]), max(a[i], b[i])
         s = box(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2])
         m = s if m is None else m + s
     return m
 
 
+def mock_balance_lead():
+    """The lead along balance_lead_path, BAL_LEAD_R round each leg."""
+    return swept(balance_lead_path(), (BAL_LEAD_R,) * 3)
+
+
 def balance_lead_length():
     pts = balance_lead_path()
     return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+
+
+# ============================================================================
+# THE SWITCH POD (switch_pod_v8) and the cap's two toggles (dimensions_v6 SW_*)
+# ============================================================================
+def _teardrop_z(r, z0, z1, x, y):
+    """A vertical bore with a capped 45 deg roof toward +x (the pod prints
+    with +x up)."""
+    k = r / math.sqrt(2)
+    roof = wedge_z([(x, y), (x + k, y + k), (x + r, y + r * (math.sqrt(2) - 1)),
+                    (x + r, y - r * (math.sqrt(2) - 1)), (x + k, y - k)], z0, z1)
+    return cyl_z(r, z0, z1, x, y) + roof
+
+
+def switch_pod_v8():
+    """THE SWITCH POD: a box on the cap's outer face at its top, open toward
+    the cap, that holds the two toggles' bodies outside the bay -- the main
+    switch at +y, the E-stop at -y, each in a TERM_MARGIN of room with its
+    terminals' lugs (SW_ENV) -- with a channel under them to the cap's wire
+    passage. The bushings go up through its SW_PANEL_T top panel at the
+    deck's level, the nuts on top; its sides and aft wall stand on up past
+    the levers' tips, a well open forward and up, so a fall on the back or a
+    side lands on the walls. Four ears take the screws in from the cap's
+    inner face. Printed aft face down: every wall rises; the bushings' bores
+    are teardropped."""
+    x0, x1 = V.SWP_X
+    hy = V.SWP_IN_HY + V.SWP_SIDE
+    xi = x1 - V.SWP_IN_X
+    p = box(x0, x1, -hy, hy, V.SWP_BOT_Z, V.SWP_TOP_Z)
+    p -= box(xi, x1 + 1, -V.SWP_IN_HY, V.SWP_IN_HY, V.SWP_FLOOR_Z, V.SWP_TOP_Z - V.SW_PANEL_T)
+    for sy in (1, -1):                                                   # the well's sides
+        a, b = sorted((sy * V.SWP_IN_HY, sy * hy))
+        p += box(x0, x1, a, b, V.SWP_TOP_Z - 0.3, V.SWP_WELL_Z)
+    p += box(x0, x0 + V.SWP_WALL, -hy, hy, V.SWP_TOP_Z - 0.3, V.SWP_WELL_Z)   # and its aft wall
+    for ey, ez in SWP_EARS_YZ:
+        sy = 1 if ey > 0 else -1
+        a, b = sorted((sy * (hy - 0.3), sy * (hy + SWP_EAR)))
+        p += box(x0, x1, a, b, ez - SWP_EAR / 2, ez + SWP_EAR / 2)
+        p -= cyl_x(D.M25_TAP / 2, x1 + 0.1, x1 - (SWP_SCREW_L - 2.0), ey, ez)
+    for y in V.SW_Y.values():
+        p -= _teardrop_z(V.SW_HOLE_D / 2, V.SWP_TOP_Z - V.SW_PANEL_T - 1, V.SWP_TOP_Z + 1, V.SW_AXIS_X, y)
+    return p
+
+
+def mock_switches():
+    """Both toggles as they sit: body and terminal screws under the panel,
+    the bushing, washer and nut over it, and the lever upright."""
+    m = None
+    zp = V.SWP_TOP_Z - V.SW_PANEL_T                                     # the panel's underside
+    zb = zp - V.SW_BODY[2]
+    hx, hl = V.SW_BODY[1] / 2, V.SW_BODY[0] / 2
+    nut_r = V.SW_NUT_AF / 2 / math.cos(math.radians(30))
+    for y in V.SW_Y.values():
+        x = V.SW_AXIS_X
+        s = box(x - hx, x + hx, y - hl, y + hl, zb, zp)
+        s += box(x - hx + 2, x + hx - 2, y - hl + 3, y + hl - 3, zb - V.SW_TERM_L, zb)
+        s += cyl_z(V.SW_BUSH_D / 2, zp, zp + V.SW_THREAD_L, x, y)
+        s += cyl_z(nut_r, V.SWP_TOP_Z, V.SWP_TOP_Z + V.SW_WASHER_T + V.SW_NUT_T, x, y)
+        s += cyl_z(V.SW_LEVER_D / 2, zp + V.SW_THREAD_L, V.SW_LEVER_TOP_Z, x, y)
+        m = s if m is None else m + s
+    return m
+
+
+def switch_keepouts():
+    """{name: solid}: the room each switch keeps for its terminals' lugs and
+    wires (SW_ENV, TERM_MARGIN round the body's outline), and each lever's
+    throw (SW_THROW_DEG each way, plus its girth)."""
+    out = {}
+    zp = V.SWP_TOP_Z - V.SW_PANEL_T
+    hx, hl, t = V.SW_BODY[1] / 2 + V.TERM_MARGIN, V.SW_BODY[0] / 2 + V.TERM_MARGIN, V.TERM_MARGIN
+    for k, y in V.SW_Y.items():
+        out[f"{k} terminals"] = box(V.SW_AXIS_X - hx, V.SW_AXIS_X + hx, y - hl, y + hl, zp - V.SW_ENV[k],
+                                    zp - V.SW_BODY[2])
+        reach = V.SW_LEVER_L * math.sin(math.radians(V.SW_THROW_DEG)) + V.SW_LEVER_D / 2
+        out[f"{k} lever"] = box(V.SW_AXIS_X - V.SW_LEVER_D / 2 - t, V.SW_AXIS_X + V.SW_LEVER_D / 2 + t,
+                                y - reach, y + reach, zp + V.SW_THREAD_L, V.SW_LEVER_TOP_Z)
+    return out
+
+
+# The wires, each as the swept envelope it keeps (WIRE_MARGIN round the
+# wires; their ends at a terminal, a pad or a plug): (name, points, (hx, hy,
+# hz) half sizes). A pair of 14 AWG side by side is WIRE_OD_14 wide each.
+# The main switch's pair runs through an inline two-pin disconnect parked
+# over the board's low parts behind the cap (DISC_*), so the cap comes off
+# with its switches; the E-stop's comes off at J11.
+DISC = (26.0, 11.0, 6.0)          # ASSUMED (an XT30 pair, mated): long (y), tall (z), thick (x) -- check it
+DISC_C = (V.PWRB_PCB_X0 - 16.0, -24.0, -51.0)   # its centre: over Q1/Q2 and the resistors, clear of J8
+LANE_Y = {"main": -14.6, "estop": -23.5}          # each lead's lane through the cap's passage (SW_PASS)
+
+
+def _pair14():
+    return (WIRE_14_T, WIRE_14_W, WIRE_14_W)
+
+
+WIRE_14_W = V.WIRE_OD_14 + V.WIRE_MARGIN          # 5.4: half a side-by-side pair and its margin, across
+WIRE_14_T = V.WIRE_OD_14 / 2 + V.WIRE_MARGIN      # 3.7: half its thickness and its margin
+WIRE_24 = V.WIRE_OD_24 + V.WIRE_MARGIN            # 3.4: a 24 AWG pair, round
+
+
+def wire_paths():
+    """[(name, points, half)] for every lead the CAD keeps room for."""
+    x0 = V.PWRB_PCB_X0
+    xax = V.SW_AXIS_X
+    zch = sum(V.SW_PASS[1]) / 2                                          # the pod's channel and the passage
+    z_env = {k: V.SWP_TOP_Z - V.SW_PANEL_T - v for k, v in V.SW_ENV.items()}
+    dx, dy, dz = DISC_C
+    w6, w7 = V.pwrb_yz(23, 9), V.pwrb_yz(31, 9)
+    w1, w2 = V.pwrb_yz(23, 19), V.pwrb_yz(23, 26)
+    j11 = [p for p in V.PWRB_PARTS if p[0] == "J11"][0]
+    (j11y0, j11z0), (j11y1, j11z1) = V.pwrb_yz(j11[1], j11[3]), V.pwrb_yz(j11[2], j11[4])
+    y_up = 4.0                                                            # the main pair's run up over the fuses
+    return [
+        ("main switch's pair, in the pod and to the disconnect", [
+            (xax, V.SW_Y["main"], z_env["main"]), (xax, V.SW_Y["main"], zch), (xax, LANE_Y["main"], zch),
+            (dx, LANE_Y["main"], zch), (dx, dy - DISC[0] / 2 - 2, zch), (dx, dy - DISC[0] / 2 - 2, dz)],
+         _pair14()),
+        ("main switch's pair, the disconnect to W6/W7", [
+            (dx, dy + DISC[0] / 2, dz), (dx, y_up, dz), (x0 - 22.5, y_up, dz), (x0 - 22.5, y_up, w6[1]),
+            (x0 - 9.5, y_up, w6[1]), (x0 - 9.5, (w6[0] + w7[0]) / 2, w6[1]),
+            (x0 - V.PWRB_LOW_H, (w6[0] + w7[0]) / 2, w6[1])],
+         _pair14()),
+        ("E-stop pair, in the pod and to J11", [
+            (xax, V.SW_Y["estop"], z_env["estop"]), (xax, V.SW_Y["estop"], zch), (xax, LANE_Y["estop"], zch),
+            (x0 - 25.0, LANE_Y["estop"], zch), (x0 - 25.0, LANE_Y["estop"], -61.0),
+            (x0 - 25.0, (j11y0 + j11y1) / 2, -61.0), (x0 - 25.0, (j11y0 + j11y1) / 2, (j11z0 + j11z1) / 2),
+            (x0 - j11[5], (j11y0 + j11y1) / 2, (j11z0 + j11z1) / 2)],
+         (WIRE_24,) * 3),
+        # out of W1 and W2 (7 apart in z), up past the bracket's top, over the
+        # BMS's top edge one behind the other, P-'s on along the edge
+        ("BMS's 14 AWG pair, W1/W2 over its top edge", [
+            (x0 - V.PWRB_LOW_H, w1[0], (w1[1] + w2[1]) / 2), (x0 - 9.5, w1[0], (w1[1] + w2[1]) / 2),
+            (x0 - 9.5, w1[0], -9.0), (x0 - 21.0, w1[0], -9.0), (x0 - 21.0, 26.5, -9.0)],
+         [(WIRE_14_T, WIRE_14_T, WIRE_14_T + (w1[1] - w2[1]) / 2)] + [(WIRE_14_T,) * 3] * 3),
+        ("balance extension, J2 to the park", balance_lead_path(),
+         (BAL_LEAD_R / 2 + 1.5, BAL_LEAD_R + V.WIRE_MARGIN + 1.0, BAL_LEAD_R + V.WIRE_MARGIN + 1.0)),
+    ]
+
+
+def wire_envelopes():
+    """{name: solid}: wire_paths swept, and the disconnect with its margin."""
+    out = {nm: swept(pts, h) for nm, pts, h in wire_paths()}
+    dx, dy, dz = DISC_C
+    m = V.WIRE_MARGIN
+    out["main switch's disconnect"] = box(dx - DISC[2] / 2 - m, dx + DISC[2] / 2 + m, dy - DISC[0] / 2 - m,
+                                          dy + DISC[0] / 2 + m, dz - DISC[1] / 2 - m, dz + DISC[1] / 2 + m)
+    return out
 
 
 # ============================================================================
@@ -1095,6 +1263,11 @@ def SCREWS():
             s.append(dict(name=f"pwrb_{hy:+.0f}_{hz:+.0f}", part="torso_v8",
                           kind="M2.5x6 self-tap, pan head (standoff boss)", axis=(1, 0, 0),
                           pos=(V.PWRB_PCB_X0, hy, hz), length=PWRB_SCREW_L, clamp=V.PWRB_T, pilot=PWRB_PILOT))
+    for ey, ez in SWP_EARS_YZ:
+        s.append(dict(name=f"switch_pod_{ey:+.0f}_{ez:+.0f}", part="switch_pod_v8",
+                      kind="M2.5x8 self-tap, flat head (through the cap into the switch pod's ear)",
+                      axis=(-1, 0, 0), pos=(V.PCAP_X[1], ey, ez), length=SWP_SCREW_L, clamp=V.COVER_T,
+                      pilot=SWP_SCREW_L - 2.0))
     sx, sz = V.DOOR_SCREW
     s.append(dict(name="battery_door", part="battery_door_v8",
                   kind="M2.5x8 self-tap, flat head (through the door into its post)", axis=(0, -1, 0),
@@ -1166,6 +1339,7 @@ def check_screw_access(pieces, verbose=True):
     for sc in SCREWS():
         # a yaw servo is serviced with the pack out, so the door is off too
         solid = (open_bays if sc["part"] in ("torso_v8", "stack", "power_bracket_v8")
+                 else pieces["power_cover_v8"] if sc["part"] == "switch_pod_v8"   # on the bench, into the cap
                  else no_door if sc["part"] == "pelvis_v8" else every)
         hit = _driver_hit(sc, solid, D.ACCESS_D)
         clear = hit < 5.0
@@ -1295,7 +1469,10 @@ def check_fits(pieces):
                  "BMS bracket in from aft onto its standoffs")
     ok &= _sweep(bms, tor + pwrb + so + br + park + male + lead, ((-30.0, 0, 0), (0, 0, 0)),
                  "BMS in from aft onto the bracket")
-    ok &= _sweep(pc, tor + pel + bay, ((-30.0, 0, 0), (0, 0, 0)), "the cap on from aft")
+    pod, sw = pieces["switch_pod_v8"], mock_switches()
+    ko, env = switch_keepouts(), wire_envelopes()
+    capset = pc + pod + sw
+    ok &= _sweep(capset, tor + pel + bay, ((-30.0, 0, 0), (0, 0, 0)), "the cap on from aft, its pod and switches on it")
     _, barbs = _snap_fingers()
     ok &= _sweep(pel, tor - barbs, ((0, 0, -45.0), (0, 0, 0)), "pelvis up into the torso (barbs aside)", n=46)
     ok &= _door_swing(door, tor + pel + mock_pack() + bay)
@@ -1325,6 +1502,17 @@ def check_fits(pieces):
         print(f"  seated {nm}: {v:.2f} mm3 ({'PASS' if good else 'FAIL'})")
     v = (pel & barbs).volume
     print(f"  barbs vs seated pelvis: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
+    ok &= v < 0.05
+    rest = {"torso": tor, "pelvis": pel, "cap": pc, "switch pod": pod, "door": door, "board": mock_pwrb(),
+            "standoffs": so, "BMS bracket": br, "BMS": bms, "balance park": park}
+    print("  keep-outs (TERM_MARGIN, WIRE_MARGIN in them) vs every part, mm (0.00 = touching where it ends):")
+    for nm, k in [*ko.items(), *env.items()]:
+        bad = [(n, (k & b).volume) for n, b in rest.items() if (k & b).volume > 0.01]
+        near = min((k.distance_to(b), n) for n, b in rest.items())
+        ok &= not bad
+        print(f"    {nm}: {'PASS' if not bad else 'FAIL ' + str(bad)}, nearest {near[1]} {near[0]:.2f}")
+    v = (sw & pod).volume + (sw & pc).volume
+    print(f"  seated switches in the pod: {v:.2f} mm3 ({'PASS' if v < 0.05 else 'FAIL'})")
     ok &= v < 0.05
     solids = {"cap": pc, "board": mock_pwrb(), "bms": bms, "bracket": br, "bms+bracket": bms + br, "door": door,
               "park": park, "park+plug": park + male, "plug": male, "j1": mock_j1_plug(), "lead": lead}
@@ -1374,7 +1562,8 @@ def mass_g(s):
 def build(arm_mounts=True):
     return {"pelvis_v8": pelvis_v8(), "torso_v8": torso_v8(arm_mounts=arm_mounts),
             "front_cover_v8": front_cover_v8(), "power_cover_v8": power_cover_v8(),
-            "power_bracket_v8": power_bracket_v8(), "balance_park_v8": balance_park_v8(),
+            "switch_pod_v8": switch_pod_v8(), "power_bracket_v8": power_bracket_v8(),
+            "balance_park_v8": balance_park_v8(),
             "battery_door_v8": battery_door_v8()}
 
 
@@ -1427,6 +1616,7 @@ def _render_strip(shots, png_path, px=640):
 C_PELVIS, C_TORSO, C_COVER, C_BOARD, C_PACK = ((0.45, 0.62, 0.90), (0.82, 0.84, 0.87), (0.90, 0.70, 0.40),
                                                (0.30, 0.62, 0.38), (0.25, 0.25, 0.28))
 C_BRACKET, C_BMS, C_PARTS, C_LEAD = (0.95, 0.52, 0.12), (0.20, 0.36, 0.78), (0.20, 0.20, 0.22), (0.80, 0.15, 0.15)
+C_KEEP = (0.98, 0.88, 0.35)
 
 
 def mock_pwrb_split():
@@ -1456,6 +1646,7 @@ def render(pieces, out_dir):
                ([(in_print_orient(pc, "power_cover_v8"), C_COVER)], 135, -55, 2.6),
                ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.6),
                ([(in_print_orient(pieces["balance_park_v8"], "balance_park_v8"), C_BRACKET)], 135, -45, 2.6),
+               ([(in_print_orient(pieces["switch_pod_v8"], "switch_pod_v8"), C_BRACKET)], 135, -45, 2.6),
                ([(in_print_orient(door, "battery_door_v8"), C_COVER)], 135, -55, 2.6)]
     boards = (mock_stack(plugs=True) + mock_pwrb() + mock_pwrb_standoffs() + br + mock_bms()
               + pieces["balance_park_v8"] + mock_balance_male() + mock_balance_lead())
@@ -1485,11 +1676,16 @@ def render_power_bay(pieces, out_dir):
                              through J1, F1 and K1 seen from above (forward
                              up, +y to the left), and from +y with the +y skin
                              cut away (J1's plug, the balance park with the
-                             pack's balance plug on it, the lead from J2);
-    power_bay_prints_v8.png  the cap, the bracket and the park as they lie on
-                             the bed."""
-    pel, tor, pc, br, pk = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8", "power_bracket_v8",
-                                                "balance_park_v8"))
+                             pack's balance plug on it, the lead from J2), and
+                             the keep-outs (yellow: the switches' terminals and
+                             levers, every lead's swept envelope, the
+                             disconnect) with the cap off; the cap carries the
+                             switch pod and its two toggles;
+    power_bay_prints_v8.png  the cap, the bracket, the park and the switch pod
+                             as they lie on the bed."""
+    pel, tor, pc, br, pk, pod = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8", "power_bracket_v8",
+                                                     "balance_park_v8", "switch_pod_v8"))
+    capset = [(pc, C_COVER), (pod, C_BRACKET), (mock_switches(), C_PARTS)]
     aft = box(-120.0, -20.0, -200, 200, -200, 200)
     pcb, parts = mock_pwrb_split()
     so, bms = mock_pwrb_standoffs(), mock_bms()
@@ -1497,15 +1693,18 @@ def render_power_bay(pieces, out_dir):
             (pk, C_BRACKET), (mock_balance_male(), C_PARTS), (mock_balance_lead(), C_LEAD)]
     cut = box(-200, 200, -200, 200, -200, -25.0)
     skin = box(-200, 200, -200, V.TORSO_IN_HW - 0.01, -200, 200)
+    keep = [(k, C_KEEP) for k in [*switch_keepouts().values(), *wire_envelopes().values()]]
     bay = [([*base, (Pos(-35, 0, 0) * br, C_BRACKET), (Pos(-70, 0, 0) * bms, C_BMS),
-             (Pos(-110, 0, 0) * pc, C_COVER)], -40, -20, 2.4),
+             *[(Pos(-110, 0, 0) * s_, c) for s_, c in capset]], -40, -20, 2.4),
            ([*base, (br, C_BRACKET), (bms, C_BMS)], 25, -15, 2.3),
-           ([*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)], -40, -20, 2.3),
-           ([(s & cut, c) for s, c in [*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)]], 0, -89, 2.5),
-           ([(s & skin, c) for s, c in [*base, (br, C_BRACKET), (bms, C_BMS), (pc, C_COVER)]], -90, -20, 2.3)]
+           ([*base, (br, C_BRACKET), (bms, C_BMS), *capset], -35, -35, 2.2),
+           ([(s_ & cut, c) for s_, c in [*base, (br, C_BRACKET), (bms, C_BMS), *capset]], 0, -89, 2.5),
+           ([(s_ & skin, c) for s_, c in [*base, (br, C_BRACKET), (bms, C_BMS), *capset]], -90, -20, 2.3),
+           ([*base, (br, C_BRACKET), (bms, C_BMS), *keep], -30, -25, 2.3)]
     prints = [([(in_print_orient(pc, "power_cover_v8"), C_COVER)], 135, -55, 2.4),
               ([(in_print_orient(br, "power_bracket_v8"), C_BRACKET)], 135, -55, 2.4),
-              ([(in_print_orient(pk, "balance_park_v8"), C_BRACKET)], 135, -45, 2.6)]
+              ([(in_print_orient(pk, "balance_park_v8"), C_BRACKET)], 135, -45, 2.6),
+              ([(in_print_orient(pod, "switch_pod_v8"), C_BRACKET)], 135, -45, 2.6)]
     return (_render_strip(bay, os.path.join(out_dir, "power_bay_v8.png")),
             _render_strip(prints, os.path.join(out_dir, "power_bay_prints_v8.png")))
 
@@ -1514,7 +1713,9 @@ def power_bay_step(pieces, path, board_step=None):
     """The power bay as one STEP for FreeCAD (File > Open): the pelvis, the
     torso, the battery door and the pack, the power board, its standoffs, the
     BMS bracket, the BMS, the balance park with the extension lead's male end
-    (and the pack's plug on it) and the lead, and the cap, each a named part. board_step: power
+    (and the pack's plug on it) and the lead, the cap with the switch pod and
+    its toggles, and the keep-outs the checks hold everything off (the
+    switches' terminals and levers, every lead's envelope), each a named part. board_step: power
     lite's own STEP (kicad-cli pcb export step --user-origin 100x60mm, its
     origin the top-left corner of the parts side) placed on the bosses in
     place of the mock, when given."""
@@ -1532,6 +1733,9 @@ def power_bay_step(pieces, path, board_step=None):
                     ("balance_park_v8", pieces["balance_park_v8"]),
                     ("balance_extension_male_and_pack_plug", mock_balance_male()),
                     ("balance_extension_lead", mock_balance_lead()),
+                    ("switch_pod_v8", pieces["switch_pod_v8"]), ("toggles_main_and_estop", mock_switches()),
+                    *[(f"keepout {k}", v) for k, v in switch_keepouts().items()],
+                    *[(f"keepout {k}", v) for k, v in wire_envelopes().items()],
                     ("power_cover_v8", pieces["power_cover_v8"])):
         s.label = name
         kids.append(s)

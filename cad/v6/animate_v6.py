@@ -74,7 +74,9 @@ INSERT = [
     ("balance_lead_mock",  (-1, 0, 0), 11),
     ("power_bracket_v8",   (-1, 0, 0), 12),  # the BMS bracket onto them from aft,
     ("bms_mock",           (-1, 0, 0), 12),  # the BMS onto the bracket's tape (wired to the board)
-    ("power_cover_v8",     (-1, 0, 0), 13),  # then its cover
+    ("power_cover_v8",     (-1, 0, 0), 13),  # then its cover, the switch pod and its toggles on it
+    ("switch_pod_v8",      (-1, 0, 0), 13),
+    ("switches_mock",      (-1, 0, 0), 13),
     ("pack_mock",          (0, 1, 0), 13),   # pack in sideways through the battery door's opening,
     ("battery_door_v8",    (0, 1, 0), 13),   # then the door over it (one screw)
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor

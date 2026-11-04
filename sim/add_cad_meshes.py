@@ -53,7 +53,7 @@ def parts(arms=True, head=True):
                      ("torso_v8" + ("" if arms else "_armless"), (0, 0, zdeck), PLA),
                      ("front_cover_v8", (0, 0, zdeck), PLA)]
            + ([("power_cover_v8", (0, 0, zdeck), PLA), ("power_bracket_v8", (0, 0, zdeck), PLA),
-               ("balance_park_v8", (0, 0, zdeck), PLA),
+               ("balance_park_v8", (0, 0, zdeck), PLA), ("switch_pod_v8", (0, 0, zdeck), PLA),
                ("battery_door_v8", (0, 0, zdeck), PLA)] if head else [])
            + [("yaw_bearing_housing", (0, 0, zdeck), PLA)]
            + ([("neck_floor", (0, 0, zdeck), PLA)] if head else [])

@@ -665,16 +665,17 @@ PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 
 BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts
 # across: from 1.0 past F1/F2's end (their fuses pull straight out aft) to the +y skin
 BMS_Y = (PWRB_FUSE_END_Y + 1.0, PWRB_FUSE_END_Y + 1.0 + BMS_W)         # 11.53..56.53
-# down from 1.0 under the cap's +y top corner block
-BMS_Z = (PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 1.0 - BMS_L,
-         PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 1.0)                  # -68.0..-12.0
+# down from 2.0 under the cap's +y top corner block: 8 mm over its top edge for
+# its 14 AWG pair to B- and P- (WIRE_* below)
+BMS_Z = (PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0 - BMS_L,
+         PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0)                  # -69.0..-13.0
 assert BMS_Y[1] <= TORSO_IN_HW - 0.5, "the BMS does not fit beside the fuses"
 assert BMS_X[1] >= PWRB_AFT_X + 1.5, "the BMS is too close to the cap"
 assert BMS_X[0] <= PWRB_PCB_X0 - max(p[5] for p in PWRB_PARTS if p[0].endswith("fuse")) - 2.0, \
     "the BMS must stand clear over the fuses' tops"
-assert BMS_Z[0] >= TORSO_BOT_Z + 3.5, "no room for the bracket's ledge under the BMS"
-# a 58 mm one (the older manual's) fits only with 0.5 under the cap's block and
-# a 1.2 mm ledge (torso_v8 PBR_RIM_T): re-check BMS_L when it is measured
+assert BMS_Z[0] >= TORSO_BOT_Z + 2.4, "no room for the bracket's ledge (0.3 + 1.6) under the BMS"
+# a 58 mm one (the older manual's) does not fit under the cap's block with its
+# wires over its top edge: re-check BMS_L when it is measured
 # battery: OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07), WEIGHED
 # 205 g (Tom, 2026-10-14); its size is still the listing's 96 x 44.5 x 25.5 mm
 # -- measure it. Transverse, centred on the cells, on the pelvis's ceiling (the
@@ -745,6 +746,59 @@ assert BAL_IN_Y[1] + BAL_WALL <= TORSO_IN_HW - 1.0, "the balance park is too clo
 assert BAL_IN_Y[0] - BAL_WALL >= PWRB_Y[1] + 0.4, "the balance park is too close to the board's +y edge"
 assert BAL_TOP_Z + BAL_PLUG_ABOVE <= pwrb_yz(0, PWRB_PARTS[0][4])[1] - 1.0, \
     "the pack's balance plug on the park runs into J1's plug"
+# --- THE CAP'S SWITCHES (Tom, 2026-11-04): two identical heavy toggles, "20A
+# 125VAC", SPST, two screw terminals on the back: the MAIN SWITCH on W6/W7
+# (14 AWG, up to 15 A) and the E-STOP on J11 (a PHR-2 lead, 0.16 A). Their
+# bodies (27 mm behind the panel) do not fit between the cap and the board
+# (28.7 mm, less the parts and the wires), so they hang in the SWITCH POD
+# (switch_pod_v8), a box screwed onto the cap's outer face at its top, levers
+# UP through its 3 mm top panel at the deck's level, in a well open forward
+# and up. Measured by Tom with calipers, 2026-11-04, except where marked.
+SW_BUSH_D = 11.8                              # the bushing's thread
+SW_HOLE_D = SW_BUSH_D + 0.4                   # 12.2, the panel hole (the repo's +0.4 clearance)
+SW_THREAD_L = 9.25                            # its usable thread
+SW_BODY = (30.0, 15.5, 19.0)                  # along the throw, across it, deep behind the panel
+SW_TERM_L = 8.0                               # the screw terminals behind the body: 27 in all
+SW_LEVER_L = 17.0                             # ESTIMATE (Tom's photo): the lever past the bushing's end
+SW_LEVER_D = 6.0                              # ESTIMATE: its girth
+SW_THROW_DEG = 15.0                           # ESTIMATE: each way from upright
+SW_NUT_T = 2.4                                # ASSUMED, to measure: the panel nut
+SW_NUT_AF = 14.3                              # ASSUMED, to measure: across its flats
+SW_WASHER_T = 0.8                             # ASSUMED, to measure (0 without one)
+SW_ENGAGE = 1.0                               # thread left past the nut, so it engages fully
+SW_PANEL_T = 3.0                              # the pod's top panel the bushings go through
+assert SW_PANEL_T + SW_WASHER_T + SW_NUT_T + SW_ENGAGE <= SW_THREAD_L, \
+    "the bushing's thread does not reach through the panel and the nut"
+# clearance buffers (Tom, 2026-11-04: "make sure to add some buffer for
+# clearances for the wires or whatever"): the room the CAD keeps round them
+TERM_MARGIN = 3.0                             # round a screw terminal and its lug, every side
+LUG_14 = 7.0                                  # a 14 AWG ring lug and its wire's turn, past the terminal screws
+LUG_24 = 4.0                                  # a 24 AWG wire wrapped under the screw
+WIRE_MARGIN = 2.0                             # round a free run of wire
+WIRE_OD_14 = 3.4                              # silicone 14 AWG
+WIRE_OD_24 = 1.4
+SW_ENV = {"main": SW_BODY[2] + SW_TERM_L + LUG_14 + TERM_MARGIN,  # 37: body, terminals, lugs, margin
+          "estop": SW_BODY[2] + SW_TERM_L + LUG_24 + TERM_MARGIN}  # 34
+# the pod, on the cap's outer face at its top (pelvis-local; aft of the cap is "proud")
+SWP_IN_X = SW_BODY[1] + 2 * TERM_MARGIN + 2.0                     # 23.5 deep inside: the body, margins, a nut socket
+SWP_WALL = 2.5
+SWP_X = (PCAP_X[0] - SWP_IN_X - SWP_WALL, PCAP_X[0])              # -105.71..-79.71
+SW_AXIS_X = PCAP_X[0] - SWP_IN_X / 2                              # -91.46 the bushings' axes
+SW_Y = {"main": SW_BODY[0] / 2 + TERM_MARGIN + 0.5, "estop": -(SW_BODY[0] / 2 + TERM_MARGIN + 0.5)}   # +-18.5
+SWP_IN_HY = SW_BODY[0] + 2 * TERM_MARGIN + 0.5                    # 36.5 half the inside, across
+SWP_SIDE = 3.0
+SWP_TOP_Z = 0.0                               # the top panel's top: the deck's
+SWP_FLOOR_Z = -58.0                           # its floor's top: a channel under the terminals for the wires
+SWP_BOT_Z = SWP_FLOOR_Z - SWP_WALL
+SW_TERM_END_Z = SWP_TOP_Z - SW_PANEL_T - SW_BODY[2] - SW_TERM_L   # -30.0
+SW_LEVER_TOP_Z = SWP_TOP_Z - SW_PANEL_T + SW_THREAD_L + SW_LEVER_L  # 23.25
+SWP_WELL_Z = SW_LEVER_TOP_Z + 2.0             # the well's walls stand 2 mm over the levers' tips
+# the cap's passage for the switches' wires, into the bay over the board's
+# low parts, under C1 and K1: (y0, y1), (z0, z1)
+SW_PASS = ((-27.0, -9.0), (-56.0, -44.0))
+assert SWP_TOP_Z - SW_PANEL_T - max(SW_ENV.values()) > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_14, \
+    "no room under the switches' terminals for their wires"
+assert SWP_IN_HY + SWP_SIDE + 6.0 <= HOUSING_BOT_HW, "the switch pod is wider than the torso"
 # power board envelope (the rollup's box, sim/build_v6_inertia.py)
 PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
 PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)

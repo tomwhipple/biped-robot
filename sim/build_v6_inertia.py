@@ -220,7 +220,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
     for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "power_bracket_v8", "balance_park_v8",
-              "battery_door_v8", carrier,
+              "switch_pod_v8", "battery_door_v8", carrier,
               "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
@@ -230,7 +230,8 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     t = [mesh_props(stl("pelvis_v8"), [0, 0, zdeck]), mesh_props(stl(torso), [0, 0, zdeck]),
          mesh_props(stl("front_cover_v8"), [0, 0, zdeck])]
     if p.m_battery > 0 or p.m_power > 0:   # the pack bay's door and the power cover
-        t += [mesh_props(stl("power_cover_v8"), [0, 0, zdeck]), mesh_props(stl("battery_door_v8"), [0, 0, zdeck])]
+        t += [mesh_props(stl("power_cover_v8"), [0, 0, zdeck]), mesh_props(stl("battery_door_v8"), [0, 0, zdeck]),
+              mesh_props(stl("switch_pod_v8"), [0, 0, zdeck])]   # the cap's pod (its toggles are not weighed yet)
     t += [mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]), servo("yaw_L", g15), servo("yaw_R", g15)]
     if p.head:   # the neck servo and its floor ride the deck
         t += [servo("neck", g15), mesh_props(stl("neck_floor"), [0, 0, zdeck])]

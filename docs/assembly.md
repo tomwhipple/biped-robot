@@ -154,6 +154,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §9c power board: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
 | §9c BMS bracket onto the standoffs / power cap | M2.5 × 6 flat / M2.5 × 8 flat | 2 / 3 |
 | §9c BMS onto its bracket / balance park onto the aft wall | double-sided foam tape, 1 mm | — |
+| §9c switch pod onto the cap (from the cap's inner face) | M2.5 × 8 flat | 4 |
 | §10 battery door | M2.5 × 8 flat | 1 |
 | §11a neck floor to the tube / neck-servo stators | M2.5 × 8 flat | 4 / 4 |
 | §11b girdle to deck | M2.5 × 8 flat | 10 |
@@ -465,9 +466,11 @@ The power bay holds the power board (power lite, PR #209,
 [pcb/power-lite](../pcb/power-lite/README.md)), its BMS (a ShillehTek
 CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
 (`power_bracket_v8`), the **balance park** (`balance_park_v8`) for the
-balance lead's free end, and the **cap** (`power_cover_v8`) over them (#213).
+balance lead's free end, and the **cap** (`power_cover_v8`) over them, with
+the main switch and the E-stop in the **switch pod** (`switch_pod_v8`) on it
+(#213).
 
-![The power bay from aft: exploded; the board, bracket and BMS in place; the cap on; a section at z = −25; from +y with the skin cut away, the balance park under J1](assembly/power_bay_v8.png)
+![The power bay from aft: exploded; the board, bracket and BMS in place; the cap with its switch pod on; a section at z = −25; from +y with the skin cut away, the balance park under J1; the keep-outs for the wires and the switches' terminals (yellow)](assembly/power_bay_v8.png)
 
 1. **Wire the BMS to the board first**, on the bench, after the BMS's bench
    check: power lite's [assembly guide](../pcb/power-lite/assembly.md), step 13
@@ -475,11 +478,13 @@ balance lead's free end, and the **cap** (`power_cover_v8`) over them (#213).
    - Cut the wires for the BMS's place in the bay: it sits 18.5 mm off the
      board's parts face, over the W pads, its P−/P+ edge up and its B− and B3
      corners toward the fuses.
-   - The two 14 AWG wires loop over the BMS's top edge to B− and P−: there are
-     7 mm between that edge and the deck.
+   - The two 14 AWG wires loop over the BMS's top edge to B− and P−, one
+     behind the other: there are 8 mm between that edge and the deck.
    - The 24 AWG cell taps come up to B3, B2 and B1+ from below, through their
      corner pads' plated holes. The corner pads stand past the bracket's edges.
    - The BMS then hangs on its wires while the board goes in.
+   - At the same time, solder the board's half of the main switch's lead into
+     W6/W7: a 14 AWG pair to the board half of its inline disconnect (step 6).
 2. **The board** goes in from aft: vertical, parts facing aft, onto the four
    6 mm standoff bosses on the aft inner wall.
    - Its −y holes (H2, H4): **2 × M2.5 × 6 pan** screws.
@@ -516,13 +521,39 @@ balance lead's free end, and the **cap** (`power_cover_v8`) over them (#213).
      that is assumed to be free of parts.
 
    ![The BMS bracket onto its standoffs, then the BMS onto its tape](assembly/v6_11b_power_bay.png)
-6. **The cap** goes on from aft: its plate stands 4.7 mm aft of the torso and
-   2.0 mm over the relay K1. Drive **3 × M2.5 × 8 flat-heads** in through the
+6. **The switch pod onto the cap**, on the bench. The cap carries the
+   robot's two toggles (identical 20 A SPST toggles with screw terminals): the
+   **main switch** at +y and the **E-stop** at −y, in the **switch pod**
+   (`switch_pod_v8`), a box on the cap's outer face at its top. Their bodies
+   (27 mm behind the panel with the terminals) do not fit between the cap and
+   the board, so they hang in the pod, outside the bay.
+   - Push each toggle's bushing up through the pod's top panel from inside,
+     levers up, and put on its washer and nut over the panel. The panel is
+     3 mm thick, so the 9.25 mm thread leaves about 3 mm past a 2.4 mm nut and
+     a 0.8 mm washer (the nut and washer are not measured).
+   - **The main switch's wires:** a 14 AWG pair with ring lugs on its two
+     terminals, out of the pod's channel under the switches and through the
+     passage in the cap's plate, to the cap's half of a two-pin inline
+     disconnect (an XT30-size pair; its rating is to be checked against the
+     maker's datasheet). The board's half runs from W6/W7 out over the fuses,
+     between K1 and the BMS, and down to the disconnect, which parks mated
+     over the board's low parts behind the cap (Q1/Q2 and the resistors).
+     It is soldered to W6/W7 in step 1.
+   - **The E-stop's wires:** a 24 AWG pair from its terminals, through the
+     same passage, to a PHR-2 that plugs into J11 on the board's bottom edge.
+   - Drive **4 × M2.5 × 8 flat-heads** from the cap's inner face, through
+     the cap, into the pod's four ears.
+7. **The cap** goes on from aft, its pod and toggles with it: its plate stands
+   4.7 mm aft of the torso and 2.0 mm over the relay K1. Plug the disconnect
+   and J11 first, then drive **3 × M2.5 × 8 flat-heads** in through the
    skins into its corner blocks: the +y top, −y top and −y bottom holes.
    - The torso's +y bottom hole stays empty: the BMS's lower corner is where
      a block there would stand.
+   - **To take the cap off** (a fuse): the three skin screws out, the cap
+     back far enough to reach in, then the disconnect and J11 apart. The cap
+     comes away whole with its switches; nothing is unscrewed from them.
 
-   ![The cap over them: three screws in through the skins](assembly/v6_11c_power_cap.png)
+   ![The cap, its switch pod on it, over them: three screws in through the skins](assembly/v6_11c_power_cap.png)
 
 **What is reached how:**
 
@@ -540,15 +571,37 @@ balance lead's free end, and the **cap** (`power_cover_v8`) over them (#213).
   extension's female end in it, is reached with the cap and the BMS off.
 - **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
   along its bottom edge: all reached with the cap off.
+- **The levers** stand up out of the pod's top at the deck's level, inside its
+  well: its sides and aft wall stand 2 mm over the levers' tips, so a fall on
+  the back or a side lands on the walls. Reach in from above or from the
+  front to throw them.
 - The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
   The sim current budget is in
   [wiring.md](wiring.md#current-measured-budget-issue-77); the bench figure and
-  the inlet are open (#77; [bom.md §3](bom.md#3-power)). The main switch
-  (W6/W7) has **no place in the torso yet**.
+  the inlet are open (#77; [bom.md §3](bom.md#3-power)).
 
-The cap, the bracket and the park print without supports:
+**The room the CAD keeps for wires** (Tom, 2026-11-04: buffers for the wires,
+not zero-margin fits). Each lead is a swept envelope in the checks
+(`torso_v8.wire_envelopes`, `switch_keepouts`), and no part may enter one:
 
-![The cap, the BMS bracket and the balance park as they lie on the bed](assembly/power_bay_prints_v8.png)
+| keep-out | margin it holds | the tightest spot |
+|---|---|---|
+| each toggle's terminals: the body's outline, its 8 mm of screws, the lugs | 3 mm round them; 7 mm past the screws for a 14 AWG ring lug and its turn (main), 4 mm for a 24 AWG wire wrapped under the screw (E-stop) | the pod's walls, at the margin's edge |
+| each lever's throw (15° each way, an estimate) | 3 mm | the well's walls, 5.8 mm |
+| the main switch's 14 AWG pair, in the pod, through the cap, to the disconnect | 2 mm round two 3.4 mm wires side by side | the cap's passage, 0.2 mm |
+| the disconnect (an XT30-size pair, 26 × 11 × 6 mm assumed) | 2 mm | the board's parts, 2.0 mm |
+| the board's half of that pair, up over the fuses to W6/W7 | 2 mm | the BMS bracket's side stop, 0.2 mm |
+| the E-stop's 24 AWG pair, to J11 | 2 mm | the cap's passage, 0.1 mm |
+| the BMS's 14 AWG pair, W1/W2 over its top edge | 2 mm | the deck, the BMS and the bracket, 0.3 mm each: 8 mm over the edge for a 3.4 mm wire |
+| the balance extension, J2 to the park | 1.5 mm across its ribbon, under the BMS bracket; 2 mm elsewhere | J2's plug and the bracket, 0.35 mm |
+
+The leads' envelopes overlap each other where the leads cross; that is
+allowed. **Where the margin is less than 2 mm:** the balance extension's run
+between J2's plug and the bracket (1.5 mm).
+
+The cap, the switch pod, the bracket and the park print without supports:
+
+![The cap, the BMS bracket, the balance park and the switch pod as they lie on the bed](assembly/power_bay_prints_v8.png)
 
 ## 10. The pack and the battery door
 
@@ -809,5 +862,6 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 | room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #209 |
 | the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
 | the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
-| where the main switch (W6/W7) mounts, or none | §9c; #213 |
+| the toggles' nut and washer, lever length and throw; the inline disconnect's size and rating | §9c; #213 |
+| the pod and its levers on the robot's back: the sim plant does not collide with them (supine get-up) | §9c; #213 |
 | 17-joint firmware: calibration, IMU mounting rotation, register-21 check | #81 |
