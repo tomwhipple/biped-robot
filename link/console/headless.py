@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import select
+import signal
 import sys
 import time
 
@@ -117,6 +118,9 @@ def run(opts) -> int:
         log.close()
         return 2
     b = bench.attach(c) if opts.bench_telemetry or opts.cam_relay else None
+    # SIGTERM / Ctrl-C leave through the same path as `quit`: disarming.
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: setattr(c, "quit", True))
     if opts.observe:
         print(f"bimo_console --headless: OBSERVER, no transmit socket; listening "
               f"for beacons on :{opts.tlm_port}", flush=True)

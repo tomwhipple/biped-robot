@@ -163,3 +163,38 @@ def test_reset_is_refused_while_a_stop_goes_out(robot, tmp_path):
     c.fire("home")
     assert "reset servos" in c.core.note
     c.shutdown()
+
+
+def test_sigterm_leaves_a_headless_driver_disarmed(tmp_path):
+    """A console killed politely (SIGTERM, Ctrl-C) leaves through `quit`:
+    the robot is benched, not left standing with nobody driving."""
+    import signal
+    import subprocess
+    port = 4700 + (os.getpid() % 100) * 2
+    twin = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "link_twin.py"),
+                             "--port", str(port), "--tlm-port", str(port + 1),
+                             "--duration", "15"],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    time.sleep(0.4)
+    con = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
+                            "--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                            str(port + 1), "--drive", "--headless", "--no-record",
+                            "--sessions", str(tmp_path), "--keymap",
+                            str(tmp_path / "keys.conf")],
+                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+    try:
+        time.sleep(1.0)
+        con.stdin.write("arm\n")
+        con.stdin.flush()
+        time.sleep(1.5)
+        con.send_signal(signal.SIGTERM)
+        out = con.communicate(timeout=10)[0]
+    finally:
+        twin.terminate()
+        log = twin.communicate(timeout=5)[0]
+    assert con.returncode == 0, out
+    assert "sent disarm" in out, out
+    states = [ln for ln in log.splitlines() if " vx " in ln and "torque" in ln]
+    assert any(" live " in ln for ln in states), log
+    assert " bench " in states[-1] and "torque off" in states[-1], log

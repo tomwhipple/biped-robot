@@ -170,6 +170,10 @@ class SdlPads:
         # label). Both are read when SDL initialises the subsystems below.
         os.environ["SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS"] = "1"
         os.environ["SDL_GAMECONTROLLER_USE_BUTTON_LABELS"] = "0"
+        # SDL otherwise takes SIGINT / SIGTERM for itself (turning them into a
+        # quit event nobody reads), and the console could not be stopped.
+        # The console handles both: it closes, disarming (app.py).
+        os.environ["SDL_NO_SIGNAL_HANDLERS"] = "1"
         # pygame's event queue needs SDL's video subsystem; the dummy driver
         # keeps SDL off Cocoa / X11, which Qt owns. Restored at once so no
         # child process inherits it.

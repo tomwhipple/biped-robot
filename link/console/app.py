@@ -18,6 +18,7 @@ from __future__ import annotations
 import importlib
 import math
 import os
+import signal
 import stat
 import sys
 import time
@@ -426,6 +427,14 @@ def run(opts) -> int:
         return 2
     win = Window(opts, ctl)
     app.installEventFilter(win)
+    # SIGTERM / Ctrl-C close the window like the close button, so a driver
+    # still sends its disarm frames. Python only runs a signal handler
+    # between bytecodes, so a timer keeps it running inside Qt's loop.
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: QtCore.QTimer.singleShot(0, win.close))
+    wake = QtCore.QTimer()
+    wake.timeout.connect(lambda: None)
+    wake.start(200)
     win.show()
     rc = app.exec()
     log.close()

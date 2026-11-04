@@ -168,3 +168,26 @@ def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
         assert w.width() <= max(scr.width(), whole.width())
     finally:
         w.close()
+
+
+def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
+    """SDL (pygame) would take SIGTERM for itself; the console must still
+    close on it, through the window's own close path."""
+    import signal
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
+    p = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
+                          "--host", "127.0.0.1", "--cmd-port", "4890", "--tlm-port", "4891",
+                          "--no-record", "--sessions", str(tmp_path), "--keymap",
+                          str(tmp_path / "keys.conf")],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True, env=env)
+    try:
+        time.sleep(4.0)
+        assert p.poll() is None, p.communicate()[0]
+        p.send_signal(signal.SIGTERM)
+        out = p.communicate(timeout=8)[0]
+    except subprocess.TimeoutExpired:
+        p.kill()
+        out = p.communicate()[0]
+        raise AssertionError("SIGTERM did not close the window\n" + out)
+    assert "quit" in out and "observer: sent nothing" in out, out
