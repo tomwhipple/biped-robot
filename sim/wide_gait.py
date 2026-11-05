@@ -471,19 +471,6 @@ def _stride_kw(t_cad, roll_amp, step, drop=0.03, foot_sep=0.14):
                t_shift=t_cad, t_swing=t_cad, t_land=max(0.2, round(t_cad / 3, 2)))
 
 
-def _full_verify(p, xml, step, kw, pool):
-    """all 4 GATE_CASES x 3 seeds, ONE pool.map of 12 jobs (was 12 sequential
-    run_walk calls). Returns (ok_all, rows) -- rows has every case whose jobs
-    all came back (IK-feasible); a FAILing case still gets its worst-of-3 row
-    (useful for reporting exactly how it failed), an IK-infeasible case does
-    not (ok_all is False either way)."""
-    jobs, labels = _case_jobs(p, xml, 8, step, kw)
-    results = run_batch(jobs, pool=pool)
-    rows = _worst_by_label(results, labels)
-    ok_all = all(r is not None and r["ok"] for r in rows.values())
-    return ok_all, rows
-
-
 CADENCES_DESC = tuple(sorted(CADENCES, reverse=True))   # slow -> fast
 
 
