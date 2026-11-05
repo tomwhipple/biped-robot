@@ -76,6 +76,14 @@ class DesignParams:
     foot_y_off: float = 0.0185   # sole centreline OUTBOARD of the ankle roll axis (m):
                                  # an asymmetric sole with more width outside the ankle,
                                  # because the open-loop walk's failure direction is outward
+    sole_pads: str = "edge"      # the 8 floor-contact pads: "edge" = the inscribed octagon
+                                 # of the rounded-rect sole; "flat" = 4 on the corner arcs +
+                                 # 4 inner, so a flat-loaded foot's yaw friction is a flat
+                                 # sole's (measured_sole, docs/design-v6/2026-11-04-sole-friction.md)
+    sole_pad_r_mean: float = 0.042  # "flat": the pads' mean distance from the sole centre (m)
+    pad_friction: tuple = (1.0, 0.02, 0.001)  # sliding, torsional (m), rolling: the pad class
+    pad_priority: int = 0        # > 0: the pad's friction wins over the floor's (MuJoCo geom
+                                 # priority) instead of the pair's elementwise MAX
     knee: str = "fwd"            # "fwd" = human knee, "bwd" = bird knee, "both" =
                                  # double-jointed: the CAD ROM in both directions
     # ---- joint ranges (deg) ----------------------------------------------
@@ -413,6 +421,34 @@ def measured_stops(p: DesignParams | None = None) -> DesignParams:
     return dataclasses.replace(p or DesignParams(), **MEASURED_STOPS)
 
 
+# The sole friction MEASURED on the robot on 2026-11-04 (hw_sessions/2026-11-04, one foot
+# clamped, the other at half weight ~7.5 N on the bench board): the foot SLIDES at mu ~0.45-0.55
+# (hip roll outward, no stick-slip) and ROTATES under hip yaw with no measurable grip (<= ~0.1-0.15
+# N m, both feet). The edge octagon at mu 1 / torsion 0.02 grips ~0.66 N m. The measured sole:
+#   - mu 0.5, torsional 0 (a 3 mm pad has no yaw brake of its own);
+#   - pad priority 1, so the pad's friction IS the contact's: the floor (1.0) and everything
+#     else that meets it (fallcol, servo boxes) keep theirs, and only the foot contact changes;
+#   - "flat" pads: 4 on the sole outline at the corner arcs (the support polygon stays ~the
+#     sole's) + 4 inner, mean radius 0.042 m, the yaw lever of a uniformly loaded flat sole.
+# docs/design-v6/2026-11-04-sole-friction.md; sim/sole_friction.py reproduces the bench test.
+MEASURED_SOLE = dict(sole_pads="flat", sole_pad_r_mean=0.042, pad_friction=(0.5, 0.0, 0.001),
+                     pad_priority=1)
+
+
+def measured_sole(p: DesignParams | None = None) -> DesignParams:
+    """p with the sole friction measured on the robot on 2026-11-04 (MEASURED_SOLE)."""
+    return dataclasses.replace(p or DesignParams(), **MEASURED_SOLE)
+
+
+def _pad_friction(p) -> str:
+    """the pad class's friction attribute, spelled as the plants have always spelled 1 0.02 0.001"""
+    return " ".join(f"{v:g}" for v in p.pad_friction)
+
+
+def _pad_priority(p) -> str:
+    return f' priority="{p.pad_priority}"' if p.pad_priority else ""
+
+
 def _fc(p) -> str:
     return 'class="fallcol" ' if p.fall_collision else ''
 
@@ -474,12 +510,29 @@ def _pads(p: DesignParams, side: str) -> str:
     hw = p.foot_w / 2
     cr = p.foot_r
     yo = p.foot_y_off if side == "L" else -p.foot_y_off
-    pts = [
-        ("hl", x_heel, +hw - cr), ("hr", x_heel, -(hw - cr)),
-        ("hol", x_heel + cr, +hw), ("hor", x_heel + cr, -hw),
-        ("tol", x_toe - cr, +hw), ("tor", x_toe - cr, -hw),
-        ("tl", x_toe, +hw - cr), ("tr", x_toe, -(hw - cr)),
-    ]
+    if p.sole_pads == "flat":
+        # 4 pads on the outline, at the 45 deg points of the corner arcs, and 4 inner ones on
+        # the same diagonals, placed so the 8 pads' mean distance from the sole centre is
+        # sole_pad_r_mean: a flat-loaded foot (equal pad loads) resists yaw like a flat sole.
+        cx = (x_heel + x_toe) / 2
+        dx, dy = (x_toe - x_heel) / 2 - cr * (1 - math.sqrt(0.5)), hw - cr * (1 - math.sqrt(0.5))
+        r_out = math.hypot(dx, dy)
+        k = (2 * p.sole_pad_r_mean - r_out) / r_out
+        assert 0 < k < 1, f"sole_pad_r_mean {p.sole_pad_r_mean} out of reach (corner pads at {r_out:.4f})"
+        pts = [
+            ("hl", cx - dx, +dy), ("hr", cx - dx, -dy),
+            ("hil", cx - k * dx, +k * dy), ("hir", cx - k * dx, -k * dy),
+            ("til", cx + k * dx, +k * dy), ("tir", cx + k * dx, -k * dy),
+            ("tl", cx + dx, +dy), ("tr", cx + dx, -dy),
+        ]
+    else:
+        assert p.sole_pads == "edge", p.sole_pads
+        pts = [
+            ("hl", x_heel, +hw - cr), ("hr", x_heel, -(hw - cr)),
+            ("hol", x_heel + cr, +hw), ("hor", x_heel + cr, -hw),
+            ("tol", x_toe - cr, +hw), ("tor", x_toe - cr, -hw),
+            ("tl", x_toe, +hw - cr), ("tr", x_toe, -(hw - cr)),
+        ]
     return "\n".join(
         f'              <geom name="{side}_pad_{n}" class="pad" pos="{_f(x)} {_f(y + yo)} {_f(zc)}"/>'
         for n, x, y in pts)
@@ -943,7 +996,7 @@ def build_xml(p: DesignParams) -> str:
     </default>
     <default class="pad">
       <geom type="sphere" size="0.003" contype="1" conaffinity="0" mass="0"
-            friction="1 0.02 0.001" condim="4" rgba="0.20 0.21 0.24 1"/>
+            friction="{_pad_friction(p)}" condim="4"{_pad_priority(p)} rgba="0.20 0.21 0.24 1"/>
     </default>
     <default class="fallcol">
       <geom contype="2" conaffinity="{_selfaff(p)}" group="1" friction="0.8 0.02 0.001" condim="4"/>
