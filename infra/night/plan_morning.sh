@@ -22,8 +22,12 @@ flock -n 8 || { echo "=== $(date) plan_morning: another planner holds the lock; 
 echo "=== $(date) plan_morning ==="
 
 notify() {
-  "$HOME/.local/bin/hermes" send -q -t "$TOM" "Get-up planner: $1" \
-    || echo "!!! Mattermost notify failed; message was: $1"
+  # Tom 2026-11-02: status DMs OFF while Claude Code manages the sim
+  # campaigns; re-enable with NIGHT_DM_NOTIFY=1
+  if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
+    "$HOME/.local/bin/hermes" send -q -t "$TOM" "Get-up planner: $1" \
+      || echo "!!! Mattermost notify failed; message was: $1"
+  fi
 }
 
 # wait (up to 3 h) for today's collection to finish: it referees and renders
@@ -76,6 +80,18 @@ PY
 )
 echo "$(date +%H:%M) claude exit=$RC: ${LAST:-<no PLAN_STATUS line>}"
 QN=$(ls "$N/queue" | grep -cE '^[0-9]' || true)
+if [[ -z "$LAST" ]]; then
+  # fix-and-continue (Tom 2026-11-05): another session finishes the job
+  "$N/claude_fix.sh" morning-planner "$OUTDIR/$STAMP.stderr" 120 <<EOF \
+    && LAST="PLAN_STATUS: planned by the fixer after the planner failed (exit $RC)"
+The morning planning session (plan_morning.sh -> claude -p with
+$OUTDIR/$STAMP.prompt.md) failed: exit $RC, no PLAN_STATUS line. Its transcript is
+$OUTDIR/$STAMP.json (stderr in the log tail below). Do what it was asked to do:
+read the prompt file and follow it -- evaluate last night, update the ledger, and
+queue tonight -- then report FIX_STATUS.
+EOF
+  QN=$(ls "$N/queue" | grep -cE '^[0-9]' || true)
+fi
 if [[ -z "$LAST" ]]; then
   notify "the morning planning session failed (exit $RC, no status line; transcript $OUTDIR/$STAMP.json). $QN jobs queued; ensure_queue.sh tops the night up at 21:30."
 else

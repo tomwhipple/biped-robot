@@ -474,7 +474,9 @@ Training runs **at night only**; days belong to the box's owner.
   the last eval checkpoint stands.
 - **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
-  branch a job names with `BRANCH=`. Anything not pushed does not train. The
+  branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
+  is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
+  Anything not pushed does not train. The
   runner scripts sit in the clone's untracked `night/` directory, so a reset
   cannot rewrite them mid-run.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
@@ -494,7 +496,9 @@ Training runs **at night only**; days belong to the box's owner.
   finished run into the working checkout and referees it: the python column
   with `--render`, and the SIL column. The lag column is run by hand (§8). It
   fast-forwards the checkout to `origin/main` first, so the references and
-  plants a run trained against are there to referee it.
+  plants a run trained against are there to referee it. If uncommitted files
+  block the fast-forward, it stashes only the paths upstream also changed, under
+  a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
 - **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
   collection, then runs a headless Claude Code session on
   `infra/night/planner_prompt.md`: it evaluates the night against the campaign
@@ -504,6 +508,14 @@ Training runs **at night only**; days belong to the box's owner.
   `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
   from `night/fallback.job` with fresh seeds if the planner left it short.
   Installed copies of both live beside the runner in `night/`.
+- **Fix and continue.** When a harness step fails, `infra/night/claude_fix.sh`
+  starts a headless Claude Code session (Opus) with the failure and the log
+  tail, and waits for it. The step is retried once if the session reports
+  `FIX_STATUS: fixed`. The steps are: a failed sync, a failed pre-flight, a
+  training or `CMD=` job that exits non-zero (the fixer may re-queue it), a
+  failed collect sync or referee, a missing `fallback.job`, and a failed
+  planner. Limits: one fixer at a time, six a day, and `CLAUDE_FIX=0` turns it
+  off. Log in `night/fixer.log`, transcripts in `night/fixer/`.
 
 ### Training on the Mac (CPU physics + MPS)
 

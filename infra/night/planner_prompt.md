@@ -4,6 +4,46 @@ You were launched headless by `night/plan_morning.sh` (cron 07:30 on mira, as
 claw) after the morning collection. No human is watching. Tom has
 pre-authorized the work below; do it without asking.
 
+## OVERRIDES EVERYTHING BELOW (Tom, 2026-11-05)
+
+> I want you not to spend any more time on getup until we have stride working.
+> Always check to make sure we have the latest from github before starting a
+> training run. Bring in the latest relevant changes. Use a branch if you're
+> not sure what should be merged.
+
+- **Stride first.** Queue only `robot_legs_*` work (stride / walk / stand).
+  **No get-up jobs, evaluations or ledger work.** The get-up jobs parked on
+  11-05 stay in `queue/held/`, and `fallback.job` is a stride job (the get-up
+  one is `fallback.job.getup-held-20261105`). Get-up comes back only after a
+  student passes stride1 at refit μ 0.4 on the measured-sole plant **and** Tom
+  has seen it. "Stride working" means that student also takes a stride on the
+  robot.
+- Fill the whole night (22:00 – 05:00 starts) with legs jobs. A 300M legs teacher
+  takes ~38 min and a distil ~3 min, so about 8 – 9 teacher + distil pairs fit.
+- **Latest from GitHub, before you queue:**
+  1. `git fetch origin`, and fast-forward `~/code/robot`.
+  2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
+     the local branches and worktrees in `~/code/robot` that are ahead of main
+     (`git for-each-ref --sort=-committerdate refs/heads`). Unpushed overnight
+     work lives there; the measured-sole plant did on 11-05.
+  3. If a change bears on stride (plant, actuator, contact, referee, grade.py,
+     train_mjx, the firmware chain), bring it in. If it is safe (tests green,
+     opt-in or a clear fix), merge it to main. If you are not sure, push it on a
+     branch and point that night's jobs at it with `BRANCH=`.
+  4. Say in the ledger what you merged or branched, and why.
+- The runner fetches and verifies origin's tip before every job and writes
+  `SYNC=ok|STALE` into the job's `state.done.*`. Treat any card from a
+  `SYNC=STALE` job, or a `STALE REFEREE` collect log, as suspect: re-referee it
+  on main before you draw a conclusion.
+- Night failures are fixed in-line by `night/claude_fix.sh` (headless
+  sessions; `night/fixer.log`, transcripts in `night/fixer/`). Read
+  `fixer.log` and report what the fixers did. If a fix is only a stopgap,
+  finish it properly.
+- Measured-sole plant: train with `--xml bimo_biped_v6legs_meas_sole.xml
+  --contact-mu 0.3,0.7` and NO `--contact-torsion`. Grade with
+  `GRADE_XML=bimo_biped_v6legs_meas_sole.xml`
+  (`docs/design-v6/2026-11-04-sole-friction.md`).
+
 ## Standing request (Tom, 2026-10-21)
 
 > Plan another run, focusing on getup. Put together some analytic kinematic
@@ -32,6 +72,48 @@ is that every step of every foot peaks at least 3 cm) and compare siblings by
 their one variable; a held get-up job in `queue/held/` is yours to re-queue.
 Ledger entries for the new track go in the same "Night of" entry as get-up,
 under their own heading.
+
+## Deploy-first legs track (Tom, 2026-10-30) -- overrides the walk recipe above where they differ
+
+Tom handed the night training to the Claude Code robot session on 2026-10-30. The legs walk
+line must now produce policies that can actually run ON THE ESP32 (no PC-side 50 Hz runner):
+
+- Every `robot_legs_walk*` teacher trains with `--action-map full --ctrl-within-stops
+  --servo-kp-scale asbuilt --quantize` (the stock P32/D32 the robot runs; servo_gains.h stays
+  factory) on the FITTED plant (PR #179, sim fit to the 10-30 flight-recorder stands):
+  `--roll-lash-deg 0.5,2.0 --backlash-deg 0,0.25 --zero-offset-deg 2` (the old 1-5 deg play / 0.5-1 deg
+  backlash made every replayed stand saturate or fall). Never queue a legacy-map or `--servo-kp-scale
+  robot` walk job again: it cannot deploy. Re-fit (experiments/one-leg-stand/simfit_*.py) when new
+  flight-recorder sessions arrive and update these flags from the fit, not from intuition.
+- Warm start from the newest full-map legs checkpoint (robot_legs_walk11_full or later).
+- After the best walk teacher each night, queue its distill as a CMD job right after it:
+  `CMD=infra/night_distill.sh <teacher> <teacher>_s128r24` / `OUT=<teacher>_s128r24` (see
+  docs/training.md section 7/9). The student's scorecard (walk_steps L/R min swing clearance >= 3 cm,
+  stand_10s) is the headline for the legs track, not the teacher's.
+- Hardware data now arrives as flight-recorder sessions (hw_sessions/<date>/flight_*.frec;
+  tools/flight_reader.py). When a sim-vs-real discrepancy is recorded there (play, sag, lean at
+  lift, foot-off timing), plan sim/plant updates from it before more reward tuning.
+- Policy-driven (Tom, 2026-11-01: "we need to be working towards a full policy driven system"): standing at
+  zero command, balance, stepping AND turning (turn_180, yaw-rate commands) are POLICY objectives; there is
+  no scripted bench turning/balance to fall back on. Rank legs teachers/students on stand_10s + a pushed
+  zero-command stand first (the first hardware deploy is "stand under the policy"), then walk_steps L/R
+  (>= 3 cm clearance) and turn_180. Close the teacher->student gap (students fell 50-55 % on the full
+  scorecard vs teachers ~21 % on 10-31): try distillation settings and report the gap every morning.
+- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-05:00 starts
+  (~50 min per 400M legs job, ~30 min distill, ~1.6 h per 600M get-up job).
+
+## FAST servo config (2026-11-02) -- supersedes the 60-80 ms STS3215 dead time
+
+The STS3215's ~70 ms dead time was a factory RAM setting (reg 85 = 50; reg 81 = 20 halves the slew). Firmware
+`servocfg` now writes 85 = 0, 81 = 1 at boot/arm (verified). Measured on the robot afterwards: STS3215 dead time
+18-27 ms (~1 control tick), t80 ~63-90 ms, overshoot <= 1.12; STS3250 hip rolls unchanged (12 ms). Double-support
+3 Hz roll peak halved. So every legs job from now on trains the STS3215 at ~1 tick of dead time
+(`--act-delay-types sts3215=0:2,sts3250=0:1`, or the equivalent extra-delay preset re-fit -- NOT sts2026's +3 ticks
+and NOT 2:5), and re-grades students on the fast-servo actuator. On hardware with fast servos, walk14_s1 needs
+obsfreeze gain=0.5 + shape 6 (without them it diverged in < 1 s); with them it stands, residual 1.5/3 Hz gait-clock
+jitter -- the stand-still objective (frozen clock / action-rate penalty at zero command) is a priority, judged on
+jitter and power as well as falls and margin. Walking may now be learnable: re-test the >= 3 cm clearance gate with
+the fast actuator.
 
 ## Read first (the latest knowledge — do not plan from memory)
 
@@ -136,3 +218,91 @@ referee shows a phase failing is in scope every day.
    if a decision or hardware action of Tom's blocks the campaign,
    `PLAN_STATUS: NEEDS_TOM — <what>` (queue the best available night anyway).
    The wrapper sends that line to Tom; do not post to Mattermost/Slack yourself.
+
+## Actuator dynamics (2026-11-01 RCA) -- every legs job, from now on
+
+The first on-ESP stand (walk14_s1_s128r24, 2026-11-01 21:39 UTC) flailed after 3.3 s: a
+closed-loop oscillation doubling every ~0.4 s. Firmware/obs fidelity is exact. The cause is
+the ACTUATOR: robot `stepresp` (loaded and unloaded) shows STS3215 = 60-84 ms PURE DEAD TIME,
+then a first-order rise tau ~55-90 ms (t90 150-260 ms); STS3250 hip rolls = 12-18 ms dead,
+underdamped (10-22 % overshoot, 4.6 Hz limit cycle in the air). A joint fit to stepresp + the
+roll sweep gives plant damping ~0.17x the model and friction ~0.17 N*m. The training plant
+had no dead time (`--act-lag` is a lag cascade), full damping and fixed friction. With the
+measured actuator, every student and teacher we have has <= 1.25x loop-gain margin. Analysis:
+experiments/policy/2026-11-01-first-stand-rca.md (branch policy-stand-rca, PR linked there).
+
+Every `robot_legs_*` teacher carries, in addition to the deploy-track flags above:
+
+    --act-delay-types sts3215=2:5,sts3250=0:1 --act-lag 2,8
+    --servo-kd-range 0.12,1.0 --servo-kp-range 0.6,1.2 --joint-frictionloss-range 0.1,0.4
+    --gyro-gain-range 0.7,1.6 --gyro-delay-max 1
+
+These flags exist only on branch `policy-stand-rca` (PR #189) until it merges. NOTE: main now has PR #192 (floors/actuator fit), which has its OWN dead-time flags (`--act-delay-extra sts2026`, `--act-lag-scale sts2026`, `--servo-kd`, `--servo-joint-damping`, `--floor-contact`). Do not mix the two dead-time mechanisms in one job. #189 must be rebased onto #192 and settle on one implementation before it merges. Until then, queue
+legs jobs with `BRANCH=policy-stand-rca` (pre-flight checks the flags on the job's branch).
+Warm-start legs teachers from the newest actuator-DR checkpoint (see the RCA doc's results
+section), not from walk14/walk15.
+
+Grade students for deploy by MARGIN on the measured actuator, not by the as-trained
+referee alone: `experiments/policy/rca/candidates.py <runs> fit 8 out.json` with `ACT=meas`
+(CPU, ~5 min per run). The probes are falls with the measured actuator at loop gain x1,
+x1.25 and x1.5 (an x1.5 pass is the bar for a hardware stand) plus 0.4 m/s pushes.
+`walk14_s1_s128r24` scores 1/8, 8/8, 8/8 and 5/8 there. Report these numbers every
+morning next to the scorecard.
+
+Tonight (2026-11-01), queued FIRST on `policy-stand-rca`: robot_legs_walk16_act (seed 0, the recipe
+above + `--w-action-rate 0.3`) and robot_legs_walk16_actwide (seed 1, `--servo-kp-range 0.45,1.5
+--servo-kd-range 0.05,1.0 --gyro-gain-range 0.7,2.0`). Both warm-start from robot_legs_walk14_s1_actar and
+each is distilled to `_s128r24`. In the morning, grade both students with `ACT=meas` and
+`ACT=hard` candidates.py (the bar is 0/8 falls at x1.5, better at x1.75/x2, and the
+pessimistic sweep-only fit) next to their scorecards. The day students
+walk14_s1_act(ar)_s128r24 pass x1.5 and fail x1.75; actar stands 8/8 at 51 W but its walk
+clearance fell to ~1.2 cm.
+
+## Stand on hardware (2026-11-02 PM, walk16_act_s128r24, fast servos)
+- Firmware `standclock coast` (PR #197; default coast target π/2) stops the gait clock at a
+  stand. The robot is then motionless (jitter 0.012 deg vs 0.22, 3 min held, 1.10 W), and
+  coast adds margin: with the clock running and no obsfreeze the stand flailed at 21 s.
+- **The command shaper is load-bearing.** With no shaper the stand flails on chatter in 1 s;
+  at 20 Hz it flails on body rate; 15 Hz and below holds. Recipes that train with the C2
+  command shaper (3 cascaded lags at about 6-12 Hz) in the sim loop are the policy-driven fix.
+  Prefer them to anything relying on firmware knobs.
+- **Stand power is internal squeeze, not gravity.** Armed draw is about 1 W, while holding
+  the same pose with the policy off draws 0.05-0.19 W. The sim's power proxy ranks phases
+  wrongly, so judge stand power on the robot, or penalise target-vs-achieved error at stand
+  in training, not tau^2.
+
+## Shaper-in-the-loop line (2026-11-02, PR #203, branch shaper-train) -- top walking priority
+- `--fw-shaper` trains with the firmware C2 shaper in the loop. Policies trained without it trip the
+  flail guard on the robot's first step (11-02 stride1). The current candidate is
+  robot_legs_walk18_shp10sq_s128r24: 0/0 at x1.5, stride1 and walk->stop, squeeze 2.0 deg. It needs
+  `shape 10` exactly.
+- Tonight the walk19_shp10sq / walk19_shp8_12sq jobs (600M each, plus distills) run FIRST, with
+  BRANCH=shaper-train.
+- In the morning, grade them with experiments/policy/shaper-train/grade.py (on that branch) against
+  walk18_shp10sq_s128r24. The bar: 0 flail-guard trips on stride1 and walk->stop, x1.5 0/8, ideally
+  some x2 margin, and for shp8_12 a wider tolerated pole range.
+- New legs recipes should carry --fw-shaper (and --clock-coast-stand) from now on.
+
+## Measured-stops plants (2026-11-03, PR #210) -- the DEFAULT for new jobs
+- Legs jobs: `--xml bimo_biped_v6legs_meas.xml` (was bimo_biped_v6legs.xml).
+- Arms or get-up jobs in `--ctrl-within-stops` mode: `--xml bimo_biped_v6ar_meas.xml`.
+- These plants carry the robot's MEASURED joint stops (2026-11-02, both directions, guarded sweeps): ankle roll
+  stops at 27.5 deg on the outer edge only, ankle pitch +-80, hip yaw +-90, hip roll +-58, hip pitch -124..+104,
+  knee -132..+95. Their thigh/shank collision capsules are corrected to the CAD (within 0.9 deg).
+- In within-stops mode the policy range is identical to the old plants', so warm starts from any v6legs or v6ar
+  within-stops checkpoint are valid.
+- `--ctrl-physical` jobs MUST stay on the old plants (bimo_biped_v6ar.xml / v6legs.xml): physical mode uses the
+  joint range as the policy range, and the new plants widen it.
+- Plain-mode warm starts (no within-stops) of an old-plant run would rescale the ankle 45 -> 40: don't.
+
+## Bench supply (2026-11-04)
+The robot runs from a bench supply that behaves as 12.02 V - 0.44 ohm * I (10.7 V at a 3.3 A kick). The PR #214
+actuator refit was fitted on data that includes this sag. If a supply-sag model is added to the sim, use these
+numbers for the bench, and ~0.1 ohm for a 3S LiPo.
+
+## Foot friction MEASURED (2026-11-04, clamp test) -- for the next legs recipe
+- Yaw grip of a half-loaded foot is <= ~0.1-0.15 N m: it rotates freely with no breakaway. The plant gives ~0.66 N m
+  (8 edge pads at r 0.068 m, mu 1, torsion 0.02), and still ~0.18 at the DR low end (mu 0.35, torsion 0.001).
+- Sliding mu is ~0.45 (rough).
+- Next: move the plant's sole pads inward (mean radius ~0.042 m), or add a yaw-compliant contact. Shift --contact-mu to
+  ~0.3,0.7 and --contact-torsion to 0,0.005. Gate on refit + low-mu stride1 with the limiter.

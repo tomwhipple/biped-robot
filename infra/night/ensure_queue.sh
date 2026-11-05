@@ -12,14 +12,30 @@ Q=$N/queue
 FB=$N/fallback.job
 MIN_JOBS=5
 TOM=mattermost:xhtnq11nhjn1jpytz1sj4zzimr
+# Tom 2026-11-02: DM notifications OFF while Claude Code manages the sims;
+# re-enable with NIGHT_DM_NOTIFY=1 (NO_NOTIFY still wins)
+NOTIFY=$( [[ ${NIGHT_DM_NOTIFY:-} == 1 && -z ${NO_NOTIFY:-} ]] && echo 1 || echo 0 )
 exec >> "$N/planner.log" 2>&1
 have=$(ls "$Q" | grep -cE '^[0-9]' || true)
 (( have >= MIN_JOBS )) && exit 0
 echo "=== $(date) ensure_queue: $have job(s) queued, want $MIN_JOBS ==="
+if [[ ! -s $FB ]] && [[ -x $N/claude_fix.sh ]]; then
+  # fix-and-continue (Tom 2026-11-05)
+  "$N/claude_fix.sh" ensure-queue-fallback "$N/planner.log" 30 <<EOF || true
+ensure_queue.sh (21:30) found $have job(s) in $Q and no $FB to top the night
+up to $MIN_JOBS from. Write $FB (same format as a queue job: optional BRANCH=,
+# comments, one args line) with the stride job most worth repeating (STRIDE
+FIRST), or queue tonight's jobs directly. ensure_queue re-checks after you exit.
+EOF
+  have=$(ls "$Q" | grep -cE '^[0-9]' || true)
+  (( have >= MIN_JOBS )) && exit 0
+fi
 if [[ ! -s $FB ]]; then
   echo "!!! no $FB to top up from"
-  [[ -n ${NO_NOTIFY:-} ]] || "$HOME/.local/bin/hermes" send -q -t "$TOM" \
-    "Get-up loop: only $have job(s) queued for tonight and no fallback.job -- the GPU will idle after them." || true
+  if (( NOTIFY )); then
+    "$HOME/.local/bin/hermes" send -q -t "$TOM" \
+      "Get-up loop: only $have job(s) queued for tonight and no fallback.job -- the GPU will idle after them." || true
+  fi
   exit 1
 fi
 BR=$(sed -n 's/^BRANCH=//p' "$FB" | head -1)
@@ -45,5 +61,7 @@ while (( have < MIN_JOBS )); do
   have=$((have + 1))
 done
 echo "queued ${added[*]}"
-[[ -n ${NO_NOTIFY:-} ]] || "$HOME/.local/bin/hermes" send -q -t "$TOM" \
-  "Get-up loop: the planner left the night short; ensure_queue.sh added ${#added[@]} fallback job(s): ${added[*]}" || true
+if (( NOTIFY )); then
+  "$HOME/.local/bin/hermes" send -q -t "$TOM" \
+    "Get-up loop: the planner left the night short; ensure_queue.sh added ${#added[@]} fallback job(s): ${added[*]}" || true
+fi
