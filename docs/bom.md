@@ -320,7 +320,7 @@ M2.5, not M3.
 | PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.86 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
 | silicone rubber sheet, **2 mm** thick: BENECREAT white silicone, 300 × 300 mm, 2 sheets ([bom-sourced](bom-sourced.md) item 16, [Amazon B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ)) | 1 sheet cuts both soles | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and bonded to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
 | adhesive for the soles | — | needed unless the sheet is self-adhesive (the listing shows no backing): a silicone-rubber adhesive. Plain CA and epoxy don't hold silicone; CA does over a polyolefin primer | |
-| CA or epoxy | — | the pelvis glued into the torso: the web faces, the ledge and the skins ([assembly §7a](assembly.md)) | |
+| CA or epoxy | — | the pelvis glued into the torso: the web faces, the ledge and the skins ([assembly §7a](assembly.md)); the two upper-arm head inserts ([assembly §11d](assembly.md)) | |
 | adhesive foam pads, **1.5 mm** thick | 2 (about 30 × 20 mm) | under the pack, one over each yaw cell on the pelvis's ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
 | foam pad | 1 | in the 4.0 mm between the pack and the neck floor, which holds the pack down through it | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |

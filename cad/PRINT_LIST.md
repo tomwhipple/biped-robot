@@ -16,7 +16,7 @@ for the collar's flange screws.
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_glued_roll` ×2, `hip_yoke_glued_pitch` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_glued_roll` ×2, `hip_yoke_glued_pitch` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_head_insert_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
 `leg_link_v6` and one set of hip yoke pieces (`hip_yoke_glued_roll` +
@@ -60,6 +60,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
 | `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
 | `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair, L / R debossed on the outboard rail; open-front U with two end walls; grips the elbow servo |
+| `arm_head_insert_v6_L`, `_R` | 1 + 1 | 1.8 | 30 × 9 × 24 | flat, outboard face down | no | a mirror pair, not labelled (its lip goes on the horn plate's side); glued into the upper arm's head, closing its U at the front and top ([assembly §11d](../docs/assembly.md)); its own `arm_head_inserts` plate |
 | `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair, L / R debossed on the outboard rail; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**

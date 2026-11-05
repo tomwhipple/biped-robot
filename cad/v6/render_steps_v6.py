@@ -91,7 +91,7 @@ POWER_BAY = ["power_bracket_v8", "bms_mock", "power_cover_v8", "switch_pod_v8", 
 BOARDS = STACK + POWER_BAY
 PACK = ["pack_mock", "battery_door_v8"]
 NECK = ["shoulder_girdle_v6", "neck_floor", "servo_neck"]
-ARM = ["servo_shoulder_L", "arm_upper_L", "servo_elbow_L", "arm_fore_L"]
+ARM = ["servo_shoulder_L", "arm_upper_L", "arm_head_insert_L", "servo_elbow_L", "arm_fore_L"]   # the insert is glued in on the bench (#199)
 ARM_R = [n[:-1] + "R" for n in ARM]
 
 # (file stem, caption, installed, incoming, offset mm, (azimuth, elevation), frame-on or None)
@@ -149,11 +149,11 @@ STEPS = [
      ["shoulder_cheek_L", "shoulder_cheek_R"], 35, (150, -30), ["shoulder_girdle_v6"]),
     ("17_upper_arm", "11d. Upper arm straight in onto the shoulder horn",
      TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R", "shoulder_cheek_L", "shoulder_cheek_R"],
-     ["arm_upper_L"], 45, (110, -10), ["servo_shoulder_L", "arm_upper_L"]),
+     ["arm_upper_L", "arm_head_insert_L"], 45, (110, -10), ["servo_shoulder_L", "arm_upper_L"]),
     ("18_elbow_servo", "11c. Elbow servo into the upper arm's grip channel, from the front",
-     ["arm_upper_L", "servo_shoulder_L"], ["servo_elbow_L"], 45, (150, -10), ["arm_upper_L", "servo_elbow_L"]),
+     ["arm_upper_L", "arm_head_insert_L", "servo_shoulder_L"], ["servo_elbow_L"], 45, (150, -10), ["arm_upper_L", "servo_elbow_L"]),
     ("19_forearm", "11c. Forearm lifted up, its fork onto the elbow servo's discs",
-     ["arm_upper_L", "servo_shoulder_L", "servo_elbow_L"], ["arm_fore_L"], 45, (120, -5),
+     ["arm_upper_L", "arm_head_insert_L", "servo_shoulder_L", "servo_elbow_L"], ["arm_fore_L"], 45, (120, -5),
      ["arm_fore_L", "servo_elbow_L", "arm_upper_L"]),
     ("20_head", "11e. Head down onto the neck horn",
      TORSO_DONE + NECK + ["servo_shoulder_L", "servo_shoulder_R", "shoulder_cheek_L", "shoulder_cheek_R"], ["head"], 45, (150, -15),

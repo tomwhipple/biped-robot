@@ -200,6 +200,14 @@ ARM_PAIRS = [
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the girdle it hangs off, whole sweep", None),
     ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
     ("shoulder", "arm_upper_{s}", "shoulder_cheek_{s}", "upper arm vs the cheek it turns 0.7 mm off, whole sweep", None),
+    # the head's glued insert (issue #199) rides the upper arm; its lip stands
+    # ARM_INSERT_LIP proud of the head's front and top edges
+    ("shoulder", "arm_head_insert_{s}", "arm_upper_{s}", "head insert glued in the head's C, lip on the horn plate: must not intersect", None),
+    ("shoulder", "arm_head_insert_{s}", "shoulder_cheek_{s}", "head insert's lip vs the cheek, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "servo_shoulder_{s}", "head insert vs the shoulder servo, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "shoulder_girdle_v6", "head insert vs the girdle, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "torso_v8", "head insert vs the torso, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "head", "head insert vs the head at the fold-up", None),
     ("shoulder", "arm_fore_{s}", "shoulder_cheek_{s}", "forearm vs the cheek, FOLDED", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "torso_v8", "forearm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "battery_door_v8", "forearm vs the battery door, whole sweep, hanging", None),
@@ -245,6 +253,7 @@ ARM_PAIRS = [
     ("ankle_pitch", "ankle_link_{s}", "arm_fore_{s}", "ankle link vs the hanging forearm (the arm reaches to z 154)", None),
 ]
 ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo_elbow_{s}"),
+                ("arm_head_insert_{s}", "arm_upper_{s}"),
                 ("servo_elbow_{s}", "arm_upper_{s}")}
 
 

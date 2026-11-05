@@ -470,6 +470,8 @@ def _arm_chain(side):
         (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
         (0, f"shoulder_cheek_{side}", COL_PRINT, deck * SG.shoulder_cheek_v6(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
+        # glued into the upper arm's head (issue #199): rides it
+        (1, f"arm_head_insert_{side}", COL_PRINT, at_sh * arm_v6.arm_head_insert_v6(side)),
         # the elbow servo's case rides the UPPER arm (arm_v6.elbow_servo_mock)
         (1, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
         (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),

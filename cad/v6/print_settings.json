@@ -69,6 +69,13 @@
       ],
       "note": "the four arm links (ARMS=1), each on its back, web face down. Manual supports: the forearms' elbow pads inside their enforcer boxes, nothing on the upper arms. The shoulder girdle (200 x 58) does not fit beside them"
     },
+    "arm_head_inserts": {
+      "parts": [
+        "arm_head_insert_v6_L",
+        "arm_head_insert_v6_R"
+      ],
+      "note": "the two upper-arm head inserts (issue #199), flat, outboard face down, no supports. They are not on the arms plate, which slices with manual supports"
+    },
     "girdle_neck": {
       "parts": [
         "shoulder_girdle_v6",
@@ -194,6 +201,16 @@
         "support_type": "normal(manual)",
         "support_style": "snug"
       }
+    },
+    "arm_head_insert_v6_L": {
+      "orient": "RY_YDOWN",
+      "supports": false,
+      "note": "flat, outboard face (model +Y) down, the lip rising over the body; no supports"
+    },
+    "arm_head_insert_v6_R": {
+      "orient": "RY_ROLL_WALL",
+      "supports": false,
+      "note": "flat, outboard face (model -Y) down, the lip rising over the body; no supports"
     },
     "arm_upper_v6_R": {
       "orient": "RY_XUP",

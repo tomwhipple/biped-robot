@@ -35,7 +35,8 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
-from build123d import export_step, export_stl  # noqa: E402
+from build123d import export_step  # noqa: E402
+from stable_stl import export_stl_stable  # noqa: E402  (keeps an unchanged part's bytes)
 import dimensions_v6 as V  # noqa: E402
 import paths  # noqa: E402
 D = V.D
@@ -120,6 +121,9 @@ if ARMS:
          "(turned over for the right), flat, outer face down"),
         ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow servo grip, 160 mm (on its back)"),
         ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L, its own letter R"),
+        ("arm_head_insert_v6_L", _lazy("arm_v6", "arm_head_insert_v6", "L"), 1,
+         "glued into the upper arm's head, closing its C at the front and top (#199); flat, outboard face down"),
+        ("arm_head_insert_v6_R", _lazy("arm_v6", "arm_head_insert_v6", "R"), 1, "mirror of _L"),
         ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow fork -> hand knuckle, 160 mm (on its back)"),
         ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L, its own letter R"),
     ]
@@ -178,7 +182,7 @@ def main(argv=None):
         m = mass_g(s, tpu=name.startswith("sole_tpu"))
         total_print += m * qty
         if export:
-            export_stl(s, os.path.join(OUT_STL, f"{name}.stl"))
+            export_stl_stable(s, os.path.join(OUT_STL, f"{name}.stl"))
             export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))

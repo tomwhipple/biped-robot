@@ -39,7 +39,7 @@ lands in the body whose joint moves it.
     _hip       hip_yoke_glued_roll + hip_yoke_glued_pitch (glued into one link)
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
     _foot      foot + silicone sole + the ankle-roll servo
-    _arm       arm_upper_v6 + the elbow servo (its case runs up the upper arm)
+    _arm       arm_upper_v6 + its glued head insert + the elbow servo (its case runs up the upper arm)
     _forearm   arm_fore_v6
 
 For studies, plant_xml(p, m3250_g) returns the same plant for a DesignParams
@@ -281,7 +281,9 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
                                mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_SOLE),
                                servo(f"foot_{side}", g_aroll)]
         if p.arms:
-            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0]), servo(f"elbow_{side}", g15)]
+            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0]),
+                                  mesh_props(stl(f"arm_head_insert_v6_{side}"), [0, 0, 0]),   # glued in (#199), arm frame
+                                  servo(f"elbow_{side}", g15)]
             out[f"{side}_forearm"] = [mesh_props(stl(f"arm_fore_v6_{side}"), [0, 0, 0])]
     return out
 
