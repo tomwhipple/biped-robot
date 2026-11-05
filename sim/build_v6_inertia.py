@@ -27,6 +27,9 @@ the committed plant, which is THE ROBOT AS DRAWN:
     .venv/bin/python sim/build_v6_inertia.py --measured-stops [--asbuilt-legs] --write
                        # sim/bimo_biped_v6ar_meas.xml [v6legs_meas]: the joint stops measured on
                        # the robot 2026-11-02 (gen_plant_v6.measured_stops), policy ranges unchanged
+    .venv/bin/python sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write
+                       # sim/bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction
+                       # measured on the robot 2026-11-04 (gen_plant_v6.measured_sole)
 
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
@@ -64,7 +67,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "cad"))
 
 import trimesh  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-from gen_plant_v6 import DesignParams, build_xml, measured_stops, SV_T  # noqa: E402
+from gen_plant_v6 import DesignParams, build_xml, measured_sole, measured_stops, SV_T  # noqa: E402
 
 STL = os.path.join(HERE, "..", "cad", "v6", "stl")
 RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
@@ -388,6 +391,18 @@ def committed_meas_xml(legs=True):
     return dress(src, AR_MEAS_XML, legcol_r=MEAS_LEGCOL_R)
 
 
+# ---- the measured-sole plant (2026-11-04): gen_plant_v6.measured_sole() on the legs-only
+# measured-stops plant -- the sole friction measured on the robot (mu 0.5, no torsional brake,
+# pad priority) on "flat" pads. Every other plant is untouched (tests/test_plant_sole.py).
+LEGS_MEAS_SOLE_XML = os.path.join(HERE, "bimo_biped_v6legs_meas_sole.xml")
+
+
+def committed_meas_sole_xml():
+    """exactly what `build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write` writes."""
+    src, _ = plant_xml(measured_sole(measured_stops(asbuilt_legs())), None, arms=False)
+    return dress(src, LEGS_MEAS_SOLE_XML, arms=False, head=False, legcol_r=MEAS_LEGCOL_R)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
@@ -409,6 +424,10 @@ def main(argv=None):
                          "and the fitted inter-leg capsules (MEAS_LEGCOL_R), policy ranges unchanged; "
                          "writes sim/bimo_biped_v6legs_meas.xml (--asbuilt-legs) or "
                          "sim/bimo_biped_v6ar_meas.xml unless -o is given")
+    ap.add_argument("--measured-sole", action="store_true",
+                    help="the sole friction measured on the robot 2026-11-04 (gen_plant_v6.measured_sole: "
+                         "mu 0.5, torsional 0, pad priority, 'flat' pads); appends _sole to the output "
+                         "name (sim/bimo_biped_v6legs_meas_sole.xml with --measured-stops --asbuilt-legs)")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args(argv)
     if a.out is None:
@@ -416,9 +435,13 @@ def main(argv=None):
             a.out = LEGS_MEAS_XML if a.asbuilt_legs else AR_MEAS_XML
         else:
             a.out = LEGS_XML if a.asbuilt_legs else os.path.join(HERE, "bimo_biped_v6ar.xml")
+        if a.measured_sole:
+            a.out = a.out[:-len(".xml")] + "_sole.xml"
     p = asbuilt_legs() if a.asbuilt_legs else DesignParams()
     if a.measured_stops:
         p = measured_stops(p)
+    if a.measured_sole:
+        p = measured_sole(p)
     if a.asbuilt_legs:
         a.armless = True
     plan = "B" if a.all_3215 else a.servo_plan

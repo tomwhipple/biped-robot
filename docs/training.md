@@ -78,7 +78,7 @@ estimate (§3).
 | joints | `{L,R}_{hip_yaw, hip_roll, hip_pitch, knee, ankle}`. Hip yaw ±45°, hip roll 25° adduction / 55° abduction, hip pitch −110…+90°, knee ±95°, ankle ±40° |
 | mass | 1.11 kg. Per-body inertia from the printed parts' STL meshes, plus the servos, pack and board as boxes at their real places |
 | payload | `train_mjx.py --payload` (default 0.154 kg) welds a payload body at the prototype's camera mount, 24 mm aft of and 60.1 mm above the torso centre |
-| ground contact | 8 pad spheres per sole, the only floor contact. CAD meshes collide with the floor only in fall and recovery episodes |
+| ground contact | 8 pad spheres per sole, the only floor contact. CAD meshes collide with the floor only in fall and recovery episodes. On the robot's measured-sole plant the pads carry the measured sole friction (§6) |
 | self-contact | inter-leg capsules with enumerated contact pairs, placed at the contact onsets measured on the bench |
 | joints, passive | damping 0.1; `--precision` adds Coulomb friction 0.05 N·m and armature 0.028 kg·m² per leg joint (Open Duck Mini's identified STS3215 values) |
 
@@ -376,9 +376,18 @@ size (`domain_randomize`, the standard MJX pattern):
   `--contact-mu lo,hi` draws the EFFECTIVE sliding μ instead and sets it on the
   floor and every pad. `--contact-torsion lo,hi` does the same for the torsional
   coefficient (plant 0.02 m, a yaw brake no 3 mm pad has). Both are off by
-  default. The sole's μ on the robot's floors is not measured; the guess is TPU
-  on wood ≈ 0.4–0.6
-  ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md));
+  default ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md)).
+  The sole friction is **measured** (2026-11-04, one foot clamped, the other at
+  half weight on the bench board): the foot slides at μ ≈ 0.45–0.55 and rotates
+  under hip yaw with no measurable grip, ≤ 0.10–0.15 N·m at 7.5 N. The edge pads
+  at μ 1 / torsion 0.02 grip 0.34 N·m in the same sim test (Coulomb bound
+  0.65). `sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
+  measured sole: pads μ 0.5, torsion 0, geom `priority` 1 (the pad's friction is
+  the foot contact's, so the floor-only draw above no longer reaches it and
+  `--contact-mu` alone sets it), and 8 "flat" pads, 4 on the sole outline and 4
+  inner, at a mean 42 mm from the sole centre: 0.15 N·m. Train on it with
+  `--contact-mu 0.3,0.7` (0.11–0.19 N·m) and no `--contact-torsion`
+  ([sole-friction](design-v6/2026-11-04-sole-friction.md), `sim/sole_friction.py`);
 - the servo envelope, which is not DR but plant. `--servo-envelope role=STALL:W0` sets a
   measured stall / no-load ratio pair per role. The pair goes into `servo_types`, and the
   referee inherits it. `--supply-voltage` sets the bus the envelope scales with (default

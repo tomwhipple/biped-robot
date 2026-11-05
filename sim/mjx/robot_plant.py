@@ -45,6 +45,10 @@ ROBOT_LEGS_XML = "bimo_biped_v6legs.xml"
 # warm-starts on them unchanged; a --ctrl-physical run's map is the joint range, which
 # they widen -- physical-mode runs stay on the plants above (tests/test_plant_measured.py)
 ROBOT_LEGS_MEAS_XML = "bimo_biped_v6legs_meas.xml"
+# v6legs_meas with the sole friction MEASURED on the robot 2026-11-04 (gen_plant_v6.measured_sole:
+# mu 0.5, torsional 0, pad priority, "flat" pads; `--robot --xml bimo_biped_v6legs_meas_sole.xml`).
+# Only the pads differ (tests/test_plant_sole.py); docs/design-v6/2026-11-04-sole-friction.md
+ROBOT_LEGS_MEAS_SOLE_XML = "bimo_biped_v6legs_meas_sole.xml"
 ROBOT_MEAS_XML = "bimo_biped_v6ar_meas.xml"
 
 # rest pose per held joint role (deg); a joint the plant does not have is

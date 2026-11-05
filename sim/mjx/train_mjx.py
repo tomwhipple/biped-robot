@@ -237,7 +237,11 @@ def make_parser():
                         "bimo_biped_v6ar_meas.xml: the v6 plants with the joint stops "
                         "measured on the robot 2026-11-02; under --ctrl-within-stops "
                         "their action map is the old plants', so --init-from a "
-                        "v6legs/v6ar checkpoint is unchanged (not under --ctrl-physical)")
+                        "v6legs/v6ar checkpoint is unchanged (not under --ctrl-physical). "
+                        "bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction "
+                        "measured on the robot 2026-11-04 (mu 0.5, no torsional brake, pad "
+                        "priority, flat pads; pair it with --contact-mu, never --contact-torsion "
+                        "at the old 0.001,0.02)")
     p.add_argument("--robot", action="store_true",
                    help="train on the ROBOT's plant (robot_plant.py): "
                         "bimo_biped_v6ar.xml, the 12 leg joints as the "
