@@ -5,7 +5,8 @@ internal bridges. (holes are also OK)").
 
 Local frame (the joint frame): roll axis X through the origin, +X forward
 (the roll servo's horn side), pitch axis along Y through (0, 0, -50). Both
-pieces are cut from the v5 clevises (cad/parts.py yoke_roll, yoke_pitch), so
+pieces are cut from the base clevises (cad/common/hip_parts.py yoke_roll,
+yoke_pitch), so
 every servo interface -- pads, bosses, bolt circles, centre reliefs, the sunk
 roll idler pad -- is theirs to the byte. check_interfaces() holds that.
 
@@ -77,7 +78,8 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, chamfer, export_step, export_stl, fillet  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as v5  # noqa: E402
+from common import shapes  # noqa: E402
+from common import hip_parts  # noqa: E402
 import paths  # noqa: E402
 D = V.D
 
@@ -271,7 +273,7 @@ def _fill_bolt_columns(r, z0, z1):
     b = D.YOKE_BOLT_SQ / 2
     fill = None
     for sx, sy in ((b, b), (b, -b), (-b, b), (-b, -b)):
-        c = v5.cyl_z(r, z0, z1, sx, sy)
+        c = shapes.cyl_z(r, z0, z1, sx, sy)
         fill = c if fill is None else fill + c
     return fill
 
@@ -285,7 +287,7 @@ def snap_y_min(z):
 def _below_slope(x0, x1, z_hi, z_lo, clr=0.0):
     """The region under the +y prong's 45 deg underside, less `clr`, between
     heights z_lo and z_hi."""
-    return v5.wedge_x([(-40, z_hi), (snap_y_min(z_hi) - clr, z_hi),
+    return shapes.wedge_x([(-40, z_hi), (snap_y_min(z_hi) - clr, z_hi),
                        (snap_y_min(z_lo) - clr, z_lo), (-40, z_lo)], x0, x1)
 
 
@@ -301,7 +303,7 @@ def _prong(y0, y1, sloped=False):
     for sx in (1, -1):
         prof = [(sx * s, ZF_MID + 0.01), (sx * o, ZF_MID + 0.01), (sx * o, SNAP_CATCH),
                 (sx * (o + b), SNAP_CATCH), (sx * o, SNAP_TIP), (sx * s, SNAP_TIP)]
-        f = v5.wedge_y(prof, y0, y1)
+        f = shapes.wedge_y(prof, y0, y1)
         p = f if p is None else p + f
     if sloped:
         p -= _below_slope(-5, 5, ZF_MID + 1, SNAP_TIP - 1)
@@ -317,9 +319,9 @@ def _prong_reliefs(y0, y1, sloped=False):
     s, o, w = SNAP_SLOT, SNAP_SHANK, SNAP_RELIEF
     if sloped:
         y0, y1 = snap_y_min(SNAP_ROOT), ROLL_FLANGE_Y[1] + 0.01
-    cut = v5.box(-s, s, y0, y1, ZF_MID - 0.01, SNAP_ROOT)
+    cut = shapes.box(-s, s, y0, y1, ZF_MID - 0.01, SNAP_ROOT)
     for sx in (1, -1):
-        cut += v5.box(min(sx * o, sx * (o + w)), max(sx * o, sx * (o + w)), y0, y1,
+        cut += shapes.box(min(sx * o, sx * (o + w)), max(sx * o, sx * (o + w)), y0, y1,
                       ZF_MID - 0.01, SNAP_ROOT)
     return cut
 
@@ -332,15 +334,15 @@ def _prong_holes():
     h = SNAP_SHANK + SNAP_HOLE_CLR
     c = SNAP_HOLE_Y_CLR
     (a0, a1), (b0, b1) = SNAP_Y
-    cut = v5.box(-h, h, a0 - c, a1 + c, ZF_BOT - 1, ZF_MID + 1)
-    top = v5.box(-h, h, snap_y_min(ZF_MID + 1) - c, b1 + c, ZF_BOT - 1, ZF_MID + 1)
+    cut = shapes.box(-h, h, a0 - c, a1 + c, ZF_BOT - 1, ZF_MID + 1)
+    top = shapes.box(-h, h, snap_y_min(ZF_MID + 1) - c, b1 + c, ZF_BOT - 1, ZF_MID + 1)
     top -= _below_slope(-h - 1, h + 1, ZF_MID + 2, ZF_BOT - 2, clr=c)
     return cut + top
 
 
 def _roll_corner_relief():
     y0, y1, d = ROLL_RELIEF_Y[0], ROLL_RELIEF_Y[1], ROLL_CORNER_RELIEF
-    return v5.wedge_x([(y0, ZF_TOP - d), (y1, ZF_TOP - d), (y1 + d, ZF_TOP),
+    return shapes.wedge_x([(y0, ZF_TOP - d), (y1, ZF_TOP - d), (y1 + d, ZF_TOP),
                        (y1 + d, ZF_TOP + 0.01), (y0, ZF_TOP + 0.01)], *ROLL_RELIEF_X)
 
 
@@ -394,15 +396,15 @@ def roll_fin():
     """The +y fin (x FIN_X) and both arms' webs, each reaching 0.5 into the
     flange below so the union has no coplanar seam."""
     zb = ZF_TOP - 0.5
-    fin = v5.wedge_x([(FIN_Y0, zb), (FIN_Y0, ZF_TOP), *FIN_BEVEL,
+    fin = shapes.wedge_x([(FIN_Y0, zb), (FIN_Y0, ZF_TOP), *FIN_BEVEL,
                       (PY1, FIN_TOP_Z), (PY1, zb)], FIN_X[0] - 0.01, FIN_X[1] + 0.01)
     def prof(r):
         ty, tz = web_tangent(r)
         return [(0.0, zb), (PY1, zb), (PY1, FIN_TOP_Z + WEB_RISE), (ty, tz), (0.0, 0.0)]
-    webs = (v5.wedge_x(prof(WEB_PAD_R), RXI1, RX1)
-            + v5.wedge_x(prof(WEB_PAD_R + WEB_IDLER_RIM), RX0, RXI0))
+    webs = (shapes.wedge_x(prof(WEB_PAD_R), RXI1, RX1)
+            + shapes.wedge_x(prof(WEB_PAD_R + WEB_IDLER_RIM), RX0, RXI0))
     # inside the pads' own radius everything stays the pads'
-    return fin + (webs - v5.cyl_x(D.PAD_D / 2, RX0 - 1, RX1 + 1, 0, 0))
+    return fin + (webs - shapes.cyl_x(D.PAD_D / 2, RX0 - 1, RX1 + 1, 0, 0))
 
 
 def web_tangent(r=WEB_PAD_R):
@@ -420,14 +422,14 @@ def roll_u(style=True):
     trimmed to the bed face, its flange widened to PY1 over the lap, the fin
     and the horn arm's web, the roll-corner relief, and the two snap
     prongs."""
-    p = v5.yoke_roll() + _fill_bolt_columns(D.M3_CLEAR / 2 + 0.05, ZF_MID, ZF_TOP)
-    p -= v5.box(-40, 40, -40, ROLL_BED_Y, -40, 30)
-    p += v5.box(RX0, RX1, D.YOKE_FLANGE_Y / 2 - 0.5, PY1, ZF_MID, ZF_TOP)
+    p = hip_parts.yoke_roll() + _fill_bolt_columns(D.M3_CLEAR / 2 + 0.05, ZF_MID, ZF_TOP)
+    p -= shapes.box(-40, 40, -40, ROLL_BED_Y, -40, 30)
+    p += shapes.box(RX0, RX1, D.YOKE_FLANGE_Y / 2 - 0.5, PY1, ZF_MID, ZF_TOP)
     # the idler arm's foot stops at its sunk pad's floor: over the 1.35 mm sink
     # the pad is a pocket, and a foot there would be a feather round its rim
     for x0, x1 in ((RXI1, RX1), (RX0 + D.ROLL_IDLER_PAD_SINK, RXI0)):
-        p += v5.wedge_x(ROLL_PAD_FOOT, x0, x1)
-    p -= v5.box(RX0 - 1, RX0 + D.ROLL_IDLER_PAD_SINK, ROLL_BED_Y - 1, SINK_LIP_Y,
+        p += shapes.wedge_x(ROLL_PAD_FOOT, x0, x1)
+    p -= shapes.box(RX0 - 1, RX0 + D.ROLL_IDLER_PAD_SINK, ROLL_BED_Y - 1, SINK_LIP_Y,
                 -SINK_LIP_Z, SINK_LIP_Z)
     p += roll_fin()
     p -= _roll_corner_relief()
@@ -467,7 +469,7 @@ def pitch_toe():
     top is the glue plane, its underside rises from TOE_X0 at TOE_SLOPE."""
     zf1, zf0 = D.PITCH_ARM_REACH, D.PITCH_ARM_REACH + D.YOKE_FLANGE_T
     z_front = zf1 + TOE_SLOPE * (LAP_X1 - TOE_X0)
-    return v5.wedge_y([(PX - 1.0, zf1), (TOE_X0, zf1), (LAP_X1, z_front), (LAP_X1, zf0), (PX - 1.0, zf0)],
+    return shapes.wedge_y([(PX - 1.0, zf1), (TOE_X0, zf1), (LAP_X1, z_front), (LAP_X1, zf0), (PX - 1.0, zf0)],
                       PY0, PY1)
 
 
@@ -478,17 +480,17 @@ def pitch_u(style=True):
     shoulder taper, and the two holes for the snap prongs. Built in the pitch
     frame, returned in the roll frame."""
     zf1, zf0 = D.PITCH_ARM_REACH, D.PITCH_ARM_REACH + D.YOKE_FLANGE_T
-    q = v5.yoke_pitch() + _fill_bolt_columns(D.HEATSET_D / 2 + 0.05, zf1, zf0) + pitch_toe()
+    q = hip_parts.yoke_pitch() + _fill_bolt_columns(D.HEATSET_D / 2 + 0.05, zf1, zf0) + pitch_toe()
     # the idler arm as a plate on its full hub, outside the pad's radius
-    idler = v5.box(PITCH_BED_X, IDLER_X1, PY0, PYI0, 0.0, zf1 + 0.5) + v5.cyl_y(HUB_R, PY0, PYI0, 0, 0)
-    q += idler - v5.cyl_y(D.PAD_D / 2, PY0 - 1, PYI0 + 1, 0, 0)
-    q -= v5.box(-40, PITCH_BED_X, -40, 40, zf1, zf0 + 1)
-    q += v5.wedge_y(PITCH_ARM_EXT, D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)
+    idler = shapes.box(PITCH_BED_X, IDLER_X1, PY0, PYI0, 0.0, zf1 + 0.5) + shapes.cyl_y(HUB_R, PY0, PYI0, 0, 0)
+    q += idler - shapes.cyl_y(D.PAD_D / 2, PY0 - 1, PYI0 + 1, 0, 0)
+    q -= shapes.box(-40, PITCH_BED_X, -40, 40, zf1, zf0 + 1)
+    q += shapes.wedge_y(PITCH_ARM_EXT, D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)
     for foot in PITCH_HUB_FEET:
-        q += v5.wedge_y(foot, PY0, PYI0)
+        q += shapes.wedge_y(foot, PY0, PYI0)
     pr = D.PAD_D / 2 + 0.3
     across, along = SHOULDER
-    q -= v5.wedge_y([(pr, 0.0), (AHW, 0.0), (AHW, along)], PYI1 - 0.01, PY1 + 0.01)
+    q -= shapes.wedge_y([(pr, 0.0), (AHW, 0.0), (AHW, along)], PYI1 - 0.01, PY1 + 0.01)
     p = pitch_offset() * q
     if style:
         p = _blend(p, [
@@ -520,7 +522,7 @@ def build(style=True):
 def raw_clevises():
     """The v5 clevises as they were bolted: the reference the servo
     interfaces are held to."""
-    return v5.yoke_roll() + pitch_offset() * v5.yoke_pitch()
+    return hip_parts.yoke_roll() + pitch_offset() * hip_parts.yoke_pitch()
 
 
 def _pad_zones():
@@ -529,10 +531,10 @@ def _pad_zones():
     pads and the pitch horn arm's 45 deg face is tangent to its pad, so both
     touch r 10 and nothing inside."""
     r = D.PAD_D / 2 - 0.01
-    z = v5.cyl_x(r, D.SV_HORN_FACE - 0.1, RX1 + 0.1, 0, 0)
-    z += v5.cyl_x(r, RX0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
-    z += pitch_offset() * v5.cyl_y(r, D.SV_HORN_FACE - 0.1, PY1 + 0.1, 0, 0)
-    z += pitch_offset() * v5.cyl_y(r, PY0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
+    z = shapes.cyl_x(r, D.SV_HORN_FACE - 0.1, RX1 + 0.1, 0, 0)
+    z += shapes.cyl_x(r, RX0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
+    z += pitch_offset() * shapes.cyl_y(r, D.SV_HORN_FACE - 0.1, PY1 + 0.1, 0, 0)
+    z += pitch_offset() * shapes.cyl_y(r, PY0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
     return z
 
 
@@ -557,9 +559,9 @@ def disc_seat_zones():
     Subtracting these from the posed part lets everything else -- arms,
     pads, both flanges, the fin, the whole pitch clevis -- be held to the
     full D.SWEEP_BUFFER against the carrier and the roll servo."""
-    idler = v5.cyl_x(D.IDLER_BOSS_D / 2 + 0.5, D.ROLL_ARM_INNER - 0.01,
+    idler = shapes.cyl_x(D.IDLER_BOSS_D / 2 + 0.5, D.ROLL_ARM_INNER - 0.01,
                      D.SV_IDLER_FACE + 0.1, 0, 0)
-    horn = v5.cyl_x(D.HORN_BOSS_D / 2 + 0.5, D.SV_HORN_FACE - 0.1,
+    horn = shapes.cyl_x(D.HORN_BOSS_D / 2 + 0.5, D.SV_HORN_FACE - 0.1,
                     D.SV_HORN_FACE + D.HORN_BOSS_H + 0.01, 0, 0)
     return idler + horn
 
@@ -635,7 +637,7 @@ def audit(name, stl_path):
     these pieces exist to print without supports. Returns (failures,
     accepted): `accepted` are the findings _expected() names, with why."""
     import numpy as np
-    import check_printability as CP
+    from common import check_printability as CP
     CP.STL = os.path.dirname(stl_path)
     CP.ORIENT[name] = (np.array(PRINT_ORIENT[name]), "glued hip yoke piece, on edge, no supports")
     CP.PRINT_STL[name] = os.path.basename(stl_path)

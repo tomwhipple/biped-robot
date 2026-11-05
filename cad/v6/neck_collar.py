@@ -34,10 +34,10 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 
 from build123d import *  # noqa: E402,F403
-import dimensions as D  # noqa: E402
+from common import dimensions as D  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as P  # noqa: E402
-import check_assembly as CA  # noqa: E402
+from common import shapes as P  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 box, cyl_x, cyl_y, cyl_z = P.box, P.cyl_x, P.cyl_y, P.cyl_z

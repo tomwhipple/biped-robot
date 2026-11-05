@@ -162,7 +162,7 @@ def _mock_stl(key):
     """STL (temp file) of a servo case mock placed in its body frame, built
     from the same mocks and placements cad/v6/assembly_v6.py uses."""
     from build123d import Pos, Rot, export_stl
-    import check_assembly as CA
+    from common import mocks as CA
     import shoulder_girdle_v6 as SG
     import arm_v6
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z

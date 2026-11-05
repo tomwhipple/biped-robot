@@ -32,11 +32,11 @@ def job(args):
     mname, box, (iu, iv), joint, nb, ang = args
     from build123d import Pos, Rot
     import probe_space as PS
-    import parts as v5
+    from common import shapes
     N = PS.neighbours()
     s = N[joint][nb]
     q = PS.posed(joint, s, ang, N["pz"])
-    region = v5.box(*box)
+    region = shapes.box(*box)
     try:
         inter = q & region
         if inter.volume < 1e-6:

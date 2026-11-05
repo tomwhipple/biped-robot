@@ -1,9 +1,8 @@
 """Render one part STL to a PNG strip of named views (MuJoCo offscreen).
 
-Run:  .venv/bin/python cad/render_part.py foot   # -> build/v5/renders/foot.png
-      .venv/bin/python cad/render_part.py leg_link_print --out leg_link_fins
-      .venv/bin/python cad/render_part.py cad/v6/stl/leg_link_v6.stl
-                                                 # -> build/v6/renders/leg_link_v6.png
+Run:  .venv/bin/python cad/render_part.py foot_L   # -> build/v6/renders/foot_L.png
+      .venv/bin/python cad/render_part.py leg_link_v6 --out leg_link_close --zoom 1
+      .venv/bin/python cad/render_part.py path/to/any.stl
 Views: iso / bottom / back by default (bottom shows sole-side sag fixes,
 back shows heel/tab details); pick others with --views.
 """
@@ -31,18 +30,17 @@ VIEWS = {                # azimuth, elevation
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("stl", help="name under cad/stl/ (without .stl) or a path")
+    ap.add_argument("stl", help="name under cad/v6/stl/ (without .stl) or a path")
     ap.add_argument("--views", default="iso,bottom,back")
     ap.add_argument("--out", default=None,
-                    help="PNG name (without .png); the folder is build/v6/renders "
-                         "for an STL under cad/v6/stl, else build/v5/renders")
+                    help="PNG name (without .png), in build/v6/renders")
     ap.add_argument("--px", type=int, default=640)
     ap.add_argument("--zoom", type=float, default=2.6,
                     help="camera distance in bounding-sphere radii; drop it "
                          "to ~1 for a close-up (e.g. a window's supports)")
     ap.add_argument("--lookat", default=None, metavar="X,Y,Z",
                     help="aim point in the PART's own mm coordinates "
-                         "(parts.py frame), not the view-name default")
+                         "(its CAD frame), not the view-name default")
     ap.add_argument("--view-dir", default=None, metavar="X,Y,Z",
                     help="direction the camera looks ALONG, in part mm coords "
                          "(e.g. 1,0,0 to face the -X wall). Renders one frame "
@@ -50,7 +48,7 @@ def main():
     args = ap.parse_args()
 
     path = args.stl if args.stl.endswith(".stl") else \
-        os.path.join(paths.V5_STL, args.stl + ".stl")
+        os.path.join(paths.V6_STL, args.stl + ".stl")
     name = args.out or os.path.splitext(os.path.basename(path))[0]
 
     xml = f"""
@@ -73,7 +71,7 @@ def main():
     # compiler re-frames each mesh asset onto its own centre of mass and
     # principal axes (mesh_pos / mesh_quat) -- mesh_vert comes back in THAT
     # frame -- but it also folds the inverse into geom_pos/geom_quat, so the
-    # part still renders in its parts.py coordinates. Map the centroid back,
+    # part still renders in its CAD coordinates. Map the centroid back,
     # or the camera aims at a point up to a part-radius off (it framed
     # yaw_carrier 18 mm high, clipping the bay off the bottom of the strip).
     m = model.mesh(0)
@@ -103,8 +101,7 @@ def main():
         cam.azimuth, cam.elevation = az, el
         ren.update_scene(data, cam)
         frames.append(ren.render())
-    v6 = os.path.abspath(path).startswith(paths.V6_STL + os.sep)
-    out = os.path.join(paths.build_dir("v6" if v6 else "v5", "renders"), name + ".png")
+    out = os.path.join(paths.build_dir("v6", "renders"), name + ".png")
     imageio.imwrite(out, np.concatenate(frames, axis=1))
     print(f"saved -> {out}  ({args.views})")
 

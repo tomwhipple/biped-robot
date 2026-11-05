@@ -53,12 +53,11 @@ Both arm links print ON THEIR BACK (model +X up, check_printability's RY_XUP),
 as leg_link_v6 does. This is deliberate and it is the whole reason the
 sections below are open C's rather than closed boxes.
 
-Read the block above `yoke_roll` in cad/parts.py: both hip clevises used to
-print flange-down, arms rising as vertical columns, which lays the layer lines
-ACROSS the arm -- and a cantilevered arm carries its bending load as tension
-ALONG the arm, straight through the interlayer bond. They kept snapping
-mid-arm. The control case cited there is v5's leg_link, which "prints web-down,
-so the filament runs the length of the leg", far longer arm, thinner mid-span,
+Printed with its arms rising as vertical columns, a clevis lays the layer
+lines ACROSS the arm -- and a cantilevered arm carries its bending load as
+tension ALONG the arm, straight through the interlayer bond: the hip clevises
+snapped mid-arm that way. The leg link, printed web-down so "the filament runs
+the length of the leg", has a far longer arm and a thinner mid-span and has
 never broken. These arms are 160 mm cantilevers that the robot pushes its own
 mass up on; they get the control case's orientation. Laid on their back, the
 joint-to-joint axis (model Z) and the straddle direction (model Y) are BOTH
@@ -103,8 +102,8 @@ from build123d import (Cone, Plane, Pos, Rot, export_step, export_stl,  # noqa: 
                        fillet, mirror)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/wedge_*/csk_*/bcd_*)
-import check_assembly as CA  # noqa: E402  (the canonical servo mock)
+from common import shapes as parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
@@ -733,10 +732,10 @@ def run_audits(built, verbose=True):
     """printability (in each part's declared orientation) + the deck pilots +
     the elbow ROM + the mass table. Returns True if nothing failed."""
     sys.path.insert(0, os.path.join(HERE, ".."))
-    import check_printability as CP  # noqa: E402 -- runtime override only
+    from common import check_printability as CP  # noqa: E402 -- runtime override only
 
     ok = True
-    print("\n== printability (cad/check_printability.py, declared orientations) ==")
+    print("\n== printability (cad/common/check_printability.py, declared orientations) ==")
     CP.STL = OUT_STL
     for name, path in built.items():
         # the right-hand parts too: their letter is not the left's mirror image

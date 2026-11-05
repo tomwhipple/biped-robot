@@ -110,8 +110,8 @@ os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
 from build123d import Plane, Pos, Rot, export_step, export_stl, mirror  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import parts  # noqa: E402
-import check_assembly as CA  # noqa: E402
+from common import shapes as parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import neck_floor as NF  # noqa: E402
 import paths  # noqa: E402
 
@@ -753,7 +753,7 @@ def check_print(verbose=True):
     """check_printability's audit in the declared orientation (base down).
     Anything the audit calls an overhang that OrcaSlicer can support goes in
     SUPPORT_NOTE and is left to the slicer -- nothing is modelled for it."""
-    import check_printability as CP
+    from common import check_printability as CP
     CP.STL = OUT_STL
     fails = 0
     for name, (rot, note) in PRINT_ORIENT.items():

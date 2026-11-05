@@ -1,4 +1,4 @@
-"""yaw_carrier_v6: v5's yaw_carrier (cad/parts.py) with a spacer under its
+"""yaw_carrier_v6: the base yaw carrier (cad/common/hip_parts.py) with a spacer under its
 horn plate and a round hub for the hip-yaw bearing's inner race (6810-2RS,
 dimensions_v6 YAW_BRG_*; docs/design-v6/study-yaw-bearing.md, option A).
 
@@ -45,7 +45,8 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Cone, Plane, Pos, export_step, export_stl, extrude, section  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as P  # noqa: E402
+from common import shapes as P  # noqa: E402
+from common import hip_parts  # noqa: E402
 
 D = V.D
 box, cyl_z = P.box, P.cyl_z
@@ -57,7 +58,7 @@ SPLIT_Z = -4.0     # v5 carrier-local: under the 3 mm plate, above every bay fea
 
 def carrier_spaced(print_fins=False):
     """v5's carrier with the V.YAW_CARRIER_DROP spacer inserted at SPLIT_Z."""
-    c = P.yaw_carrier(print_fins=print_fins)
+    c = hip_parts.yaw_carrier(print_fins=print_fins)
     drop = V.YAW_CARRIER_DROP
     big = 200.0
     top = c & box(-big, big, -big, big, SPLIT_Z, big)
@@ -103,7 +104,7 @@ def SCREWS():
     """The carrier's screws, carrier-local (horn face z = 0): 4 disc screws up
     through the bay ceiling into the yaw horn, length by the stack
     (V.disc_screw), and 8 M2.5 x 8 flat-heads through the bay's front and rear
-    walls into the roll servo (cad/fasteners.py yaw_wall_screws). `axis`
+    walls into the roll servo. `axis`
     points from the head toward the tip."""
     r = D.BCD / 2
     stack = D.YAW_CARRIER_PLATE

@@ -62,7 +62,7 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts  # noqa: E402
+from common import shapes as parts  # noqa: E402
 import ankle_link as AL  # noqa: E402
 import paths  # noqa: E402
 D = V.D
@@ -383,7 +383,7 @@ def _expected(name, kind, desc):
 
 def audit(name, stl_path):
     import numpy as np
-    import check_printability as CP
+    from common import check_printability as CP
     CP.STL = os.path.dirname(stl_path)
     CP.ORIENT[name] = (np.array(PRINT_ORIENT[name]), "glued ankle link piece, no supports")
     CP.PRINT_STL[name] = os.path.basename(stl_path)
@@ -414,7 +414,7 @@ ORANGE, GREY, SERVO = (0.95, 0.55, 0.20, 1), (0.72, 0.74, 0.78, 1), (0.22, 0.23,
 def render(pieces, png_path, px=560):
     """One strip: each piece as it lies on the bed, the pair exploded along
     the snap's axis, and glued with the pitch servo seated in the cradle."""
-    import check_assembly as CA
+    from common import mocks as CA
     import hip_yoke_glued as HG
     c, f = pieces["ankle_link_glued_cradle"], pieces["ankle_link_glued_fork"]
     return HG.render_shots([

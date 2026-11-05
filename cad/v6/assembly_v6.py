@@ -49,8 +49,7 @@ from build123d import (Box, Color, Compound, Cylinder, Location, Pos, Rot,  # no
                        export_step, export_stl)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import check_assembly as CA  # noqa: E402  (v5 servo mocks)
-import parts as v5parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
@@ -110,13 +109,9 @@ def posed_hip_yoke_seats(side, pose):
 
 
 def part_yaw_carrier():
-    """v6 carrier (v5's + the hip-yaw bearing hub); falls back to v5's."""
-    try:
-        import yaw_carrier_v6
-        return yaw_carrier_v6.yaw_carrier_v6()
-    except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
-        return v5parts.yaw_carrier()
+    """the hip-yaw carrier with its bearing hub (cad/v6/yaw_carrier_v6.py)"""
+    import yaw_carrier_v6
+    return yaw_carrier_v6.yaw_carrier_v6()
 
 
 def part_leg_link():

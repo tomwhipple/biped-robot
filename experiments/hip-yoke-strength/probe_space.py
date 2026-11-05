@@ -26,7 +26,7 @@ def neighbours():
     if _N:
         return _N
     import dimensions_v6 as V
-    import check_assembly as CA
+    from common import mocks as CA
     import yaw_carrier_v6
     import leg_link_v6
     dz = V.HIP_YAW_Z - V.HIP_ROLL_Z
@@ -47,9 +47,9 @@ def posed(joint, solid, ang, pz):
 
 def run_probe(args):
     name, box = args
-    import parts as v5
+    from common import shapes
     N = neighbours()
-    probe = v5.box(*box)
+    probe = shapes.box(*box)
     out = []
     for joint, rom_key in (("roll", "hip_roll"), ("pitch", "hip_pitch")):
         lo, hi = N["rom"][rom_key]
