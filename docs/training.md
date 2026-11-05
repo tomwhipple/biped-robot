@@ -78,7 +78,7 @@ estimate (§3).
 | joints | `{L,R}_{hip_yaw, hip_roll, hip_pitch, knee, ankle}`. Hip yaw ±45°, hip roll 25° adduction / 55° abduction, hip pitch −110…+90°, knee ±95°, ankle ±40° |
 | mass | 1.11 kg. Per-body inertia from the printed parts' STL meshes, plus the servos, pack and board as boxes at their real places |
 | payload | `train_mjx.py --payload` (default 0.154 kg) welds a payload body at the prototype's camera mount, 24 mm aft of and 60.1 mm above the torso centre |
-| ground contact | 8 pad spheres per sole, the only floor contact. CAD meshes collide with the floor only in fall and recovery episodes |
+| ground contact | 8 pad spheres per sole, the only floor contact. CAD meshes collide with the floor only in fall and recovery episodes. On the robot's measured-sole plant the pads carry the measured sole friction (§6) |
 | self-contact | inter-leg capsules with enumerated contact pairs, placed at the contact onsets measured on the bench |
 | joints, passive | damping 0.1; `--precision` adds Coulomb friction 0.05 N·m and armature 0.028 kg·m² per leg joint (Open Duck Mini's identified STS3215 values) |
 
@@ -376,9 +376,18 @@ size (`domain_randomize`, the standard MJX pattern):
   `--contact-mu lo,hi` draws the EFFECTIVE sliding μ instead and sets it on the
   floor and every pad. `--contact-torsion lo,hi` does the same for the torsional
   coefficient (plant 0.02 m, a yaw brake no 3 mm pad has). Both are off by
-  default. The sole's μ on the robot's floors is not measured; the guess is TPU
-  on wood ≈ 0.4–0.6
-  ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md));
+  default ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md)).
+  The sole friction is **measured** (2026-11-04, one foot clamped, the other at
+  half weight on the bench board): the foot slides at μ ≈ 0.45–0.55 and rotates
+  under hip yaw with no measurable grip, ≤ 0.10–0.15 N·m at 7.5 N. The edge pads
+  at μ 1 / torsion 0.02 grip 0.34 N·m in the same sim test (Coulomb bound
+  0.65). `sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
+  measured sole: pads μ 0.5, torsion 0, geom `priority` 1 (the pad's friction is
+  the foot contact's, so the floor-only draw above no longer reaches it and
+  `--contact-mu` alone sets it), and 8 "flat" pads, 4 on the sole outline and 4
+  inner, at a mean 42 mm from the sole centre: 0.15 N·m. Train on it with
+  `--contact-mu 0.3,0.7` (0.11–0.19 N·m) and no `--contact-torsion`
+  ([sole-friction](design-v6/2026-11-04-sole-friction.md), `sim/sole_friction.py`);
 - the servo envelope, which is not DR but plant. `--servo-envelope role=STALL:W0` sets a
   measured stall / no-load ratio pair per role. The pair goes into `servo_types`, and the
   referee inherits it. `--supply-voltage` sets the bus the envelope scales with (default
@@ -465,7 +474,9 @@ Training runs **at night only**; days belong to the box's owner.
   the last eval checkpoint stands.
 - **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
-  branch a job names with `BRANCH=`. Anything not pushed does not train. The
+  branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
+  is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
+  Anything not pushed does not train. The
   runner scripts sit in the clone's untracked `night/` directory, so a reset
   cannot rewrite them mid-run.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
@@ -485,7 +496,9 @@ Training runs **at night only**; days belong to the box's owner.
   finished run into the working checkout and referees it: the python column
   with `--render`, and the SIL column. The lag column is run by hand (§8). It
   fast-forwards the checkout to `origin/main` first, so the references and
-  plants a run trained against are there to referee it.
+  plants a run trained against are there to referee it. If uncommitted files
+  block the fast-forward, it stashes only the paths upstream also changed, under
+  a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
 - **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
   collection, then runs a headless Claude Code session on
   `infra/night/planner_prompt.md`: it evaluates the night against the campaign
@@ -495,6 +508,14 @@ Training runs **at night only**; days belong to the box's owner.
   `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
   from `night/fallback.job` with fresh seeds if the planner left it short.
   Installed copies of both live beside the runner in `night/`.
+- **Fix and continue.** When a harness step fails, `infra/night/claude_fix.sh`
+  starts a headless Claude Code session (Opus) with the failure and the log
+  tail, and waits for it. The step is retried once if the session reports
+  `FIX_STATUS: fixed`. The steps are: a failed sync, a failed pre-flight, a
+  training or `CMD=` job that exits non-zero (the fixer may re-queue it), a
+  failed collect sync or referee, a missing `fallback.job`, and a failed
+  planner. Limits: one fixer at a time, six a day, and `CLAUDE_FIX=0` turns it
+  off. Log in `night/fixer.log`, transcripts in `night/fixer/`.
 
 ### Training on the Mac (CPU physics + MPS)
 
