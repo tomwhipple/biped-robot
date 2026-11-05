@@ -139,6 +139,7 @@ SCRIPT_SCENARIO = {
     "walk": "line_1m",
     "line_1m": "line_1m",
     "stride1": "line_1m",
+    "stride1_03": "line_1m",
     "dash_stop": "speed_ladder",
     "turn": "turn_180",
     "pivot": "turn_180",
@@ -153,6 +154,16 @@ def _stride1(t):
     # ONE gait-clock cycle of walk (the deployed clock runs 1.5 Hz fixed;
     # clock_stand_freeze holds phase outside the window), stand either side.
     return (0.6, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
+
+
+def _stride1_v(vx):
+    # stride1 at a gentler speed: on the measured-sole plant with the refit actuator,
+    # robot_legs_walk23_msole_ws_s128r24 clears the flail guard at 0.3 m/s (0/8 trips,
+    # peak EMA rate 1.37/1.45) but not at 0.6 or 0.4 (2026-11-05). 0.3 is the walk band's
+    # floor: lower commands are clamped to a stand (tests/test_sources.py)
+    def f(t):
+        return (vx, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
+    return f
 
 
 def _crouch1(t):
@@ -182,6 +193,7 @@ def _sidestep1(t):
 SCRIPTS = {
     "stand": _stand,
     "stride1": _stride1,
+    "stride1_03": _stride1_v(0.3),
     "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,
