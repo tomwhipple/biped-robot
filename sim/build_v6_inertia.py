@@ -16,13 +16,17 @@ the committed plant, which is THE ROBOT AS DRAWN:
   * the robot's servos (DESIGN.md section 4): an STS3250 (74.5 g) at each
     hip roll, an STS3215 (55 g) everywhere else. --servo-plan B is 17 x
     STS3215; 3250 puts STS3250s at the six roll + knee joints.
-  * the one-print hip yoke (hip_yoke_v6), the girdle, the neck floor, the
+  * the glued hip yoke (hip_yoke_glued_roll + hip_yoke_glued_pitch, two prints
+    glued into one rigid link), the girdle, the neck floor, the
     arm links, the bearing housing, and the two hip-yaw bearings (6810-2RS)
     split between the housing and the carriers.
 
     .venv/bin/python sim/build_v6_inertia.py                      # print the per-body table
     .venv/bin/python sim/build_v6_inertia.py --write              # regenerate sim/bimo_biped_v6ar.xml (+ CAD meshes, CAD-fitted collision)
     .venv/bin/python sim/build_v6_inertia.py --armless -o /tmp/armless.xml --write
+    .venv/bin/python sim/build_v6_inertia.py --measured-stops [--asbuilt-legs] --write
+                       # sim/bimo_biped_v6ar_meas.xml [v6legs_meas]: the joint stops measured on
+                       # the robot 2026-11-02 (gen_plant_v6.measured_stops), policy ranges unchanged
 
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
@@ -32,10 +36,10 @@ lands in the body whose joint moves it.
                neck_collar, armless), the bearings' outer halves
     head       head (shell + face fused) + camera
     _hip_yaw   yaw carrier + hip-roll servo + the bearing's inner half
-    _hip       hip_yoke_v6
+    _hip       hip_yoke_glued_roll + hip_yoke_glued_pitch (glued into one link)
     _thigh / _shin / _ankle_blk   leg_link_v6 / leg_link_v6 / ankle_link + their servo
     _foot      foot + silicone sole + the ankle-roll servo
-    _arm       arm_upper_v6 + the elbow servo (its case runs up the upper arm)
+    _arm       arm_upper_v6 + its glued head insert + the elbow servo (its case runs up the upper arm)
     _forearm   arm_fore_v6
 
 For studies, plant_xml(p, m3250_g) returns the same plant for a DesignParams
@@ -60,7 +64,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "cad"))
 
 import trimesh  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-from gen_plant_v6 import DesignParams, build_xml, SV_T  # noqa: E402
+from gen_plant_v6 import DesignParams, build_xml, measured_stops, SV_T  # noqa: E402
 
 STL = os.path.join(HERE, "..", "cad", "v6", "stl")
 RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
@@ -186,6 +190,10 @@ def servo(key, grams):
     return mesh_props(_mock_stl(key), [0, 0, 0], mass=grams * 1e-3)
 
 
+# the hip link as built: two prints glued into one rigid link, both in the link frame
+HIP_YOKE_PIECES = ("hip_yoke_glued_roll", "hip_yoke_glued_pitch")
+
+
 def stl(name):
     return os.path.join(STL, name + ".stl")
 
@@ -216,7 +224,8 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     brg_kg = V.YAW_BRG_MASS_G * 1e-3
     ri, ro = V.YAW_BRG_ID / 2, V.YAW_BRG_OD / 2
     bz0, bz1 = V.YAW_BRG_BAND_Z
-    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "battery_door_v8", carrier,
+    for n in ("pelvis_v8", torso, "front_cover_v8", "power_cover_v8", "power_bracket_v8", "balance_park_v8",
+              "switch_pod_v8", "battery_door_v8", carrier,
               "yaw_bearing_housing"):
         if not have(n):
             raise FileNotFoundError(f"{stl(n)} missing -- export it: "
@@ -226,7 +235,8 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     t = [mesh_props(stl("pelvis_v8"), [0, 0, zdeck]), mesh_props(stl(torso), [0, 0, zdeck]),
          mesh_props(stl("front_cover_v8"), [0, 0, zdeck])]
     if p.m_battery > 0 or p.m_power > 0:   # the pack bay's door and the power cover
-        t += [mesh_props(stl("power_cover_v8"), [0, 0, zdeck]), mesh_props(stl("battery_door_v8"), [0, 0, zdeck])]
+        t += [mesh_props(stl("power_cover_v8"), [0, 0, zdeck]), mesh_props(stl("battery_door_v8"), [0, 0, zdeck]),
+              mesh_props(stl("switch_pod_v8"), [0, 0, zdeck])]   # the cap's pod (its toggles are not weighed yet)
     t += [mesh_props(stl("yaw_bearing_housing"), [0, 0, zdeck]), servo("yaw_L", g15), servo("yaw_R", g15)]
     if p.head:   # the neck servo and its floor ride the deck
         t += [servo("neck", g15), mesh_props(stl("neck_floor"), [0, 0, zdeck])]
@@ -235,9 +245,13 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
     if p.m_pi4 > 0:
         t.append(box_props(V.PI4_MASS * 1e-3, [(V.PI_PCB_X0 + V.PI_COMP_X) / 2, (V.PI_Y[0] + V.PI_Y[1]) / 2, zdeck + V.PI_CZ], [V.PI_COMP_TOP + V.PI_PCB_T, V.PI_OUTLINE[0], V.PI_OUTLINE[1]]))
     t.append(box_props(V.GD_MASS * 1e-3, [(V.GD_PCB_X0 + V.GD_COMP_X) / 2, 0, zdeck + (V.GD_BOT_Z + V.GD_TOP_Z) / 2], [V.D.BOARD_GD_COMP + V.D.BR_PCB_T, V.D.BOARD_GD_OUTLINE[0], V.D.BOARD_GD_OUTLINE[1]]))
-    if p.m_power > 0:
+    if p.m_power > 0:   # the power board, and its BMS on the BMS bracket
         t.append(box_props(V.PWR_MASS * 1e-3, [(V.PWR_X[0] + V.PWR_X[1]) / 2, (V.PWR_Y[0] + V.PWR_Y[1]) / 2,
                                                 zdeck + (V.PWR_Z[0] + V.PWR_Z[1]) / 2], [V.PWR_BOARD[1], V.PWR_BOARD[0], V.PWR_BOARD[2]]))
+        t.append(box_props(V.BMS_MASS * 1e-3, [V.BMS_C[0], V.BMS_C[1], zdeck + V.BMS_C[2]],
+                           [V.BMS_BOX[1], V.BMS_BOX[0], V.BMS_BOX[2]]))
+        t.append(mesh_props(stl("power_bracket_v8"), [0, 0, zdeck]))
+        t.append(mesh_props(stl("balance_park_v8"), [0, 0, zdeck]))
     t.append(box_props(V.WIRING_MASS * 1e-3, [-10, 0, zdeck - 20], [60, 80, 20]))
     if p.arms:
         t += [mesh_props(stl("shoulder_girdle_v6"), [0, 0, zdeck]),
@@ -258,7 +272,7 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
         hy = [mesh_props(stl(carrier), [0, 0, 0]), servo("roll", g_roll),
               ring_props(brg_kg / 2, ri, (ri + ro) / 2, bz0, bz1)]      # the bearing's inner half turns with the leg
         out[f"{side}_hip_yaw"] = hy
-        out[f"{side}_hip"] = [mesh_props(stl("hip_yoke_v6"), [0, 0, 0])]
+        out[f"{side}_hip"] = [mesh_props(stl(n), [0, 0, 0]) for n in HIP_YOKE_PIECES]
         out[f"{side}_thigh"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g15)]
         out[f"{side}_shin"] = [mesh_props(stl("leg_link_v6"), [0, 0, 0]), servo("pitch", g_knee)]
         out[f"{side}_ankle_blk"] = [mesh_props(stl("ankle_link"), [0, 0, 0]), servo("pitch", g15)]
@@ -267,7 +281,9 @@ def bodies(p: DesignParams, m3250_g: float | None = None, plan: str = "hips"):
                                mesh_props(stl(f"sole_tpu_{side}"), [0, 0, z_foot], rho=RHO_SOLE),
                                servo(f"foot_{side}", g_aroll)]
         if p.arms:
-            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0]), servo(f"elbow_{side}", g15)]
+            out[f"{side}_arm"] = [mesh_props(stl(f"arm_upper_v6_{side}"), [0, 0, 0]),
+                                  mesh_props(stl(f"arm_head_insert_v6_{side}"), [0, 0, 0]),   # glued in (#199), arm frame
+                                  servo(f"elbow_{side}", g15)]
             out[f"{side}_forearm"] = [mesh_props(stl(f"arm_fore_v6_{side}"), [0, 0, 0])]
     return out
 
@@ -313,15 +329,16 @@ def plant_xml(p: DesignParams, m3250_g: float | None = None, verbose: bool = Fal
     return src.replace("GENERATED by sim/gen_plant_v6.py", f"GENERATED by sim/gen_plant_v6.py + build_v6_inertia.py ({tag})"), total
 
 
-def dress(src, out_path, arms=True, collision=True, head=True):
+def dress(src, out_path, arms=True, collision=True, head=True, legcol_r=None):
     """src with the CAD visual meshes (sim/add_cad_meshes.py), for a plant
     written to out_path (mesh paths are relative to it), and with collision=True
-    its collision primitives fitted to the same CAD parts (sim/fit_cad_collision.py)."""
+    its collision primitives fitted to the same CAD parts (sim/fit_cad_collision.py;
+    legcol_r: fit_cad_collision.fit's thigh/shank capsule radius)."""
     import add_cad_meshes
     src = add_cad_meshes.dress(src, os.path.dirname(os.path.abspath(out_path)), arms=arms, head=head)
     if collision:
         import fit_cad_collision
-        src = fit_cad_collision.fit(src, arms=arms, head=head)
+        src = fit_cad_collision.fit(src, arms=arms, head=head, legcol_r=legcol_r)
     return src
 
 
@@ -340,6 +357,37 @@ def committed_legs_xml(path=LEGS_XML):
     return dress(src, path, arms=False, head=False)
 
 
+# ---- the measured-stops plants (2026-11-02): gen_plant_v6.measured_stops() on the
+# committed plants' parameters, written next to them. bimo_biped_v6legs.xml and
+# bimo_biped_v6ar.xml are NOT touched (tests/test_plant_measured.py regenerates both).
+LEGS_MEAS_XML = os.path.join(HERE, "bimo_biped_v6legs_meas.xml")
+AR_MEAS_XML = os.path.join(HERE, "bimo_biped_v6ar_meas.xml")
+# Inter-leg capsule radius for the measured plants. Onset (deg) of the first inter-leg
+# contact, one hip rolled INWARD, the leg geoms only (thigh + shank), against the CAD
+# parts' convex hulls in the same MuJoCo poses (which reproduce cad_probe2: 27.94 mm at
+# 10 deg / 13.8 at 20 with the other leg at -70, CAD 27.94 / 14.42):
+#                                  CAD hulls   r 21.9 (old)   r 25.0
+#   other leg at 0 (shins)            8.3          9.0           7.6
+#   other leg pitched -70 (thighs)   29.3         33.7          29.4
+#   other leg pitched -45            24.4         29.1          25.2
+#   other leg pitched -37            22.7         27.3          23.6
+#   L in, R pitched -68              28.8         33.6          29.3
+#   thighs up 90/90, yaw cross        9.6         10.6           9.0
+# 25 mm is within 0.9 deg of the CAD in every pose (the half-width: up to 4.8 deg late).
+# The feet (col_foot, the foot + sole box) are unchanged: first contact 6.15 deg with the
+# other leg at 0 (gap 0.9 mm at 6, CAD 1.18 mm; the CAD's exact surfaces touch at 8).
+MEAS_LEGCOL_R = 0.025
+
+
+def committed_meas_xml(legs=True):
+    """exactly what `build_v6_inertia.py --measured-stops [--asbuilt-legs] --write` writes."""
+    if legs:
+        src, _ = plant_xml(measured_stops(asbuilt_legs()), None, arms=False)
+        return dress(src, LEGS_MEAS_XML, arms=False, head=False, legcol_r=MEAS_LEGCOL_R)
+    src, _ = plant_xml(measured_stops(), None)
+    return dress(src, AR_MEAS_XML, legcol_r=MEAS_LEGCOL_R)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
@@ -356,17 +404,28 @@ def main(argv=None):
                     help="the body as built on 2026-10-24: the 12 leg servos and the control board on the "
                          "torso frame, no pack, Pi, head, neck or arms (asbuilt_legs); writes "
                          "sim/bimo_biped_v6legs.xml unless -o is given")
+    ap.add_argument("--measured-stops", action="store_true",
+                    help="the joint stops measured on the robot 2026-11-02 (gen_plant_v6.measured_stops) "
+                         "and the fitted inter-leg capsules (MEAS_LEGCOL_R), policy ranges unchanged; "
+                         "writes sim/bimo_biped_v6legs_meas.xml (--asbuilt-legs) or "
+                         "sim/bimo_biped_v6ar_meas.xml unless -o is given")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args(argv)
     if a.out is None:
-        a.out = LEGS_XML if a.asbuilt_legs else os.path.join(HERE, "bimo_biped_v6ar.xml")
+        if a.measured_stops:
+            a.out = LEGS_MEAS_XML if a.asbuilt_legs else AR_MEAS_XML
+        else:
+            a.out = LEGS_XML if a.asbuilt_legs else os.path.join(HERE, "bimo_biped_v6ar.xml")
     p = asbuilt_legs() if a.asbuilt_legs else DesignParams()
+    if a.measured_stops:
+        p = measured_stops(p)
     if a.asbuilt_legs:
         a.armless = True
     plan = "B" if a.all_3215 else a.servo_plan
     src, total = plant_xml(p, None, verbose=True, arms=not a.armless, plan=plan)
     if a.write and not a.no_meshes:
-        src = dress(src, a.out, arms=not a.armless, collision=not a.no_cad_collision, head=p.head)
+        src = dress(src, a.out, arms=not a.armless, collision=not a.no_cad_collision, head=p.head,
+                    legcol_r=MEAS_LEGCOL_R if a.measured_stops else None)
     if a.write:
         with open(a.out, "w") as f:
             f.write(src)

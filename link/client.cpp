@@ -258,7 +258,8 @@ void Link::emit(const uint8_t* wire, size_t n) {
 void Link::send(float vx, float wz, uint8_t flags) {
     if (readonly) return;                 // see sendFull()
     uint8_t wire[kCmdLen];
-    emit(wire, encodeCommand(wire, seq++, vx, wz, flags));
+    const size_t n = encodeCommand(wire, seq++, vx, wz, flags);
+    emit(wire, n);
 }
 
 void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
@@ -290,7 +291,8 @@ void Link::sendFull(float vx, float vy, float wz, const Ext& ext,
     cmd.foot_dx = ext.foot_dx;
     cmd.foot_dz = ext.foot_dz;
     uint8_t wire[kCmdLenExt];
-    emit(wire, encodeCommandExt(wire, cmd));
+    const size_t n = encodeCommandExt(wire, cmd);
+    emit(wire, n);
 }
 
 void Link::poll(double now_ms) {

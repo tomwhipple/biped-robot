@@ -696,7 +696,7 @@ void testKeyChangeDropsSession() {
 // -- the allowlist ------------------------------------------------------------------
 void testPolicy() {
     using wcli::Verdict;
-    struct Row { const char* line; bool armed; Verdict want; };
+    struct Row { const char* line = nullptr; bool armed = false; Verdict want = Verdict::kAllow; };
     const Row rows[] = {
         // the bench work the Wi-Fi CLI exists for
         {"ping", false, Verdict::kAllow},
@@ -762,6 +762,13 @@ void testPolicy() {
         {"sweep", false, Verdict::kRefuseTether},
         {"sweep 20 1 2", false, Verdict::kRefuseTether},
         {"stepresp 7 40", false, Verdict::kRefuseTether},
+        // servo RAM tools (#195): the servocfg read only (#193)
+        {"servocfg", false, Verdict::kAllow},
+        {"servocfg fast", false, Verdict::kRefuseTether},
+        {"servocfg factory", false, Verdict::kRefuseTether},
+        {"regw", false, Verdict::kRefuseTether},
+        {"regw 2 85 0", false, Verdict::kRefuseTether},
+        {"servocfg", true, Verdict::kRefuseArmed},
         // default deny
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},
@@ -778,6 +785,8 @@ void testPolicy() {
         {"release", true, Verdict::kRefuseArmed},
         {"rec on", true, Verdict::kRefuseArmed},
         {"shape 3", true, Verdict::kRefuseArmed},
+        {"limit 200 2000", true, Verdict::kRefuseArmed},
+        {"limit off", false, Verdict::kAllow},
         {"id 1 2", true, Verdict::kRefuseArmed},
         // bytes the tether's line discipline would never deliver
         {"ping\x01", false, Verdict::kRefuseBadLine},
@@ -843,6 +852,7 @@ void testRedact() {
 
 }  // namespace
 
+// NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
 int main() {
     testSha256();
     testHmacRfc4231();

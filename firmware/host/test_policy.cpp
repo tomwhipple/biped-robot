@@ -356,7 +356,8 @@ void testFloatHeadTrimIsExact() {
     policy::forwardNet(net, policy_vectors::kCases[3].obs, trim);
     net.act_dim = 2 * policy::kActDim;
     policy::forwardNet(net, policy_vectors::kCases[3].obs, full);
-    CHECK(memcmp(trim, full, sizeof trim) == 0);
+    // the two nets must agree bit for bit, so a byte comparison is the point
+    CHECK(memcmp(trim, full, sizeof trim) == 0);  // NOLINT(bugprone-suspicious-memory-comparison)
 #endif
 }
 

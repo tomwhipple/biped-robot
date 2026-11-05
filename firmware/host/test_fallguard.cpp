@@ -133,7 +133,10 @@ void testInvalidSampleNeitherTripsNorCompletes() {
     CHECK(!d.fallen());
     // non-finite attitude counts as invalid
     float up[3] = {NAN, 0.0f, 0.1f};
-    for (int k = 0; k < 50; ++k) CHECK(d.update(Motion::kPolicy, true, up, kStill, now += kDt) == Event::kNone);
+    for (int k = 0; k < 50; ++k) {
+        now += kDt;
+        CHECK(d.update(Motion::kPolicy, true, up, kStill, now) == Event::kNone);
+    }
     CHECK(!d.fallen());
     // and while fallen, a gap breaks the pick-up hold
     CHECK(feed(d, Motion::kPolicy, 70.0f, 300, now) == Event::kFell);
@@ -231,11 +234,13 @@ void testArmedFallHandsOverToBenchAutohome() {
     // lying 3 s, then picked up and held upright and still
     for (int k = 0; k < 150; ++k) {
         upAt(85.0f, up);
-        CHECK(bench.update(Motion::kBench, true, up, kStill, now += kDt) == Event::kNone);
+        now += kDt;
+        CHECK(bench.update(Motion::kBench, true, up, kStill, now) == Event::kNone);
     }
     for (int k = 0; k < 150 && !homed; ++k) {
         upAt(2.0f, up);
-        if (bench.update(Motion::kBench, true, up, kStill, now += kDt) == Event::kPickedUp) {
+        now += kDt;
+        if (bench.update(Motion::kBench, true, up, kStill, now) == Event::kPickedUp) {
             homed = true;                   // cli.cpp: homeAll(), then clear()
             bench.clear();
         }

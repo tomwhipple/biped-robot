@@ -179,9 +179,29 @@ side's end of the joint's *policy range*: the actuator `ctrlrange` in the
 plant, deliberately inside the mechanical stop. Widening a policy range
 rescales the action map and costs a retrain.
 
-On the robot the targets do not go straight to the bus: `obs::CommandShaper`
-runs three cascaded 10 Hz first-order lags on them, and every SYNC WRITE
-carries a per-servo goal speed ([firmware/README.md](../firmware/README.md)).
+On the robot the targets do not go straight to the bus. `obs::CommandShaper`
+runs three cascaded 10 Hz first-order lags on them. `obs::MotionLimiter`, when
+`limit` turns it on, then bounds every joint's velocity and acceleration with
+a braking look-ahead and an optional jerk limit. Every SYNC WRITE carries a
+per-servo goal speed ([firmware-design.md](firmware-design.md) §5.3, §5.3a).
+Training puts the same chain in the loop, so that the deployed chain is the
+trained one:
+
+| flag | what the env runs | firmware |
+|---|---|---|
+| `--fw-shaper HZ[,HZ_MAX]` | the shaper on the policy's targets, seeded at the start pose; one pole per episode, U(HZ, HZ_MAX) or fixed | `obs::CommandShaper`, `shape` |
+| `--fw-limit VMAX,AMAX[,JMAX]` | after the shaper: per joint \|v\| ≤ VMAX deg/s, \|a\| ≤ AMAX deg/s², the braking look-ahead (a target that holds still is reached at rest and never passed), and with JMAX deg/s³ the S-curve boxcar; seeded where the shaper is, at rest. The law is `sim/fw_limit.py`, which `tests/test_fw_limit.py` pins to the compiled firmware | `obs::MotionLimiter`, `limit VMAX AMAX [JMAX]` |
+| `--fw-goal-speed` | within each tick the PD set point slews to the new goal at the firmware's goal speed: 1.25 × \|goal − present\| / 20 ms, or under `--fw-limit` 1.25 × the limited velocity; 50..3400 steps/s | `obs::goalSpeedSteps` / `obs::limitGoalSpeedSteps`, register 46 |
+
+All three land in config.json. The CPU referee (`walker_env`) rebuilds the
+shaper and the limiter from it, and grades at the deployed setting. Deploy a
+run with `shape` and `limit` set to the trained values: the limiter is off
+at boot, and a run trained without it is graded without it. Do not switch
+the limiter on under a policy trained without it. In sim such a policy trips
+the flail guard on its first stride: its own goals peak at 1200–1500 deg/s
+and 40,000–67,000 deg/s², far beyond any useful limit
+([experiments/policy/motion-limiter](../experiments/policy/motion-limiter/)).
+
 
 ---
 
@@ -351,7 +371,21 @@ size (`domain_randomize`, the standard MJX pattern):
 
 - body mass and inertia × U(0.85, 1.15), per body; `--torso-mass-range r` draws the torso's scale from U(1−r, 1+r) instead (the legs-only runs use 0.4: the as-built torso is an unweighed estimate);
 - `--torso-com-y c`: the torso's CoM shifted laterally by U(−c, +c) m (±15 mm in the legs-only runs: the same model weight shift balanced ~3° better on one stance foot than the other);
-- floor friction × U(0.6, 1.4);
+- floor friction × U(0.6, 1.4). MuJoCo takes the MAX of a contact's two geom
+  frictions, so this alone never takes a foot contact below the sole pads' 1.0.
+  `--contact-mu lo,hi` draws the EFFECTIVE sliding μ instead and sets it on the
+  floor and every pad. `--contact-torsion lo,hi` does the same for the torsional
+  coefficient (plant 0.02 m, a yaw brake no 3 mm pad has). Both are off by
+  default. The sole's μ on the robot's floors is not measured; the guess is TPU
+  on wood ≈ 0.4–0.6
+  ([friction-dr](../experiments/policy/friction-dr/2026-11-03-friction-dr.md));
+- the servo envelope, which is not DR but plant. `--servo-envelope role=STALL:W0` sets a
+  measured stall / no-load ratio pair per role. The pair goes into `servo_types`, and the
+  referee inherits it. `--supply-voltage` sets the bus the envelope scales with (default
+  11.1 V; the robot reads 12.0 V). The hip pitch / knee refit is `2.0:1.325` / `2.0:1.281`
+  at 12 V ([actuator-refit](../experiments/policy/actuator-refit/2026-11-03-actuator-refit.md)).
+  `--w-qacc` and `--w-action-acc` are reward terms, not DR. They price the tick's joint
+  acceleration and the action's second difference;
 - gravity tilted by U(0, `--tilt-max`)° about a random azimuth — an un-level
   floor, as the IMU sees it (off by default);
 - payload mass U(0, `payload_max`), when that is set.

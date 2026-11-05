@@ -16,10 +16,11 @@ for the collar's flange screws.
 
 | can print now | wait |
 |---|---|
-| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_v6` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
+| `foot_L`, `foot_R`, `ankle_link` ×2, `leg_link_v6` ×4, `hip_yoke_glued_roll` ×2, `hip_yoke_glued_pitch` ×2, `pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `yaw_bearing_housing`, `yaw_carrier_v6` ×2, `head_shell`, `head_face`, `neck_floor`, `shoulder_girdle_v6`, `shoulder_cheek_v6` ×2, `arm_upper_v6_L/_R`, `arm_head_insert_v6_L/_R`, `arm_fore_v6_L/_R` | nothing: the bearings are measured ([docs/bom.md §5](../docs/bom.md)), and their D2 of 62.0 keeps the housing's Ø62.6 shoulder on the outer ring's steel face. |
 
 **Fit check first (#79).** Before printing the full set, print one
-`leg_link_v6` and one `hip_yoke_v6`. Fit them to a real servo, and check:
+`leg_link_v6` and one set of hip yoke pieces (`hip_yoke_glued_roll` +
+`hip_yoke_glued_pitch`). Fit them to a real servo, and check:
 
 - the grip channel slides on;
 - the disc screws engage;
@@ -41,11 +42,15 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `pelvis_v8` | 1 | 56.4 | 114.5 × 56 × 36 | ceiling down, the cell walls rising | no | holds the legs: both yaw cells under one 2.6 mm ceiling (a hole for each servo's free-hub post, a window for its back-cover platform, a slit over its connector trench), the windows for the torso's snap fingers, and the bearing housing's five pilot bosses; glued into `torso_v8` ([assembly §7a](../docs/assembly.md)) |
 | `torso_v8` | 1 | 125.3 | 128.4 × 122.5 × 71.5 | deck top down | **in its wide windows only**: 26 enforcer boxes in `print_settings.json` (manual supports, snug) | the deck with the girdle's ten pilots, the skins, the battery layer, the bay for the Pi + General Driver stack forward, the power bay aft and the battery door's opening in the +y skin; the windows are flat-topped |
 | `front_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the board-stack bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
-| `power_cover_v8` | 1 | 18.2 | 114.5 × 66.3 × 10.6 | outer face down | no | closes the power bay: a flat plate with vent slots and four corner blocks; 4 × M2.5 × 8 flat-heads in through the skins |
+| `power_cover_v8` | 1 | 28.8 | 122.5 × 71.5 × 15.3 | outer face down | no | the power bay's cap, 4.7 mm proud of the torso and 2.0 mm over the relay K1, every edge square: the skins and deck carried aft to a plate with two vent slots, the switch pod's four screw holes and a notch in its bottom edge for the switches' wires, a lip inside the torso, three corner blocks (pilots teardropped); 3 × M2.5 × 8 flat-heads in through the skins ([assembly §9c](../docs/assembly.md)) |
+| `power_bracket_v8` | 1 | 4.1 | 64.7 × 44.4 × 4.7 | the face that sits on the standoffs down | no | the BMS's tray: a 2.5 mm plate on two M2.5 × 15 standoffs in the power board's +y holes, 2 × M2.5 × 6 flat-heads; a ledge and two stops rise to the BMS's PCB ([assembly §9c](../docs/assembly.md)) |
+| `balance_park_v8` | 1 | 0.6 | 15.9 × 9.2 × 6.6 | floor down | no | a cup for the balance extension lead's male end, pins up; foam-taped to the aft inner wall's aft face, its top at the battery door's sill ([assembly §9c](../docs/assembly.md)) |
+| `switch_pod_v8` | 1 | 48.7 | 74.5 × 74.1 × 26.0 | aft face down | no | the block on the cap's outer face at its top, its top flush with the deck's, that holds the main switch and the E-stop side by side, levers up in one pocket walled all round: the E-stop on a platform at the −y end; each hole with a tab in its bushing's keyway (the main one's size assumed: `SW_KEY_*`); 4 × M2.5 × 8 flat-heads in from the cap's inner face into its side walls ([assembly §9c](../docs/assembly.md)) |
 | `battery_door_v8` | 1 | 11.4 | 79.8 × 29.6 × 12.4 | outer face down | no | the +y skin over the pack and the power board's J1: a bevelled tab aft, one M2.5 × 8 flat-head forward, two ribs that stop the pack ([assembly §10](../docs/assembly.md)) |
 | `yaw_bearing_housing` | 1 | 25.2 | 80 × 155 × 9.3 | the face that goes against the pelvis down | no | both hips' outer-race seats (Ø64.96 recess, −0.04 mm on the 6810-2RS, under a Ø62.6 shoulder), joined by a bridge, with a rear bar; five M2.5 × 8 flat-heads up into `pelvis_v8`'s bosses. **A housing printed for `pelvis_v7` does not fit them: reprint it** |
 | `yaw_carrier_v6` | 2 | 27.3 | 52 × 52 × 49 | horn-plate face down, bay walls rising | **the servo-plug window only**, from its sill (an enforcer box in `print_settings.json`) | carries the hip-roll servo in its bay, 5 mm below the horn plate; its round hub (Ø50.08 as printed, +0.08 mm on the measured 50.0 bore; modelled Ø50.48, see below) takes the bearing's inner race, which stops on the lip under the hub (Ø52.3) |
-| `hip_yoke_v6` | 2 | 25.4 | 74 × 48 × 44 | on edge, model −Y on the bed, so the roll arms print as walls | **yes + 5 mm brim** | roll and pitch clevis in one print; see its notes below |
+| `hip_yoke_glued_roll` | 2 | 16.1 | 48.4 × 33.4 × 35.0 | on edge, model −Y on the bed (the face tangent to the pads and the idler boss) | **no**, no brim | the hip-roll clevis, a U-channel; **100 % infill**; snaps onto and is glued to `hip_yoke_glued_pitch`; see its notes below |
+| `hip_yoke_glued_pitch` | 2 | 12.8 | 35.6 × 43.8 × 44.0 | on its back, model −X on the bed (the rear face, tangent to the idler hub) | **no**, no brim | the hip-pitch clevis, a U-channel; **100 % infill**; see its notes below |
 | `leg_link_v6` | 4 | 28.6 | 117 × 44 × 28 | on its back: web face on the bed | **yes**, build plate only: under the two round pad ends | thigh and shin are the same part |
 | `ankle_link` | 2 | 13.6 | 65 × 43 × 38 | on its back (model +X up): the rear tine on the bed | **yes**: under the web (4.6 mm, from the plate) and under the front tine below the floor, standing on the rear tine's inner face, which seats the idler disc: clean it flat. The front wall bridges between the side walls | grips the ankle-pitch servo in a box around its base, forks onto the ankle-roll servo |
 | `foot_L`, `foot_R` | 1 + 1 | 54.4 | 130 × 84 × 30 | sole down | no | a mirrored pair; each retention tab is braced by two fins on its outer face, sloped tops, support-free; a short near-row screw boss beside each disc |
@@ -55,18 +60,24 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
 | `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
 | `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair, L / R debossed on the outboard rail; open-front U with two end walls; grips the elbow servo |
+| `arm_head_insert_v6_L`, `_R` | 1 + 1 | 1.8 | 30 × 9 × 24 | flat, outboard face down | no | a mirror pair, not labelled (its lip goes on the horn plate's side); glued into the upper arm's head, closing its U at the front and top ([assembly §11d](../docs/assembly.md)); its own `arm_head_inserts` plate |
 | `arm_fore_v6_L`, `_R` | 1 + 1 | 41.5 | 182 × 44 × 27 | on its back, web face down | **under the two elbow pads only**, build plate only: an enforcer box per pad in `print_settings.json` (manual supports, snug) | a mirror pair, L / R debossed on the outboard rail; the elbow fork, an end wall, 12 mm hand knuckle |
 
 **Part notes:**
 
-- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `battery_door_v8`**
-  - The torso is five prints (the pelvis, the torso, two covers and the
-    battery door) on two plates (`print_settings.json` `plates`, `make slice`):
-    `torso_frame` (the torso, the pelvis and the door: 6 h 26 m, 192 g) and
-    `torso_covers` (both covers: 1 h 12 m, 35 g). The covers do not fit beside
-    the torso. The pelvis, the covers and the door print without
-    supports: the pelvis's ceiling is on the bed, the covers' vent slots are
-    cut through flat plates, and the door's tab is bevelled 40° off vertical.
+- **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `battery_door_v8`**
+  - The torso is eight prints (the pelvis, the torso, two covers, the switch
+    pod, the BMS bracket, the balance park and the battery door): the switch
+    pod on its own, the rest on two plates (`print_settings.json` `plates`,
+    `make slice`): `torso_frame` (the torso, the pelvis and the door:
+    6 h 26 m, 192 g) and `torso_covers` (both covers, the BMS bracket and
+    the balance park: 1 h 34 m, 48 g; the switch pod alone 1 h 9 m, 42 g).
+    The covers do not fit beside the torso. The pelvis, the covers, the
+    bracket, the park, the pod and the door print without supports: the
+    pelvis's ceiling is on the bed, the covers' vent slots are cut through
+    flat plates, everything on the cap and the bracket rises from its plate,
+    every wall of the pod rises from its aft face, the park is a cup printed
+    floor down, and the door's tab is bevelled 40° off vertical.
   - The torso's windows have flat tops. Printed deck down, a window's bottom
     edge is the top of its opening, so each one wider than an 8 mm bridge (26
     of them, the door's opening among them) gets support inside it and
@@ -103,11 +114,31 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
     interface there would spoil the stop. OrcaSlicer prints its outer
     perimeters as overhang walls.
   - The horizontal screw holes are teardrops and print unsupported.
-- **`hip_yoke_v6`**
-  - The pitch horn arm is a slab over the servo void, and the roll pad rims and
-    arm plates start in mid-air.
-  - The underside of the pitch horn arm is a support-interface face that clamps
-    onto the horn disc. Check that it seats flat.
+- **`hip_yoke_glued_roll`, `hip_yoke_glued_pitch`**
+  ([`hip_yoke_glued.py`](v6/hip_yoke_glued.py)): the hip yoke, two U-channels
+  that print without supports, snap together and are glued.
+
+  ![The glued hip yoke: each piece as it lies on the bed, exploded, glued](../docs/img/hip_yoke_glued.png)
+
+  - **Slice:** `python3 cad/slice.py hip_yoke_glued_roll` and
+    `hip_yoke_glued_pitch`, or the plate `hip_yoke_glued` (both pieces, two
+    sets). At 100 % infill: roll 39 min and 17.8 g, pitch 32 min and 13.7 g;
+    the four pieces on one plate 2 h 9 min and 62.8 g (OrcaSlicer, no
+    supports, no brim). The masses in the table are the CAD's; the slicer
+    adds the perimeter overlap and the 100 % core. If a piece lifts off the
+    bed, add a 5 mm outer brim to it.
+  - **100 % infill, both pieces.** The yoke carries the servos' stall
+    torque across its on-edge layers, and the first one broke through a 35 %
+    core ([the record](../docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)).
+  - **Assemble:** press the roll piece's flange onto the pitch piece's flange
+    until both split prongs click under it. The prongs locate the two pieces.
+    Pull them apart again, glue the lap (about 1058 mm², CA or epoxy, faces
+    lightly sanded), and press the pieces back together. The whole lap must
+    wet: the joint carries the servo torque.
+  - The bottom of the roll idler boss rests on the bed as a line, like a
+    cylinder printed on its side. It is the journal that turns in the yaw
+    carrier's bay bore with 0.3 mm of clearance, so check it for a ridge or a
+    flat spot before fitting it into the carrier.
 - **`leg_link_v6`:** the back web and both side walls sit on the bed. Only the
   lower-rear quarter of each round pad end overhangs, 5 mm up; support it from
   the plate. The knee pocket in the idler side wall prints with a 6.6 mm roof.
@@ -133,8 +164,9 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
   - Print the two cheeks on the same plate (`girdle_neck`), outer face down:
     no supports. Both are the same part, square-edged: it fits either pod.
 
-**Totals:** 28 prints, all PETG, from 21 STLs: ≈ 880 g before supports and
-brims.
+**Totals:** 30 prints, all PETG, from 22 STLs: ≈ 887 g by the CAD's mass
+(the two hip yoke pieces print at 100 % infill and slice about 10 % heavier)
+before supports and brims.
 
 **Not printed:**
 
@@ -146,37 +178,6 @@ brims.
   the sim plant.
 - `neck_collar.stl` and anything built with `ARMS=0` (see the top of this
   page).
-- `yoke_roll.stl` and `yoke_pitch_v6.stl`: the `HIP_YOKE_VARIANT=split` build
-  (the bolted two-piece yoke), which `hip_yoke_v6` replaces.
-
-### Test print: the glued hip yoke
-
-`HIP_YOKE_VARIANT=glued` builds the hip yoke as two U-channels that print
-**without supports**, snap together, and are glued
-([`hip_yoke_glued.py`](v6/hip_yoke_glued.py)). It is the test of that method
-before it is used on other parts. It is not in the default build yet, so
-`hip_yoke_v6` stays in the table above.
-
-![The glued hip yoke: each piece as it lies on the bed, exploded, glued](../docs/img/hip_yoke_glued.png)
-
-| part | qty | g each | orientation on the bed | supports |
-|---|---|---|---|---|
-| `hip_yoke_glued_roll` | 2 | 9.4 | on edge, model −Y on the bed (the face tangent to the pads and the idler boss) | **no**, no brim |
-| `hip_yoke_glued_pitch` | 2 | 10.8 | on its back, model −X on the bed (the rear face, tangent to the idler hub) | **no**, no brim |
-
-- **Slice:** `python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued`
-  puts all four pieces on one plate: 1 h 34 min and 40.7 g, with no
-  supports and no brim; `--copies 1` gives one set, 47 min and 20.3 g. One
-  `hip_yoke_v6` takes 1 h 1 min and 25.2 g, supports and brim included. If a
-  piece lifts off the bed, add `hip_yoke_v6`'s 5 mm outer brim to the variant.
-- **Assemble:** press the roll piece's flange onto the pitch piece's flange
-  until both split prongs click under it. The prongs locate the two pieces.
-  Pull them apart again, glue the 27 × 30 mm flange faces (CA or epoxy, faces
-  lightly sanded), and press the pieces back together.
-- The bottom of the roll idler boss rests on the bed as a line, like a
-  cylinder printed on its side. It is the journal that turns in the yaw
-  carrier's bay bore with 0.3 mm of clearance, so check it for a ridge or a
-  flat spot before fitting it into the carrier.
 
 ### Test print: the glued ankle link
 
@@ -225,7 +226,7 @@ make cad                                               # every part whose source
 ```
 
 - Each part module's `__main__` exports that part and runs its own audits.
-  `leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `neck_floor` and `arm_v6`
+  `leg_link_v6`, `hip_yoke_glued`, `shoulder_girdle_v6`, `neck_floor` and `arm_v6`
   rewrite their STL as they go.
 - Run `make check-cad` (`sh cad/run_checks.sh`) after any CAD change and
   before printing (see [README.md](README.md#the-gate)).
@@ -266,7 +267,7 @@ OrcaSlicer settings that work:
 | Threshold angle | 30° |
 | Top Z distance | **0.2 mm** (PETG welds to support at 0.1) |
 | Support/object XY distance | 0.35 mm |
-| Brim | outer only, **5 mm**, for tall narrow parts: `hip_yoke_v6` |
+| Brim | outer only, **5 mm**, for tall narrow parts (none of the current parts uses one) |
 
 - Put the supported parts on their own plate so the setting does not leak onto
   the others.

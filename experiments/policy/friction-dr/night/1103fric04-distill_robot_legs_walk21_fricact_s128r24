@@ -1,0 +1,4 @@
+BRANCH=friction-dr
+# distill: robot_legs_walk21_fricact -> robot_legs_walk21_fricact_s128r24 (stock 24-round DAgger, the firmware-sized (128,128) student)
+CMD=infra/night_distill.sh robot_legs_walk21_fricact robot_legs_walk21_fricact_s128r24
+OUT=robot_legs_walk21_fricact_s128r24

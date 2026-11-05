@@ -127,7 +127,7 @@ void Recorder::bench(double now_ms, const char* datagram, size_t n) {
     ++n_bench;
 }
 
-void Recorder::cam(double now_ms, int pane, const char* src, const char* url) {
+void Recorder::cam(double now_ms, int pane, const char* src, const char* url) const {
     if (f == nullptr) return;
     fprintf(f,
             "{\"t\":%.3f,\"utc\":%.6f,\"dir\":\"cam\",\"pane\":%d,"

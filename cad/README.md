@@ -45,12 +45,10 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
 | `animate_v6.py` | fly-in along each part's insertion path. Writes `build/v6/movies/assembly_v6_flyin*.mp4` and a `_strip.png` beside each; `make figures` copies the strips into `docs/assembly/` |
 | `render_steps_v6.py` | the assembly guide's step figures, rendered into `build/v6/renders/v6_*.png` (`make figures` copies them to `docs/assembly/`): bench order, the incoming part orange along its insertion path |
-| `torso_v8.py` | the torso, five prints: `pelvis_v8` (both yaw cells under one ceiling, the bearing housing's five pilot bosses), `torso_v8` (deck, skins, battery layer, the bay for the Pi with the General Driver on it forward, the power-board bay aft, the battery door's opening, and the snap fingers that hold the pelvis while the glue cures; slicer support in its wide windows only, `support_enforcers()`), `front_cover_v8`, `power_cover_v8` and `battery_door_v8` (one screw, one tab). Its `__main__` writes the five STLs to `cad/v6/stl` and STEPs to `build/v6/step`, runs the board stack in from the front and the power board in from aft, the pelvis going up into the torso, the battery swap (the door off, J1's plug out, the pack out), the seated fits, driver access, the screws' thread bite and the printability audits, and renders `build/v6/renders/torso_v8.png` and `torso_v8_assembly.png` |
+| `torso_v8.py` | the torso, eight prints: `pelvis_v8` (both yaw cells under one ceiling, the bearing housing's five pilot bosses), `torso_v8` (deck, skins, battery layer, the bay for the Pi with the General Driver on it forward, the power-board bay aft, the battery door's opening, and the snap fingers that hold the pelvis while the glue cures; slicer support in its wide windows only, `support_enforcers()`), `front_cover_v8`, `power_cover_v8` (the power bay's cap), `power_bracket_v8` (the BMS's tray on the power board's standoffs), `balance_park_v8` (the balance extension lead's park), `switch_pod_v8` (the main switch and the E-stop side by side, on the cap) and `battery_door_v8` (one screw, one tab). Its `__main__` writes the eight STLs to `cad/v6/stl` and STEPs to `build/v6/step`, runs the board stack in from the front and the power board, the balance park, the BMS bracket, the BMS and the cap in from aft, the pelvis going up into the torso, the battery swap (the door off, J1's plug out, the pack out), the seated fits, the power bay's gaps and every wire's and terminal's keep-out (`wire_envelopes`, `switch_keepouts`), driver access, the screws' thread bite and the printability audits, and renders `build/v6/renders/torso_v8.png`, `torso_v8_assembly.png`, `power_bay_v8.png`, `power_bay_prints_v8.png` and `switch_pod_v8.png` (`--figures`: those three only). `--power-bay-step [board.step]` writes `build/v6/step/power_bay_v8.step` for FreeCAD, with power lite's own STEP when given, and the balance lead's and the E-stop pair's routes (`balance_lead_path`, `estop_lead_path`) |
 | `yaw_bearing_housing.py` | the hip-yaw bearings' outer-race seats for both hips, one print screwed up under the pelvis, and its `SCREWS()` |
 | `yaw_carrier_v6.py` | the prototype's carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
-| `hip_yoke_v6.py` | the hip roll and pitch clevises fused into one print |
-| `yoke_pitch_v6.py` | the pitch clevis alone. `hip_yoke_v6` is built from it; it is printed only under `HIP_YOKE_VARIANT=split` |
-| `hip_yoke_glued.py` | the hip yoke as two U-channels, roll and pitch, that print without supports, snap together and are glued (`HIP_YOKE_VARIANT=glued`); the test of that method |
+| `hip_yoke_glued.py` | the hip yoke: two U-channels, `hip_yoke_glued_roll` and `hip_yoke_glued_pitch`, cut from the prototype's `yoke_roll` and `yoke_pitch` (servo interfaces byte-identical, `check_interfaces()`). Each prints on edge without supports or brim, at 100 % infill; they snap together on two split-prong clips and are glued on a lap of about 1058 mm². The toe, the fin, the webs and the pitch idler plate carry the servo torques onto the lap ([the record](../docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)). Its `__main__` writes both STLs and STEPs, audits printability and the interfaces, and renders `build/v6/renders/hip_yoke_glued.png` |
 | `leg_link_v6.py` | thigh and shin (one part): a 110 mm open-front U with an end wall at each end of the open span |
 | `ankle_link.py` | grips the ankle-pitch servo and forks onto the ankle-roll servo |
 | `ankle_link_glued.py` | the ankle link as a cradle that fits the pitch servo's base and a fork onto the roll servo, printed without supports, snapped and glued (`ANKLE_LINK_VARIANT=glued`) |
@@ -60,10 +58,9 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 | `neck_collar.py` | the `ARMS=0` variant's neck tube (not a print target: its flange pilots miss the deck) |
 | `shoulder_girdle_v6.py` | the girdle: both shoulder pods and the neck tube in one print, and the two pods' screw-on cheeks (`shoulder_cheek_v6`), so each shoulder servo goes in along its own axis; `--checks` sweeps both insertion paths |
 | `arm_v6.py` | upper arm and forearm (mirror pairs), the elbow-servo mock, and the elbow ROM check |
-| `audit_torso.py` | printability report for `pelvis_v8`, `torso_v8`, both covers, `yaw_bearing_housing` and the head parts |
+| `audit_torso.py` | printability report for `pelvis_v8`, `torso_v8`, both covers, the BMS bracket, the balance park, `yaw_bearing_housing` and the head parts |
 | `audit_ankle_foot.py` | printability report for `ankle_link` and `foot_L/R` |
 | `audit_leg_link.py` | printability and interface audit for `leg_link_v6` |
-| `check_hip_yoke_clearance.py` | clearance A/B between the hip yoke's raw union and the styled part |
 | `print_settings.json` | what `cad/slice.py` slices with: the print spec over Flashforge's presets, and each part's print orientation, supports, copies and overrides. Settings saved in a part's project from the OrcaSlicer GUI are written back here ([PRINT_LIST.md](PRINT_LIST.md), Slicing) |
 
 ## Shared builders in `cad/`
@@ -79,7 +76,7 @@ the 10-joint training plant (`sim/bimo_biped_v5body.xml`) meshes `cad/stl`.
 - **`parts.py`** provides two things:
   - the solid helpers every `cad/v6` module uses: `box`, `cyl_x/y/z`, `teardrop_x/y`,
     `wedge_x/y/z`, `csk_x/y/z`, `bcd_x`;
-  - the prototype parts the robot reuses: `yaw_carrier` (inside `yaw_carrier_v6`), `yoke_roll` and `yoke_pitch` (inside `hip_yoke_v6`), and
+  - the prototype parts the robot reuses: `yaw_carrier` (inside `yaw_carrier_v6`), `yoke_roll` and `yoke_pitch` (the glued hip yoke's two pieces are cut from them), and
     `leg_link` (the basis of `leg_link_v6`).
 
   Its `main()` exports the prototype's parts to `cad/stl` and `build/v5/step`.
@@ -144,7 +141,6 @@ make check-cad                                           # the gate (below)
 | flag | default | read by | effect |
 |---|---|---|---|
 | `ARMS` | `1` | `parts_v6.py`, `assembly_v6.py` (and so `check_assembly_v6.py`, `animate_v6.py`, `render_steps_v6.py`) | the girdle, the four arm links, and the torso with the ten girdle pilots. `0` is the armless variant: `neck_collar`, no pilots, no arms |
-| `HIP_YOKE_VARIANT` | `single` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued U-channel pair (`hip_yoke_glued_roll` + `hip_yoke_glued_pitch`), and `split` builds the bolted `yoke_roll` + `yoke_pitch_v6` pair, instead of `hip_yoke_v6` |
 | `ANKLE_LINK_VARIANT` | `box` | `parts_v6.py`, `assembly_v6.py` | `glued` builds the glued cradle + fork (`ankle_link_glued_cradle` + `ankle_link_glued_fork`) instead of `ankle_link`; the assembly carries their union |
 | `SERVO_PLAN` | `hips` | `parts_v6.py` (`sim/build_v6_inertia.py --servo-plan`) | `hips`: STS3250s at the two hip rolls, STS3215s elsewhere; `B`: 17 × STS3215; `3250`: STS3250s at the six roll and knee joints (masses only; same case) |
 | `MUJOCO_GL` | `cgl` on macOS, `egl` elsewhere | every render | the offscreen GL backend |
@@ -193,7 +189,7 @@ against the slice preview.
 **What the gate does not cover:**
 
 - **The other printed parts** audit themselves from their module's `__main__`
-  (`leg_link_v6`, `hip_yoke_v6`, `shoulder_girdle_v6`, `arm_v6`). Those rewrite
+  (`leg_link_v6`, `hip_yoke_glued`, `shoulder_girdle_v6`, `arm_v6`). Those rewrite
   their STL as they run, so run them when that part changes.
 - **Insertion paths:** on a layout change, `animate_v6.py` proves that the parts
   fly in along them.

@@ -125,6 +125,26 @@ const char* sil_last_error(void);
 // ctrl_task reseeding from measured q on a torque (re)engage.
 void sil_set_shaper(float pole_hz);
 
+// sil_abi 4: the motion limiter (obs::MotionLimiter), the mirror of
+// ctrl_task's g_limit_* (CLI `limit`), in the CLI's deg units: vmax deg/s,
+// amax deg/s^2, jmax deg/s^3 (0 = no jerk limit); vmax or amax 0 = off.
+// sil_init resets it OFF (the boot state). It runs after the shaper; while
+// on, every policy joint's goal speed is the limited velocity
+// (obs::limitGoalSpeedSteps). A change is continuous; sil_reset (and off ->
+// on) reseeds it from the next tick's sensed positions, at rest.
+void sil_set_limiter(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3);
+
+// sil_abi 4, pure (no sil_init needed): a FRESH obs::MotionLimiter at the
+// given limits, seeded at q0 (kNumJoints rad) at rest, stepped through n
+// ticks of targets (n x kNumJoints rad, row-major), writing each tick's
+// limited position (rad) and velocity (rad/s) to out_pos / out_vel (n x
+// kNumJoints). Returns the boxcar length (taps), or < 0 on bad arguments.
+// For pinning the training env's copy of the law to the compiled one
+// (tests/test_fw_limit.py).
+int sil_limit_trace(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3,
+                    int n, const float* q0, const float* targets,
+                    float* out_pos, float* out_vel);
+
 // The stand-clock option, the mirror of ctrl_task's g_stand_clock (CLI
 // `standclock`): 0 run (as trained, the boot state sil_init restores),
 // 1 freeze, 2 coast to stand_phase (rad). See obs::StandClock.

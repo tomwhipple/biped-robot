@@ -180,7 +180,18 @@ the two starts converge before the roll.
    directly with PPO, `--policy-hidden` — the w12k student sweeps 44/48 but
    keeps 4/16 at 15 N; the (128, 128) PPO policy sweeps 31 and 48/48 on two
    seeds, 15 N 7 and 8/16; night 13: distil noise / capacity, a (256, 256)
-   PPO net, the small net's seed spread and residual 0.075)*
+   PPO net, the small net's seed spread and residual 0.075 — **the DART
+   student w12k_s128r24an3 (`--act-noise 0.3`) is the first (128, 128)
+   get-up at the teacher's level: 48/48, 15 N 16/16**; PPO small nets stay
+   at 7 – 9/16 whatever their size or residual; night 14: its replicates,
+   and the get-up on the robot's fast actuator and firmware shaper — held:
+   w17k 48/48, 15 N 16/16; w18k through the shaper 48/48, 16/16; the DART
+   student replicates on a second teacher, 47/48, 16/16; night 15: the
+   episode start seeded at the lying pose, `--seed-chain-at-q` — held, 48/48
+   and 15 N 16/16 on two seeds, its DART student w19k_s128r24an3 48/48, 16/16,
+   and all of them 16/16 on the measured sole friction μ 0.45 and 0.3;
+   #214's smoothness terms bought nothing and were dropped; night 16: the
+   firmware motion limiter, `--fw-limit` 200,3000 and 200,2000)*
 
 Throughout: when the referee shows a phase failing, fix the reference first
 (`getup_ref_analytic.py verify` / `rise` / `search-roll`), then the RL.
@@ -262,11 +273,26 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w14k | 11-01 | w12k (fresh) | no `--init-from` (from scratch, (512, 256, 128)) | control for w13k: the reference carries a fresh policy, sweep ≥ 44/48 | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N 12/16, 30 N 4/16. The t3k init is not needed |
 | robot_getup_w12k_s1 | 11-01 | w12k | seed 1 | replicate of the deploy-contract recipe | 0/8 | 8/8 | 8/8 (34.9 s) | 8/8 (34.9 s) | **replicates**: 48/48; 15 N **15/16**, 30 N 2/16 |
 | robot_getup_w13k_s1 | 11-01 | w13k | seed 1 | replicate (likely capped) | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | capped at 532M. **48/48**; 15 N 8/16, 30 N 0/16. The (128, 128) recipe over 2 seeds: 31, 48; 15 N 7, 8 (big net 12 – 15) |
-| robot_getup_w12k_s128r24an3 | 11-02 | w12k_s128r24 | distil `--act-noise` 0 → 0.3 (noise on the executed actions) | the student's buffer is too narrow for post-shove states: val < 0.01, 15 N ≥ 8/16, sweep ≥ 44/48 | | | | | |
-| robot_getup_w12k_s512r24 | 11-02 | w12k_s128r24 | distil `--hidden` → 512, 256, 128 (teacher size) | the distil loss is the DAgger recipe, not capacity: 15 N stays ≤ 8/16 | | | | | |
-| robot_getup_w15k | 11-02 | w13k (fresh) | `--policy-hidden` 128,128 → 256,256 | the small net's push loss is capacity: sweep 48/48, 15 N ≥ 12/16 | | | | | |
-| robot_getup_w13k_s2 | 11-02 | w13k | seed 2 | replicate: is 31 or 48/48 typical | | | | | |
-| robot_getup_w16k | 11-02 | w13k (fresh) | `--rise-ref-residual` 0.15 → 0.075 | less authority stops the small net's post-stand sink: sweep ≥ 46/48 (may be capped) | | | | | |
+| robot_getup_w12k_s128r24an3 | 11-02 | w12k_s128r24 | distil `--act-noise` 0 → 0.3 (noise on the executed actions) | the student's buffer is too narrow for post-shove states: val < 0.01, 15 N ≥ 8/16, sweep ≥ 44/48 | 0/8 | 8/8 | 8/8 (33.7 s) | 8/8 (33.6 s) | **held**: 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = **48/48**; 15 N **16/16** (teacher 14, stock student 4), 30 N 5/16. The first (128, 128) get-up at the teacher's level. val 0.022 (bc 0.0072): its val is on the noisier buffer, so it does not compare with the stock student's 0.014 |
+| robot_getup_w12k_s512r24 | 11-02 | w12k_s128r24 | distil `--hidden` → 512, 256, 128 (teacher size) | the distil loss is the DAgger recipe, not capacity: 15 N stays ≤ 8/16 | 0/8 | 8/8 | 8/8 (34.0 s) | 8/8 (34.0 s) | **not held**: capacity alone also closes the gap. 0.05: 8/8, 8/8; 0.5: 8/8, 8/8 = 48/48; 15 N **16/16**, 30 N 4/16; bc 0.00036, val 0.0077 (stock 0.0011, 0.014). Not deployable at this size |
+| robot_getup_w15k | 11-02 | w13k (fresh) | `--policy-hidden` 128,128 → 256,256 | the small net's push loss is capacity: sweep 48/48, 15 N ≥ 12/16 | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | **not held**: 48/48 but 15 N 7/16, 30 N 1/16, the same as the (128, 128) nets. The PPO small-net push loss is not capacity |
+| robot_getup_w13k_s2 | 11-02 | w13k | seed 2 | replicate: is 31 or 48/48 typical | 0/8 | 8/8 | 8/8 (33.7 s) | 8/8 (33.7 s) | 0.05: 6/8, 8/8; 0.5: 8/8, 8/8 = 46/48; 15 N 8/16, 30 N 2/16. The (128, 128) PPO recipe over 3 seeds: 31, 48, 46; 15 N 7, 8, 8 |
+| robot_getup_w16k | 11-02 | w13k (fresh) | `--rise-ref-residual` 0.15 → 0.075 | less authority stops the small net's post-stand sink: sweep ≥ 46/48 (may be capped) | 0/8 | 8/8 | 8/8 (33.0 s) | 8/8 (33.0 s) | **held** on the sweep (48/48, no sink on this seed); 15 N 9/16, 30 N 1/16: shoves unchanged |
+| robot_getup_w12k_s1_s128r24an3 | 11-03 | w12k_s128r24an3 | teacher w12k → w12k_s1 (distil `--act-noise 0.3`) | the noise recipe, not one lucky teacher: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 8/8 | 8/8 (34.6 s) | 8/8 (34.6 s) | **held**: 0.05: 8/8, 8/8; 0.5: 7/8, 8/8 = 47/48; 15 N **16/16**, 30 N 5/16. The DART recipe over 2 teachers: 48, 47; 15 N 16, 16 |
+| robot_getup_w12k_s128r24an6 | 11-03 | w12k_s128r24an3 | distil `--act-noise` 0.3 → 0.6 | brackets the noise: 30 N above 5/16, sweep ≥ 46/48 | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | **not held**: 47/48, 15 N 16/16, 30 N 6/16 (an3 5/16): within seed noise. More noise does not reach 30 N |
+| robot_getup_w17k | 11-03 | w12k (t3k) | the actuator: 3-stage `--act-lag 2,12` → the measured fast servo (`--act-lag 2.65,8 --act-lag-order 1 --act-lag-scale sts2026 --act-delay-types sts3215=0:2,sts3250=0:1`) | the get-up is slow enough that the robot's actuator costs nothing: sweep ≥ 46/48, 15 N ≥ 12/16 | 0/8 | 8/8 | 8/8 (34.4 s) | 8/8 (34.4 s) | **held**: 48/48; 15 N **16/16** (w12k 14), 30 N 3/16 (5). The fast actuator costs nothing (measured-stops plant `v6ar_meas`) |
+| robot_getup_w17k_s128r24an3 | 11-03 | w12k_s128r24an3 | teacher w12k → w17k | the deployable student carries over to the fast actuator: sweep ≥ 46/48, 15 N ≥ 12/16 | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | **held**: 0.5: 7/8, 8/8 = 47/48; 15 N **16/16**, 30 N 2/16 |
+| robot_getup_w18k | 11-03 | w17k (t3k) | + `--fw-shaper 10 --fw-goal-speed` (the firmware chain the legs deploy through) | the get-up trains through the deploy shaper: sweep ≥ 46/48, 15 N ≥ 12/16 | 0/8 | 8/8 | 8/8 (33.7 s) | 8/8 (33.7 s) | **held**: **48/48**; 15 N **16/16**, 30 N 5/16. Graded through the shaper (`fw_shaper_hz` 10 in config.json → the referee's env). The get-up on the full deploy chain |
+| robot_getup_w17k_s1 | 11-03 | w17k | seed 1 | replicate (may be capped) | 0/8 | 8/8 | 8/8 (33.3 s) | 8/8 (33.3 s) | trained the full 600M, but on the OLD plant `bimo_biped_v6ar.xml` (its job had no `--xml`): 48/48, 15 N 15/16, 30 N 3/16. Replicates w17k across the plant change |
+| robot_getup_w18k_s128r24an3 | 11-04 | w17k_s128r24an3 | teacher w17k → w18k (+ the shaper; distil `--act-noise 0.3`) | the deployable student carries through the shaper: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | **held**: **48/48**; 15 N **16/16**, 30 N 5/16. Sole μ 0.45 and 0.3: 16/16 each |
+| robot_getup_w19k | 11-04 | w18k (t3k) | + `--seed-chain-at-q` (the servo chain starts at the lying pose, as the firmware's shaper; main `6fac9db`) | the get-up does not lean on the start yank: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 8/8 | 8/8 (34.4 s) | 8/8 (34.4 s) | **held**: **48/48**; 15 N **16/16**, 30 N 6/16 (w18k 48, 16, 5). `seed_chain_at_q` true in config.json. Sole μ 0.45 and 0.3: 16/16 each |
+| robot_getup_w19k_s128r24an3 | 11-04 | w18k_s128r24an3 | teacher w18k → w19k | the deploy-faithful student: sweep ≥ 46/48, 15 N ≥ 14/16 | 0/8 | 8/8 | 8/8 (33.4 s) | 8/8 (33.4 s) | **held**: **48/48**; 15 N **16/16**, 30 N 3/16. Sole μ 0.45 and 0.3: 16/16 each. **The get-up candidate for the robot** |
+| robot_getup_w19k_s1 | 11-04 | w19k | seed 1 | replicate | 0/8 | 8/8 | 8/8 (34.2 s) | 8/8 (34.2 s) | **replicates**: 48/48; 15 N 16/16, 30 N 4/16 |
+| robot_getup_w20k | 11-04 | w19k (t3k) | + `--w-qacc 4e-5 --w-action-acc 1.0` (#214's smoothness terms, the legs' weights) | lower wobble at no cost: sweep ≥ 46/48, 15 N ≥ 14/16 (may be capped) | 0/8 | 8/8 | 8/8 (33.5 s) | 8/8 (33.5 s) | **not held**: trained the full 600M. 0.5: 7/8, 8/8 = 47/48; 15 N 15/16, 30 N 5/16. Wobble 0.37 / 0.41 rad/s (w19k 0.40 / 0.43, within card noise) for +13 – 19 % watts; PPO KL 0.22 (w19k 0.022). Dropped |
+| robot_getup_w21k | 11-05 | w19k (t3k) | + `--fw-limit 200,3000` (the firmware motion limiter, #215; the legs line's setting) | the residual absorbs the 200 °/s cap (the reference's roll reaches 267 – 349 °/s on hip pitch, knee, shoulders): sweep ≥ 46/48, 15 N ≥ 14/16, stands within +2 s of w19k | | | | | |
+| robot_getup_w21k_s128r24an3 | 11-05 | w19k_s128r24an3 | teacher w19k → w21k | the DART student carries through the limiter: sweep ≥ 46/48, 15 N ≥ 14/16 | | | | | |
+| robot_getup_w22k | 11-05 | w21k (t3k) | `--fw-limit` 200,3000 → 200,2000 (the firmware's `limit on` default) | no loss vs w21k (the reference's peak acceleration is 1170 °/s²): sweep ≥ 46/48, 15 N ≥ 14/16 | | | | | |
+| robot_getup_w21k_s1 | 11-05 | w21k | seed 1 | replicate | | | | | |
 
 ## Nights
 
@@ -1589,3 +1615,463 @@ students with `ACT=meas` + `ACT=hard` candidates.py next to their
 scorecards. Compare walk17_slow_s256r24 with its s128 sibling. Get-up: the
 sweep plus 15 / 30 N for w15k, w13k_s2 and w16k against w13k / w13k_s1, and
 for the two students against w12k_s128r24 (44, 4, 1), with val_mse.
+
+### Night of 2026-11-02 (evaluated 2026-11-03)
+
+All fourteen jobs ran (the night ended 05:41; the robot session put four
+shaper and two fast-servo legs jobs ahead of the planner's). Before the night,
+the robot session changed walk17_slow / walk17_narrow to the fast-servo
+dead time (`sts3215=0:2` and `1:1`), so neither tests its planned variable
+against walk16_act. The shaper-train branch had been merged (#203) and
+deleted, so `fetch shaper-train` failed and the first job trained on main
+`d5ca9b0`, which already holds #203. The get-up trained on main `65c8dd5` –
+`1220662`. Upstream since the last plan: #203 (the referee now inherits a
+run's firmware shaper from its config.json; no get-up run has one), #205 (SIL
+cal), #208, #211 and #212 (firmware tools), power-board docs. No get-up plant,
+servo or env default changed, so the get-up comparisons hold. No new moving
+flight-recorder session since the 11-02 stands.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35 (CPU referee, 8 seeds each; as-built servos):
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| **w12k_s128r24an3** (distil, action noise 0.3) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 5/16 | stock student 44, 4, 1; teacher 48, 14, 5 |
+| w12k_s512r24 (teacher-sized student) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 4/16 | stock 44, 4, 1 |
+| w15k ((256, 256) PPO) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 7/16 | 1/16 | w13k_s1 48, 8, 0 |
+| w13k_s2 ((128, 128) PPO, seed 2) | 6/8 8/8 | 8/8 8/8 | 8/8 8/8 | 46/48 | 8/16 | 2/16 | w13k 31, 7, 0; w13k_s1 48, 8, 0 |
+| w16k ((128, 128) PPO, residual 0.075) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 9/16 | 1/16 | w13k 31, 7, 0 |
+
+Distil losses (round 24): stock bc 0.0011 / val 0.014; an3 0.0072 / 0.022;
+s512 0.00036 / 0.0077.
+
+- **Arc step 4 has its deployable get-up: `robot_getup_w12k_s128r24an3`.**
+  It is a (128, 128) net, the firmware's size, with distillation noise on the
+  executed actions (DART). It sweeps 48/48 and holds 16/16 shoves at 15 N,
+  better than its teacher (14/16). The hypothesis held: the stock student's
+  buffer never held the post-shove states. Its higher val_mse is measured on
+  that noisier buffer, so it does not compare with the stock student's.
+- **Capacity alone also closes the gap, so the s512 hypothesis is not
+  held.** The teacher-sized student also gets 16/16 at 15 N (val 0.0077). Both
+  levers work; at the deployable size, noise is the one to use.
+- **PPO small nets plateau on shoves.** Four (128, 128) or (256, 256) PPO
+  runs sweep 31 – 48/48 but hold only 7 – 9/16 at 15 N. The (256, 256) net
+  (w15k) is no better, so the shove loss is not capacity. Residual 0.075
+  (w16k) removes the post-stand sink on its one seed (48/48) but not the
+  shove loss. The direct-PPO route for the deployable net stops here: distil
+  with noise.
+
+**Found while planning (deploy fidelity, not fixed):** for get-up episodes,
+`env_mjx.reset` seeds the act-lag cascade, the dead-time history and the
+firmware shaper at the STAND pose (`_sdefault`), not at the lying start.
+`walker_env` seeds them the same way, and the cached-first-state redraw always
+uses `_sdefault`. Every get-up episode therefore starts with a short yank of
+the lagged targets toward standing. The robot will not do this, because the
+firmware seeds its shaper at measured q. Training and the referee agree, so
+the scores are self-consistent, but before the get-up goes on the robot the
+chain should be seeded at the start pose (a flag in both envs, then a
+retrain). It matters more with the 2 Hz act-lag stages than with the
+10 Hz shaper.
+
+#### One-leg stands and short walks
+
+Grades on the fast measured actuator through the firmware chain
+(`experiments/policy/shaper-train/grade.py`, shaper 10, no obsfreeze, flail
+guard per tick; falls / guard trips of 8). The as-trained CPU referee card
+(`scorecard.md`) is next to it:
+
+| policy | referee overall | stand_10s | walk_steps L / R (min peak) | x1.5 | x2 | push 0.5 | walk 0.3 → stop | stride1 0.6 | squeeze (deg) |
+|---|---|---|---|---|---|---|---|---|---|
+| walk18_shp10sq_s128r24 (candidate, 11-02) | — | 8/8 | 0/8, 0/8 (1.1 – 1.3 cm) | **0/0** | 8/8 | 6/6 | 0/0 (rate 0.78) | 0/0 (0.73) | **2.04** |
+| walk19_shp10sq (+600M, seed 11) | 61/160 | 8/8 | 0/8, 0/8 (1.0 / 1.4) | 8/8 | 8/8 | 1/2 | 0/0 (0.86) | 0/0 (0.83) | 5.63 |
+| walk19_shp10sq_s128r24 | 58/160 | 8/8 | 0/8, 1/8 (1.4 / 1.8) | **8/8** | 8/8 | 0/0 | 0/0 (0.86) | 0/0 (0.99) | 5.07 |
+| walk19_shp8_12sq (pole U(8, 12), seed 12) | 59/160 | 8/8 | 0/8, 0/8 (1.5 / 1.5) | 8/8 | 8/8 | 0/0 | 0/0 (0.86) | 0/0 (1.01) | 3.21 |
+| walk19_shp8_12sq_s128r24 | **64/160** | 8/8 | 0/8, 0/8 (1.3 / 1.3) | **8/8** | 8/8 | 0/0 | 0/0 (0.94) | 0/0 (0.99) | 3.29 |
+| walk17_slow_s128r24 (no shaper) | 9/160 | 6/8 | 0/8, 0/8 | 2/2 | 8/8 | 1/3 | 0/7 [pose] | 0/8 [rate, pose] | 4.01 |
+| walk17_slow_s256r24 | 11/160 | 5/8 | 0/8, 0/8 | 8/8 | 8/8 | 0/1 | 0/0 | 0/8 [pose] | 3.58 |
+| walk17_narrow_s128r24 (no shaper) | 11/160 | 7/8 | 0/8, 0/8 | 8/8 | 8/8 | 1/0 | 0/8 [rate] | 0/8 [pose] | 3.51 |
+
+Every policy passes the slow (factory) servo probe 0/0. Pole sweep of the two
+walk19 students (`poles` set): x1.5 is 8/8 at every pole from 8 to 20 Hz. At
+20 Hz, shp8_12 trips the guard on chatter in 5/8 walks; walk18 did in 4/8.
+
+- **The +600M continuations lost the hardware margin.** Both walk19
+  students fall 8/8 at loop gain x1.5 (walk18_shp10sq_s128r24: 0/8), at every
+  pole, and the teachers do too. The stand squeeze rose from 2.0 to 5.1°
+  (shp10sq) and 3.3° (shp8_12sq). The pole band did not widen the tolerated
+  shaper range. Neither hypothesis held: x2 did not improve, and x1.5 at
+  12 / 15 Hz did not hold. Two seeds and two shaper setups lost x1.5 the
+  same way, while the ~300M steps walk17_shp10 → walk18_shp10sq kept it.
+  The suspect is the budget. Tonight replicates walk18's 300M on a new
+  seed to separate the budget from walk18's luck.
+- **The distillation gap is closed on the shaper line.** Referee overall,
+  teacher → student: 61 → 58 and 59 → 64/160 (on 10-31 the students lost
+  50 – 55 %). The pre-shaper walk17 line still loses most of it (26 → 9,
+  16 → 11). On the walk17 line the (256, 256) student does not help.
+- **The walk itself is unchanged.** Every walk_steps row is 0/8 or 1/8,
+  with min peaks of 1.0 – 1.8 cm and medians around 3 cm (about 55 % of
+  swings ≥ 3 cm). The low steps are the gate. Tonight's sibling raises the
+  per-step clearance penalty (`--w-low-swing` 10 → 30).
+- **walk17_slow / walk17_narrow (fast servos, no shaper) are superseded.**
+  MJX training falls fell from 0.89 (walk16_act, slow servos) to 0.73 and 0.66,
+  so the fast servos help the walk train. But all three students trip the
+  flail guard on stride1 and walk → stop. That is the failure the shaper line
+  fixes. The no-shaper legs line stops.
+- `candidates.py` (`ACT=meas` / `ACT=hard`) grades the pre-11-02 slow actuator
+  (68 ms dead time). Since the robot runs fast servos, `grade.py` is the
+  deploy grade, and its slow-servo column covers the old actuator (0/0 for
+  all). The legs SIL card is still missing (`obs_spec.h` kObsDim 147 vs the
+  run's 165).
+
+**Decision.** walk18_shp10sq_s128r24 stays the hardware candidate (the
+robot session's §3 recipe in `experiments/policy/shaper-train/2026-11-02-shaper-train.md`).
+No walk19 policy is a candidate. Legs fine-tunes go back to 300M from
+walk18_shp10sq: one budget replicate, and one sibling for the clearance gate.
+
+#### Tonight (night 14)
+
+Legs first, then get-up. Expected: two 300M legs teachers at ~35 min with
+their distils (~22:00 – 23:20), two get-up distils (~8 min), then three 600M
+get-up jobs at ~1.7 h (the last may be capped).
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk20_b300 | walk19_shp10sq (walk18_shp10sq) | budget 600M → 300M (seed 13) | the margin loss is the budget: student x1.5 0/8, squeeze ≤ 2.5°, no stride1 / walk → stop trip |
+| 2 | robot_legs_walk20_b300_s128r24 | walk20_b300 | (stock distil) | |
+| 3 | robot_legs_walk20_lowsw30 | walk20_b300 (walk18_shp10sq) | `--w-low-swing` 10 → 30 | walk_steps min peak ≥ 2 cm, swings ≥ 3 cm ≥ 70 %, x1.5 kept |
+| 4 | robot_legs_walk20_lowsw30_s128r24 | walk20_lowsw30 | (stock distil) | |
+| 5 | robot_getup_w12k_s1_s128r24an3 | w12k_s128r24an3 | teacher w12k → w12k_s1 | the noise recipe, not one teacher: ≥ 46/48, 15 N ≥ 14/16 |
+| 6 | robot_getup_w12k_s128r24an6 | w12k_s128r24an3 | `--act-noise` 0.3 → 0.6 | 30 N above 5/16, sweep ≥ 46/48 |
+| 7 | robot_getup_w17k | w12k (t3k) | the measured fast-servo actuator (as the legs since 11-02) | costs nothing: ≥ 46/48, 15 N ≥ 12/16 |
+| 8 | robot_getup_w17k_s128r24an3 | w12k_s128r24an3 | teacher → w17k | the deployable student carries over |
+| 9 | robot_getup_w18k | w17k (t3k) | + `--fw-shaper 10 --fw-goal-speed` | trains through the deploy shaper: ≥ 46/48, 15 N ≥ 12/16 |
+| 10 | robot_getup_w17k_s1 | w17k | seed 1 | replicate (may be capped) |
+
+Pre-flight: PASS 10/10. The five training jobs also parse with
+`train_mjx.py`'s own parser on main `1220662`. Fallback: the w12k recipe,
+the deploy-contract teacher; each new seed distils to a deployable get-up.
+
+**Tomorrow's evaluation:** legs: `grade.py` (runs set) on both walk20
+students against walk18_shp10sq_s128r24, and the walk_steps peaks on their
+referee cards. Get-up: the sweep plus 15 / 30 N for all five against
+w12k / w12k_s128r24an3. For w18k, the referee inherits the shaper; confirm
+that in its card's claim line.
+
+### Night of 2026-11-03 (evaluated 2026-11-04)
+
+All ten jobs ran (the night ended 04:50) on main `71d1e4f`; the last two get-up
+jobs ran on `e9bded2` (docs only). Upstream since the last plan: docs, plus #210
+(the measured-stops plants), which landed before the night. No get-up plant,
+servo or env default changed, so the comparisons hold. One job error: the
+w17k_s1 job had no `--xml`, so it trained on the old plant
+`bimo_biped_v6ar.xml` while w17k trained on `v6ar_meas`. In within-stops mode the
+policy range is the same, so it still counts as a replicate across the plant change.
+
+**Hardware, 2026-11-03 (the robot session, `hw_sessions/2026-11-03/NOTES.md`):**
+
+- walk18_shp10sq_s128r24 stood 60 s on fast servos (jitter 0.018°, 0.88 W): PASS.
+- Its first `stride1` (vx 0.6) kicked the right leg fast and high and yawed
+  the body −19° in 180 ms. The flail guard tripped on body rate at +0.35 s, and
+  the robot pivoted on its left foot and fell.
+- Hanging 60° max-speed moves: hip pitch and knee keep 240 – 275 °/s under the
+  leg's load. The sim's no-load speed is 231 °/s.
+
+The robot session's diagnosis is PR #214
+(`experiments/policy/friction-dr/2026-11-03-friction-dr.md`):
+
+- The friction DR never took the pad–floor μ below 1.0, because MuJoCo
+  max-combines the friction of a geom pair.
+- The plant's leg swings ~1.6× slower than the robot's.
+- An actuator refit (hip pitch / knee at 12 V: stall ×2.0, no-load ×1.325 /
+  ×1.281) reproduces the swing. On the refit plant, walk18 trips the guard
+  4/8 at μ 1 and 8/8 at μ 0.4.
+
+**I merged #214 this morning (`865793f`) so that the refit-actuator jobs tonight
+can be refereed on main.** Every new flag is off by default.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, and the
+push-stress grade at 0.35. CPU referee, 8 seeds each; as-built servos.
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N @ 2 % | 30 N @ 2 % | compare |
+|---|---|---|---|---|---|---|---|
+| w12k_s1_s128r24an3 (DART student, 2nd teacher) | 8/8 8/8 | 8/8 8/8 | 7/8 8/8 | 47/48 | **16/16** | 5/16 | w12k_s128r24an3 48, 16, 5 |
+| w12k_s128r24an6 (noise 0.6) | 8/8 8/8 | 8/8 8/8 | 7/8 8/8 | 47/48 | **16/16** | 6/16 | an3 48, 16, 5 |
+| **w17k** (measured fast actuator) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 3/16 | w12k 48, 14, 5 |
+| w17k_s128r24an3 | 8/8 8/8 | 8/8 8/8 | 7/8 8/8 | 47/48 | **16/16** | 2/16 | w12k_s128r24an3 48, 16, 5 |
+| **w18k** (+ firmware shaper 10 Hz) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 5/16 | w17k 48, 16, 3 |
+| w17k_s1 (seed 1, old plant) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | 15/16 | 3/16 | w17k 48, 16, 3 |
+
+Every run stands in 21.7 – 23.5 s from supine ph and 33.1 – 34.7 s from prone.
+
+- **The get-up runs on the full deploy chain at no cost.** w17k (the measured
+  fast servo) and w18k (plus the firmware shaper and goal speed) both sweep
+  48/48 and take 16/16 shoves at 15 N, at least as well as w12k on the
+  stand-in act-lag. Both hypotheses held. w18k's referee ran through the
+  shaper: eval_precision passes `fw_shaper_hz` from config.json to the env
+  (the claim line does not print it).
+- **The DART student is a recipe, not one lucky teacher.** On a second
+  teacher (w12k_s1) it gives 47/48 and 16/16. On the fast-actuator teacher
+  (w17k) it gives 47/48 and 16/16. Both held.
+- **More distil noise does not reach 30 N.** Noise 0.6 gives 6/16 against 5/16
+  at 0.3, which is within seed noise. 30 N stays at 2 – 6/16 on every policy
+  of the line, so it is closed (as on night 9).
+- **What is left before the get-up can go on the robot** is not a sim score:
+  1. the start-pose seeding (fixed today, below);
+  2. a body with arms. The as-built robot has none; Tom's 09-17 decision is
+     the two-arm elbow design.
+
+**Start-pose seeding fixed (main `6fac9db`, `--seed-chain-at-q`).** With the
+flag, the dead-time ring, act-lag cascade, firmware shaper and slew limiter's
+last target start at the episode's start q:
+
+- env_mjx at reset and at the cached-first-state reseed;
+- walker_env on the first step.
+
+It is off by default, so past runs are unchanged. The referee inherits it from
+config.json, and so does the distil env. `tests/test_seed_chain_at_q.py` pins it.
+
+#### One-leg stands and short walks
+
+Students graded with grade.py on the friction-dr code (now main): the fast
+measured actuator through the firmware chain (shaper 10, no obsfreeze, flail
+guard per tick), plus #214's low-μ and refit-actuator stride1 probes. Falls /
+guard trips of 8. Referee overall is teacher → student.
+
+| policy | referee | walk_steps L / R (min peak) | swings ≥ 3 cm | x1.5 | push 0.5 | squeeze / hold power | stride1 μ 1 / μ 0.4 / μ 0.3 | stride1 refit / refit μ 0.4 |
+|---|---|---|---|---|---|---|---|---|
+| walk18_shp10sq_s128r24 (candidate) | — | 0/8, 0/8 (1.1 – 1.3) | — | **0/0** | 6/6 | **2.04° / 0.21 W** | 0/0 / 0/0 / 0/0 | 0/4 / 0/8 |
+| walk20_fric_s128r24 (contact-μ DR, by day 11-03) | — | 0/8, 0/8 (1.2) | — | 0/0 | 1/8 | 2.77° / 1.35 W | 0/0 / 0/0 / 0/0 | 0/8 / 0/8 |
+| walk20_b300_s128r24 (300M, seed 13) | 59 → 53 | 0/8, 0/8 (1.0 / 1.2) | 63 % | **1/1** | 8/8 | 3.36° / 1.53 W | 0/0 / 0/0 / 0/0 | 0/8 / 0/8 |
+| walk20_lowsw30_s128r24 (`--w-low-swing` 30) | 55 → 57 | 1/8, 0/8 (1.4 / 1.3) | 71 % | 0/0 | **0/0** | 3.69° / 1.82 W | 0/0 / 0/0 / 0/0 | 0/8 / 0/8 |
+
+- **The budget hypothesis is not held.** The 300M continuation on a new seed
+  (walk20_b300) also loses the margin: x1.5 1/8 and squeeze 3.4°. Every
+  continuation of walk18 has raised the stand squeeze, whatever the budget:
+  walk19 5.1 / 3.3°, walk20_fric 2.8°, walk20_b300 3.4°, walk20_lowsw30 3.7°,
+  against walk18's 2.0°. The hold power rose with it, from 0.2 to 1.4 – 1.8 W.
+  walk18's quiet stand looks like that seed's luck. The squeeze is
+  penalised (`--w-squeeze 1.0`), and the penalty does not hold it there.
+- **A heavier low-swing penalty moves the bulk of the steps, not the lowest
+  one.** walk20_lowsw30 raises the share of swings ≥ 3 cm from 63 to 71 %
+  (median 3.7 → 4.0 cm) and survives push 0.5 (0/0; walk18 6/6). Its lowest
+  steps stay at 1.3 – 1.4 cm, so the min peak ≥ 2 cm hypothesis is not held.
+  The walk_steps gate is still 0 – 1/8.
+- **Distillation gap:** −10 % (b300) and +4 % (lowsw30) on the referee
+  overall. The gap stays closed on the shaper line.
+- **The refit gate fails for every policy we have.** All students trip on
+  rate 8/8 at stride1 on the refit actuator, at μ 1 and at μ 0.4. None of
+  them trained on that leg. The low-μ probes on the stock plant pass for all
+  of them, so that gate does not separate them.
+
+**Decision.** walk18_shp10sq_s128r24 stays the stand candidate: it stood on
+the robot. No policy is a stride1 candidate, because walk18 fell on the
+robot's first step. Following the deploy-first rule ("plan sim/plant updates
+from the flight recorder before more reward tuning"), the legs line trains on
+the refit actuator tonight, then adds Tom's smoothness terms (11-03: "avoid
+big jerks, especially when a joint comes to a stop").
+
+#### Tonight (night 15)
+
+Legs first, then get-up. Expected timings:
+
+- two 300M legs teachers at ~40 min each, with their distils: 22:00 – 23:30;
+- the w18k distil: ~5 min;
+- three 600M get-up teachers at ~1.75 h each, with one distil; the last
+  starts ~03:15 and may be capped.
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk21_refit | walk20_fric (walk18_shp10sq), seed 14 | + `--servo-envelope hip_pitch=2.0:1.325,knee=2.0:1.281 --supply-voltage 12` (the refit actuator) | the student passes stride1 refit / refit μ 0.4 (no rate trip; parent 8/8, 8/8), x1.5 0/8 kept |
+| 2 | robot_legs_walk21_refit_s128r24 | walk21_refit | (stock distil) | |
+| 3 | robot_legs_walk21_fricact | walk21_refit, seed 14 | + `--w-qacc 4e-5 --w-action-acc 1.0` | lower walk_qdd_stop; no stop-phase trip on the refit probes; x1.5 kept |
+| 4 | robot_legs_walk21_fricact_s128r24 | walk21_fricact | (stock distil) | |
+| 5 | robot_getup_w18k_s128r24an3 | w17k_s128r24an3 | teacher w17k → w18k | the DART student carries through the shaper: ≥ 46/48, 15 N ≥ 14/16 |
+| 6 | robot_getup_w19k | w18k (t3k) | + `--seed-chain-at-q` | no reliance on the start yank: ≥ 46/48, 15 N ≥ 14/16 |
+| 7 | robot_getup_w19k_s128r24an3 | w18k_s128r24an3 | teacher w18k → w19k | the deploy-faithful student: ≥ 46/48, 15 N ≥ 14/16 |
+| 8 | robot_getup_w19k_s1 | w19k | seed 1 | replicate |
+| 9 | robot_getup_w20k | w19k (t3k) | + `--w-qacc 4e-5 --w-action-acc 1.0` | lower wobble at no cost (may be capped) |
+
+Pre-flight: PASS 9/9. The five training jobs also parse with `train_mjx.py`'s
+own parser on main `6fac9db`, and `build_env_kw` carries the new flags. The
+fallback is now the w18k recipe, the full deploy chain.
+
+**Tomorrow's evaluation:**
+
+- Legs: `grade.py` (on main now) for both walk21 students against
+  walk20_fric_s128r24 and walk18_shp10sq_s128r24. The refit probes are the
+  headline. Also check walk_qdd_stop and the walk_steps peaks on the referee
+  cards. The CPU referee grades the refit actuator: `servo_types` with
+  explicit envelope pairs passes through config.json.
+- Get-up: the sweep plus 15 / 30 N for all five. For w19k, confirm
+  `seed_chain_at_q` in its config.json. Grade w20k's wobble against w19k's.
+
+### Night of 2026-11-04 (evaluated 2026-11-05)
+
+All eleven jobs ran (the night ended 05:23) on main `a8008e4` / `fd1c221`. The
+queue was not the one planned on 11-04: the robot session merged the motion
+limiter (#215) and replaced `walk21_refit` with two limiter jobs,
+`walk21_fricact_lim2000` and `_lim3000` (`hw_sessions/2026-11-04/NOTES.md`).
+`walk21_refit` stays held: `walk21_fricact` (refit actuator + smoothness)
+trained from the same init and seed, so the refit-only control is not worth a
+slot.
+
+Upstream since the last plan:
+
+- #215 (the motion limiter, off by default).
+- #216: the arm head insert (+1.8 g on each `_arm` body). It also repairs the
+  `_meas` plants, which referenced a deleted hip-yoke STL.
+- CAD and cleanup.
+
+The get-up jobs trained on `fd1c221`, which includes the insert, and w18k on
+the plant before it. At 1.8 g per arm the comparisons hold.
+
+**Two tool failures this morning, both fixed:**
+
+1. **The collection refereed on stale code.** `~/code/robot` could not
+   fast-forward (collect log: "could not fast-forward … refereeing on
+   `9ce947a`"). Four generated STLs were dirty there and also changed upstream:
+   a mira rebuild before #216 made rebuilds byte-stable. On `9ce947a` the
+   referee has no `fw_limit`, so **both limiter teachers and their students
+   were refereed without the limiter they trained with**.
+   - I backed up the four STLs (`/tmp/plan1105/robot_dirty_bak/`), restored
+     them, and fast-forwarded to `fd1c221`. The checkout's other uncommitted
+     edits are untouched.
+   - The four limiter runs are re-refereed on main below. Their morning cards
+     (35, 29, 47 and 44/160) are void.
+   - The get-up cards and the friction / push grades ran on `9ce947a`. That
+     code has no limiter and no insert, so it is the same get-up referee.
+2. **`grade.py` on main was broken.** The limiter merge (`bbfc6f9`) moved the
+   tick loop into `_episode_loop` but left its yaw / momentum / smoothness
+   series behind, so every episode raised `NameError` and graded as an error.
+   Fixed on main (`5c543c3`). To grade each student at its own trained
+   limiter, I used a wrapper that reads `fw_limit` from config.json
+   (`/tmp/plan1105/legs/grade_wrap.py`).
+
+**New referee option (main): `eval_precision.py --contact-mu M [--contact-torsion T]`.**
+
+- It grades on an effective sole friction. The floor, every sole pad and the
+  soles are set together, because MuJoCo takes the max of a contact pair and
+  the pads are 1.0.
+- It writes `scorecard_mu<M>[t<T>]`, and is pinned by
+  `tests/test_referee_contact_mu.py`.
+- It exists for the 11-04 clamp test: sliding μ ≈ 0.45, yaw grip ≈ 0.1 –
+  0.15 N·m, against the plant's ~0.66 N·m.
+
+#### Get-up
+
+Supine ph / prone fall at joint frictionloss 0.05 · 0.35 · 0.5, the
+push-stress grade at 0.35, and (new) the sole friction at 0.45 and 0.3
+(torsion 0.002). CPU referee, 8 seeds each.
+
+| run | 0.05 | 0.35 | 0.5 | sweep | 15 N | 30 N | sole μ 0.45 / 0.3 | compare |
+|---|---|---|---|---|---|---|---|---|
+| w18k_s128r24an3 (DART student through the shaper) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 5/16 | 16/16, 16/16 | w17k_s128r24an3 47, 16, 2 |
+| **w19k** (+ `--seed-chain-at-q`) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 6/16 | 16/16, 16/16 | w18k 48, 16, 5 |
+| **w19k_s128r24an3** (its DART student) | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 3/16 | 16/16, 16/16 | w18k_s128r24an3 48, 16, 5 |
+| w19k_s1 | 8/8 8/8 | 8/8 8/8 | 8/8 8/8 | **48/48** | **16/16** | 4/16 | — | w19k |
+| w20k (+ smoothness terms) | 8/8 8/8 | 8/8 8/8 | 7/8 8/8 | 47/48 | 15/16 | 5/16 | — | w19k 48, 16, 6 |
+
+Every run stands in 22.0 – 23.0 s from supine ph and in 33.4 – 34.4 s from
+prone. Verdicts against the hypotheses:
+
+- **The faithful start costs nothing** (held, two seeds). The get-up never
+  leaned on the yank toward the stand pose that the old seeding gave every
+  episode. Its DART student is again at the teacher's level.
+  **w19k_s128r24an3 is the get-up candidate for the robot**: the full deploy
+  chain, (128, 128), 48/48, 15 N 16/16.
+- **The get-up does not care about the measured sole friction.** At μ 0.45
+  and 0.3, all three policies graded take 16/16, with times within 0.5 s.
+  So no friction-DR get-up job is needed.
+- **The smoothness terms do not help the get-up** (not held). Wobble fell
+  0.40 → 0.37 (supine ph) and 0.43 → 0.41 (prone), which is within card
+  noise. Power rose 13 – 19 %, the sweep and the 15 N grade each lost a trial,
+  and PPO's KL ran 10× higher. Dropped from the get-up recipe.
+- 30 N stays at 3 – 6/16 (closed since night 9).
+
+#### One-leg stands and short walks
+
+Re-refereed on main (`fd1c221`), so the limiter runs are graded with their
+limiter: teacher → student overall, plus the student's key rows. `grade.py`
+(fixed) runs the fast actuator through the firmware chain at shape 10, each
+student at its trained limiter, 8 seeds. Cells are falls / flail-guard trips.
+
+| policy | referee T → S | walk_steps L / R (student, min peak) | turn_180 | x1.5 | push 0.5 | walk 0.3 → stop | squeeze / hold W | stride1 μ 1 / 0.4 / 0.3 | refit / refit μ 0.4 |
+|---|---|---|---|---|---|---|---|---|---|
+| walk18_shp10sq_s128r24 (stand candidate) | — | 0/8, 0/8 (1.1 – 1.3) | — | **0/0** | 6/6 | 0/0 | **2.05° / 0.20** | 0/0 / 0/0 / 0/0 | 0/6 / 0/8 |
+| **walk21_fricact** (refit actuator + smoothness) | 71 → **71** | **5/8** (3.1), 0/8 (1.0) | 0/8 | **0/0** | **0/0** | 0/0 | 4.33° / 2.40 | 0/0 / 0/0 / 0/0 | **0/0** / 0/8 |
+| walk21_fricact_lim3000 | 59 → 52 | 4/8 (2.5), 0/8 (0.8) | 2/8 (37°) | **0/0** | **0/0** | 0/8 | 2.42° / 1.53 | 0/0 / 0/2 / 0/1 | 0/8 / 0/8 |
+| walk21_fricact_lim2000 | 35 → 36 | 1/8 (2.1), 3/8 (2.3) | 0/8 (175°) | 3/3 | 8/7 | 0/8 | 2.34° / 0.46 | 0/2 / 0/8 / 0/8 | 0/8 / 0/8 |
+
+- **walk21_fricact_s128r24 is the first student to pass the refit stride1**
+  (0/0; walk18 trips 6/8 and every student before it 8/8). It is also the
+  best walker so far: walk_steps_L 5/8 (min peak 3.1 cm), though R is
+  still 0/8 (1.0 cm). Training on the refit actuator did that, since walk21_refit, the
+  control without the smoothness terms, did not run.
+- **Its smoothness hypothesis did not hold.** The stop-phase peak joint
+  acceleration rose rather than fell: 165 rad/s² at μ 1 and 294 on the refit
+  actuator, against walk18's 97 and 170. Its stand squeeze doubled, from
+  2.05° / 0.20 W to 4.33° / 2.40 W.
+- **It fails the realistic floor**: refit μ 0.4, 8/8 rate trips. The
+  measured sole is μ ≈ 0.45 with almost no yaw grip. That is tonight's legs
+  variable.
+- **The motion limiter costs the walk (not held: the gate was 0 trips on the
+  refit and low-μ stride1).** At 200,3000 the teacher loses 12/160 on the
+  referee and the student 19, and walk → stop trips 8/8 (pose 8, rate 4).
+  At 200,2000 the policy barely turns (hErr 164 – 175°) and falls 42 – 45 %.
+  **200,3000 is the setting the line continues on.** At least the limited
+  students stand quietly: squeeze 2.3 – 2.4°, close to walk18's.
+- **Distillation gap:** 0 % (fricact), −12 % (lim3000), +3 % (lim2000).
+
+**Decision:**
+
+- walk18_shp10sq_s128r24 stays the stand candidate.
+- No stride1 candidate yet. walk21_fricact_s128r24 passes refit at μ 1 but
+  not at the measured μ, and nothing passes refit μ 0.4.
+- Tonight's legs line trains on the measured sole friction (`--contact-mu
+  0.3,0.7 --contact-torsion 0,0.005`). It runs once without and twice with the
+  limiter at 200,3000, the second warm-started from lim3000 to test whether
+  the limiter's loss is budget.
+- The sole pads still sit at r 0.068 m against the measured ~0.042. Moving
+  them is a plant change for the plant pipeline (gen_plant_v6), not
+  tonight's queue. The friction DR is the interim stand-in.
+
+#### Tonight (night 16)
+
+Legs first, then get-up. Expected timings:
+
+- three 300M legs teachers at ~38 min each, with their distils: 22:00 – 00:05;
+- three 600M get-up teachers at ~1.75 h each, plus one distil; the last
+  starts ~03:40.
+
+| order | run | parent (init) | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | robot_legs_walk22_fmeas | walk21_fricact (walk18_shp10sq, seed 14) | `--contact-mu` 0.35,1.1 → 0.3,0.7, `--contact-torsion` 0.001,0.02 → 0,0.005 (the measured sole) | the student passes stride1 refit μ 0.4 (parent 8/8), keeps refit μ 1 0/0, x1.5 and push 0.4 0/0 |
+| 2 | robot_legs_walk22_fmeas_s128r24 | walk22_fmeas | (stock distil) | |
+| 3 | robot_legs_walk22_fmeas_lim3000 | walk22_fmeas (walk18_shp10sq) | + `--fw-limit 200,3000` | keeps walk22_fmeas's stride1 grades; walk → stop trips ≤ 2/8 (lim3000 8/8) |
+| 4 | robot_legs_walk22_fmeas_lim3000_s128r24 | walk22_fmeas_lim3000 | (stock distil) | |
+| 5 | robot_legs_walk22_fmeas_lim3000_ws | walk22_fmeas_lim3000 | init walk18_shp10sq → walk21_fricact_lim3000 (600M on the limiter in all) | referee above lim3000's 59/160, fewer walk → stop trips than its sibling; if not, the limiter costs the walk whatever the budget |
+| 6 | robot_legs_walk22_fmeas_lim3000_ws_s128r24 | walk22_fmeas_lim3000_ws | (stock distil) | |
+| 7 | robot_getup_w21k | w19k (t3k) | + `--fw-limit 200,3000` | the residual absorbs the 200 °/s cap (the roll reaches 267 – 349 °/s): sweep ≥ 46/48, 15 N ≥ 14/16, up within +2 s |
+| 8 | robot_getup_w21k_s128r24an3 | w19k_s128r24an3 | teacher w19k → w21k | the DART student carries through the limiter |
+| 9 | robot_getup_w22k | w21k (t3k) | `--fw-limit` → 200,2000 (`limit on`) | no loss vs w21k (the reference peaks at 1170 °/s²) |
+| 10 | robot_getup_w21k_s1 | w21k | seed 1 | replicate |
+
+Pre-flight: PASS 10/10. Every training job also parses with `train_mjx.py`'s
+own parser, and `build_env_kw` carries `fw_limit`, `contact_mu_range` /
+`contact_torsion_range` and `seed_chain_at_q` as intended. The fallback is now
+the w19k recipe.
+
+**Tomorrow's evaluation:**
+
+- Legs: `grade.py`, each student at its trained limiter, against
+  walk21_fricact_s128r24 and walk18_shp10sq_s128r24. The headline is
+  refit μ 0.4 and walk → stop. Also report the referee T → S gap and the
+  walk_steps peaks.
+- Get-up: the sweep plus 15 / 30 N for all four, the time-to-stand against
+  w19k's, and `--contact-mu 0.45` for w21k_s128r24an3.
+- Check that `~/code/robot` fast-forwarded in the collect log before trusting
+  any card.

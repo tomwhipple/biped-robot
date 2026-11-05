@@ -1,59 +1,69 @@
-"""Hip yoke, GLUED variant (qty 2 of each piece): the hip-roll and hip-pitch
-clevises as two U-channels that print WITHOUT SUPPORTS, snap together and are
-glued. The test part for building printed links from support-free U-channels
-(Tom, 2026-10-13: the one-print parts need supports that are hard to remove;
-"bridging to the baseplate is OK, but I'd like to avoid large internal
-bridges. (holes are also OK)").
+"""Hip yoke (qty 2 of each piece): the hip-roll and hip-pitch clevises as two
+U-channels that print WITHOUT SUPPORTS, snap together and are glued (Tom,
+2026-10-13: "bridging to the baseplate is OK, but I'd like to avoid large
+internal bridges. (holes are also OK)").
 
-Local frame == hip_yoke_v6's (yoke_roll's): roll axis X through the origin,
-+X forward, pitch axis along Y through (0, 0, -50). Both pieces are cut from
-the v5 clevises (cad/parts.py yoke_roll, yoke_pitch_v6), so every servo
-interface -- pads, bosses, bolt circles, centre reliefs, the sunk roll idler
-pad, the hip-flexion chamfer -- is theirs to the byte. check_interfaces()
-holds that.
+Local frame (the joint frame): roll axis X through the origin, +X forward
+(the roll servo's horn side), pitch axis along Y through (0, 0, -50). Both
+pieces are cut from the v5 clevises (cad/parts.py yoke_roll, yoke_pitch), so
+every servo interface -- pads, bosses, bolt circles, centre reliefs, the sunk
+roll idler pad -- is theirs to the byte. check_interfaces() holds that.
 
-WHY ONE PRINT NEEDS SUPPORTS AND TWO DO NOT
-  hip_yoke_v6 fuses two clevises whose arm plates are normal to X (roll) and
-  to Y (pitch). Every arm must print with its length in the bed plane (the
-  roll arms snapped when their layers ran across them), so whichever way the
-  one part lies, one clevis prints as walls and the other as slabs over a
-  void. Split, each clevis lies on edge in its own orientation, every arm is
-  a wall, and each U-channel is one profile extruded off one flat bed face.
+WHY TWO PIECES
+  The two clevises' arm plates are normal to X (roll) and to Y (pitch). Every
+  arm must print with its length in the bed plane (the roll arms snapped when
+  their layers ran across them), so one print would have one clevis as walls
+  and the other as slabs over a void, on supports. Split, each clevis lies on
+  edge in its own orientation, every arm is a wall, and each U-channel is one
+  profile extruded off one flat bed face.
 
-  ROLL U (print RY_ROLL_WALL, model -Y on the bed, as yoke_roll): the bed face
-  is y = -10, the pads' and the idler boss's own radius. On yoke_roll's -12
-  face the O20 idler boss -- a journal turning 0.3 mm inside the carrier's
-  bay bore -- started 2 mm up as a 4.15 mm cantilever, and the pad rims hung
-  in the air; tangent to the bed they print like a cylinder lying on it. So
-  the arms lose 2 mm on their -y side (-10..12) and the flange runs -10..17.
-  Nothing is added: every clearance can only open.
+  ROLL U (print RY_ROLL_WALL, model -Y on the bed): the bed face is y = -10,
+  the pads' and the idler boss's own radius, so the O20 idler boss (a journal
+  turning 0.3 mm inside the carrier's bay bore) and the pad rims print like a
+  cylinder lying on the bed.
 
-  PITCH U (print RY_XUP, model -X on the bed, as yoke_pitch): the bed face is
-  x = -14, the idler riser's rear edge, where the r14 idler hub is already
-  tangent. The flange's rear (-16..-14) is trimmed to it; the horn arm's rear
-  edge comes back from -12 to -14 and meets its pad through a 45 deg face
-  tangent to the pad (PITCH_ARM_EXT) -- the only material added anywhere,
-  and the CAD gate checks it.
+  PITCH U (print RY_XUP, model -X on the bed): the bed face is x = -14, where
+  the r14 idler hub is tangent. The horn arm's rear edge comes back to it and
+  meets its pad through a 45 deg face tangent to the pad (PITCH_ARM_EXT).
 
 THE JOINT
-  The roll flange's underside sits on the pitch flange's top at the old
-  bolted plane, z -20: a 27 x 30 mm glued lap. Two split-prong snap clips
+  The roll flange's underside sits on the pitch flange's top at z -20 (the
+  glue plane, ZF_MID): a glued lap about 1060 mm2. Two split-prong snap clips
   (SNAP_*) hang from the roll flange through two holes in the pitch flange
   and click under it; they locate the pieces in x and y and hold them while
   the glue cures. The prongs' fingers are cut free of the flange 2 mm up
   (relief slots) so a 0.3 mm barb bends them ~1.2 %, well inside PETG's
-  yield. Both fingers flex along X, in the roll U's print plane: the prong
-  is part of its profile. One prong rises off the roll U's bed; the other
-  sticks out of the flange 21 mm up, so its underside slopes 45 deg back to
-  the flange and its hole tapers to match. Glue: CA or epoxy on lightly
-  sanded faces.
+  yield. Glue: CA or epoxy on lightly sanded faces.
 
-WHAT IT COSTS against hip_yoke_v6 (measured in __main__)
-  - the band between the flanges is 4 + 4 mm glued, not 8 mm fused;
-  - the roll flange in front of the pitch flange (x 16..21.45), which turns
-    the roll torque back to the lap, is 27 mm wide where it was 34;
-  - the roll arms are 22 mm wide where they were 24 (in-plane section
-    modulus -16 %); the pitch horn arm is 26 where it was 24 (+17 %).
+THE LOAD PATHS (2026-11-02, docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)
+  The yoke carries the roll servo's torque (an STS3250, 4.9 N m stall) from
+  the roll HORN arm to both pitch pads, the pitch servo's from the pitch horn
+  arm to both roll pads, and the yaw servo's as a couple across both forks.
+  An FDM part is weakest across its layers, and on these on-edge prints a
+  moment carried by a thin plate puts its shear on the layer planes. The
+  first glued yoke broke that way on the robot: the lap ended at x 16, the
+  roll flange went on alone, 27 x 4 mm, to the horn arm at 21.45, and the horn
+  arm came off with a strip of flange (the glue held). FEM at stall put
+  121 MPa across the layers at the horn arm's root. Every fork was then
+  checked in its own print frame under all three servo torques and two leg
+  forces, and given the same treatment where it needed it:
+    - the pitch flange runs on to LAP_X1 (21.6), under the horn arm's inner
+      face, on a toe whose underside follows the thigh's and pitch servo's
+      swept envelope at -120 deg of flexion with >= 1 mm to spare (TOE_*);
+      the old 45 deg flexion chamfer was for a -125 deg ROM the joint never
+      reached, and the toe replaces it;
+    - the roll flange is as wide as the pitch flange (to PY1, 23.45), so the
+      lap and the torque section are 33.45 mm wide where they were 27;
+    - a FIN rises off the roll flange's +y edge from arm to arm, and a WEB
+      carries each roll arm out to the same edge, its top tangent to the pad:
+      the open 4 mm strip becomes a deep section, inside the carrier's and the
+      roll servo's swept envelope at +-55 deg of roll with >= 1 mm to spare.
+      The -y side has no such room (the carrier and the roll servo sweep it);
+    - the pitch IDLER arm is a plate the full width of its r14 hub (x +-14),
+      not v5's 18 mm riser off to the rear, which bent in its plane under the
+      yaw servo's torque.
+  Both pieces print at 100 % infill (cad/v6/print_settings.json): the
+  fracture ran through the sparse core of a 3-wall, 35 % print.
 
     .venv/bin/python cad/v6/hip_yoke_glued.py   # stl/step + audits + mass + render
 """
@@ -68,8 +78,6 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 from build123d import Pos, chamfer, export_step, export_stl, fillet  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 import parts as v5  # noqa: E402
-import yoke_pitch_v6  # noqa: E402
-import hip_yoke_v6 as HY  # noqa: E402
 import paths  # noqa: E402
 D = V.D
 
@@ -84,25 +92,86 @@ PRINT_ORIENT = {
     "hip_yoke_glued_pitch": ((0.0, 0.0, -1.0), (0.0, 1.0, 0.0), (1.0, 0.0, 0.0)),  # RY_XUP
 }
 
-ZF_TOP, ZF_MID, ZF_BOT = HY.ZF_TOP, HY.ZF_MID, HY.ZF_BOT      # -16 / -20 / -24
-PZ = HY.PZ                                                     # -50 pitch axis
+# ------------------------------------------------------------------ landmarks
+# all from dimensions.py: the v5 clevises' own faces
+ZF_TOP = -D.ROLL_AXIS_TO_FLANGE                 # -16.00 roll flange top
+ZF_MID = ZF_TOP - D.YOKE_FLANGE_T               # -20.00 the glue plane
+ZF_BOT = ZF_MID - D.YOKE_FLANGE_T               # -24.00 pitch flange bottom
+PZ = -D.ROLL_TO_PITCH                           # -50.00 pitch axis
+RX1 = D.SV_HORN_FACE + D.HORN_BOSS_H + D.PLATE  # +24.45 roll horn arm, outer
+RX0 = D.ROLL_ARM_INNER - D.PLATE                # -23.95 roll idler arm, outer
+RXI1 = D.SV_HORN_FACE + D.HORN_BOSS_H           # +21.45 roll horn arm, inner
+RXI0 = D.ROLL_ARM_INNER                         # -20.95 roll idler arm, inner
+PX = D.YOKE_FLANGE_X / 2                        # 16.00 v5 pitch flange half-width
+PY1 = D.SV_HORN_FACE + D.PLATE                  # +23.45 pitch horn arm, outer
+PY0 = D.IDLER_ARM_INNER - D.PLATE               # -20.40 pitch idler arm, outer
+PYI1 = D.SV_HORN_FACE                           # +20.45 pitch horn arm, inner
+PYI0 = D.IDLER_ARM_INNER                        # -17.40 pitch idler arm, inner
+AHW = 12.0                                      # arm plate half-width (v5)
+RISER_X = (-14.0, 4.0)                          # v5's pitch idler riser (its rear edge is the bed face)
+HUB_R = 14.0                                    # pitch idler hub, v5 literal
 
-# roll U: the bed face, and the flange's +y edge (yoke_roll's own)
+# roll U: the bed face, and the flange's +y edge (the pitch flange's, PY1, from
+# the lap's rear forward; yoke_roll's own 17 on the rear overhang)
 ROLL_BED_Y = -D.PAD_D / 2                                      # -10.00
-ROLL_FLANGE_Y = (ROLL_BED_Y, D.YOKE_FLANGE_Y / 2)              # -10 .. 17
+ROLL_FLANGE_Y = (ROLL_BED_Y, PY1)                              # -10 .. 23.45
 # pitch U: the bed face, at the idler riser's rear edge
-PITCH_BED_X = HY.RISER_X[0]                                    # -14.00
-assert abs(PITCH_BED_X + HY.HUB_R) < 1e-9, "the idler hub must be tangent to the bed"
+PITCH_BED_X = RISER_X[0]                                       # -14.00
+assert abs(PITCH_BED_X + HUB_R) < 1e-9, "the idler hub must be tangent to the bed"
+
+# ------------------------------------------------- the roll torque path
+# The pitch flange's TOE: from the flange bottom at TOE_X0 its underside rises
+# at TOE_SLOPE to the front face at LAP_X1, so the lap reaches under the horn
+# arm. Drawn >= 1.0 mm (vertical) above the thigh's and the pitch servo's
+# swept envelope over the hip-pitch ROM (it peaks under the horn arm, z -21.8
+# at x 24; z -23.25 at x 20). The CAD gate holds the 0.5 mm buffer.
+LAP_X1 = 21.6
+TOE_X0, TOE_SLOPE = 17.0, 0.583
+# The FIN on the roll flange's +y edge: its underside leaves the flange top at
+# FIN_Y0 and rises at FIN_SLOPE (dz/dy, 36 deg off the print's vertical) to
+# FIN_TOP_Z, >= 1.2 mm (vertical) under the carrier's and the roll servo's
+# sweep at +-55 deg of roll; it runs FIN_X, arm to arm.
+FIN_Y0, FIN_SLOPE, FIN_TOP_Z = 8.0, 0.72, -8.0
+FIN_X = (RXI0, RXI1)
+FIN_Y_CAP = FIN_Y0 + (FIN_TOP_Z - ZF_TOP) / FIN_SLOPE          # 19.11
+# the profile's corner there is bevelled (inside the profile, so it can only
+# open a clearance): the fin's junction with the arms then rounds at a real radius
+FIN_BEVEL = ((FIN_Y_CAP - 2.0, FIN_TOP_Z - 2.0 * FIN_SLOPE), (FIN_Y_CAP + 1.5, FIN_TOP_Z))
+# each roll arm's +y WEB, from the arm's edge out to PY1: its top runs on the
+# tangent from the pad's rim down to the fin's top at PY1, so the arm, the web
+# and the fin are one outline with no notch (a web whose top met the arm's
+# edge in a corner put a 59 MPa peak there at stall). It stays outside the
+# pad's radius, so no servo interface is touched. Nothing sweeps outboard of
+# an arm's inner face (the carrier's bay walls are inside them).
+WEB_PAD_R = D.PAD_D / 2
+# the webs end WEB_RISE above the fin's top at PY1, so the fin meets each arm's
+# inner face under a face of real height (where they met at one point the
+# junction could not be rounded)
+WEB_RISE = 3.0
+# the idler pad is sunk 1.35 into its arm, so there the web keeps a 1.0 mm rim
+# round the pocket: its top is tangent to a circle 1.0 outside the pad, and
+# the rim ends in a 1.0 mm step at the tangent point
+WEB_IDLER_RIM = 1.0
+# THE PITCH IDLER ARM. v5 made it a r14 hub on an 18 mm riser (x -14..4) to
+# keep it out of the v5 thigh's idler grip plate; the v6 thigh grips inboard
+# of the arm's y band and sweeps nothing there forward to x 15 (the swept
+# map, 2026-11-02), and the off-centre riser bent in its plane under the yaw
+# servo's torque, 32 MPa across its layers at stall. It is now a plate the
+# hub's own width, x -14 (the bed face) to +14, centred on the pitch axis.
+IDLER_X1 = HUB_R
+R_IDLER_FRONT = 4.0       # its front root: under the yaw servo's torque the arm bends
+                          # in its plane and this corner carries the peak
 
 # the snap clips: two prongs on the roll flange's underside at x = 0, one at
-# each of its y edges. Finger 1.0 thick, slot 1.2, barb 0.45 proud of the
-# shank against a hole 0.15 clear of it: 0.30 of catch per finger. In the
-# roll U's print the bed-edge prong rises off the bed. The top-edge prong
-# sticks out sideways from the flange 21 mm up, so its underside slopes
-# 45 deg back to the flange (snap_y_min): 6 mm wide at the tip, 11 at the
-# flange, and its hole in the pitch flange tapers to match.
-SNAP_Y = ((ROLL_FLANGE_Y[0], ROLL_FLANGE_Y[0] + 6.0),          # -10 .. -4
-          (ROLL_FLANGE_Y[1] - 6.0, ROLL_FLANGE_Y[1]))          #  11 .. 17 at the tip
+# each of yoke_roll's flange edges (-10 and 17; at the new +y edge the prong
+# would land on the pitch horn arm). Finger 1.0 thick, slot 1.2, barb 0.45
+# proud of the shank against a hole 0.15 clear of it: 0.30 of catch per
+# finger. In the roll U's print the bed-edge prong rises off the bed; the
+# +y prong sticks out sideways from the flange 21 mm up, so its underside
+# slopes 45 deg back to the flange (snap_y_min): 6 mm wide at the tip, 11 at
+# the flange, and its hole in the pitch flange tapers to match.
+SNAP_Y = ((ROLL_BED_Y, ROLL_BED_Y + 6.0),                      # -10 .. -4
+          (D.YOKE_FLANGE_Y / 2 - 6.0, D.YOKE_FLANGE_Y / 2))    #  11 .. 17 at the tip
 SNAP_SHANK = 1.6          # finger outer face, |x|
 SNAP_SLOT = 0.6           # finger inner face, |x|
 SNAP_BARB = 0.45          # barb proud of the shank
@@ -113,7 +182,30 @@ SNAP_RELIEF = 0.8         # relief slot outboard of each finger
 SNAP_CATCH = ZF_BOT - 0.1  # barb's catch face, 0.1 under the pitch flange
 SNAP_TIP = SNAP_CATCH - 0.9
 
-R_ROOT, R_ROOT_SERVO, R_EDGE = HY.R_ROOT, HY.R_ROOT_SERVO, 1.0
+R_ROOT = 2.5              # arm roots with room around them
+R_ROOT_SERVO = 0.6        # the idler arm's root facing the carrier's bay wall
+R_ROOT_HORN = 2.0         # the horn arm's servo-side root: the roll servo's case
+                          # ends at x 18.48 and the carrier's bay wall stands
+                          # above z -14.5, so this fillet (x >= 19.45, clear of the
+                          # roll-corner relief's end at 18.98) sweeps clear
+R_EDGE = 1.0
+SHOULDER = (1.7, 3.0)     # the pitch horn arm's shoulder taper (across, along
+                          # the arm), stopping 0.3 outside the r 10 pad
+LADDER = (1.0, 0.7, 0.5, 0.35, 0.2)      # blend radius fallbacks, as a fraction of r
+
+# The roll servo's output-end corner sits r 15.97 from the roll axis and at
+# +-55 deg of roll points straight down at the flange top, 16.0 below the axis.
+# A 0.5 mm relief exactly where it passes: across the case's own thickness
+# (its idler boss to its horn rib, +-0.5) and, along y, where it comes within
+# the buffer (|y| < 4; at y 6 the corner is already 1.2 above the flange). Its
+# +y end ramps out at 45 deg, so the print has no 0.5 mm ledge there, and it
+# stops short of the fin.
+ROLL_CORNER_RELIEF = 0.5
+ROLL_RELIEF_X = (D.SV_IDLER_BOSS_Y - 0.5,                          # -17.15
+                 D.SV_TOPFACE + D.SV_HORN_RIB_H + 0.5)             # +18.98
+ROLL_RELIEF_Y = (ROLL_BED_Y - 1.0, 6.0)
+assert ROLL_RELIEF_X[0] > RXI0 + 2.0 and ROLL_RELIEF_X[1] < RXI1 - 2.0, \
+    "the roll-corner relief must stay clear of the roll arm plates' roots"
 
 # A round end tangent to the bed rises off it as a near-horizontal overhang
 # for its first millimetres. Each pad and the pitch idler hub gets a 45 deg
@@ -124,7 +216,7 @@ R_ROOT, R_ROOT_SERVO, R_EDGE = HY.R_ROOT, HY.R_ROOT_SERVO, 1.0
 # the thigh's r 16 swing floor -- yoke_pitch's note).
 _T = D.PAD_D / 2 / 2 ** 0.5                                    # 7.071
 ROLL_PAD_FOOT = [(ROLL_BED_Y, 0.0), (ROLL_BED_Y, 2 * _T + ROLL_BED_Y), (-_T, _T)]   # (y, z)
-_TH = HY.HUB_R / 2 ** 0.5                                      # 9.899
+_TH = HUB_R / 2 ** 0.5                                         # 9.899
 PITCH_HUB_FEET = [[(PITCH_BED_X, 0.0), (PITCH_BED_X, s * (2 * _TH + PITCH_BED_X)), (-_TH, s * _TH)]
                   for s in (1, -1)]                            # (x, z), pitch frame
 # the roll idler pad is sunk 1.35 into its arm; on the bed face its rim comes
@@ -132,6 +224,45 @@ PITCH_HUB_FEET = [[(PITCH_BED_X, 0.0), (PITCH_BED_X, s * (2 * _TH + PITCH_BED_X)
 # there rather than print a sub-perimeter lip.
 SINK_LIP_Y = -(D.PAD_D / 2 - 0.85)                             # -9.15
 SINK_LIP_Z = ((D.PAD_D / 2) ** 2 - SINK_LIP_Y ** 2) ** 0.5     # 4.04
+
+
+def pitch_offset():
+    """Location of the pitch clevis's frame in this part's (roll) frame."""
+    return Pos(0, 0, PZ)
+
+
+# ------------------------------------------------------------- edge picking
+def _pts(e):
+    """The edge's ends plus its midpoint -- a plane test that survives an
+    earlier fillet trimming the edge, which a centre-only test does not."""
+    c = e.center()
+    return [(c.X, c.Y, c.Z)] + [(v.X, v.Y, v.Z) for v in e.vertices()]
+
+
+def _on(e, **planes):
+    """True when the whole edge lies on the given x=/y=/z= planes."""
+    idx = {"x": 0, "y": 1, "z": 2}
+    for ax, val in planes.items():
+        i = idx[ax]
+        if any(abs(p[i] - val) > 0.03 for p in _pts(e)):
+            return False
+    return True
+
+
+def _dir(e, axis):
+    """True when the edge is a straight run along x/y/z."""
+    try:
+        t = e.tangent_at(0.5)
+    except Exception:  # noqa: BLE001
+        return False
+    if str(e.geom_type) != "GeomType.LINE":
+        return False
+    return abs(abs({"x": t.X, "y": t.Y, "z": t.Z}[axis]) - 1.0) < 1e-3
+
+
+def _span(e, axis, lo, hi):
+    i = {"x": 0, "y": 1, "z": 2}[axis]
+    return all(lo - 0.03 <= p[i] <= hi + 0.03 for p in _pts(e))
 
 
 def _fill_bolt_columns(r, z0, z1):
@@ -146,14 +277,14 @@ def _fill_bolt_columns(r, z0, z1):
 
 
 def snap_y_min(z):
-    """The top-edge prong's underside at height z: SNAP_Y[1][0] at the tip,
-    one more mm of width per mm up toward the flange (45 deg)."""
+    """The +y prong's underside at height z: SNAP_Y[1][0] at the tip, one
+    more mm of width per mm up toward the flange (45 deg)."""
     return SNAP_Y[1][0] + SNAP_TIP - z
 
 
 def _below_slope(x0, x1, z_hi, z_lo, clr=0.0):
-    """The region under the top-edge prong's 45 deg underside, less `clr`,
-    between heights z_lo and z_hi."""
+    """The region under the +y prong's 45 deg underside, less `clr`, between
+    heights z_lo and z_hi."""
     return v5.wedge_x([(-40, z_hi), (snap_y_min(z_hi) - clr, z_hi),
                        (snap_y_min(z_lo) - clr, z_lo), (-40, z_lo)], x0, x1)
 
@@ -162,7 +293,7 @@ def _prong(y0, y1, sloped=False):
     """One split-prong clip, in the roll frame. Profile in X-Z, extruded over
     [y0, y1]: two fingers from the flange down through the pitch flange, each
     with a barb whose flat catch faces up and whose lead-in ramp faces down.
-    `sloped`: the top-edge prong, its underside cut to snap_y_min."""
+    `sloped`: the +y prong, its underside cut to snap_y_min."""
     s, o, b = SNAP_SLOT, SNAP_SHANK, SNAP_BARB
     if sloped:
         y0 = snap_y_min(ZF_MID)
@@ -180,11 +311,12 @@ def _prong(y0, y1, sloped=False):
 def _prong_reliefs(y0, y1, sloped=False):
     """Slots in the roll flange that free the fingers up to SNAP_ROOT: the
     split between them and one outboard of each. Each runs the prong's y
-    band (for the sloped prong, as wide as its slope reaches at SNAP_ROOT),
-    so in the print it rises off the bed or a floor and opens at the top."""
+    band (for the sloped prong, as wide as its slope reaches at SNAP_ROOT,
+    and on through the widened flange to its +y face), so in the print it
+    rises off the bed or a floor and opens at the top."""
     s, o, w = SNAP_SLOT, SNAP_SHANK, SNAP_RELIEF
     if sloped:
-        y0 = snap_y_min(SNAP_ROOT)
+        y0, y1 = snap_y_min(SNAP_ROOT), ROLL_FLANGE_Y[1] + 0.01
     cut = v5.box(-s, s, y0, y1, ZF_MID - 0.01, SNAP_ROOT)
     for sx in (1, -1):
         cut += v5.box(min(sx * o, sx * (o + w)), max(sx * o, sx * (o + w)), y0, y1,
@@ -195,8 +327,8 @@ def _prong_reliefs(y0, y1, sloped=False):
 def _prong_holes():
     """The two holes the prongs pass through, in the PITCH flange (roll
     frame), SNAP_HOLE_Y_CLR clear of each prong along y: the bed-edge one
-    square, the top-edge one tapered to the prong's slope. Horizontal in the
-    pitch U's print: bridged roofs, 6.4 mm and 7.4..11.4 mm."""
+    square, the +y one tapered to the prong's slope. Horizontal in the pitch
+    U's print: bridged roofs, 6.4 mm and 7.4..11.4 mm."""
     h = SNAP_SHANK + SNAP_HOLE_CLR
     c = SNAP_HOLE_Y_CLR
     (a0, a1), (b0, b1) = SNAP_Y
@@ -206,21 +338,41 @@ def _prong_holes():
     return cut + top
 
 
+def _roll_corner_relief():
+    y0, y1, d = ROLL_RELIEF_Y[0], ROLL_RELIEF_Y[1], ROLL_CORNER_RELIEF
+    return v5.wedge_x([(y0, ZF_TOP - d), (y1, ZF_TOP - d), (y1 + d, ZF_TOP),
+                       (y1 + d, ZF_TOP + 0.01), (y0, ZF_TOP + 0.01)], *ROLL_RELIEF_X)
+
+
 def _blend(p, groups, tag):
-    """hip_yoke_v6's one-edge-at-a-time blend (target radius, then smaller,
-    then a chamfer), reporting anything it could not round."""
+    """One edge at a time (OCC can take the process down on a group call):
+    target radius, then smaller, then a chamfer, reporting anything it could
+    not round."""
     skipped = []
-    for name, r, test in groups:
+    for name, r, test, *chain in groups:
         edges = [e for e in p.edges() if test(e)]
         if not edges:
             print(f"  [{tag}] '{name}': no edges matched -- left sharp")
+            continue
+        if chain:
+            # a chain of edges that meet at corners, rounded in one call
+            for f in LADDER:
+                try:
+                    p = fillet(edges, r * f)
+                    print(f"  [{tag}] {name}: chain of {len(edges)} at R{r * f:.2f}")
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
+            else:
+                skipped += [(name, (e.center().X, e.center().Y, e.center().Z)) for e in edges]
+                print(f"  [{tag}] {name}: chain of {len(edges)} NOT rounded")
             continue
         got = 0
         for e in edges:
             c = e.center()
             done = False
             for op in (fillet, chamfer):
-                for f in HY.LADDER:
+                for f in LADDER:
                     try:
                         p = op([e], r * f)
                         done = True
@@ -238,33 +390,63 @@ def _blend(p, groups, tag):
     return p
 
 
+def roll_fin():
+    """The +y fin (x FIN_X) and both arms' webs, each reaching 0.5 into the
+    flange below so the union has no coplanar seam."""
+    zb = ZF_TOP - 0.5
+    fin = v5.wedge_x([(FIN_Y0, zb), (FIN_Y0, ZF_TOP), *FIN_BEVEL,
+                      (PY1, FIN_TOP_Z), (PY1, zb)], FIN_X[0] - 0.01, FIN_X[1] + 0.01)
+    def prof(r):
+        ty, tz = web_tangent(r)
+        return [(0.0, zb), (PY1, zb), (PY1, FIN_TOP_Z + WEB_RISE), (ty, tz), (0.0, 0.0)]
+    webs = (v5.wedge_x(prof(WEB_PAD_R), RXI1, RX1)
+            + v5.wedge_x(prof(WEB_PAD_R + WEB_IDLER_RIM), RX0, RXI0))
+    # inside the pads' own radius everything stays the pads'
+    return fin + (webs - v5.cyl_x(D.PAD_D / 2, RX0 - 1, RX1 + 1, 0, 0))
+
+
+def web_tangent(r=WEB_PAD_R):
+    """(y, z) where the web's top leaves the circle of radius r round the
+    pad: the upper tangent point from the web's end, (PY1, FIN_TOP_Z + WEB_RISE)."""
+    import math
+    px, pz = PY1, FIN_TOP_Z + WEB_RISE
+    d = math.hypot(px, pz)
+    a = math.atan2(pz, px) + math.acos(r / d)
+    return r * math.cos(a), r * math.sin(a)
+
+
 def roll_u(style=True):
     """The roll clevis: yoke_roll with its bolt columns filled, its -y side
-    trimmed to the bed face, the roll-corner relief and the +y shoulder
-    taper of hip_yoke_v6, and the two snap prongs."""
+    trimmed to the bed face, its flange widened to PY1 over the lap, the fin
+    and the horn arm's web, the roll-corner relief, and the two snap
+    prongs."""
     p = v5.yoke_roll() + _fill_bolt_columns(D.M3_CLEAR / 2 + 0.05, ZF_MID, ZF_TOP)
     p -= v5.box(-40, 40, -40, ROLL_BED_Y, -40, 30)
+    p += v5.box(RX0, RX1, D.YOKE_FLANGE_Y / 2 - 0.5, PY1, ZF_MID, ZF_TOP)
     # the idler arm's foot stops at its sunk pad's floor: over the 1.35 mm sink
     # the pad is a pocket, and a foot there would be a feather round its rim
-    for x0, x1 in ((HY.RXI1, HY.RX1), (HY.RX0 + D.ROLL_IDLER_PAD_SINK, HY.RXI0)):
+    for x0, x1 in ((RXI1, RX1), (RX0 + D.ROLL_IDLER_PAD_SINK, RXI0)):
         p += v5.wedge_x(ROLL_PAD_FOOT, x0, x1)
-    p -= v5.box(HY.RX0 - 1, HY.RX0 + D.ROLL_IDLER_PAD_SINK, ROLL_BED_Y - 1, SINK_LIP_Y,
+    p -= v5.box(RX0 - 1, RX0 + D.ROLL_IDLER_PAD_SINK, ROLL_BED_Y - 1, SINK_LIP_Y,
                 -SINK_LIP_Z, SINK_LIP_Z)
-    p -= HY._roll_corner_relief()
-    pr = D.PAD_D / 2 + 0.3
-    across, along = HY.SHOULDER
-    p -= v5.wedge_x([(pr, 0.0), (HY.AHW, 0.0), (HY.AHW, -along)], HY.RXI1 - 0.01, HY.RX1 + 0.01)
+    p += roll_fin()
+    p -= _roll_corner_relief()
     if style:
-        on, dr, span = HY._on, HY._dir, HY._span
         p = _blend(p, [
-            ("arm root, servo side", R_ROOT_SERVO,
-             lambda e: dr(e, "y") and any(on(e, x=vx, z=ZF_TOP) for vx in (HY.RXI1, HY.RXI0))),
-            ("arm root, +y side", R_ROOT,
-             lambda e: dr(e, "x") and on(e, y=HY.AHW, z=ZF_TOP)),
+            ("horn arm root, servo side", R_ROOT_HORN,
+             lambda e: _dir(e, "y") and _on(e, x=RXI1, z=ZF_TOP)),
+            ("idler arm root, servo side", R_ROOT_SERVO,
+             lambda e: _dir(e, "y") and _on(e, x=RXI0, z=ZF_TOP)),
+            # the fin's profile where it meets each arm's inner face: its sloped
+            # underside and its flat top, as one chain
+            ("fin into the arms", R_ROOT_HORN,
+             lambda e: any(_on(e, x=vx) for vx in (RXI1, RXI0)) and not _dir(e, "z")
+             and ((not _dir(e, "y") and _span(e, "y", FIN_Y0, FIN_BEVEL[1][0]) and _span(e, "z", ZF_TOP, FIN_TOP_Z))
+                  or (_dir(e, "y") and _on(e, z=FIN_TOP_Z) and _span(e, "y", FIN_BEVEL[1][0], PY1))), "chain"),
             ("flange ends, underside", R_EDGE,
-             lambda e: dr(e, "y") and any(on(e, x=vx, z=ZF_MID) for vx in (HY.RX1, HY.RX0))),
+             lambda e: _dir(e, "y") and any(_on(e, x=vx, z=ZF_MID) for vx in (RX1, RX0))),
             ("flange +y edge, ends", R_EDGE,
-             lambda e: dr(e, "z") and any(on(e, x=vx, y=ROLL_FLANGE_Y[1]) for vx in (HY.RX1, HY.RX0))),
+             lambda e: _dir(e, "z") and any(_on(e, x=vx, y=PY1) for vx in (RX0, RX1))),
         ], "roll_u")
     for (y0, y1), sloped in zip(SNAP_Y, (False, True)):
         p -= _prong_reliefs(y0, y1, sloped)
@@ -277,45 +459,57 @@ def roll_u(style=True):
 # as the feet are -- in the pitch clevis's own frame (pitch axis at the
 # origin, flange above)
 PITCH_ARM_EXT = [(PITCH_BED_X, D.PITCH_ARM_REACH), (PITCH_BED_X, -2 * _T - PITCH_BED_X),
-                 (-_T, -_T), (-D.PAD_D / 2, 0.0), (-HY.AHW, 0.0), (-HY.AHW, D.PITCH_ARM_REACH)]
+                 (-_T, -_T), (-D.PAD_D / 2, 0.0), (-AHW, 0.0), (-AHW, D.PITCH_ARM_REACH)]
+
+
+def pitch_toe():
+    """The pitch flange carried forward from PX to LAP_X1 (pitch frame): its
+    top is the glue plane, its underside rises from TOE_X0 at TOE_SLOPE."""
+    zf1, zf0 = D.PITCH_ARM_REACH, D.PITCH_ARM_REACH + D.YOKE_FLANGE_T
+    z_front = zf1 + TOE_SLOPE * (LAP_X1 - TOE_X0)
+    return v5.wedge_y([(PX - 1.0, zf1), (TOE_X0, zf1), (LAP_X1, z_front), (LAP_X1, zf0), (PX - 1.0, zf0)],
+                      PY0, PY1)
 
 
 def pitch_u(style=True):
-    """The pitch clevis: yoke_pitch_v6 with its heat-set columns filled, its
-    flange's rear trimmed to the bed face, the horn arm's rear edge brought
-    back to it, the +x shoulder taper of hip_yoke_v6, and the two holes for
-    the snap prongs. Built in the pitch frame, returned in the roll frame."""
+    """The pitch clevis: yoke_pitch with its heat-set columns filled, its
+    flange's rear trimmed to the bed face and its front carried on to the toe,
+    the horn arm's rear edge brought back to the bed face, the horn arm's
+    shoulder taper, and the two holes for the snap prongs. Built in the pitch
+    frame, returned in the roll frame."""
     zf1, zf0 = D.PITCH_ARM_REACH, D.PITCH_ARM_REACH + D.YOKE_FLANGE_T
-    q = yoke_pitch_v6.yoke_pitch_v6() + _fill_bolt_columns(D.HEATSET_D / 2 + 0.05, zf1, zf0)
-    q -= yoke_pitch_v6.flex_chamfer_wedge()      # the fill grazes it (hip_yoke_v6.fused)
+    q = v5.yoke_pitch() + _fill_bolt_columns(D.HEATSET_D / 2 + 0.05, zf1, zf0) + pitch_toe()
+    # the idler arm as a plate on its full hub, outside the pad's radius
+    idler = v5.box(PITCH_BED_X, IDLER_X1, PY0, PYI0, 0.0, zf1 + 0.5) + v5.cyl_y(HUB_R, PY0, PYI0, 0, 0)
+    q += idler - v5.cyl_y(D.PAD_D / 2, PY0 - 1, PYI0 + 1, 0, 0)
     q -= v5.box(-40, PITCH_BED_X, -40, 40, zf1, zf0 + 1)
     q += v5.wedge_y(PITCH_ARM_EXT, D.SV_HORN_FACE, D.SV_HORN_FACE + D.PLATE)
     for foot in PITCH_HUB_FEET:
-        q += v5.wedge_y(foot, HY.PY0, HY.PYI0)
+        q += v5.wedge_y(foot, PY0, PYI0)
     pr = D.PAD_D / 2 + 0.3
-    across, along = HY.SHOULDER
-    q -= v5.wedge_y([(pr, 0.0), (HY.AHW, 0.0), (HY.AHW, along)], HY.PYI1 - 0.01, HY.PY1 + 0.01)
-    p = HY.pitch_offset() * q
+    across, along = SHOULDER
+    q -= v5.wedge_y([(pr, 0.0), (AHW, 0.0), (AHW, along)], PYI1 - 0.01, PY1 + 0.01)
+    p = pitch_offset() * q
     if style:
-        on, dr = HY._on, HY._dir
         p = _blend(p, [
             ("horn arm root, servo side", R_ROOT,
-             lambda e: dr(e, "x") and on(e, y=HY.PYI1, z=ZF_BOT)),
-            ("riser root, servo side", R_ROOT,
-             lambda e: dr(e, "x") and on(e, y=HY.PYI0, z=ZF_BOT)),
+             lambda e: _dir(e, "x") and _on(e, y=PYI1, z=ZF_BOT)),
+            ("idler arm root, servo side", R_ROOT,
+             lambda e: _dir(e, "x") and _on(e, y=PYI0, z=ZF_BOT)),
             ("horn arm root, front", R_ROOT,
-             lambda e: dr(e, "y") and on(e, x=HY.AHW, z=ZF_BOT)),
-            ("riser root, front", R_ROOT,
-             lambda e: dr(e, "y") and on(e, x=HY.RISER_X[1], z=ZF_BOT)),
-            ("flange top, outer edges", R_EDGE,
-             lambda e: dr(e, "x") and any(on(e, y=vy, z=ZF_MID) for vy in (HY.PY1, HY.PY0))),
+             lambda e: _dir(e, "y") and _on(e, x=AHW, z=ZF_BOT)),
+            ("idler arm root, front", R_IDLER_FRONT,
+             lambda e: _dir(e, "y") and _on(e, x=IDLER_X1, z=ZF_BOT)),
+            # not the +y one: the roll flange is flush with it there
+            ("flange top, idler-side edge", R_EDGE,
+             lambda e: _dir(e, "x") and _on(e, y=PY0, z=ZF_MID)),
         ], "pitch_u")
     return p - _prong_holes()
 
 
 def hip_yoke_glued(style=True):
     """The two pieces as glued: the solid the assembly, the CAD gate and the
-    plant use (cf. hip_yoke_v6.hip_yoke_v6)."""
+    plant use."""
     return roll_u(style) + pitch_u(style)
 
 
@@ -323,29 +517,81 @@ def build(style=True):
     return {"hip_yoke_glued_roll": roll_u(style), "hip_yoke_glued_pitch": pitch_u(style)}
 
 
+def raw_clevises():
+    """The v5 clevises as they were bolted: the reference the servo
+    interfaces are held to."""
+    return v5.yoke_roll() + pitch_offset() * v5.yoke_pitch()
+
+
 def _pad_zones():
-    """hip_yoke_v6's interface zones drawn just inside the pads (r 10, not
-    10.2): the bed trim is tangent to the roll pads and the pitch horn arm's
-    45 deg face is tangent to its pad, so both touch r 10 and nothing inside."""
+    """The four pads with their bosses, bolt circles and centre reliefs, drawn
+    just inside the pads (r 10, not 10.2): the bed trim is tangent to the roll
+    pads and the pitch horn arm's 45 deg face is tangent to its pad, so both
+    touch r 10 and nothing inside."""
     r = D.PAD_D / 2 - 0.01
-    z = v5.cyl_x(r, D.SV_HORN_FACE - 0.1, HY.RX1 + 0.1, 0, 0)
-    z += v5.cyl_x(r, HY.RX0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
-    z += HY.pitch_offset() * v5.cyl_y(r, D.SV_HORN_FACE - 0.1, HY.PY1 + 0.1, 0, 0)
-    z += HY.pitch_offset() * v5.cyl_y(r, HY.PY0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
+    z = v5.cyl_x(r, D.SV_HORN_FACE - 0.1, RX1 + 0.1, 0, 0)
+    z += v5.cyl_x(r, RX0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
+    z += pitch_offset() * v5.cyl_y(r, D.SV_HORN_FACE - 0.1, PY1 + 0.1, 0, 0)
+    z += pitch_offset() * v5.cyl_y(r, PY0 - 0.1, D.SV_IDLER_FACE + 0.1, 0, 0)
     return z
 
 
 def check_interfaces(glued, verbose=True):
     """HARD GATE: every servo interface -- the four pads with their bosses,
-    bolt circles and centre reliefs -- must match the raw fused clevises."""
+    bolt circles and centre reliefs -- must match the raw v5 clevises."""
     z = _pad_zones()
-    a = (HY.fused() & z).volume
+    a = (raw_clevises() & z).volume
     b = (glued & z).volume
     ok = abs(a - b) < 0.05
     if verbose:
-        print(f"  [hip_yoke_glued] servo interfaces: {a:.3f} mm3 fused vs "
+        print(f"  [hip_yoke_glued] servo interfaces: {a:.3f} mm3 v5 clevises vs "
               f"{b:.3f} mm3 glued -> {'IDENTICAL' if ok else '** CHANGED **'}")
     return ok
+
+
+def disc_seat_zones():
+    """The volumes of this part that are DESIGNED to touch a neighbour, for
+    check_assembly_v6's buffer rule (in this frame): the roll idler boss,
+    which rides the yaw_carrier's bay bore at the 0.30 slip fit and seats on
+    the idler disc, and the roll horn boss, which seats on the horn disc.
+    Subtracting these from the posed part lets everything else -- arms,
+    pads, both flanges, the fin, the whole pitch clevis -- be held to the
+    full D.SWEEP_BUFFER against the carrier and the roll servo."""
+    idler = v5.cyl_x(D.IDLER_BOSS_D / 2 + 0.5, D.ROLL_ARM_INNER - 0.01,
+                     D.SV_IDLER_FACE + 0.1, 0, 0)
+    horn = v5.cyl_x(D.HORN_BOSS_D / 2 + 0.5, D.SV_HORN_FACE - 0.1,
+                    D.SV_HORN_FACE + D.HORN_BOSS_H + 0.01, 0, 0)
+    return idler + horn
+
+
+def SCREWS():
+    """The 16 disc screws the yoke carries (part-local frame), length by the
+    stack under each head (V.disc_screw, no washers): the roll horn arm sits
+    on a 1.0 mm seating boss (stack 4.0), the roll idler arm's pad is sunk
+    D.ROLL_IDLER_PAD_SINK so its 5.8 stack takes an M3x8, and the pitch
+    clevis is leg_link's horn pad / idler pad pair (3.0 / 3.6). `axis`
+    points from the head toward the tip. The joint has no fasteners."""
+    r = D.BCD / 2
+    ring = ((r, 0), (-r, 0), (0, r), (0, -r))
+    rows = (("roll_horn", RX1, RX1 - D.SV_HORN_FACE, "horn", "x", -1),
+            ("roll_idler", RX0 + D.ROLL_IDLER_PAD_SINK, D.SV_IDLER_FACE - (RX0 + D.ROLL_IDLER_PAD_SINK), "idler", "x", +1),
+            ("pitch_horn", PY1, PY1 - D.SV_HORN_FACE, "horn", "y", -1),
+            ("pitch_idler", PY0, D.SV_IDLER_FACE - PY0, "idler", "y", +1))
+    s = []
+    for tag, face, stack, side, ax, sgn in rows:
+        length, eng, flange = V.disc_screw(stack, side)
+        for a, b in ring:
+            if ax == "x":
+                pos, axis = (face, a, b), (sgn, 0, 0)
+            else:
+                pos, axis = (a, face, PZ + b), (0, sgn, 0)
+            s.append(dict(name=f"{tag}_{a:+.0f}_{b:+.0f}", kind=f"M3x{length} button head",
+                          pos=pos, axis=axis, length=float(length), stack=stack, engage=eng, flange=flange))
+    return s
+
+
+def mass_g(solid):
+    return solid.volume * D.FILAMENT_RHO * D.PRINT_MASS_FACTOR
 
 
 def snap_strain():
@@ -359,11 +605,10 @@ def snap_strain():
 
 # What the audit is told, and why, for each piece -- the only findings it may
 # raise that are not failures. Anything else fails.
-#  - CONTACT: both pieces stand on edge on 310-340 mm2 of first layer, under
-#    the audit's 25 %-of-bbox floor, a tip-over risk for tall parts. These
-#    are 27-30 mm tall on U-shaped footprints, and print WITHOUT a brim (Tom,
-#    2026-10-14). If one lifts, add hip_yoke_v6's 5 mm outer brim in
-#    cad/v6/print_settings.json.
+#  - CONTACT: both pieces stand on edge on a first layer under the audit's
+#    25 %-of-bbox floor, a tip-over risk for tall parts. These are 33-36 mm
+#    tall on U-shaped footprints, and print WITHOUT a brim (Tom, 2026-10-14).
+#    If one lifts, add a 5 mm outer brim in cad/v6/print_settings.json.
 #  - the roll idler boss: the O20 journal that turns 0.3 mm inside the yaw
 #    carrier's bay bore lies tangent on the bed (ROLL_BED_Y), so its first
 #    millimetre widens off a line of bed contact, like any cylinder printed on
@@ -412,9 +657,9 @@ def in_print_orient(solid, name):
 
 
 def render_shots(shots, png_path, px=560):
-    """A strip of MuJoCo offscreen renders (hip_yoke_v6.render's setup), one
-    per shot = (items, azimuth, elevation); items is a solid or a list of
-    (solid, rgba) drawn together. Camera on the items' bounding box."""
+    """A strip of MuJoCo offscreen renders, one per shot = (items, azimuth,
+    elevation); items is a solid or a list of (solid, rgba) drawn together.
+    Camera on the items' bounding box."""
     os.environ.setdefault("MUJOCO_GL", "cgl" if sys.platform == "darwin" else "egl")
     import tempfile
     import imageio.v2 as imageio
@@ -464,15 +709,6 @@ def render(pieces, png_path, px=560):
                          (roll + pitch, 140, -20)], png_path, px)
 
 
-def SCREWS():
-    """The disc screws are hip_yoke_v6's: the pads and their stacks are the
-    same. The joint has no fasteners."""
-    return HY.SCREWS()
-
-
-disc_seat_zones = HY.disc_seat_zones
-
-
 if __name__ == "__main__":
     import time
     for d in (OUT_STL, OUT_STEP, OUT_REN):
@@ -480,7 +716,6 @@ if __name__ == "__main__":
     t0 = time.time()
     pieces = build()
     glued = pieces["hip_yoke_glued_roll"] + pieces["hip_yoke_glued_pitch"]
-    one = HY.hip_yoke_v6(verbose=False)
     findings = {}
     for name, s in pieces.items():
         n = len(s.solids())
@@ -488,13 +723,13 @@ if __name__ == "__main__":
         path = os.path.join(OUT_STL, f"{name}.stl")
         export_stl(s, path)
         export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
-        print(f"{name:22s} {n} solid(s)  {HY.mass_g(s):5.2f} g  bbox "
+        print(f"{name:22s} {n} solid(s)  {mass_g(s):5.2f} g  bbox "
               f"x {bb.min.X:.2f}..{bb.max.X:.2f} y {bb.min.Y:.2f}..{bb.max.Y:.2f} "
               f"z {bb.min.Z:.2f}..{bb.max.Z:.2f}")
         findings[name] = audit(name, path)
-    print(f"glued pair {HY.mass_g(glued):.2f} g vs hip_yoke_v6 {HY.mass_g(one):.2f} g  "
-          f"({time.time() - t0:.0f}s)")
-    print(f"snap finger strain {snap_strain() * 100:.2f} %")
+    print(f"glued pair {mass_g(glued):.2f} g  ({time.time() - t0:.0f}s)")
+    lap = (Pos(0, 0, -0.05) * pieces["hip_yoke_glued_roll"] & pieces["hip_yoke_glued_pitch"]).volume / 0.05
+    print(f"glued lap {lap:.0f} mm2   snap finger strain {snap_strain() * 100:.2f} %")
     check_interfaces(glued)
     for name, (fails, ok) in findings.items():
         notes = "; ".join(sorted({w for *_, w in ok}))

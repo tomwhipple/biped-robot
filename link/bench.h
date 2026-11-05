@@ -45,7 +45,7 @@ class JsonObj {
         char str[80];
     };
     const KV* find(const char* key) const;
-    KV kv_[kMax];
+    KV kv_[kMax] = {};
     int n_ = 0;
 };
 

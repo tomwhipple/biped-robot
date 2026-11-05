@@ -135,6 +135,18 @@ extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 // tunable: changing the pole mid-run is continuous because the shaper's state
 // carries over; only the gain changes.
 extern std::atomic<float> g_shape_hz;
+// -- motion limiter (core 0 -> core 1) -------------------------------------
+// Written by the CLI (`limit`), read by ctrl every tick: obs::MotionLimiter's
+// vmax (deg/s), amax (deg/s^2) and jmax (deg/s^3, 0 = no jerk limit). Off
+// when vmax or amax is 0 -- the boot state, until the limits are tuned on
+// the robot. Three independent atomics: the CLI writes vmax LAST (`limit
+// off` writes only vmax = 0), so a tick that reads mid-update sees the old
+// limits or a valid mix of old and new, never an enable with half a config.
+// Live: the limiter's state carries over a change of limits; turning it off
+// and on again reseeds it from measured q at rest (do that standing).
+extern std::atomic<float> g_limit_vmax;
+extern std::atomic<float> g_limit_amax;
+extern std::atomic<float> g_limit_jmax;
 // -- stand clock option (core 0 -> core 1) ---------------------------------
 // Written by the CLI (`standclock`), read by ctrl every tick: what the gait
 // clock does at a plain stand for a policy trained with it running
@@ -157,7 +169,7 @@ extern std::atomic<float> g_obs_gyro_gain;
 // commands can never pile up behind a late tick.
 struct CommandMsg {
     linkproto::Command cmd;
-    float rx_ms;         // when the frame arrived, on ctrl's clock
+    float rx_ms = 0.0f;  // when the frame arrived, on ctrl's clock
 };
 extern QueueHandle_t g_cmd_mailbox;
 

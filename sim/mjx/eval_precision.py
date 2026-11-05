@@ -208,7 +208,26 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
               push_prob=cfg.get("_referee_push_prob", 0.01) if not nominal else 0.0)
     env = BimoWalkerEnv(**kw)
     env.rise_ref_npz = cfg.get("rise_ref_npz")   # recover_supine_ph picks its phase from it
+    set_contact_friction(env, cfg.get("_referee_contact_mu"), cfg.get("_referee_contact_torsion"))
     return env
+
+
+def set_contact_friction(env, mu=None, torsion=None):
+    """--contact-mu / --contact-torsion: grade on this EFFECTIVE foot/floor friction.
+    MuJoCo takes the max of a contact pair's friction, so the floor alone cannot go below
+    the pads' 1.0: set the floor, every sole pad and the reference soles together (as
+    experiments/policy/shaper-train/grade.py set_contact and env_mjx contact_mu_range).
+    The nominals are set too, so the per-reset floor DR (x(1 +- friction_range)) draws
+    around mu, and the effective sole friction stays >= mu. Other body geoms keep their
+    own friction (only the sole was measured, 2026-11-04: mu ~0.45, yaw grip ~0.1 N m)."""
+    if mu is None and torsion is None:
+        return
+    gids = [env._floor_gid] + [g for pads in env._pad_gids for g in pads] + list(env._sole_gids)
+    for g in gids:
+        for col, val in ((0, mu), (1, torsion)):
+            if val is not None:
+                env.model.geom_friction[g, col] = float(val)
+                env._nom_friction[g, col] = float(val)
 
 
 # =====================================================================
@@ -2321,6 +2340,13 @@ def main():
     p.add_argument("--push-prob", type=float, default=None,
                    help="push-stress grade: per-control-step shove probability "
                         "instead of the hardware-claim 0.01 (see --push-force)")
+    p.add_argument("--contact-mu", type=float, default=None,
+                   help="grade on this effective foot/floor sliding friction (floor, sole "
+                        "pads and soles together; the plant's pads are 1.0). The measured "
+                        "sole (2026-11-04 clamp test) is ~0.45. Writes scorecard_mu<value>")
+    p.add_argument("--contact-torsion", type=float, default=None,
+                   help="with --contact-mu: torsional friction (m) on the same geoms "
+                        "(plant 0.02; the measured yaw grip is ~0.1 N m)")
     p.add_argument("--rise-ref-hold", action="store_true",
                    help="grade with rise_ref_hold on (no handover from the residual "
                         "reference map at recovered) whatever the run trained with: "
@@ -2340,6 +2366,9 @@ def main():
     if args.push_force is not None or args.push_prob is not None:
         suffix = (f"{suffix}_push{5.0 if args.push_force is None else args.push_force:g}"
                   f"x{0.01 if args.push_prob is None else args.push_prob:g}")
+    if args.contact_mu is not None or args.contact_torsion is not None:
+        suffix = (f"{suffix}_mu{'' if args.contact_mu is None else f'{args.contact_mu:g}'}"
+                  f"{'' if args.contact_torsion is None else f't{args.contact_torsion:g}'}")
     if args.rise_ref_hold:
         suffix = f"{suffix}_hold"
     if args.ref_replay:
@@ -2371,6 +2400,10 @@ def main():
         cfg["_referee_push_force"] = args.push_force
     if args.push_prob is not None:
         cfg["_referee_push_prob"] = args.push_prob
+    if args.contact_mu is not None:
+        cfg["_referee_contact_mu"] = args.contact_mu
+    if args.contact_torsion is not None:
+        cfg["_referee_contact_torsion"] = args.contact_torsion
     if args.rise_ref_hold:
         cfg["rise_ref_hold"] = True
     if args.ref_replay:

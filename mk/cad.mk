@@ -2,7 +2,7 @@
 .PHONY: cad cad-v6 cad-v5 cad-bench-v2 cad-bench-v3 freecad slice check-cad
 
 # The robot to print; a variant's own parts are built with the variant's setting.
-V6_ENV := ARMS=1 HIP_YOKE_VARIANT=single SERVO_PLAN=hips
+V6_ENV := ARMS=1 SERVO_PLAN=hips
 V6_ALL_PARTS := $(V6_PARTS) $(V6_VARIANT_PARTS)
 V6_ROLLUP := build/v6/reports/parts_v6_rollup.txt
 
@@ -88,8 +88,10 @@ check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms
 
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
 V6_GLUED := hip_yoke_glued ankle_link_glued
+V6_POWER_BAY := power_bay_v8 power_bay_prints_v8 switch_pod_v8
 V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png docs/img/arm_side_labels.png $(V6_GLUED:%=docs/img/%.png) \
-	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS)
+	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS) \
+	$(V6_POWER_BAY:%=docs/assembly/%.png)
 
 assembly: build/v6/step/assembly_v6_arms.step build/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
 figures: $(V6_DOC_FIGS) ## re-render the v6 images the docs show and copy them into the docs (committed)
@@ -119,7 +121,7 @@ build/%/renders/arm_side_labels.png: $(PYDEPS_cad/v6/arm_v6.py) $(foreach l,uppe
 	$(PY) cad/v6/arm_v6.py --labels-figure $@ > /dev/null
 docs/img/arm_side_labels.png: build/v6/renders/arm_side_labels.png
 	cp $< $@
-# the glued test parts: each module writes its STLs, STEPs and its strip
+# the glued parts: each module writes its STLs, STEPs and its strip
 build/%/renders/hip_yoke_glued.png: $(PYDEPS_cad/v6/hip_yoke_glued.py)
 	$(PY) cad/v6/hip_yoke_glued.py > /dev/null
 build/%/renders/ankle_link_glued.png: $(PYDEPS_cad/v6/ankle_link_glued.py)
@@ -131,4 +133,9 @@ docs/assembly/assembly_v6_flyin_arms_strip.png: build/v6/movies/assembly_v6_flyi
 docs/assembly/assembly_v6_flyin_strip.png: build/v6/movies/assembly_v6_flyin_strip.png
 	cp $< $@
 docs/assembly/v6_%.png: build/v6/renders/v6_%.png
+	cp $< $@
+# the power bay (assembly.md 9c): torso_v8.py --figures renders its three strips and writes nothing else
+build/%/renders/power_bay_v8.png build/%/renders/power_bay_prints_v8.png build/%/renders/switch_pod_v8.png: $(PYDEPS_cad/v6/torso_v8.py)
+	$(PY) cad/v6/torso_v8.py --figures > /dev/null
+$(V6_POWER_BAY:%=docs/assembly/%.png): docs/assembly/%.png: build/v6/renders/%.png
 	cp $< $@

@@ -16,8 +16,8 @@ namespace {
 constexpr int kMaxArgs = 8;   // only the first few tokens decide anything
 
 struct Tokens {
-    char buf[kMaxLine + 1];
-    const char* argv[kMaxArgs];
+    char buf[kMaxLine + 1] = {};
+    const char* argv[kMaxArgs] = {};
     int argc = 0;    // tokens seen (capped at kMaxArgs + 1: "more than")
 };
 
@@ -54,7 +54,7 @@ Decision tether(const char* why) { return Decision{Verdict::kRefuseTether, why};
 // through the very same cli::execute().
 const char* const kBenchAny[] = {
     "help", "?", "scan", "ping", "pos", "move", "release", "torque", "pose",
-    "balance", "reg", "sread", "trace", "home", "shape", "obsfreeze", "volt",
+    "balance", "reg", "sread", "trace", "home", "shape", "limit", "obsfreeze", "volt",
     "stat", "ntp", "bno", "rec", "bench", nullptr};
 
 }  // namespace
@@ -162,6 +162,15 @@ Decision classify(const char* line, bool armed) {
         if (argc == 2 && is(sub, "stop")) return allow();
         return tether("`sweep` is a bench identification experiment (roll "
                       "sweep), run from the tether");
+    }
+    if (is(c, "servocfg")) {
+        if (argc == 1) return allow();   // read and verify regs 85/81 only
+        return tether("`servocfg fast|factory` rewrites the STS3215 response "
+                      "registers (servo RAM)");
+    }
+    if (is(c, "regw")) {
+        return tether("`regw` writes a servo register (an actuator "
+                      "experiment tool)");
     }
     if (is(c, "stepresp")) {
         return tether("`stepresp` is a bench identification experiment (one "

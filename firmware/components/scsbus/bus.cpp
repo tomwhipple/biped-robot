@@ -199,14 +199,22 @@ Status Bus::torqueEnable(uint8_t id, bool on) {
 Status Bus::unlockEeprom(uint8_t id) { return writeU8(id, kRegEepromLock, 0); }
 Status Bus::lockEeprom(uint8_t id) { return writeU8(id, kRegEepromLock, 1); }
 
-Status Bus::setId(uint8_t old_id, uint8_t new_id) {
+Status Bus::setId(uint8_t old_id, uint8_t new_id, bool* ack_lost) {
+    if (ack_lost) *ack_lost = false;
     if (new_id > kMaxId) return Status::kBadArg;
     Status st = unlockEeprom(old_id);
     if (st != Status::kOk) return st;
     st = writeU8(old_id, kRegId, new_id);
     if (st != Status::kOk) {
-        // Leaving the EEPROM unlocked is worse than a failed rename; try to
-        // put the lock back on whichever ID still answers.
+        // Leaving the EEPROM unlocked is worse than a failed rename; put the
+        // lock back on whichever ID still answers. The rename itself can
+        // land with its ack lost (#101: `id 11 30` reported a timeout, the
+        // servo answered to 30, and a lock sent to 11 left its EEPROM open),
+        // so ask the NEW id first.
+        if (new_id != old_id && ping(new_id)) {
+            if (ack_lost) *ack_lost = true;
+            return lockEeprom(new_id);
+        }
         lockEeprom(old_id);
         return st;
     }

@@ -21,6 +21,7 @@ import io
 import select
 import json
 import os
+import re
 import socket
 import struct
 import sys
@@ -51,10 +52,20 @@ from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
                       encode_telemetry)
 
 # Needs BOTH a sim/runs/<name>/config.json and an exported
-# sim/sil/weights/<name>.silw.json; the previous default had only the weights,
-# so a bare `python sim/sil_twin.py` died opening config.json. bimo_gui's SIM
-# panel builds its dropdown from that same pair, for the same reason.
-DEFAULT_RUN = "loco_v11gait"
+# sim/sil/weights/<name>.silw.json (bimo_gui's SIM panel builds its dropdown
+# from that same pair), and the run must match the compiled-in spec: the
+# DEPLOYED run, obs_spec.h's kRunName -- any other run fails sil_check_spec.
+def _deployed_run():
+    spec_h = os.path.join(ROOT, "firmware", "components", "obs", "include",
+                          "obs", "obs_spec.h")
+    try:
+        m = re.search(r'kRunName\s*=\s*"([^"]+)"', open(spec_h).read())
+    except OSError:
+        m = None
+    return m.group(1) if m else "loco_v11gait"
+
+
+DEFAULT_RUN = _deployed_run()
 HANG_XML = os.path.join(HERE, "bimo_biped_v5body_hang.xml")
 
 
@@ -107,6 +118,19 @@ class Mjpeg:
             self.jpeg = buf.getvalue()
 
 
+def _local_xml(xml):
+    """A run's config.json may store the plant relative to sim/ (or just its
+    basename: train_mjx.py on a remote host) -- resolve it against the local
+    sim/ directory, as eval_precision does, so the twin starts from any cwd."""
+    if not xml or os.path.isabs(xml) or os.path.exists(xml):
+        return xml
+    for cand in (os.path.join(HERE, xml),
+                 os.path.join(HERE, os.path.basename(xml))):
+        if os.path.exists(cand):
+            return cand
+    return xml
+
+
 def run(args):
     from eval_precision import (make_env, sil_check_spec,   # noqa: E402
                                 sil_profile_for, sil_setup)
@@ -115,7 +139,7 @@ def run(args):
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     xml = args.xml or (HANG_XML if args.hang else None) \
-        or cfg.get("xml_path") or None
+        or _local_xml(cfg.get("xml_path")) or None
     # the policy profile is the TRAINING plant's (a --hang override is a
     # variant of the same body)
     prof = sil_profile_for(cfg.get("xml_path") or "")
@@ -140,7 +164,7 @@ def run(args):
             v = {"true": True, "false": False, "none": None}.get(v.lower(), v)
         extra[k] = v
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
-                   xml=xml if xml else cfg.get("xml_path"),
+                   xml=xml if xml else _local_xml(cfg.get("xml_path")),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
     print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
           f"act_lag {env.act_lag_hz:g} Hz, dead time {getattr(env, 'act_delay_ticks', 0)} ticks, play {env.play_deg:g} deg "

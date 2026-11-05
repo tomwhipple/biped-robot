@@ -56,10 +56,8 @@ GENERATORS = [
 
 # The environment that puts each build variant's own parts in parts_v6.PARTS.
 VARIANTS = [
-    {"ARMS": "1", "HIP_YOKE_VARIANT": "single", "SERVO_PLAN": "hips"},   # the robot to print
-    {"HIP_YOKE_VARIANT": "glued"},
+    {"ARMS": "1", "SERVO_PLAN": "hips"},   # the robot to print
     {"ANKLE_LINK_VARIANT": "glued"},
-    {"HIP_YOKE_VARIANT": "split"},
     {"ARMS": "0"},
 ]
 

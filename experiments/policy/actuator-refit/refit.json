@@ -1,0 +1,67 @@
+{
+ "source": "/home/claw/code/robot/hw_sessions/2026-11-03/moves_fast_large.json",
+ "volts": 12.0,
+ "chosen": {
+  "stall_ratio": 2.0,
+  "w0_ratio": {
+   "hip_pitch": 1.325,
+   "knee": 1.2809
+  },
+  "hang": {
+   "hip_pitch": {
+    "w0_ratio": 1.3249752586490118,
+    "dead_ms": 14.736535660925256,
+    "rmse": 2.470795567965585
+   },
+   "knee": {
+    "w0_ratio": 1.2809313842779426,
+    "dead_ms": 15.374185667441026,
+    "rmse": 2.688864993114801
+   }
+  },
+  "stride_dead15_ms": 40.0,
+  "stride": {
+   "hip": [
+    1.1,
+    1.1,
+    0.5,
+    -1.8,
+    -5.7,
+    -10.2,
+    -14.9,
+    -19.8,
+    -24.6,
+    -29.5
+   ],
+   "knee": [
+    4.0,
+    4.0,
+    2.7,
+    -1.0,
+    -5.9,
+    -11.3,
+    -16.9,
+    -22.3,
+    -27.9,
+    -33.4
+   ],
+   "rmse": 1.2452085927020924,
+   "yaw180": -5.151681522382168
+  }
+ },
+ "why": "the hanging moves pin a ridge (stall >= 1.5x fits ~equally, w0 falls as stall rises); the stride1 swing picks dead 40 ms; x2 (5.9 N*m at 12 V) is the lowest stall within 0.05 deg of the best stride rmse -- higher stall buys nothing the data asks for and over-strengthens the low-speed (stance) torque",
+ "servo_envelope_flag": "hip_pitch=2.0:1.325,knee=2.0:1.281",
+ "supply_voltage": 12.0,
+ "grader_plant": {
+  "supply_v": 12.0,
+  "stall_scale": {
+   "hip_pitch": 2.0,
+   "knee": 2.0
+  },
+  "w0_scale": {
+   "hip_pitch": 1.325,
+   "knee": 1.281
+  }
+ },
+ "grader_fast_dead15": 40.0
+}

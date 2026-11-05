@@ -254,7 +254,6 @@ struct App {
     CamPane cam[kCamPanes];
     char cam_host[96] = "";              // host:port of the relay
     bool bench_view = false;
-    char last_bench_note[160] = "";
     bool bench_was_live = false;
 
     // host_port is a display string ("host:port"); sized to hold a 63-byte
@@ -814,7 +813,7 @@ void headlessLine(App& a, char* line, double now_ms) {
             if (arg2 != nullptr && !strcmp(arg2, kCamNames[c])) src = c;
         }
         if (pane < 0 || pane >= kCamPanes ||
-            (src < 0 && (arg2 == nullptr || strcmp(arg2, "off")))) {
+            (src < 0 && (arg2 == nullptr || strcmp(arg2, "off") != 0))) {
             printf("note: cam <0|1> emeet|brio|sony|off\n");
         } else if (a.cam_host[0] == 0) {
             printf("note: no --cam-relay\n");

@@ -71,6 +71,15 @@ uint16_t g_target_speed[obs::kNumJoints];
 // prev_action stays the RAW policy output: that is what the policy saw in
 // training; the shaper is downstream of the policy's world.
 obs::CommandShaper g_shaper;
+// Motion limiter (obs/actuation.h): per-joint vmax / amax with braking
+// look-ahead (+ optional jerk boxcar) on what is about to be WRITTEN -- after
+// the shaper and the takeover ramp, before the goal ticks -- so no joint is
+// ever asked to start or stop harder than amax. Its velocity is the goal
+// speed of every policy joint while it is on. Seeded and invalidated exactly
+// where the shaper is; off at boot (shared.h g_limit_*), `limit` turns it on.
+obs::MotionLimiter g_limiter;
+float g_limit_cfg[3] = {0.0f, 0.0f, 0.0f};    // deg units g_limiter was last configured with
+float g_limit_vel[obs::kNumJoints];           // rad/s, this tick's limited velocity
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 // The BUS side (obs/bus_map.h). The loop reads and writes every FITTED bus
@@ -299,7 +308,10 @@ void recordFlight(int64_t t0, int64_t t_read0, int64_t t_read1,
     v.nwr = nwr;
     v.wr_id = g_wr_id;
     v.wr_steps = g_wr_steps;
-    v.wr_speed = g_shape_hz.load() > 0.0f ? g_wr_speed : nullptr;
+    // the speeds went on the wire iff shaping or limiting (the act path's rule)
+    v.wr_speed = (g_shape_hz.load() > 0.0f ||
+                  (g_limit_vmax.load() > 0.0f && g_limit_amax.load() > 0.0f))
+                     ? g_wr_speed : nullptr;
     if (in) {
         v.action = g_action;
         v.cmd = in->cmd;
@@ -342,6 +354,7 @@ void ctrlTask(void*) {
                 g_ctrl_owns_bus.store(false);
                 g_primed = false;
                 g_shaper.invalidate();
+                g_limiter.invalidate();
             }
         } else if (!g_ctrl_owns_bus.load()) {
             // The fitted bus set for this run, from the calibration as it
@@ -359,6 +372,7 @@ void ctrlTask(void*) {
             memset(g_prev_action, 0, sizeof g_prev_action);
             g_primed = false;
             g_shaper.invalidate();
+            g_limiter.invalidate();
             // Fresh run, fresh fall latch: `bench` + `run` is the tethered
             // clear (and a disarm + arm the wireless one), and the operator
             // doing it is looking at the robot.
@@ -512,6 +526,7 @@ void ctrlTask(void*) {
                 if (hard) {
                     releaseAll();
                     g_shaper.invalidate();
+                    g_limiter.invalidate();
                     g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kDisarmedStop));
                     g_mode_request.store(Mode::kBench);
                     recordFlight(t0, t_read0, t_read1, state, s, 0, nullptr, vbat_dv);
@@ -549,6 +564,7 @@ void ctrlTask(void*) {
             // operator put them; the shaper must reseed from MEASURED q on
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
+            g_limiter.invalidate();
             recordFlight(t0, t_read0, t_read1, rep_state, s, 0, nullptr, vbat_dv);
             publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
@@ -666,6 +682,27 @@ void ctrlTask(void*) {
             }
         }
 
+        // -- limit (see g_limiter above; docs/firmware-design.md) ------------
+        // Read live every tick, like the shape pole. Last before the goal
+        // ticks, so it bounds whatever the shaper and the ramp produced.
+        const float lim_cfg[3] = {g_limit_vmax.load(), g_limit_amax.load(),
+                                  g_limit_jmax.load()};
+        const bool limiting = lim_cfg[0] > 0.0f && lim_cfg[1] > 0.0f;
+        if (limiting) {
+            if (lim_cfg[0] != g_limit_cfg[0] || lim_cfg[1] != g_limit_cfg[1] ||
+                lim_cfg[2] != g_limit_cfg[2]) {
+                g_limiter.configure(lim_cfg[0] * obs::kDegToRad,
+                                    lim_cfg[1] * obs::kDegToRad,
+                                    lim_cfg[2] * obs::kDegToRad,
+                                    obs::kControlDt);
+                memcpy(g_limit_cfg, lim_cfg, sizeof g_limit_cfg);
+            }
+            if (!g_limiter.primed()) g_limiter.reset(g_q);   // measured, at rest
+            g_limiter.update(angle, angle, g_limit_vel);
+        } else {
+            g_limiter.invalidate();     // re-enable reseeds from measured q
+        }
+
         // -- flail guard (components/flailguard) -----------------------------
         // Judges what this tick is about to WRITE (pose), the raw targets
         // (chatter) and the torso (rate, tilt -- the real IMU, not the
@@ -708,8 +745,10 @@ void ctrlTask(void*) {
             // g_fb[b].position holds the last reply from that servo; a joint
             // that has never answered reads 0, the error saturates and the
             // speed clamps to max -- exactly the legacy behaviour.
-            g_target_speed[i] = obs::goalSpeedSteps(
-                g_target_steps[i], g_fb[obs::policyToBus(i)].position);
+            g_target_speed[i] =
+                limiting ? obs::limitGoalSpeedSteps(g_limit_vel[i])
+                         : obs::goalSpeedSteps(g_target_steps[i],
+                                               g_fb[obs::policyToBus(i)].position);
         }
         // One SYNC WRITE over the fitted bus: the policy's targets, and a
         // hold at the takeover pose for every fitted servo it does not
@@ -757,7 +796,7 @@ void ctrlTask(void*) {
         }
         const int64_t t_wr0 = esp_timer_get_time();
         if (g_bus && nwr > 0) {
-            if (shape_hz > 0.0f) {
+            if (shape_hz > 0.0f || limiting) {
                 g_bus->syncWritePositions(g_wr_id, g_wr_steps, g_wr_speed,
                                           static_cast<size_t>(nwr));
             } else {

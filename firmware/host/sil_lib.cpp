@@ -77,6 +77,10 @@ float g_gait_hz = 1.5f;
 // actually runs.
 obs::CommandShaper g_shaper;
 float g_shape_hz = obs::kShaperPoleHz;
+// The motion limiter, the mirror of ctrl_task's (off at boot, as there).
+// No takeover ramp here, so it sits directly after the shaper.
+obs::MotionLimiter g_limiter;
+float g_limit_deg[3] = {0.0f, obs::kLimitAmaxDeg, obs::kLimitJmaxDeg};
 obs::StandClock g_stand_clock = obs::StandClock::kRun;   // ctrl_task g_stand_clock
 float g_stand_phase = 3.14159265f;
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
@@ -124,7 +128,7 @@ void buildSpec() {
     char buf[512];
     g_spec = "{";
     snprintf(buf, sizeof buf,
-             "\"sil_abi\":3,\"run\":\"%s\",\"plant\":\"%s\","
+             "\"sil_abi\":4,\"run\":\"%s\",\"plant\":\"%s\","
              "\"action_map\":\"%s\",\"policy_profile\":\"%s\","
              "\"spec_hash\":\"0x%016llx\",",
              obs::kRunName, obs::kPlantXml, obs::kActionMap,
@@ -142,6 +146,17 @@ void buildSpec() {
              static_cast<double>(obs::kGoalSpeedHeadroom),
              static_cast<int>(obs::kGoalSpeedFloor),
              static_cast<int>(obs::kGoalSpeedMax));
+    g_spec += buf;
+    // sil_abi 4: the motion limiter's CURRENT config (sil_set_limiter; deg
+    // units as the CLI takes them; vmax 0 = off) and its boxcar length.
+    snprintf(buf, sizeof buf,
+             "\"limiter\":{\"vmax_deg_s\":%.9g,\"amax_deg_s2\":%.9g,"
+             "\"jmax_deg_s3\":%.9g,\"on\":%s,\"taps\":%d,\"max_taps\":%d},",
+             static_cast<double>(g_limit_deg[0]),
+             static_cast<double>(g_limit_deg[1]),
+             static_cast<double>(g_limit_deg[2]),
+             g_limiter.enabled() ? "true" : "false", g_limiter.taps(),
+             obs::kLimitMaxTaps);
     g_spec += buf;
     snprintf(buf, sizeof buf,
              "\"num_joints\":%d,\"act_dim\":%d,\"num_cmd\":%d,"
@@ -257,6 +272,7 @@ int sil_init(const char* weights_path, const char* cal_path,
     g_clock.setFrequency(g_gait_hz);
     // init == boot: shaping back to the firmware default (see sil.h).
     sil_set_shaper(obs::kShaperPoleHz);
+    sil_set_limiter(0.0f, obs::kLimitAmaxDeg, obs::kLimitJmaxDeg);   // boot: off
     sil_set_stand_clock(0, 3.14159265f);      // boot: as trained (ctrl_task g_stand_clock)
     g_ready = true;
     sil_reset();
@@ -279,6 +295,37 @@ void sil_set_shaper(float pole_hz) {
     }
 }
 
+void sil_set_limiter(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3) {
+    // ctrl_task's rule: configured in deg units -> rad exactly as there; off
+    // (vmax or amax <= 0) forgets the seed, so turning it on again reseeds
+    // from the next tick's sensed positions.
+    g_limit_deg[0] = vmax_deg_s > 0.0f ? vmax_deg_s : 0.0f;
+    g_limit_deg[1] = amax_deg_s2 > 0.0f ? amax_deg_s2 : 0.0f;
+    g_limit_deg[2] = jmax_deg_s3 > 0.0f ? jmax_deg_s3 : 0.0f;
+    g_limiter.configure(g_limit_deg[0] * obs::kDegToRad,
+                        g_limit_deg[1] * obs::kDegToRad,
+                        g_limit_deg[2] * obs::kDegToRad, obs::kControlDt);
+    if (!g_limiter.enabled()) g_limiter.invalidate();
+}
+
+int sil_limit_trace(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3,
+                    int n, const float* q0, const float* targets,
+                    float* out_pos, float* out_vel) {
+    if (n < 0 || !q0 || (n > 0 && (!targets || !out_pos || !out_vel))) {
+        setError("sil_limit_trace: bad arguments");
+        return -1;
+    }
+    obs::MotionLimiter lim;
+    lim.configure(vmax_deg_s * obs::kDegToRad, amax_deg_s2 * obs::kDegToRad,
+                  jmax_deg_s3 * obs::kDegToRad, obs::kControlDt);
+    lim.reset(q0);
+    for (int t = 0; t < n; ++t) {
+        const size_t o = static_cast<size_t>(t) * obs::kNumJoints;
+        lim.update(targets + o, out_pos + o, out_vel + o);
+    }
+    return lim.taps();
+}
+
 void sil_reset(void) {
     // ctrl_task's "we just took the bus" path: a fresh ring, a zeroed
     // prev_action and an unprimed history, so the next tick's own frame
@@ -293,6 +340,7 @@ void sil_reset(void) {
     // ctrl_task reseeds the shaper from measured q on a torque (re)engage;
     // here that is the next tick's sensed positions.
     g_shaper.invalidate();
+    g_limiter.invalidate();
 }
 
 int sil_tick(const SilSensors* in, SilTargets* out) {
@@ -380,12 +428,20 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
         if (!g_shaper.primed()) g_shaper.reset(q);   // sensed == measured
         g_shaper.update(angle, angle);
     }
+    // -- limit: the mirror of ctrl_task's (seeded at the sensed q, at rest) --
+    float lim_vel[obs::kNumJoints] = {};
+    const bool limiting = g_limiter.enabled();
+    if (limiting) {
+        if (!g_limiter.primed()) g_limiter.reset(q);
+        g_limiter.update(angle, angle, lim_vel);
+    }
+    const bool speeds = g_shape_hz > 0.0f || limiting;
 
     for (int b = 0; b < obs::kNumBusJoints; ++b) {
         if (obs::busToPolicy(b) >= 0) continue;
         out->goal_ticks[b] = g_hold[b];
         out->goal_speed[b] =
-            g_shape_hz > 0.0f
+            speeds
                 ? obs::goalSpeedSteps(g_hold[b],
                                       scsbus::signMag(in->pos_ticks[b], 15))
                 : 0;
@@ -398,7 +454,8 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
         // The goal speed rides on the same measured position ctrl_task uses
         // (g_fb[i].position there, the sensed ticks here).
         out->goal_speed[slotOf(j)] =
-            g_shape_hz > 0.0f
+            limiting ? obs::limitGoalSpeedSteps(lim_vel[j])
+            : g_shape_hz > 0.0f
                 ? obs::goalSpeedSteps(
                       steps, scsbus::signMag(in->pos_ticks[slotOf(j)], 15))
                 : 0;

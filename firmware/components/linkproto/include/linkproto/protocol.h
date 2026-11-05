@@ -282,10 +282,10 @@ constexpr float kUprightUpZ = 0.7f;     // hysteresis: righted is > this ...
 constexpr float kUprightMs = 2000.0f;   // ... held this long, + ENABLE off
 
 struct Command {
-    uint32_t seq;
-    float vx;        // body-frame forward velocity, m/s
-    float wz;        // yaw rate, rad/s
-    uint8_t flags;
+    uint32_t seq = 0;
+    float vx = 0.0f;       // body-frame forward velocity, m/s
+    float wz = 0.0f;       // yaw rate, rad/s
+    uint8_t flags = 0;
     // extended channels (kCmdLenExt frames); a classic frame decodes to
     // exactly these defaults -- walker_env ext_cmd layout beyond vx/wz
     float vy = 0.0f;       // lateral velocity, m/s
@@ -304,14 +304,14 @@ struct Command {
 };
 
 struct Telemetry {
-    uint32_t seq_echo;
-    LinkState state;
-    float vbat_v;
-    float up_z;          // torso up-vector z; 1.0 = perfectly upright
-    float vx_est;
-    float wz_est;
-    uint32_t servo_err;  // bitmask, bit b = bus joint b faulted
-    uint8_t loop_late_pct;
+    uint32_t seq_echo = 0;
+    LinkState state = LinkState::kLive;   // 0, as value-initialisation gave
+    float vbat_v = 0.0f;
+    float up_z = 0.0f;       // torso up-vector z; 1.0 = perfectly upright
+    float vx_est = 0.0f;
+    float wz_est = 0.0f;
+    uint32_t servo_err = 0;  // bitmask, bit b = bus joint b faulted
+    uint8_t loop_late_pct = 0;
     // Measured joint angles, radians, bus order.
     // n_joints is 0 on a classic frame -- which is every frame, unless a
     // commander asked with kFlagPose.

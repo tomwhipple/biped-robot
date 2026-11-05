@@ -1,5 +1,5 @@
 {
-  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. A part's 'support_enforcers' are boxes [x0, x1, y0, y1, z0, z1] in its model frame (mm), added to the project as support-enforcer volumes; with support_type normal(manual) the part is supported inside them and nowhere else. Every copy is laid square to the bed, its walls along X and Y; a part's 'spin' (0, 90, 180 or 270 degrees, default 0) is its quarter turn there, and a quarter turn saved from the GUI is read back into it. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. HIP_YOKE_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
+  "_about": "Print settings for the v6 parts, read by cad/slice.py. Values are OrcaSlicer's own keys and value formats (filament keys are lists). Layering: the system presets named here, then 'process'/'filament', then 'supports' (or enable_support 0), then the part's 'settings'. 'plates' are parts printed together, sliced into one project; one process slices a plate, so its parts share supports and settings, and the plate holds its own 'copies'. cad/slice.py writes 'orient', 'copies' and 'settings' back here when a project was saved from the GUI. A part's 'support_enforcers' are boxes [x0, x1, y0, y1, z0, z1] in its model frame (mm), added to the project as support-enforcer volumes; with support_type normal(manual) the part is supported inside them and nowhere else. Every copy is laid square to the bed, its walls along X and Y; a part's 'spin' (0, 90, 180 or 270 degrees, default 0) is its quarter turn there, and a quarter turn saved from the GUI is read back into it. Spec: cad/PRINT_LIST.md, Global print settings + Supports are the slicer's job. 'variants' are parts of a non-default build (e.g. ANKLE_LINK_VARIANT=glued) that the default table leaves out; cad/slice.py --variant <name> slices them.",
   "printer": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
   "process": {
     "preset": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
@@ -54,9 +54,11 @@
     "torso_covers": {
       "parts": [
         "front_cover_v8",
-        "power_cover_v8"
+        "power_cover_v8",
+        "power_bracket_v8",
+        "balance_park_v8"
       ],
-      "note": "the torso's second print: both covers, outer face down, no supports"
+      "note": "the torso's second print: both covers (the power bay's is a cap), the BMS bracket and the balance park, no supports"
     },
     "arms": {
       "parts": [
@@ -67,6 +69,13 @@
       ],
       "note": "the four arm links (ARMS=1), each on its back, web face down. Manual supports: the forearms' elbow pads inside their enforcer boxes, nothing on the upper arms. The shoulder girdle (200 x 58) does not fit beside them"
     },
+    "arm_head_inserts": {
+      "parts": [
+        "arm_head_insert_v6_L",
+        "arm_head_insert_v6_R"
+      ],
+      "note": "the two upper-arm head inserts (issue #199), flat, outboard face down, no supports. They are not on the arms plate, which slices with manual supports"
+    },
     "girdle_neck": {
       "parts": [
         "shoulder_girdle_v6",
@@ -75,34 +84,17 @@
         "shoulder_cheek_v6"
       ],
       "note": "the shoulder girdle, the neck floor and the two shoulder cheeks (one part, twice) on one plate, no supports"
+    },
+    "hip_yoke_glued": {
+      "parts": [
+        "hip_yoke_glued_roll",
+        "hip_yoke_glued_pitch"
+      ],
+      "copies": 2,
+      "note": "both pieces for both hips"
     }
   },
   "variants": {
-    "hip_yoke_glued": {
-      "note": "HIP_YOKE_VARIANT=glued: the hip yoke as two support-free U-channels, snapped and glued (cad/v6/hip_yoke_glued.py)",
-      "parts": {
-        "hip_yoke_glued_roll": {
-          "orient": "RY_ROLL_WALL",
-          "supports": false,
-          "note": "on edge, model -Y (the y -10 bed face) down; no supports, no brim"
-        },
-        "hip_yoke_glued_pitch": {
-          "orient": "RY_XUP",
-          "supports": false,
-          "note": "on its back, model -X (the x -14 bed face) down; no supports, no brim"
-        }
-      },
-      "plates": {
-        "hip_yoke_glued": {
-          "parts": [
-            "hip_yoke_glued_roll",
-            "hip_yoke_glued_pitch"
-          ],
-          "copies": 2,
-          "note": "both pieces for both hips"
-        }
-      }
-    },
     "ankle_link_glued": {
       "note": "ANKLE_LINK_VARIANT=glued: the ankle link as a conformal cradle and a fork, printed without supports, snapped and glued (cad/v6/ankle_link_glued.py)",
       "parts": {
@@ -210,6 +202,16 @@
         "support_style": "snug"
       }
     },
+    "arm_head_insert_v6_L": {
+      "orient": "RY_YDOWN",
+      "supports": false,
+      "note": "flat, outboard face (model +Y) down, the lip rising over the body; no supports"
+    },
+    "arm_head_insert_v6_R": {
+      "orient": "RY_ROLL_WALL",
+      "supports": false,
+      "note": "flat, outboard face (model -Y) down, the lip rising over the body; no supports"
+    },
     "arm_upper_v6_R": {
       "orient": "RY_XUP",
       "supports": true,
@@ -244,14 +246,21 @@
       "supports": false,
       "note": "base (horn plate) down"
     },
-    "hip_yoke_v6": {
-      "orient": "RY_ROLL_WALL",
-      "supports": true,
+    "hip_yoke_glued_pitch": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "on its back, model -X (the x -14 bed face) down; no supports, no brim; 100 % infill, like the other piece: a sparse core is where the roll horn arm broke (hip_yoke_glued.py)",
       "settings": {
-        "brim_type": "outer_only",
-        "brim_width": "5"
-      },
-      "note": "on edge, model -Y on the bed; 5 mm outer brim"
+        "sparse_infill_density": "100%"
+      }
+    },
+    "hip_yoke_glued_roll": {
+      "orient": "RY_ROLL_WALL",
+      "supports": false,
+      "note": "on edge, model -Y (the y -10 bed face) down; no supports, no brim; 100 % infill, like the other piece: a sparse core is where the roll horn arm broke (hip_yoke_glued.py)",
+      "settings": {
+        "sparse_infill_density": "100%"
+      }
     },
     "leg_link_v6": {
       "orient": "RY_XUP",
@@ -282,7 +291,22 @@
     "power_cover_v8": {
       "orient": "RY_XUP",
       "supports": false,
-      "note": "outer face down, corner blocks rising; no supports"
+      "note": "outer face down, the rim, the lip and the three corner blocks rising; no supports"
+    },
+    "switch_pod_v8": {
+      "orient": "RY_XUP",
+      "supports": false,
+      "note": "aft face down, every wall rising, the toggles' bores teardropped; no supports"
+    },
+    "power_bracket_v8": {
+      "orient": "RY_XDOWN",
+      "supports": false,
+      "note": "the face that sits on the standoffs down, the ledge and the BMS stops rising; no supports"
+    },
+    "balance_park_v8": {
+      "orient": "IDENT",
+      "supports": false,
+      "note": "floor down, the cup's walls rising; no supports"
     },
     "battery_door_v8": {
       "orient": "RY_YDOWN",

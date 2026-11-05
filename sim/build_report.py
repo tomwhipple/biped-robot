@@ -436,6 +436,73 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-05 card: night 15 -- the get-up on the deploy-faithful start
+# (w19k 48/48 x2, its DART student 48/48, 16/16; all 16/16 on the measured sole
+# friction mu 0.45 / 0.3); smoothness terms dropped. Legs: walk21_fricact is the
+# first student through the refit-actuator stride1; the motion limiter costs the walk.
+fig_1105 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w19k_s128r24an3', ['recover_prone_fall'],
+                 'robot_getup_w19k_s128r24an3_prone_fall',
+                 'the get-up candidate: the (128, 128) student on the full deploy chain, '
+                 'started as the firmware starts it: 48/48, 16/16 at 15 N, 16/16 at sole mu 0.3'),
+    video_figure('robot_legs_walk21_fricact_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk21_fricact_s128r24_walk_steps',
+                 'trained on the refit actuator: the first student through the robot-speed '
+                 'stride1 (0/0 trips), left steps 5/8 >= 3 cm; right still 0/8'),
+    video_figure('robot_legs_walk21_fricact_lim3000_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk21_fricact_lim3000_s128r24_walk_steps',
+                 'through the motion limiter (200 deg/s, 3000 deg/s^2): a quiet stand '
+                 '(squeeze 2.4 deg), but every walk -> stop trips the flail guard'),
+    video_figure('robot_legs_walk21_fricact_lim2000_s128r24', ['turn_180'],
+                 'robot_legs_walk21_fricact_lim2000_s128r24_turn',
+                 'at the firmware default 2000 deg/s^2 the policy barely turns '
+                 '(heading error 175 deg) and falls 42 % of the card'),
+] if f)
+# 2026-11-04 card: night 14 -- the get-up on the full deploy chain (the measured
+# fast servo + the firmware shaper: w18k 48/48, 15 N 16/16); the DART student
+# replicates. Legs: walk18 fell on its first robot stride1 (11-03); every walk18
+# continuation raises the stand squeeze; all students fail the refit-actuator gate.
+fig_1104 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w18k', ['recover_prone_fall'],
+                 'robot_getup_w18k_prone_fall',
+                 'the get-up through the robot\'s whole actuator chain (fast servo, '
+                 'firmware shaper 10 Hz): 48/48 over friction 0.05-0.5, 16/16 under 15 N shoves'),
+    video_figure('robot_getup_w12k_s1_s128r24an3', ['recover_supine_ph'],
+                 'robot_getup_w12k_s1_s128r24an3_supine_ph',
+                 'the DART-noise (128, 128) student on a second teacher: 47/48, 16/16 '
+                 'at 15 N: the noise recipe, not one lucky teacher'),
+    video_figure('robot_legs_walk20_lowsw30_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk20_lowsw30_s128r24_walk_steps',
+                 '3x the per-step clearance penalty: 71 % of swings reach 3 cm (63 % '
+                 'without), but the lowest step still peaks at 1.3-1.4 cm'),
+    video_figure('robot_legs_walk20_b300_s128r24', ['stand_10s'],
+                 'robot_legs_walk20_b300_s128r24_stand',
+                 'walk18\'s 300M budget on a new seed: stands 8/8 here, but the squeeze rose '
+                 '2.0 -> 3.4 deg and it falls 1/8 at x1.5 loop gain'),
+] if f)
+# 2026-11-03 card: night 13 -- the DART-noise distil gives the first
+# firmware-sized get-up at the teacher's level (w12k_s128r24an3: 48/48, 15 N
+# 16/16); PPO small nets stay at 7-9/16. Legs: the +600M shaper continuations
+# (walk19) lost the x1.5 loop-gain margin; walk18_shp10sq_s128r24 stays the
+# candidate; the distil gap is closed on the shaper line; walk_steps still 0/8.
+fig_1103 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w12k_s128r24an3', ['recover_prone_fall'],
+                 'robot_getup_w12k_s128r24an3_prone_fall',
+                 'the deployable (128, 128) get-up, distilled with noise on the executed '
+                 'actions: 48/48 over friction 0.05-0.5, 16/16 under 15 N shoves (teacher 14)'),
+    video_figure('robot_getup_w16k', ['recover_supine_ph'],
+                 'robot_getup_w16k_supine_ph',
+                 'a (128, 128) get-up trained directly with PPO at residual 0.075: '
+                 '48/48 but 9/16 under shoves, like every PPO small net'),
+    video_figure('robot_legs_walk19_shp8_12sq_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk19_shp8_12sq_s128r24_walk_steps',
+                 'shaper-trained student, 64/160 (teacher 59): the walk is smooth but the '
+                 'lowest step peaks at 1.3 cm (gate 3 cm), and it lost the x1.5 margin'),
+    video_figure('robot_legs_walk19_shp10sq_s128r24', ['stand_10s'],
+                 'robot_legs_walk19_shp10sq_s128r24_stand',
+                 '+600M on the candidate\'s recipe: stands 8/8 here, but falls 8/8 at x1.5 '
+                 'loop gain on the fast actuator (walk18_shp10sq_s128r24: 0/8)'),
+] if f)
 # 2026-11-02 card: night 12 -- a (128,128) get-up trained directly with PPO
 # sweeps 48/48 on one seed (w13k_s1; the other seed sinks after standing);
 # the w12k student sweeps 44/48 but loses shoves (4/16). Legs: the
@@ -868,6 +935,98 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·05 · night 15: the get-up as the firmware starts it; the walk through the robot-speed stride</span></p>
+    <p><b>Get-up: the deploy candidate.</b> Episodes now start with the servo
+    chain seeded at the lying pose, as the firmware does. The get-up loses
+    nothing: w19k sweeps 48/48 across joint friction 0.05 – 0.5 and holds 16/16
+    under 15 N shoves, on two seeds. Its noise-distilled (128, 128) student
+    w19k_s128r24an3 also scores 48/48 and 16/16: the get-up candidate for a robot
+    with arms. On the sole friction measured on 11-04 (μ 0.45, and 0.3 to be
+    safe), every candidate still stands 16/16, so the get-up does not depend on
+    the floor's grip. Tom's smoothness penalty bought no measurable smoothness
+    here and cost power, so it is dropped. Tonight: the get-up through the
+    firmware motion limiter, at 200 °/s with 3000 and 2000 °/s².</p>
+    <p><b>Legs: through the robot-speed stride, not yet on the real floor.</b>
+    walk21_fricact, trained on the refit actuator, gives the first student
+    that takes the robot-speed first stride without tripping the flail guard
+    (0/8). It also walks best: left steps 5/8 clear 3 cm. It still trips 8/8
+    on a μ 0.4 floor, which is what the robot stands on. The motion limiter
+    (#215) costs the walk. At 200 °/s and 3000 °/s² every walk → stop trips the
+    guard. At the firmware default of 2000 °/s² the policy barely turns.
+    The limited students do stand quietly. This morning's first cards graded
+    the limiter runs without the limiter (the shared checkout could not
+    update), so they were re-refereed on main. Tonight: the legs on the
+    measured sole friction, without and with the limiter, plus a longer
+    limiter run. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1105}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·04 · night 14: the get-up on the robot's actuator chain; the walk's first real step</span></p>
+    <p><b>Get-up: the robot's servos and firmware shaper cost nothing.</b>
+    Retrained on the measured fast STS3215 (w17k), the get-up sweeps 48/48
+    across joint friction 0.05 – 0.5 and holds 16/16 under 15 N shoves, at least
+    as well as on the old stand-in actuator. With the firmware's command
+    shaper also in the loop (w18k), the scores are the same. The noise-distilled
+    (128, 128) student replicates on a second teacher (47/48, 16/16) and on the
+    fast-actuator teacher (47/48, 16/16). Doubling the distil noise does not
+    lift the 30 N shoves (6/16). Today's fix: every episode used to start with
+    the servo chain seeded at the standing pose, a yank the robot never makes.
+    <code>--seed-chain-at-q</code> now seeds it at the lying pose, as the
+    firmware does. Tonight: the shaper-chain student, the get-up on the
+    faithful start (and its seed and student), then a smoothness penalty.</p>
+    <p><b>Legs: walk18 stood on the robot, then fell on its first stride.</b>
+    On 11-03 the robot stood 60 s under walk18_shp10sq_s128r24. Its first
+    stride kicked the right leg so fast that the body spun −19° in 180 ms, and
+    it fell. The sim's leg swings about 1.6× slower than the robot's. The robot
+    session refit the hip and knee actuator from that swing (PR #214, merged
+    today). On the refit actuator every student we have trips the flail guard
+    8/8 at that stride. Last night's two walk18 continuations did not help:
+    the 300M replicate lost the stand margin (1/8 at 1.5× loop gain, squeeze
+    2.0 → 3.4°), so walk18's quiet stand looks like seed luck. The clearance
+    penalty raised the share of 3 cm swings to 71 %, but the lowest steps stay
+    at 1.3 cm. Tonight the legs train on the refit actuator, then add Tom's
+    smoothness terms. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1104}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·03 · night 13: a deployable get-up student; the walk's margin and clearance</span></p>
+    <p><b>Get-up: the firmware-sized network now matches the teacher.</b>
+    Distilling w12k into the (128, 128) network with noise on the executed
+    actions during the rollouts (DART) gives w12k_s128r24an3. It sweeps 48/48
+    across joint friction 0.05 – 0.5 and holds 16/16 under 15 N shoves, better
+    than its teacher (14/16) and far better than the stock student (4/16). The
+    stock student never saw the states after a shove; the noise puts them in
+    its data. A teacher-sized student also reaches 16/16, so capacity is
+    another way to close the gap, but only the noise works at the deployable
+    size. Training the small network directly with PPO stays at 7 – 9/16 under
+    shoves, whether at (256, 256) or with less residual authority. That route
+    stops here. Tonight: the noise recipe on a second teacher and at 0.6, and
+    the get-up retrained on the robot's fast servos, then through the firmware
+    command shaper.</p>
+    <p><b>Legs: longer training lost the hardware margin; the low steps are the gate.</b>
+    Last night's two 600M continuations of the shaper-trained recipe
+    (walk19) walk as smoothly as walk18 and distil with no loss (teacher → student
+    61 → 58 and 59 → 64/160). But on the fast measured actuator both students
+    fall 8/8 at 1.5× loop gain (walk18_shp10sq_s128r24: 0/8), at every shaper pole
+    from 8 to 20 Hz, and the stand squeeze rose from 2.0° to 3.3 – 5.1°.
+    walk18_shp10sq_s128r24 stays the hardware candidate. Every walk_steps row
+    is still 0/8: the lowest step peaks at 1.0 – 1.8 cm, against the 3 cm gate.
+    The no-shaper fast-servo runs (walk17) trip the flail guard and are
+    dropped. Tonight: walk18's 300M budget on a new seed, and the same with 3×
+    the per-step clearance penalty. Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1103}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·02 · night 12: a small-net get-up, and a stand that survives the real actuator</span></p>

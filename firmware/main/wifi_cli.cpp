@@ -225,11 +225,11 @@ void wcliAsyncOutput(const char* text) {
     const uint32_t now = nowMs();
     if (g_srv.listening(now)) {
         const size_t n = strlen(text);
-        size_t k = g_srv.output(text, n, now);
+        const size_t k = g_srv.output(text, n, now);
         if (k < n) {
             // Never wait here: this runs inside poseTick/balance. Overwrite.
             g_srv.setLagging();
-            k += g_srv.output(text + k, n - k, now);
+            g_srv.output(text + k, n - k, now);
         }
     }
     unlock();

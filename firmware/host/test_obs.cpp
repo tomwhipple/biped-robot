@@ -753,6 +753,194 @@ void testGoalSpeed() {
     CHECK_EQ(obs::goalSpeedSteps(0, 4095), obs::kGoalSpeedMax);
 }
 
+void testLimitBrakeSpeed() {
+    const float dt = obs::kControlDt;
+    const float a = 2000.0f * obs::kDegToRad;
+    const float u = a * dt * dt;              // the one-tick braking distance
+    CHECK_NEAR(obs::limitBrakeSpeed(0.0f, a, dt), 0.0f, 0.0);
+    CHECK_NEAR(obs::limitBrakeSpeed(-1.0f, a, dt), 0.0f, 0.0);
+    CHECK_NEAR(obs::limitBrakeSpeed(1.0f, 0.0f, dt), 0.0f, 0.0);
+    // Within one tick's braking distance: land in one tick (dist / dt).
+    CHECK_NEAR(obs::limitBrakeSpeed(0.5f * u, a, dt), 0.5f * u / dt, 1e-6);
+    CHECK_NEAR(obs::limitBrakeSpeed(u, a, dt), a * dt, 1e-5);
+    // On the triangular numbers m = k(k+1)/2 the speed is exactly k a dt
+    // (k braking ticks of a dt each), and between them it is linear.
+    for (int k = 1; k < 40; ++k) {
+        const float m = 0.5f * static_cast<float>(k * (k + 1));
+        CHECK_NEAR(obs::limitBrakeSpeed(m * u, a, dt),
+                   static_cast<float>(k) * a * dt, 2e-5 * k);
+    }
+    // Monotone, continuous, and below the continuous-time sqrt(2 a d) by
+    // less than one tick of deceleration.
+    float prev = 0.0f;
+    for (int i = 1; i <= 4000; ++i) {
+        const float d = 1e-4f * static_cast<float>(i);
+        const float vb = obs::limitBrakeSpeed(d, a, dt);
+        CHECK(vb >= prev - 1e-6f);
+        CHECK(vb - prev <= 1e-4f / dt * 1.01f);   // no jump: slope <= 1/dt
+        CHECK(vb <= sqrtf(2.0f * a * d) + 1e-5f);
+        CHECK(vb >= sqrtf(2.0f * a * d) - a * dt);
+        prev = vb;
+    }
+    // The S-curve boxcar: off without a jerk limit, ceil(2a / (j dt)), capped.
+    CHECK_EQ(obs::limitTaps(a, 0.0f, dt), 1);
+    CHECK_EQ(obs::limitTaps(a, 20000.0f * obs::kDegToRad, dt), 10);   // exact ratio
+    CHECK_EQ(obs::limitTaps(a, 30000.0f * obs::kDegToRad, dt), 7);
+    CHECK_EQ(obs::limitTaps(a, 1.0e7f * obs::kDegToRad, dt), 1);
+    CHECK_EQ(obs::limitTaps(a, 100.0f * obs::kDegToRad, dt), obs::kLimitMaxTaps);
+}
+
+// Drive one joint set of a limiter to a static target from rest; check the
+// bounds every tick. Returns the ticks to arrival.
+int limitStepCheck(float vmax, float amax, float jmax, float x0, float x1) {
+    const float dt = obs::kControlDt;
+    obs::MotionLimiter lim;
+    lim.configure(vmax, amax, jmax, dt);
+    float q[obs::kNumJoints], tgt[obs::kNumJoints], p[obs::kNumJoints],
+        v[obs::kNumJoints];
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        q[i] = x0;
+        tgt[i] = x1;
+    }
+    lim.reset(q);
+    const float s = x1 > x0 ? 1.0f : -1.0f;
+    float pv = 0.0f, pa = 0.0f, pp = x0;
+    int arrived = -1;
+    const int taps = lim.taps();
+    for (int t = 0; t < 600; ++t) {
+        lim.update(tgt, p, v);
+        const float acc = (v[0] - pv) / dt;
+        CHECK(fabsf(v[0]) <= vmax * (1.0f + 1e-5f));            // vmax
+        CHECK(fabsf(acc) <= amax * (1.0f + 1e-4f) + 1e-3f);     // amax
+        CHECK(s * (p[0] - x1) <= 1e-6f);                        // never past it
+        CHECK(s * v[0] >= -1e-5f);             // never backs up (float noise only)
+        if (taps > 1 && t > 0) {
+            // jerk bound of the boxcar: |da| <= 2 amax / taps per tick
+            CHECK(fabsf(acc - pa) <= 2.0f * amax / static_cast<float>(taps) *
+                                          (1.0f + 1e-3f) + 1e-2f);
+        }
+        // the output's velocity is its displacement: what the goal speed
+        // tells the servo to slew at is where the next goal is
+        CHECK(fabsf((p[0] - pp) - v[0] * dt) < 2e-6f);
+        pp = p[0];
+        for (int i = 1; i < obs::kNumJoints; ++i) CHECK_NEAR(p[i], p[0], 0.0);
+        // there, at rest (to float32 resolution: an ulp of p over dt)
+        if (arrived < 0 && fabsf(p[0] - x1) <= 1e-6f && fabsf(v[0]) <= 1e-4f) {
+            arrived = t + 1;
+        }
+        pv = v[0];
+        pa = acc;
+    }
+    CHECK(arrived > 0);
+    CHECK(fabsf(p[0] - x1) <= 1e-6f && fabsf(v[0]) <= 1e-5f);   // and stays
+    return arrived;
+}
+
+void testMotionLimiter() {
+    const float dt = obs::kControlDt;
+    const float D = obs::kDegToRad;
+    obs::MotionLimiter off;
+    CHECK(!off.enabled());
+    off.configure(200.0f * D, 0.0f, 0.0f, dt);
+    CHECK(!off.enabled());
+
+    // A 60 deg move at 200 deg/s, 2000 deg/s^2: the trapezoid's 0.4 s
+    // (60/200 + 200/2000), on the tick grid -- the braking curve is the
+    // time-optimal discrete stop, so no slack is lost to the look-ahead.
+    CHECK_EQ(limitStepCheck(200.0f * D, 2000.0f * D, 0.0f, 0.0f, 60.0f * D), 20);
+    CHECK_EQ(limitStepCheck(200.0f * D, 1000.0f * D, 0.0f, 0.0f, 60.0f * D), 25);
+    // short moves never reach vmax (triangle), both signs, other limits
+    limitStepCheck(200.0f * D, 2000.0f * D, 0.0f, 0.3f, 0.25f);
+    limitStepCheck(150.0f * D, 4000.0f * D, 0.0f, -0.5f, 1.2f);
+    limitStepCheck(50.0f * D, 300.0f * D, 0.0f, 1.0f, -1.0f);
+    // S-curve: the same bounds, jerk-limited, a (taps - 1) / 2 tick delay
+    const int n_s = limitStepCheck(200.0f * D, 2000.0f * D, 20000.0f * D, 0.0f,
+                                   60.0f * D);
+    CHECK_EQ(n_s, 20 + 10 - 1);
+    limitStepCheck(100.0f * D, 3000.0f * D, 50000.0f * D, 0.4f, -0.6f);
+
+    // Braking look-ahead under a moving target that stops: a target running
+    // ahead at 300 deg/s (faster than vmax) and then holding still is reached
+    // at rest, never passed.
+    {
+        obs::MotionLimiter lim;
+        lim.configure(200.0f * D, 2000.0f * D, 0.0f, dt);
+        float z[obs::kNumJoints] = {}, x[obs::kNumJoints], p[obs::kNumJoints],
+            v[obs::kNumJoints];
+        lim.reset(z);
+        float xt = 0.0f, pv = 0.0f;
+        for (int t = 0; t < 200; ++t) {
+            if (t < 10) xt += 300.0f * D * dt;
+            for (int i = 0; i < obs::kNumJoints; ++i) x[i] = xt;
+            lim.update(x, p, v);
+            CHECK(p[0] <= xt + 1e-6f);
+            CHECK(fabsf(v[0] - pv) <= 2000.0f * D * dt * (1.0f + 1e-5f));
+            pv = v[0];
+        }
+        CHECK_NEAR(p[0], xt, 0.0);
+        CHECK_NEAR(v[0], 0.0f, 0.0);
+    }
+
+    // A target that REVERSES: still never more than amax, and it brakes,
+    // turns and settles on the new target.
+    {
+        obs::MotionLimiter lim;
+        lim.configure(200.0f * D, 2000.0f * D, 0.0f, dt);
+        float z[obs::kNumJoints] = {}, x[obs::kNumJoints], p[obs::kNumJoints],
+            v[obs::kNumJoints];
+        lim.reset(z);
+        float pv = 0.0f;
+        for (int t = 0; t < 120; ++t) {
+            for (int i = 0; i < obs::kNumJoints; ++i) x[i] = t < 8 ? 1.0f : -0.2f;
+            lim.update(x, p, v);
+            CHECK(fabsf(v[0] - pv) <= 2000.0f * D * dt * (1.0f + 1e-5f));
+            pv = v[0];
+        }
+        CHECK_NEAR(p[0], -0.2f, 1e-6);
+        CHECK_NEAR(v[0], 0.0f, 1e-6);
+    }
+
+    // Seeding, in-place update, invalidate, and a live limit change.
+    {
+        obs::MotionLimiter lim;
+        lim.configure(200.0f * D, 2000.0f * D, 0.0f, dt);
+        float q0[obs::kNumJoints], io[obs::kNumJoints], v[obs::kNumJoints];
+        for (int i = 0; i < obs::kNumJoints; ++i) q0[i] = 0.1f * static_cast<float>(i);
+        lim.reset(q0);
+        CHECK(lim.primed());
+        for (int i = 0; i < obs::kNumJoints; ++i) io[i] = q0[i] + 1.0f;
+        lim.update(io, io, v);           // first tick from rest: one tick of amax
+        for (int i = 0; i < obs::kNumJoints; ++i) {
+            CHECK_NEAR(v[i], 2000.0f * D * dt, 1e-6);
+            CHECK_NEAR(io[i], q0[i] + 2000.0f * D * dt * dt, 1e-6);
+        }
+        // a live change keeps the state: the velocity carries over
+        lim.configure(100.0f * D, 500.0f * D, 0.0f, dt);
+        for (int i = 0; i < obs::kNumJoints; ++i) io[i] = q0[i] + 1.0f;
+        float v2[obs::kNumJoints];
+        lim.update(io, io, v2);
+        CHECK_NEAR(v2[0], v[0] + 500.0f * D * dt, 1e-6);
+        lim.invalidate();
+        CHECK(!lim.primed());
+        for (int i = 0; i < obs::kNumJoints; ++i) io[i] = q0[i];
+        lim.update(io, io, v);           // self-seeds at its target, at rest
+        CHECK_NEAR(io[3], q0[3], 0.0);
+        CHECK_NEAR(v[3], 0.0f, 0.0);
+    }
+}
+
+void testLimitGoalSpeed() {
+    // At rest: the floor, never 0 (0 == UNLIMITED on the wire).
+    CHECK_EQ(obs::limitGoalSpeedSteps(0.0f), obs::kGoalSpeedFloor);
+    CHECK_EQ(obs::limitGoalSpeedSteps(NAN), obs::kGoalSpeedFloor);
+    // 200 deg/s = 2275.6 steps/s, x1.25, either sign.
+    const float v = 200.0f * obs::kDegToRad;
+    const int32_t want = static_cast<int32_t>(lrintf(200.0f / 360.0f * 4096.0f * 1.25f));
+    CHECK(abs(static_cast<int>(obs::limitGoalSpeedSteps(v)) - want) <= 1);
+    CHECK_EQ(obs::limitGoalSpeedSteps(v), obs::limitGoalSpeedSteps(-v));
+    CHECK_EQ(obs::limitGoalSpeedSteps(100.0f), obs::kGoalSpeedMax);
+}
+
 int main() {
     testSpecMatchesVectors();
     testServoIdMapIsAPermutation();
@@ -768,6 +956,9 @@ int main() {
     testVelocityEstimator();
     testCommandShaper();
     testGoalSpeed();
+    testLimitBrakeSpeed();
+    testMotionLimiter();
+    testLimitGoalSpeed();
     testImuMaths();
     testCalBlob();
     testImuCalBlob();

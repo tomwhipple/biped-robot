@@ -52,7 +52,7 @@ double g_loss = 0.0;
 uint64_t g_rng = 1;
 
 struct Line {
-    uint32_t seq;
+    uint32_t seq = 0;
     std::string text;
 };
 std::mutex g_qmu;
