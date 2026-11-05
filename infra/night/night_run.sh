@@ -166,6 +166,10 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
       sleep 5
       continue
     fi
+    # idle but memory held (an ollama model resident, e.g. Honcho's deriver
+    # between requests): recheck in 30 s, so the unload above comes after ~1 min,
+    # not 20 (2026-11-05 day run: every job lost 20 min this way)
+    if (( UTIL < 5 )); then sleep 30; continue; fi
     echo "$(date +%H:%M) gpu busy (util=${UTIL}% free=${FREE}MiB); retry in 10 m"
     sleep 600
   done
