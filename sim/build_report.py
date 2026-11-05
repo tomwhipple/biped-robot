@@ -436,6 +436,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-05 card: night 15 -- the get-up on the deploy-faithful start
+# (w19k 48/48 x2, its DART student 48/48, 16/16; all 16/16 on the measured sole
+# friction mu 0.45 / 0.3); smoothness terms dropped. Legs: walk21_fricact is the
+# first student through the refit-actuator stride1; the motion limiter costs the walk.
+fig_1105 = "\n    ".join(f for f in [
+    video_figure('robot_getup_w19k_s128r24an3', ['recover_prone_fall'],
+                 'robot_getup_w19k_s128r24an3_prone_fall',
+                 'the get-up candidate: the (128, 128) student on the full deploy chain, '
+                 'started as the firmware starts it: 48/48, 16/16 at 15 N, 16/16 at sole mu 0.3'),
+    video_figure('robot_legs_walk21_fricact_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk21_fricact_s128r24_walk_steps',
+                 'trained on the refit actuator: the first student through the robot-speed '
+                 'stride1 (0/0 trips), left steps 5/8 >= 3 cm; right still 0/8'),
+    video_figure('robot_legs_walk21_fricact_lim3000_s128r24', ['walk_steps_L'],
+                 'robot_legs_walk21_fricact_lim3000_s128r24_walk_steps',
+                 'through the motion limiter (200 deg/s, 3000 deg/s^2): a quiet stand '
+                 '(squeeze 2.4 deg), but every walk -> stop trips the flail guard'),
+    video_figure('robot_legs_walk21_fricact_lim2000_s128r24', ['turn_180'],
+                 'robot_legs_walk21_fricact_lim2000_s128r24_turn',
+                 'at the firmware default 2000 deg/s^2 the policy barely turns '
+                 '(heading error 175 deg) and falls 42 % of the card'),
+] if f)
 # 2026-11-04 card: night 14 -- the get-up on the full deploy chain (the measured
 # fast servo + the firmware shaper: w18k 48/48, 15 N 16/16); the DART student
 # replicates. Legs: walk18 fell on its first robot stride1 (11-03); every walk18
@@ -913,6 +935,35 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·05 · night 15: the get-up as the firmware starts it; the walk through the robot-speed stride</span></p>
+    <p><b>Get-up: the deploy candidate.</b> Episodes now start with the servo
+    chain seeded at the lying pose, as the firmware does. The get-up loses
+    nothing: w19k sweeps 48/48 across joint friction 0.05 – 0.5 and holds 16/16
+    under 15 N shoves, on two seeds. Its noise-distilled (128, 128) student
+    w19k_s128r24an3 also scores 48/48 and 16/16: the get-up candidate for a robot
+    with arms. On the sole friction measured on 11-04 (μ 0.45, and 0.3 to be
+    safe), every candidate still stands 16/16, so the get-up does not depend on
+    the floor's grip. Tom's smoothness penalty bought no measurable smoothness
+    here and cost power, so it is dropped. Tonight: the get-up through the
+    firmware motion limiter, at 200 °/s with 3000 and 2000 °/s².</p>
+    <p><b>Legs: through the robot-speed stride, not yet on the real floor.</b>
+    walk21_fricact, trained on the refit actuator, gives the first student
+    that takes the robot-speed first stride without tripping the flail guard
+    (0/8). It also walks best: left steps 5/8 clear 3 cm. It still trips 8/8
+    on a μ 0.4 floor, which is what the robot stands on. The motion limiter
+    (#215) costs the walk. At 200 °/s and 3000 °/s² every walk → stop trips the
+    guard. At the firmware default of 2000 °/s² the policy barely turns.
+    The limited students do stand quietly. This morning's first cards graded
+    the limiter runs without the limiter (the shared checkout could not
+    update), so they were re-refereed on main. Tonight: the legs on the
+    measured sole friction, without and with the limiter, plus a longer
+    limiter run. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1105}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·04 · night 14: the get-up on the robot's actuator chain; the walk's first real step</span></p>
