@@ -311,6 +311,12 @@ def make_parser():
     p.add_argument("--w-action-acc", type=float, default=None,
                    help="weight on the action's second difference sum (a_t - 2a_t-1 + a_t-2)^2 "
                         "(smooth starts and stops; default 0)")
+    p.add_argument("--w-gyro-hinge", type=float, default=None,
+                   help="weight on max(|torso angular velocity| - --gyro-hinge, 0)^2: the "
+                        "firmware flail guard's quantity (EMA(|gyro|) > 1.5 rad/s trips it); "
+                        "default 0 = off")
+    p.add_argument("--gyro-hinge", type=float, default=None,
+                   help="free |gyro| band in rad/s before --w-gyro-hinge bites (default 1.2)")
     p.add_argument("--w-qacc", type=float, default=None,
                    help="weight on sum qdd^2 of the servo DOFs, qdd = the tick's mean joint "
                         "acceleration in rad/s^2 (default 0)")
@@ -978,6 +984,10 @@ def build_env_kw(args):
         env_kw["w_action_acc"] = args.w_action_acc
     if getattr(args, "w_qacc", None) is not None:
         env_kw["w_qacc"] = args.w_qacc
+    if getattr(args, "w_gyro_hinge", None) is not None:
+        env_kw["w_gyro_hinge"] = args.w_gyro_hinge
+    if getattr(args, "gyro_hinge", None) is not None:
+        env_kw["gyro_hinge"] = args.gyro_hinge
     if args.w_symmetry is not None:
         env_kw["w_symmetry"] = args.w_symmetry
     if args.w_low_swing:

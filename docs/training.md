@@ -394,7 +394,10 @@ size (`domain_randomize`, the standard MJX pattern):
   11.1 V; the robot reads 12.0 V). The hip pitch / knee refit is `2.0:1.325` / `2.0:1.281`
   at 12 V ([actuator-refit](../experiments/policy/actuator-refit/2026-11-03-actuator-refit.md)).
   `--w-qacc` and `--w-action-acc` are reward terms, not DR. They price the tick's joint
-  acceleration and the action's second difference;
+  acceleration and the action's second difference. `--w-gyro-hinge W --gyro-hinge H`
+  (default H 1.2 rad/s, off by default) prices W·max(|ω| − H, 0)², where ω is the torso's
+  angular velocity, the quantity the firmware flail guard trips on at EMA 1.5 rad/s. Yaw is
+  included, which `--w-pitch-rate` leaves out (`tests/test_gyro_hinge.py`);
 - gravity tilted by U(0, `--tilt-max`)° about a random azimuth — an un-level
   floor, as the IMU sees it (off by default);
 - payload mass U(0, `payload_max`), when that is set.

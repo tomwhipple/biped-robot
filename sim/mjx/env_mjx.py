@@ -519,6 +519,10 @@ class BimoMJXEnv:
         # comes to a stop"), next to w_action_rate's first difference
         w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
         # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
+        w_gyro_hinge: float = 0.0,     # -w max(|omega| - gyro_hinge, 0)^2, omega = the torso's
+        gyro_hinge: float = 1.2,       # angular velocity (qvel[3:6], the IMU gyro), rad/s: the
+        # firmware flail guard trips on EMA(|gyro|, 0.2 s) > 1.5 rad/s (2026-11-05: every stride1
+        # on the refit actuator + measured sole tripped it at 1.6-1.7, yaw-led, no falls)
         fall_cost: float = 1.0,
         w_feet_air: float = 0.0,
         air_time_target: float = 0.3,
@@ -1288,6 +1292,8 @@ class BimoMJXEnv:
         self.w_action_rate = w_action_rate
         self.w_action_acc = float(w_action_acc)
         self.w_qacc = float(w_qacc)
+        self.w_gyro_hinge = float(w_gyro_hinge)
+        self.gyro_hinge = float(gyro_hinge)
         self.fall_cost = fall_cost
         self.w_feet_air = w_feet_air
         self.air_time_target = air_time_target
@@ -3311,6 +3317,9 @@ class BimoMJXEnv:
         if self.w_pitch_rate:
             reward -= self.w_pitch_rate * (jp.abs(data.qvel[3])
                                            + jp.abs(data.qvel[4]))
+        if self.w_gyro_hinge:  # the flail guard's quantity, all three axes (yaw included)
+            g_ex = jp.maximum(jp.linalg.norm(data.qvel[3:6]) - self.gyro_hinge, 0.0)
+            reward -= self.w_gyro_hinge * g_ex * g_ex
         if self.w_crouch_pull and self.ext_cmd:
             cp_gate = ((state.cmd[3] < 0.97) & (~cmd_moving) & (~lifted)
                        & (state.recovered > 0.5))
