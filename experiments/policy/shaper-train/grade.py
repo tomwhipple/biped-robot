@@ -213,8 +213,6 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env._action_to_ctrl = lambda a_: cur["t"]
     fg = FlailGuard(env._default)
     n = int(round(run_s / DT)); nh = int(round(hold_s / DT))
-    GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
-    import mujoco
     fell = False; ema = None; last_tgt = hold
     x0 = float(env.data.qpos[0])
     # physics-substep joint velocities and body yaw rate (the stride's deceleration / spin)
@@ -231,14 +229,15 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
                             out_gain, push, n, nh, last_tgt, x0, nj)
     finally:
         _mj.mj_step = _step0
-    GO, GY, PW, TL, SQ, X, fell = res
+    GO, GY, PW, TL, SQ, X, fell, ext = res
     return _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed,
-                            np.array(QV), np.array(WZ))
+                            np.array(QV), np.array(WZ), v=v, **ext)
 
 
 def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
                   out_gain, push, n, nh, last_tgt, x0, nj):
-    GO, GY, PW, TL, SQ, X = [], [], [], [], [], []
+    import mujoco
+    GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
     fell = False; ema = None
     for i in range(n + nh):
         holding = i >= n
@@ -280,10 +279,12 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
         if term:
             fell = True
             break
-    return GO, GY, PW, TL, SQ, X, fell
+    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC)
 
 
-def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ):
+def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ,
+                     v=None, YW=(), QM=(), QD=(), LM=(), AC=()):
+    v = v or {}
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
     # sum qdd^2 (servo DOFs, rad/s^2) and sum (a_t - 2 a_t-1 + a_t-2)^2 over the policy part
