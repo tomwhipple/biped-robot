@@ -2075,3 +2075,62 @@ the w19k recipe.
   w19k's, and `--contact-mu 0.45` for w21k_s128r24an3.
 - Check that `~/code/robot` fast-forwarded in the collect log before trusting
   any card.
+
+### 2026-11-05 (day): STRIDE FIRST, get-up parked
+
+Tom, 08:10: "I want you not to spend any more time on getup until we have
+stride working. Always check to make sure we have the latest from github
+before starting a training run. Bring in the latest relevant changes." Then:
+"I want to get a stride policy we can actually test ASAP. You can use the GPU
+at your discretion."
+
+**Changes:**
+
+- **Get-up parked.** w21k, its DART student, w22k and w21k_s1 are in
+  `queue/held/`. `fallback.job` is a stride job; the get-up one is
+  `fallback.job.getup-held-20261105`. Get-up returns after a student passes
+  stride1 on the measured sole and the stride works on the robot.
+- **Brought in:**
+  - **#219, the measured-sole plant.** It had sat unpushed on a local branch
+    since 01:26. It is `bimo_biped_v6legs_meas_sole.xml`: pads μ 0.5, torsion
+    0, priority 1, flat at r 0.042 m, 0.15 N·m yaw grip.
+  - **#221, `--w-gyro-hinge` / `--gyro-hinge`.** New; see below.
+- **#220, harness.** The runner verifies origin's tip before every job and
+  writes `SYNC=ok|STALE` into the job's state. The collector stashes only the
+  paths that block the fast-forward. `night/claude_fix.sh` gives each failure
+  to a headless Claude session, then retries once.
+- **The night queue runs by day.** The runner started at 08:55.
+  robot_legs_walk22_fmeas launched 08:56 (`SYNC=ok`).
+
+**Baseline on the measured sole** (`grade.py`,
+`GRADE_XML=bimo_biped_v6legs_meas_sole.xml`, 8 seeds; cells are falls / guard
+trips):
+
+| student | x1.5 | push 0.4 | walk 0.3 → stop | stride1 0.6 / μ0.4 / μ0.3 (fast) | stride1 0.6 refit / μ0.4 refit | 0.4 / 0.3 refit |
+|---|---|---|---|---|---|---|
+| walk21_fricact_s128r24 | 0/0 | 0/0 | 0/0 | 0/0, 0/0, 0/0 | 0/8, 0/7 | 0/8, 0/8 |
+| walk18_shp10sq_s128r24 | 7/7 | 0/0 | 0/0 | 0/0, 0/0, 0/0 | 0/4, 0/7 | 0/8, 0/8 |
+| walk21_fricact_lim3000_s128r24 | — | — | — | — | 0/8, 0/8 | 0/8, 0/8 |
+
+- **No student falls on the measured sole.** walk21_fricact's yaw at +180 ms
+  is −0.5 to −3° (the robot on 11-03: −19°).
+- **What fails is the flail guard on body rate** (EMA |gyro| 1.6 – 1.7 against
+  1.5), on the refit actuator only. A slower command does not help (0.4, 0.3).
+  The spike is yaw-led: peak |ωz| 1.1 – 1.4, ωy ~0.9, ωx ~0.5.
+  `--w-pitch-rate` prices roll and pitch only.
+- **Hence #221:** `-w · max(|ω| − 1.2, 0)²` on the guard's own quantity.
+
+**Day queue, in order** (each teacher then its stock distil):
+
+1. walk23_msole_ws: walk21_fricact continued on the measured sole.
+2. walk24_msole_gh4.
+3. walk24_msole_gh10. Both are 1 + `--w-gyro-hinge` 4 / 10.
+4. walk23_msole (init walk18; one variable against walk22_fmeas).
+5. walk23_msole_ws_s1.
+6. walk23_msole_lim3000_ws.
+7. The three walk22_fmeas jobs the planner queued.
+
+Each student is graded on the measured sole as it lands.
+
+**The bar for a robot test:** stride1 0.6 refit and μ0.4 refit with 0 trips,
+and x1.5, push 0.4 and walk → stop 0/0.
