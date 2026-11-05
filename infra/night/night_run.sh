@@ -11,6 +11,10 @@
 # 07:00-interrupted job does not re-run the next night (its checkpoint is
 # collectible either way).
 set -uo pipefail
+# queue order is `ls | sort`: pin the C locale. en_US collation ignores '-', so a
+# hand-started runner (2026-11-05) ordered 11052000021-x before 1105200002-y
+# while cron's C locale orders it after
+export LC_ALL=C
 BASE="$HOME/code/robot-mjx"
 N="$BASE/night"
 exec >> "$N/night.log" 2>&1
