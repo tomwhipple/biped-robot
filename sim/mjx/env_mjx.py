@@ -39,7 +39,7 @@ import numpy as np
 from mujoco import mjx
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_XML = os.path.join(_HERE, "..", "bimo_biped_v2.xml")
+_XML = os.path.join(_HERE, "..", "bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
 
 
 def _actuated_slices(m):
@@ -944,7 +944,7 @@ class BimoMJXEnv:
         w_up_vel: float = 0.0,      # while down: pay positive root vertical
                                     # velocity (momentum-friendly getup_v5 --
                                     # the quasi-static reference is unreachable
-                                    # from sit, see scripted_getup.py)
+                                    # from sit)
         w_com_stance: float = 0.0,  # while lifted: CoM-over-stance-foot
         # kernel (user 2026-07-23: raise the foot by BENDING THE KNEE,
         # keeping the CG static -- not by sticking the leg out, which
@@ -1591,13 +1591,13 @@ class BimoMJXEnv:
             # config.json but never in the env)
             self.getup_start_mix = getup_start_mix
         # getup_v6/v7: RSI state bank (qpos+qvel WITH momentum, no settle).
-        # v6 held near-catch rock states; v7 holds states along the winnable
-        # kneel-rise corridor (harvest_rise_states.py). Optional per-row "t0"
-        # aligns each state with its rise-reference phase.
+        # Optional: read when sim/getup_catch_states.npz exists and matches the
+        # plant; none is committed, so no start draws from it. Optional per-row
+        # "t0" aligns each state with its rise-reference phase.
         _cs = os.path.join(os.path.dirname(xml_path), "getup_catch_states.npz")
         _z = np.load(_cs) if os.path.exists(_cs) else None
         if _z is not None and _z["qpos"].shape[1] != self.mj_model.nq:
-            _z = None          # harvested on another plant (the prototype's)
+            _z = None          # harvested on another plant
         if _z is not None:
             self._catch_qpos = jp.asarray(_z["qpos"], dtype=jp.float32)
             self._catch_qvel = jp.asarray(_z["qvel"], dtype=jp.float32)
@@ -1636,9 +1636,8 @@ class BimoMJXEnv:
         # against this (flat ground -- terrain is not in the ext curriculum)
         self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
         # KNEE-HIGH reference, MEASURED on the plant: world z of the knee
-        # joint anchor in the standing pose (0.107 m on bimo_biped_v3yaw.xml
-        # against a 0.003 m sole center -> 0.104 m of knee-high clearance,
-        # 1.7x the 0.06 m lift_height). Mirrored in sim/walker_env.py.
+        # joint anchor in the standing pose, less the sole center's.
+        # Mirrored in sim/walker_env.py.
         _knee_jid = m.joint(self._act_names[self._legL["knee"]]).id
         self._knee_z0 = float(d0.xanchor[_knee_jid][2])
         self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
@@ -2345,8 +2344,7 @@ class BimoMJXEnv:
         # sit (user 2026-07-19/20 spec): TORSO POINTING UP, waist bent 90
         # deg, feet & legs straight out front. Hip roll splays the feet a
         # few cm apart so the (non-self-colliding) leg meshes can never
-        # render overlapped -- video review caught them merging. Verified
-        # by sim/mjx/check_sit_pose.py (upright, stable, feet separated).
+        # render overlapped -- video review caught them merging.
         j_sit = jp.zeros(self._nq_act).at[self._i_pitch].set(-1.57) \
                            .at[self._i_knee].set(-0.09) \
                            .at[jp.array([self._legL["hip_roll"]])].set(0.10) \

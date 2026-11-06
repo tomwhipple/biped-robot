@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Distill a big brax teacher into the (128, 128) net the firmware can hold.
 
-    .venv/bin/python sim/mjx/distill_student.py --teacher loco_v12knee_warm \
-        --out loco_v12knee_warm_s128
+    .venv/bin/python sim/mjx/distill_student.py --teacher robot_legs_walk16_act \
+        --out robot_legs_walk16_act_s128
 
 WHY: firmware-design section 6. The precision runs train a (512, 256, 128)
 MLP -- ~232k params, ~930 KB fp32 -- which does not fit the WROOM. The decided
@@ -100,7 +100,7 @@ def env_kwargs(cfg, mjx_impl=None, num_envs=None):
     for k, v in list(kw.items()):
         if isinstance(v, list):
             kw[k] = tuple(v)
-    xml = kw.get("xml_path") or "bimo_biped_v3yaw.xml"
+    xml = kw.get("xml_path") or "bimo_biped_v6ar.xml"   # the trainer's default plant
     if not os.path.isabs(xml):
         xml = os.path.join(ROOT, "sim", os.path.basename(xml))
     kw["xml_path"] = xml
@@ -132,7 +132,7 @@ def make_net(obs_size, act_size, hidden, value_hidden=(256, 256)):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--teacher", default="loco_v12knee_warm")
+    p.add_argument("--teacher", required=True)
     p.add_argument("--out", default=None,
                    help="run dir name (default <teacher>_s128)")
     p.add_argument("--hidden", default="128,128",

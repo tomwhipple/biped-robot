@@ -1,7 +1,6 @@
-"""Printability audit for ankle_link / foot_L / foot_R, reusing
-cad/check_printability.py's engine without touching that (v5) file: it sets
-ORIENT/PRINT_STL for these three parts at runtime and points STL at
-cad/v6/stl instead of cad/stl.
+"""Printability audit for ankle_link / foot_L / foot_R on
+cad/common/check_printability.py's engine: it registers ORIENT/PRINT_STL for
+these three parts and audits their STLs in cad/v6/stl.
 
     .venv/bin/python cad/v6/audit_ankle_foot.py
 """
@@ -13,7 +12,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 
 import numpy as np  # noqa: E402
-import check_printability as CP  # noqa: E402
+from common import check_printability as CP  # noqa: E402
 import ankle_link as AL  # noqa: E402
 import foot_v6 as F  # noqa: E402
 

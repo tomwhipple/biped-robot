@@ -229,11 +229,10 @@ def make_parser():
     p.add_argument("--precision", action="store_true",
                    help="7-channel precision command curriculum (ext_cmd): "
                         "sidestep, backward, crouch, one-leg balance, air "
-                        "circles; severe fall cost; as-built plant default")
+                        "circles; severe fall cost")
     p.add_argument("--xml", default=None,
-                   help="plant override (default: v2; precision default: "
-                        "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet). "
-                        "A basename resolves in sim/. bimo_biped_v6legs_meas.xml / "
+                   help="the plant (default: bimo_biped_v6ar.xml, the env's and "
+                        "--robot's). A basename resolves in sim/. bimo_biped_v6legs_meas.xml / "
                         "bimo_biped_v6ar_meas.xml: the v6 plants with the joint stops "
                         "measured on the robot 2026-11-02; under --ctrl-within-stops "
                         "their action map is the old plants', so --init-from a "
@@ -741,25 +740,15 @@ def build_env_kw(args):
             # 67.9 mm too high -- it floats the 154 g camera (12 % of the
             # robot) well clear of the body, visibly so in the render.
             # v6 bolts gopro_base flat to the deck: CAD cam_z is 54.0 mm over
-            # the deck (GP_BASE_T + GP_HOLE_H + 6 + CAM_BODY_z/2, parts.py),
-            # and the deck is 4.11 mm over the torso centre.
-            # z from check_assembly.camera_mock()'s CORRECTED body bottom
-            # (hole_z + GP_PRONG_OD/2 + 0.5, fixed 2026-08-04), not parts.py's
-            # cam_z, which still carries the tower-era hole_z + 6.0 and is
-            # 2 mm low. CG = 56.0 over the deck, deck = 4.11 over torso centre.
+            # the deck, and the deck is 4.11 mm over the torso centre.
+            # z from common/mocks.camera_mock()'s body bottom
+            # (hole_z + GP_PRONG_OD/2 + 0.5): CG = 56.0 over the deck, deck =
+            # 4.11 over torso centre.
             payload_cg_z=0.0601,   # was 0.1260 (tower top), 0.0945 before that
             # And the camera is NOT on the centreline: it bolts to gopro_base
             # at GP_MOUNT_X. x was hard-coded 0 in both envs until 2026-08-06,
             # which floated it 24 mm forward of its own mount.
             payload_cg_x=-0.0240,  # GP_MOUNT_X
-            # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
-            # "assume the 10-dof with the new pelvis for all simulations
-            # going forward" -- the A/B verdict made yaw the build target).
-            # 8-DOF plants remain available via --xml for legacy referees.
-            # 2026-08-05: v3yaw and v4rom BOTH load the retired tower.stl,
-            # which pelvis v6 deleted, so neither opens any more. v5body is
-            # the pelvis-v6 plant and the only 10-DOF model that loads.
-            xml_path=os.path.join(HERE, "..", "bimo_biped_v5body.xml"),
             # dense directional progress: without it precision_v1 converged
             # to a 0-falls/0-motion standing optimum (kernels pay standers)
             cmd_dense=True,
@@ -816,6 +805,9 @@ def build_env_kw(args):
         # live) or an explicit path -- night-queue args use basenames
         env_kw["xml_path"] = (args.xml if os.path.exists(args.xml)
                               else os.path.join(HERE, "..", args.xml))
+    else:
+        # the env's default plant, written down so config.json names it
+        env_kw["xml_path"] = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")
     if args.robot:
         # the robot's plant, resolved against its own actuators -- held_joints
         # and the stiffness map land in config.json explicitly per actuator

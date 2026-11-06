@@ -43,7 +43,6 @@ SV_HORN_FACE = 20.45                  # horn mounting face (flat, screw recessed
 SV_IDLER_FACE = -16.80                # idler disc face (0.55 recessed in case)
 SV_BOSS_D = 19.6                      # output boss dia (on case top face)
 SV_HORN_D = 19.2                      # horn / idler disc dia
-SV_IDLER_RECESS_D = 25.0              # opening in case bottom around idler disc
 # --- WHEEL ENDS, sectioned off cad/vendor/ST3215.step 2026-07-30 (radial
 # profile about the output axis, our frame). Both discs stand PROUD of their
 # case faces with a clear annular moat around them -- there is no "O25 recess
@@ -57,8 +56,6 @@ SV_IDLER_RECESS_D = 25.0              # opening in case bottom around idler disc
 # The moats are why the pads may be grown (see PAD_D): past the disc rim the
 # arm is over open air until the case face, which is 2-3 mm below it.
 SV_DISC_R = 9.6                       # horn AND idler disc, measured
-SV_HORN_MOAT_R = 10.5                 # void around the horn disc reaches here
-SV_IDLER_MOAT_R = 11.0                # void around the idler disc reaches here
 SV_GRIP_SPAN = SV_HORN_FACE - SV_IDLER_FACE   # 37.25 (drawing-confirmed)
 
 # horn/idler disc screw pattern: 4x M3 threaded on O14 bolt circle
@@ -139,21 +136,13 @@ CASE_HOLE_LAT = 10.25
 #     HARDWARE: 24x M2.5x8 FLAT-head self-tappers to buy (not yet on hand).
 CASE_SCREW_PILOT = 2.05            # M2.5 self-tap pilot in printed plastic
 CASE_SCREW_CLEAR = 2.9             # where the screw just passes through
-CASE_HEAD_D = 5.0                  # pan head dia (uxcell class)
 CASE_HEAD_H = 2.0                  # pan head height, DESIGN MAX -- measure;
                                    # DIN 7985 M2.5 is 1.80, ISO 7045 ~1.95
-CASE_FLAT_D = 4.7                  # M2.5 flat (countersunk) head dia, 90 deg
 CASE_CS_D = 5.4                    # countersink mouth: flat head 4.7 + 0.7
 CASE_CS_DEPTH = (CASE_CS_D - CASE_SCREW_CLEAR) / 2   # 1.25 (90 deg cone)
-DECK_CB_D = CASE_HEAD_D + 0.8      # 5.8 deck-top counterbore over pan heads
-DECK_CB_DEPTH = CASE_HEAD_H + 0.3  # 2.3: head 0.3 sub-flush under the battery
-M3_ST_PILOT = 2.8                  # M3 self-tap pilot (tower gopro bosses)
 # other fastener heads (for the head-clearance audit + STEP fastener models)
 M3_HEAD_D, M3_HEAD_H = 5.7, 1.65   # M3 button head (KADRICK kit + servo M3x6)
-M3_WASHER_D, M3_WASHER_T = 7.0, 0.5  # thin washer under the idler M3x8
-M25_HEAD_D, M25_HEAD_H = 4.5, 1.7  # M2.5 machine pan (driver board / IMU)
 
-SERVO_MASS = 55.0       # g
 
 # ----------------------------------------------------------------------------
 # printability / fits
@@ -162,7 +151,6 @@ WALL = 2.6              # standard printed wall (>= 2.4 = 3 perimeters @ 0.4 noz
 PLATE = 3.0             # joint arm plates
 FIT = 0.30              # moving / drop-in fit
 HEATSET_D = 4.1         # M3 x D4.6 heat-set insert pilot
-HEATSET_L = 6.0
 M3_CLEAR = 3.4
 M25_TAP = 2.2           # M2.5 self-tap pilot (electronics board)
 
@@ -176,7 +164,7 @@ M25_TAP = 2.2           # M2.5 self-tap pilot (electronics board)
 HORN_BOSS_D = 16.5
 HORN_BOSS_H = 1.0       # yokes only
 IDLER_BOSS_D = 20.0     # was 19.0. Grown 2026-07-23 when the idler bolt circle
-                        # was finally drilled THROUGH (see parts.py bugfix): the
+                        # was finally drilled THROUGH: the
                         # 4x O3.4 clearance holes on the O14 circle reach r8.7,
                         # leaving only 0.8 mm to an O19 boss OD (sub-2-perimeter,
                         # check_printability THIN). O20 restores a 1.3 mm web and
@@ -246,7 +234,7 @@ ROLL_DISC_SCREW_THREAD = 7.6    # nominal M3x8, same 0.4 relief as the M3x6
 ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
 
 # ----------------------------------------------------------------------------
-# kinematic layout (matches sim/bimo_biped.xml)
+# kinematic layout
 # ----------------------------------------------------------------------------
 # 56.0 -> 66.0 on 2026-08-04 (pelvis v4, user-approved). WIDER STANCE: the yaw
 # servos are now fully boxed in (see the v4 section below), and the box walls
@@ -255,9 +243,8 @@ ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
 # leg/yaw cable riser between them and no material for the board_frame feet.
 # 66 opens a 35.5 mm centre channel, and a wider stance is what the lateral
 # push-recovery margin wanted anyway (the roll servos now have a longer moment
-# arm to the CoM for the same joint torque). EVERY sim plant and the trained
-# policy key off this number: sim/bimo_biped_v3yaw.xml and
-# sim/build_v2_inertia.py must be regenerated and the policy re-trained.
+# arm to the CoM for the same joint torque). The v6 robot overrides it
+# (dimensions_v6.HIP_SEP).
 HIP_SEP = 66.0          # leg center-to-center (was 56.0 through 2026-08-03)
 ROLL_TO_PITCH = 50.0    # hip-roll axis to hip-pitch axis
 THIGH = 90.0            # hip-pitch axis to knee axis
@@ -292,7 +279,6 @@ DECK_L = 104.0          # across the robot (Y in sim); 104 -> 114 (v4) -> 104
 # LEGACY (pelvis v4, 2026-08-04): the deck is no longer symmetric fore-aft --
 # it runs DECK_AFT_X..DECK_FWD_X (see the v5 section). DECK_W is kept ONLY
 # because the retired tower() still measures its walls off it.
-DECK_W = 46.0           # fore-aft (X in sim) -- LEGACY, tower() only
 DECK_T = 5.0
 BAY_WALL_DROP = 41.0    # walls hang this far below the deck; roll-axis bore is a
                         # downward-open U-slot (servo slides up into the bay)
@@ -309,15 +295,6 @@ BAY_WALL_DROP = 41.0    # walls hang this far below the deck; roll-axis bore is 
 # servo, so it cannot move) or dropping it.
 BAY_BORE = SV_BOSS_D + 1.0      # 20.6
 BAY_CHEEK_GAP = 0.3
-# LEGACY (2026-08-04): the tower is retired from the build, and pelvis() no
-# longer cuts this heat-set pattern. Kept for tower() and for anyone reading an
-# old print. Its replacement is the BG_FOOT / BF_FOOT pattern in the v4 section.
-TOWER_FOOT_X = 14.0     # tower feet / deck heat-set positions -- LEGACY
-TOWER_FOOT_Y = 42.0     # lands over the bay cheek walls: heat-set pilots run
-                        # through the 5 mm deck into cheek-wall material below
-                        # (no raised bosses -- printed deck-top-down, bosses put
-                        # the whole first layer 2 mm in the air, and they
-                        # overlapped the tower feet tabs)
 
 # ----------------------------------------------------------------------------
 # HIP YAW (v3yaw variant) -- one STS3215 per leg, lying FLAT under the deck
@@ -369,13 +346,6 @@ YAW_CARRIER_PLATE = PLATE          # 3.0 horn mount plate (== every joint arm).
                                    # Sits flat on the O19.2 horn disc; only the
                                    # recessed centre screw needs a relief
                                    # (HORN_CENTER_RELIEF_D, as the yokes use).
-YAW_FOOT_REACH = 16.0              # LEGACY (2026-08-04): the v4 box side walls
-                                   # run the full case length to YAW_BOX_X_FRONT
-                                   # and the tower feet they were stretched for
-                                   # are gone. Kept so old prints read back.
-                                   # WAS: the yaw seat side walls run forward to
-                                   # here so the +x tower-foot heat-sets (x=14)
-                                   # land in collar material.
 
 # deck seat: a shallow collar hanging off the deck underside that wraps the top
 # of each yaw case (keys it against reaction torque + locates it) and a
@@ -385,7 +355,6 @@ YAW_FOOT_REACH = 16.0              # LEGACY (2026-08-04): the v4 box side walls
 # LEGACY (2026-08-04): pelvis v4 replaced the 4 mm collar with a full-depth
 # box down to YAW_BOX_BOT. The GAP and WALL below still set the box, so they
 # are live; only the DROP is dead.
-YAW_SEAT_DROP = 4.0                # collar reach below the deck -- LEGACY (v3)
 YAW_SEAT_GAP = FIT                 # 0.30 slip fit of case into the collar/box
 YAW_SEAT_WALL = WALL               # 2.6 collar/box wall thickness (== std wall)
 YAW_CASE_HOLES_IDLER = CASE_HOLES_BOT   # (8.30, 32.75) idler-side rows -> stator
@@ -410,11 +379,8 @@ CARRIER_ROLL_AXIS = (CARRIER_ROLL_CEIL - CARRIER_ROLL_HEAD_CLEAR
 # The hip-roll axis moves from (DECK_T + SV_AXIS_FROM_REAR) below the deck top
 # to (yaw grip span + carrier plate + recess) deeper.  The drop is the gap
 # between the old and new roll-axis planes, all arithmetic:
-ROLL_BELOW_DECK_OLD = DECK_T + SV_AXIS_FROM_REAR            # 40.11 (8-DOF build)
 ROLL_BELOW_DECK_YAW = -(YAW_HORN_FACE_Z + CARRIER_ROLL_AXIS)  # 80.91 (v3yaw)
-YAW_STACK_DROP = ROLL_BELOW_DECK_YAW - ROLL_BELOW_DECK_OLD  # 40.80 mm
 
-YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
 
 # --- STS3215 idler-face ground truth (MEASURED 2026-07-24) -------------------
 # Sources, in agreement: the user's physical servo (photo IMG_5698), the
@@ -438,16 +404,6 @@ YAW_SWEEP = 45.0                   # design yaw half-range each way (deg)
 # lands on the slab + 1.78 mm pads at the screw bosses; (2) connector openings
 # belong over the TRENCH band 11.75..16.35, nearly full case width -- not the
 # earlier guessed 11..25 x +/-7 band, and never the cable-END face.
-SV_IDLER_DISC_PROUD = 0.27  # disc face above the slab plane PER VENDOR STEP --
-                            # contradicts the validated SV_IDLER_FACE (0.55
-                            # recessed); see the YAW_IDLER_DISC_Z note. The
-                            # free-hub post protrusion (+0.82 in the STEP) is
-                            # corroborated by the user's photo either way.
-SV_IDLER_HUB_PROUD = 0.82   # hub/disc screws above the slab plane (rotate)
-SV_IDLER_BOSS_RECESS = 1.78 # stator screw bosses below the slab plane (STEP);
-                            # seat pads use 1.5 -- under-reach is harmless,
-                            # over-reach would tip the case. Measure on a servo.
-SEAT_PAD_H = 1.5            # pelvis yaw-seat stator pad height (see above)
 SV_CONN_L = (11.75, 16.35)  # trench band along the length, axis->cable-end
 SV_CONN_HW = 10.9           # trench half-width (sockets span most of it)
 SV_CONN_FLOOR = 4.78        # trench floor below the slab plane
@@ -489,11 +445,9 @@ SV_IDLER_HUB_HW = 3.24      # half-width; fills SV_BOTFACE .. SV_IDLER_FACE
 SV_IDLER_CASE_FACE = -14.75   # the real idler-side case face; the screws land
                               # here, so this is what the plate must bear on
 # The case is therefore NOT centred on the output axis. Anything that models the
-# servo as a block -- notably sim/build_v2_inertia.py and the <geom class="servo">
-# boxes in the MJCF plants -- has to use these, not SV_CASE_T about zero, or it
+# servo as a block -- notably the <geom class="servo"> boxes in the MJCF plants
+# -- has to use these, not SV_CASE_T about zero, or it
 # puts 55 g of servo 1.30 mm off along the axis on every joint.
-SV_CASE_AXIAL_T = SV_TOPFACE - SV_IDLER_CASE_FACE          # 32.10, real thickness
-SV_CASE_AXIAL_MID = (SV_TOPFACE + SV_IDLER_CASE_FACE) / 2  # +1.30, toward the horn
 # A moulded platform stands proud of that face over most of the plate footprint
 # (label/back-cover area).  It sits BETWEEN the screws and the plate, so it has
 # to be relieved rather than seated on -- exactly as the horn-side rib is.
@@ -508,7 +462,6 @@ GRIP_SEAT_CLR = 0.15          # designed plate standoff from a seat face. Set to
 # to +18.35, where the O19.2 horn disc starts and runs to SV_HORN_FACE. The
 # mocks keep a solid SV_BOSS_D column through that gap, which is conservative.
 WIRE_BUNDLE = 5.0           # one 3-wire ST3215 lead bundle, outer dia
-WIRE_PLUG_W = 9.0           # ST3215 JST housing width (assemble connector-first)
 
 # ----------------------------------------------------------------------------
 # leg link (thigh and shin are the SAME part)
@@ -534,58 +487,21 @@ GRIP_HORN_RELIEF = 10.3 # ...with a circular relief around the O19.6 case boss
 # between the two screw rails rather than carrying clamp load.
 RIB_RELIEF_CLR = 0.4          # footprint clearance each side of the rib
 RIB_RELIEF_DEPTH_CLR = 0.3    # air above the rib crest
-# Toe corner radius (plan view). Square toe corners are the ones that snag on
-# door frames / cable runs and they read as blocky; 14 leaves a 24 mm straight
-# front edge on the 52 mm-wide sole and takes only ~2 % of the sole area.
-# Break-away print-support wall thickness (leg_link_print pad stubs + island
-# posts). 2.4 -> 1.2 on 2026-07-28: at full plate thickness they read as part of
-# the model in the slicer and take pliers to remove. 1.2 is 3 perimeters at a
-# 0.4 nozzle -- prints solid, snaps with a fingernail, and stays well clear of
-# check_printability's 0.85 mm thin-wall flag.
-FIN_T = 1.2
-FIN_GAP = 0.35          # break-away standoff: a support fin stops this far
-                        # short of the face it holds up, so it snaps out with
-                        # fingers instead of fusing. Matches the gap leg_link's
-                        # pad stubs and island posts already use.
-FOOT_TOE_R = 14.0
 # Heel rounded to match (user, 2026-07-28). The aft buttress sits at x -42..-40,
 # 10 mm clear of the heel edge, and the cable window (y +/-8) stays inside the
 # straight centre section, so nothing structural rides on the removed corners.
-FOOT_HEEL_R = 14.0
 # Driver-access divots (user, 2026-07-28): a round channel CO-AXIAL WITH THE
 # SCREW -- bored along the screw axis, not scalloped down from the sole edge --
 # so the relief follows the driver instead of hacking a notch out of the plan
 # silhouette. Sized to the head plus margin and nothing more: the countersink
 # mouth is CASE_CS_D, so 2.70 + 0.60 = 3.30. That leaves 2.81 mm of sole under
 # the channel, MORE than the 2.0 the old rectangular notch left.
-FOOT_DIVOT_R = CASE_CS_D / 2 + 0.6
-# Front (rotor-adjacent) retention bosses. The servo case's 8.30 hole row sits
-# right behind the output end; the foot only ever used the far rows, leaving the
-# case cantilevered off the heel tabs. These tie it down at the LOW lateral hole
-# (z 6.11), close to the sole, which is where case-to-sole flex shows up.
-FOOT_FRONT_BOSS_X = 8.30      # case row, behind the axis (== CASE_HOLES_TOP[0])
-FOOT_FRONT_BOSS_HW = 4.5      # boss half-length along x
-FOOT_FRONT_BOSS_TOP = 9.6     # boss top. Needs >= 9.11 to carry the csk mouth
-                              # over the z 6.11 screw; the extra 0.4 mm at 10.0
-                              # was the PINCH POINT against the shin at ankle
-                              # -40 (0.108 mm). At 9.6 the corner drops out of
-                              # the sweep and both extremes sit at 0.300 mm.
 FOOT_ROTOR_CLEAR_R = 10.3     # keep the boss off the O19.2 horn disc (r 9.6).
                               # 10.0 left the countersink mouth (r 3.00, its
                               # centre 13.19 from the ankle axis) clearing the
                               # arc by 0.19 mm -- an unprintable ligament that
                               # reads as a join error. 10.3 merges the two so
                               # the mouth opens cleanly into the relief.
-FOOT_CABLE_TOP_Z = 16.0       # cable window TOP. Left open to the bulkhead top
-                              # it made the heel an open-topped U; capped here
-                              # the section closes into a ring. 16.0 - 8.0 = 8.0
-                              # mm of opening against a 5.0 mm lead bundle and a
-                              # 9.0 mm plug housing, so the connector still passes.
-FOOT_PAD_RELIEF_Z = 3.5       # floor of the fork-pad relief slots. The front
-                              # bosses MUST reach down to this, not to the
-                              # pocket floor: the slot has already taken the
-                              # sole away above it, and a boss starting at 4.0
-                              # floated free (81 mm3 detached solid).
 # leg_link lower-joint corner cuts (user sketch, 2026-07-28). Measured about the
 # lower axis, the fork profile steps from the PAD_D/2 = 10.0 pad straight out to
 # r 12.0 at 0 deg (front edge) and r 15.0 at 180 deg (rear web face) -- two sharp
@@ -594,12 +510,11 @@ FOOT_PAD_RELIEF_Z = 3.5       # floor of the fork-pad relief slots. The front
 # cuts lie entirely OUTSIDE r 10, so the pad and its O14 bolt circle are
 # untouched; the heights set how gradual the blend is.
 LEG_CORNER_CUT_FRONT_H = 6.0
-LEG_CORNER_CUT_REAR_H = 10.0
 GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
 # the same day -- the sweep analysis showed no ankle-cable interference with the
-# fork, ~10 mm clearance at toes-pointed; see parts.py leg_link note.)
+# fork, ~10 mm clearance at toes-pointed.)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
 BRACE_Z = (-54.0, -50.0)  # cross brace between the fork tines, in the X-Y
@@ -619,12 +534,6 @@ FORK_NARROW_X = -10.5   # slab back edge below FORK_WIDE_Z (front edge +12)
 # ----------------------------------------------------------------------------
 # foot
 # ----------------------------------------------------------------------------
-FOOT_L = 116.0          # fore-aft; enlarged 100 -> 116 for the get-up rise
-                        # corridor (DESIGN 2026-07-15): the pike-up tips BACKWARD
-                        # mid-rise and the corridor was +/-20 mm CoP on the old
-                        # 90 mm pad, so growth is heel-biased (heel +10, toe +6).
-                        # Width stays 52: lateral wasn't the failure mode and the
-                        # shin-fork sweep bounds the wall band anyway.
 FOOT_W = 52.0
 FOOT_T = 6.0
 FOOT_HEEL = 52.0        # ankle axis to rear edge (case rear end at -35.11;
@@ -634,11 +543,6 @@ FOOT_POCKET_D = 2.0     # servo lies in this recess
 # 46 mm span printed sole-down and sagged badly in PETG. The TPU/rubber pad is
 # glued to the flat underside instead. Keep it THIN (~0.5 mm == TPU_PROUD) so
 # stance height is unchanged; a thicker pad raises the robot by (thickness-0.5).
-FOOT_WALL_X = (-40.0, -26.0)   # rear retention tabs; lengthened AFT -36.5 -> -40
-                        # (+3.5 mm root toward the heel). Fore stays at -26: the
-                        # shin fork sweeps forward of that at ankle -40 (relief
-                        # slots). Still covers the case holes at -29/-32.75.
-FOOT_WALL_H = 26.0
 FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED:
                         # cannot thicken outward -> reinforce via the bulkhead)
 # v3: heel bulkhead between the tab aft ends. v2's free-standing 2.4 mm blades
@@ -647,18 +551,9 @@ FOOT_WALL_T = 2.4       # thin: shin-fork horn arm passes 0.4 outside it (LOCKED
 # is stiff in both directions and unloads the layer-bond root. All faces
 # vertical -> adds nothing for the printer to bridge. Inner face 1.1 clear of
 # the servo case rear end (-35.11 - FIT).
-FOOT_BULK_X = (-40.0, -36.5)
-# CAVEAT (2026-07-24, SV_CONN correction): this window assumes the cable exits
-# the rear END face, but the STS3215's ports are actually on the IDLER-side
-# face beside the disc (see the SV_CONN note). The foot is a shipped print and
-# was never validated against a real servo -- re-audit whether the ankle lead
-# reaches this window when servos arrive, before any reprint.
-FOOT_CABLE_W = 16.0     # cable window in the bulkhead, open at the top
-FOOT_CABLE_Z = 8.0
 # aft base buttress (heel side, clear of the fork sweep): ONE full-width wedge
 # bracing both tabs + the bulkhead. Its sloped face is a TOP surface printing
 # sole-down, so any steepness is support-free. Ends at the heel edge (-42).
-FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
 # ankle-servo retention (assembly.md §3, 4x M3x8 self-tap through the tabs into
 # the case rows -29 / -32.75). The rows sit at z = pocket-floor + {2.11, 22.61}
 # = 6.11 (LOW) and 26.61 (HIGH). The LOW head lands right at the sole top
@@ -669,17 +564,12 @@ FOOT_WALL_GUSSET_AFT = (2.0, 18.0)  # aft buttress (x-run toward heel, z-height)
 # still bonds to the FULL flat z=0 underside -- the divot is top-side only, so
 # adhesive area is unchanged. Prints sole-down = an upward-open pocket (no
 # bridge). The HIGH row clears the sole and needs no divot.
-FOOT_DIVOT_HW = 5.5     # divot half-length along X (M3 button O5.7 + driver +
-                        # margin so the hex driver seats square on the head)
-FOOT_DIVOT_FLOOR = 2.0  # sole left under the divot (pad backs it from below);
-                        # clears the driver socket down to z~2.6 at the z6.11 row
 ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud)
 
 # ----------------------------------------------------------------------------
 # torso tower (electronics inside: board hangs face-down on standoffs under
 # the top plate -- the top now carries the GoPro mount; battery on the deck)
 # ----------------------------------------------------------------------------
-TOWER_L = 96.0
 # 2026-07-28 -- RESIZED for the General Driver board, which is 65 x 65 and
 # cannot lie down anywhere in the old torso (see BOARD_GD_* below). It is
 # mounted VERTICALLY against the +x wall instead, with the pack beside it
@@ -693,18 +583,8 @@ TOWER_L = 96.0
 #            65 = 67.5, so TOWER_H >= 74; 75 leaves a 1 mm gap.
 # Consequences accepted with the decision: the tower now OVERHANGS the deck by
 # 5 mm per side fore-aft (the feet tabs still land inside it), and the GoPro
-# rides 31.5 mm higher, which raises torso COM. Both feed the sim plant --
-# sim/build_v2_inertia.py has to be re-run and the policy re-trained.
-TOWER_W = 56.0          # was 42.0
+# rides 31.5 mm higher, which raises torso COM.
 TOWER_H = 75.0          # was 43.5
-TOWER_TOP_T = 3.5
-# driver board: Waveshare "Servo Driver with ESP32", 65 x 30, holes O2.75 on
-# a 58 x 23 grid. VERIFIED 2026-07-27 by test-fit: the real board dropped onto
-# the printed tower and all four screws landed -- which checks both spans and
-# the hole diameter at once, more tightly than calipers would.
-BOARD_HOLES = (58.0, 23.0)     # hole pattern (y span, x span), M2.5 self-tap
-BOARD_STANDOFF = 6.0           # under-plate standoff height (clears the GoPro
-                               # screw bosses by 3 mm; battery below gets ~2 mm)
 # REPLACEMENT BOARD -- Waveshare "General Driver for Robots", the swap that buys
 # an onboard IMU with no soldering (docs/wiring-general-driver.svg, schematic in
 # docs/datasheets/general-driver/). Vendor figures, 2026-07-28.
@@ -761,9 +641,6 @@ BOARD_GD_HOLE_D = 3.0            # the board's own holes (M2.5 clears with slack
 # put the service edge up was the alternative; it costs the bus edge instead,
 # and the bus connectors are 0.5 mm off a cheek where the USB plug at least has
 # somewhere to go (user decision 2026-08-06: cut the cheek, keep the mount).
-BOARD_GD_SVC_EDGE = "short"      # the service edge is a 56.01 edge.  In the
-                                 # mount above that edge is VERTICAL, not the
-                                 # top edge the v6 recess was drawn for.
 # Where things sit ALONG the service edge, as "u" = distance from the BUS EDGE
 # corner, 0 .. 56.01.  The two USB-C entries are read off the dimension
 # drawing's vector geometry (exact); the XH inlet is scaled off the photo
@@ -777,9 +654,6 @@ BOARD_GD_SHELL_PROUD = 0.91      # both USB-C shells stand PROUD of the outline
                                  # MORE than the 0.5 cheek slip, so the shells
                                  # foul the cheek before any of this is about
                                  # access -- see BR_SVC_RELIEF.
-BOARD_GD_U_SWITCH = (0.4, 7.4)   # [12] the slide switch, on the BUS edge, 8.2
-                                 # to 21.3 up from the service edge -- bus edge
-                                 # up puts it above the deck, already reachable
 # Mating envelopes, measured across the service edge (u) and off the PCB (x).
 USBC_PLUG = (12.5, 6.5, 18.0)    # (along u, off the board face, out from the
                                  # edge) overmoulded USB-C plug; shell 8.34, and
@@ -787,30 +661,13 @@ USBC_PLUG = (12.5, 6.5, 18.0)    # (along u, off the board face, out from the
 XH2_PLUG = (8.0, 6.0, 8.0)       # the same three for the XH 2-pin plug -- short
                                  # housing, then wires that bend where they like
 PLUG_CLR = 2.0                   # slip all round a plug passing printed wall
-# Vertical mount, all x measured in the pelvis frame (tower interior is +/-25.4).
-# LEGACY as of 2026-08-04: the board no longer lives in the tower. It stands on
-# board_frame's bulkhead AFT of the pelvis (see BF_* in the v4 section), facing
-# rearward, so PARTITION_X / PCB_X / CZ describe a mount that is not built any
-# more. NOT deleted: tower() still reads them (and still asserts the pack-seat
-# coupling against BATT_SEAT_X, which also stays legacy-but-true).
-BOARD_GD_PARTITION_X = 7.0       # LEGACY -- -x face of the tower partition
-BOARD_GD_STANDOFF = 4.0          # partition/bulkhead face .. PCB face (LIVE:
-                                 # board_frame uses the same 4.0 standoff)
-BOARD_GD_PCB_X = BOARD_GD_PARTITION_X + WALL + BOARD_GD_STANDOFF   # 13.6 LEGACY
 BOARD_GD_COMP = 9.0              # component reach off the PCB's +x face; the
                                  # 40-pin header is the tall one. Unused by us,
                                  # but it is fitted, so it sets the envelope.
 # Board centre height above deck top. Bottom lands at 2.5 (clear of the deck),
 # top at 67.5, which clears the GoPro bosses hanging at TOWER_H - 6.5 = 68.5.
 # LEGACY (2026-08-04) -- board_frame carries the same 2.5/67.5 stack on BF_CZ.
-BOARD_GD_CZ = 35.0               # LEGACY (tower mount)
 BOARD_GD_SCREW_DY = BOARD_GD_HOLES[0] / 2        # +/-29.0 across the robot
-BOARD_GD_SCREW_DZ = BOARD_GD_HOLES[1] / 2        # +/-24.5 about the board centre
-                                                 # (both survived the outline
-                                                 # correction -- the hole grid
-                                                 # was right, the outline was not)
-BOARD_GD_MASS = 42.0             # g, estimated -- WEIGH IT when it arrives; it
-                                 # feeds the torso rollup and therefore the plant
 # battery: DECIDED 3S (2026-07-11 gauntlet verdict). Envelope is a SUPERSET of
 # the 3S 850 mAh XT30 field, not one pack -- the Zeee (67 x 30 x 18.5, 74 g)
 # it was originally cut for went unavailable, and every other pack in the class
@@ -830,14 +687,6 @@ BATT = (68.0, 31.0, 26.5)      # y length, x width, z height (envelope)
 # The specific pack modeled in the mocks / sim inertia: worst case of the field
 # above (CNHL 70C) so fit-checks and COM are conservative. A flatter, lighter
 # pack only gains clearance and lowers COM. Keep BATT >= BATT_PACK.
-BATT_PACK = (62.0, 30.0, 25.0)  # y length, x width, z height (actual pack)
-BATT_PACK_MASS = 80.0           # g
-BATT_SEAT_X = -24.0            # LEGACY (tower bay) -- pack outer (-x) face when
-                               # seated: 1.4 inside the wall inner face, so the
-                               # strap can preload. Was -17.0; followed TOWER_W
-                               # 42 -> 56. Superseded by BATT_SEAT_X_V4 below;
-                               # kept because tower() asserts it against
-                               # BOARD_GD_PARTITION_X and both are legacy-true.
 
 # ============================================================================
 # PELVIS v5 -- ONE HOUSING, EVERYTHING AT SERVO LEVEL (user-approved 2026-08-04)
@@ -918,9 +767,6 @@ BT_FRONT_X = BT_SEAT_X + BATT[1]                     # +44.01 pack front face
 BT_PRELOAD = 1.4                    # gap ahead of the pack: belt preload and
                                     # the pull-ribbon's exit
 BT_WALL_X1 = BT_FRONT_X + BT_PRELOAD                 # +45.41 bay front wall
-BT_X1 = BT_WALL_X1 + WALL                            # +48.01 its outer face
-BT_WALL_Y_IN = BATT[0] / 2 + 0.5                     # 34.50 (0.5/side envelope)
-BT_WALL_Y_OUT = BT_WALL_Y_IN + WALL                  # 37.10
 # The seat. A 47 deg chamfer, not 45: an exactly-45 face sits ON
 # check_printability's threshold (nz < -cos45) and audits as the overhang it
 # exists to prevent. Run 5.0 leaves a 21.5 mm opening under the pack -- the
@@ -950,12 +796,11 @@ BT_SEAT_Z = -35.5                   # where the chamfers START, i.e. the bottom
 #     run * tan(47) -- i.e. 47 deg from HORIZONTAL. Closing a horizontal gap g
 #     therefore costs g * tan(47) of DROP, not g / tan(47).
 # Correct value 0.751 for the envelope (1.287 for a real 30 mm pack), confirmed
-# against the solid by lowering a pack mock onto parts.pelvis() until it touched:
+# against the solid by lowering a pack mock onto the pelvis until it touched:
 # -36.251, exactly the analytic figure. Nothing structural moved -- both asserts
-# below still hold with room, and the only consumer was parts.py's CG rollup
-# (80 g moving 0.52 mm: 0.04 mm of robot CG) -- but a pack mock placed at the
-# old number floated 0.5 mm above its seat, so every "pack seated" boolean in
-# check_assembly would have read zero by luck instead of by contact.
+# below still hold with room -- but a pack mock placed at the old number floated
+# 0.5 mm above its seat, so a "pack seated" boolean would have read zero by luck
+# instead of by contact.
 BT_SEAT_BAY_W = BT_WALL_X1 - BT_SEAT_X               # 32.40 between the roots
 BT_SEAT_DROP = ((BT_SEAT_BAY_W - BATT[1]) / 2
                 * math.tan(math.radians(BT_SEAT_DEG)))               # 0.751
@@ -975,8 +820,6 @@ BT_BAY_BOT = BT_SEAT_Z - BT_SEAT_CHAMFER * math.tan(
 # wrong for any pack the bay accepts, and it also removes the 0.9 mm ledge of
 # deck that used to overhang the BT_PRELOAD gap -- which is where the pull
 # ribbon comes up, i.e. exactly where a ledge is a snag.
-BT_APER_X = (BT_SEAT_X, BT_WALL_X1)                  # 13.01..45.41 deck aperture
-BT_APER_HY = BT_WALL_Y_IN                            # 34.50
 # Belt: unchanged in principle from v5 -- a strap across the pack inside the
 # aperture, out under the deck through a notch in the bay's side wall, up
 # through a deck slot, back over the deck bar, closed on itself over the pack.
@@ -985,13 +828,7 @@ BT_APER_HY = BT_WALL_Y_IN                            # 34.50
 # the material below the notch bridges the notch's length. 18 mm is inside
 # check_printability's BEAM_OK (20 mm for a narrow through-wall strip, the same
 # rule that passes the board-frame windows), so the strap is 15 mm.
-BT_BELT_W = 15.0
 BT_BELT_X = (24.0, 42.0)            # 18 mm notch / slot band
-BT_BELT_SLOT_Y = (38.0, 42.0)       # deck slot; 3.5 mm of deck between it and
-                                    # the aperture is the bar the strap wraps
-BT_BELT_NOTCH_Z = -13.0             # side wall absent from the deck down to
-                                    # here over BT_BELT_X, so the strap can get
-                                    # from the deck slot to the pack's top
 assert BT_BAY_BOT >= TORSO_FLOOR_Z, (
     f"battery bay bottom {BT_BAY_BOT:.2f} crosses the torso floor "
     f"{TORSO_FLOOR_Z} -- it would be in the plane the yaw carriers sweep")
@@ -1037,7 +874,6 @@ BR_RIM_PROUD = 1.8
 BR_AFT_X = BR_COMP_X - BR_RIM_PROUD                  # -54.44 cheeks / deck ears
 BR_BOT_Z = TORSO_FLOOR_Z + 0.8                       # -41.00 board bottom edge
 BR_TOP_Z = BR_BOT_Z + BOARD_GD_OUTLINE[1]            # +15.01 board top edge
-BR_CZ = BR_BOT_Z + BOARD_GD_OUTLINE[1] / 2           # -12.995 board centre
 BR_SCREW_Z = BR_BOT_Z + BOARD_GD_HOLE_INSET          # -37.495, the lower row
 BR_CHEEK_SLIP = 1.5                 # per side, board edge .. cheek inner face.
                                     # Was 0.5; opened 2026-08-06 (user: "a
@@ -1061,7 +897,6 @@ BR_CHEEK_Y_OUT = BR_CHEEK_Y_IN + WALL                        # 36.605
 # screws do the holding. With the slip at 1.5 that is emphatically true: the
 # cheeks no longer touch the board in the normal case at all, they only stop it
 # leaning far enough to matter.
-BR_CHEEK_LEADIN = 2.0               # 47 deg funnel at the cheeks' top corners
 assert BR_BOT_Z >= TORSO_FLOOR_Z, (
     f"board bottom {BR_BOT_Z} crosses the torso floor {TORSO_FLOOR_Z}")
 # This is the assert that justifies the rails: the upper screw row lands ABOVE
@@ -1109,11 +944,6 @@ BR_SVC_PORT_CX = BR_PCB_X1 - 1.63                    # -45.27 opening centre
 BR_SVC_WIN_X = (BR_SVC_PORT_CX - USBC_PLUG[1] / 2 - PLUG_CLR,
                 BR_PCB_X0)                           # -50.52 .. -42.01
 BR_SVC_WIN_Z = (BR_USB_Z[0] - PLUG_CLR - 0.7, -DECK_T)       # -22.03 .. -5.0
-BR_SVC_WIN_TAPER = 47.0             # deg from horizontal: the window's LOWER
-                                    # edge is its ROOF in a deck-top-down print,
-                                    # so it closes to a point instead of
-                                    # bridging (BRIDGE_OK is 8.0, the window is
-                                    # 10.0 across)
 BR_SVC_RELIEF = 1.5                 # groove depth into the cheek's inner face
 BR_SVC_RELIEF_Z = (BR_BOT_Z, BR_SVC_WIN_Z[0])        # -41.0 .. -22.03
 # The groove stops at the PCB's AFT face, not the window's forward edge: it is
@@ -1163,8 +993,6 @@ assert BR_SVC_GRIP_Z >= 15.0, (
 # the deck, and the tallest thing up there is now the board itself at
 # BR_PCB_X0 = -42.01, 5.76 mm clear of the -32.75 row's cylinder.
 DECK_AFT_X = BR_AFT_X                                # -54.44 (the ears)
-DECK_CUT_X = BR_PCB_X0                               # -42.01 inboard aft edge
-DECK_CUT_HY = BR_CHEEK_Y_IN                          # 33.005 half-width of cut
 # Forward edge: aperture rim + the battery bay's front wall + a 2 mm lip.
 DECK_FWD_X = 50.0                                    # (v5: 51.0, v4: 48.0)
 assert DECK_AFT_X <= YAW_BOX_X_REAR and DECK_FWD_X >= YAW_BOX_X_FRONT, (
@@ -1185,7 +1013,6 @@ assert YAW_BOX_BOT >= TORSO_FLOOR_Z, (
 # needs GP_BASE_X of clear centreline; 15.4 x 24 still passes eight servo leads
 # (~160 mm2 of bundle through a 370 mm2 hole).
 WIRE_WIN_X = (-8.0, YAW_CASE_X_FRONT + YAW_SEAT_GAP)     # -8.00 .. +10.41
-WIRE_WIN_HY = 12.0
 
 # --- v4 constants that v5 deletes, so nobody hunts for them ------------------
 # BG_* (battery_guard: the deck-top hoop) -> BT_* above; the part is gone.
@@ -1195,14 +1022,6 @@ WIRE_WIN_HY = 12.0
 #   none of them.
 # GUSSET_OVER / M3_CB_D / M3_SEAT_H / BF_BOSS_ROOF_DEG survive below: they are
 #   print rules, not layout, and the v5 parts still use them.
-GUSSET_OVER = 1.0                   # every gusset runs its RISE 1 mm past its
-                                    # RUN -- an exactly-45 wedge sits ON
-                                    # check_printability's threshold and audits
-                                    # as the overhang it exists to prevent (the
-                                    # tower's feet have always used 8.5/9.0)
-M3_CB_D = 6.6                       # driver well over an M3 button head
-M3_SEAT_H = 2.1                     # conical seat under a well (53 deg walls),
-                                    # so no flat annulus is left hanging
 BF_BOSS_ROOF_DEG = 50.0             # tangent teardrop roof on horizontal bosses
 
 # ----------------------------------------------------------------------------
@@ -1218,17 +1037,14 @@ BF_BOSS_ROOF_DEG = 50.0             # tangent teardrop roof on horizontal bosses
 # ----------------------------------------------------------------------------
 GP_PRONG_T = 3.0
 GP_SLOT = 3.2
-GP_STACK = 3 * GP_PRONG_T + 2 * GP_SLOT   # 15.4 across
 GP_PRONG_OD = 15.0
 GP_LEG_H = 17.0                # base top -> prong top
-GP_HOLE_D = 5.5                # M5 + 0.5 print tolerance
 GP_HOLE_H = GP_LEG_H - GP_PRONG_OD / 2    # 9.5 above the base top
 # The M5 clamp bore is horizontal in the print orientation (base down), so its
 # top arc bridges -> weak, sag-prone strands exactly where the thumbscrew clamps
 # across the layers. Teardrop the bore (45 deg self-supporting roof peak) so no
 # layer overhangs > 45 deg. The screw is a clearance fit, so the added void
 # above the bolt is harmless. Set False for a plain round bore.
-GP_HOLE_TEARDROP = True
 GP_BASE_X, GP_BASE_Y, GP_BASE_T = 30.0, 24.0, 4.0
 GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 
@@ -1244,10 +1060,6 @@ GP_SCREW_XY = (11.0, 8.5)      # 4x M3 self-tap into bosses under the tower top
 # the free centre band, |y| <= 12, which is inboard of every screw cylinder.
 GP_MOUNT_X = -24.0
 GP_BOSS_D = 8.0                     # deck-UNDERSIDE bosses: the deck is 5 and
-GP_BOSS_H = 4.0                     # HEATSET_L is 6, so 5 + 4 = 9 of thread.
-                                    # They hang into the centre wire channel
-                                    # (|y| 8.5 +/- 4, well inside its +/-17.74)
-                                    # and printed deck-top-down they RISE.
 assert GP_MOUNT_X + GP_BASE_X / 2 <= WIRE_WIN_X[0], (
     f"the gopro base's front edge {GP_MOUNT_X + GP_BASE_X / 2} covers the wire "
     f"riser window at {WIRE_WIN_X[0]} -- the leg cables come up there")
@@ -1278,11 +1090,6 @@ assert GP_SCREW_XY[0] + GP_BOSS_D / 2 + GP_MOUNT_X < WIRE_WIN_X[0], (
 # rotation using the dimension we trust, and snap tabs retain it. For an IMU
 # that is the better mount regardless -- repeatable seating matters more than
 # screw count, because any shift corrupts the gravity vector the policy reads.
-IMU_PCB = (15.5, 25.4, 1.63)   # outline x (across pads), y (along pads), thickness
-                               # 1.63 MEASURED 2026-07-27 (vendor spec said 0.8)
-IMU_POCKET_CLEAR = 0.35        # per-side clearance: FDM walls come in ~0.2 proud
-IMU_POCKET_D = 1.85            # pocket depth = pcb + 0.22, so screws clamp the
-                               # board, not the pocket rim
 
 # Screw pattern, recovered from the 2026-07-27 photo by perspective-correcting
 # it: the board outline is known (15.5 x 25.4), so fitting its four edges gives
@@ -1294,33 +1101,10 @@ IMU_POCKET_D = 1.85            # pocket depth = pcb + 0.22, so screws clamp the
 #     hole diameter      3.24 /  3.15     ->  3.15
 # Treated as symmetric in y (the 0.25 mm offset the measurement showed is
 # inside its own error, and a manufactured board will be symmetric).
-IMU_SCREW_X = 12.90 - 15.5 / 2  # +5.15 from board centre, toward castellations
-IMU_SCREW_DY = 20.80 / 2        # +/-10.40 from board centre
-IMU_SCREW_HOLE_D = 3.15         # the board's own hole -- 0.3 mm radial slack on
-                                # an M2.5, which is exactly the point: the
-                                # POCKET locates, the SCREWS only clamp, so a
-                                # 0.25 mm error in this pattern is absorbed.
 
-IMU_TONGUE_T = 5.5             # tongue is thicker than the 3.0 pad: the pocket
-                               # floor must still be thick enough to tap. Grows
-                               # UPWARD so the part still prints flat, pocket up.
-IMU_SOLDER_SLOT = 3.4          # through-slot under the pad row: clears soldered
-                               # pin tails on the underside AND is the wire exit.
-                               # Runs the full length and out the rear -- a slot
-                               # stopping short would foul the tails.
-IMU_CY = -27.5                 # IMU center y on the tongue (x centered). Moved
-                               # back from -25.0 on 2026-07-27: the tongue is
-                               # now raised to IMU_TONGUE_T and the pocket has
-                               # to sit entirely behind gopro_base's footprint
-                               # (y >= -12), which the old centre did not.
-                               # x half-width 9.7 still clears the feet-screw
-                               # wells at (+-14, +-42).
-IMU_CARRIER_T = 3.0            # carrier PAD thickness (the M3x12 stack)
 
 # PCB underside height above the carrier's z=0 plane.
-IMU_PCB_Z = IMU_TONGUE_T - IMU_POCKET_D
 
-CAM_MASS = 154.0               # g, incl. battery
 CAM_BODY = (25.0, 64.0, 69.0)  # X depth (lens axis fore-aft), Y width, Z height
 
 # ----------------------------------------------------------------------------
@@ -1335,7 +1119,6 @@ KNEE_Z = ANKLE_Z + SHIN                              # 106.86
 HIP_PITCH_Z = KNEE_Z + THIGH                         # 196.86
 HIP_ROLL_Z = HIP_PITCH_Z + ROLL_TO_PITCH             # 246.86
 DECK_BOT_Z = HIP_ROLL_Z + SV_AXIS_FROM_REAR          # 282.0 (servo top end)
-TORSO_CENTER_Z = HIP_ROLL_Z + 36.0                   # 282.9 (sim: 280)
 TOP_Z = DECK_BOT_Z + DECK_T + TOWER_H                # 319.0 overall
 
 # v3yaw variant: the LEG is unchanged, so ANKLE..HIP_ROLL heights above ground
@@ -1343,9 +1126,6 @@ TOP_Z = DECK_BOT_Z + DECK_T + TOWER_H                # 319.0 overall
 # the deck, so everything from the deck up rises by YAW_STACK_DROP.  The hip-yaw
 # "joint plane" is the horn face, CARRIER_ROLL_AXIS above the roll axis.
 HIP_YAW_Z = HIP_ROLL_Z - CARRIER_ROLL_AXIS           # 284.97 (yaw horn face)
-DECK_BOT_Z_YAW = HIP_ROLL_Z + ROLL_BELOW_DECK_YAW    # 327.77 (deck bottom)
-TORSO_CENTER_Z_YAW = TORSO_CENTER_Z + YAW_STACK_DROP  # 323.7
-TOP_Z_YAW = TOP_Z + YAW_STACK_DROP                   # 359.8 overall (v3yaw)
 
 # Filament density for mass/inertia estimates. Robot is printed in PETG
 # (~1.27 g/mm^3); PLA would be 1.24e-3 if you switch back.
@@ -1353,11 +1133,9 @@ FILAMENT_RHO = 1.27e-3  # g/mm^3 (PETG)
 PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on thick
 
 # ----------------------------------------------------------------------------
-# joint ranges of motion, deg (SOURCE since 2026-08-03: the JOINT LIMITS of
-# sim/bimo_biped_v4rom.xml -- the mechanical stop, i.e. how far the joint can
+# joint ranges of motion, deg: the mechanical stop, i.e. how far the joint can
 # be driven at all, which is what the printed parts have to clear. It is NOT
-# the plant's policy range any more; v4rom separates the two and holds the
-# training box at v3yaw's, but a part that only clears the training box is a
+# the plant's policy range: a part that only clears the training box is a
 # part the bench can break.) Interference checks probe BOTH extremes of every
 # joint and require SWEEP_BUFFER of air between relatively-moving bodies
 # (user call 2026-07-28).

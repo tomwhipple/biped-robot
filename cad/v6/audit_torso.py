@@ -1,9 +1,6 @@
-"""Printability audit for the torso parts, reusing cad/check_printability.py
-verbatim (same thresholds, same algorithm) against cad/v6/stl/ instead of
-cad/stl/. check_printability.py is written around ONE STL directory
-(module-level `STL`) and ONE `ORIENT` table keyed by part name; this module
-monkey-patches both at runtime rather than forking the file, so the v6 parts
-are audited by the exact same code path as every v5 part.
+"""Printability audit for the torso parts on cad/common/check_printability.py
+(its thresholds and algorithm) against cad/v6/stl/: this module registers the
+parts' ORIENT entries and audits each.
 
     .venv/bin/python cad/v6/audit_torso.py                # pelvis_v8, torso_v8, the covers, the BMS bracket, yaw_bearing_housing, head parts
     .venv/bin/python cad/v6/audit_torso.py torso_v8
@@ -16,7 +13,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 
 import numpy as np  # noqa: E402
-import check_printability as CP  # noqa: E402
+from common import check_printability as CP  # noqa: E402
 
 CP.STL = os.path.join(HERE, "stl")
 # the torso prints with slicer support in its wide windows and its battery

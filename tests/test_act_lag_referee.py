@@ -18,12 +18,14 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 import jax  # noqa: E402
 import jax.numpy as jp  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def _walker(**kw):
     from walker_env import BimoWalkerEnv
-    base = dict(xml_path=XML, command_mode=True, ext_cmd=True,
+    base = dict(ROBOT, command_mode=True, ext_cmd=True,
                 actuator_model="sts3215", imu_obs=True,
                 domain_rand=False, latency_ms=0.0, backlash_deg=0.0,
                 quantize_ticks=False)
@@ -92,7 +94,7 @@ def test_law_matches_mjx():
     """env_mjx with a FIXED act_lag pole must hold the same lag_y state the
     walker law predicts after one step -- same k, same seeding, same order."""
     from env_mjx import BimoMJXEnv
-    env = BimoMJXEnv(xml_path=XML, ext_cmd=True, obs_hist_len=3,
+    env = BimoMJXEnv(**ROBOT, ext_cmd=True, obs_hist_len=3,
                      domain_rand=False, imu_noise=0.0, quantize_ticks=False,
                      latency_ms=0.0, backlash_deg=0.0,
                      act_lag_hz=2.0,

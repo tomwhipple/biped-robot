@@ -17,12 +17,14 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 import jax  # noqa: E402
 import jax.numpy as jp  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def _env(crouch, **kw):
     from env_mjx import BimoMJXEnv
-    base = dict(xml_path=XML, ext_cmd=True, gait_clock=True, obs_hist_len=3,
+    base = dict(ROBOT, ext_cmd=True, gait_clock=True, obs_hist_len=3,
                 domain_rand=False,
                 imu_noise=0.0, quantize_ticks=False, latency_ms=0.0,
                 backlash_deg=0.0, w_mimic=1.5, mimic_knee_w=4.0,

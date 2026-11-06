@@ -14,7 +14,7 @@
 #                           (the robot: shoulder girdle + the two arms) and
 #                           ARMS=0 (armless). Results are what
 #                           docs/design-v6/cad_rom_check.txt records.
-#   audit_torso.py,         printability REPORTS (cad/check_printability.py's
+#   audit_torso.py,         printability REPORTS (cad/common/check_printability.py's
 #   audit_ankle_foot.py     engine: bridges, ceilings, islands, first-layer
 #                           contact) on the exported STLs in cad/v6/stl. They
 #                           do not fail the run: ankle_link carries ceilings

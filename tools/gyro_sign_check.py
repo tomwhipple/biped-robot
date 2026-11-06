@@ -5,9 +5,8 @@ rolls) lean the whole body a few degrees over 2 s; `imu` before/after gives
 the same body-frame `up` the policy sees, `imu ring 2500` gives the body-frame
 gyro integral through the move. For a world-fixed vector seen from the body,
 The sim's up is framezaxis = body z in WORLD at yaw 0 (column 3 of R), so
-near upright d up_x = +int(gyro_y), d up_y = -int(gyro_x). Verified in sim on
-bimo_biped_v5body (ankle +6: d_up (-0.11, 0), int y -6.28 deg) and on the
-robot after the yaw-strip fix (d_up (-0.100, -0.005), int y -6.55 deg).
+near upright d up_x = +int(gyro_y), d up_y = -int(gyro_x). Verified in sim
+(ankle +6: d_up (-0.11, 0), int y -6.28 deg) and on the robot after the yaw-strip fix (d_up (-0.100, -0.005), int y -6.55 deg).
     .venv/bin/python tools/gyro_sign_check.py --joint ankle --amp 6
 
 Calibration from the board's `cal show` (blob v3, 17-servo bus map);

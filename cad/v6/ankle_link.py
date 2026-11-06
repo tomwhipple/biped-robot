@@ -55,8 +55,8 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 from build123d import *  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/csk_*/wedge_*)
-import check_assembly as CA  # noqa: E402  (real servo mocks)
+from common import shapes as parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")

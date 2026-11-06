@@ -43,7 +43,10 @@ import robot_plant  # noqa: E402
 import walker_env as W  # noqa: E402
 
 ROBOT_XML = os.path.join(SIM, "bimo_biped_v6ar.xml")
-PROTO_XML = os.path.join(SIM, "bimo_biped_v5body.xml")
+# not the robot: legs without the ankle roll (the 6-DOF leg is what tells it apart)
+NOT_ROBOT_MJCF = """<mujoco><worldbody><body name="torso"><freejoint/>
+<geom size="0.05"/><site name="imu"/><body name="L_shin">
+<joint name="L_knee" axis="0 1 0"/><geom size="0.02"/></body></body></worldbody></mujoco>"""
 ROLLS_KNEES = {f"{s}_{r}" for s in "LR"
                for r in ("hip_roll", "ankle_roll", "knee")}
 # the committed plant is the robot as drawn: 17 servos, the neck and both
@@ -62,7 +65,7 @@ PREC = dict(supply_voltage=11.1, ext_cmd=True, gait_clock=True,
             backlash_deg=0.5, backlash_deg_max=1.0, zero_offset_deg=2.0)
 
 
-def _robot_kw(xml=None, **over):
+def _robot_kw(xml=ROBOT_XML, **over):
     kw = dict(PREC)
     kw.update(robot_plant.robot_env_kwargs(xml))
     kw.update(over)
@@ -81,7 +84,7 @@ def arms_xml(tmp_path_factory):
 
 # --------------------------------------------------------------------- preset
 def test_robot_preset_resolves_against_the_plant(arms_xml):
-    kw = robot_plant.robot_env_kwargs()
+    kw = robot_plant.robot_env_kwargs(ROBOT_XML)
     assert kw["held_joints"] == HELD17
     assert set(kw["servo_kp_scale"]) == ROLLS_KNEES
     assert set(kw["servo_kp_scale"].values()) == {4.0}
@@ -91,7 +94,8 @@ def test_robot_preset_resolves_against_the_plant(arms_xml):
     m = mujoco.MjModel.from_xml_path
     assert robot_plant.is_robot_model(m(ROBOT_XML))
     assert robot_plant.is_robot_model(m(arms_xml))
-    assert not robot_plant.is_robot_model(m(PROTO_XML))
+    assert not robot_plant.is_robot_model(
+        mujoco.MjModel.from_xml_string(NOT_ROBOT_MJCF))
 
 
 # ---------------------------------------------------------------------- smoke
@@ -240,15 +244,11 @@ def test_role_tables_are_one_table():
         assert W.joint_role(n) == M.joint_role(n) is not None
 
 
-def test_ankle_roll_has_its_role_and_prototypes_are_untouched():
+def test_ankle_roll_has_its_role():
     env = _cpu(**_robot_kw())
     assert env._i_aroll is not None
     assert [env._act_names[i] for i in env._i_aroll] == ["L_ankle_roll",
                                                          "R_ankle_roll"]
-    proto = _cpu(xml_path=PROTO_XML)
-    assert proto._i_aroll is None and proto._all_pol
-    assert isinstance(proto._jqpos, slice)
-    assert np.array_equal(proto._kp_prof, np.ones(10))
 
 
 def test_unknown_policy_joint_is_refused(tmp_path):
@@ -329,14 +329,15 @@ def test_mirror_over_policy_joints_matches_physics():
 
 
 # ----------------------------------------------------------------- referee
-def test_referee_runs_on_the_robot_plant():
+def test_referee_runs_on_the_robot_plant(tmp_path):
     import eval_precision as E
     import eval_ref as R
     cfg = _robot_kw()
     cfg["xml_path"] = os.path.basename(cfg["xml_path"])
-    assert E.is_robot_plant(ROBOT_XML) and not E.is_robot_plant(PROTO_XML)
+    not_robot = tmp_path / "not_robot.xml"
+    not_robot.write_text(NOT_ROBOT_MJCF)
+    assert E.is_robot_plant(ROBOT_XML) and not E.is_robot_plant(str(not_robot))
     assert E.referee_payload(ROBOT_XML) == 0.0
-    assert E.referee_payload(PROTO_XML) == E.PROTOTYPE_PAYLOAD_KG
     assert {"recover_sit", "recover_fallen"} <= set(E.ROBOT_NOT_APPLICABLE)
     env = E.make_env(cfg, 11.0, False, ROBOT_XML)
     assert env._payload_bid is None and env.action_space.shape == (12,)

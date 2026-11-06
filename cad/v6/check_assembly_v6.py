@@ -299,19 +299,19 @@ def _designed_press_fits():
     width, less what the hub's and the recess's lead-ins take out of it."""
     import yaw_bearing_housing as H
     import yaw_carrier_v6 as YC
-    import parts as Pv5
+    from common import shapes as S
     from build123d import Cone, Pos
     y, zh = V.HIP_SEP / 2, V.HIP_YAW_Z
     z0, z1 = zh - V.YAW_BRG_W, zh
-    race_in = Pv5.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - Pv5.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
+    race_in = S.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - S.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
     # the hub as modelled: its print allowance overlaps the race too
     rh = V.YAW_BRG_BOSS_MODEL_R
-    hub = Pv5.cyl_z(rh, z0, z1, 0, y)
+    hub = S.cyl_z(rh, z0, z1, 0, y)
     hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(rh - YC.HUB_LEAD_IN, rh + 0.05, YC.HUB_LEAD_IN + 0.1)
     zd = V.DECK_TOP_Z
     r0, r1 = V.YAW_BRG_RECESS_Z
-    race_out = Pv5.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)
-    seat_wall = Pv5.cyl_z(V.YAW_BRG_OD / 2 + 1, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_RECESS_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    race_out = S.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - S.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    seat_wall = S.cyl_z(V.YAW_BRG_OD / 2 + 1, r0 + zd, r1 + zd, 0, y) - S.cyl_z(V.YAW_BRG_RECESS_R, r0 + zd - 1, r1 + zd + 1, 0, y)
     hz0 = V.YAW_HOUSING_Z[0] + zd
     seat_wall -= Pos(0, y, hz0 + H.LEAD_IN / 2 - 0.05) * Cone(V.YAW_BRG_RECESS_R + H.LEAD_IN + 0.05, V.YAW_BRG_RECESS_R,
                                                            H.LEAD_IN + 0.1)
@@ -557,7 +557,7 @@ ACCESS_REACH = 50.0
 
 def check_driver_access(verbose=True):
     import importlib
-    import parts as Pv5
+    from common import shapes as S
     P0 = pieces_by_label(A.robot({}))
     fails = 0
     for group, mod, prefix, frame, present in ACCESS_STATES:
@@ -575,9 +575,9 @@ def check_driver_access(verbose=True):
             ax = sc["axis"]
             r = D.ACCESS_D / 2
             if abs(ax[2]) > 0.5:
-                drv = Pv5.cyl_z(r, z - ax[2] * 0.05, z - ax[2] * ACCESS_REACH, x, y)
+                drv = S.cyl_z(r, z - ax[2] * 0.05, z - ax[2] * ACCESS_REACH, x, y)
             else:
-                drv = Pv5.cyl_x(r, x - ax[0] * 0.05, x - ax[0] * ACCESS_REACH, y, z)
+                drv = S.cyl_x(r, x - ax[0] * 0.05, x - ax[0] * ACCESS_REACH, y, z)
             for lab in present:
                 try:
                     vol = (drv & P0[lab]).volume

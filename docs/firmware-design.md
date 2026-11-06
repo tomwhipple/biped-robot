@@ -6,7 +6,7 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
 [wiring.md](wiring.md); servo IDs and calibration values are
 [servo-map.md](servo-map.md); first power-up is [bringup.md](bringup.md).*
 
-**Status:** built, flashed and running on the prototype. Two joint sets
+**Status:** built, flashed and running on the v6 legs. Two joint sets
 (§5.8):
 
 - the **bus joint set** is the robot's 17 servos (`obs/bus_map.h`, the
@@ -14,10 +14,11 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
   mechanical envelope, `pose`/`home`, the readback, the gain check, the
   telemetry joint block and the SIL arrays are all 17 wide;
 - the **policy joint set** is what the compiled policy observes and commands:
-  the prototype's 10 joints (5 per leg, plant `sim/bimo_biped_v5body.xml`,
-  servo IDs 1–10), policy `loco_v41rsi_b_s128r24`.
+  the v6 legs' 12 joints (6 per leg, plant `sim/bimo_biped_v6legs.xml`),
+  policy `robot_legs_walk16_act_s128r24`.
 
-The prototype carries IDs 1–10, and its calibration marks 11–17 not fitted.
+The legs-only robot carries 12 servos, and its calibration marks the neck and
+arms (IDs 13–17) not fitted.
 The 17-joint port is done on the bus side and verified on the host (issue
 #81); a 17-servo `pose` on the bench and a 17-joint policy (#86) are what
 remain (§8).
@@ -501,8 +502,8 @@ tick writes every fitted servo's goal to the position it reported this tick
 release, so the robot ends the run stiff where it was, not sagging.
 
 The **mechanical envelope** (`main/mech_envelope.h`) is the per-bus-joint
-measured or CAD-verified travel; the leg rows are the prototype's, and the
-robot's legs need their own ([servo-map.md](servo-map.md) §3.3). Only the CLI's bench moves (`move`, `pose`,
+measured or CAD-verified travel; the leg rows are the v6 legs plant's policy
+range ([servo-map.md](servo-map.md) §3.3). Only the CLI's bench moves (`move`, `pose`,
 `home`) clamp to it; the act path clamps to the policy range from
 `obs_spec.h`. It pairs with [servo-map.md](servo-map.md). The CLI also
 refuses a goal write to a servo whose torque is off (`torqueGate`), because
@@ -665,8 +666,8 @@ value is the bench measurement (#73), so the check is on the pattern.
 
 ### 5.8 Bus joints and policy joints
 
-The robot carries 17 servos; the policy it runs may drive fewer (the
-prototype's 10 today, a 17-joint one after #86). So the firmware keeps two
+The robot carries 17 servos; the policy it runs may drive fewer (the v6 legs'
+12 today, a 17-joint one after #86). So the firmware keeps two
 joint sets and never confuses them:
 
 | | bus joints | policy joints |
@@ -685,16 +686,16 @@ servo the policy does not drive:
   `kHeldTarget`, generated from the run's `held_joints`) -- is driven from
   its takeover position to that trained target along the takeover ramp, then
   held there (clamped to the mechanical envelope);
-- any other fitted servo (the robot's ankle rolls, neck and arms under the
-  prototype's 10-joint policy) stays at its measured takeover position.
+- any other fitted servo (the neck and arms under a legs-only policy that does
+  not hold them) stays at its measured takeover position.
 
 A held servo that has not answered since the arm is left off the frame
 rather than sent a guess. The SIL library mirrors the hold without the ramp
 (its non-policy slots hold the trained target, or what they sensed on the
 first tick after a reset).
 
-`pose` takes either 17 targets in servo-ID order or 10 in policy order (the
-prototype's bench tools send that form; the other servos are left alone);
+`pose` takes either 17 targets in servo-ID order or the policy's joints in
+policy order (the other servos are left alone);
 targets for servos that are not fitted are ignored.
 
 ## 6. Fitting the network
@@ -919,15 +920,12 @@ joint all look the same from outside. `obsdump` measures them.
     as proposed;
   - a 17-servo `pose` and `home` on the bench, and the 17-servo SYNC READ
     time from `stat`;
-  - the robot's leg rows in the mechanical envelope, and every direction
-    sign, measured on the robot (the leg rows are the prototype's);
+  - every direction sign, measured on the robot;
   - a policy trained on the robot's plant (#86). `tools/gen_obs_spec.py`
     already handles one (the 12 leg joints as the policy, the held neck and
     arms with their targets, the per-servo stiffness; the SIL suite runs it
     on a robot config), and the firmware already holds the held servos.
-    What deploying one still changes, each enforced at compile time: the
-    SIL ABI's `action`/`obs` widths (10/147 today), and the leg rows of the
-    mechanical envelope, which must contain the robot's policy ranges (knee
-    −130°, hip pitch −120°);
+    What deploying a 17-joint one still changes, enforced at compile time:
+    the SIL ABI's `action`/`obs` widths (12/165 today);
   - the Plan B gain values (#73) in `main/servo_gains.h`;
   - the bench tools in `tools/` that hard-code the prototype's calibration.

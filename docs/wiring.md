@@ -11,7 +11,7 @@ Related documents:
 - the procedure from a bare board to the first arm: [bringup.md](bringup.md)
 - bench safety: [AGENTS.md](../AGENTS.md#bench-safety)
 
-The firmware currently drives the 10-joint prototype (servo IDs 1–10). What this
+The firmware currently drives the v6 legs' 12 joints. What this
 page says about 17 servos is the robot's design. Anything marked **open** is not
 settled yet.
 

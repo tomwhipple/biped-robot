@@ -7,8 +7,8 @@
 // below knows it is talking to a simulator.
 //
 // Plain C layout so python can ctypes it. Every array is fixed-width for a
-// given build, and the widths ARE the compiled policy's (obs_spec.h, so the
-// deployed v5 build is 17/7/10/147 and the v6legs profile 17/7/12/165): one
+// given build, and the widths ARE the compiled policy's (obs_spec.h: bus,
+// cmd, act and obs widths 17/7/12/165 for the v6 legs' walk policies): one
 // library per policy profile (firmware/host/Makefile POLICY). sil_spec()
 // reports every width, and the python harness sizes its ctypes structs from
 // the same obs_spec.h and refuses a library whose widths differ, so a layout
@@ -44,12 +44,10 @@ extern "C" {
 //     slot = obs::busIndexOfId(servo_id)  (bus index, NOT id - 1)
 //     policy joint j  <->  slot obs::policyToBus(j)
 //
-// Slot 0 is R_hip_roll (servo 52), which is policy joint 6 under the
-// deployed 10-joint spec and joint 7 under the 12-joint v6legs one -- the
-// permutation docs/wiring.md once called an identity, and putting it on the
-// C boundary is what makes it testable end to end. The slots of servos the
-// policy does not drive (the ankle rolls under a 10-joint policy; the neck
-// and arms under either) are sensed but not observed, and their goals HOLD:
+// Slot 0 is R_hip_roll (servo 52), which is policy joint 7 -- a real
+// permutation, and putting it on the C boundary is what makes it testable
+// end to end. The slots of servos the policy does not drive (the neck and
+// arms) are sensed but not observed, and their goals HOLD:
 // the run's trained target for a servo it holds (obs_spec.h kHeld*), else
 // the position sensed on the first tick after sil_reset -- ctrl_task's hold,
 // without its takeover ramp.
