@@ -85,6 +85,11 @@ struct Limits {
     float chatter_rad_s;       // EMA of mean |d raw target / dt| above this
     float chatter_tau_s;
     uint8_t criteria;          // kCrit* mask
+    // rate's limit while WALKING (Input::walking): Tom 2026-11-05, for a 5-step walk.
+    // Every one-cycle stride on the robot tripped 1.5 at the step-onset kick (EMA
+    // 1.50 - 1.61 rad/s); in sim the deployed walker peaks 1.6 - 1.85 while walking
+    // and does not fall. A walking trip still recovers (WalkRecovery), never holds.
+    float rate_walk_rad_s = 2.5f;
 };
 
 constexpr Limits kLimits = {300u, 1.5f, 0.2f, 20.0f, 200u, 7.0f, 0.1f, kCritAll};
@@ -104,6 +109,9 @@ struct Input {
     const float* stand = nullptr;    // rad: the trained stand pose
     const float* pose_limit = nullptr;   // rad per joint
     bool stand_cmd = false;          // the command is the plain stand
+    bool walking = false;            // a walk/step command now or within WalkRecovery's
+                                     // recent_ms, and no recovery engaged: rate uses
+                                     // Limits::rate_walk_rad_s
     bool pose_armed = false;         // takeover ramp finished
     bool imu_valid = false;          // fresh, finite attitude this tick
     const float* up = nullptr;       // torso z axis in the world (imu::Sample::up)
@@ -205,6 +213,11 @@ class WalkRecovery {
     bool graceJustEnded();
     uint32_t sinceMs() const { return since_ms_; }   // since the recovery began
     bool used() const { return active_; }
+    // A walk/step command now or within recent_ms, with no recovery engaged: the
+    // flail guard judges rate against Limits::rate_walk_rad_s.
+    bool walkingRecent() const {
+        return !active_ && quiet_ms_ != UINT32_MAX && quiet_ms_ <= C_.recent_ms;
+    }
     const Config& config() const { return C_; }
 
   private:

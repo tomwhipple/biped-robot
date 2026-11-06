@@ -1525,8 +1525,9 @@ void cmdFlail(Sink out, int argc, char** argv) {
         static_cast<unsigned long>(WC.grace_ms));
     say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
         static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
-    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s\r\n", static_cast<double>(L.rate_tau_s),
-        static_cast<double>(L.rate_rad_s));
+    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s (walking: > %.2f)\r\n",
+        static_cast<double>(L.rate_tau_s), static_cast<double>(L.rate_rad_s),
+        static_cast<double>(L.rate_walk_rad_s));
     say(out, "  tilt    > %.0f deg for %lu ms (the fall guard, limp, stays at 45)\r\n",
         static_cast<double>(L.tilt_deg), static_cast<unsigned long>(L.tilt_hold_ms));
     say(out, "  chatter mean |d raw target/dt| EMA(%.1f s) > %.1f rad/s\r\n", static_cast<double>(L.chatter_tau_s),

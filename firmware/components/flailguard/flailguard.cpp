@@ -106,7 +106,8 @@ Trip Detector::update(const Input& in, uint32_t dt_ms) {
                               in.gyro[2] * in.gyro[2]);
         rate_ema_ = ema(rate_ema_, w, L_.rate_tau_s, dt_ms);
         if (rate_ema_ > peak_rate_) peak_rate_ = rate_ema_;
-        if (hit == Trip::kNone && (L_.criteria & kCritRate) && rate_ema_ > L_.rate_rad_s) {
+        if (hit == Trip::kNone && (L_.criteria & kCritRate) &&
+            rate_ema_ > (in.walking ? L_.rate_walk_rad_s : L_.rate_rad_s)) {
             hit = Trip::kRate;
             hit_value = rate_ema_;
         }

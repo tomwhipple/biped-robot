@@ -757,6 +757,7 @@ void ctrlTask(void*) {
                             fabsf(lift) < 0.5f && fabsf(cmd_at(3, 1.0f) - 1.0f) <= 0.05f &&
                             fabsf(cmd_at(5, 0.0f)) <= 0.005f && fabsf(cmd_at(6, 0.0f)) <= 0.005f;
             fin.pose_armed = g_ramp_ticks >= kArmRampTicks;
+            fin.walking = g_walkrec.walkingRecent();
             fin.imu_valid = s.valid;
             fin.up = s.up;
             fin.gyro = s.gyro;
