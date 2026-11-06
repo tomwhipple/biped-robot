@@ -107,6 +107,9 @@ Verdict Guard::requestOn() {
     if (!have_sample_) return Verdict::kNoReading;
     if (pressed_) return Verdict::kEstopPressed;
     if (latched_) return Verdict::kEstopLatched;
+    if (cmdr_estop_ && now_ms_ - cmdr_estop_ms_ < kCommanderEstopHoldMs) {
+        return Verdict::kCommanderEstop;
+    }
     if (fault_ == Fault::kStuck) return Verdict::kStuckFault;
     if (!rail_valid_) return Verdict::kNoReading;
     if (rail_mv_ >= kRailOnMv) return Verdict::kRailStillUp;
@@ -124,6 +127,13 @@ void Guard::drop(DropWhy why) {
     last_drop_ = why;
     rise_cand_ = false;
     lost_cand_ = false;
+}
+
+void Guard::commanderFrame(bool estop) {
+    cmdr_estop_ = estop;
+    if (!estop) return;
+    cmdr_estop_ms_ = now_ms_;
+    drop(DropWhy::kLinkEstop);
 }
 
 void Guard::disabledCommand() {
@@ -181,6 +191,7 @@ const char* verdictName(Verdict v) {
         case Verdict::kStuckFault: return "STUCK RAIL fault: K1 may be welded (`rail`, `rail clear`)";
         case Verdict::kRailStillUp: return "the rail is still discharging: try again in a few seconds";
         case Verdict::kNoReading: return "no RAIL_V reading";
+        case Verdict::kCommanderEstop: return "the commander is sending ESTOP: release it there first";
     }
     return "?";
 }

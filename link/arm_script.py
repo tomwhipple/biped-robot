@@ -251,7 +251,8 @@ class Driver:
             self.run_for(1.0, lambda t: (0.0, 0.0, 0), "home: slew + hip wiggle + readback")
             r = diag_arm_result(self.tlm.diag) if self.tlm is not None else None
             if r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NOT_REACHED,
-                     ArmResult.HOME_NO_CAL, ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED):
+                     ArmResult.HOME_NO_CAL, ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
+                     ArmResult.RAIL_DOWN):
                 break
         print(f"== {label} verdict: {r}", flush=True)
         if r is not ArmResult.DISARMED_HOME:

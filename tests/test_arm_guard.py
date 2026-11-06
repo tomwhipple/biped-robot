@@ -10,6 +10,7 @@ import os
 import select
 import socket
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -17,8 +18,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "link"))
 
 import arm_script                                               # noqa: E402
-from protocol import (NUM_JOINTS, TLM_LEN_EXT_ATT, LinkState,  # noqa: E402
-                      Telemetry, encode_telemetry)
+from protocol import (DIAG_ARM_SHIFT, FLAG_HOME, NUM_JOINTS,  # noqa: E402
+                      TLM_LEN_EXT_ATT, ArmResult, LinkState, Telemetry,
+                      encode_telemetry)
 
 
 @pytest.fixture
@@ -73,6 +75,15 @@ def test_benched_fault_bits_are_not_judged(driver):
     """A benched beacon repeats a stale snapshot; 0xff there means nothing."""
     for i in range(5):
         assert beacon(driver, LinkState.BENCH, servo_err=0xFF, seq=i) is None
+
+
+def test_a_refused_reset_does_not_wait_out_the_clock(driver, monkeypatch):
+    """Power lite: a reset the rail refused ends on RAIL_DOWN, not 16 s later."""
+    calls = []
+    monkeypatch.setattr(driver, "run_for", lambda dur, fn, label: calls.append(label))
+    driver.tlm = SimpleNamespace(diag=ArmResult.RAIL_DOWN.value << DIAG_ARM_SHIFT)
+    assert driver.home_and_release(FLAG_HOME) is ArmResult.RAIL_DOWN
+    assert len(calls) == 3   # the edge, one second's wait, the ESTOP fallback
 
 
 def test_a_pose_and_attitude_beacon_reaches_the_guard(driver):

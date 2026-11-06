@@ -407,8 +407,18 @@ void ctrlTask(void*) {
             if constexpr (rail::kFitted) {
                 // The E-stop latch's way out, as Watchdog::accept's is.
                 if (!msg.cmd.enabled() && !msg.cmd.arm() && !msg.cmd.estop()) rail::disabledFromCtrl();
+                // Benched, the watchdog below never sees this frame. A rail powered for
+                // `rail on` or a home still has to go on the console's E-stop.
+                rail::commanderFrame(msg.cmd.estop());
             }
-            if (g_arm.update(msg.cmd.flags, want_armed)) {
+            bool arm_edge = g_arm.update(msg.cmd.flags, want_armed);
+            if constexpr (rail::kFitted) {
+                if (arm_edge && railguard::armEdgeRefused(want_armed, msg.cmd.estop())) {
+                    g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kRailDown));
+                    arm_edge = false;
+                }
+            }
+            if (arm_edge) {
                 g_link_arm_level.store(want_armed);
                 g_link_arm_edges.fetch_add(1);
             }

@@ -223,9 +223,18 @@ void dropFromCtrl(railguard::DropWhy why) {
 
 void disabledFromCtrl() { g_guard.disabledCommand(); }
 
+void commanderFrame(bool estop) {
+    g_guard.commanderFrame(estop);
+    if (estop) driveAndPublish();
+}
+
 railguard::Verdict requestOn() {
     uint8_t answer = 0;
     if (!awaitAck(post(Op::kOn, railguard::DropWhy::kNone), answer)) {
+        // The caller is about to report a refusal, so a late request must not close K1.
+        // g_req holds one word: this replaces the request if ctrl has not read it yet,
+        // and undoes it on the next tick if ctrl read it just now.
+        post(Op::kOff, railguard::DropWhy::kDisarm);
         return railguard::Verdict::kNoReading;
     }
     return static_cast<railguard::Verdict>(answer);

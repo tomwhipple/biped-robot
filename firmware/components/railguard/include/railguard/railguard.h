@@ -99,6 +99,10 @@ constexpr uint32_t kEstopReleaseMs = 100;
 // The welded-contact check: see above.
 constexpr uint32_t kStuckMs = 8000;
 constexpr uint16_t kStuckDecayMv = 150;
+// A commander's ESTOP frame refuses the rail until its next frame without the flag,
+// or until this long has passed with no frame at all: a console that held ESTOP and
+// went away must not lock the tether out of `rail on` for good.
+constexpr uint32_t kCommanderEstopHoldMs = 500;
 
 enum class State : uint8_t {
     kOff = 0,       // SERVO_EN low
@@ -135,6 +139,7 @@ enum class Verdict : uint8_t {
     kStuckFault = 3,    // Fault::kStuck stands: clearFault() after looking at K1
     kRailStillUp = 4,   // still discharging from the last drop: try again shortly
     kNoReading = 5,     // no sample yet, or the ADC read failed
+    kCommanderEstop = 6,  // the commander is sending ESTOP: it has to let go first
 };
 
 struct Sample {
@@ -158,6 +163,11 @@ class Guard {
     // A disabled command arrived: clears the E-stop latch if the toggle is back at
     // RUN, and otherwise does nothing. It never powers the rail.
     void disabledCommand();
+
+    // Every valid frame from the commander, in every mode. ESTOP set: SERVO_EN low
+    // now (kLinkEstop), and requestOn() refuses while it stays set. It latches nothing
+    // here: the flag is a level, and the commander's next frame without it ends this.
+    void commanderFrame(bool estop);
 
     // Clear a fault. Refused (false) while Fault::kStuck's rail is still up.
     bool clearFault();
@@ -198,6 +208,9 @@ class Guard {
     bool stuck_cand_ = false;
     uint16_t stuck_low_mv_ = 0;
     uint32_t stuck_since_ = 0;
+
+    bool cmdr_estop_ = false;
+    uint32_t cmdr_estop_ms_ = 0;
 };
 
 // Why the armed loop went limp: the same ranking as ctrl_task's safety block (the
@@ -208,6 +221,11 @@ constexpr DropWhy limpWhy(bool batt_safe, bool fallen, bool relax) {
            : relax   ? DropWhy::kLinkRelax
                      : DropWhy::kLinkEstop;
 }
+
+// An ARM edge in a frame that also says ESTOP is no request for power: the consoles
+// send ARM | ESTOP to release torque. It is refused, not delayed: the commander's ARM
+// level stands, so arming after this takes ARM low and a fresh edge.
+constexpr bool armEdgeRefused(bool want_armed, bool estop) { return want_armed && estop; }
 
 const char* stateName(State s);
 const char* dropName(DropWhy w);
