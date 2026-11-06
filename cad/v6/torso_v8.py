@@ -94,10 +94,10 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 
 from build123d import (Axis, Cone, Pos, Rectangle, Rot, chamfer, export_step,  # noqa: E402
                        export_stl, extrude, fillet, loft)
-import dimensions as D  # noqa: E402
+from common import dimensions as D  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as P  # noqa: E402
-import check_assembly as CA  # noqa: E402
+from common import shapes as P  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 box, cyl_x, cyl_y, cyl_z = P.box, P.cyl_x, P.cyl_y, P.cyl_z
@@ -1614,7 +1614,7 @@ def _expected(name, kind, desc):
 
 
 def audit(name, stl_path):
-    import check_printability as CP
+    from common import check_printability as CP
     CP.STL = os.path.dirname(stl_path)
     CP.ORIENT[name] = (np.array(PRINT_ORIENT[name]), "torso_v8 piece, no supports")
     CP.PRINT_STL[name] = os.path.basename(stl_path)

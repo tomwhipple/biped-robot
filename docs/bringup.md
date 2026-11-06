@@ -11,10 +11,10 @@ assembled robot to a first armed run. The references it uses:
 The firmware carries the robot's 17-servo bus (the ID map,
 [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)): `cal`,
 `pose`, `home`, `ping` and the gain check cover all 17, and touch only the
-servos the calibration marks fitted. The compiled policy drives the
-prototype's 10 joints. On the robot, the IMU check scripts in `tools/` still
-hard-code the prototype's calibration, and the leg rows of the mechanical
-envelope are the prototype's until they are probed on the robot (§3).
+servos the calibration marks fitted. The compiled policy drives the v6 legs'
+12 joints. The IMU check scripts in `tools/` still hard-code the earlier
+prototype's calibration, and the leg rows of the mechanical envelope are the
+v6 legs plant's policy range (§3).
 
 **Bench safety.** The rules are in [AGENTS.md](../AGENTS.md#bench-safety). Read
 them before a session. Two of them are procedure, and every step below assumes them:
@@ -144,7 +144,7 @@ There are two mechanisms, and they are not interchangeable (`cli.cpp`, "calibrat
 
 `run` and `home` refuse while the calibration is missing, or was measured under
 another servo map; `run` also refuses while a joint the policy drives is not
-fitted. A prototype calibrated before the 17-servo port boots with
+fitted. A board calibrated before the 17-servo port boots with
 `cal: migrated v2 -> v3`: its values carry over, IDs 1–10 fitted.
 
 ### Directions
@@ -191,7 +191,7 @@ screwed into the torso. Measure it on the robot; do not reuse another mounting.
    - Pass: the gyro integral within 0.5° and `up` within 0.02 of the sim, on the same ankle, hip and knee leans.
 
 These scripts **command poses** (`home`, `pose`), so the robot moves. They also
-hard-code the prototype's calibration table and `/dev/ttyUSB0`; porting them is part
+hard-code the earlier prototype's calibration table and `/dev/ttyUSB0`; porting them is part
 of the open port.
 
 ### Clock and link

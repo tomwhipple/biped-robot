@@ -1,9 +1,6 @@
-"""Standalone printability + interface audit runner for leg_link_v6, per
-docs request: run cad/check_printability.py's audit on the STL, injecting
-leg_link_v6's ORIENT/PRINT_STL entries into it AT RUNTIME (v5's own
-check_printability.py is never edited -- its ORIENT/PRINT_STL/STL globals
-are only monkey-patched in this process, same trick leg_link_v6.run_audits
-uses internally).
+"""Standalone printability + interface audit runner for leg_link_v6: exports
+the STL and runs leg_link_v6.run_audits, which registers the part's
+ORIENT/PRINT_STL entries with cad/common/check_printability.py and audits it.
 
     .venv/bin/python cad/v6/audit_leg_link.py
 """

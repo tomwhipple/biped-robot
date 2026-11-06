@@ -1,12 +1,9 @@
 """Printability (filament-sag) audit: every part, in its PRINT orientation.
 
-Motivated by the first foot print: the TPU-pad recess ceiling bridged 46 mm
-and drooped badly in PETG, and nothing in the pipeline would have caught it --
-check_assembly.py proves parts don't collide, not that they print. This closes
-that gap: it loads each exported STL, rotates it into the orientation it is
-actually printed in (its ORIENT table; cad/v6's audits patch in the robot's
-parts), and hunts for
-geometry a PETG print will sag or fail on:
+The interference checks prove parts don't collide, not that they print. This
+loads each exported STL, rotates it into the orientation it is actually
+printed in (its ORIENT entry), and hunts for geometry a PETG print will sag or
+fail on:
 
 Down-facing facet clusters (steeper than 45 deg, above the first layer) are
 classified by how their surroundings support them (perimeter ray test):
@@ -24,100 +21,44 @@ classified by how their surroundings support them (perimeter ray test):
            inward ray from each facet) -> prints as a single strand, breaks
            (the foot v3 cable window once left a 0.8 mm boolean sliver)
 
-Run:  .venv/bin/python cad/check_printability.py          # all parts
-      .venv/bin/python cad/check_printability.py foot     # one part
-
-Exit code 1 if any finding exceeds the FAIL thresholds, so it can gate like
-check_assembly.py. Thresholds are PETG-tuned: short bridges (<= 8 mm) print
+A library: each part registers its print orientation (ORIENT, PRINT_STL,
+SUPPORTED) and calls audit(name), which returns the findings that exceed the
+FAIL thresholds -- cad/v6/audit_torso.py, audit_ankle_foot.py and the part
+modules' own audits. Thresholds are PETG-tuned: short bridges (<= 8 mm) print
 fine with 3 perimeters; bore tops <= 5 mm are noted (teardrop them) but only
 fail if wider.
 """
 import os
 import struct
-import sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-STL = os.path.join(HERE, "stl")
+STL = os.path.join(HERE, "..", "v6", "stl")
 
 # print orientation: model -> print transform (rows = print axes in model coords)
 RX180 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], float)
 RY_XUP = np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float)   # model +X -> print +Z
 IDENT = np.eye(3)
-# "WALL" orientation for the hip clevises (2026-07-30). Both yokes were
-# printed flange-down with the arms rising as vertical columns, which lays the
-# layer lines ACROSS the arm -- and a cantilevered arm carries its bending load
-# as tension ALONG the arm, i.e. straight through the interlayer bond. They
-# kept snapping mid-arm. Stand them on edge instead, so the arm length lies in
-# the bed plane and that tension runs along the filament.
-#
-# The control case is leg_link, which has a far longer arm and a thinner
-# mid-span and has never broken: it prints RY_XUP, web face on bed. yoke_pitch
-# grips the same servo the same way (straddle along model Y, arm along model
-# Z), so it gets the SAME transform -- if leg_link survives this load path in
-# this orientation, so should the shorter yoke.
+# on edge: model +Y -> print +Z (the hip clevises print as walls, the arm
+# length in the bed plane so its bending tension runs along the filament)
 RY_ROLL_WALL = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)  # model +Y -> print +Z
-# RY_XUP's mirror image: model +X -> print -Z, i.e. the part is laid on its
-# +x face. Added for v5's board_frame (bulkhead flat, forward face down); that
-# part was folded into pelvis() in v6 so nothing uses it right now. Kept because
-# it is the missing member of the six axis-aligned orientations and the next
-# x-normal plate will want it.
+# RY_XUP's mirror image: model +X -> print -Z (laid on its +x face)
 RY_XDOWN = np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float)
 
-ORIENT = {
-    # name: (rotation, note)  -- keep in sync with parts.PARTS
-    "pelvis": (RX180, "upside down: deck top on bed"),
-    "yaw_carrier": (RX180, "horn-plate face on bed, bay walls rise"),
-    "yoke_roll": (RY_ROLL_WALL, "WALL: on edge, arms along the bed + supports"),
-    "yoke_pitch": (RY_XUP, "WALL: on its back like leg_link + supports, brim"),
-    "leg_link": (RY_XUP, "on its back: web face on bed"),
-    "foot": (IDENT, "sole down"),
-    # v6 torso (2026-08-04): battery_tray and board_frame are GONE -- folded
-    # into pelvis(), which now prints the battery bay, the board recess and the
-    # gopro pad in one part. gopro_base comes BACK into the default set: the
-    # camera is on the robot again (bolted straight to the deck, no tower), and
-    # it is the one bolt-on left, so it has to be audited like any other part.
-    # Its orientation is the tower-era one and is unchanged -- base down, prongs
-    # up is the proven, standard orientation for a printed GoPro mount.
-    "gopro_base": (IDENT, "base down, prongs up"),
-}
-
-# RETIRED: tower and imu_carrier left parts.PARTS in v4 and have not come back
-# (gopro_base did, in v6 -- it is in the live set above). parts.py no longer
-# exports their STLs and they must not gate the build -- an audit that fails on
-# a part nobody prints is a stalled gate, not a finding. Kept addressable by
-# name (`check_printability.py tower`) for anyone re-printing an old STL.
-LEGACY_ORIENT = {
-    "tower": (RX180, "LEGACY: upside down, top plate on bed"),
-    "imu_carrier": (IDENT, "LEGACY: flat on bed, bosses up"),
-}
+# name: (rotation, note) -- what each part's own module registers before it
+# calls audit(); the part modules and cad/v6/audit_*.py fill these in.
+ORIENT = {}
 
 # what actually goes to the slicer, where that differs from <name>.stl
-PRINT_STL = {"leg_link": "leg_link_print.stl",
-             "yaw_carrier": "yaw_carrier_print.stl"}
+PRINT_STL = {}
 
 # Parts printed WITH SLICER SUPPORTS. For these, overhang findings and the
 # first-layer CONTACT floor are reported but do NOT fail the gate: the slicer
 # puts material under the overhangs and its support pillars land on the bed
-# alongside the part.
-#
-# This exists because the alternative was worse. Both yokes used to carry
-# modelled break-away fins whose only job was to satisfy THIS FILE -- full
-# plate width so the perimeter ray-down would not read ISLAND, plus anchor tabs
-# every 11 mm so it would not read BEAM. The tabs were built 0.3 mm below the
-# bed plane, which floated the flange and cut the real first layer to 14 % of
-# the part's own footprint (user, 2026-07-30: "the feet have extra pads on them
-# which screwed up the whole base"). An audit that cannot express "a support
-# sits 0.35 mm under this" should say so, not be gamed with geometry that ships
-# to the printer.
-#
-# It is NOT a blanket pass: thin walls, bores and everything else still fail
-# normally, because supports do not fix those.
-SUPPORTED = {
-    "yoke_roll": "supports on (arm plates + pad rims start in mid-air)",
-    "yoke_pitch": "supports on + brim (32 mm tall on a 175 mm2 flange edge)",
-}
+# alongside the part. It is NOT a blanket pass: thin walls, bores and
+# everything else still fail normally, because supports do not fix those.
+SUPPORTED = {}
 SUPPORT_WAIVES = ("ISLAND", "LEDGE", "CEILING", "BEAM", "CONTACT")
 
 COS45 = np.cos(np.radians(45.0))          # facet is a >45 deg overhang if
@@ -259,7 +200,7 @@ def _sides_anchored(ring, sx, sy, tris, depth):
 
 
 def audit(name, verbose=True):
-    rot, note = ORIENT.get(name) or LEGACY_ORIENT[name]
+    rot, note = ORIENT[name]
     fname = PRINT_STL.get(name, name + ".stl")
     tri = load_stl(os.path.join(STL, fname)) @ rot.T
     tri[:, :, 2] -= tri[:, :, 2].min()
@@ -402,24 +343,3 @@ def audit(name, verbose=True):
     if not findings:
         print("  PASS")
     return findings
-
-
-def main():
-    names = sys.argv[1:] or list(ORIENT)
-    bad = {}
-    for name in names:
-        f = audit(name)
-        if f:
-            bad[name] = f
-    print()
-    if bad:
-        print("SAG RISKS FOUND:")
-        for name, fs in bad.items():
-            for kind, a, desc in fs:
-                print(f"  {name:11s} {kind:8s} {desc}")
-        sys.exit(1)
-    print("ALL PARTS PRINT CLEAN (in their listed orientations)")
-
-
-if __name__ == "__main__":
-    main()

@@ -18,11 +18,11 @@ with torque released, arms over the radio or the USB tether, and runs the
 `main/mech_envelope.h`, `pose`/`home`, the gain check, the telemetry joint
 block and the SIL arrays are all 17 wide. The **policy** is what the compiled
 network observes and commands, from the generated `obs_spec.h`: the
-prototype's 10 joints (`kNumJoints = 10`,
-`kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}` — the v6 legs' IDs as assembled, plant
-`sim/bimo_biped_v5body.xml`), policy `loco_v41rsi_b_s128r24`. The loop drives
-the policy's joints and holds every other fitted servo; the prototype's
-calibration marks IDs 11–17 not fitted
+v6 legs' 12 joints (`kNumJoints = 12`,
+`kServoId = {9, 51, 2, 3, 4, 12, 10, 52, 6, 7, 8, 11}`, plant
+`sim/bimo_biped_v6legs.xml`), policy `robot_legs_walk16_act_s128r24`. The loop drives
+the policy's joints and holds every other fitted servo; the legs-only robot's
+calibration marks the neck and arms (IDs 13–17) not fitted
 ([docs/firmware-design.md](../docs/firmware-design.md) §5.8).
 
 ## Build and flash
@@ -203,7 +203,7 @@ because a flash write stalls the control tick.
 | `id <old> <new>` | assign a servo ID (EEPROM; one servo on the bus) |
 | `pos <id>` | position, speed, load, voltage, temperature, faults |
 | `move <id> <ticks> [ms] [steps/s]` | one servo; 2048 = middle, 4096 ticks/rev; clamped to the mechanical envelope |
-| `pose <17 ticks> [...]` / `pose <10 ticks> [...]` | 17 targets in servo-ID order (every bus servo), or 10 in policy order (the prototype's tools); unfitted servos ignored; streamed as a smooth minimum-jerk move by default |
+| `pose <17 ticks> [...]` / `pose <10 ticks> [...]` | 17 targets in servo-ID order (every bus servo), or the policy's joints in policy order; unfitted servos ignored; streamed as a smooth minimum-jerk move by default |
 | `trace` | dump the per-servo trace recorded during the last `pose` stream |
 | `reg <id> <addr> [1\|2]` | read a servo register |
 | `gains [id [P D]]` | position-loop P/D (registers 21/22): no id checks every driven servo against `main/servo_gains.h` (the arm gate); `<id>` reads one; `<id> <P> <D>` writes one, only with its torque off (EEPROM unlock, write, lock, read back; no goal) |

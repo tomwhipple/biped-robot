@@ -75,12 +75,11 @@ echo ">>> endpoint saved to infra/runpod/.last_pod"
 
 echo "=== syncing code ==="
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
-  "$REPO/sim/mjx" "$REPO/sim/walker_env.py" "$REPO/sim/bimo_biped_v2.xml" \
-  "$REPO/sim/bimo_biped_v2_asbuilt.xml" \
+  "$REPO/sim/mjx" "$REPO/sim/walker_env.py" "$REPO/sim/meshes" "$REPO"/sim/bimo_biped_v6*.xml \
   "root@$IP:/root/robot/sim/" --rsync-path="mkdir -p /root/robot/sim && rsync"
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
-  "$REPO/cad/stl" "root@$IP:/root/robot/cad/" \
-  --rsync-path="mkdir -p /root/robot/cad && rsync"
+  "$REPO/cad/v6/stl" "root@$IP:/root/robot/cad/v6/" \
+  --rsync-path="mkdir -p /root/robot/cad/v6 && rsync"
 
 echo "=== installing deps in a venv (system python is PEP-668-managed) ==="
 ssh_t 900 "${SSH_BASE[@]}" -p "$PORT" "root@$IP" \

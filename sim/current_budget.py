@@ -36,7 +36,7 @@ Two modes (issue #77):
 
 Run:  .venv/bin/python sim/current_budget.py --trace walk
       .venv/bin/python sim/current_budget.py --trace getup
-      .venv/bin/python sim/current_budget.py --run loco_v5t [--episodes 4]
+      .venv/bin/python sim/current_budget.py --run <run> [--episodes 4]
 """
 from __future__ import annotations
 import argparse
@@ -72,8 +72,7 @@ PORT_A_IDS = {52, 6, 7, 8, 10, 11, 13, 14, 15}   # R leg, neck, R arm
 PORT_B_IDS = {51, 2, 3, 4, 9, 12, 16, 17}        # L leg, L arm
 
 # Sim actuator name -> servo ID under the bus map. The 12 leg joints and the
-# extras appear here exactly once each; the 10-joint prototype resolves by the
-# same names.
+# extras appear here exactly once each.
 NAME_TO_ID = {
     "R_hip_roll": 52, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
     "L_hip_roll": 51, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
@@ -279,7 +278,7 @@ def run_policy_budget(args):
     run_dir = os.path.join(RUNS, args.run)
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
-    xml = os.path.join(HERE, cfg.get("xml_path", "bimo_biped_v3yaw.xml"))
+    xml = os.path.join(HERE, cfg.get("xml_path", "bimo_biped_v6ar.xml"))
     env = make_env(cfg, episode_seconds=10.0, nominal=False, xml=xml)
     act = load_policy(run_dir, obs_size=env.observation_space.shape[0],
                       act_size=env.action_space.shape[0])

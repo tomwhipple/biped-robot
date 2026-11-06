@@ -1,9 +1,9 @@
 """Render the failsafe figure for docs/control-channel.md.
 
-Run:  .venv/bin/python sim/render_link_demo.py --run-name cmd_11v1
-Writes build/v5/renders/control-channel-failsafe.png (the run plays on the
-prototype plant); the doc's copy, docs/control-channel-failsafe.png, is
-refreshed by hand.
+Run:  .venv/bin/python sim/render_link_demo.py --run-name <run>
+Writes build/v6/renders/control-channel-failsafe.png (the run plays on its own
+plant); the doc's copy, docs/control-channel-failsafe.png, is refreshed by
+hand.
 
 Drives sim/udp_agent.py with a real commander over a real UDP socket, kills
 the commander mid-stride, and lays out the frames as a filmstrip labelled by
@@ -42,9 +42,9 @@ def _band(state, w, h=14):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--run-name", default="cmd_11v1")
+    p.add_argument("--run-name", required=True)
     p.add_argument("--out", default=os.path.join(
-        paths.BUILD, "v5", "renders", "control-channel-failsafe.png"))
+        paths.BUILD, "v6", "renders", "control-channel-failsafe.png"))
     p.add_argument("--walk-s", type=float, default=6.0)
     p.add_argument("--duration", type=float, default=24.0)
     p.add_argument("--tmp", default="/tmp")

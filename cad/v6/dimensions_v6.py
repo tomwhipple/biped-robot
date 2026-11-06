@@ -20,7 +20,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import dimensions as D  # noqa: E402  (v5 -- servo truth, walls, fits, screws)
+from common import dimensions as D  # noqa: E402
 
 # ----------------------------------------------------------------------------
 # servos
@@ -442,7 +442,7 @@ assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 
 # and the leg's upward thrust reaches the inner race on a face (the housing
 # shoulder takes it off the outer race's top face). Its reach off the hub as
 # modelled (0.90) stays under what a ledge prints with no support, horn plate
-# on the bed (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1
+# on the bed (cad/common/check_printability.py LEDGE_OK, 1.2); it stays inside d1
 # (the seal), and is thin enough for the upper idler-side roll-screw driver to
 # pass under. It carries no print allowance: printed as small as the hub
 # would, it still reaches 0.6 past the bore chamfer.
@@ -1175,9 +1175,9 @@ ARM_REST = (ARM_REST_SHOULDER, ARM_REST_ELBOW)
 
 # --- the arm links --------------------------------------------------------
 # Section: an open C -- back web + two side rails, opening FORWARD (+x), like
-# leg_link_v6 and for the same reason: it prints on its back (model +X up, v5
-# leg_link's proven "the filament runs the length of the leg" orientation, the
-# control case in cad/parts.py's yoke_roll comment), and in that orientation a
+# leg_link_v6 and for the same reason: it prints on its back (model +X up, the
+# leg link's proven "the filament runs the length of the leg" orientation),
+# and in that orientation a
 # front plate is a flat ceiling spanning the full tine-to-tine width. The load
 # that matters here is bending in the sagittal plane, which the C carries in
 # its rails; peak measured joint torque is 1.59 N-m (shoulder) / 1.18 (elbow).

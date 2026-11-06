@@ -6,9 +6,10 @@ evidence behind these numbers are in [docs/design-v6/](docs/design-v6/README.md)
 the project's earlier history is in [docs/archive/](docs/archive/README.md).
 
 **State:** the CAD is complete and passes its swept-ROM interference gate
-(armless and with arms); the design passes simulation Gates A–D under the
-servo plan below. Nothing has been printed or bought. The first step is a bench
-measurement on one servo (issue #73), which gates the servo purchase.
+(armless and with arms); the design passes simulation Gates A–D with the servo
+set below. The servos are bought and the legs are built (12 leg servos and the
+control board); a trained legs policy runs on the ESP32 and holds the robot
+standing (§11). The pack, Pi, head, neck and arms are not yet on it.
 
 ![The robot as drawn (front 3/4, side, front)](docs/img/assembly_v6_arms.png)
 
@@ -20,14 +21,14 @@ head camera for navigation. Walking and get-up come from the body and an
 open-loop gait first; a learned policy comes last, once the hardware has shown
 its margins.
 
-Each requirement traces to a measurement on the earlier 10-joint prototype
+Each requirement traces to a measurement on the earlier prototype
 (see [lessons learned](docs/archive/2026-09-13-lessons-learned-walking.md)):
 
 | | requirement | how the design meets it |
 |---|---|---|
 | R1 | A **static single-foot stance** must exist, with margin | ankle roll: a 6th joint per leg (Gate A: 30 mm CoM margin on one foot) |
 | R2 | Margins are measured on the body **before any policy** | Gates A–D in simulation, then the same open-loop script on the bench; the policy (Gate E) is last |
-| R3 | The **roll chains must be stiff** | every roll joint double-supported (horn + idler); servo stiffness is the one gated assumption (§4) |
+| R3 | The **roll chains must be stiff** | every roll joint double-supported (horn + idler); servo stiffness measured on the bench and on the legs (§4) |
 | R4 | **Speed and torque margin** under load: ≥ 2× speed, ≥ 1.5× torque at 11.1 V | met at the design cadence (§8) |
 | R5 | Contact realism made adversarial | every gate runs μ 0.3–1.0, full self-collision, free play on the rolls, and the deployed actuation chain |
 | R6 | An onboard computer and camera | Raspberry Pi 4B in the torso, Camera Module 3 Wide in a head on a neck servo |
@@ -39,7 +40,7 @@ Each requirement traces to a measurement on the earlier 10-joint prototype
 | | |
 |---|---|
 | joints | **17**: per leg hip yaw, hip roll, hip pitch, knee, ankle pitch, ankle roll (12); neck yaw (1); per arm shoulder pitch, elbow (4) |
-| servos | 15 × Feetech STS3215 (12 V, ST-3215-C018), with a raised position-loop gain on the ankle rolls and knees, and 2 × STS3250 at the hip rolls (§4) |
+| servos | 15 × Feetech STS3215 (12 V, ST-3215-C018) and 2 × STS3250 at the hip rolls, all at the factory position-loop gains (§4) |
 | height | deck top 465 mm, camera 534 mm, head top 560 mm |
 | mass | ≈ 2.48 kg as drawn (§7), the cap's two toggles not weighed |
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
@@ -101,17 +102,20 @@ horn and screw rows, +19.5 g, and ≈ 4× the STS3215's stiffness in the model.
 The walk and get-up are limited by **roll-chain compliance, not torque or
 speed**: under single-support load a soft hip or ankle roll sags, the pelvis
 drifts toward the swing side, and the closed chain springs it outward at
-touchdown. With stock STS3215s at the rolls and knees the design walks 0/4
+touchdown. With the model's base STS3215 (1×) at the rolls and knees the design walks 0/4
 gate cases and gets up 0/12 (`docs/design-v6/no3250_*.txt`). Nothing that
 leaves joint stiffness alone moves that — cadence, lift, CoM aim, landing
 offsets, a lighter torso or shorter legs.
 
-**The plan: STS3250s at the hip rolls, and a raised position-loop P
-(register 21, default 32) on the ankle-roll and knee STS3215s.** The bench
-(#73, [experiments/plan-b-bench/](experiments/plan-b-bench/README.md)) found
-P 96 / D 0 the smoothest high-gain setting at walking speeds, at ≈ 2.8× the
-stock stiffness; P 128 (≈ 3.5×) shakes more, and P 160 (≈ 4.8×) limit-cycles
-under a rigid inertia. With the tuned STS3215s at 2.8×, the extra stiffness
+**The servo set: STS3250s at the hip rolls, and every servo at the factory
+position-loop gains (P / D 32 / 32).** The model's servo (kp 12 N·m/rad) is
+soft for a real one: an STS3215 at P 32 measured 34 ± 3 N·m/rad on the bench
+(≈ 2.8×, [experiments/plan-b-bench/](experiments/plan-b-bench/README.md)), and
+the legs' one-leg lift puts the stance roll encoders where the model does at
+2.8× (STS3215) and 4× (STS3250) ([docs/servo-map.md](docs/servo-map.md) §4).
+Raising P buys little: P 96 / D 0 was the STS3215's smoothest high gain on the
+bench, P 128 shakes more, P 160 limit-cycles under a rigid inertia, and the
+STS3250 limit-cycles from P 96. With the STS3215s at 2.8×, the extra stiffness
 matters at the hip rolls, and two STS3250s there match the six-STS3250
 assignment (design record §14.4a; on the robot's plant with the arms,
 `docs/design-v6/no3250_mixsweep28_arms_bearingA.txt` and
@@ -130,14 +134,14 @@ The plant builder gives the sweep one servo mass for all six roll and knee
 places, so a mixed set runs on the 55 g plant and is bracketed by the 74.5 g
 one. The model does not represent the bench's sweep roughness at P ≥ 96.
 
-**What raising P buys, in the model.** The walk loads (≤ 1.2 N·m, under 45 %
+**What stiffness buys, in the model.** The walk loads (≤ 1.2 N·m, under 45 %
 of stall) sit in the servo's linear region, so P raises static stiffness
 roughly in proportion. At P × 4 on rolls and knees, above what the bench could
 hold smoothly, the STS3215 matches the STS3250 case for case:
 
 | | walk, CAD plant (4 cases) | adversity matrix (18 × 3 seeds) | walk with arms (5 cases) | get-up, as drawn |
 |---|---|---|---|---|
-| stock STS3215 | 0/4 | 0/18 | 0/5 | 0/12 |
+| STS3215 at 1× | 0/4 | 0/18 | 0/5 | 0/12 |
 | **P × 4, rolls + knees** | **4/4**, CoM margin 7.5–12.2 mm, clearance 15–20 mm | **15/18** | **4/5** | **robust 6/6** |
 | P × 3, rolls + knees, ≤ 1° roll play | 4/4, margin 14.1–14.7 mm | — | — | — |
 | STS3250 at rolls + knees | 4/4 | 15/18 | 5/5 | robust 6/6 |
@@ -147,11 +151,10 @@ Envelope under P × 4 at the design cadence: torque margins 2.7× (hip roll),
 under the 2× speed rule at a 1.2 s swing (1.7×), so **the gait keeps a ≥ 1.6 s
 swing**. Torque is not what binds: "servos −30 %" still passes.
 
-**Still to measure:** the STS3250's ≈ 4× is a third-party figure that the
-model adopts. The two on order go on the #73 rig first, for a direct comparison
-with the STS3215 data, and the per-ID P/D table follows from that. If they fall
-short, the fallbacks in order are the I term (register 23), one STS3235 (same
-case, metal gears) to see whether the gears are what is soft, the ST-3025
+The STS3250's 4× rests on the hip-roll encoder in the one-leg lift; its
+stiffness was not measured with the bench's loads. If a joint proves too soft,
+the fallbacks in order are the I term (register 23), one STS3235 (same case,
+metal gears) to see whether the gears are what is soft, the ST-3025
 (brushless, different case: a CAD redo), and last a Dynamixel XC430 (new bus
 and board). Verified STS3250 sources and its Model_Number (2825) are in
 [docs/bom.md](docs/bom.md).
@@ -159,12 +162,11 @@ and board). Verified STS3250 sources and its Model_Number (2825) are in
 The gain is a register, so it can silently revert: a factory reset or a
 swapped spare comes back at 32 and the robot falls at its first crossover. The
 firmware reads registers 21/22 at boot and before every arm and refuses to arm
-on a mismatch with its per-ID table, which is recorded in
-[docs/servo-map.md](docs/servo-map.md) §4 (factory values until the bench sets
-them).
+on a mismatch with its per-ID table (`firmware/main/servo_gains.h`, recorded
+in [docs/servo-map.md](docs/servo-map.md) §4).
 
 **Deploy servo model** used by every gate: kp 12 N·m/rad fitted to the
-STS3215 (the bench measured ≈ 17), a torque–speed clamp at 11.1 V, the
+STS3215 (scaled per servo to the as-built 2.8× / 4× in training), a torque–speed clamp at 11.1 V, the
 bench-measured actuation response as a 2 Hz lag plus 80 ms dead time (the
 firmware's 10 Hz command shaper and the servo's own response), integer goal
 ticks, 5 ms bus latency, 1° gear backlash and 3° of free play on the four roll
@@ -181,7 +183,7 @@ real but not large; the bench should confirm it.
 
 All parts are parametric build123d under `cad/v6/`, driven by
 `cad/v6/dimensions_v6.py`, which takes every servo-interface number (case,
-discs, screw rows, idler face, countersinks, fits) from `cad/dimensions.py` —
+discs, screw rows, idler face, countersinks, fits) from `cad/common/dimensions.py` —
 measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 [cad/PRINT_LIST.md](cad/PRINT_LIST.md); code map: [cad/README.md](cad/README.md).
 
@@ -220,8 +222,8 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
   idler disc**: nothing rides their idler side, which seats flat on the cell
   ceiling (§5.3). The disc stays in the bag as a spare.
 - **Yaw carrier** (×2): hangs from the yaw servo's horn and carries the hip-roll
-  servo in its bay. It is the prototype's carrier with a 5 mm spacer between
-  its horn plate and the bay (roll axis 45.1 mm below the horn face), so the
+  servo in its bay. It is `cad/common/hip_parts.py`'s carrier with a 5 mm
+  spacer between its horn plate and the bay (roll axis 45.1 mm below the horn face), so the
   roll servo and all eight of its wall screws sit below the bearing band:
   every screw has a clear driver path with the hip fully assembled.
 - **Hip-yaw bearing: a 6810-2RS** (nominal 50 × 65 × 7 mm; the ones in hand
@@ -664,9 +666,10 @@ throughout. On hardware the same keyframes stream through the firmware's
   hence the ≤ 3° requirement and ≤ 1° target per roll joint; a faster 1.2 s
   cadence loses the low-friction case.
 
-**The policy comes after** the open-loop gait works on the floor (Gate E): trained
-on the measured plant with the measured masses, stiffness and play in it —
-[docs/training.md](docs/training.md).
+**The policy** (Gate E) trains on the robot's plants with the measured masses,
+stiffness, play and joint stops in it —
+[docs/training.md](docs/training.md). The open-loop gait on the floor is
+still open (#82).
 
 ## 9. Get-up
 
@@ -757,15 +760,15 @@ The software stack runs on hardware today and is shared by every body:
 - **SIL** (`sim/sil/`): the real firmware code against the simulated plant —
   [docs/sil-harness.md](docs/sil-harness.md).
 
-**The deployed policy is the 10-joint prototype's** (5 DOF per leg, no arms
-or neck; plant `sim/bimo_biped_v5body.xml`, servo IDs 1–10). The training
-envs and the referee also run on the robot's plant (12 leg joints driven, neck
-and arms held, per-servo stiffness; [docs/training.md](docs/training.md) §13).
-The firmware's bus side is the robot's 17 servos (calibration, `pose`,
-telemetry, SIL ABI; the proposed ID map in
-[docs/servo-map.md](docs/servo-map.md) §2.1), and the obs-spec generator
-handles a robot run; a 17-servo bench test and a policy trained on the robot's
-plant are open work (#81, #86).
+**The deployed policy is `robot_legs_walk16_act_s128r24`**, a distilled
+(128, 128) student on the v6 legs plant (`sim/bimo_biped_v6legs.xml`, the 12
+leg joints), on the ESP32 ([docs/first-policy-stand.md](docs/first-policy-stand.md)).
+The training envs and the referee run on the robot's plants (12 leg joints
+driven, neck and arms held, per-servo stiffness;
+[docs/training.md](docs/training.md) §13). The firmware's bus side is the
+robot's 17 servos (calibration, `pose`, telemetry, SIL ABI; the ID map in
+[docs/servo-map.md](docs/servo-map.md) §2.1); the arms and neck on hardware
+and a 17-servo policy are open work (#81, #86).
 
 ## 12. Open decisions and open work
 
@@ -773,9 +776,7 @@ Everything open is a GitHub issue.
 
 | decision | issue |
 |---|---|
-| servo set: the STS3250s' bench comparison and the per-ID gains | #73, then the purchase #74 |
 | head: mono camera, or the stereo periscope | PR #71, #87 |
-| make the code's defaults the robot to print: arms, the servo set, the 6810-2RS bearing, rollup and plant are done; the head follows PR #71 | #76 |
 
 | work | issue |
 |---|---|
@@ -783,34 +784,31 @@ Everything open is a GitHub issue.
 | non-servo parts order | #78 |
 | first print and fit check | #79 |
 | assembly guide with figures | #80 |
-| firmware port to 17 joints (with the register-21 check at boot) | #81 |
+| firmware port to 17 joints | #81 |
 | measured plant, then the open-loop floor sequence | #82 |
 | shoulder overload margin | #83 |
 | scripted get-up on hardware | #84 |
-| get-up from prone | #85 |
 | training stack port (Gate E) | #86 |
 | Pi and head camera integration | #87 |
 | goal-conditioned locomotion | #88 |
 | servo model: overload cutoff, sag, thermal | #6 |
-| exteroceptive observation | #11 |
 
 ## 13. Build sequence
 
-0. **Bench, no purchase** (#73, [experiments/plan-b-bench/](experiments/plan-b-bench/)): one spare STS3215 — read registers 21/22/23;
-   torque off, write P 32 → 64 → 96 → 128 → 160 with D scaled (128 is exactly
-   4 × 32, so 160 shows which side of the line it falls); measure stiffness from
-   Present Position with 0.5 / 1.0 / 1.5 N·m on a lever; hold a leg-like
-   inertia and watch for buzz; confirm the protections don't trip.
-1. **Stance test**: that servo in a hip-roll mount, 8° of roll with a planted
-   foot; pass ≤ 0.3° short at load 120 (≤ 0.4° on the 3× route).
-2. **Buy** the STS3215s (15 needed, 12 on hand, plus spares), the two
-   STS3250s for the hip rolls (ordered 2026-10-02, #74), the two generic
-   6810-2RS bearings (in hand, measured 2026-10-13/14), and the
-   non-servo parts ([docs/bom.md](docs/bom.md)).
-3. **Configure** P and D per ID; record them in `docs/servo-map.md`.
+0. **Bench** (done, #73, [experiments/plan-b-bench/](experiments/plan-b-bench/)):
+   the STS3215's position-loop gain ladder, P 32 → 160, and the STS3250's;
+   no raised P is worth its roughness (§4).
+1. **Stance test**: not run; the one-leg lift on the built legs measures the
+   roll compliance instead ([roll-compliance-2026-10-24.md](docs/design-v6/roll-compliance-2026-10-24.md)).
+2. **Buy** (servos done, #74): 15 STS3215s and the two STS3250s for the hip
+   rolls, plus spares; the two generic 6810-2RS bearings (in hand, measured
+   2026-10-13/14); the non-servo parts ([docs/bom.md](docs/bom.md), #78).
+3. **Configure** P and D per ID (done): every servo at the factory 32 / 32,
+   recorded in `firmware/main/servo_gains.h` and `docs/servo-map.md` §4.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),
    [docs/assembly.md](docs/assembly.md)); weigh every part; measure play per roll
-   joint (≤ 3° required, ≤ 1° target).
+   joint (≤ 3° required, ≤ 1° target). The legs and the torso frame are built,
+   tethered; the pack, Pi, head, neck and arms are not yet on.
 5. **Put the measurements in the plant** and re-run the gates
    (`gate_no3250.py walk | sweep | arms | getup`).
 6. **Floor sequence, over the tether, one motion per go**: stand → crouch →
@@ -818,7 +816,8 @@ Everything open is a GitHub issue.
    and slip number against the sim's. Then the scripted get-up. Powered from a
    bench supply instead of the pack, the supply tether's check T1
    ([pcb/power-board/harness.md](pcb/power-board/harness.md)) comes first.
-7. **Gate E**: train a policy on the measured plant.
+7. **Gate E**: train a policy on the measured plant. A legs policy holds the
+   built legs standing (§11); walking and the 17-servo policy are open (#86).
 
 ## 14. Design principles
 
@@ -842,7 +841,7 @@ Everything open is a GitHub issue.
 
 | what | file |
 |---|---|
-| every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/dimensions.py`) |
+| every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/common/dimensions.py`) |
 | the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `cad/v6/stl`, STEPs to `build/v6/step` |
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
 | the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |

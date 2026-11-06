@@ -30,6 +30,8 @@ the committed plant, which is THE ROBOT AS DRAWN:
     .venv/bin/python sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write
                        # sim/bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction
                        # measured on the robot 2026-11-04 (gen_plant_v6.measured_sole)
+    .venv/bin/python sim/build_v6_inertia.py --hang --asbuilt-legs --write
+                       # sim/bimo_biped_v6legs_hang.xml: the legs-only body on the test stand
 
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
@@ -55,6 +57,7 @@ import argparse
 import dataclasses
 import functools
 import os
+import re
 import sys
 import tempfile
 
@@ -162,7 +165,7 @@ def _mock_stl(key):
     """STL (temp file) of a servo case mock placed in its body frame, built
     from the same mocks and placements cad/v6/assembly_v6.py uses."""
     from build123d import Pos, Rot, export_stl
-    import check_assembly as CA
+    from common import mocks as CA
     import shoulder_girdle_v6 as SG
     import arm_v6
     zdeck = V.DECK_TOP_Z - V.HIP_YAW_Z
@@ -403,6 +406,27 @@ def committed_meas_sole_xml():
     return dress(src, LEGS_MEAS_SOLE_XML, arms=False, head=False, legcol_r=MEAS_LEGCOL_R)
 
 
+# ---- the hanging plant: the legs-only body with its torso welded to the world HANG_RAISE_M above
+# stand height, feet free -- the test-stand analogue `sim/sil_twin.py --hang` compares to the bench.
+LEGS_HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+HANG_RAISE_M = 0.1
+
+
+def hung(src):
+    """The plant `src` with its torso welded HANG_RAISE_M above where it stands."""
+    def raised(m):
+        return f'{m.group(1)}{float(m.group(2)) + HANG_RAISE_M:.5f}{m.group(3)}'
+    src, n = re.subn(r'(<body name="torso" pos="0 0 )([-0-9.]+)(")', raised, src)
+    assert n == 1, "no torso body to hang"
+    assert "<equality>" not in src, "the plant already has an <equality> block"
+    return src.replace("</mujoco>", '  <equality>\n    <weld body1="torso"/>\n  </equality>\n</mujoco>')
+
+
+def committed_hang_xml():
+    """exactly what `build_v6_inertia.py --hang --asbuilt-legs --write` writes to sim/bimo_biped_v6legs_hang.xml."""
+    return hung(committed_legs_xml(LEGS_HANG_XML))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
@@ -428,6 +452,10 @@ def main(argv=None):
                     help="the sole friction measured on the robot 2026-11-04 (gen_plant_v6.measured_sole: "
                          "mu 0.5, torsional 0, pad priority, 'flat' pads); appends _sole to the output "
                          "name (sim/bimo_biped_v6legs_meas_sole.xml with --measured-stops --asbuilt-legs)")
+    ap.add_argument("--hang", action="store_true",
+                    help="weld the torso to the world HANG_RAISE_M above stand height, feet free (the test "
+                         "stand); appends _hang to the output name (sim/bimo_biped_v6legs_hang.xml with "
+                         "--asbuilt-legs)")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args(argv)
     if a.out is None:
@@ -437,6 +465,8 @@ def main(argv=None):
             a.out = LEGS_XML if a.asbuilt_legs else os.path.join(HERE, "bimo_biped_v6ar.xml")
         if a.measured_sole:
             a.out = a.out[:-len(".xml")] + "_sole.xml"
+        if a.hang:
+            a.out = a.out[:-len(".xml")] + "_hang.xml"
     p = asbuilt_legs() if a.asbuilt_legs else DesignParams()
     if a.measured_stops:
         p = measured_stops(p)
@@ -449,6 +479,8 @@ def main(argv=None):
     if a.write and not a.no_meshes:
         src = dress(src, a.out, arms=not a.armless, collision=not a.no_cad_collision, head=p.head,
                     legcol_r=MEAS_LEGCOL_R if a.measured_stops else None)
+    if a.hang:
+        src = hung(src)
     if a.write:
         with open(a.out, "w") as f:
             f.write(src)

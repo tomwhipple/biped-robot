@@ -2,7 +2,7 @@
 """Export a trained brax PPO policy to the SIL/firmware weight format.
 
     JAX_PLATFORMS=cpu .venv/bin/python tools/export_policy_weights.py \
-        --run loco_v6creep
+        --run robot_legs_walk16_act_s128r24
 
 Writes (defaults, all under sim/sil/):
 
@@ -268,7 +268,8 @@ def golden_obs_vectors(env, spec, n=8, seed=7):
 # ---------------------------------------------------------------------
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--run", default="loco_v6creep")
+    p.add_argument("--run", required=True,
+                   help="run under sim/runs/ (or a run directory)")
     p.add_argument("--out", default=None,
                    help="output .silw path (default sim/sil/weights/<run>.silw)")
     p.add_argument("--raw", action="store_true",
@@ -312,7 +313,10 @@ def main():
     # -- assert dims against the run config + the plant ----------------
     from eval_precision import make_env, load_policy    # noqa: E402
 
-    xml = cfg.get("xml_path") or "bimo_biped_v3yaw.xml"
+    xml = cfg.get("xml_path")
+    if not xml:
+        raise SystemExit(f"{run_dir}/config.json has no xml_path: a run that "
+                         "predates recording its plant is not exportable")
     if not os.path.isabs(xml) and not os.path.exists(xml):
         xml = os.path.join(ROOT, "sim", os.path.basename(xml))
     env = make_env(cfg, 12.0, True, xml)

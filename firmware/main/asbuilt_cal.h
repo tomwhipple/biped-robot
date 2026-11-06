@@ -50,11 +50,8 @@ inline constexpr int32_t kAsBuiltZeroSteps[10] = {
 // each side, not mirrored); yaw, pitch and ankle are not.
 //
 // The knee -1 was chosen so a NEGATIVE commanded angle flexes the knee the
-// human way. Until 2026-08-02 the plant disagreed -- its knee axis made
-// negative mean hyperextension -- and sim and robot bent opposite ways for the
-// same command. That was fixed in sim/bimo_biped_v3yaw.xml (axis "0 -1 0"), on
-// the SIM side: these numbers, the NVS blob and obs_spec's joint limits are all
-// unchanged, so the fix needs no reflash and no re-zero.
+// human way, which is the plant's convention too (obs_spec's knee range runs
+// from deep flexion at kJointLo to a few degrees of hyperextension at kJointHi).
 inline constexpr int8_t kAsBuiltDir[10] = {
     +1, -1, +1, -1, +1,     // left leg
     +1, -1, +1, -1, +1,     // right leg

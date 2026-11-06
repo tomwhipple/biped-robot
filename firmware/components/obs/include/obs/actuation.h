@@ -7,7 +7,7 @@
 //   steps    0..4095 encoder ticks in the SERVO's own frame
 //
 // The action -> angle map must match walker_env._action_to_ctrl() for the
-// deployed run's action_map (loco_v5t: "full" -- piecewise-linear, action 0 ==
+// deployed run's action_map ("full", the only one implemented -- piecewise-linear, action 0 ==
 // the standing pose, full travel on each side). The angle -> steps map is
 // per-servo calibration (docs/wiring.md bring-up step 4: "Set Middle Position"
 // at the CAD-neutral pose), which is why it takes a Calibration rather than
@@ -25,8 +25,8 @@ namespace obs {
 // robot carries, not just the ones the policy drives. Defaults are what a
 // freshly "Set Middle Position"-ed, correctly-oriented servo gives you.
 //
-// `fitted` says which bus joints this robot actually has: the 10-joint
-// prototype carries its ten leg joints and not the ankle rolls, neck or arms. The control loop and the bench
+// `fitted` says which bus joints this robot actually has: the legs-only
+// robot carries its twelve leg joints and not the neck or arms. The control loop and the bench
 // commands read and write fitted servos only -- a SYNC READ that waits on a
 // servo which is not there costs its whole timeout every tick. `cal` sets it
 // (a joint that answers `cal zero` is fitted; `cal fit` sets it by hand).

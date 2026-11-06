@@ -32,7 +32,9 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import fw_limit as FL  # noqa: E402
 
-XML = os.path.join(ROOT, "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 STAND = (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
 CFGS = [(200.0, 2000.0, 0.0), (200.0, 1000.0, 0.0), (150.0, 4000.0, 0.0),
         (200.0, 2000.0, 20000.0), (250.0, 3000.0, 50000.0), (60.0, 400.0, 3000.0)]
@@ -148,7 +150,7 @@ def test_parse():
 
 def _mjx(**kw):
     from env_mjx import BimoMJXEnv
-    base = dict(xml_path=XML, ext_cmd=True, obs_hist_len=3, domain_rand=False,
+    base = dict(ROBOT, ext_cmd=True, obs_hist_len=3, domain_rand=False,
                 imu_noise=0.0, quantize_ticks=False, latency_ms=0.0,
                 backlash_deg=0.0, cmd_fixed=STAND)
     base.update(kw)
@@ -248,7 +250,7 @@ def test_mjx_goal_speed_follows_the_limiter():
 def test_walker_env_matches_firmware(fw):
     from walker_env import BimoWalkerEnv
     cfg = (200.0, 2000.0, 0.0)
-    w = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+    w = BimoWalkerEnv(**ROBOT, command_mode=True, ext_cmd=True,
                       actuator_model="sts3215", imu_obs=True, domain_rand=False,
                       latency_ms=0.0, backlash_deg=0.0, quantize_ticks=False,
                       fw_shaper_hz=10.0, fw_limit=list(cfg))
@@ -264,7 +266,7 @@ def test_walker_env_matches_firmware(fw):
     pos, _, _ = fw(cfg, w._sdefault, shaped)
     np.testing.assert_allclose(np.array(got), pos, rtol=0, atol=1e-6)
     # off by default, and reset re-seeds it
-    assert BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+    assert BimoWalkerEnv(**ROBOT, command_mode=True, ext_cmd=True,
                          actuator_model="sts3215").fw_limit is None
     w.reset(seed=1)
     assert w._lim is None

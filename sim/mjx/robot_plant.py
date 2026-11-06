@@ -1,6 +1,5 @@
 """The robot's training plant: the env settings that make BimoMJXEnv /
-BimoWalkerEnv the 17-joint robot (DESIGN.md) instead of the 10-joint
-prototype. One place, so the trainer (train_mjx.py --robot), the referee and
+BimoWalkerEnv the 17-joint robot (DESIGN.md). One place, so the trainer (train_mjx.py --robot), the referee and
 the tests configure the same robot.
 
 Nothing here is read by the envs themselves: a run's config.json pins every

@@ -1,4 +1,4 @@
-"""The arm links' side letters (cad/parts.py letter_y, cad/v6/arm_v6.py): each
+"""The arm links' side letters (cad/common/shapes.py letter_y, cad/v6/arm_v6.py): each
 link's L or R sits wholly in its outboard rail and reads correctly from
 outside, upright as the arm hangs. A letter cut before the mirror reads
 backwards on the right arm, and fails here."""
@@ -13,7 +13,7 @@ for p in ("..", "../cad", "../cad/v6"):
     sys.path.insert(0, os.path.join(HERE, p))
 
 import arm_v6 as A  # noqa: E402
-import parts as P  # noqa: E402
+from common import shapes as P  # noqa: E402
 
 V = A.V
 LINKS = {"arm_upper_v6": (A.arm_upper_v6, V.ARM_SHAFT_Y[1], V.ARM_LABEL_Z_UPPER),

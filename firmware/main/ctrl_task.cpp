@@ -84,9 +84,9 @@ static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 // The BUS side (obs/bus_map.h). The loop reads and writes every FITTED bus
 // joint (Calibration::fitted), not just the policy's: the policy's joints
-// get the policy's targets, and every other fitted servo -- the robot's
-// ankle rolls, neck and arms under a 10-joint policy -- is HELD where it was
-// measured at takeover. Unfitted servos (IDs 11-17 on the prototype) are not
+// get the policy's targets, and every other fitted servo -- the neck and arms
+// under a legs-only policy that does not hold them -- is HELD where it was
+// measured at takeover. Unfitted servos (IDs 13-17 on the legs-only robot) are not
 // on the wire at all: a SYNC READ that waits on an absent servo costs its
 // whole timeout every tick. The fitted list is taken from the calibration
 // at the arm handover, when the CLI cannot be changing it.

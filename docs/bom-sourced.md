@@ -104,12 +104,11 @@ ability to choose the battery later. Buy 8 + 1–2 spares of the 12 V version.
 - **Idler screw length**: ~~M3×8 + washer assumes 3.35 mm thread depth~~
   **RESOLVED 2026-07-30** — bench + vendor STEP: the bolt circle taps a 2.1 mm
   flange, not the 3.35 mm body. Re-sized to M3×6 (M3×8 at the hip-roll idler),
-  no washers. Asserted in `cad/check_assembly.py`. Original note: confirm
-  screws don't bottom against the gear.
-- **Driver board**: exact model + hole pattern (`BOARD_HOLES` in `dimensions.py`)
+  no washers.
+- **Driver board**: exact model + hole pattern
   — confirm component heights and battery clearance.
 - **GoPro fit**: measure your MAX's finger thickness — slots are 3.2 mm.
-- **Cable service loops**: routed worst-pose lengths measured in `cad/dress.py`
+- **Cable service loops**: routed worst-pose lengths measured in CAD
   (2026-07-16) — hip-roll→hip-pitch 170 mm (**needs the item-19 extensions**),
   hip-pitch→knee 111 mm, knee→ankle 82 mm, board→hip-roll 33 mm; all but the
   first fit the stock 150 mm leads with ≥25 % slack. Confirm the shipped lead

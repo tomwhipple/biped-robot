@@ -35,7 +35,7 @@ struct Sample {
     // looks correct on the bench.
     //
     // The authority is the sim, because the policy was trained on it:
-    // bimo_biped_v5body.xml declares <framezaxis objtype="site" objname="imu">
+    // bimo_biped_v6legs.xml declares <framezaxis objtype="site" objname="imu">
     // and MuJoCo's framezaxis reports the frame's z-axis in the GLOBAL frame.
     // Verified against MuJoCo directly, not read off the docs.
     //

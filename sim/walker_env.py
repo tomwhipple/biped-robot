@@ -1,6 +1,6 @@
 """Stage-2a: Gymnasium environment for the biped (CPU MuJoCo).
 
-Wraps sim/bimo_biped.xml as a standard RL env so a policy can learn to walk
+Wraps a plant (default sim/bimo_biped_v6ar.xml) as a standard RL env so a policy can learn to walk
 forward. Kept deliberately framework-light (plain MuJoCo, no MJX) so it runs on
 the Mac for fast iteration; the reward/obs design carries over to the MJX port
 (Stage 2b) unchanged.
@@ -21,7 +21,7 @@ Terminate: torso falls (height above local ground < 0.18 m) or tips over
           (up-vector z < 0.4). On flat ground local ground z == 0, so this is
           identical to the original world-z check.
 Terrain : optional procedural heightfield (terrain_amplitude > 0). The flat
-          plane in bimo_biped.xml is swapped for an hfield geom at model-load
+          plane in the plant is swapped for an hfield geom at model-load
           time; height data is re-randomized every reset (smoothed uniform
           noise with a flattened spawn pad). Default (0.0) keeps the original
           flat-plane model byte-for-byte.
@@ -42,7 +42,7 @@ import mujoco
 import gymnasium as gym
 from gymnasium import spaces
 
-_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml")
+_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
 
 # qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the hinge joints. The
 # actuated-joint slices/index maps are derived per-instance from the loaded
@@ -103,17 +103,12 @@ def policy_range(m, physical=False, within_stops=False):
     The plant's JOINT limit is the mechanical stop: how far the joint can be
     driven before it hits metal. The POLICY range is a separate, narrower
     thing: action +-1 is defined as its edge, so moving it silently rescales
-    every action a trained policy emits, and every scorecard with it. The two
-    were the same number until bimo_biped_v4rom.xml (2026-08-03), where the
-    hip-roll and hip-pitch stops widened to the measured/CAD-verified truth
-    while the training range deliberately stayed at v3yaw's.
+    every action a trained policy emits, and every scorecard with it.
 
     A plant declares the split by putting a ctrlrange on its <position>
     actuators; that is the policy range, and the joint limit is left as the
-    mechanical stop. Plants that declare none -- bimo_biped_v2*.xml,
-    bimo_biped_v3yaw.xml, every legacy referee -- fall back to the joint
-    limit, which is what they have always used, so they load bit-identically
-    and their runs keep meaning what they meant.
+    mechanical stop. A plant that declares none falls back to the joint
+    limit.
 
     This is the same split firmware/main/mech_envelope.h draws between
     obs_spec.h's kJointLo/kJointHi (policy, action scaling) and the bench
@@ -1391,11 +1386,8 @@ class BimoWalkerEnv(gym.Env):
             # standing sole-center height: lift clearance reference
             self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
             # KNEE-HIGH reference, MEASURED on the plant (not guessed):
-            # world z of the knee joint's anchor in the standing pose. On
-            # bimo_biped_v3yaw.xml that is 0.107 m, with the sole center at
-            # 0.003 m -> a knee-high swing sole must clear 0.104 m, i.e.
-            # 1.7x the 0.06 m nominal lift_height / 3.5x the 0.03 m
-            # lift_clear floor. Mirrored in sim/mjx/env_mjx.py.
+            # world z of the knee joint's anchor in the standing pose, less
+            # the sole center's. Mirrored in sim/mjx/env_mjx.py.
             _knee_jid = self.model.joint(
                 self._act_names[self._legL["knee"]]).id
             self._knee_z0 = float(d0.xanchor[_knee_jid][2])
@@ -2075,8 +2067,8 @@ class BimoWalkerEnv(gym.Env):
                                  else self.rise_secs / 3.0)
             else:                      # sit: torso UP, waist 90 deg, legs
                 j[self._i_pitch] = -1.57   # out front, feet splayed apart
-                j[self._i_knee] = -0.09    # (mirrors sim/mjx; verified by
-                j[self._legL["hip_roll"]] = 0.10    # check_sit_pose.py)
+                j[self._i_knee] = -0.09    # (mirrors sim/mjx)
+                j[self._legL["hip_roll"]] = 0.10
                 j[self._legR["hip_roll"]] = -0.10
                 self.data.qpos[2] = 0.08
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)

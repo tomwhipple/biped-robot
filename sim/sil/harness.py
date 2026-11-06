@@ -73,8 +73,7 @@ def _parse_run_name(path=SPEC_H):
 
 # The suite's run is the DEPLOYED run -- the one obs_spec.h and weights.h were
 # generated from -- read out of the header rather than written down a second
-# time. A hand-kept default drifted once (it named a v3yaw run while the
-# library compiled a v5body spec, issue #89); reading it here means a
+# time. A hand-kept default drifted once (issue #89); reading it here means a
 # `make deploy-headers RUN=...` re-points the suite in the same step.
 DEPLOYED_RUN = _parse_run_name()
 DEFAULT_RUN = DEPLOYED_RUN or "unknown-run"

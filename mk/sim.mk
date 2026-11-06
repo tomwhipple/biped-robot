@@ -7,12 +7,14 @@ V6_LEGS_PLANT := sim/bimo_biped_v6legs.xml
 V6_MEAS_PLANTS := sim/bimo_biped_v6ar_meas.xml sim/bimo_biped_v6legs_meas.xml
 # the legs-only measured-stops body with the sole friction MEASURED on the robot 2026-11-04
 V6_SOLE_PLANTS := sim/bimo_biped_v6legs_meas_sole.xml
+# the legs-only body with its torso welded above stand height: sil_twin --hang, the test stand
+V6_HANG_PLANT := sim/bimo_biped_v6legs_hang.xml
 SERVO_MESHES := $(wildcard sim/meshes/v6/servo_*.stl)
 GETUP_REFS := sim/getup_ref_v6ar.npz sim/getup_ref_v6ar_prone.npz sim/getup_ref_v6ar_roll.npz
 
-plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) ## what the simulator loads: the dressed v6 plant (and the legs-only as-built one, both with the measured joint stops, and the legs one with the measured sole friction) and their CAD meshes
+plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) $(V6_HANG_PLANT) ## what the simulator loads: the dressed v6 plant (and the legs-only as-built one, both with the measured joint stops, the legs one with the measured sole friction, and the legs one hanging) and their CAD meshes
 	$(v6_parts_listed)
-sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) sim/getup_catch_states.npz ## the terrain and get-up references the trainer loads (slow; changes what trains)
+sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) ## the terrain and get-up references the trainer loads (slow; changes what trains)
 
 $(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --write | tail -1
@@ -24,6 +26,8 @@ sim/bimo_biped_v6legs_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=c
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --asbuilt-legs --write | tail -1
 sim/bimo_biped_v6legs_meas_sole.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write | tail -1
+$(V6_HANG_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+	set -o pipefail; $(PY) sim/build_v6_inertia.py --hang --asbuilt-legs --write | tail -1
 ifneq ($(SERVO_MESHES),)
 $(subst sim/meshes/v6/,sim/meshes/%/,$(SERVO_MESHES)): $(PYDEPS_sim/add_cad_meshes.py)
 	$(PY) sim/add_cad_meshes.py --export-servos
@@ -36,8 +40,6 @@ sim/getup_ref_v6ar_prone.npz: START = prone
 sim/getup_ref_v6ar_roll.npz: START = roll
 $(GETUP_REFS): $(PYDEPS_sim/record_getup_ref.py) $(V6_PLANT)
 	$(PY) sim/record_getup_ref.py $(abspath $@) $(START)
-sim/getup_catch_states.npz: $(PYDEPS_sim/mjx/harvest_rise_states.py) sim/bimo_biped_v3yaw.xml $(wildcard cad/stl/*.stl)
-	cd sim/mjx && $(PY) harvest_rise_states.py --out ../getup_catch_states.npz
 
 sim: plant ## open the v6 plant in MuJoCo's viewer; RUN=name plays that policy through the firmware's control code
 ifdef RUN
@@ -56,8 +58,5 @@ eval: ## the CPU referee's scorecard for RUN=name, written into sim/runs/RUN
 train: plant ## start a training run now: ARGS="<train_mjx.py arguments>"
 	cd sim/mjx && $(PY) train_mjx.py $(ARGS)
 
-# The page shows build/v5/renders/assembly_mujoco.png when it exists. Not a
-# prerequisite: cad/render_assembly.py fails (its printed-parts mesh has
-# 289,600 faces, over MuJoCo's 200,000).
 report: ## refresh the results page, sim/runs/night_summary.html
 	$(PY) sim/build_report.py
