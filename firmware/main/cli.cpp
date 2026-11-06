@@ -1440,10 +1440,9 @@ void flailTickImpl(Sink out) {
         const bool deg = trip == static_cast<uint8_t>(flailguard::Trip::kPose) ||
                          trip == static_cast<uint8_t>(flailguard::Trip::kTilt);
         const flailguard::WalkRecovery::Config C{};
-        char msg[200];
+        char msg[120];   // say()'s line is 128: keep the whole event on one line
         snprintf(msg, sizeof msg,
-                 "FLAIL guard: %s %.2f%s during a walk -- command -> stand over %lu ms, the policy keeps "
-                 "balancing, guard paused %lu ms (a second trip holds)",
+                 "FLAIL guard: %s %.2f%s in a walk -> stand over %lu ms, policy runs on, guard off %lu ms",
                  holdWhy(trip), static_cast<double>(robot::g_flail_walk_value.load()), deg ? " deg" : " rad/s",
                  static_cast<unsigned long>(C.ramp_ms), static_cast<unsigned long>(C.grace_ms));
         robot::flight::event(flightrec::Ev::kFlail, msg, trip, 3);
@@ -1518,11 +1517,11 @@ void cmdFlail(Sink out, int argc, char** argv) {
     else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
     const flailguard::Limits& L = flailguard::kLimits;
     const flailguard::WalkRecovery::Config WC{};
-    say(out, "flail guard (flailguard.h) %s: a trip at the stand -> policy stopped, joints HELD, disarmed "
-        "(kDisarmedFlail)\r\n", robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
-    say(out, "  a trip within %lu ms of a walk/step command -> the command goes to the stand over %lu ms, "
-        "the policy keeps balancing, the guard pauses %lu ms; once per run (WalkRecovery)\r\n",
-        static_cast<unsigned long>(WC.recent_ms), static_cast<unsigned long>(WC.ramp_ms),
+    say(out, "flail guard (flailguard.h) %s: a trip at the stand -> policy stopped, joints HELD, disarmed\r\n",
+        robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
+    say(out, "  a trip within %lu ms of a walk/step command -> command to the stand over %lu ms,\r\n",
+        static_cast<unsigned long>(WC.recent_ms), static_cast<unsigned long>(WC.ramp_ms));
+    say(out, "    the policy keeps balancing, the guard pauses %lu ms; once per run (WalkRecovery)\r\n",
         static_cast<unsigned long>(WC.grace_ms));
     say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
         static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
