@@ -489,6 +489,98 @@ void testClockWrap() {
     CHECK_EQ(static_cast<int>(h.fault()), static_cast<int>(Fault::kStuck));
 }
 
+// A commander's ESTOP frame takes the rail from any state, and it stays refused while
+// the commander holds the flag.
+void testCommanderEstopFrame() {
+    uint32_t now = 5000;
+    Guard on = railOn(now);
+    on.commanderFrame(false);
+    CHECK(on.busUp());
+    on.commanderFrame(true);
+    CHECK(!on.servoEn());
+    CHECK(!on.busUp());
+    CHECK_EQ(static_cast<int>(on.lastDrop()), static_cast<int>(DropWhy::kLinkEstop));
+    CHECK(!on.estopLatched());
+
+    // ... while rising and settling too.
+    now = 5000;
+    Guard rising = booted(now);
+    CHECK_EQ(static_cast<int>(rising.requestOn()), static_cast<int>(Verdict::kOk));
+    CHECK(rising.servoEn());
+    rising.commanderFrame(true);
+    CHECK(!rising.servoEn());
+    now = 5000;
+    Guard settling = booted(now);
+    CHECK_EQ(static_cast<int>(settling.requestOn()), static_cast<int>(Verdict::kOk));
+    feed(settling, now, 3 * kDt, false, 12000);
+    CHECK_EQ(static_cast<int>(settling.state()), static_cast<int>(State::kSettling));
+    settling.commanderFrame(true);
+    CHECK(!settling.servoEn());
+
+    // Held: no request gets through, so a doomed one does not click K1.
+    now = 5000;
+    Guard g = booted(now);
+    g.commanderFrame(true);
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+    CHECK(!g.servoEn());
+    feed(g, now, 100, false, 0);
+    g.commanderFrame(true);
+    feed(g, now, railguard::kCommanderEstopHoldMs - 2 * kDt, false, 0);
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+    CHECK(!g.servoEn());
+
+    // Let go: the very next frame without the flag.
+    g.commanderFrame(false);
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kOk));
+    CHECK(g.servoEn());
+    CHECK_EQ(static_cast<int>(g.state()), static_cast<int>(State::kRising));
+
+    // Gone: a console that held ESTOP and went away does not lock the tether out.
+    now = 5000;
+    Guard gone = booted(now);
+    gone.commanderFrame(true);
+    feed(gone, now, railguard::kCommanderEstopHoldMs + kDt, false, 0);
+    CHECK_EQ(static_cast<int>(gone.requestOn()), static_cast<int>(Verdict::kOk));
+
+    // Across the clock's wrap.
+    now = 0xFFFFFFFFu - 100u;
+    Guard wrap = booted(now);
+    wrap.commanderFrame(true);
+    CHECK_EQ(static_cast<int>(wrap.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+
+    // It does not stand in for the toggle's latch, or clear it.
+    now = 5000;
+    Guard latched = booted(now);
+    feed(latched, now, 100, true, 0);
+    CHECK(latched.estopLatched());
+    feed(latched, now, 200, false, 0);
+    latched.commanderFrame(false);
+    CHECK(latched.estopLatched());
+    CHECK_EQ(static_cast<int>(latched.requestOn()), static_cast<int>(Verdict::kEstopLatched));
+}
+
+// What power_rail::requestOn relies on when ctrl answered too late: the request and
+// then the cancel leave the rail off, and a later request still works.
+void testCancelledRequestLeavesTheRailOff() {
+    uint32_t now = 5000;
+    Guard g = booted(now);
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kOk));
+    g.drop(DropWhy::kDisarm);
+    CHECK(!g.servoEn());
+    feed(g, now, railguard::kRiseTimeoutMs + railguard::kServoBootMs + 100, false, 0);
+    CHECK(!g.servoEn());
+    CHECK(!g.busUp());
+    CHECK_EQ(static_cast<int>(g.fault()), static_cast<int>(Fault::kNone));
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kOk));
+}
+
+void testArmEdgeWithEstopIsRefused() {
+    CHECK(railguard::armEdgeRefused(true, true));
+    CHECK(!railguard::armEdgeRefused(true, false));
+    CHECK(!railguard::armEdgeRefused(false, true));    // a disarm is always welcome
+    CHECK(!railguard::armEdgeRefused(false, false));
+}
+
 void testNames() {
     CHECK(strcmp(railguard::stateName(State::kOn), "ON") == 0);
     CHECK(strcmp(railguard::dropName(DropWhy::kEstopInput), "E-stop pressed") == 0);
@@ -497,7 +589,7 @@ void testNames() {
     for (int i = 0; i <= 3; ++i) CHECK(railguard::stateName(static_cast<State>(i))[0] != '?');
     for (int i = 0; i <= 9; ++i) CHECK(railguard::dropName(static_cast<DropWhy>(i))[0] != '?');
     for (int i = 0; i <= 3; ++i) CHECK(railguard::faultName(static_cast<Fault>(i))[0] != '?');
-    for (int i = 0; i <= 5; ++i) CHECK(railguard::verdictName(static_cast<Verdict>(i))[0] != '?');
+    for (int i = 0; i <= 6; ++i) CHECK(railguard::verdictName(static_cast<Verdict>(i))[0] != '?');
 }
 
 }  // namespace
@@ -523,6 +615,9 @@ int main() {
     testArmWaitsForTheRailToFall();
     testMissingReadingsHoldTheCheck();
     testClockWrap();
+    testCommanderEstopFrame();
+    testCancelledRequestLeavesTheRailOff();
+    testArmEdgeWithEstopIsRefused();
     testNames();
     return testutil::report("test_railguard");
 }
