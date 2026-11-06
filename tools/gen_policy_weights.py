@@ -316,9 +316,8 @@ def main():
     if not (args.run or args.silw or args.placeholder):
         raise SystemExit(
             "pick a mode: --run <run> / --silw <path> for the real distilled "
-            "net, or --placeholder for the scaffold.  This tool used to "
-            "default to the placeholder; it does not any more, because the "
-            "deployed header is now real weights and an argument-less run "
+            "net, or --placeholder for the scaffold.  There is no default: "
+            "the deployed header is real weights, and an argument-less run "
             "would silently un-deploy the policy.")
 
     quant = args.quant
