@@ -14,7 +14,7 @@
 # ollama model is currently loaded.
 #
 # On the Mira path this rsyncs the sim code + assets to mira:~/code/robot-mjx
-# (mirroring the repo's own sim/... , cad/stl/... layout) and launches
+# (mirroring the repo's own sim/... , cad/v6/stl/... layout) and launches
 # train_mjx.py in the background there, recording the PID.
 # On the RunPod path this just hands off to infra/runpod/run_train.sh, which
 # provisions a pod, syncs code, and launches training (see its README for the

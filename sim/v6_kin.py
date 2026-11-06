@@ -4,7 +4,7 @@ Analytic leg IK in the PELVIS frame (pelvis level, hip yaw 0, sole parallel
 to the pelvis), pose setters for a MuJoCo model built by gen_plant_v6, and
 the support-polygon / centre-of-mass geometry that Gate A needs.
 
-Sign conventions == sim/bimo_biped_v5body.xml:
+Sign conventions == the v6 plants (sim/bimo_biped_v6*.xml):
   hip_roll   axis +X : positive swings the foot toward +Y (robot left)
   hip_pitch  axis +Y : positive swings the foot BACKWARD (flexion is negative)
   knee       axis -Y : negative = human flexion (shank swings backward)

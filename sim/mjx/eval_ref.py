@@ -34,12 +34,10 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
-# Fallback only. The plant a run is refereed on comes from the run's OWN
-# config.json ("xml_path"), because refereeing a policy on a different robot
-# than it was trained on scores nothing: bimo_biped_v2.xml is the 8-DOF
-# day-5 plant, and every policy since the v3yaw hip-yaw redesign has a 10-DOF
-# action vector that will not even fit its actuators (issue #50).
-DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v5body.xml")
+# Fallback only (the trainer's default plant). The plant a run is refereed on
+# comes from the run's OWN config.json ("xml_path"), because refereeing a
+# policy on a different robot than it was trained on scores nothing.
+DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")
 
 import jax
 from brax.training.acme import running_statistics

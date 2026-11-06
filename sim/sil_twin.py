@@ -62,11 +62,13 @@ def _deployed_run():
         m = re.search(r'kRunName\s*=\s*"([^"]+)"', open(spec_h).read())
     except OSError:
         m = None
-    return m.group(1) if m else "loco_v11gait"
+    if m is None:
+        raise SystemExit(f"no kRunName in {spec_h}")
+    return m.group(1)
 
 
 DEFAULT_RUN = _deployed_run()
-HANG_XML = os.path.join(HERE, "bimo_biped_v5body_hang.xml")
+HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
 
 
 # -- MJPEG live view --------------------------------------------------------

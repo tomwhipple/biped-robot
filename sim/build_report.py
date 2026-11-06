@@ -1,9 +1,9 @@
 """Rebuild the training-log report page (sim/runs/night_summary.html).
 
 Run:  .venv/bin/python sim/build_report.py
-Needs: gifs under sim/runs/<run>/, and the prototype's CAD images in
-build/v5/renders/ and build/v5/movies/ (cad/render_assembly.py and
-cad/animate_assembly.py; the page builds without them).
+Needs: gifs under sim/runs/<run>/; the early rounds' CAD stills and fly-in
+under build/v5/ are shown when present (nothing builds them any more; the
+page builds without them).
 Images are inlined (base64); the referee REELS are not -- a 70 MB .mov does
 not belong in a data: URI, so build_report cuts small web-playable .mp4 clips
 into runs/_clips/ and the page points at them with relative paths. Keep the
@@ -316,11 +316,9 @@ if os.path.exists(cad_png):
     cad_img = (f'<img src="{cad_uri}" alt="CAD assembly render with the GoPro '
                f'MAX mounted on top of the torso">')
 else:
-    print(f"build_report: missing {cad_png} (cad/render_assembly.py makes it), "
-          f"the CAD render is left out")
+    print(f"build_report: missing {cad_png}, the CAD render is left out")
     cad_uri = ''
-    cad_img = ('<p class="muted">CAD render not built on this machine '
-               '(cad/render_assembly.py).</p>')
+    cad_img = '<p class="muted">CAD render not on this machine.</p>'
 
 # marathon-era reels (v5body plant, pelvis v6). The reel is scenario takes in
 # scorecard order; the early minute is the walking block (line/backward/

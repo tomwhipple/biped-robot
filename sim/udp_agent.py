@@ -1,6 +1,6 @@
 """Sim twin of the on-robot command listener -- the ESP32 firmware's double.
 
-Run:  .venv/bin/python sim/udp_agent.py --run-name cmd_11v1 --render
+Run:  .venv/bin/python sim/udp_agent.py --run-name <run> --render
       .venv/bin/python link/commander.py --host 127.0.0.1 --source gamepad
 
 This is the whole point of the link design: the robot-side half of the

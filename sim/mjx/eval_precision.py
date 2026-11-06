@@ -51,7 +51,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
-DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml")
+DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")   # the trainer's default plant
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
@@ -1903,7 +1903,7 @@ def scen_squat_reps():
     DEPTH, HOLD, REPS, SETTLE = 0.70, 1.5, 3, 1.0
     # 2026-09-11: the expected depth is the ENV's crouch target, not
     # DEPTH x nominal -- with crouch_pose_ref the 0.7 command means the
-    # feasible level-foot squat (~5.3 cm on v5body), while DEPTH x nominal
+    # feasible level-foot squat, while DEPTH x nominal
     # asked 9.7 cm the legs cannot give. Old configs map identically.
 
     def build():
