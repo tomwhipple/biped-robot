@@ -142,6 +142,7 @@ SCRIPT_SCENARIO = {
     "stride1_03": "line_1m",
     "stride1_04": "line_1m",
     "steps5_03": "line_1m",
+    "back3_03": "line_1m",
     "dash_stop": "speed_ladder",
     "turn": "turn_180",
     "pivot": "turn_180",
@@ -176,6 +177,12 @@ def _steps5_03(t):
     return (0.3, 0.0) if 2.0 <= t < 2.0 + 2.5 / 1.5 else (0.0, 0.0)
 
 
+def _back3_03(t):
+    # THREE steps BACKWARD at 0.3 m/s (|vx| >= 0.3: the link envelope): 1.5 gait-clock cycles, stand either side
+    # (Tom 2026-11-05: "can you walk 3 steps backwards?"; the omni line, 11-06).
+    return (-0.3, 0.0) if 2.0 <= t < 2.0 + 1.5 / 1.5 else (0.0, 0.0)
+
+
 def _crouch1(t):
     # One crouch cycle through the trained crouch channel (cmd[3] drawn
     # 0.7-1.0 in training): ramp down, hold, ramp back up. Ramps rather
@@ -206,6 +213,7 @@ SCRIPTS = {
     "stride1_03": _stride1_v(0.3),
     "stride1_04": _stride1_v(0.4),
     "steps5_03": _steps5_03,
+    "back3_03": _back3_03,
     "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,
