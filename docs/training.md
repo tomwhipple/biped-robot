@@ -111,6 +111,7 @@ Around the PD loop:
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
 | dead time | the servo serves the target from 0–N control ticks ago | `--act-delay-max N` |
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
+| joint-velocity observation | the robot's q̇ is the STS3215 speed register 58: the mean joint velocity over the last ~40 ms (~20 ms late) in 50 steps/s (4.4°/s) steps (the 2026-11-05 kick analysis, `hw_sessions/2026-11-05/kick_analysis.md` §3, not in git). The observed q̇ becomes (q_t − q_t−N) / (N · 20 ms), N fixed or drawn per episode, then rounded to Q steps/s (replacing `--quantize`'s 1-step q̇ rounding). The robot's model is N 2, Q 50. Off by default (the instantaneous q̇). MJX and CPU; `grade.py` probes `… dqlag` and `DQ_OBS_WINDOW` apply it to a trained policy | `--dq-obs-window N` or `lo,hi`, `--dq-obs-quantum Q` |
 | free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not (it gets the same steady-state effect from the roll-play deadzone above) | `play_deg`, `play_joints` |
 | rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
@@ -433,6 +434,7 @@ freeze them.
 | `--act-delay-max N` | servo dead time, 0…N ticks | ≈ 85 ms measured |
 | `--zero-offset-deg z` | per-joint zero offset U(±z): the served target is target + offset, the observation subtracts it | hardware zeros are set by eye and move by degrees after a mechanical disturbance |
 | `--gyro-gain-range lo,hi`, `--gyro-delay-max N` | gyro observation gain; delay ≤ 2 ticks | IMU scale and timing error |
+| `--dq-obs-window lo,hi` | joint-velocity observation window, ticks (≤ 8) | reg 58 averages ~40 ms (§2) |
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
 | `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |

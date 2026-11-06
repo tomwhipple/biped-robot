@@ -190,6 +190,36 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
 
+def crouch_obs_slots(env):
+    """Observation indices of the crouch command (cmd[3]) in every stacked frame. The frame
+    ends with the command vector (env_mjx._obs: ..., phase sin/cos, cmd)."""
+    n_cmd = 7                     # ext_cmd: vx, vy, wz, crouch, lift, foot_dx, foot_dz
+    if not getattr(env, "ext_cmd", False):
+        raise ValueError("--init-norm-crouch needs an ext_cmd (7-channel command) env")
+    off = int(env.obs_frame) - n_cmd + 3
+    return [k * int(env.obs_frame) + off for k in range(int(env.obs_hist_len))]
+
+
+def reseat_crouch_norm(restore, env, lo, hi):
+    """restore = (normalizer RunningStatisticsState, policy, value): set the crouch slots'
+    mean to the draw midpoint and std to the uniform draw's (>= 0.02), with summed_variance
+    consistent with the stored count so the running update continues from there."""
+    import numpy as _np
+    norm = restore[0]
+    idx = crouch_obs_slots(env)
+    mean = _np.array(norm.mean, dtype=_np.float32).copy()
+    std = _np.array(norm.std, dtype=_np.float32).copy()
+    sv = _np.array(norm.summed_variance, dtype=_np.float32).copy()
+    cnt = norm.count
+    n = float(int(cnt.hi) * 2 ** 32 + int(cnt.lo)) if hasattr(cnt, "hi") else float(cnt)
+    s_new = max((hi - lo) / _np.sqrt(12.0), 0.02)
+    mean[idx] = 0.5 * (lo + hi)
+    std[idx] = s_new
+    sv[idx] = s_new ** 2 * n
+    norm = norm.replace(mean=jp.asarray(mean), std=jp.asarray(std), summed_variance=jp.asarray(sv))
+    return (norm,) + tuple(restore[1:]), idx
+
+
 def make_parser():
     """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
     one set of flags means one env config, whichever trainer runs it."""
@@ -602,6 +632,12 @@ def make_parser():
                         "(2026-09-13: the referee's squat_reps cycles 1.5 s "
                         "holds, faster than the 2.5-4.5 s default ever "
                         "trains; 1.0,4.5 puts that cadence in-distribution)")
+    p.add_argument("--init-norm-crouch", action="store_true",
+                   help="with --init-from: re-seat the restored observation normalizer's crouch "
+                        "command slots (cmd[3] in every stacked frame) to this run's "
+                        "--cmd-crouch-range (mean = midpoint, std = the uniform draw's). A run "
+                        "trained with the channel frozen at 1.0 has std 1e-6 there, so any other "
+                        "crouch reads as ~1e5 sigma (2026-11-05, knee-bend walking)")
     p.add_argument("--cmd-crouch-range", default="1,1",
                    help="per-episode crouch-command draw, lo,hi (SIL finding "
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
@@ -641,6 +677,15 @@ def make_parser():
                         "robot stands with the gyro obs at 0.5x, falls at 1x)")
     p.add_argument("--gyro-delay-max", type=int, default=None,
                    help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
+    p.add_argument("--dq-obs-window", default=None,
+                   help="robot-like joint-velocity OBS: the mean joint velocity over the "
+                        "last N control ticks, (q_t - q_t-N)/(N dt), as the STS3215 reg 58 "
+                        "reports it (2026-11-05 kick analysis: ~40 ms = N 2). 'N' fixed, "
+                        "or 'lo,hi' drawn per episode; 0 = off")
+    p.add_argument("--dq-obs-quantum", type=float, default=None,
+                   help="round the joint-velocity OBS to this many reg-58 steps/s (the "
+                        "robot's reg 58 moves in 50 steps/s = 4.4 deg/s); replaces "
+                        "--quantize's 1-step dq rounding")
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
@@ -945,6 +990,14 @@ def build_env_kw(args):
             float(x) for x in args.gyro_gain_range.split(","))
     if args.gyro_delay_max is not None:
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
+    if getattr(args, "dq_obs_window", None) is not None:
+        # 'N' or 'lo,hi' control ticks; the envs validate (walker_env.parse_dq_obs_window)
+        w = tuple(int(x) for x in str(args.dq_obs_window).split(","))
+        w = (w[0], w[0]) if len(w) == 1 else w
+        if w != (0, 0):
+            env_kw["dq_obs_window"] = w
+    if getattr(args, "dq_obs_quantum", None):
+        env_kw["dq_obs_quantum"] = float(args.dq_obs_quantum)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
     if getattr(args, "act_delay_types", None):
@@ -1219,6 +1272,10 @@ def main():
         with open(os.path.join(RUNS, args.init_from, "params.pkl"), "rb") as f:
             restore = pickle.load(f)
         print(f"warm-starting from {args.init_from}/params.pkl")
+        if getattr(args, "init_norm_crouch", False):
+            lo, hi = (float(x) for x in str(args.cmd_crouch_range).split(","))
+            restore, idx = reseat_crouch_norm(restore, env, lo, hi)
+            print(f"re-seated the crouch normalizer slots {idx} to mean {(lo + hi) / 2:.3f}")
 
     train_fn = functools.partial(
         ppo.train,
