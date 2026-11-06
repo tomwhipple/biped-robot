@@ -435,6 +435,7 @@ freeze them.
 | `--zero-offset-deg z` | per-joint zero offset U(±z): the served target is target + offset, the observation subtracts it | hardware zeros are set by eye and move by degrees after a mechanical disturbance |
 | `--gyro-gain-range lo,hi`, `--gyro-delay-max N` | gyro observation gain; delay ≤ 2 ticks | IMU scale and timing error |
 | `--dq-obs-window lo,hi` | joint-velocity observation window, ticks (≤ 8) | reg 58 averages ~40 ms (§2) |
+| `--yaw-kick-range lo,hi`, `--yaw-kick-prob p` | body yaw rate kicks, either way, while a move is commanded | a stand-in for the robot's step yaw, which the sim under-reads (`experiments/policy/yaw-gap/README.md`) |
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
 | `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |

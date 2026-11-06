@@ -677,6 +677,12 @@ def make_parser():
                         "robot stands with the gyro obs at 0.5x, falls at 1x)")
     p.add_argument("--gyro-delay-max", type=int, default=None,
                    help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
+    p.add_argument("--yaw-kick-range", default=None,
+                   help="'lo,hi' rad/s: body yaw rate kicks, either way, while a move is commanded "
+                        "(experiments/policy/yaw-gap: the robot's step onset yaws harder than the sim's); "
+                        "with --yaw-kick-prob")
+    p.add_argument("--yaw-kick-prob", type=float, default=None,
+                   help="per control tick; 0.03 = about one kick per 0.67 s gait cycle")
     p.add_argument("--dq-obs-window", default=None,
                    help="robot-like joint-velocity OBS: the mean joint velocity over the "
                         "last N control ticks, (q_t - q_t-N)/(N dt), as the STS3215 reg 58 "
@@ -990,6 +996,9 @@ def build_env_kw(args):
             float(x) for x in args.gyro_gain_range.split(","))
     if args.gyro_delay_max is not None:
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
+    if getattr(args, "yaw_kick_range", None):
+        env_kw["yaw_kick_range"] = tuple(float(x) for x in str(args.yaw_kick_range).split(","))
+        env_kw["yaw_kick_prob"] = float(args.yaw_kick_prob or 0.03)
     if getattr(args, "dq_obs_window", None) is not None:
         # 'N' or 'lo,hi' control ticks; the envs validate (walker_env.parse_dq_obs_window)
         w = tuple(int(x) for x in str(args.dq_obs_window).split(","))

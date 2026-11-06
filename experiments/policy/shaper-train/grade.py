@@ -123,6 +123,47 @@ for _v in (0.4, 0.3):
 PROBES["steps5 0.3 refit"] = dict(cmd_schedule=stride(0.3, cyc=2.5 / S.CLOCK_HZ), run_s=10.0, **_R)
 PROBES["stride1 0.3 refit dqlag"] = dict(PROBES["stride1 0.3 refit"], dq_obs=DQ_ROBOT)
 PROBES["steps5 0.3 refit dqlag"] = dict(PROBES["steps5 0.3 refit"], dq_obs=DQ_ROBOT)
+
+
+def yaw_kicks(dw, t0=2.0, n=2, lead=0.25, half=0.5 / S.CLOCK_HZ):
+    """One kick of dw rad/s per half gait cycle (in single support; a kick in double support dies in the
+    two feet's grip), `lead` s after the walk command at t0. Calibrated on the robot's steps5 run
+    (experiments/policy/yaw-gap/README.md)."""
+    return {int(round((t0 + lead + k * half) / DT)): dw for k in range(n)}
+
+
+# The robot's command does not end on the sim's tick grid: stride1_03 on 2026-11-06 stopped at +700 ms, 40 ms
+# after the coasting clock had passed the stand phase, so the clock ran another whole cycle under the stand
+# command (experiments/policy/yaw-gap/README.md). "late <ms>" ends the command that long after the cycle.
+for _ms in (20, 40, 60, 100):
+    _c = stride(0.3, cyc=1.0 / S.CLOCK_HZ + _ms / 1e3)
+    PROBES[f"stride1 0.3 refit dqlag late{_ms}"] = dict(PROBES["stride1 0.3 refit dqlag"], cmd_schedule=_c)
+for _ms in (-20, -40, -60):
+    _c = stride(0.3, cyc=1.0 / S.CLOCK_HZ + _ms / 1e3)
+    PROBES[f"stride1 0.3 refit dqlag early{-_ms}"] = dict(PROBES["stride1 0.3 refit dqlag"], cmd_schedule=_c)
+# 2026-11-06, the robot's own peak speed: hip pitch 246-254 and knee 281-303 deg/s in all three flight
+# records (11-03 walk18, 11-06 omni5 t1, t2), where the refit runs 360+. With this cap and 60 ms of dead
+# time the joints and the final yaw come close, not the body rate (1.4 - 2.1 rad/s; robot 3.07): the `dq5`,
+# `dq6` and `dead80` probes grade the delay margin. experiments/policy/yaw-gap/README.md
+ROBOT_SPEED_PLANT = dict(supply_v=12.0, stall_scale=dict(hip_pitch=2.0, knee=2.0),
+                         w0_scale=dict(hip_pitch=0.87, knee=1.0))
+ROBOT_SPEED_SERVO = dict(FAST, dead15=60.0)
+_RS = dict(plant=ROBOT_SPEED_PLANT, typed=ROBOT_SPEED_SERVO, dq_obs=DQ_ROBOT)
+PROBES["stride1 0.3 robot"] = dict(cmd_schedule=stride(0.3), run_s=8.0, **_RS)
+PROBES["stride1 0.3 robot early40"] = dict(cmd_schedule=stride(0.3, cyc=1.0 / S.CLOCK_HZ - 0.04), run_s=8.0, **_RS)
+PROBES["stride1 0.3 robot late40"] = dict(cmd_schedule=stride(0.3, cyc=1.0 / S.CLOCK_HZ + 0.04), run_s=8.0, **_RS)
+PROBES["steps5 0.3 robot"] = dict(cmd_schedule=stride(0.3, cyc=2.5 / S.CLOCK_HZ), run_s=10.0, **_RS)
+PROBES["back3 -0.3 robot"] = dict(cmd_schedule=stride(-0.3, cyc=1.5 / S.CLOCK_HZ), run_s=10.0, **_RS)
+PROBES["walk 0.3 -> stop robot"] = dict(PROBES["walk 0.3 -> stop"], **_RS)
+for _w in (5, 6):
+    PROBES[f"steps5 0.3 robot dq{_w}"] = dict(PROBES["steps5 0.3 robot"], dq_obs=dict(DQ_ROBOT, window=_w))
+PROBES["steps5 0.3 robot dead80"] = dict(PROBES["steps5 0.3 robot"], typed=dict(ROBOT_SPEED_SERVO, dead15=80.0))
+# what a firmware coast that holds when just past the stand phase would do (not on the robot)
+for _ms in (20, 40, 60, 100):
+    PROBES[f"stride1 0.3 refit dqlag late{_ms} hold"] = dict(PROBES[f"stride1 0.3 refit dqlag late{_ms}"], coast_back=1.0)
+for _dw in (-1.0, -2.0, -3.0):
+    PROBES[f"stride1 0.3 refit dqlag yk{-_dw:g}"] = dict(PROBES["stride1 0.3 refit dqlag"], yaw_kicks=yaw_kicks(_dw))
+    PROBES[f"steps5 0.3 refit dqlag yk{-_dw:g}"] = dict(PROBES["steps5 0.3 refit dqlag"], yaw_kicks=yaw_kicks(_dw, n=5, lead=0.06))
 for _v in (0.3, 0.2):
     _c3 = stride(_v, cyc=3.0 / S.CLOCK_HZ)
     PROBES[f"stride3 {_v} refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R)
@@ -339,6 +380,8 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
         else:
             tgt = last_tgt; raw = last_tgt; a = env._prev_action.copy()
         cur["t"] = sv(tgt)
+        if i in v.get("yaw_kicks", ()):         # extra body yaw rate at swing onset, rad/s
+            env.data.qvel[5] += v["yaw_kicks"][i]
         if push > 0 and i in S.PUSHES:
             dx, dy = S.PUSHES[i]
             env.data.qvel[0] += push * dx; env.data.qvel[1] += push * dy

@@ -522,6 +522,8 @@ class BimoMJXEnv:
         # comes to a stop"), next to w_action_rate's first difference
         w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
         # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
+        yaw_kick_range=None,           # (lo, hi) rad/s: extra body yaw rate kicks while a move is commanded
+        yaw_kick_prob: float = 0.0,    # per control tick (experiments/policy/yaw-gap); off by default
         w_gyro_hinge: float = 0.0,     # -w max(|omega| - gyro_hinge, 0)^2, omega = the torso's
         gyro_hinge: float = 1.2,       # angular velocity (qvel[3:6], the IMU gyro), rad/s: the
         # firmware flail guard trips on EMA(|gyro|, 0.2 s) > 1.5 rad/s (2026-11-05: every stride1
@@ -1305,6 +1307,8 @@ class BimoMJXEnv:
         self.w_action_rate = w_action_rate
         self.w_action_acc = float(w_action_acc)
         self.w_qacc = float(w_qacc)
+        self.yaw_kick_range = None if yaw_kick_range is None else tuple(float(x) for x in yaw_kick_range)
+        self.yaw_kick_prob = float(yaw_kick_prob)
         self.w_gyro_hinge = float(w_gyro_hinge)
         self.gyro_hinge = float(gyro_hinge)
         self.fall_cost = fall_cost
@@ -2878,6 +2882,16 @@ class BimoMJXEnv:
             xfrc = xfrc.at[self._torso_bid, 1].set(
                 jp.where(push_on, self.push_force * jp.sin(ang), 0.0))
             data = state.data.replace(xfrc_applied=xfrc)
+
+        if self.yaw_kick_range is not None and self.yaw_kick_prob > 0.0:
+            # the robot's step-onset yaw (experiments/policy/yaw-gap/README.md): a body yaw rate kick, either
+            # way, while a move is commanded. fold_in leaves the push draws above untouched.
+            r_yk = jax.random.fold_in(r_push_a, 2)
+            on = (jax.random.uniform(jax.random.fold_in(r_yk, 0)) < self.yaw_kick_prob) & self._cmd_is_moving(state.cmd)
+            mag = jax.random.uniform(jax.random.fold_in(r_yk, 1), minval=self.yaw_kick_range[0],
+                                     maxval=self.yaw_kick_range[1])
+            sign = jp.where(jax.random.uniform(jax.random.fold_in(r_yk, 2)) < 0.5, -1.0, 1.0)
+            data = data.replace(qvel=data.qvel.at[5].add(jp.where(on, sign * mag, 0.0)))
 
         # sub-step latency: first lat_k substeps run on the previous target
         ms = state.lat_ms
