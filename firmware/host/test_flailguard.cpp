@@ -477,6 +477,27 @@ void testWalkRate() {
     }
 }
 
+// The grace window judges tilt alone (kGraceLimits, 2026-11-06): a fallen robot is caught
+// at 20 deg / 200 ms while rate, chatter and pose wait out the stop.
+void testGraceLimits() {
+    CHECK(flailguard::kGraceLimits.criteria == flailguard::kCritTilt);
+    {   // a 3 rad/s body during the grace: no trip
+        Detector d(flailguard::kGraceLimits); Rig r; r.walking = true; r.stand_cmd = false; r.gyro[2] = 3.0f;
+        CHECK(run(d, r, 2000) == Trip::kNone);
+    }
+    {   // 35 deg held (the 11-06 robot on the floor): trips on tilt within ~200 ms
+        Detector d(flailguard::kGraceLimits); Rig r; r.walking = true; r.stand_cmd = false; r.tilt(35.0f);
+        uint32_t at = 0;
+        CHECK(run(d, r, 1000, &at) == Trip::kTilt);
+        CHECK(at <= 260u);
+    }
+    {   // chatter / pose ignored during the grace
+        Detector d(flailguard::kGraceLimits); Rig r; r.stand_cmd = true;
+        for (int i = 0; i < kN; ++i) r.target[i] = 30.0f * kDeg;
+        CHECK(run(d, r, 2000) == Trip::kNone);
+    }
+}
+
 void testWalkRecovery() {
     using flailguard::WalkRecovery;
     WalkRecovery::Config c;
@@ -547,5 +568,6 @@ int main() {
     testRecording();
     testWalkRecovery();
     testWalkRate();
+    testGraceLimits();
     return testutil::report("test_flailguard");
 }
