@@ -315,13 +315,14 @@ releases torque.
 
 ## Diagrams
 
-`docs/wiring-general-driver.svg` shows the 10-servo prototype harness on this board:
+[`docs/wiring-general-driver.svg`](wiring-general-driver.svg) shows the robot's harness on this board:
 
-- an 850 mAh pack, a GoPro and a BNO085 on P1;
-- no protection board, buck or Pi;
-- a port and ID layout that does not match the firmware's.
+- the pack, the BMS and the main switch on power lite's connectors and pads ([pcb/power-lite/README.md](../pcb/power-lite/README.md));
+- power lite's feeds: the servo rail through K1 and F1, the General Driver and the Pi through F2, the E-stop on J11;
+- the four servo branches (J4–J7) with the servo IDs of [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled);
+- the control signals to the ESP32 (`SERVO_EN`, `RAIL_V`, `ESTOP_N`).
 
-It does not describe the robot, and redrawing it is **open**.
+It leaves off what the sources do not settle: the physical fan-out of J12 to the General Driver's headers (listed in [pcb/power-board/harness.md](../pcb/power-board/harness.md) for the rev B board, not verified for power lite) and the neck and arm IDs, which are drawn as a proposal.
 
 ## Bring-up checklist
 

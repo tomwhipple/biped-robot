@@ -130,7 +130,36 @@ for _v in (0.3, 0.2):
     PROBES[f"walk {_v} -> stop refit"] = dict(PROBES[f"walk {_v} -> stop"], **_R)
     PROBES[f"walk {_v} -> stop mu0.4 refit"] = dict(PROBES[f"walk {_v} -> stop"], **_R, **_MU)
 
+# 2026-11-05 (Tom: "policies that respond to arbitrary directions: forward, backward, sidestep
+# (both ways), turn (both ways)"): a 4 s command each, from the stand at t = 2 s, then the stand.
+# The deployed walk25_msole_d13_gh2h14_s1 had silently kept only forward (back -0.01 m, side L
+# +0.01 m, turns 8 - 16 deg, side R FELL 3/4) -- walk21_fricact did all six. directions()
+# reports travel along each command; DIR_IDEAL is the 4 s ideal.
+def _dir(vx=0.0, vy=0.0, wz=0.0):
+    return (vx, vy, wz, 1.0, 0.0, 0.0, 0.0)
+
+
+DIRS = {"dir fwd 0.3": _dir(vx=0.3), "dir back -0.25": _dir(vx=-0.25),
+        "dir side L 0.15": _dir(vy=0.15), "dir side R -0.15": _dir(vy=-0.15),
+        "dir turn L 0.5": _dir(wz=0.5), "dir turn R -0.5": _dir(wz=-0.5)}
+DIR_IDEAL = {"dir fwd 0.3": ("dx", 1.2), "dir back -0.25": ("dx", -1.0),
+             "dir side L 0.15": ("dy", 0.6), "dir side R -0.15": ("dy", -0.6),
+             "dir turn L 0.5": ("dyaw", 115.0), "dir turn R -0.5": ("dyaw", -115.0)}
+for _n, _c in DIRS.items():
+    PROBES[_n] = dict(cmd_schedule=[(0.0, STAND_CMD), (2.0, _c), (6.0, STAND_CMD)], run_s=10.0)
+
 WALKS_DX = 0.3      # m in 2.5 s on "walk 0.3 -> stop" (fast servo); the 11-05 walkers did 0.45 - 0.6
+
+
+def directions(episodes, variant):
+    """Per direction probe: (metric, mean travel, ideal, falls) -- dx / dy in m, dyaw in deg."""
+    out = {}
+    for p, (k, ideal) in DIR_IDEAL.items():
+        e = [x for x in episodes if x["variant"] == variant and x["probe"] == p]
+        if e:
+            vals = [x.get(k) for x in e if x.get(k) is not None and x.get(k) == x.get(k)]
+            out[p] = (k, float(np.mean(vals)) if vals else float("nan"), ideal, sum(bool(x["fell"]) for x in e))
+    return out
 
 
 def walks(episodes, variant):
@@ -290,6 +319,7 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
                   out_gain, push, n, nh, last_tgt, x0, nj):
     import mujoco
     GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
+    Y = []; y0 = float(env.data.qpos[1])
     fell = False; ema = None
     for i in range(n + nh):
         holding = i >= n
@@ -325,17 +355,18 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
         q_meas = obs[:nj].astype(np.float64)
         GO.append(tgt.copy()); GY.append(gyro); PW.append(float(info.get("power_w", np.nan)))
         TL.append(tilt); SQ.append(np.degrees(np.abs(tgt - q_meas))); X.append(float(d.qpos[0]) - x0)
+        Y.append(float(d.qpos[1]) - y0)
         YW.append(body_yaw(d.qpos[3:7])); QM.append(q_meas)
         QD.append(np.array(d.qvel[env._sqvel])); AC.append(np.array(a, float)); mujoco.mj_subtreeVel(env.model, d)
         LM.append(np.array(d.subtree_angmom[env._torso_bid]))
         if term:
             fell = True
             break
-    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC)
+    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC, Y=Y)
 
 
 def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ,
-                     v=None, YW=(), QM=(), QD=(), LM=(), AC=()):
+                     v=None, YW=(), QM=(), QD=(), LM=(), AC=(), Y=()):
     v = v or {}
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
@@ -347,7 +378,10 @@ def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, Q
                     action_rate=float(np.mean(np.sum(np.diff(ac[:npol], axis=0) ** 2, axis=1))) if npol > 1 else float("nan"))
     m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()), **m_smooth,
              trip=fg.trip, trips_by=fg.first, peak_rate=fg.peak_rate, peak_rate_xyz=fg.peak_rax.tolist(), peak_chatter=fg.peak_chat,
-             dx=float(X[-1]))
+             dx=float(X[-1]),
+             dy=float(Y[-1]) if len(Y) else float("nan"),
+             dyaw=float(np.degrees(np.unwrap(np.asarray(YW, float))[-1] - np.unwrap(np.asarray(YW, float))[0]))
+             if len(YW) > 1 else float("nan"))
     # the written goals' own peak acceleration (what the limiter bounds), deg/s^2
     if len(GO) > 2:
         ga = np.abs(np.diff(GO, 2, axis=0)) / DT ** 2
@@ -540,6 +574,12 @@ def main():
     json.dump(dict(rows=rows, episodes=res, fg=FG, servo=FAST, shape_hz=hz), open(out, "w"),
               indent=1, default=str)
     md = table(rows, list(probes))
+    if any(p in probes for p in DIRS):
+        for vn in variants:
+            dd = directions(res, vn)
+            md += "\n\n- " + vn + " directions (4 s, ideal in brackets): " + "; ".join(
+                f"{p[4:]} {k} {m:+.2f} [{i:+.2f}]" + (f" FALLS {f}" if f else "")
+                for p, (k, m, i, f) in dd.items())
     if "walk 0.3 -> stop" in probes:
         md += "\n\n" + "\n".join(
             f"- {vn}: {'WALKS' if walks(res, vn) else 'does NOT walk'} "

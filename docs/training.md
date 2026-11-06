@@ -9,8 +9,10 @@ prototype** — 5 DOF per leg (hip yaw, hip roll, hip pitch, knee, ankle), plant
 `sim/bimo_biped_v5body.xml`, servo IDs 1–10 — and the stack is proven on it end
 to end: distilled policies run on its ESP32 at 50 Hz, untethered. The training
 envs, the trainer and the referee also build the **robot's** plant
-(`train_mjx.py --robot`); nothing has been trained on it, and the firmware side
-of the port is open (§13). What the robot is: [DESIGN.md](../DESIGN.md).
+(`train_mjx.py --robot`): the legs' walk and the get-ups are trained and
+refereed on it, and distilled legs-only policies run on the robot's ESP32;
+a policy for all 17 joints and its firmware are open (§13). What the robot is:
+[DESIGN.md](../DESIGN.md).
 
 Related: [AGENTS.md](../AGENTS.md) (working practices, bench safety),
 [control-channel.md](control-channel.md) (commands over the link, failsafe),
@@ -952,8 +954,10 @@ idf.py -C firmware build flash                  # toolchain: firmware/README.md
 ## 13. Porting to the robot
 
 The training envs, the trainer and the referee run on the robot's plant;
-nothing has been trained on it. `train_mjx.py --robot` applies the robot
-preset (`sim/mjx/robot_plant.py`), resolved against the plant's own actuators
+the legs' walk (the `v6legs` recipe) and the supine and prone get-ups (the
+campaign, #137) are trained and refereed on it, and distilled legs-only students
+run on the ESP32; no policy yet covers all 17 joints. `train_mjx.py --robot`
+applies the robot preset (`sim/mjx/robot_plant.py`), resolved against the plant's own actuators
 and written into `config.json` explicitly, so the referee, the distiller and
 the obs-spec generator rebuild the same robot:
 

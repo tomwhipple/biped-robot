@@ -814,8 +814,9 @@ letter faces out and reads upright with the arm hanging.
 
 ## 12. Cabling
 
-**The harness is not drawn yet** (#77): the leg IDs are as assembled but the
-neck and arm IDs (13–17) and the splitter topology are still a proposal
+**The harness is drawn in [wiring-general-driver.svg](wiring-general-driver.svg)**
+(power lite and its four servo branches, #77): the leg IDs are as assembled
+but the neck and arm IDs (13–17) are still a proposal
 ([servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)), the
 per-hop lead lengths are measured from the CAD
 ([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)), and the
