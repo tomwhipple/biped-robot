@@ -30,7 +30,9 @@
 #   [5/9] clang-tidy      make tidy        (SKIP without clang-tidy)
 #   [6/9] clang-tidy-gui  make tidy-gui    (SKIP without clang-tidy; runs make deps)
 #   [7/9] cppcheck        make cppcheck    (SKIP without cppcheck)
-#   [8-9/9] esp32-build   make firmware    (idf.py on PATH, else $IDF_PATH/export.sh,
+#   [8-9/9] esp32-build   make firmware, then make firmware-powerlite (the
+#                         build option off and on, so neither image can rot)
+#                         (idf.py on PATH, else $IDF_PATH/export.sh,
 #                         else ~/esp/esp-idf or ~/.espressif/frameworks/esp-idf-v5.4;
 #                         no ESP-IDF fails the push unless SKIP_ESP32=1)
 # Static-analysis gates fail on findings (same pass/fail semantics as the old
@@ -193,6 +195,7 @@ if [ -n "$cpp" ]; then
     echo "SKIP: esp32-build (SKIP_ESP32=$SKIP_ESP32 in env)" >&2
   else
     gate "8-9/9 esp32-build" firmware
+    gate "8-9/9 esp32-build power lite" firmware-powerlite
   fi
 else
   echo "" >&2

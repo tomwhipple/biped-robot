@@ -23,7 +23,7 @@ The item numbers (№) refer to the vendor's annotated photo,
 | P2 + P4 | 23, 24 | 2 × 40-pin, the Raspberry Pi footprint, **numbered mirrored** in the schematic | Per the schematic (re-read 2026-10-02): pins **1 and 3 are 5 V**, **4 is `IIC_SDA`**, **6 is `IIC_SCL`**, 7/9 are `P_TX`/`P_RX` (ESP32 UART0). The earlier "pins 3/5 are I²C" was wrong. Which physical corner is pin 1 is unverified, so wire I²C sensors to P1, whose silkscreen names each pin | free |
 | P3 | — | 7-pin | 1 IO5 (10 Ω) · 2 3V3 · 3 GND · 4 IO16 · 5 IO27 · 6 `CP_RX` · 7 `U0RX` | free |
 | H7 | — | PH2.0 4-pin, "LIDAR" | 1 `CP_RX` · 2 n/c · 3 GND · 4 5 V | free |
-| H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | free. The firmware names GPIO 4 `kRgbLed` |
+| H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | power lite's `ESTOP_N`; otherwise free |
 | H3 | 15 | 6-pin | 1 motor A · 2 GND · 3 `A_C2` = GPIO 35 · 4 `A_C1` = GPIO 34 (10 Ω each) · 5 3V3 · 6 motor A | free |
 | H4 | 14 | 6-pin | 1 motor B · 2 GND · 3 `B_C2` = GPIO 16 · 4 `B_C1` = GPIO 27 (10 Ω each) · 5 3V3 · 6 motor B | free |
 | MOTOR-A1/A2, B1/B2 | 16, 17 | 2-pin connectors | TB6612 motor outputs; the driver is powered from `DC_IN` | free |

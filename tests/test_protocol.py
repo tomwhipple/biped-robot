@@ -438,7 +438,8 @@ def test_every_home_verdict_reaches_the_operator():
     # a robot that predates the bit".
     for r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
               ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
-              ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED):
+              ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED,
+              ArmResult.RAIL_DOWN):
         assert is_home_result(r)
         why = diag_reason(pack_diag(False, True, r))
         assert "reset" in why and "unknown to this client" not in why
@@ -511,7 +512,7 @@ def test_diag_values_are_append_only():
         ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7),
         ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9),
         ("REFUSED_GAINS", 10), ("REFUSED_POLICY", 11),
-        ("DISARMED_FLAIL", 12), ("DISARMED_STOP", 13)]
+        ("DISARMED_FLAIL", 12), ("DISARMED_STOP", 13), ("RAIL_DOWN", 14)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 

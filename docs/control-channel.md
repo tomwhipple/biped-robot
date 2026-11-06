@@ -275,6 +275,7 @@ a false fault.)
 | 11 `REFUSED_POLICY` | arm refused: the compiled-in net is a placeholder or an untrained test net, not a policy (a policy profile's, [training.md §9](training.md)) |
 | 12 `DISARMED_FLAIL` | the flail guard stopped the policy; joints held stiff, run over, homes when upright and still |
 | 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop) |
+| 14 `RAIL_DOWN` | power-lite images only: the servo rail is off and that is the answer. An arm or a reset refused (E-stop pressed or latched, a rail fault), or a run ended by the rail going (E-stop, rail fault, link loss, pack guard); `stat` says which ([power lite](../pcb/power-lite/README.md)) |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a

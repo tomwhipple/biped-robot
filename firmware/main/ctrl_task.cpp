@@ -23,6 +23,7 @@
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "policy/mlp.h"
+#include "power_rail.h"
 #include "shared.h"
 
 namespace robot {
@@ -335,6 +336,9 @@ void ctrlTask(void*) {
         ++g_ticks;
 
         const float now_ms = static_cast<float>(t0) / 1000.0f;
+        // Power lite: the rail, in both modes, before the mode is read: a rail that
+        // went down benches the loop on this very tick (main/power_rail.h).
+        if constexpr (rail::kFitted) rail::ctrlTick(static_cast<uint32_t>(t0 / 1000));
         const bool benched = g_mode_request.load() == Mode::kBench;
 
         // -- bench handover ------------------------------------------------
@@ -348,7 +352,11 @@ void ctrlTask(void*) {
                 // Never hand the CLI a live robot -- except a HOLD (flail
                 // guard / soft stop), which housekeeping takes over by name
                 // (cli.cpp flailTick) and which must not sag on the way.
-                if (!g_hold_on_bench) releaseAll();
+                if (!g_hold_on_bench) {
+                    releaseAll();
+                    // Every disarm ends here. A hold keeps the rail with its torque.
+                    if constexpr (rail::kFitted) rail::dropFromCtrl(railguard::DropWhy::kDisarm);
+                }
                 g_hold_on_bench = false;
                 g_torque_on = false;        // ctrl's view ends here; a re-arm engages
                 g_ctrl_owns_bus.store(false);
@@ -396,6 +404,10 @@ void ctrlTask(void*) {
         CommandMsg msg;
         while (xQueueReceive(g_cmd_mailbox, &msg, 0) == pdTRUE) {
             bool want_armed = false;
+            if constexpr (rail::kFitted) {
+                // The E-stop latch's way out, as Watchdog::accept's is.
+                if (!msg.cmd.enabled() && !msg.cmd.arm() && !msg.cmd.estop()) rail::disabledFromCtrl();
+            }
             if (g_arm.update(msg.cmd.flags, want_armed)) {
                 g_link_arm_level.store(want_armed);
                 g_link_arm_edges.fetch_add(1);
@@ -565,6 +577,18 @@ void ctrlTask(void*) {
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
             g_limiter.invalidate();
+            // Power lite: limp means the rail goes, and that ends the run. Coming
+            // back from RELAX or a link E-stop would mean re-powering by itself, and
+            // the servos would come up reset; so the way back is a fresh arm. The
+            // next tick is the bench handover. A fall has benched and said why.
+            if constexpr (rail::kFitted) {
+                rail::dropFromCtrl(railguard::limpWhy(batt_limp, g_fall.fallen(),
+                                                      state == linkproto::LinkState::kRelax));
+                if (batt_limp || !g_fall.fallen()) {
+                    g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kRailDown));
+                    g_mode_request.store(Mode::kBench);   // toward bench only: shared.h
+                }
+            }
             recordFlight(t0, t_read0, t_read1, rep_state, s, 0, nullptr, vbat_dv);
             publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));

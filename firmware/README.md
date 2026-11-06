@@ -68,6 +68,14 @@ profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
 experiments/policy/int8-256), the way a net wider than (128, 128) fits the tick
 ([firmware-design.md §6.1](../docs/firmware-design.md)).
 
+**Which power board.** Off by default: an image for a robot **with power lite**
+is a separate build, `make firmware POWER_LITE=1` (`idf.py -DBIMO_POWER_LITE=ON`,
+into `build/firmware-powerlite`; it combines with `POLICY=`). Such an image can
+never arm a robot without the board, because a floating `ESTOP_N` reads as stop. A
+default image does not touch IO4, IO16 or GPIO34.
+[The power-lite README](../pcb/power-lite/README.md), "The firmware", says what it
+does.
+
 ## On-target bring-up
 
 [docs/bringup.md](../docs/bringup.md) is the procedure, from a bare board to
@@ -160,7 +168,11 @@ firmware/
     joint_pose.h        measured pose, core 1 -> the beacon (mirror mode)
     scs_port_idf.cpp    scsbus::Port over UART1 -- the one servo-bus hardware seam
     shared.h            the only cross-core state, and the rules for it
+    power_rail.cpp      power lite (a build option): SERVO_EN, ESTOP_N, RAIL_V; the rail's
+                        hardware half and the reset fail-safe
   components/
+    railguard/          power lite's rail state machine: arm, drops, E-stop latch,
+                        stuck rail (pure, host-tested)
     scsbus/             Feetech SCS/STS protocol: codec, transactions, registers;
                         the guarded gain write and the gain check (gains.h)
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux

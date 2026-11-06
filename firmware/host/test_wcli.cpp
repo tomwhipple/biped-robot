@@ -770,6 +770,8 @@ void testPolicy() {
         {"regw 2 85 0", false, Verdict::kRefuseTether},
         {"servocfg", true, Verdict::kRefuseArmed},
         // default deny
+        {"rail on", false, Verdict::kRefuseUnknown},   // power lite: `stat` reads it over Wi-Fi
+        {"rail panic", false, Verdict::kRefuseUnknown},
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},
         {"PING", false, Verdict::kRefuseUnknown},

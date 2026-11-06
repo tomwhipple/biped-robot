@@ -81,7 +81,7 @@ below are enough and Rust is not needed.
 | host link | UART0 at 115200 over the CP2102N on the USB-C port silkscreened `USB`. The port silkscreened `LIDAR` is a second bridge that enumerates but never flashes |
 | I²C | **GPIO 32 SDA / 33 SCL** at 400 kHz, also on header P1. QMI8658C IMU at 0x6B (used); AK09918C magnetometer at 0x0C (unused: beside the servos it measures their current, not north); BMP280 at 0x77 on the schematic (did not answer the bench scan; unused); INA219 power monitor at 0x42 (unused). 0x4A/0x4B are reserved for a BNO085 on P1 |
 | pack voltage | servo register 62 (0.1 V), from the first servo that answers each tick. The INA219 sees the pack ahead of the buck but is not read yet (§8) |
-| RGB LED | GPIO 4, header H2 |
+| power lite (a build option, §5.6) | IO16 `SERVO_EN` (P3, output), IO4 `ESTOP_N` (H2, input with the pull-up), GPIO34 `RAIL_V` (H3, ADC1 at 11 dB). Without the board, GPIO 4 is H2's WS2812 net; nothing in the firmware drives it |
 | OLED, RTC | none; wall-clock time comes from SNTP ([control-channel.md](control-channel.md#time-on-the-wire)) |
 
 `imu scan` lists what answers on the I²C bus.
@@ -458,6 +458,15 @@ p += v dt
   `DISARMED_HOME` or `HOME_NOT_REACHED`. It never arms.
 
 ### 5.6 Failsafes
+
+**With power lite** (`BIMO_POWER_LITE`; [power-lite README](../pcb/power-lite/README.md),
+"The firmware"; `components/railguard`, `main/power_rail.h`), the servos have power
+only between an arm and the next limp. The rail is stepped first, at the top of every
+tick in both modes, and a rail that is down benches the loop on that tick. A limp in
+this list (the pack guard, the fall latch, RELAX, a link `ESTOP`) or a hard operator
+stop also opens the relay and ends the run: `DISARMED_FALL`, `DISARMED_STOP` or
+`RAIL_DOWN`. A hold (the flail guard, a soft stop) keeps the rail with its torque until
+the bench home that follows has released it. Without the option none of this exists.
 
 In the order the tick applies them:
 
