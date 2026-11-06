@@ -1879,9 +1879,10 @@ def scen_metronome():
                        else float("nan"))
         ref = next(((r["x"], r["y"]) for r in rows if r["t"] >= SETTLE),
                    (0.0, 0.0))
-        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1])
-                     for r in rows if r["t"] >= SETTLE)
-                 if rows else float("nan"))
+        # a seed that falls before SETTLE has rows but none of them settled
+        settled = [r for r in rows if r["t"] >= SETTLE]
+        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1]) for r in settled)
+                 if settled else float("nan"))
         success = bool((not fell) and not math.isnan(cadence_err)
                        and errs[0] <= 0.15 and errs[2] <= 0.15
                        and not math.isnan(drift) and drift < 0.15)
