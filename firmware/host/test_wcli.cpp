@@ -787,6 +787,14 @@ void testPolicy() {
         {"shape 3", true, Verdict::kRefuseArmed},
         {"limit 200 2000", true, Verdict::kRefuseArmed},
         {"limit off", false, Verdict::kAllow},
+        // 2026-11-06: battery runs, no tether -- the next run's controller settings over Wi-Fi
+        {"standclock coast 1.5708", false, Verdict::kAllow},
+        {"standclock", false, Verdict::kAllow},
+        {"heading", false, Verdict::kAllow},
+        {"heading off", false, Verdict::kAllow},
+        {"heading k 1.5", false, Verdict::kAllow},
+        {"standclock run", true, Verdict::kRefuseArmed},
+        {"heading off", true, Verdict::kRefuseArmed},
         {"id 1 2", true, Verdict::kRefuseArmed},
         // bytes the tether's line discipline would never deliver
         {"ping\x01", false, Verdict::kRefuseBadLine},

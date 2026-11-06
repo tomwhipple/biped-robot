@@ -1544,7 +1544,8 @@ void cmdFlail(Sink out, int argc, char** argv) {
 // `heading` status | on | off | k <gain>: the IMU heading loop around the walking policy
 // (flailguard/heading_hold.h). On at boot.
 void cmdHeading(Sink out, int argc, char** argv) {
-    if (argc >= 2 && tetherOnly(out, "`heading on|off|k` changes the walking controller")) return;
+    // Like shape / limit: a setting for the next run, allowed over Wi-Fi while benched
+    // (wcli/policy.cpp kBenchAny); armed, the Wi-Fi allowlist refuses it.
     if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_heading_on.store(true);
     else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_heading_on.store(false);
     else if (argc >= 3 && !strcmp(argv[1], "k")) {
