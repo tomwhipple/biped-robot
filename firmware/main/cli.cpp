@@ -1383,7 +1383,7 @@ void fallTickImpl(Sink out) {
 //    stream, balance, home -- stops where it is; a HARD stop also releases
 //    torque. Armed, ctrl has already acted; this only logs (kStop), once per
 //    burst (the tool repeats its frame for a second).
-static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0;
+static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0, s_walkrec_seen = 0;
 static bool s_hold_cand = false;
 static uint32_t s_hold_since = 0;
 static TickType_t s_stop_logged = 0;
@@ -1430,6 +1430,23 @@ void flailTickImpl(Sink out) {
             robot::flight::event(flightrec::Ev::kStop, what, hard ? 1 : 0, benched ? 0 : 1);
             say(out, "%s\r\n", what);
         }
+    }
+
+    // -- a trip during a walk, recovered (flailguard.h WalkRecovery) -------
+    const uint32_t recs = robot::g_flail_walk_recovers.load();
+    if (recs != s_walkrec_seen) {
+        s_walkrec_seen = recs;
+        const uint8_t trip = robot::g_flail_walk_trip.load();
+        const bool deg = trip == static_cast<uint8_t>(flailguard::Trip::kPose) ||
+                         trip == static_cast<uint8_t>(flailguard::Trip::kTilt);
+        const flailguard::WalkRecovery::Config C{};
+        char msg[120];   // say()'s line is 128: keep the whole event on one line
+        snprintf(msg, sizeof msg,
+                 "FLAIL guard: %s %.2f%s in a walk -> stand over %lu ms, policy runs on, guard off %lu ms",
+                 holdWhy(trip), static_cast<double>(robot::g_flail_walk_value.load()), deg ? " deg" : " rad/s",
+                 static_cast<unsigned long>(C.ramp_ms), static_cast<unsigned long>(C.grace_ms));
+        robot::flight::event(flightrec::Ev::kFlail, msg, trip, 3);
+        say(out, "%s\r\n", msg);
     }
 
     // -- a hold handed over from the armed loop ---------------------------
@@ -1499,16 +1516,24 @@ void cmdFlail(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_flail_on.store(true);
     else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
     const flailguard::Limits& L = flailguard::kLimits;
-    say(out, "flail guard (flailguard.h) %s: trips -> policy stopped, joints HELD, disarmed (kDisarmedFlail)\r\n",
+    const flailguard::WalkRecovery::Config WC{};
+    say(out, "flail guard (flailguard.h) %s: a trip at the stand -> policy stopped, joints HELD, disarmed\r\n",
         robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
+    say(out, "  a trip within %lu ms of a walk/step command -> command to the stand over %lu ms,\r\n",
+        static_cast<unsigned long>(WC.recent_ms), static_cast<unsigned long>(WC.ramp_ms));
+    say(out, "    the policy keeps balancing, the guard pauses %lu ms; once per run (WalkRecovery)\r\n",
+        static_cast<unsigned long>(WC.grace_ms));
     say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
         static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
-    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s\r\n", static_cast<double>(L.rate_tau_s),
-        static_cast<double>(L.rate_rad_s));
+    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s (walking: > %.2f)\r\n",
+        static_cast<double>(L.rate_tau_s), static_cast<double>(L.rate_rad_s),
+        static_cast<double>(L.rate_walk_rad_s));
     say(out, "  tilt    > %.0f deg for %lu ms (the fall guard, limp, stays at 45)\r\n",
         static_cast<double>(L.tilt_deg), static_cast<unsigned long>(L.tilt_hold_ms));
     say(out, "  chatter mean |d raw target/dt| EMA(%.1f s) > %.1f rad/s\r\n", static_cast<double>(L.chatter_tau_s),
         static_cast<double>(L.chatter_rad_s));
+    say(out, "  %lu walk recover(ies) since boot\r\n",
+        static_cast<unsigned long>(robot::g_flail_walk_recovers.load()));
     say(out, "  %lu hold(s) since boot%s%s; %s\r\n", static_cast<unsigned long>(robot::g_armed_holds.load()),
         robot::g_armed_holds.load() ? ", last: " : "",
         robot::g_armed_holds.load() ? holdWhy(robot::g_armed_hold_trip.load()) : "",

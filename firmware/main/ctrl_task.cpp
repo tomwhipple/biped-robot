@@ -143,6 +143,20 @@ fallguard::Detector g_fall;
 // acting tick; on a trip -- or a soft operator stop -- the loop holds
 // instead of going limp: holdAndDisarm() below.
 flailguard::Detector g_flail;
+// ... and what a trip during a walk does instead of holding (flailguard.h
+// WalkRecovery, Tom 2026-11-05): the policy keeps balancing, its command is
+// taken to the stand, the guard pauses, then judges the stand afresh.
+flailguard::WalkRecovery g_walkrec;
+
+// The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
+// the foot offsets off the plain stand (the same thresholds as the flail
+// guard's stand gate below). Crouch alone is not a walk.
+bool walkCmd(const float* cmd) {
+    const auto at = [cmd](int i, float dflt) { return i < obs::kNumCmd ? cmd[i] : dflt; };
+    return fabsf(at(0, 0.0f)) > 0.05f || fabsf(at(1, 0.0f)) > 0.05f ||
+           fabsf(at(2, 0.0f)) > 0.05f || fabsf(at(4, 0.0f)) >= 0.5f ||
+           fabsf(at(5, 0.0f)) > 0.005f || fabsf(at(6, 0.0f)) > 0.005f;
+}
 float g_flail_limit[obs::kNumJoints];      // rad, per policy joint (poseLimitDeg)
 // Set on a hold: the bench handover that follows keeps torque ON (the servos
 // keep the hold goals) instead of releasing it, and housekeeping takes the
@@ -379,6 +393,7 @@ void ctrlTask(void*) {
             g_fall.clear();
             // ... and a fresh flail guard: every filter, run and the latch.
             g_flail.reset();
+            g_walkrec.reset();
             g_hold_on_bench = false;
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
@@ -604,6 +619,20 @@ void ctrlTask(void*) {
         // ~1e6 sigma out at the first layer. Before the clock gate, so the
         // gate sees what the policy sees. Mirrored in sil_lib.cpp.
         policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        // Flail walk recovery: once a trip during a walk has engaged it, the
+        // policy is fed the stand on every locomotion/step channel (vx, vy,
+        // wz, lift, foot offsets -> 0; crouch untouched, so the pack guard's
+        // ramp still rules it), for the rest of the run. The policy itself
+        // keeps running: it is the IMU-in-the-loop controller.
+        g_walkrec.tick(walkCmd(in.cmd), static_cast<uint32_t>(kTickUs / 1000));
+        if (g_walkrec.standOverride()) {
+            const float keep = 1.0f - g_walkrec.overrideFrac();
+            static constexpr int kWalkCh[] = {0, 1, 2, 4, 5, 6};
+            for (const int k : kWalkCh) {
+                if (k < obs::kNumCmd) in.cmd[k] *= keep;
+            }
+            policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        }
         const float vx = in.cmd[0];
         const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
         const float wz = in.cmd[2];
@@ -706,9 +735,13 @@ void ctrlTask(void*) {
         // -- flail guard (components/flailguard) -----------------------------
         // Judges what this tick is about to WRITE (pose), the raw targets
         // (chatter) and the torso (rate, tilt -- the real IMU, not the
-        // obsfreeze'd copy). A trip: nothing of the policy is written, the
-        // servos freeze where they are with torque ON, and the run ends.
-        if (g_flail_on.load()) {
+        // obsfreeze'd copy). A trip at the stand: nothing of the policy is
+        // written, the servos freeze where they are with torque ON, and the
+        // run ends. A trip during a walk (WalkRecovery): the policy keeps
+        // running with its command taken to the stand, the guard pauses for
+        // its grace window, then judges the stand from fresh filters.
+        if (g_flail_on.load() && g_walkrec.graceJustEnded()) g_flail.reset();
+        if (g_flail_on.load() && g_walkrec.judging()) {
             flailguard::Input fin;
             fin.n = obs::kNumJoints;
             fin.target = angle;
@@ -724,12 +757,17 @@ void ctrlTask(void*) {
                             fabsf(lift) < 0.5f && fabsf(cmd_at(3, 1.0f) - 1.0f) <= 0.05f &&
                             fabsf(cmd_at(5, 0.0f)) <= 0.005f && fabsf(cmd_at(6, 0.0f)) <= 0.005f;
             fin.pose_armed = g_ramp_ticks >= kArmRampTicks;
+            fin.walking = g_walkrec.walkingRecent();
             fin.imu_valid = s.valid;
             fin.up = s.up;
             fin.gyro = s.gyro;
             const flailguard::Trip trip =
                 g_flail.update(fin, static_cast<uint32_t>(kTickUs / 1000));
-            if (trip != flailguard::Trip::kNone) {
+            if (trip != flailguard::Trip::kNone && g_walkrec.onTrip()) {
+                g_flail_walk_trip.store(static_cast<uint8_t>(trip));
+                g_flail_walk_value.store(g_flail.tripValue());
+                g_flail_walk_recovers.fetch_add(1);     // housekeeping logs it
+            } else if (trip != flailguard::Trip::kNone) {
                 const int nwr = writeHoldHere();
                 holdAndDisarm(linkproto::ArmResult::kDisarmedFlail, static_cast<uint8_t>(trip),
                               g_flail.tripValue(), g_flail.tripJoint());
