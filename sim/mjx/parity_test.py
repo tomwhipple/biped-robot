@@ -339,12 +339,14 @@ def getup_block():
             hoist(c)
         a = (sp + 0.3 * np.sin(0.3 * t + np.arange(n))).astype(np.float32)
         st = sync(st, c, g)
+        ncon_before = c.data.ncon
         obs_c, r_c, term_c, _, _ = c.step(a)
         st = s(st, jp.asarray(a))
         if term_c or float(st.done) != 0.0:
             print("== R7. get-up: an env terminated -- must never happen ==")
             return False
-        if c.data.ncon != 0:
+        # a step that starts in contact is not contact-free even if it ends clear
+        if ncon_before != 0 or c.data.ncon != 0:
             continue
         used += 1
         worst_r = max(worst_r, abs(float(st.reward) - r_c))
