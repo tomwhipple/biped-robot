@@ -57,7 +57,7 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 | `head_shell` | 1 | 26.1 | 62 × 60 × 50 | base (horn plate) down; the dome is ≥ 45° | none expected | from `head.py` |
 | `head_face` | 1 | 8.6 | 62 × 56 × 6 | flat, camera bosses up | no | |
 | `neck_floor` | 1 | 4.0 | 46 × 45 × 5 | flat, bottom face down, pads and lugs up | no | the neck servo's seat (#90): screwed up into the neck tube's four bosses; the stator screws go up through it |
-| `shoulder_girdle_v6` | 1 | 88.6 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows |
+| `shoulder_girdle_v6` | 1 | 88.1 | 200 × 62 × 33 | base down | no | carries both shoulder servos and the neck tube (with the four bosses for `neck_floor`); each pod is open outboard until its cheek goes on; the trapezius webs are thin walls, not windows, but for the elbow lead's peaked slot through the aft tie beside each pod |
 | `shoulder_cheek_v6` | 2 | 3.0 | 58 × 30 × 2.4 | flat, outer face down | no | one part for both pods: each pod's outboard grip plate, screwed to the pod's end lugs once the servo is in ([assembly §11c](../docs/assembly.md)) |
 | `arm_upper_v6_L`, `_R` | 1 + 1 | 27.8 | 169 × 38 × 29 | on its back, web face down | no (manual supports with no enforcer box, to share the `arms` plate) | a mirror pair, L / R debossed on the outboard rail; open-front U with two end walls; grips the elbow servo |
 | `arm_head_insert_v6_L`, `_R` | 1 + 1 | 1.8 | 30 × 9 × 24 | flat, outboard face down | no | a mirror pair, not labelled (its lip goes on the horn plate's side); glued into the upper arm's head, closing its U at the front and top ([assembly §11d](../docs/assembly.md)); its own `arm_head_inserts` plate |
@@ -158,8 +158,9 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 - **`shoulder_girdle_v6`**
   - It is 200 mm long, so **centre it on the bed**.
   - **No supports.** The trapezius webs are thin walls (no windows), and every
-    roof on the part (the web recesses, the platform detents) rises at 50°; the
-    neck tube's aft wall is closed. The `girdle_neck` plate (the girdle, the neck
+    roof on the part (the web recesses, the platform detents, the peaked top of
+    the elbow lead's slot through the aft tie) rises at 50°; the neck tube's
+    aft wall is closed. The `girdle_neck` plate (the girdle, the neck
     floor and the cheek twice, square in one row) prints with supports off: 3 h 00 m, 92 g.
   - Print the two cheeks on the same plate (`girdle_neck`), outer face down:
     no supports. Both are the same part, square-edged: it fits either pod.

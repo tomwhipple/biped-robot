@@ -50,9 +50,11 @@ Model
                    plate right under the trench.
     shoulder       shoulder_girdle_v6.shoulder_servo_mock: case fore-aft,
                    cable end AFT, idler faces INBOARD; its wall window is
-                   cut OPEN TO THE TOP (shoulder_girdle_v6.py:216-236), so
-                   the lead leaves upwards at the trench band, over the pod
-                   top, and drops along the housing skin to the GD slot.
+                   cut OPEN TO THE TOP (shoulder_girdle_v6._pod), so the
+                   leads leave upwards at the trench band: the bus-in lead
+                   over the pod top and along the housing skin to the GD
+                   slot, the elbow lead aft through the aft tie's slot
+                   (shoulder_girdle_v6.lead_slot) and round the pod.
     elbow          arm_v6.elbow_servo_mock: the case rides the UPPER arm,
                    running up it from the elbow axis, cable end toward the
                    shoulder, so the trench band is 11.75..16.35 mm ABOVE the
@@ -60,7 +62,8 @@ Model
                    pair): plug face at y +/-(ARM_Y - 16.75). The lead leaves
                    through the upper arm's web window just past the case's
                    cable end (elbow axis +37..+48) and runs up the back of
-                   the web to the shoulder. This hop crosses only the
+                   the web to the shoulder, round the pod's aft lug and in
+                   through the girdle's aft-tie slot (#198). This hop crosses only the
                    SHOULDER fold (the arm below sweeps -90..+200 about the
                    shoulder): the elbow servo turns with the upper arm. NO
                    strain relief is drawn at the shoulder.
@@ -138,11 +141,48 @@ SHOULDER_EXIT = {"A": (V.ARM_SHOULDER_X - CONN_MID, -V.GIRDLE_WALL_Y0,
 # shoulder servo inside the girdle's pod and lands on the upper arm, across
 # the shoulder joint, so the table carries the ASSEMBLY number (plug box to
 # plug box, this file's --assembly) as the span for this hop.
-SHOULDER_ELBOW_SPAN = 129.5
+SHOULDER_ELBOW_STRAIGHT = 129.5   # the assembly-measured plug-to-plug minimum, for reference only
+
+
+def _elbow_route(sgn=+1.0):
+    """The shoulder -> elbow lead's route (#198), as a polyline of corners
+    through the CAD constants, left side (sgn +1; the right mirrors it): up the
+    pod's inboard notch to the pod top, inboard over the wall to the lead slot
+    in the aft tie (shoulder_girdle_v6.lead_slot), down to the slot's floor
+    and aft through it, out round the pod's aft lug, outboard past the cheek
+    to the upper arm's window column, down the back of the arm's web to the
+    window just above the elbow servo's case, and through it to the elbow
+    plug. At the hanging pose, a lead 2.5 mm off every surface (its own
+    radius); the corners are CAD constants, not a swept measurement."""
+    import shoulder_girdle_v6 as SG
+    top = DECK_TOP_Z
+    r = D.WIRE_BUNDLE / 2.0
+    x_p = V.ARM_SHOULDER_X - CONN_MID                  # plug / notch column
+    y_slot = sgn * sum(SG.LEAD_SLOT_Y) / 2.0
+    z_run = top + SG.TIE_H + r + 1.0                   # the lead rests on the slot's floor
+    x_out = SG.LUG_X[0] - r                            # round the pod's aft lug rim
+    y_arm = sgn * (V.ARM_Y + sum(V.ARM_CABLE_WINDOW_Y) / 2.0)
+    x_web = V.ARM_WEB_X[0] - r                         # the web's back
+    z_win = top + V.ARM_AXIS_Z + sum(V.ARM_CABLE_WINDOW_Z) / 2.0
+    return [(x_p, sgn * V.GIRDLE_WALL_Y0, top + V.ARM_AXIS_Z),   # the plug
+            (x_p, sgn * V.GIRDLE_WALL_Y0, top + _POD_TOP),       # up the notch
+            (x_p, y_slot, top + _POD_TOP),                       # inboard over the wall
+            (x_p, y_slot, z_run),                                # down to the slot's floor
+            (x_out, y_slot, z_run),                              # aft through the slot
+            (x_out, y_arm, z_run),                               # outboard past the cheek
+            (x_web, y_arm, z_run),                               # forward to the arm's web
+            (x_web, y_arm, z_win),                               # down its back
+            ELBOW_WIN["B" if sgn > 0 else "A"]]                  # through the window to the plug
+
+
+def _route_length(pts):
+    return sum(math.dist(a, b) for a, b in zip(pts, pts[1:]))
+
 ELBOW_WIN = {"A": (V.ARM_SHOULDER_X, -(V.ARM_Y - PLUG_R),
                    V.ARM_ELBOW_Z + CONN_MID),
              "B": (V.ARM_SHOULDER_X, +(V.ARM_Y - PLUG_R),
                    V.ARM_ELBOW_Z + CONN_MID)}
+SHOULDER_ELBOW_SPAN = _route_length(_elbow_route())     # the hop's length, both sides alike
 
 # joint ROM (assembly degrees) each leg hop crosses:
 ROM_LEG = {("hip yaw", "hip roll"): 90.0,        # hip yaw +-45
@@ -163,10 +203,12 @@ NOTE_NECK = ("out the neck floor's window toward +y, up through the deck "
              "aperture beside the neck tube")
 NOTE_SH_IN = ("exits UP through the girdle's open notch (shoulder_girdle_v6"
               ".py:216), along the deck to the General Driver's slot")
-NOTE_ARM = ("span is MEASURED off the assembly mocks (this file, "
-            "--assembly): shoulder plug to the elbow plug on the upper arm; "
-            "crosses the shoulder fold (290 deg) only -- the elbow servo "
-            "rides the upper arm; NO strain relief drawn at the shoulder")
+NOTE_ARM = ("span is the ROUTE (_elbow_route): up the pod notch, aft through "
+            "the girdle's aft-tie slot, round the pod's aft lug, down the "
+            "upper arm's web to the elbow plug (the straight plug-to-plug "
+            "minimum, --assembly, is 129.5); crosses the shoulder fold "
+            "(290 deg) only -- the elbow servo rides the upper arm; NO "
+            "strain relief drawn at the shoulder")
 
 
 def _leg(side):
@@ -250,7 +292,7 @@ def rows():
         # its span is the assembly-measured number, not the constants
         # straight-line (see the note by SHOULDER_ELBOW_SPAN):
         last = out[-1]
-        last["span"] = SHOULDER_ELBOW_SPAN
+        last["span"] = _route_length(_elbow_route(+1.0 if side == "B" else -1.0))
         last["loop"] = _fold(SHOULDER_FOLD)
         last["note"] = NOTE_ARM
     return out
