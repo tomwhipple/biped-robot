@@ -89,7 +89,8 @@ struct Limits {
     // Every one-cycle stride on the robot tripped 1.5 at the step-onset kick (EMA
     // 1.50 - 1.61 rad/s); in sim the deployed walker peaks 1.6 - 1.85 while walking
     // and does not fall. A walking trip still recovers (WalkRecovery), never holds.
-    float rate_walk_rad_s = 2.5f;
+    // 2.5 -> 3.0 (Tom, same evening): the 5-step run reached ~3 steps, then tripped at 2.57.
+    float rate_walk_rad_s = 3.0f;
 };
 
 constexpr Limits kLimits = {300u, 1.5f, 0.2f, 20.0f, 200u, 7.0f, 0.1f, kCritAll};
