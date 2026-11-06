@@ -1,6 +1,7 @@
 # Precision curriculum — walking before running
 
-**Status:** infrastructure landed 2026-07-17; first training round pending.
+**Status:** the command set (`ext_cmd`) the robot's walking runs train under
+([training.md](training.md) §4).
 **Prompted by:** "we have been trying to run before we walk." The dash/command
 lineage optimizes speed; this round optimizes *control*: balance, exact
 distances, returning to a point, moving slowly in every direction.
@@ -62,26 +63,12 @@ Reward (mirrors in `walker_env.py` and `env_mjx.py`, parity-gated):
 - fall line scales with the crouch command (0.18 m × c3) so a commanded
   crouch isn't a "fall".
 
-## Plant truth (2026-07-17)
+## Plant
 
-Trained on **`sim/bimo_biped_v2_asbuilt.xml` — the robot as printed today**:
-
-- **Feet: the printed 100 mm foot v3** (90 × 46 mm pad-true contact,
-  102.8 g/segment, mesh `cad/stl/foot_asbuilt.stl` from git 191777e). The
-  CAD-current 116 mm get-up soles exist only in CAD/`bimo_biped_v2.xml`;
-  switch back when the v3.1 feet are actually printed. (User confirmation:
-  "we're running with the 100×50 feet".)
-  *2026-07-30: `foot_asbuilt.stl` has been deleted — it was a visual-only
-  mesh and having two feet in the tree was confusing. The foot physics
-  quoted above is unchanged; the plants now render `cad/stl/foot.stl`.
-  Recover the old mesh with `git show 191777e:cad/stl/foot.stl` if needed.*
-- **Torso 341.8 g** — now includes the tower-top accessory stack
-  (imu_carrier 5.0 + BNO055 3.0 + gopro_base 5.2 + fastener delta 0.8 g)
-  that was previously an honest omission.
-- **GoPro payload on** (154 g) at its TRUE CG: +0.0945 m above torso center
-  (`payload_cg_z`; the old 0.08 predates the battery-bay tower growth
-  +11.5 mm and the imu_carrier +3 mm). Old runs keep 0.08 by default.
-- Robot 921 g bare / 1075 g with camera; both plants stand 500/500.
+Trained on the robot's plants ([training.md](training.md) §2):
+`sim/bimo_biped_v6ar.xml` by default, `sim/bimo_biped_v6legs.xml` for the
+legs-only body as built. No payload: the camera is in the head, which the ar
+plant models.
 
 ## Stability / smoothness metrics (the "how do we measure natural" question)
 

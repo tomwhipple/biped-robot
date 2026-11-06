@@ -80,7 +80,7 @@ PLATE_X1 = SEAT_OUT - D.SV_IDLER_CASE_FACE                   # -3.15
 SLAB_T = 6.0
 SLAB_X0 = PLATE_X1 - SLAB_T                                  # -9.15, back face (on the bed)
 # connector WINDOW over the measured trench, through seat and plate (the roll
-# bay's margins, parts.py: 0.45 axis side, 1.0 cable-end side, +/-0.5 across)
+# bay's margins: 0.45 axis side, 1.0 cable-end side, +/-0.5 across)
 WIN_Z = (-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.45)      # servo frame
 WIN_HW = D.SV_CONN_HW + 0.5
 CRADLE_CLR = 0.25      # per side, across the case width

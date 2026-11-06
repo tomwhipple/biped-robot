@@ -164,7 +164,7 @@ M25_TAP = 2.2           # M2.5 self-tap pilot (electronics board)
 HORN_BOSS_D = 16.5
 HORN_BOSS_H = 1.0       # yokes only
 IDLER_BOSS_D = 20.0     # was 19.0. Grown 2026-07-23 when the idler bolt circle
-                        # was finally drilled THROUGH (see parts.py bugfix): the
+                        # was finally drilled THROUGH: the
                         # 4x O3.4 clearance holes on the O14 circle reach r8.7,
                         # leaving only 0.8 mm to an O19 boss OD (sub-2-perimeter,
                         # check_printability THIN). O20 restores a 1.3 mm web and
@@ -234,7 +234,7 @@ ROLL_DISC_SCREW_THREAD = 7.6    # nominal M3x8, same 0.4 relief as the M3x6
 ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
 
 # ----------------------------------------------------------------------------
-# kinematic layout (matches sim/bimo_biped.xml)
+# kinematic layout
 # ----------------------------------------------------------------------------
 # 56.0 -> 66.0 on 2026-08-04 (pelvis v4, user-approved). WIDER STANCE: the yaw
 # servos are now fully boxed in (see the v4 section below), and the box walls
@@ -243,9 +243,8 @@ ROLL_IDLER_PAD_SINK = 1.35      # O PAD_D recess in the arm's outer face
 # leg/yaw cable riser between them and no material for the board_frame feet.
 # 66 opens a 35.5 mm centre channel, and a wider stance is what the lateral
 # push-recovery margin wanted anyway (the roll servos now have a longer moment
-# arm to the CoM for the same joint torque). EVERY sim plant and the trained
-# policy key off this number: sim/bimo_biped_v3yaw.xml and
-# sim/build_v2_inertia.py must be regenerated and the policy re-trained.
+# arm to the CoM for the same joint torque). The v6 robot overrides it
+# (dimensions_v6.HIP_SEP).
 HIP_SEP = 66.0          # leg center-to-center (was 56.0 through 2026-08-03)
 ROLL_TO_PITCH = 50.0    # hip-roll axis to hip-pitch axis
 THIGH = 90.0            # hip-pitch axis to knee axis
@@ -446,8 +445,8 @@ SV_IDLER_HUB_HW = 3.24      # half-width; fills SV_BOTFACE .. SV_IDLER_FACE
 SV_IDLER_CASE_FACE = -14.75   # the real idler-side case face; the screws land
                               # here, so this is what the plate must bear on
 # The case is therefore NOT centred on the output axis. Anything that models the
-# servo as a block -- notably sim/build_v2_inertia.py and the <geom class="servo">
-# boxes in the MJCF plants -- has to use these, not SV_CASE_T about zero, or it
+# servo as a block -- notably the <geom class="servo"> boxes in the MJCF plants
+# -- has to use these, not SV_CASE_T about zero, or it
 # puts 55 g of servo 1.30 mm off along the axis on every joint.
 # A moulded platform stands proud of that face over most of the plate footprint
 # (label/back-cover area).  It sits BETWEEN the screws and the plate, so it has
@@ -515,7 +514,7 @@ GRIP_TOP_IDLER = -16.0  # idler side must clear the upper yoke arm sweep (R12+4)
 GRIP_BOT = -36.0        # just past the case bottom end (-35.11)
 # (An idler-side cable-notch constant set lived here 2026-07-23 and was removed
 # the same day -- the sweep analysis showed no ankle-cable interference with the
-# fork, ~10 mm clearance at toes-pointed; see parts.py leg_link note.)
+# fork, ~10 mm clearance at toes-pointed.)
 WEB_GAP = 0.4
 WEB_TOP = -16.0         # clears the upper joint's fork arms folding to 95 deg
 BRACE_Z = (-54.0, -50.0)  # cross brace between the fork tines, in the X-Y
@@ -584,8 +583,7 @@ ANKLE_AXIS_ABOVE_SOLE = FOOT_T - FOOT_POCKET_D + SV_WID / 2  # 16.36 (+pad proud
 #            65 = 67.5, so TOWER_H >= 74; 75 leaves a 1 mm gap.
 # Consequences accepted with the decision: the tower now OVERHANGS the deck by
 # 5 mm per side fore-aft (the feet tabs still land inside it), and the GoPro
-# rides 31.5 mm higher, which raises torso COM. Both feed the sim plant --
-# sim/build_v2_inertia.py has to be re-run and the policy re-trained.
+# rides 31.5 mm higher, which raises torso COM.
 TOWER_H = 75.0          # was 43.5
 # REPLACEMENT BOARD -- Waveshare "General Driver for Robots", the swap that buys
 # an onboard IMU with no soldering (docs/wiring-general-driver.svg, schematic in
@@ -798,12 +796,11 @@ BT_SEAT_Z = -35.5                   # where the chamfers START, i.e. the bottom
 #     run * tan(47) -- i.e. 47 deg from HORIZONTAL. Closing a horizontal gap g
 #     therefore costs g * tan(47) of DROP, not g / tan(47).
 # Correct value 0.751 for the envelope (1.287 for a real 30 mm pack), confirmed
-# against the solid by lowering a pack mock onto parts.pelvis() until it touched:
+# against the solid by lowering a pack mock onto the pelvis until it touched:
 # -36.251, exactly the analytic figure. Nothing structural moved -- both asserts
-# below still hold with room, and the only consumer was parts.py's CG rollup
-# (80 g moving 0.52 mm: 0.04 mm of robot CG) -- but a pack mock placed at the
-# old number floated 0.5 mm above its seat, so every "pack seated" boolean in
-# check_assembly would have read zero by luck instead of by contact.
+# below still hold with room -- but a pack mock placed at the old number floated
+# 0.5 mm above its seat, so a "pack seated" boolean would have read zero by luck
+# instead of by contact.
 BT_SEAT_BAY_W = BT_WALL_X1 - BT_SEAT_X               # 32.40 between the roots
 BT_SEAT_DROP = ((BT_SEAT_BAY_W - BATT[1]) / 2
                 * math.tan(math.radians(BT_SEAT_DEG)))               # 0.751
@@ -1136,11 +1133,9 @@ FILAMENT_RHO = 1.27e-3  # g/mm^3 (PETG)
 PRINT_MASS_FACTOR = 0.90  # thin-walled parts print near-solid; grid infill on thick
 
 # ----------------------------------------------------------------------------
-# joint ranges of motion, deg (SOURCE since 2026-08-03: the JOINT LIMITS of
-# sim/bimo_biped_v4rom.xml -- the mechanical stop, i.e. how far the joint can
+# joint ranges of motion, deg: the mechanical stop, i.e. how far the joint can
 # be driven at all, which is what the printed parts have to clear. It is NOT
-# the plant's policy range any more; v4rom separates the two and holds the
-# training box at v3yaw's, but a part that only clears the training box is a
+# the plant's policy range: a part that only clears the training box is a
 # part the bench can break.) Interference checks probe BOTH extremes of every
 # joint and require SWEEP_BUFFER of air between relatively-moving bodies
 # (user call 2026-07-28).
