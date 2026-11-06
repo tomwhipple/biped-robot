@@ -141,6 +141,7 @@ SCRIPT_SCENARIO = {
     "stride1": "line_1m",
     "stride1_03": "line_1m",
     "stride1_04": "line_1m",
+    "steps5_03": "line_1m",
     "dash_stop": "speed_ladder",
     "turn": "turn_180",
     "pivot": "turn_180",
@@ -165,6 +166,14 @@ def _stride1_v(vx):
     def f(t):
         return (vx, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
     return f
+
+
+def _steps5_03(t):
+    # FIVE steps at 0.3 m/s: 2.5 gait-clock cycles (a step per foot per cycle at the
+    # deployed 1.5 Hz clock), stand either side (Tom 2026-11-05, after one-step
+    # attempts 2 and 4 stood). Sim (gh2h14_s1, measured sole, flail rate 2.5 walking):
+    # 0/24 falls, dx 0.52 - 0.55 m.
+    return (0.3, 0.0) if 2.0 <= t < 2.0 + 2.5 / 1.5 else (0.0, 0.0)
 
 
 def _crouch1(t):
@@ -196,6 +205,7 @@ SCRIPTS = {
     "stride1": _stride1,
     "stride1_03": _stride1_v(0.3),
     "stride1_04": _stride1_v(0.4),
+    "steps5_03": _steps5_03,
     "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,
