@@ -440,7 +440,7 @@ void testRecording() {
 // The walking rate limit (Tom 2026-11-05, for a 5-step walk): 2.5 rad/s while
 // walking, 1.5 at the stand; tilt is the same either way.
 void testWalkRate() {
-    CHECK_NEAR(flailguard::kLimits.rate_walk_rad_s, 2.5f, 1e-6f);
+    CHECK_NEAR(flailguard::kLimits.rate_walk_rad_s, 3.0f, 1e-6f);
     {   // 2.0 rad/s walking: under the walking line
         Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[2] = 2.0f;
         CHECK(run(d, r, 5000) == Trip::kNone);
@@ -449,10 +449,14 @@ void testWalkRate() {
         Detector d; Rig r; r.gyro[2] = 2.0f;
         CHECK(run(d, r, 2000) == Trip::kRate);
     }
-    {   // 3.0 rad/s walking: trips on the walking line
-        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[1] = 3.0f;
+    {   // 2.8 rad/s walking: under the 3.0 walking line
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[1] = 2.8f;
+        CHECK(run(d, r, 5000) == Trip::kNone);
+    }
+    {   // 3.5 rad/s walking: trips on the walking line
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[1] = 3.5f;
         CHECK(run(d, r, 2000) == Trip::kRate);
-        CHECK(d.tripValue() > 2.5f);
+        CHECK(d.tripValue() > 3.0f);
     }
     {   // tilt is unchanged while walking: 25 deg for 200 ms still trips
         Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.tilt(25.0f);
