@@ -46,6 +46,10 @@ std::atomic<float> g_armed_hold_value{0.0f};
 std::atomic<int> g_armed_hold_joint{-1};
 std::atomic<bool> g_armed_hold_torque{false};
 std::atomic<bool> g_flail_on{true};
+std::atomic<bool> g_heading_on{true};
+std::atomic<float> g_heading_k{1.0f};
+std::atomic<float> g_heading_err{0.0f};
+std::atomic<float> g_heading_corr{0.0f};
 std::atomic<uint32_t> g_op_stops{0};
 std::atomic<uint32_t> g_op_estops{0};
 

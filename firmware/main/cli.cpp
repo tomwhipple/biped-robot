@@ -9,6 +9,7 @@
 #include "balance/roll_pi.h"
 #include "fallguard/fallguard.h"
 #include "flailguard/flailguard.h"
+#include "flailguard/heading_hold.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -1538,6 +1539,27 @@ void cmdFlail(Sink out, int argc, char** argv) {
         robot::g_armed_holds.load() ? ", last: " : "",
         robot::g_armed_holds.load() ? holdWhy(robot::g_armed_hold_trip.load()) : "",
         s_hold_pending ? "HOLDING now, homes when upright and still" : "not holding");
+}
+
+// `heading` status | on | off | k <gain>: the IMU heading loop around the walking policy
+// (flailguard/heading_hold.h). On at boot.
+void cmdHeading(Sink out, int argc, char** argv) {
+    // Like shape / limit: a setting for the next run, allowed over Wi-Fi while benched
+    // (wcli/policy.cpp kBenchAny); armed, the Wi-Fi allowlist refuses it.
+    if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_heading_on.store(true);
+    else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_heading_on.store(false);
+    else if (argc >= 3 && !strcmp(argv[1], "k")) {
+        const float k = strtof(argv[2], nullptr);
+        if (k >= 0.0f && k <= 3.0f) robot::g_heading_k.store(k);
+        else out("heading: k must be 0..3 (rad/s per rad)\r\n");
+    }
+    const flailguard::HeadingHold::Config C{};
+    say(out, "heading hold %s: k %.2f rad/s per rad, |wz| <= %.2f rad/s, while walking\r\n",
+        robot::g_heading_on.load() ? "ON" : "OFF", static_cast<double>(robot::g_heading_k.load()),
+        static_cast<double>(C.wz_max));
+    say(out, "  last error %+.1f deg, correction %+.2f rad/s\r\n",
+        static_cast<double>(robot::g_heading_err.load() * 57.2958f),
+        static_cast<double>(robot::g_heading_corr.load()));
 }
 
 // `fall` status | on | off | autohome on|off | clear
@@ -3931,6 +3953,7 @@ void banner(Sink out) {
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
+    out("  heading [on|off|k x] IMU heading hold while walking (on at boot)\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
@@ -4039,6 +4062,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
     else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
     else if (!strcmp(c, "flail")) cmdFlail(out, argc, argv);
+    else if (!strcmp(c, "heading")) cmdHeading(out, argc, argv);
     else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "wcli")) cmdWcli(out, argc, argv);
