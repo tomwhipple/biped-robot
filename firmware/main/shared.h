@@ -96,6 +96,13 @@ extern std::atomic<bool> g_armed_hold_torque;
 extern std::atomic<uint32_t> g_flail_walk_recovers;
 extern std::atomic<uint8_t> g_flail_walk_trip;
 extern std::atomic<float> g_flail_walk_value;
+// `heading on|off|k <gain>` (CLI writes, ctrl reads every tick): the IMU heading loop around
+// the walking policy (flailguard/heading_hold.h). On at boot. ctrl publishes its last heading
+// error (rad) and turn correction (rad/s) for the status line.
+extern std::atomic<bool> g_heading_on;
+extern std::atomic<float> g_heading_k;
+extern std::atomic<float> g_heading_err;
+extern std::atomic<float> g_heading_corr;
 // `flail on|off` (CLI writes, ctrl reads every tick). On at boot.
 extern std::atomic<bool> g_flail_on;
 

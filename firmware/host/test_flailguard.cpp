@@ -12,6 +12,7 @@
 //     the clean first 3 s, and the guard trips by 3.5 s. Each criterion's own
 //     trip time is printed (docs/first-policy-stand.md quotes them).
 #include "flailguard/flailguard.h"
+#include "flailguard/heading_hold.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -498,6 +499,37 @@ void testGraceLimits() {
     }
 }
 
+// HeadingHold (Tom 2026-11-06: "IMU feedback to keep the robot walking in a straight line"):
+// the reference is the heading at the walk's start, advanced by the commanded turn; the
+// correction opposes the error, clamped; nothing at a stand; quaternion yaw and wrap.
+void testHeadingHold() {
+    using flailguard::HeadingHold;
+    const float dt = 0.02f, d2r = 1.0f / 57.29578f;
+    HeadingHold h;                          // k 1.0, |wz| <= 0.5
+    CHECK(h.update(0.3f, 0.0f, false, dt) == 0.0f);                 // stand: nothing
+    CHECK(h.update(0.3f, 0.0f, true, dt) == 0.0f);                  // the walk begins at 0.3 rad
+    CHECK_NEAR(h.update(0.3f + 10.0f * d2r, 0.0f, true, dt), -10.0f * d2r, 1e-5f);  // 10 deg left -> turn right
+    CHECK_NEAR(h.update(0.3f - 20.0f * d2r, 0.0f, true, dt), 20.0f * d2r, 1e-5f);   // 20 deg right -> left
+    CHECK_NEAR(h.update(0.3f + 80.0f * d2r, 0.0f, true, dt), -0.5f, 1e-6f);         // the 11-06 spin: clamped
+    CHECK(h.update(1.0f, 0.0f, false, dt) == 0.0f && h.error() == 0.0f);           // the walk ends
+    {   // a commanded turn: tracking it perfectly is no error
+        HeadingHold t;
+        float yaw = 0.0f;
+        t.update(yaw, 0.5f, true, dt);
+        for (int i = 0; i < 100; ++i) { yaw += 0.5f * dt; CHECK(fabsf(t.update(yaw, 0.5f, true, dt)) < 1e-3f); }
+    }
+    {   // wrap across +-pi
+        HeadingHold t;
+        t.update(3.1f, 0.0f, true, dt);
+        CHECK_NEAR(t.update(-3.1f, 0.0f, true, dt), -(2.0f * 3.14159265f - 6.2f), 1e-3f);
+    }
+    {   // yaw of a quaternion: 30 deg about z
+        const float a = 30.0f * d2r;
+        const float q[4] = {cosf(a / 2), 0.0f, 0.0f, sinf(a / 2)};
+        CHECK_NEAR(HeadingHold::yawOf(q), a, 1e-5f);
+    }
+}
+
 void testWalkRecovery() {
     using flailguard::WalkRecovery;
     WalkRecovery::Config c;
@@ -569,5 +601,6 @@ int main() {
     testWalkRecovery();
     testWalkRate();
     testGraceLimits();
+    testHeadingHold();
     return testutil::report("test_flailguard");
 }
