@@ -140,6 +140,7 @@ SCRIPT_SCENARIO = {
     "line_1m": "line_1m",
     "stride1": "line_1m",
     "stride1_03": "line_1m",
+    "stride1_03e": "line_1m",
     "stride1_04": "line_1m",
     "steps5_03": "line_1m",
     "back3_03": "line_1m",
@@ -167,6 +168,15 @@ def _stride1_v(vx):
     def f(t):
         return (vx, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
     return f
+
+
+def _stride1_03e(t):
+    # stride1_03 ending EARLY: 0.61 s instead of one gait cycle (0.667 s). The morning
+    # planner (11-06), from test 1's flight record: the robot's command ended ~33 ms late,
+    # past the stand phase, so the clock coasted a whole extra cycle under cmd 0 and the R
+    # leg made a THIRD swing the sim never makes (gz -6.1 rad/s, the trip at +904 ms).
+    # Sim (refit + dqlag, 8 seeds): ending -40 ms 0/8 trips, +20 ms 8/8. -57 ms leaves margin.
+    return (0.3, 0.0) if 2.0 <= t < 2.61 else (0.0, 0.0)
 
 
 def _steps5_03(t):
@@ -211,6 +221,7 @@ SCRIPTS = {
     "stand": _stand,
     "stride1": _stride1,
     "stride1_03": _stride1_v(0.3),
+    "stride1_03e": _stride1_03e,
     "stride1_04": _stride1_v(0.4),
     "steps5_03": _steps5_03,
     "back3_03": _back3_03,
