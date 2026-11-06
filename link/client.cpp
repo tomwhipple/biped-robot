@@ -235,6 +235,17 @@ bool Link::setWatch(const char* host, int port) {
     return true;
 }
 
+bool Link::setTee(const char* host, int port) {
+    tee_to.sin_family = AF_INET;
+    tee_to.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host, &tee_to.sin_addr) != 1) {
+        tee_on = false;
+        return false;
+    }
+    tee_on = true;
+    return true;
+}
+
 void Link::close() {
     if (tx >= 0) ::close(tx);
     if (rx >= 0) ::close(rx);
@@ -252,6 +263,11 @@ void Link::emit(const uint8_t* wire, size_t n) {
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
         ++sent;
+    }
+    if (tee_on &&
+        sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&tee_to),
+               sizeof tee_to) == static_cast<ssize_t>(n)) {
+        ++teed;
     }
 }
 
@@ -571,6 +587,60 @@ void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
     // PUT ON THE WIRE, so a request cannot expire in a console that is not
     // sending (a window that lost focus, a paused test).
     if (in.home_frames > 0) --in.home_frames;
+}
+
+bool toggleControl(Link& link, Intent& in, const char* host, double now_ms,
+                   char* msg, size_t cap) {
+    if (!link.readonly) {
+        link.goReadonly();
+        in.readonly = true;
+        in.releaseAll();
+        // NOT disarmed on the way out -- see Link::goReadonly. The arm level
+        // this console was holding is simply no longer this console's to
+        // hold; whoever is still driving holds theirs, and if nobody is, the
+        // robot's watchdog stands it in kStaleMs.
+        snprintf(msg, cap,
+                 "WATCHING: transmit socket closed. The robot is left exactly "
+                 "as it is -- no parting disarm, so a console still driving "
+                 "it keeps it.");
+        return true;
+    }
+    if (!link.takeControl()) {
+        snprintf(msg, cap,
+                 "cannot take control: started without --host, so there is no "
+                 "robot address to command. (The beacon's sender is the "
+                 "console forwarding it, not the robot.)");
+        return false;
+    }
+    in.adopt(link, now_ms);
+    snprintf(msg, cap, "DRIVING %s -- this console is now a commander, and "
+             "the robot beacons here instead", host != nullptr ? host : "?");
+    return true;
+}
+
+bool relinkDisarming(Link& link, Intent& in, const char* host, int cmd_port,
+                     int tlm_port, bool observe) {
+    if (!link.readonly && in.armed) {
+        in.disarm();
+        for (int i = 0; i < 5; ++i) {
+            link.send(0.0f, 0.0f, 0);
+            usleep(10 * 1000);
+        }
+    }
+    in.releaseAll();
+    in.armed = false;
+    in.estop = false;
+    in.home_frames = 0;
+    in.readonly = observe;
+    return link.relink(host, cmd_port, tlm_port, observe);
+}
+
+void leaveDisarmed(Link& link, int frames, int gap_ms) {
+    if (link.readonly) return;
+    for (int i = 0; i < frames; ++i) {
+        link.send(0.0f, 0.0f, 0);
+        usleep(static_cast<useconds_t>(gap_ms) * 1000u);
+    }
 }
 
 }  // namespace bimo

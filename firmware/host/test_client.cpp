@@ -11,6 +11,7 @@
 // piece of the console that eats bytes from the network.
 #include "bench.h"
 #include "client.h"
+#include "console_api.h"
 #include "keymap.h"
 #include "mjpeg.h"
 #include "recorder.h"
@@ -843,6 +844,126 @@ void test_poll_reads_the_longest_beacon_whole() {
     link.close();
 }
 
+// -- the C boundary the Qt console loads (link/console_api.h) ---------------
+// A UDP socket on loopback standing in for the robot: what the boundary puts
+// on the wire is decoded with the firmware's own decoder.
+int robotSocket(int* port) {
+    const int s = socket(AF_INET, SOCK_DGRAM, 0);
+    CHECK(s >= 0);
+    sockaddr_in at = {};
+    at.sin_family = AF_INET;
+    at.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    CHECK(bind(s, reinterpret_cast<sockaddr*>(&at), sizeof at) == 0);
+    socklen_t len = sizeof at;
+    CHECK(getsockname(s, reinterpret_cast<sockaddr*>(&at), &len) == 0);
+    *port = ntohs(at.sin_port);
+    return s;
+}
+
+// Frames waiting on `s`; the last one decoded into `last`.
+int drainCommands(int s, linkproto::Command* last) {
+    int n = 0;
+    for (;;) {
+        pollfd pfd = {s, POLLIN, 0};
+        if (::poll(&pfd, 1, 50) != 1) return n;
+        uint8_t buf[64];
+        const ssize_t got = recvfrom(s, buf, sizeof buf, 0, nullptr, nullptr);
+        if (got <= 0) return n;
+        CHECK(linkproto::decodeCommand(buf, static_cast<size_t>(got), *last) ==
+              linkproto::Err::kOk);
+        ++n;
+    }
+}
+
+void test_c_boundary_drives_and_watches_like_the_core() {
+    CHECK_EQ(bimo_api_version(), BIMO_API_VERSION);
+    CHECK_EQ(bimo_status_size(), sizeof(BimoStatus));
+    int port = 0;
+    const int robot = robotSocket(&port);
+    linkproto::Command cmd = {};
+
+    // An observer pointed straight at the robot: every control refuses, and
+    // nothing reaches the socket.
+    BimoConsole* w = bimo_new();
+    CHECK(bimo_listen(w, 0, "127.0.0.1", port));
+    bimo_toggle_arm(w, 0.0);
+    CHECK(bimo_press(w, kAxForward, 0.0) == 0);
+    CHECK(strstr(bimo_note(w), "only watches") != nullptr);
+    bimo_tick(w, 10.0);
+    bimo_poll(w, 11.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 0);
+    BimoStatus st;
+    bimo_status(w, 10.0, &st);
+    CHECK(st.readonly && !st.armed && st.sent == 0);
+
+    // Taking control adopts the robot's level: with no beacon that is
+    // disarmed, and the message says so.
+    char msg[256];
+    CHECK(bimo_toggle_control(w, "127.0.0.1", 20.0, msg, sizeof msg));
+    CHECK(strstr(msg, "DRIVING") != nullptr);
+    CHECK(strstr(bimo_note(w), "NO beacon") != nullptr);
+    bimo_toggle_arm(w, 30.0);
+    CHECK(bimo_press(w, kAxForward, 30.0));
+    bimo_tick(w, 40.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK(cmd.arm() && cmd.enabled());
+    CHECK_NEAR(cmd.vx, kDefaultVx, 1e-3);
+    bimo_status(w, 40.0, &st);
+    CHECK(!st.readonly && st.armed && st.held[kAxForward]);
+    CHECK_NEAR(st.vx, kDefaultVx, 1e-6);
+    CHECK_EQ(st.last_len, linkproto::kCmdLen);
+
+    // Handing back sends no parting disarm: nothing at all goes out.
+    CHECK(bimo_toggle_control(w, "127.0.0.1", 50.0, msg, sizeof msg));
+    CHECK(strstr(msg, "no parting disarm") != nullptr);
+    bimo_tick(w, 60.0);
+    bimo_leave_disarmed(w, 3, 0);
+    CHECK_EQ(drainCommands(robot, &cmd), 0);
+    bimo_free(w);
+
+    // A driver's way out drops ARM, repeated.
+    BimoConsole* d = bimo_new();
+    CHECK(bimo_open(d, "127.0.0.1", port, 0));
+    bimo_toggle_arm(d, 0.0);
+    bimo_set_ext(d, 0.8f, 0.0f, 0.0f, 0.0f);
+    bimo_tick(d, 10.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK_NEAR(cmd.crouch, 0.8, 1e-3);
+    bimo_status(d, 10.0, &st);
+    CHECK_EQ(st.last_len, linkproto::kCmdLenExt);
+    bimo_leave_disarmed(d, 3, 0);
+    CHECK_EQ(drainCommands(robot, &cmd), 3);
+    CHECK(!cmd.arm() && !cmd.enabled());
+
+    // Twin-in-the-loop: the same frames, byte for byte, to the sim too.
+    int sim_port = 0;
+    const int sim = robotSocket(&sim_port);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    CHECK(!bimo_set_tee(d, "not-an-ip", sim_port) && true);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    bimo_tick(d, 20.0);
+    linkproto::Command teed = {};
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK_EQ(drainCommands(sim, &teed), 1);
+    CHECK_EQ(teed.seq, cmd.seq);
+    bimo_status(d, 20.0, &st);
+    CHECK(st.tee_on && st.teed == 1);
+    bimo_clear_tee(d);
+    bimo_tick(d, 30.0);
+    CHECK_EQ(drainCommands(sim, &teed), 0);
+    ::close(sim);
+
+    // The keymap is the shared one, HOLD included.
+    const int hold = bimo_action_from_name("hold");
+    CHECK(hold >= 0 && hold < bimo_action_count());
+    CHECK_EQ(bimo_keymap_key(d, hold), 'f');
+    CHECK_EQ(bimo_keymap_action_for(d, 'f'), hold);
+    CHECK(strcmp(bimo_state_name(static_cast<int>(LinkState::kBench)),
+                 "BENCH (loop not armed)") == 0);
+    bimo_free(d);
+    ::close(robot);
+}
+
 }  // namespace
 
 // The fault field is a u32 over the 17-servo bus (bit b = bus joint b); the
@@ -1148,6 +1269,7 @@ int main() {
     test_control_needs_a_destination();
     test_taking_control_adopts_the_robots_arm_level();
     test_poll_reads_the_longest_beacon_whole();
+    test_c_boundary_drives_and_watches_like_the_core();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();

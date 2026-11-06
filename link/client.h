@@ -122,10 +122,16 @@ struct Link {
     double rate_at_ms = 0.0;
     double rate_hz = 0.0;
 
-    // Mirror mode used to relay each command to a second address -- the sim,
-    // running the same command beside the robot. That is gone (2026-09-03):
-    // mirror mode is a VIEWER now, posed from the robot's measured joints, so
-    // there is no second robot to command. See docs/mirror-mode.md.
+    // Twin-in-the-loop (the Qt console's Sim tab, off by default): every
+    // command frame this link emits is ALSO sent, byte for byte, to a sim
+    // twin on its own ports, so the twin runs the same commands beside the
+    // robot. The twin reports through its own beacon and flight records and
+    // is drawn as its own ghost; nothing here ever blends it into the
+    // measured picture (mirror mode, docs/mirror-mode.md, is a viewer and
+    // commands nothing). An observer emits nothing, so it tees nothing.
+    sockaddr_in tee_to = {};
+    bool tee_on = false;
+    uint32_t teed = 0;
 
     // OBSERVER mode: this link has no transmit socket at all, so it cannot
     // put a byte on the wire. Not a policy the UI enforces -- a policy the
@@ -187,6 +193,9 @@ struct Link {
     bool relink(const char* host, int cmd_port, int tlm_port, bool observe);
     bool setWatch(const char* host, int port);
     void clearWatch() { watch_on = false; }
+    // The twin-in-the-loop copy (tee_to above). False on a non-dotted-quad.
+    bool setTee(const char* host, int port);
+    void clearTee() { tee_on = false; }
     void close();
 
     // vx/wz only -- the classic 14 B frame.
@@ -320,6 +329,32 @@ const char* motionText(const Intent& in);
 // kFlagHome level lasts kHomeFrames frames and this is what counts them down.
 void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
                 float& vy, float& wz, Ext& ext_out, uint8_t& flags);
+
+// -- around the link: handover, re-pointing, leaving ------------------------
+// The rules every front end follows when the link itself changes. bimo_gui
+// calls them, and so does the C boundary (link/console_api.h) that the Qt
+// console loads, so each has one copy.
+
+// WATCHING <-> DRIVING. Going to watch closes the transmit socket and sends
+// NO parting disarm (Link::goReadonly); taking control adopts the level the
+// robot reports (Intent::adopt), so the handover moves nothing. `host` is
+// only quoted in `msg`, which says what happened either way. Returns false
+// when control could not be taken: no robot address (Link::has_dest).
+bool toggleControl(Link& link, Intent& in, const char* host, double now_ms,
+                   char* msg, size_t cap);
+
+// Re-point the console at another robot (or the sim), in the given mode. A
+// driving console that holds the robot armed drops ARM first, repeated: unlike
+// handing over, nobody is left commanding the robot it leaves. The intent
+// comes back disarmed, released and unlatched.
+bool relinkDisarming(Link& link, Intent& in, const char* host, int cmd_port,
+                     int tlm_port, bool observe);
+
+// The disarm a console sends on its way out: ARM dropped, `frames` times,
+// `gap_ms` apart, since any one datagram may vanish. An observer sends
+// nothing -- it never armed anything, and must not disarm what the driver
+// armed.
+void leaveDisarmed(Link& link, int frames, int gap_ms);
 
 }  // namespace bimo
 
