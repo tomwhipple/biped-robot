@@ -69,10 +69,13 @@ void ctrlTick(uint32_t now_ms);
 void dropFromCtrl(railguard::DropWhy why);
 // A frame that disables: ENABLE, ARM and ESTOP all clear (Guard::disabledCommand).
 void disabledFromCtrl();
+// Every valid frame from the commander, in both modes (Guard::commanderFrame). ESTOP
+// set: SERVO_EN low on this very tick, whoever powered the rail.
+void commanderFrame(bool estop);
 
 // -- housekeeping (core 0) ------------------------------------------------------
 // Each waits for ctrl to apply it, at most a tick or two.
-// Ask for the rail (kNoReading if ctrl does not answer).
+// Ask for the rail (kNoReading if ctrl does not answer, and the request is cancelled).
 railguard::Verdict requestOn();
 void requestOff(railguard::DropWhy why);
 // Off, and counts as the disabled command that clears the E-stop latch.
