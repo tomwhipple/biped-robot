@@ -95,6 +95,13 @@ struct Limits {
 
 constexpr Limits kLimits = {300u, 1.5f, 0.2f, 20.0f, 200u, 7.0f, 0.1f, kCritAll};
 
+// WalkRecovery's grace window pauses rate / chatter / pose (the stop itself moves the body)
+// but NEVER tilt. 2026-11-06 steps5_03: the robot tipped over inside the grace and lay at
+// ~35 deg -- under the fall guard's 45 -- while the paused guard let the policy drive the
+// fallen robot for ~0.3 - 0.5 s, until the rate criterion came back. During the grace the
+// loop judges these limits instead: tilt alone, 20 deg for 200 ms, a trip holds.
+constexpr Limits kGraceLimits = {300u, 1.5f, 0.2f, 20.0f, 200u, 7.0f, 0.1f, kCritTilt};
+
 // The pose limit for a joint, by its name (obs_spec kJointNames), degrees.
 // One table, by joint kind; unknown names get the default. 15 deg everywhere
 // today -- the table exists so a joint that legitimately moves more at a

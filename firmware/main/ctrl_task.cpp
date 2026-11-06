@@ -147,6 +147,8 @@ flailguard::Detector g_flail;
 // WalkRecovery, Tom 2026-11-05): the policy keeps balancing, its command is
 // taken to the stand, the guard pauses, then judges the stand afresh.
 flailguard::WalkRecovery g_walkrec;
+// ... whose grace window still judges tilt (flailguard.h kGraceLimits).
+flailguard::Detector g_flail_grace(flailguard::kGraceLimits);
 
 // The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
 // the foot offsets off the plain stand (the same thresholds as the flail
@@ -394,6 +396,7 @@ void ctrlTask(void*) {
             // ... and a fresh flail guard: every filter, run and the latch.
             g_flail.reset();
             g_walkrec.reset();
+            g_flail_grace.reset();
             g_hold_on_bench = false;
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
@@ -739,9 +742,10 @@ void ctrlTask(void*) {
         // written, the servos freeze where they are with torque ON, and the
         // run ends. A trip during a walk (WalkRecovery): the policy keeps
         // running with its command taken to the stand, the guard pauses for
-        // its grace window, then judges the stand from fresh filters.
+        // its grace window -- judging tilt alone (kGraceLimits) -- then judges
+        // the stand from fresh filters on every criterion.
         if (g_flail_on.load() && g_walkrec.graceJustEnded()) g_flail.reset();
-        if (g_flail_on.load() && g_walkrec.judging()) {
+        if (g_flail_on.load()) {
             flailguard::Input fin;
             fin.n = obs::kNumJoints;
             fin.target = angle;
@@ -761,16 +765,19 @@ void ctrlTask(void*) {
             fin.imu_valid = s.valid;
             fin.up = s.up;
             fin.gyro = s.gyro;
+            const bool full = g_walkrec.judging();
+            flailguard::Detector& det = full ? g_flail : g_flail_grace;
             const flailguard::Trip trip =
-                g_flail.update(fin, static_cast<uint32_t>(kTickUs / 1000));
-            if (trip != flailguard::Trip::kNone && g_walkrec.onTrip()) {
+                det.update(fin, static_cast<uint32_t>(kTickUs / 1000));
+            if (trip != flailguard::Trip::kNone && full && g_walkrec.onTrip()) {
+                g_flail_grace.reset();                  // the grace judges tilt from fresh
                 g_flail_walk_trip.store(static_cast<uint8_t>(trip));
                 g_flail_walk_value.store(g_flail.tripValue());
                 g_flail_walk_recovers.fetch_add(1);     // housekeeping logs it
             } else if (trip != flailguard::Trip::kNone) {
                 const int nwr = writeHoldHere();
                 holdAndDisarm(linkproto::ArmResult::kDisarmedFlail, static_cast<uint8_t>(trip),
-                              g_flail.tripValue(), g_flail.tripJoint());
+                              det.tripValue(), det.tripJoint());
                 recordFlight(t0, t_read0, t_read1, rep_state, s, nwr, &in, vbat_dv);
                 publish(rep_state, faults, s.up, vbat_dv,
                         static_cast<uint32_t>(esp_timer_get_time() - t0));
