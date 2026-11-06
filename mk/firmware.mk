@@ -1,5 +1,5 @@
 ##@ Firmware
-.PHONY: host vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
+.PHONY: host vectors deploy firmware firmware-powerlite lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
 FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
@@ -29,13 +29,20 @@ IDF_PATH ?= $(firstword $(wildcard $(HOME)/esp/esp-idf $(HOME)/.espressif/framew
 export IDF_PYTHON_ENV_PATH ?= $(firstword $(wildcard $(addprefix $(HOME)/.espressif/python_env/idf5.4_py,3.12_env 3.13_env 3.11_env 3.10_env)))
 # POLICY=<profile> builds the image with firmware/policies/<profile>'s policy
 # instead of the deployed one (tools/policy_profile.py), in its own build dir.
-FW_BUILD = build/firmware$(if $(POLICY),-$(POLICY))
-firmware: ## the ESP32 image (ESP-IDF), in build/firmware (POLICY=<profile>: build/firmware-<profile>)
+# POWER_LITE=1 builds it for a robot with the power-lite board (main/power_rail.h);
+# without that board such an image can never arm. Also its own build dir. Empty, 0,
+# OFF and off all mean the default image.
+POWER_LITE_ON = $(filter-out 0 OFF off,$(POWER_LITE))
+FW_BUILD = build/firmware$(if $(POLICY),-$(POLICY))$(if $(POWER_LITE_ON),-powerlite)
+firmware: ## the ESP32 image (ESP-IDF), in build/firmware (POLICY=<profile>: build/firmware-<profile>; POWER_LITE=1: ...-powerlite)
 	@if ! command -v idf.py > /dev/null; then \
 	  test -f "$(IDF_PATH)/export.sh" || { echo "no ESP-IDF: put idf.py on PATH or set IDF_PATH" >&2; exit 1; }; \
 	  . "$(IDF_PATH)/export.sh" > /dev/null; \
 	fi; \
-	idf.py -C firmware -B $(FW_BUILD) -DBIMO_POLICY=$(POLICY) build
+	idf.py -C firmware -B $(FW_BUILD) -DBIMO_POLICY=$(POLICY) -DBIMO_POWER_LITE=$(if $(POWER_LITE_ON),ON,OFF) build
+
+firmware-powerlite: ## the power-lite image, so the build option cannot rot (a pre-push gate)
+	$(MAKE) firmware POWER_LITE=1
 
 # Static analysis. A missing tool is a visible SKIP, never a silent pass.
 lint: ## cmake-check, tidy, tidy-gui and cppcheck

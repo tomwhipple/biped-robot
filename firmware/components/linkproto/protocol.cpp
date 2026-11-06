@@ -159,6 +159,10 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kDisarmedStop:
             return "disarmed -- operator STOP (tools/estop.py): run ended; "
                    "re-arm deliberately (ARM edge or run)";
+        case ArmResult::kRailDown:
+            return "servo rail OFF, so no arm or reset -- E-stop, rail fault, "
+                   "link loss or pack guard (`stat` says which); RUN, then "
+                   "disarm, then arm";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.

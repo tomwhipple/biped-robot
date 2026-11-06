@@ -247,6 +247,11 @@ enum class ArmResult : uint8_t {
     // An operator stop (kFlagStop) ended the run: torque released (hard) or
     // held where it was (soft).
     kDisarmedStop = 13,
+    // Power lite (main/power_rail.h): the servo rail is off and that is the answer. An
+    // arm or a reset refused (the E-stop pressed or latched, a rail fault), or a run
+    // ended by the rail going (the E-stop, a rail fault, link loss, the pack guard).
+    // The tether and `stat` say which. Only a BIMO_POWER_LITE image ever sends it.
+    kRailDown = 14,
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -256,7 +261,8 @@ enum class ArmResult : uint8_t {
 inline bool isHomeResult(ArmResult r) {
     return r == ArmResult::kDisarmedHome || r == ArmResult::kHomeNoCal ||
            r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed ||
-           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached;
+           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached ||
+           r == ArmResult::kRailDown;
 }
 
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);

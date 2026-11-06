@@ -246,6 +246,10 @@ class ArmResult(Enum):
     # An operator stop (FLAG_STOP) ended the run: torque released (hard) or
     # held where it was (soft).
     DISARMED_STOP = 13
+    # Power lite: the servo rail is off and that is the answer. An arm or a reset
+    # refused (E-stop pressed or latched, a rail fault), or a run ended by the rail
+    # going (E-stop, rail fault, link loss, pack guard). Only a power-lite image sends it.
+    RAIL_DOWN = 14
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -255,7 +259,8 @@ def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
 
 HOME_RESULTS = (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
                 ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
-                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED)
+                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED,
+                ArmResult.RAIL_DOWN)
 
 
 def is_home_result(r) -> bool:
@@ -318,6 +323,10 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.DISARMED_STOP:
         return ("disarmed -- operator STOP (tools/estop.py): run ended; "
                 "re-arm deliberately (ARM edge or run)")
+    if r is ArmResult.RAIL_DOWN:
+        return ("servo rail OFF, so no arm or reset -- E-stop, rail fault, "
+                "link loss or pack guard (`stat` says which); RUN, then "
+                "disarm, then arm")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")

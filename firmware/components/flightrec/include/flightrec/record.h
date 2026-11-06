@@ -80,6 +80,7 @@ enum class Ev : uint8_t {
     kStop = 12,       // operator stop (linkproto::kFlagStop), once per burst: a = 1 hard / 0 soft,
                       // b = 1 armed / 0 benched; text says
     kWcli = 13,       // Wi-Fi CLI session event (text says): a = peer IPv4, b = peer port
+    kRail = 14,       // power-lite servo rail (railguard.h): a = State, b = Fault; text says
 };
 // kCmd / kOut `a`: which channel the line came in on / went back out on.
 constexpr int32_t kChanTether = 0;

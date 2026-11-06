@@ -83,6 +83,111 @@ pack balance lead (J2) ─ BMS cell taps                                      �
 - **J3 and J4–J8 keep the custom board's pin orders**, so the harness in
   [`../power-board/harness.md`](../power-board/harness.md) applies (checks P2–P4).
 
+## The firmware
+
+A robot with this board runs its own image: `make firmware POWER_LITE=1`, in
+`build/firmware-powerlite` (it combines with `POLICY=`). It is a build option because on
+a robot without the board IO4 is the WS2812 net and IO16 goes nowhere, and a floating
+`ESTOP_N` must read as stop, so nothing can detect the board at run time: this image
+would never arm that robot. A default image does not touch these pins.
+
+The logic is `firmware/components/railguard` (its header has the derivations), and the
+hardware half `firmware/main/power_rail.cpp`.
+
+- **Arming.** `ESTOP_N` must be low, and the rail must have fallen below 8 V since it was
+  last on. `SERVO_EN` goes high; `RAIL_V` must pass 8 V within 250 ms; the servos get
+  500 ms to boot. Only then is the bus used. On a timeout `SERVO_EN` drops and the fault
+  is reported.
+- **The servos are off until something asks.**
+  - An arm (`run`, an ARM edge) powers the rail itself. So does `home` or the wireless
+    reset, which turn it off again when the home has released torque.
+  - Bench work (`scan`, `pos`, `cal`, `pose`) needs `rail on` first, over the tether.
+    Without it those commands say so. Scripts in `tools/` that talk to the servos need it
+    too.
+  - No servo is read at boot: the gain check is the arm's, with the rail up, and it
+    re-applies the servos' RAM settings, which a power cycle loses.
+- **`SERVO_EN` drops on:** a disarm (`bench`, ARM off), a hard operator stop in any mode,
+  the link's RELAX and `ESTOP`, the pack guard's safe state, a fall, `ESTOP_N` going high,
+  and the rail collapsing below 7 V for 500 ms. Each of those ends a run: `RAIL_DOWN` in
+  the beacon, or `DISARMED_FALL` / `DISARMED_STOP`. A flail-guard or soft-stop hold keeps
+  the rail, because it holds with torque on, until the bench home has released it, or
+  `release` does.
+- **A commander's `ESTOP` frame drops it benched too**, whoever powered it, and the rail
+  stays refused until the commander's next frame without the flag (or 500 ms with no
+  frame at all). So a home or a `rail on` ends on the console's E-stop, and a console
+  holding its E-stop has to let go before **RESET SERVOS** does anything: `RAIL_DOWN`
+  until then. An ARM edge in a frame with `ESTOP` is refused the same way.
+- **A rail the firmware powered goes when its reason does**: a home that ends, fails or
+  takes a soft stop, and `release` of all the servos. The robot goes limp where it is.
+  A typed `rail on` stays until `rail off`, `bench` or a drop.
+- **Nothing brings the rail back by itself.**
+  - `ESTOP_N` going high latches. Back at RUN, the rail stays off and an arm is refused
+    until a disabled command arrives: `bench`, or a frame with `ENABLE`, `ARM` and `ESTOP`
+    clear. Then it takes a fresh arm. So: RUN, disarm, arm.
+  - The bench's pick-up autohome does not run on this image, with the rail off or on: a
+    pick-up only says so once. `home`, the wireless reset or an arm is the way back, and a
+    `rail on` gives power and no motion. The fall latch clears when one of those starts,
+    not when it is refused.
+- **A welded K1.** `RAIL_V` above 8 V with `SERVO_EN` low, for 8 s with no new low of
+  150 mV, raises the stuck-rail fault. It also runs from the first sample after boot. A
+  rail that is still falling never raises it, however slowly: without servos it takes
+  2.9 s to reach 8 V through LED2, and 31 s if LED2 is open. The fault refuses arming, and
+  `rail clear` is refused until the rail has fallen.
+- **A reset.** A panic or a restart takes `SERVO_EN` low first: the linker wraps the panic
+  handler and `esp_restart_noos`, because that CPU reset alone leaves the ESP32's GPIOs as
+  they were. A brown-out is a full system reset, which leaves the pin to R2. The task
+  watchdog panics in this image (in a default image it only warns), so a
+  wedged control loop drops the rail within 1 s. The robot goes limp where it is, and comes
+  back benched with the rail off. An ARM bit held high makes no edge, so it does not re-arm.
+- **Telemetry.** `stat` and `rail` print the state, `SERVO_EN`, `RAIL_V`, `ESTOP_N`, the
+  latch, the fault and the last drop's reason; every change prints and is a flight-recorder
+  event (`rail`). The beacon carries only `RAIL_DOWN`; the fields themselves are #109's.
+  `vbat` reads 0 with the rail off, and the pack guard takes that as no data.
+
+### The bench check, with the ESP32
+
+Bring-up step 2 below, the ESP32 in place of the 3.3 V on J12.2, with the lab supply at
+12.0 V, 0.5 A, no BMS, no pack and no servos. Flash the power-lite image; film it from
+before the port opens (AGENTS.md). Type on the tether:
+
+1. **Boot.** `rail` reads OFF, `SERVO_EN` low, `RAIL_V` about 0 V, `ESTOP_N` low, no
+   latch, no fault. J12.2 reads 0 V, and K1 did not click during the reset.
+2. **Arm.** `rail on`: K1 clicks, LED2 lights, `rail` reads ON with `RAIL_V` at 12 V. Compare
+   it with a meter on SERVO+ and on J12.5 (2.1 V); note the error. `rail off`: K1 drops; time
+   how long `RAIL_V` takes to read below 8 V (2-3 s here). No fault within 30 s.
+3. **E-stop.** `rail on`, then open J11: K1 drops, and the tether prints `rail: OFF
+   (E-stop pressed)` and the latch, with `ESTOP_N` high. Close J11: K1 stays open.
+   `rail on` is refused, naming the latch. `bench`, then `rail on`: K1 clicks.
+4. **Unplugged lead.** Pull J12 from the ESP32's headers: `rail` shows `ESTOP_N` high and
+   `rail on` is refused. Replug; RUN, `bench`.
+5. **Stuck rail.** With `SERVO_EN` low, feed J12.5 about 2.1 V from a divider on the supply
+   (or hold SERVO+ up from a second supply): `rail FAULT: STUCK RAIL` within 8-9 s. `rail on`
+   is refused. `rail clear` is refused until the feed is removed; then it clears.
+6. **No rail.** Pull F1, `rail on`: `SERVO_EN` drops within 250 ms and `rail` reports NO RAIL.
+7. **Reset.** `rail on`, `rail panic`: K1 must drop as soon as the line prints, before the
+   reboot banner ends. Press the EN button with the rail on: the same. Scope J12.2 through a
+   power cycle and a reset: it never goes high.
+8. **Console E-stop.** `rail on`, then the console's E-stop: K1 drops, `rail` says `link
+   ESTOP`. `rail on` is refused while the console holds it, and works once it lets go. Benched,
+   run `link/release.py`, whose first frame is an ARM edge with `ESTOP`: K1 stays open.
+
+Then, with the real servos, as part of step 3 below:
+
+9. **Servo boot.** Time `rail on` and read `scan` straight after. If a servo is missing,
+   lengthen `railguard::kServoBootMs` (500 ms, a guess until now). The whole of `run` must
+   finish inside the console's 1.5 s `kArmSyncMs`, or the console drops ARM again.
+10. **First arm.** On the stand, torque-off pose: `run` must not twitch. A freshly powered
+   servo's goal register has never been written, and the arm writes targets within a tick
+   of enabling torque.
+11. **Tick cost.** `stat` armed: the rail's ADC reads land in `other`.
+12. **No motion from `rail on`.** Rail off, tip it past 30 deg until `FALL` prints, stand it
+    up and hold it still for 5 s: it says so once and does not move. `rail on`, and hold it
+    for 5 s more: K1 clicks, nothing moves, `fall` still says FALLEN. `home`: it homes, the
+    rail goes at the end.
+13. **Stops during a home.** `home`, then the console's E-stop: limp at once, `RAIL_DOWN` on
+    the beacon. `home`, then `tools/estop.py --soft`: the same, `DISARMED_STOP`. `run`, a soft
+    stop while held, with `fall autohome off`, then `release`: K1 drops.
+
 ## Before it goes in the robot
 
 1. **Check the BMS on the bench** (the exception to the datasheet rule, Tom 2026-11-02). Use
@@ -138,8 +243,8 @@ pack balance lead (J2) ─ BMS cell taps                                      �
   - The pulse is shorter than a typical 3-cell protection IC's short-circuit delay (ABLIC
     S-8254A: 320 µs). But the ShillehTek board's IC is not known.
   - The peak is above the 200 A capacitive make that TE lists for the 24 V-coil part.
-  - A welded contact would defeat the E-stop. The firmware's stuck-rail check (`ESTOP_N` high
-    while `RAIL_V` stays up) catches it, and bring-up step 3 tests it with the real servos.
+  - A welded contact would defeat the E-stop. The firmware's stuck-rail check (see "The
+    firmware") reports it, and bring-up step 3 tests it with the real servos.
 
 ## Ordering (two robots)
 

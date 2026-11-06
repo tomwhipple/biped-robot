@@ -61,7 +61,9 @@ C/C++ pushes only:
 - **cppcheck** — `firmware/host/cppcheck.sh`, whole-program, fails on ANY
   finding. Runs when cppcheck is installed.
 - **esp32-build** — `idf.py build` of the project in `firmware/` (the TARGET
-  link; no flashing). Detection: `idf.py` on PATH, else `$IDF_PATH/export.sh`,
+  link; no flashing), and again with the power-lite build option
+  (`make firmware-powerlite`), so an image nobody flashes yet cannot rot.
+  Detection: `idf.py` on PATH, else `$IDF_PATH/export.sh`,
   else `~/.espressif/frameworks/esp-idf-v5.4`. Blocks the push when no
   toolchain is found unless `SKIP_ESP32=1` is set.
 

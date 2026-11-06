@@ -47,6 +47,7 @@ include_directories(
     ${COMPONENTS}/battguard/include
     ${COMPONENTS}/fallguard/include
     ${COMPONENTS}/flailguard/include
+    ${COMPONENTS}/railguard/include
     ${COMPONENTS}/balance/include
     ${COMPONENTS}/flightrec/include
     ${COMPONENTS}/wcli/include)
@@ -106,6 +107,8 @@ bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
 
 bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)
+
+bimo_test(test_railguard test_railguard.cpp ${COMPONENTS}/railguard/railguard.cpp)
 
 # The flight recorder's wire format, against vectors from tools/flightrec.py.
 bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)

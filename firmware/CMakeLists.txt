@@ -43,7 +43,25 @@ if(BIMO_POLICY)
     message(STATUS "bimo: policy profile ${BIMO_POLICY}")
 endif()
 
+# Power lite (pcb/power-lite/README.md, main/power_rail.h): the servo rail behind
+# SERVO_EN, ESTOP_N and RAIL_V. OFF unless asked for (`make firmware POWER_LITE=1`):
+# on a robot without the board, IO4 is the WS2812 net and IO16 goes nowhere, and an
+# image that wants ESTOP_N low to arm would never arm. A cache variable like
+# BIMO_POLICY, so it too sticks to its build directory: give it its own -B.
+option(BIMO_POWER_LITE "the robot has the power-lite board" OFF)
+if(BIMO_POWER_LITE)
+    idf_build_set_property(COMPILE_DEFINITIONS "BIMO_POWER_LITE=1" APPEND)
+    message(STATUS "bimo: power lite")
+endif()
+
 project(bimo_firmware)
+
+if(BIMO_POWER_LITE)
+    # A panic or a CPU reset drops SERVO_EN first: a CPU reset leaves the GPIOs as
+    # they are, and the bootloader does not touch them (main/power_rail.cpp).
+    target_link_libraries(${CMAKE_PROJECT_NAME}.elf PRIVATE
+        "-Wl,--wrap=esp_panic_handler" "-Wl,--wrap=esp_restart_noos")
+endif()
 
 # The partition table is partitions.csv (3 MB app, NVS at its stock offset).
 # sdkconfig is gitignored and sdkconfig.defaults only seeds a NEW one, so a

@@ -58,6 +58,9 @@ void homeVerify(Sink out);
 // both ends, so nothing rings (Tom 2026-09-03: unison constant-speed moves
 // made the crouch oscillation WORSE). No-op when idle.
 void poseTick(Sink out);
+// Power lite (main/power_rail.h): every housekeeping tick, before fallTick. Reports
+// the rail's changes, and stops bench motion when it goes down.
+void railTick(Sink out);
 // Bench fall guard (cli.cpp): every housekeeping tick, before poseTick.
 void fallTick(Sink out);
 // STS3215 RAM response config (regs 85/81): re-applied when a benched check finds it reset.

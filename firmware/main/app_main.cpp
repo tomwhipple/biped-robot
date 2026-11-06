@@ -22,6 +22,7 @@
 #include "cal_store.h"
 #include "flight_rec.h"
 #include "policy/mlp.h"
+#include "power_rail.h"
 #include "scs_port_idf.h"
 #include "obs/assembler.h"
 #include "shared.h"
@@ -161,6 +162,9 @@ bool initHostUart() {
 extern "C" void app_main(void) {
     using namespace robot;
 
+    // Before anything else: IO16 low (main/power_rail.h).
+    if constexpr (rail::kFitted) rail::boot();
+
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
         err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -225,22 +229,32 @@ extern "C" void app_main(void) {
     // against main/servo_gains.h. Reads only. A mismatch (or a servo that
     // does not answer -- e.g. the pack is not connected yet) is logged here
     // and put on the BENCH beacon; `run` re-reads before every arm.
-    const bool gains_ok = cli::bootGainCheck([](const char* line) {
-        char buf[160];
-        size_t n = strlen(line);
-        if (n >= sizeof buf) n = sizeof buf - 1;
-        memcpy(buf, line, n);
-        while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
-        buf[n] = 0;
-        ESP_LOGW(kTag, "%s", buf);
-    });
+    // On power lite the servos are unpowered at boot, so there is nothing to read:
+    // a silent servo here would put a false kRefusedGains on the beacon. The check
+    // that counts is the arm's, which runs with the rail up.
+    bool gains_ok = true;
+    if constexpr (!rail::kFitted) {
+        gains_ok = cli::bootGainCheck([](const char* line) {
+            char buf[160];
+            size_t n = strlen(line);
+            if (n >= sizeof buf) n = sizeof buf - 1;
+            memcpy(buf, line, n);
+            while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
+            buf[n] = 0;
+            ESP_LOGW(kTag, "%s", buf);
+        });
+    }
 
     ESP_LOGI(kTag, "cal: %s, %d of %d bus servos fitted", cal_how,
              fittedBusJoints(calibration(), nullptr, nullptr),
              obs::kNumBusJoints);
-    ESP_LOGI(kTag, "gains: %s", gains_ok ? "every servo at its expected P/D"
-                                          : "NOT verified -- `run` will refuse "
-                                            "until `gains` is clean");
+    if constexpr (rail::kFitted) {
+        ESP_LOGI(kTag, "power lite: rail off; gains are checked at the arm, with the rail up");
+    } else {
+        ESP_LOGI(kTag, "gains: %s", gains_ok ? "every servo at its expected P/D"
+                                              : "NOT verified -- `run` will refuse "
+                                                "until `gains` is clean");
+    }
     ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
              g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
     // cppcheck-suppress knownConditionTrueFalse -- generated per build
