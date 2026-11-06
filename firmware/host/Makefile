@@ -65,6 +65,7 @@ CXXFLAGS  = -std=c++17 -O1 -g -ffp-contract=off \
             -I$(COMPONENTS)/gaitplay/include \
             -I$(COMPONENTS)/fallguard/include \
             -I$(COMPONENTS)/flailguard/include \
+            -I$(COMPONENTS)/railguard/include \
             -I$(COMPONENTS)/flightrec/include \
             -I$(COMPONENTS)/wcli/include
 
@@ -100,13 +101,14 @@ SRC_GAIT  = $(COMPONENTS)/gaitplay/track.cpp
 SRC_GATE  = $(COMPONENTS)/gaitplay/lift_gate.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
 SRC_FLAIL = $(COMPONENTS)/flailguard/flailguard.cpp
+SRC_RAIL  = $(COMPONENTS)/railguard/railguard.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
 SRC_WCLI  = $(COMPONENTS)/wcli/sha256.cpp $(COMPONENTS)/wcli/wcli.cpp \
             $(COMPONENTS)/wcli/policy.cpp
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_gaitplay test_lift_gate test_fallguard test_flailguard \
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_gaitplay test_lift_gate test_fallguard test_flailguard test_railguard \
         test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec \
         test_wcli
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
@@ -313,6 +315,9 @@ $(BUILD)/test_lift_gate: test_lift_gate.cpp $(SRC_GATE) test_util.h $(COMP_HDRS)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_fallguard: test_fallguard.cpp $(SRC_FALL) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_railguard: test_railguard.cpp $(SRC_RAIL) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The flail guard, replayed against the 2026-11-01 policy-stand failure

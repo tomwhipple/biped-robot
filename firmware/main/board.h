@@ -27,8 +27,9 @@
 //     pack voltage even with the servo bus released, which is strictly better
 //     than register 62).
 //
-//   * The RGB LED moves from GPIO 23 to GPIO 4 (header H2, through a 10 R
-//     series resistor).
+//   * GPIO 4 reaches header H2 through a 10 R series resistor. The schematic
+//     puts a WS2812 on that net; power lite's ESTOP_N uses it (kEstopN below).
+//     Nothing names it as an output, so nothing can drive it.
 //
 //   * TWO USB-C ports, both CP2102N, and only ONE of them flashes anything.
 //     The port silkscreened "USB" carries the ESP32 console with the
@@ -80,8 +81,16 @@ constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- unused (battguard TODO
 // It stays on the bus and stays unread.
 
 // -- misc ------------------------------------------------------------------
-constexpr gpio_num_t kRgbLed = GPIO_NUM_4;   // H2, WS2812 through 10 R
 constexpr gpio_num_t kBootButton = GPIO_NUM_0;
+
+// -- power lite (J12; pcb/power-lite/README.md, main/power_rail.h) ---------
+// Used only by a BIMO_POWER_LITE build: on a board without power lite, IO16 is
+// unconnected, GPIO34 reads nothing, and IO4 is the WS2812 net above.
+constexpr gpio_num_t kServoEn = GPIO_NUM_16;  // P3 pin 4: output, high asks for the rail
+// H2 pin 1: INPUT ONLY, with the pull-up. Q2 pulls it to ground through the
+// board's 10 R while the E-stop is released; driving it would fight Q2. High: stop.
+constexpr gpio_num_t kEstopN = GPIO_NUM_4;
+constexpr gpio_num_t kRailV = GPIO_NUM_34;    // H3 pin 4: ADC1, the rail through 5.7:1
 
 // -- power limits (docs/wiring.md) -----------------------------------------
 // Inlet is the XH2.54 2-pin (connector 10), switched by connector 12, fed
