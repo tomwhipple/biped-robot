@@ -293,6 +293,13 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_getup_w21k_s128r24an3 | 11-05 | w19k_s128r24an3 | teacher w19k → w21k | the DART student carries through the limiter: sweep ≥ 46/48, 15 N ≥ 14/16 | | | | | |
 | robot_getup_w22k | 11-05 | w21k (t3k) | `--fw-limit` 200,3000 → 200,2000 (the firmware's `limit on` default) | no loss vs w21k (the reference's peak acceleration is 1170 °/s²): sweep ≥ 46/48, 15 N ≥ 14/16 | | | | | |
 | robot_getup_w21k_s1 | 11-05 | w21k | seed 1 | replicate | | | | | |
+| robot_legs_omni7_rs | 11-06 | omni5_dqlag | the robot actuator (peak joint speed + 60 ms dead time) | `robot` steps5 rate and margin falls down, six directions kept | | | | | |
+| robot_legs_omni8_rs_dq25 | 11-06 | omni7_rs | `--dq-obs-window 2,5` | delay margin: dq5, dq6 0 falls | | | | | |
+| robot_legs_omni9_rs_crouch | 11-06 | omni7_rs | crouch channel | low rate, knee bend | | | | | |
+| robot_legs_omni10_rs_yk | 11-06 | omni7_rs | yaw kicks | stride1 yk3 falls to 0 | | | | | |
+| robot_legs_omni11_rs_lowswing | 11-06 | omni7_rs | lower swing | less rate and yaw, >= 3 cm kept | | | | | |
+| robot_legs_omni12_rs_grace07 | 11-06 | omni7_rs | `--stop-grace-s 0.7` | stride1 late40 trips down | | | | | |
+| robot_legs_omni13_rs_gh1h20 | 11-06 | omni7_rs | hinge 1 above 2.0 | less runaway rate, directions kept | | | | | |
 
 ## Nights
 
@@ -2181,3 +2188,102 @@ walk band).
 `fallback.job` = the d13_gh2h14 recipe. Queued: walk27_gh2h14_s1_more and
 walk27_gh2h14_s1_gh3. Held: walk22_fmeas (old plant), walk23_msole / msole_ws_s1
 (superseded), and d13_gh6 (a stronger hinge collapses).
+
+### Night of 2026-11-05 (evaluated 2026-11-06)
+
+**Stride only (get-up parked, Tom 11-05).** The night ran from 19:30 on 11-05 to 02:29 on 11-06, all
+`SYNC=ok`. One fixer run: the referee crashed on a seed that fell before metronome's settle (#231, a
+proper fix with a test; no stopgap to finish). `night/fixer.log` shows nothing else.
+
+**Merged / branched:** `train/omni-night` is merged to main (`--dq-obs-window`, `--dq-obs-quantum`,
+`--cmd-crouch-range`, `--init-norm-crouch`, the dq-lag probes), because its students are the only ones
+that survive the robot probes below. Also new today: `--yaw-kick-range` (off by default, bit-exact),
+the stop-timing, `robot`, margin and yaw-kick probes, and `experiments/policy/yaw-gap/`. Not brought in:
+`fw/power-lite-rail` (#229) and `cad/shoulder-wire-window` (#228), which don't bear on stride;
+`fw/walkrec-tilt-in-grace` is the hardware session's and awaits Tom.
+
+**Upstream:** #230 removed the pre-v6 plants and #227 merged the walk-recovery firmware. Neither changes
+the legs plant, so comparisons hold. Collect still can't build SIL numbers for these runs: `obs_spec.h`
+on main is the 147-dim walk16 spec and these runs need 165. Deploy branches regenerate it, so this does
+not block a deploy, but the card has no SIL number for any of them.
+
+**The robot, 11-06 morning (Tom's go; another session flew it, omni5_dqlag_s128r24 on carpet):**
+
+- stride1_03: stood. Rate trip 3.08 at +904 ms; yaw swung +27 to -17 deg and ended -6.7 (IMU).
+- steps5_03: about 4 steps, rate trip 3.07 at +1200 ms, then tipped over at about +2.6 to +3.15 s.
+- Flight recorder on for both, so we have the first per-tick data on this policy family.
+- **The robot is out of service.** Re-homing for the next test read a ~5 deg lean with every joint at zero;
+  Tom found a broken leg link, most likely from the steps5 fall, and is printing a replacement.
+  `stride1_03e` was not run, and no robot tests are planned until Tom reports the repair. It stays the next
+  test. PR #232 (tilt judged during the walk-recovery grace, the gap this fall exposed) is open for Tom.
+
+**What today's analysis found (`experiments/policy/yaw-gap/README.md`):**
+
+1. **The stride command outlives the clock cycle.** stride1_03 ended at +700 ms, past the stand phase, so
+   the coasting clock ran to +1320 ms under the stand command and the robot took a third swing. Grade's
+   schedule ended on the tick that lands on the stand phase, so it never saw this. Ending 20 or 40 ms
+   late trips all 13 students 8/8; 40 ms early is clean for 7 of 13, including all four dq-lag students. The hardware session has built
+   `stride1_03e` (ends 57 ms early) on `deploy/omni5-dqlag-walkrec`, awaiting Tom's go.
+2. **The refit actuator is too fast.** Robot peaks: hip pitch 246 - 254, knee 281 - 303 deg/s, in all
+   three flight records. The refit sim reaches 360+. The new `robot` probes use 0.87 / 1.0 and 60 ms.
+3. **Robot-like dq is the lever that works in sim.** Only the four dq-lag students have 0 falls on all
+   six `robot` probes. But the same policy fell on the robot, so this gate is necessary, not sufficient.
+4. **The delay margin is thin.** Probes at dq window 5 / 6 are the first to reach the robot's rate
+   (omni5 steps5: 3.08 / 3.36, 2/8 falls each, robot 3.07). The register fit says window 2, so this does
+   not show the robot has that lag; it shows where the margin ends.
+5. **The second swing's yaw is still open.** +42 deg on the robot by +720 ms vs about +9 in the sim at
+   the robot's speed. Replaying the robot's joints on the plant does produce it, and contact barely
+   matters on the first swing, which corrects 11-05's "the floor gives 2.5x too little" reading. The sim
+   is not producing the robot's joint motion. Hypothesis, untested: a late right-foot landing leaves the
+   body nearly free while the legs scissor.
+
+**Students** (`grade.py`, measured sole, 8 seeds; falls/trips at the 1.5 line; grades in
+`/tmp/plan1106/` on mira; firmware's walking rate limit is now 3.0, so a walking "trip" here is not a
+firmware trip). All WALK. Directions f / b / L / R / turn L / turn R; ideals +1.2 / -1.0 / +0.6 / -0.6 /
++115 / -115.
+
+| student | parent, variable | card T→S | stride1 refit 0.6 / 0.4 / 0.3 | x1.5, push, walk→stop | robot: stride1, late40, steps5 | steps5 dq5, dq6, dead80 | directions | verdict |
+|---|---|---|---|---|---|---|---|---|
+| **omni5_dqlag** | omni1 + dq lag | 39→**51** | 0/5, 0/0, 0/0 | 0/0 ×3 | 0/8, 0/8, 0/8 | 2/8, 2/8, 1/8 | +1.35 -0.88 +0.51 -0.76 +74 -125 | **held; on the robot**, fell on steps5 |
+| omni5_dqlag_s1 | seed | 39→42 | 0/0, 0/8, 0/8 | 0/0 ×3 | 0/8, 0/8, 0/8 | **0/8, 1/8, 0/8** | +1.37 -0.94 +0.83 -1.00 +99 -128 | best delay margin and directions; trips stride1 |
+| omni6_dqlag_crouch | omni5 + crouch channel | 33→37 | 0/8, 0/8, 0/7 | 2/2, 0/0, 0/6 | **0/0**, 0/8, 0/4 | 1/8, 4/8, 0/8 | +1.48 -0.96 +0.80 -0.59 +84 -116 | lowest rates on `robot`; loses x1.5 |
+| omni6_dqlag_crouch_s1 | seed | 34→29 | 0/7, 0/7, 0/3 | 0/0, 0/0, 0/8 | 0/7, 0/8, 0/6 | 3/8, 6/8, 0/8 | +1.35 -1.07 (3 falls) +0.72 -0.49 +8 -141 | lost turn L |
+| omni1_d13_sub25 | walk21 + submix 0.25 | 31→32 | 0/0 ×3 | 8/8, 0/0, 0/0 | 4/7, 7/8, 0/8 | 8/8, 8/8, 8/8 | +1.40 -0.96 +0.72 -0.80 +59 -145 | six directions, no margin |
+| omni1_d13_sub25_s1 | seed | 36→34 | 0/0 ×3 | 0/0 ×3 | 0/4, 0/8, 0/8 | 8/8, 7/8, 8/8 | +1.46 -1.04 +0.69 -0.82 +80 -131 | passes the 11-05 bar, fails every margin probe |
+| omni3_d13_sub30 | submix 0.30 | 37→36 | 0/0, 0/1, 0/0 | 4/7, 0/0, 0/0 | 1/7, 0/8, 2/8 | 8/8, 8/8, 6/8 | +1.15 -1.20 +0.55 -0.59 +65 -127 | no gain over 0.25 |
+| omni2_d13_gh2h14_sub25 | omni1 + hinge 2@1.4 | 34→24 | 0/0 ×3 | 0/0 ×3 | 3/4, 3/8, 6/7 | 8/8 ×3 | +1.11 0 0 0 +12 -6 | **hinge erased five directions** |
+| walk28_d13_gh3h14 | walk25 + hinge 3@1.4 | 25→32 | 0/0 ×3 | 0/0 ×3 | 0/0, 7/8, 2/8 | 8/8 ×3 | +0.97 0 0 0 +2 -67 | forward only; stride3 0/0 on refit, a first |
+| walk28_d13_gh3h14_s1 | seed | 25→30 | 8/8, 5/8, 5/6 | 8/8, 0/0, 0/0 | 3/3, 1/8, 7/8 | 8/8 ×3 | +1.19 0 0 -0.49 +8 -12 | not replicated |
+| walk27_gh2h14_s1_more | +300M | 23→24 | 0/0 ×3 | 6/6, 0/0, 0/1 | 8/8, 2/8, 3/8 | 8/8 ×3 | +1.15 0 0 0 +53 -51 | continuation lost x1.5 again |
+| walk27_gh2h14_s1_gh3 | hinge 3 | 26→27 | 0/0 ×3 | 7/7, 3/0, 0/0 | 0/3, 0/8, 1/8 | 8/8, 8/8, 1/8 | +1.13 0 0 0 +43 -55 | lost x1.5 |
+
+**Hypotheses:**
+
+- Train on the robot's dq: **held in sim.** Falls on the `robot` probes went to 0 and chatter stayed at
+  3.2 or less. On the robot, neither of today's two runs tripped on chatter, but the rate trips and a
+  steps5 fall remain.
+- Crouch channel: **partly.** At crouch 0.9 omni6 has no falls (trips 6/6 at the 1.5 line) and its seed
+  falls 4/6 on stride1; omni5, untrained on the channel, falls 6/6.
+- Hinge at 1.4 with omni: **did not hold.** It erases directions.
+- Submix 0.30: **no gain.**
+
+**Distil gap** (teacher→student on the card): -10 to +12, median about +1. Not the limit right now.
+
+**Tonight (each followed by its stock distil; BRANCH=main):**
+
+| # | run | parent | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | omni7_rs | omni5_dqlag | the robot actuator: `--servo-envelope` hip 0.87, knee 1.0; delay `sts3215=2:4` | planned for the joints it has: `robot` steps5 rate and dq5 / dead80 falls down, six directions kept |
+| 2 | omni7_rs_s1 | omni7_rs | seed | replicate |
+| 3 | omni8_rs_dq25 | omni7_rs | `--dq-obs-window 2,5` | dq5 and dq6 0 falls, rate under 2.5 |
+| 4 | omni8_rs_dq25_s1 | omni8_rs_dq25 | seed | replicate |
+| 5 | omni9_rs_crouch | omni7_rs | crouch channel | keeps omni6's low rate; grade at crouch 0.9 |
+| 6 | omni10_rs_yk | omni7_rs | yaw kicks 0.5 - 2.5 rad/s | stride1 yk3 falls to 0 (omni5 4/8) |
+| 7 | omni11_rs_lowswing | omni7_rs | swing height 0.06, lift 0.05 | less rate and yaw, every swing still >= 3 cm |
+| 8 | omni12_rs_grace07 | omni7_rs | `--stop-grace-s 0.7` | stride1 late40 trips down |
+| 9 | omni13_rs_gh1h20 | omni7_rs | hinge 1 above 2.0 rad/s | less runaway rate, all six directions kept |
+
+Rank tomorrow by the planner's three criteria, then the `robot` and margin probes. No student reaches
+hardware on these alone: the robot's result outranks them.
+
+**Fallback:** the omni7_rs recipe.

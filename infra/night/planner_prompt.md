@@ -71,6 +71,9 @@ pre-authorized the work below; do it without asking.
   passes steps5 robot 0/8 and FELL on the robot (rate 3.07 vs sim 1.52, second-swing yaw +42 vs +5 deg).
 - **Knee bend** (Tom: "walk with a slight bend to the knee for stability"): `--cmd-crouch-range
   0.85,1.0 --init-norm-crouch` trains a crouch channel; grade at crouch 0.9.
+- **Hardware 11-06: the robot is OUT OF SERVICE** (a broken leg link from the omni5 steps5 fall; Tom is printing
+  a replacement). Plan no robot tests until Tom reports the repair; the next test is then `stride1_03e` (ends 57 ms
+  before the cycle, on `deploy/omni5-dqlag-walkrec`). Training and grading go on.
 - **Hardware 11-05 evening:** firmware flail WalkRecovery (a walking trip -> stand, the policy keeps
   balancing; walking rate limit 3.0) on branch fw/flail-walk-recovery, flashed. Single strides
   stood 2/3, five-step commands gave ~3 steps then a stop. Don't raise guard limits further.
