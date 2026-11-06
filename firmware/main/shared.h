@@ -90,6 +90,12 @@ extern std::atomic<uint8_t> g_armed_hold_trip;
 extern std::atomic<float> g_armed_hold_value;
 extern std::atomic<int> g_armed_hold_joint;
 extern std::atomic<bool> g_armed_hold_torque;
+// A flail trip during a walk that was RECOVERED instead of held (flailguard.h
+// WalkRecovery): ctrl stores the criterion and its value, then bumps the
+// counter; housekeeping (cli.cpp flailTick) logs it. The run goes on.
+extern std::atomic<uint32_t> g_flail_walk_recovers;
+extern std::atomic<uint8_t> g_flail_walk_trip;
+extern std::atomic<float> g_flail_walk_value;
 // `flail on|off` (CLI writes, ctrl reads every tick). On at boot.
 extern std::atomic<bool> g_flail_on;
 

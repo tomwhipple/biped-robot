@@ -2134,3 +2134,50 @@ Each student is graded on the measured sole as it lands.
 
 **The bar for a robot test:** stride1 0.6 refit and μ0.4 refit with 0 trips,
 and x1.5, push 0.4 and walk → stop 0/0.
+
+#### 2026-11-05 day results (stride)
+
+All graded on the measured sole (`GRADE_XML=bimo_biped_v6legs_meas_sole.xml`, 8
+seeds). Cells are falls / flail-guard trips; "walks" means walk 0.3 → stop
+covers ≥ 0.3 m in 2.5 s.
+
+| student | stride1 refit 0.6 / 0.4 / 0.3 | stride3 / walk→stop refit | fast servo x1.5, push 0.4, walk→stop | walks |
+|---|---|---|---|---|
+| walk23_msole_ws | 0/6, 0/5, **0/0** | 0/8 (EMA ~1.9 – 2.5) | 0/0 | 0.46 m |
+| walk24_msole_gh4 (hinge 4 @ 1.2) | 0/8, 0/5, 1/1 | falls 1 – 2/8 | 0/0 | 0.46 |
+| walk24_msole_gh10 | 0/0 | 0/0 | 0/0 | **no** (0.07): stands still |
+| walk25_msole_d13 (STS3215 delay 1:3) | 0/6, 0/4, 0/4 | 0/8 (1.8 – 1.9) | 0/0 | 0.59 |
+| walk25_msole_d13_gh4 | 0/0 | 0/0 | 0/0 | **no** (0.06) |
+| walk25_msole_d23 (delay 2:3) | **0/0 at all speeds** | 0/2 – 0/5 (~1.5) | walk→stop 0/8, x1.5 1/1 | 0.49 |
+| walk25_msole_d13_gh2h14 (hinge 2 @ 1.4) | 0/1, **0/0, 0/0** | 0/7 – 0/8 (1.7 – 1.8) | 0/0 | 0.45 |
+| **walk25_msole_d13_gh2h14_s1** (seed 15) | **0/0 at all speeds, peak ≤ 1.05** | 0/4 – 0/7 (mean 1.43 – 1.63) | **0/0** | 0.47 |
+| walk26_msole_d23_more (+300M) | 0/1 each | 0/8 | x1.5 1/1 | 0.45 |
+| walk26_msole_d23_ws13 | 0/0 | 0/8 (2.0 – 2.5) | push 0.4 1/1 | 0.52 |
+
+Lessons:
+
+1. The guard trips at stride onset on the refit actuator because training's
+   per-servo STS3215 delay draw (0:2 ticks, mean 20 ms) almost never puts every
+   STS3215 at the robot's large-step 40 ms. Centring it (`sts3215=1:3`) is the
+   lever.
+2. A gyro hinge at 1.2 rad/s with weight ≥ 4 teaches standing still. Gate every
+   guard pass on forward travel.
+3. A gentle hinge (2 above 1.4) plus the 1:3 delay is the best recipe, and two
+   seeds reproduce it.
+4. Over several strides on refit, every walking policy runs EMA 1.4 – 2.5 rad/s
+   with almost no falls. The guard's 1.5 limit, not falling, is what blocks a
+   few strides. **Tom's decision:** raise the guard's rate limit while a walk
+   command is active, or keep training.
+
+**Deploy candidates (built, NOT flashed; Tom's go needed):**
+
+- **`deploy/walk25-d13-gh2h14-s1`:** the best.
+- `deploy/walk25-d13-gh2h14`.
+- `deploy/walk23-msole-ws`.
+
+Link scripts: `stride1_04` and `stride1_03` (0.2 is clamped to a stand by the
+walk band).
+
+`fallback.job` = the d13_gh2h14 recipe. Queued: walk27_gh2h14_s1_more and
+walk27_gh2h14_s1_gh3. Held: walk22_fmeas (old plant), walk23_msole / msole_ws_s1
+(superseded), and d13_gh6 (a stronger hinge collapses).

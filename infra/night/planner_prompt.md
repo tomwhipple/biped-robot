@@ -43,6 +43,23 @@ pre-authorized the work below; do it without asking.
   --contact-mu 0.3,0.7` and NO `--contact-torsion`. Grade with
   `GRADE_XML=bimo_biped_v6legs_meas_sole.xml`
   (`docs/design-v6/2026-11-04-sole-friction.md`).
+- **Grade every legs student** with
+  `RUNS=<student> GRADE_XML=bimo_biped_v6legs_meas_sole.xml JAX_PLATFORMS=cpu
+  CUDA_VISIBLE_DEVICES= python experiments/policy/shaper-train/grade.py 8 <out.json> runs`.
+  It includes the 11-05 stride ladder on the refit actuator: stride1 at 0.6, 0.4
+  and 0.3; stride3 at 0.3 and 0.2; walk → stop at 0.3 and 0.2; each at μ 1 and
+  0.4. A student counts only if the .md says **WALKS**: strong gyro hinges teach
+  standing still, and that passes the guard. Rank by these, in order:
+  1. stride1 refit 0 trips at 0.4 – 0.6;
+  2. fast-servo x1.5 / push 0.4 / walk → stop 0/0;
+  3. stride3 and walk → stop refit trips.
+- **11-05 state (ledger "2026-11-05 day results"):**
+  - On the robot (flashed 16:58, not yet run): walk25_msole_d13_gh2h14_s1_s128r24.
+  - Best recipe: `--act-delay-types sts3215=1:3,sts3250=0:1 --w-gyro-hinge 2
+    --gyro-hinge 1.4` on the measured sole, 300M from walk21_fricact. Warm-started
+    +300M continuations lost x1.5 margin.
+  - The limit to a few strides is the flail guard's 1.5 rad/s rate limit. Raising
+    it while walking is Tom's call; don't change the firmware guard.
 
 ## Standing request (Tom, 2026-10-21)
 

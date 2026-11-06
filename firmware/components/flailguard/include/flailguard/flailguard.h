@@ -154,4 +154,65 @@ class Detector {
     float peak_rate_ = 0.0f, peak_chatter_ = 0.0f, peak_pose_deg_ = 0.0f, peak_tilt_deg_ = 0.0f;
 };
 
+// WalkRecovery: what a trip DURING A WALK does (Tom 2026-11-05: "modify the flail
+// guard to just disable the action policy but let the IMU loop keep running").
+//
+// 2026-11-05 02:51Z, stride1_03 on the robot: the guard tripped on rate (EMA
+// 1.5 rad/s) 0.87 s after the step command -- 0.2 s after the one-cycle command had
+// already returned to the stand -- froze the joints, and the robot fell 0.8 s later.
+// In sim, holding the joints at the trip turns nearly every tripped stride / walk into
+// a fall, while the policy left in control rides out the 1.6 - 2.5 rad/s peaks with 0
+// falls (3 policies x 6 probes x 8 seeds, the measured-sole plant, refit actuator).
+//
+// So: a trip within recent_ms of a MOVING command (any channel off the plain stand)
+// does NOT hold. The policy keeps running -- it is the IMU-in-the-loop controller --
+// but its command is taken to the plain stand (over ramp_ms, 0 = at once), latched
+// for the rest of the run: it finishes the step and balances to a stand, as in every
+// walk -> stop it trained on. The guard pauses for grace_ms (its rate filter is still
+// past the limit, and the stop itself moves the body), then judges afresh at the
+// stand; a second trip, or any trip with no recent moving command, holds and
+// disarms exactly as before. Once per run. The fall guard (fallguard.h) is separate
+// and unchanged: past 45 deg it still cuts torque.
+//
+// Pure logic: the caller feeds it one tick at a time (host/test_flailguard.cpp).
+class WalkRecovery {
+  public:
+    struct Config {
+        uint32_t recent_ms = 2000;   // a trip this soon after a moving command recovers
+        uint32_t grace_ms = 2000;    // the guard does not judge for this long after
+        uint32_t ramp_ms = 300;      // the command reaches the stand over this (0: at once);
+                                     // sim 11-05: 0 falls either way, the ramp has the lower
+                                     // post-trip goal acceleration (median 0.66 vs 0.76 of the stride's)
+    };
+    WalkRecovery() : C_(Config{}) {}
+    explicit WalkRecovery(const Config& c) : C_(c) {}
+
+    void reset();                    // fresh run (the arm handover)
+    // Every tick, BEFORE the command reaches the policy: does the link's command
+    // (after pinFrozen) ask for motion? dt_ms since the previous tick.
+    void tick(bool moving_cmd, uint32_t dt_ms);
+    // The detector tripped this tick. true: recovering (the stand override is on,
+    // write the policy's targets as usual); false: hold and disarm, as before.
+    bool onTrip();
+
+    bool standOverride() const { return active_; }
+    // 0..1: how far the command fed to the policy has been taken toward the stand.
+    float overrideFrac() const;
+    // false during the grace window: the caller skips Detector::update.
+    bool judging() const { return !active_ || since_ms_ >= C_.grace_ms; }
+    // true once, on the first tick after the grace window: the caller resets the
+    // Detector so it judges the stand from fresh filters.
+    bool graceJustEnded();
+    uint32_t sinceMs() const { return since_ms_; }   // since the recovery began
+    bool used() const { return active_; }
+    const Config& config() const { return C_; }
+
+  private:
+    Config C_;
+    uint32_t quiet_ms_ = UINT32_MAX;   // since the last moving command (MAX: none this run)
+    bool active_ = false;
+    uint32_t since_ms_ = 0;
+    bool grace_reported_ = false;
+};
+
 }  // namespace flailguard
