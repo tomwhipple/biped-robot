@@ -94,6 +94,9 @@ def advance_clock(clk, mode, v, cmd, dt):
             return clk["ph"]
         step = 2 * math.pi * CLOCK_HZ * dt
         to_go = (float(v["stand_phase"]) - clk["ph"]) % (2 * math.pi)
+        if 2 * math.pi - to_go <= float(v.get("coast_back", 0.0)):  # just past it: hold, don't run another cycle
+            clk["ph"] = _wrap(float(v["stand_phase"])); clk["held"] = True
+            return clk["ph"]
         if to_go <= step:
             clk["ph"] = _wrap(float(v["stand_phase"])); clk["held"] = True
             return clk["ph"]

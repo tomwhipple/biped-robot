@@ -329,6 +329,9 @@ class State(NamedTuple):
                               # depend on a crisp, exact rate.
     metrics: dict[str, jax.Array]
     prev_action2: jax.Array   # (n_act,) the action two ticks back (w_action_acc)
+    dq_qhist: jax.Array       # (hi+1, n_act) policy-joint q at the last obs ticks,
+                              # row 0 = now (dq_obs_window); (0, n_act) when off
+    dq_win: jax.Array         # ()  int32 per-episode dq obs window, ticks (0 = off)
 
 
 def _quat_yaw(q):
@@ -519,6 +522,8 @@ class BimoMJXEnv:
         # comes to a stop"), next to w_action_rate's first difference
         w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
         # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
+        yaw_kick_range=None,           # (lo, hi) rad/s: extra body yaw rate kicks while a move is commanded
+        yaw_kick_prob: float = 0.0,    # per control tick (experiments/policy/yaw-gap); off by default
         w_gyro_hinge: float = 0.0,     # -w max(|omega| - gyro_hinge, 0)^2, omega = the torso's
         gyro_hinge: float = 1.2,       # angular velocity (qvel[3:6], the IMU gyro), rad/s: the
         # firmware flail guard trips on EMA(|gyro|, 0.2 s) > 1.5 rad/s (2026-11-05: every stride1
@@ -981,6 +986,16 @@ class BimoMJXEnv:
         imu_mount_deg: float = 2.0,   # 1-sigma IMU mounting misalignment (deg), before imu_noise
         gyro_gain_range: tuple | None = None,   # per-episode gyro obs gain DR
         gyro_delay_max: int = 0,                # per-episode gyro obs delay, ticks
+        # robot-like joint-velocity OBS (2026-11-05 kick analysis,
+        # hw_sessions/2026-11-05/kick_analysis.md section 3): the robot's dq is the
+        # STS3215 speed register 58, which is the MEAN joint velocity over the last
+        # ~40 ms (~20 ms late) in 50 steps/s (4.4 deg/s) steps. dq_obs_window = N
+        # (or a per-episode (lo, hi) draw) feeds (q_t - q_{t-N}) / (N control_dt)
+        # instead of the instantaneous qvel; dq_obs_quantum = Q rounds the dq obs
+        # to Q reg-58 steps/s (replacing quantize_ticks' 1-step dq rounding).
+        # 0 / None = off = the instantaneous qvel, bit-exact old runs.
+        dq_obs_window=None,
+        dq_obs_quantum: float = 0.0,
         act_delay_max: int = 0,                 # per-episode servo dead time, ticks
         # per-SERVO dead time by servo type, ticks: {"sts3215": (lo, hi), "sts3250": (lo, hi)}
         # (2026-11-01 robot stepresp, loaded: STS3215 63-84 ms dead + tau ~57 ms, STS3250
@@ -1292,6 +1307,8 @@ class BimoMJXEnv:
         self.w_action_rate = w_action_rate
         self.w_action_acc = float(w_action_acc)
         self.w_qacc = float(w_qacc)
+        self.yaw_kick_range = None if yaw_kick_range is None else tuple(float(x) for x in yaw_kick_range)
+        self.yaw_kick_prob = float(yaw_kick_prob)
         self.w_gyro_hinge = float(w_gyro_hinge)
         self.gyro_hinge = float(gyro_hinge)
         self.fall_cost = fall_cost
@@ -1542,6 +1559,12 @@ class BimoMJXEnv:
                                 if gyro_gain_range is not None else None)
         self.gyro_delay_max = int(gyro_delay_max)
         assert 0 <= self.gyro_delay_max <= 2, "gyro_hist holds 3 ticks"
+        from walker_env import parse_dq_obs_window   # jax-free, shared with the CPU env
+        self.dq_obs_window = parse_dq_obs_window(dq_obs_window)
+        self.dq_obs_quantum = float(dq_obs_quantum)
+        assert self.dq_obs_quantum >= 0.0
+        # history rows: now + hi ticks back
+        self._dq_hist_len = self.dq_obs_window[1] + 1 if self.dq_obs_window else 0
         self.act_delay_max = int(act_delay_max)
         self.act_delay_types = ({k: (int(v[0]), int(v[1])) for k, v in act_delay_types.items()}
                                 if act_delay_types else None)
@@ -2051,6 +2074,14 @@ class BimoMJXEnv:
                         -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
         return steps * _TICK_RAD * dr
 
+    def _quant_vel_q(self, rad_s, quantum, tick_dir=None):
+        """_quant_vel on a coarser grid: rad/s -> nearest multiple of `quantum`
+        reg-58 steps/s -> rad/s (dq_obs_quantum)."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
+        steps = jp.clip(quantum * jp.round(rad_s / (_TICK_RAD * quantum) * dr),
+                        -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
+        return steps * _TICK_RAD * dr
+
     def _apply_crouch(self, cmd, cmd_crouch):
         """Replace a FROZEN full-height crouch channel with this episode's
         draw (SIL finding #2). Only the exactly-1.0 case is replaced, so an
@@ -2067,7 +2098,7 @@ class BimoMJXEnv:
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
              rng: jax.Array, gait_phase=None, model=None,
              zero_off=None, gyro_hist=None, gyro_delay=None,
-             gyro_gain=None) -> jax.Array:
+             gyro_gain=None, dq_qhist=None, dq_win=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         if self.tilt_max_deg > 0.0:
             # what an accelerometer reads: torso up against GRAVITY, not
@@ -2101,11 +2132,22 @@ class BimoMJXEnv:
             # the policy's frame, so the reported angle is physical - offset
             q_j = q_j - self._p(zero_off)
         dq_j = self._p(data.qvel[self._jv0:self._jv1])
+        if self.dq_obs_window is not None and dq_qhist is not None:
+            # reg-58 view: the mean joint velocity over the last dq_win ticks
+            # (row 0 of the history is this tick's q)
+            q_back = jp.take(dq_qhist, dq_win, axis=0)
+            dq_j = (dq_qhist[0] - q_back) / (dq_win.astype(dq_qhist.dtype)
+                                             * self.control_dt)
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
             # ticks + reg-58 steps/s). The physics state is untouched.
             q_j = self._quant_angle(q_j, self._tick_dir_p)
-            dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+            if self.dq_obs_quantum <= 0.0:
+                dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+        if self.dq_obs_quantum > 0.0:
+            # the robot's reg 58 moves in dq_obs_quantum steps/s (50 seen on
+            # every 2026-11 record)
+            dq_j = self._quant_vel_q(dq_j, self.dq_obs_quantum, self._tick_dir_p)
         return jp.concatenate([
             q_j,
             dq_j,
@@ -2220,6 +2262,32 @@ class BimoMJXEnv:
     @staticmethod
     def _gyro_hist0(data):
         return jp.tile(data.qvel[3:6][None, :], (3, 1))
+
+    def _draw_dq_win(self, rng: jax.Array):
+        """Per-episode dq obs window, ticks (fold_in 5858: the other draws keep
+        their streams; a fixed window or the feature off consumes no RNG)."""
+        if self.dq_obs_window is None:
+            return jp.zeros((), dtype=jp.int32)
+        lo, hi = self.dq_obs_window
+        if lo == hi:
+            return jp.asarray(lo, dtype=jp.int32)
+        return jax.random.randint(jax.random.fold_in(rng, 5858), (), lo, hi + 1,
+                                  dtype=jp.int32)
+
+    def _dq_q(self, data):
+        """The policy joints' physical q (the dq obs history's row)."""
+        return self._p(data.qpos[self._jq0:self._jq1])
+
+    def _dq_qhist0(self, data):
+        """A history at rest at the episode's start pose: the first ticks read dq 0."""
+        if self.dq_obs_window is None:
+            return jp.zeros((0, self._nq_act), dtype=jp.float32)
+        return jp.tile(self._dq_q(data)[None, :], (self._dq_hist_len, 1))
+
+    def _dq_qhist_push(self, data, hist):
+        if self.dq_obs_window is None:
+            return hist
+        return jp.concatenate([self._dq_q(data)[None, :], hist[:-1]], axis=0)
 
     def _draw_act_delay(self, rng: jax.Array):
         """Per-episode servo dead time in control ticks (fold_in 4473 so the
@@ -2476,6 +2544,7 @@ class BimoMJXEnv:
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(data)
+        dq_win = self._draw_dq_win(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2550,10 +2619,13 @@ class BimoMJXEnv:
         if self.ext_cmd and self.w_rise_ref:
             cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
                                   rise_t0, step_i)
+        # after the RSI / start-pose selection: the history starts at the pose
+        # the episode actually starts in
+        dq_qhist = self._dq_qhist0(data)
         frame = self._obs(data, prev_action, cmd, step_i, imu_R, imu_bias,
                           r_obs, gait_phase, model, zero_off=zero_off,
                           gyro_hist=gyro_hist, gyro_delay=gyro_delay,
-                          gyro_gain=gyro_gain)
+                          gyro_gain=gyro_gain, dq_qhist=dq_qhist, dq_win=dq_win)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -2587,7 +2659,8 @@ class BimoMJXEnv:
                      act_hist=act_hist, act_delay=act_delay,
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
-                     gyro_gain=gyro_gain, metrics=metrics)
+                     gyro_gain=gyro_gain, metrics=metrics,
+                     dq_qhist=dq_qhist, dq_win=dq_win)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2599,6 +2672,8 @@ class BimoMJXEnv:
          cmd_crouch, act_lag, zero_off) = self._draw_episode(r_ep)
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(first.data)
+        dq_win = self._draw_dq_win(r_ep)
+        dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
         chain0 = self._sdefault.astype(jp.float32)
@@ -2640,7 +2715,7 @@ class BimoMJXEnv:
         frame = self._obs(first.data, prev_action, cmd, step_i, imu_R,
                           imu_bias, r_obs, gait_phase, model, zero_off=zero_off,
                           gyro_hist=gyro_hist, gyro_delay=gyro_delay,
-                          gyro_gain=gyro_gain)
+                          gyro_gain=gyro_gain, dq_qhist=dq_qhist, dq_win=dq_win)
         obs_hist = jp.tile(frame, (self.obs_hist_len - 1, 1)) \
             if self.obs_hist_len > 1 else jp.zeros((0, self.obs_frame))
         obs = (jp.concatenate([frame, obs_hist.reshape(-1)])
@@ -2671,6 +2746,7 @@ class BimoMJXEnv:
             act_hist=act_hist, act_delay=act_delay,
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
+            dq_qhist=dq_qhist, dq_win=dq_win,
             metrics=metrics)
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
@@ -2806,6 +2882,16 @@ class BimoMJXEnv:
             xfrc = xfrc.at[self._torso_bid, 1].set(
                 jp.where(push_on, self.push_force * jp.sin(ang), 0.0))
             data = state.data.replace(xfrc_applied=xfrc)
+
+        if self.yaw_kick_range is not None and self.yaw_kick_prob > 0.0:
+            # the robot's step-onset yaw (experiments/policy/yaw-gap/README.md): a body yaw rate kick, either
+            # way, while a move is commanded. fold_in leaves the push draws above untouched.
+            r_yk = jax.random.fold_in(r_push_a, 2)
+            on = (jax.random.uniform(jax.random.fold_in(r_yk, 0)) < self.yaw_kick_prob) & self._cmd_is_moving(state.cmd)
+            mag = jax.random.uniform(jax.random.fold_in(r_yk, 1), minval=self.yaw_kick_range[0],
+                                     maxval=self.yaw_kick_range[1])
+            sign = jp.where(jax.random.uniform(jax.random.fold_in(r_yk, 2)) < 0.5, -1.0, 1.0)
+            data = data.replace(qvel=data.qvel.at[5].add(jp.where(on, sign * mag, 0.0)))
 
         # sub-step latency: first lat_k substeps run on the previous target
         ms = state.lat_ms
@@ -3547,10 +3633,12 @@ class BimoMJXEnv:
                                   state.rise_t0, step_i)
         gyro_hist = jp.concatenate([data.qvel[3:6][None, :],
                                     state.gyro_hist[:-1]], axis=0)
+        dq_qhist = self._dq_qhist_push(data, state.dq_qhist)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
                           gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
-                          gyro_gain=state.gyro_gain)
+                          gyro_gain=state.gyro_gain, dq_qhist=dq_qhist,
+                          dq_win=state.dq_win)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
@@ -3602,7 +3690,8 @@ class BimoMJXEnv:
                      imu_R=state.imu_R,
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
-                     gyro_gain=state.gyro_gain, metrics=metrics)
+                     gyro_gain=state.gyro_gain, metrics=metrics,
+                     dq_qhist=dq_qhist, dq_win=state.dq_win)
 
 
 

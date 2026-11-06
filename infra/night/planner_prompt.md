@@ -61,12 +61,19 @@ pre-authorized the work below; do it without asking.
   direction its deployed policy fails in sim (11-05: walk25_msole_d13_gh2h14_s1 kept only forward
   and FELL on side R 3/4). The gyro hinge erased directions (gh4: all lost); walk21_fricact had all six.
 - **The robot reads joint velocity late** (hw_sessions/2026-11-05/kick_analysis.md): the servo speed
-  register is the mean over ~40 ms in 4.4 deg/s steps. Branch `train/omni-night` (not yet on main)
-  adds `--dq-obs-window 2,3 --dq-obs-quantum 50` to training and the `*dqlag` probes to grade.py,
-  which reproduce the robot's flail trips. Grade candidates on the dqlag probes. Merge the branch
-  once its students are evaluated, if it helps.
+  register is the mean over ~40 ms in 4.4 deg/s steps. `--dq-obs-window 2,3 --dq-obs-quantum 50` trains
+  on it (on main since 11-06). Every legs teacher carries them: only students trained on it stayed
+  0 falls on all six `robot` probes (experiments/policy/yaw-gap/README.md).
+- **Robot probes (11-06):** grade.py's `* robot` probes use the robot's measured peak joint speed
+  (hip 250, knee 290 deg/s; the refit runs 360+), 60 ms of dead time and the dq lag. Rank on them, and
+  on stride1 `late40` / `early40` too: the robot's stride command ended 33 ms past the stand phase, which
+  ran the coasting clock through a whole extra cycle. A pass is necessary, not sufficient: omni5_dqlag
+  passes steps5 robot 0/8 and FELL on the robot (rate 3.07 vs sim 1.52, second-swing yaw +42 vs +5 deg).
 - **Knee bend** (Tom: "walk with a slight bend to the knee for stability"): `--cmd-crouch-range
-  0.85,1.0 --init-norm-crouch` (the same branch) trains a crouch channel; grade at crouch 0.9.
+  0.85,1.0 --init-norm-crouch` trains a crouch channel; grade at crouch 0.9.
+- **Hardware 11-06: the robot is OUT OF SERVICE** (a broken leg link from the omni5 steps5 fall; Tom is printing
+  a replacement). Plan no robot tests until Tom reports the repair; the next test is then `stride1_03e` (ends 57 ms
+  before the cycle, on `deploy/omni5-dqlag-walkrec`). Training and grading go on.
 - **Hardware 11-05 evening:** firmware flail WalkRecovery (a walking trip -> stand, the policy keeps
   balancing; walking rate limit 3.0) on branch fw/flail-walk-recovery, flashed. Single strides
   stood 2/3, five-step commands gave ~3 steps then a stop. Don't raise guard limits further.
