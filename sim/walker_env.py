@@ -230,6 +230,32 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     return np.array(ch), np.array(ck)
 
 
+DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
+
+
+def parse_dq_obs_window(spec):
+    """dq_obs_window -> (lo, hi) control ticks, or None when off. Accepts None, 0, N,
+    (lo, hi) / [lo, hi], or the CLI strings "N" / "lo,hi". Shared by env_mjx and the
+    CPU env so both read a config.json the same way."""
+    if spec is None:
+        return None
+    if isinstance(spec, str):
+        spec = [int(x) for x in spec.split(",")]
+    if isinstance(spec, (int, np.integer)):
+        spec = (int(spec), int(spec))
+    spec = [int(x) for x in spec]
+    if len(spec) == 1:
+        spec = spec * 2
+    if len(spec) != 2:
+        raise ValueError(f"dq_obs_window {spec}: want N or lo,hi")
+    lo, hi = spec
+    if lo == 0 and hi == 0:
+        return None
+    if not 1 <= lo <= hi <= DQ_OBS_WINDOW_MAX:
+        raise ValueError(f"dq_obs_window {spec}: need 1 <= lo <= hi <= {DQ_OBS_WINDOW_MAX}")
+    return (lo, hi)
+
+
 def apply_floor_contacts(model, floor_contacts):
     """Training-only collision set. "all" (default): the plant as drawn.
     "feet": only the sole pads (contype 1) touch the floor -- the servo
@@ -784,6 +810,15 @@ class BimoWalkerEnv(gym.Env):
         # sim/mjx/env_mjx.py (parity gate 2i). Default False = bit-exact
         # legacy behavior.
         quantize_ticks: bool = False,
+        # -- robot-like joint-velocity OBS (2026-11-05 kick analysis) ----------
+        # The robot's dq is the STS3215 speed register 58: the MEAN joint velocity
+        # over the last ~40 ms in 50 steps/s steps. dq_obs_window = N (or a
+        # per-episode (lo, hi) draw) feeds (q_t - q_{t-N}) / (N control_dt);
+        # dq_obs_quantum = Q rounds the dq obs to Q steps/s (replacing
+        # quantize_ticks' 1-step dq rounding). Mirror of env_mjx's; None / 0 =
+        # off = the instantaneous qvel, bit-exact old behaviour.
+        dq_obs_window=None,
+        dq_obs_quantum: float = 0.0,
         # -- action-chain lag (referee-side servo dynamics, 2026-09-02) --------
         # The 2026-08-31 bench measured the STS3215's dynamic response at
         # ~10 rad/s^2 accel cap / ~1.7 Hz bandwidth; ~2 Hz of 3-stage target
@@ -1005,6 +1040,7 @@ class BimoWalkerEnv(gym.Env):
         if ext_cmd:
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self.quantize_ticks = bool(quantize_ticks)
+        self.set_dq_obs(dq_obs_window, dq_obs_quantum)
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_dr_max = None if act_lag_dr_max is None else float(act_lag_dr_max)
         self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
@@ -1488,6 +1524,34 @@ class BimoWalkerEnv(gym.Env):
                         0.0, float(_TICK_MAX))
         return (ticks - _TICK_ZERO) * _TICK_RAD * dr
 
+    def set_dq_obs(self, window=None, quantum=0.0):
+        """(Re)configure the robot-like dq obs (takes effect at the next reset).
+        Graders flip it on a cached env per probe."""
+        self.dq_obs_window = parse_dq_obs_window(window)
+        self.dq_obs_quantum = float(quantum or 0.0)
+        assert self.dq_obs_quantum >= 0.0
+        self._dq_win = self.dq_obs_window[0] if self.dq_obs_window else 0
+        self._dq_qhist = None          # newest first; seeded in reset()
+
+    def _dq_q(self):
+        return np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+
+    def _dq_qhist_seed(self):
+        """The history at rest at the current pose (env_mjx _dq_qhist0)."""
+        if self.dq_obs_window is None:
+            self._dq_qhist = None
+            return
+        q = self._dq_q()
+        self._dq_qhist = [q.copy() for _ in range(self.dq_obs_window[1] + 1)]
+
+    def _quant_vel_q(self, rad_s, quantum, tick_dir=None):
+        """_quant_vel on a coarser grid (dq_obs_quantum steps/s)."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
+        steps = np.clip(quantum * np.rint(np.asarray(rad_s, dtype=np.float64)
+                                          / (_TICK_RAD * quantum) * dr),
+                        -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
+        return steps * _TICK_RAD * dr
+
     def _quant_vel(self, rad_s, tick_dir=None):
         """rad/s -> integer reg-58 steps/s -> rad/s (harness.rad_s_to_steps_s /
         steps_s_to_rad_s). The wire word is sign-magnitude with a 15-bit
@@ -1664,11 +1728,19 @@ class BimoWalkerEnv(gym.Env):
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
+        if self.dq_obs_window is not None and self._dq_qhist is not None:
+            # reg-58 view: the mean joint velocity over the last _dq_win ticks
+            # (the history is advanced in reset()/step(); this stays a pure read)
+            dq_j = ((self._dq_qhist[0] - self._dq_qhist[self._dq_win])
+                    / (self._dq_win * self.control_dt))
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
             # ticks + reg-58 steps/s). The physics state is untouched.
             q_j = self._quant_angle(q_j, self._tick_dir_p)
-            dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+            if self.dq_obs_quantum <= 0.0:
+                dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+        if self.dq_obs_quantum > 0.0:
+            dq_j = self._quant_vel_q(dq_j, self.dq_obs_quantum, self._tick_dir_p)
         parts = [
             q_j,                                    # 8 joint angles
             dq_j,                                   # 8 joint velocities
@@ -2197,6 +2269,11 @@ class BimoWalkerEnv(gym.Env):
         else:
             self._act_lag_ep = self.act_lag_hz
         self._act_hist = None                 # re-seed the dead-time ring
+        if self.dq_obs_window is not None:
+            lo, hi = self.dq_obs_window
+            # drawn last, so every other draw keeps its stream
+            self._dq_win = lo if lo == hi else int(self.np_random.integers(lo, hi + 1))
+        self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
             first = self._obs()                # frame only (hist empty)
@@ -2941,6 +3018,8 @@ class BimoWalkerEnv(gym.Env):
                     self._cmd[5] = 0.0
                     self._cmd[6] = self._march_dz * abs(np.sin(th_m))
         self._phase_cmd()
+        if self._dq_qhist is not None:
+            self._dq_qhist = [self._dq_q()] + self._dq_qhist[:-1]
         obs_out = self._obs()
         if self.obs_hist_len > 1:
             self._obs_hist = ([obs_out[:self.obs_frame].copy()]

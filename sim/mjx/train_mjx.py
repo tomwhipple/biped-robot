@@ -642,6 +642,15 @@ def make_parser():
                         "robot stands with the gyro obs at 0.5x, falls at 1x)")
     p.add_argument("--gyro-delay-max", type=int, default=None,
                    help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
+    p.add_argument("--dq-obs-window", default=None,
+                   help="robot-like joint-velocity OBS: the mean joint velocity over the "
+                        "last N control ticks, (q_t - q_t-N)/(N dt), as the STS3215 reg 58 "
+                        "reports it (2026-11-05 kick analysis: ~40 ms = N 2). 'N' fixed, "
+                        "or 'lo,hi' drawn per episode; 0 = off")
+    p.add_argument("--dq-obs-quantum", type=float, default=None,
+                   help="round the joint-velocity OBS to this many reg-58 steps/s (the "
+                        "robot's reg 58 moves in 50 steps/s = 4.4 deg/s); replaces "
+                        "--quantize's 1-step dq rounding")
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
@@ -953,6 +962,14 @@ def build_env_kw(args):
             float(x) for x in args.gyro_gain_range.split(","))
     if args.gyro_delay_max is not None:
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
+    if getattr(args, "dq_obs_window", None) is not None:
+        # 'N' or 'lo,hi' control ticks; the envs validate (walker_env.parse_dq_obs_window)
+        w = tuple(int(x) for x in str(args.dq_obs_window).split(","))
+        w = (w[0], w[0]) if len(w) == 1 else w
+        if w != (0, 0):
+            env_kw["dq_obs_window"] = w
+    if getattr(args, "dq_obs_quantum", None):
+        env_kw["dq_obs_quantum"] = float(args.dq_obs_quantum)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
     if getattr(args, "act_delay_types", None):

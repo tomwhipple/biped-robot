@@ -22,6 +22,12 @@ Probes (falls / flail-guard trips out of the seeds):
   stride1 0.6 mu<m> the same on a slippery floor: effective contact friction mu (and a low
                    torsion) on the floor AND the pads (set_contact) -- walk18_shp10sq on the
                    robot (2026-11-03, smooth board) yawed -19 deg in 180 ms and fell
+  steps5 0.3 refit vx 0.3 for 2.5 gait cycles from t = 2 s (the robot's steps5), refit actuator
+  ... dqlag        the probe with the ROBOT's joint-velocity observation: the STS3215 reg 58
+                   is the mean joint velocity over the last 40 ms in 50 steps/s steps
+                   (hw_sessions/2026-11-05/kick_analysis.md section 3) -- walker_env
+                   dq_obs_window 2, dq_obs_quantum 50. DQ_OBS_WINDOW=N or lo,hi (and
+                   DQ_OBS_QUANTUM=Q, default 50) applies it to every probe instead.
 The flail guard (firmware/components/flailguard, kLimits): rate EMA(|gyro|, 0.2 s) >
 1.5 rad/s; tilt > 20 deg for 200 ms; chatter EMA(mean |d raw target / dt|, 0.1 s) >
 7 rad/s; pose (plain stand, after the ramp) any written target > 15 deg from the stand pose
@@ -65,6 +71,8 @@ REFIT_PLANT = dict(supply_v=12.0, stall_scale=dict(hip_pitch=2.0, knee=2.0),
 REFIT_SERVO = dict(FAST, dead15=40.0)
 STAND_CMD = simh.STAND
 P2 = math.pi / 2
+# the robot's dq obs (reg 58): mean velocity over 2 ticks (40 ms), 50 steps/s quantum
+DQ_ROBOT = dict(window=2, quantum=50.0)
 DT = 0.02
 FG = dict(rate=1.5, rate_tau=0.2, tilt=20.0, tilt_ticks=10, chatter=7.0, chatter_tau=0.1,
           pose_deg=15.0, pose_ticks=15)
@@ -112,6 +120,9 @@ _MU = dict(contact=dict(mu=0.4, torsion=0.005))
 for _v in (0.4, 0.3):
     PROBES[f"stride1 {_v} refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R)
     PROBES[f"stride1 {_v} mu0.4 refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R, **_MU)
+PROBES["steps5 0.3 refit"] = dict(cmd_schedule=stride(0.3, cyc=2.5 / S.CLOCK_HZ), run_s=10.0, **_R)
+PROBES["stride1 0.3 refit dqlag"] = dict(PROBES["stride1 0.3 refit"], dq_obs=DQ_ROBOT)
+PROBES["steps5 0.3 refit dqlag"] = dict(PROBES["steps5 0.3 refit"], dq_obs=DQ_ROBOT)
 for _v in (0.3, 0.2):
     _c3 = stride(_v, cyc=3.0 / S.CLOCK_HZ)
     PROBES[f"stride3 {_v} refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R)
@@ -193,6 +204,14 @@ def _decel_peaks(qv, dt, win=5):
     return dec.max(0)
 
 
+def _dq_env():
+    """DQ_OBS_WINDOW=N or lo,hi (DQ_OBS_QUANTUM=Q, default 50): every probe's dq obs."""
+    w = os.environ.get("DQ_OBS_WINDOW")
+    if not w:
+        return None
+    return dict(window=w, quantum=float(os.environ.get("DQ_OBS_QUANTUM", "50")))
+
+
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     """stand_sim.episode with the flail guard, the squeeze and walk progress recorded.
     v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase,
@@ -202,6 +221,12 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env, act, zoff = simh.build("fit", run=run, ep_s=run_s + hold_s + settle_s + 1.0)
     rng = np.random.default_rng(1000 + seed)
     env.domain_rand = False; env.push_prob = 0.0
+    # the dq obs: the probe's (dq_obs), else DQ_OBS_WINDOW, else as the run trained (the
+    # env is cached per worker, so set it every episode)
+    if not hasattr(env, "_dq_cfg0"):
+        env._dq_cfg0 = dict(window=env.dq_obs_window, quantum=env.dq_obs_quantum)
+    dq = v.get("dq_obs") or _dq_env() or env._dq_cfg0
+    env.set_dq_obs(dq["window"], dq["quantum"])
     env.reset(seed=seed)
     env._zero_off = zoff.copy()
     ang = math.radians(rng.normal(0.0, 1.0)); ax = rng.normal(size=3); ax /= np.linalg.norm(ax)
