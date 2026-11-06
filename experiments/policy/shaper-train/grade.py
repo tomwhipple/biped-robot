@@ -102,6 +102,33 @@ PROBES = {
                                     contact=dict(mu=0.4, torsion=0.005)),
 }
 
+# 2026-11-05 (stride first, measured-sole plant): the stride ladder on the REFIT actuator. One
+# stride at the slower deployable commands (stride1_04 / stride1_03 in link/sources.py), "a
+# few strides" (3 gait cycles), and walk -> stop -- each at mu 1 and 0.4. Every probe also
+# reports walk_dx_2s5: a policy that passes the guard by NOT walking (a strong gyro hinge
+# taught that, dx2.5 0.06 m) must not count -- see walks().
+_R = dict(plant=REFIT_PLANT, typed=REFIT_SERVO)
+_MU = dict(contact=dict(mu=0.4, torsion=0.005))
+for _v in (0.4, 0.3):
+    PROBES[f"stride1 {_v} refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R)
+    PROBES[f"stride1 {_v} mu0.4 refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R, **_MU)
+for _v in (0.3, 0.2):
+    _c3 = stride(_v, cyc=3.0 / S.CLOCK_HZ)
+    PROBES[f"stride3 {_v} refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R)
+    PROBES[f"stride3 {_v} mu0.4 refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R, **_MU)
+    PROBES[f"walk {_v} -> stop refit"] = dict(PROBES[f"walk {_v} -> stop"], **_R)
+    PROBES[f"walk {_v} -> stop mu0.4 refit"] = dict(PROBES[f"walk {_v} -> stop"], **_R, **_MU)
+
+WALKS_DX = 0.3      # m in 2.5 s on "walk 0.3 -> stop" (fast servo); the 11-05 walkers did 0.45 - 0.6
+
+
+def walks(episodes, variant):
+    """True if the variant actually walks: mean walk_dx_2s5 on `walk 0.3 -> stop` >= WALKS_DX."""
+    dx = [e.get("walk_dx_2s5") for e in episodes
+          if e["variant"] == variant and e["probe"] == "walk 0.3 -> stop"]
+    dx = [d for d in dx if d is not None and d == d]
+    return bool(dx) and float(np.mean(dx)) >= WALKS_DX
+
 
 def set_contact(env, mu=None, torsion=None):
     """Force the EFFECTIVE foot/floor contact friction: MuJoCo takes the elementwise MAX of
@@ -488,6 +515,10 @@ def main():
     json.dump(dict(rows=rows, episodes=res, fg=FG, servo=FAST, shape_hz=hz), open(out, "w"),
               indent=1, default=str)
     md = table(rows, list(probes))
+    if "walk 0.3 -> stop" in probes:
+        md += "\n\n" + "\n".join(
+            f"- {vn}: {'WALKS' if walks(res, vn) else 'does NOT walk'} "
+            f"(walk 0.3 -> stop dx2.5 >= {WALKS_DX} m)" for vn in variants)
     open(os.path.splitext(out)[0] + ".md", "w").write(md + "\n")
     print(md)
 
