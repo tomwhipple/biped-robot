@@ -509,7 +509,13 @@ target.
   outboard, plus the neck servo's tube, whose side walls carry four bosses for
   the neck floor (§5.5). Ten M2.5 × 8 flat-heads into deck pilots on two edge
   rails. The neck is built into the girdle on the bench first: the neck floor's
-  screws are under it once it is on the deck.
+  screws are under it once it is on the deck. The trapezius webs from the tube
+  out to the pods are thin walls, with one opening on each side: the **elbow
+  lead's slot** through the aft tie beside the pod (|y| 45–56, from the tie
+  beam's top at 10 mm to a 50° peak at 23.6 mm, so it prints unsupported and
+  passes the lead's plug). The shoulder-to-elbow lead rises out of the pod's
+  inboard notch, runs aft through it, round the pod's aft lug and down the
+  back of the upper arm (#198).
 - **Each pod's outboard grip plate is its own print, the cheek**
   (`shoulder_cheek_v6`, 3.3 g, 58 × 30 × 2.4 mm, square-edged). It is
   symmetric about the shoulder axis, so one part fits both pods.

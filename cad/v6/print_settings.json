@@ -321,7 +321,7 @@
     "shoulder_girdle_v6": {
       "orient": "IDENT",
       "supports": false,
-      "note": "base down, no supports: the trapezius webs are thin walls (no windows) and the neck tube's aft wall is closed, and every roof on the part -- the web recesses, the platform detents -- rises at 50 deg (shoulder_girdle_v6.ROOF_RISE)."
+      "note": "base down, no supports: the trapezius webs are thin walls (no windows) and the neck tube's aft wall is closed, and every roof on the part -- the web recesses, the platform detents, the elbow lead's peaked slot through the aft tie -- rises at 50 deg (shoulder_girdle_v6.ROOF_RISE)."
     },
     "torso_v8": {
       "orient": "RX180",

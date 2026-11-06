@@ -166,6 +166,18 @@ TIE_H = 10.0
 WEB_T = 1.6                           # the trapezius web's thin wall, flush with the band's OUTER face
 WEB_REC_Y = (22.0, 56.0)              # the lightening recess behind it (|y| band) ...
 WEB_REC_TOP = 25.5                    # ... from the beam's top up to here at the open (inner) face
+# the elbow lead's slot through the AFT tie's web (#198; Tom, 2026-11-04: "aft
+# is correct"). The shoulder-to-elbow lead rises out of the inboard wall's
+# notch (x -12..0), runs aft inside the girdle to the tie, out through this
+# slot, round the pod's aft lug and down the back of the upper arm's web. It
+# sits at the recess's outboard end, so its outboard face is the recess's own
+# and the 6.5 mm of web between it and the pod's inboard wall stays whole;
+# its floor is the beam's top, so the beam stays whole too. The lead's plug
+# has to pass (whichever end is threaded through): D.WIRE_PLUG_W 9 wide, with
+# the arm's own 11 mm cable-window size across the slot.
+LEAD_SLOT_Y = (WEB_REC_Y[1] - 11.0, WEB_REC_Y[1])   # |y| 45 .. 56
+LEAD_SLOT_EAVE = 17.0                 # straight sides from the beam's top (TIE_H) to here, then a
+                                      # ROOF_RISE peak (+6.6, to 23.6): 7.7 mm of web left above it
 # No flare under the pod's outboard edge any more (Tom, 2026-11-01): it was
 # a 45 deg chamfer for the one-piece girdle, which printed that edge base-down;
 # the cheek prints flat, and the edges stay square.
@@ -365,6 +377,19 @@ def _cheek_left():
     return c
 
 
+def lead_slot(sgn):
+    """The elbow lead's slot (#198) through the whole aft tie band, +y side
+    (sgn +1) or -y: straight sides from the beam's top to LEAD_SLOT_EAVE, then
+    a peaked top rising ROOF_RISE on both sides, so it prints unsupported.
+    Behind the thin wall it opens into the web's lightening recess, and above
+    the recess's sloped roof it runs through the band as a short tunnel."""
+    y0, y1 = LEAD_SLOT_Y
+    peak = LEAD_SLOT_EAVE + ROOF_RISE * (y1 - y0) / 2
+    prof = [(sgn * y0, TIE_H), (sgn * y1, TIE_H), (sgn * y1, LEAD_SLOT_EAVE),
+            (sgn * (y0 + y1) / 2, peak), (sgn * y0, LEAD_SLOT_EAVE)]
+    return parts.wedge_x(prof, TIE_X[0] - 1.0, TIE_X[1] + 1.0)
+
+
 def shoulder_girdle_v6(pads=True):
     """The whole girdle, in the PELVIS frame (deck top z = 0, robot forward
     +x, left +y) so it reads directly against torso_v8's own geometry.
@@ -398,7 +423,9 @@ def shoulder_girdle_v6(pads=True):
     # face (front for the clavicle, back for the tie), with a recess behind it
     # that keeps the weight down. The recess sits above the beam, so the beam
     # stays whole, and its roof is a ROOF_RISE slope rising from the thin wall
-    # to the open inner face, so nothing on it needs support.
+    # to the open inner face, so nothing on it needs support. The aft tie's
+    # web keeps one opening, the elbow lead's slot (lead_slot(), #198), at the
+    # recess's outboard end beside each pod; its top is peaked, not flat.
     for x0, x1, h, outer in ((CLAV_X[0], CLAV_X[1], CLAV_H, +1), (TIE_X[0], TIE_X[1], TIE_H, -1)):
         p += parts.box(x0, x1, -CLAV_HY, CLAV_HY, 0, h)
         x_mem = x1 - WEB_T if outer > 0 else x0 + WEB_T     # the thin wall's inner face
@@ -410,6 +437,8 @@ def shoulder_girdle_v6(pads=True):
         for sgn in (1, -1):
             p += parts.box(x0, x1, sgn * (NC_HY + NC_WALL), sgn * WY1, 0, POD_TOP)
             p -= parts.wedge_y(recess, sgn * WEB_REC_Y[0], sgn * WEB_REC_Y[1])
+            if outer < 0:
+                p -= lead_slot(sgn)
 
     # --- the neck tube: the head's mount, rising BETWEEN the pods
     p += parts.box(NCX0 - NC_WALL, NCX1 + NC_WALL, -(NC_HY + NC_WALL),

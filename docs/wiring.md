@@ -234,7 +234,7 @@ selected.
 | port (H5/H6) → deck opening between the boards (upper branches, via splitter) | 50 | — | 50 | 90 | ✓ |
 | deck opening → neck (port A) | 47 | — | 47 | 90 | ✓ |
 | shoulder lead leaving the pod (A: neck → R shoulder; B: deck opening → L shoulder) | 71 / 68 | — | 71 / 68 | 120 / 110 | ✓ |
-| **shoulder → elbow (both arms)** | **130** | **23** | **152** | **~200** | **NO — does not fit stock** |
+| **shoulder → elbow (both arms)**, along its route through the girdle's aft slot | **312** | **23** | **335** | **~380** | **NO — does not fit stock** |
 
 What the CAD says about the two named geometry problems:
 
@@ -242,13 +242,22 @@ What the CAD says about the two named geometry problems:
   lead.** The shoulder servo hangs in the girdle pod at the top of the torso;
   the elbow servo's case rides the upper arm, running up it from the elbow
   axis, so its connector sits 146 mm below the shoulder axis. The lead crosses
-  the **shoulder fold, −90°…+200° (290° of sweep)** at the girdle's open
-  notch — the notch is cut open to the pod top so the plug exits upward
-  (`shoulder_girdle_v6.py:216`) — and then runs down the back of the upper
-  arm's web to the window just above the elbow servo's case (`arm_v6.py`).
-  There is **no strain relief drawn at the fold**. The 130 mm number is the
-  assembly-measured minimum between the two servos' connectors; the 152 mm
-  includes the shoulder fold's loop. Plan on a ~200 mm lead for this hop.
+  the **shoulder fold, −90°…+200° (290° of sweep)**: it leaves the
+  girdle's open notch upward (the notch is cut open to the pod top), runs aft
+  through the elbow lead's slot in the aft tie beside the pod
+  (`shoulder_girdle_v6.lead_slot`), round the pod's aft lug, and down the
+  back of the upper arm's web to the window just above the elbow servo's case
+  (`arm_v6.py`).
+  There is **no strain relief drawn at the fold**. The span is the length of
+  the route: a polyline through the CAD's corners at the hanging pose
+  (`_elbow_route` in `cad/v6/lead_lengths.py`: up the notch, inboard over the
+  wall, down to the slot's floor, aft through it, round the aft lug, outboard
+  past the cheek, down the arm's back web, through its window into the elbow
+  plug), 312 mm; the 23 mm is the shoulder fold's loop. It is not a swept
+  measurement. The straight plug-to-plug minimum between the two servos'
+  connectors (assembly mocks) is 130 mm. Buy ~380 mm leads and trim on the bench. Near the shoulder's −90° end the
+  arm lies aft across the lead's outboard run, so the lead rides over the arm's
+  back web there; that is checked on the bench, not in the CAD.
 - **The lead never crosses the elbow.** The elbow servo turns with the upper
   arm (the forearm forks round its discs), so shoulder plug to elbow plug is
   one piece on one link below the shoulder.
