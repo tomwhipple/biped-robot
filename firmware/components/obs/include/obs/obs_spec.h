@@ -21,6 +21,7 @@ inline constexpr const char* kPlantXml = "bimo_biped_v6legs.xml";
 inline constexpr const char* kActionMap = "full";
 inline constexpr bool kImuObs = true;   // linvel + height are zeroed
 inline constexpr bool kGaitClock = true;
+inline constexpr float kGaitFreqHz = 1.5f;   // base clock: the midpoint of the trained gait_freq_range (walker_env.deploy_gait_hz)
 inline constexpr bool kClockStandFreeze = false;   // hold phase at a plain stand (must match training; env_mjx.clock_stand_freeze)
 inline constexpr bool kSpeedClock = false;   // clock freq x clip(sqrt(v/kSpeedClockRef), lo, hi) under a velocity command (env_mjx.speed_clock)
 inline constexpr float kSpeedClockRef = 0.35f;   // m/s at which the scale is x1 (env_mjx.SPEED_CLOCK_REF)

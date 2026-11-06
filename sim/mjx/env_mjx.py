@@ -806,7 +806,7 @@ class BimoMJXEnv:
         # Gaussian: a 10 cm target must still pay gradient from a 2 cm lift.
         march_hz: float = 0.0,        # COMMANDED march cadence, full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock and
-        # inherit its 1.25-1.75 Hz draw (0.29-0.40 s per lift -- a sprinter's
+        # inherit its draw (at 1.25-1.75 Hz, 0.29-0.40 s per lift -- a sprinter's
         # march; 165 ms of upswing to knee height is the trainability risk).
         # A positive march_hz pins a deliberate cadence (1.0 -> 0.5 s per
         # lift) and DECOUPLES the march from the gait clock: the gait-clock
@@ -819,9 +819,12 @@ class BimoMJXEnv:
         # -- plan-v2 Phase A terms (2026-07-20, MuJoCo Playground recipes) ------
         # Numbers from the Playground biped envs (T1 / Berkeley Humanoid),
         # adapted to our 0.34 m scale. All default OFF -> old runs bit-exact.
-        gait_clock: bool = False,   # per-episode gait clock (freq U(1.25,
-        # 1.75) Hz) replaces the episode-fraction phase in the obs; feet are
-        # half a cycle apart (left = phase, right = phase + pi)
+        gait_clock: bool = False,   # per-episode gait clock (freq drawn from
+        # gait_freq_range) replaces the episode-fraction phase in the obs; feet
+        # are half a cycle apart (left = phase, right = phase + pi)
+        gait_freq_range: tuple = (1.25, 1.75),  # Hz, the per-episode clock draw;
+        # the firmware and the grader run a policy at its midpoint
+        # (walker_env.deploy_gait_hz, obs::kGaitFreqHz)
         w_feet_phase: float = 0.0,  # exp(-sum((foot_z - rz(phase))^2)/s2):
         # periodic swing-height targets -- Playground's strongest gait term
         swing_height: float = 0.06, # rz peak (m; Playground 0.10-0.12 on
@@ -1343,6 +1346,10 @@ class BimoMJXEnv:
         self.w_stand_zero = w_stand_zero
         self.w_stand_home = w_stand_home
         self.stand_com_sigma = stand_com_sigma
+        self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
+        if not 0.5 <= self.gait_freq_range[0] <= self.gait_freq_range[1]:
+            # 0.5 Hz: _mimic_ref's floor, below it the stride stops following the clock
+            raise ValueError(f"gait_freq_range {gait_freq_range}: need 0.5 <= lo <= hi")
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
         self.speed_clock_hi = speed_clock_hi
@@ -2610,7 +2617,8 @@ class BimoMJXEnv:
             traj = jp.zeros(3)
         if self.gait_clock:
             rng, r_gf, r_gp = jax.random.split(rng, 3)
-            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_freq = jax.random.uniform(r_gf, minval=self.gait_freq_range[0],
+                                           maxval=self.gait_freq_range[1])
             gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
         else:
             gait_freq = jp.zeros(())
@@ -2702,7 +2710,8 @@ class BimoMJXEnv:
             traj = jp.zeros(3)
         if self.gait_clock:
             rng, r_gf, r_gp = jax.random.split(rng, 3)
-            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_freq = jax.random.uniform(r_gf, minval=self.gait_freq_range[0],
+                                           maxval=self.gait_freq_range[1])
             gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
         else:
             gait_freq = jp.zeros(())
@@ -3231,7 +3240,7 @@ class BimoMJXEnv:
                                 2 * jp.pi) - jp.pi
             if self.clock_stand_freeze:
                 # at a plain stand the clock HOLDS (user 2026-08-12, stand
-                # shaking): sin/cos phase is a 1.25-1.75 Hz oscillator in
+                # shaking): sin/cos phase is an oscillator at the clock rate in
                 # the obs that the policy otherwise has to actively ignore
                 # to stand still -- w_still fights the symptom, this removes
                 # the drive. Freeze is gated exactly like w_still: no

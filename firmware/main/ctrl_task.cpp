@@ -51,7 +51,7 @@ linkproto::HomeLatch g_home;
 battguard::Guard g_batt;
 obs::Calibration g_cal;
 obs::History g_hist;
-obs::GaitClock g_clock(1.5f);
+obs::GaitClock g_clock(obs::kGaitFreqHz);
 obs::VelocityEstimator g_vel;
 
 float g_prev_action[obs::kActDim];

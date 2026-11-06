@@ -497,6 +497,11 @@ def make_parser():
                         "phase reaches PHASE (rad), then holds: the firmware's "
                         "`standclock coast` (default target pi/2 = 1.5708, measured "
                         "on the robot 2026-11-02). Exclusive with --clock-freeze-stand")
+    p.add_argument("--gait-freq", default=None, metavar="LO,HI",
+                   help="per-episode gait-clock draw, lo,hi Hz (default 1.25,1.75; "
+                        "the bound 0.5 is _mimic_ref's floor). config.json records it as "
+                        "gait_freq_range: the referee and grader run the policy at the "
+                        "midpoint and gen_obs_spec.py emits that as obs::kGaitFreqHz")
     p.add_argument("--w-squeeze", type=float, default=None,
                    help="stand-gated L1 penalty on the servo position error "
                         "|served target - q| (rad, less the backlash band): the "
@@ -1132,6 +1137,16 @@ def build_env_kw(args):
         if args.clock_freeze_stand:
             raise SystemExit("--clock-coast-stand and --clock-freeze-stand are exclusive")
         env_kw["clock_stand_coast"] = float(args.clock_coast_stand)
+    if getattr(args, "gait_freq", None) is not None:
+        if not env_kw.get("gait_clock"):
+            raise SystemExit("--gait-freq needs the gait clock (--precision)")
+        try:
+            lo, hi = (float(x) for x in str(args.gait_freq).split(","))
+        except ValueError:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: expected lo,hi in Hz")
+        if not 0.5 <= lo <= hi:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: need 0.5 <= lo <= hi")
+        env_kw["gait_freq_range"] = (lo, hi)
     if args.w_squeeze is not None:
         env_kw["w_squeeze"] = args.w_squeeze
     if args.squeeze_lash_band:
