@@ -212,8 +212,6 @@ class WalkRecovery {
     // true once, on the first tick after the grace window: the caller resets the
     // Detector so it judges the stand from fresh filters.
     bool graceJustEnded();
-    uint32_t sinceMs() const { return since_ms_; }   // since the recovery began
-    bool used() const { return active_; }
     // A walk/step command now or within recent_ms, with no recovery engaged: the
     // flail guard judges rate against Limits::rate_walk_rad_s.
     bool walkingRecent() const {
