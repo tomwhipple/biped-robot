@@ -53,6 +53,24 @@ pre-authorized the work below; do it without asking.
   1. stride1 refit 0 trips at 0.4 – 0.6;
   2. fast-servo x1.5 / push 0.4 / walk → stop 0/0;
   3. stride3 and walk → stop refit trips.
+- **GOAL: an omnidirectional command follower** (Tom 2026-11-05: "policies that respond to
+  arbitrary directions: forward, backward, sidestep (both ways), turn (both ways) ... it can
+  respond to a control signal"). Grade every legs student on the `dir *` probes (4 s commands:
+  fwd 0.3, back -0.25, side L/R 0.15, turn L/R 0.5; the .md lists travel vs the ideal) as well as
+  the stride ladder. A student that loses a direction is not a candidate. Never send the robot a
+  direction its deployed policy fails in sim (11-05: walk25_msole_d13_gh2h14_s1 kept only forward
+  and FELL on side R 3/4). The gyro hinge erased directions (gh4: all lost); walk21_fricact had all six.
+- **The robot reads joint velocity late** (hw_sessions/2026-11-05/kick_analysis.md): the servo speed
+  register is the mean over ~40 ms in 4.4 deg/s steps. Branch `train/omni-night` (not yet on main)
+  adds `--dq-obs-window 2,3 --dq-obs-quantum 50` to training and the `*dqlag` probes to grade.py,
+  which reproduce the robot's flail trips. Grade candidates on the dqlag probes. Merge the branch
+  once its students are evaluated, if it helps.
+- **Knee bend** (Tom: "walk with a slight bend to the knee for stability"): `--cmd-crouch-range
+  0.85,1.0 --init-norm-crouch` (the same branch) trains a crouch channel; grade at crouch 0.9.
+- **Hardware 11-05 evening:** firmware flail WalkRecovery (a walking trip -> stand, the policy keeps
+  balancing; walking rate limit 3.0) on branch fw/flail-walk-recovery, flashed. Single strides
+  stood 2/3, five-step commands gave ~3 steps then a stop. Don't raise guard limits further.
+  Fix the policy (dq lag) and the plant yaw (the robot yaws ~2.5x the sim per stride).
 - **11-05 state (ledger "2026-11-05 day results"):**
   - On the robot (flashed 16:58, not yet run): walk25_msole_d13_gh2h14_s1_s128r24.
   - Best recipe: `--act-delay-types sts3215=1:3,sts3250=0:1 --w-gyro-hinge 2
