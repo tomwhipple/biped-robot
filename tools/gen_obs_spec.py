@@ -94,6 +94,14 @@ def build_env(run_dir):
         # The quantizer is a property of the sensor path, tested where it
         # lives (angleToSteps/stepsToAngle, and the SIL closed loop).
         quantize_ticks=False,
+        # The reg-58 dq view is the same kind of thing. A run trained with
+        # --dq-obs-window computes dq from a joint-position history that the
+        # scripted states below never fill, so every frame would read dq = 0
+        # against a non-zero scripted input (84 false failures in test_obs on
+        # the first deploy that regenerated these vectors, 2026-11-06). On the
+        # robot the speed register IS the lagged view; obs::Assembler just
+        # takes it as an input.
+        dq_obs_window=None, dq_obs_quantum=0.0,
         render_mode=None,
     )
     return cfg, BimoWalkerEnv(**kw)
