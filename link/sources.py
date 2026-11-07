@@ -144,6 +144,9 @@ SCRIPT_SCENARIO = {
     "stride1_04": "line_1m",
     "steps5_03": "line_1m",
     "back3_03": "line_1m",
+    "stride1_02s": "line_1m",
+    "steps5_02s": "line_1m",
+    "back3_02s": "line_1m",
     "dash_stop": "speed_ladder",
     "turn": "turn_180",
     "pivot": "turn_180",
@@ -193,6 +196,28 @@ def _back3_03(t):
     return (-0.3, 0.0) if 2.0 <= t < 2.0 + 1.5 / 1.5 else (0.0, 0.0)
 
 
+# deploy/prec16-f075 (Tom 2026-11-06: "precision of movement with reduced speed"): the
+# 0.75 Hz policy, 1.333 s per gait cycle, 0.2 m/s (trained band 0.05-0.24). Each command
+# ends 50 ms before its cycle boundary, the lesson of stride1_03e (a late end coasts the clock
+# through an extra swing).
+_CYC075 = 1.0 / 0.75
+
+
+def _stride1_02s(t):
+    # ONE stride (one cycle, a step per foot) at 0.2 m/s on the 0.75 Hz clock
+    return (0.2, 0.0) if 2.0 <= t < 2.0 + _CYC075 - 0.05 else (0.0, 0.0)
+
+
+def _steps5_02s(t):
+    # FIVE steps at 0.2 m/s: 2.5 cycles of the 0.75 Hz clock
+    return (0.2, 0.0) if 2.0 <= t < 2.0 + 2.5 * _CYC075 - 0.05 else (0.0, 0.0)
+
+
+def _back3_02s(t):
+    # THREE steps backward at 0.2 m/s: 1.5 cycles of the 0.75 Hz clock
+    return (-0.2, 0.0) if 2.0 <= t < 2.0 + 1.5 * _CYC075 - 0.05 else (0.0, 0.0)
+
+
 def _crouch1(t):
     # One crouch cycle through the trained crouch channel (cmd[3] drawn
     # 0.7-1.0 in training): ramp down, hold, ramp back up. Ramps rather
@@ -225,6 +250,9 @@ SCRIPTS = {
     "stride1_04": _stride1_v(0.4),
     "steps5_03": _steps5_03,
     "back3_03": _back3_03,
+    "stride1_02s": _stride1_02s,
+    "steps5_02s": _steps5_02s,
+    "back3_02s": _back3_02s,
     "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,

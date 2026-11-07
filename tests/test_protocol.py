@@ -19,7 +19,7 @@ from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
                       FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
-                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
+                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, V_MIN_WALK, W_MAX,
                       ArmLatch, ArmResult, HomeLatch, is_home_result,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
@@ -197,10 +197,11 @@ def test_the_crc_covers_the_timestamp():
 
 # -- training envelope -----------------------------------------------------
 def test_clamp_snaps_the_untrained_speed_band_to_stand():
-    # walker_env draws v from (0.3, 1.0) or a stand -- (0, 0.3) was never
+    # the band below the deployed policy's trained floor (V_MIN_WALK) was never
     # trained, so it must not be passed through as a "slow walk".
-    for v in (0.01, 0.1, 0.29):
+    for v in (0.01, 0.5 * V_MIN_WALK, V_MIN_WALK - 0.01):
         assert clamp_to_envelope(v, 0.0)[0] == 0.0
+    assert clamp_to_envelope(V_MIN_WALK, 0.0)[0] == V_MIN_WALK
 
 
 def test_clamp_preserves_trained_turn_in_place():

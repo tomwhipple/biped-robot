@@ -139,7 +139,11 @@ constexpr uint32_t kSeqResyncGap = 1000;   // bigger backwards jump = restart
 // MUST track walker_env's cmd_v_range / cmd_w_range for the deployed policy.
 // The band (0, kVMinWalk) is a hole in the training distribution, not a slow
 // walk, so clampToEnvelope() snaps it to a stand.
-constexpr float kVMinWalk = 0.3f;
+// deploy/prec16-f075: the deployed policy (robot_legs_prec16_f075_js20) trained on cmd_v_range
+// 0.05-0.24 m/s at a 0.75 Hz clock; the old 0.3 floor turned every speed it knows into a stand.
+// kVMax stays 1.0 (the envelope tests' speeds): its top trained speed is 0.24, and the
+// operator picks scripts inside that band (the *_02s scripts).
+constexpr float kVMinWalk = 0.1f;
 constexpr float kVMax = 1.0f;
 constexpr float kWMax = 1.0f;
 // extended-channel envelope, from the walker_env training draws (protocol.py

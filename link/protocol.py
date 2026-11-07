@@ -144,7 +144,9 @@ SEQ_RESYNC_GAP = 1000
 # (0, V_MIN_WALK) is a hole in the training distribution, so a lightly-pushed
 # stick asking for 0.15 m/s is an out-of-distribution query, not a slow walk.
 # clamp_to_envelope() closes that hole by snapping; see also sources.py.
-V_MIN_WALK = 0.3           # walker_env cmd_v_range[0]
+# deploy/prec16-f075: the floor of the deployed policy's band (cmd_v_range 0.05-0.24, 0.75 Hz);
+# keep in step with firmware protocol.h kVMinWalk. Its top trained speed is 0.24 (see there).
+V_MIN_WALK = 0.1           # walker_env cmd_v_range[0]
 V_MAX = 1.0                # walker_env cmd_v_range[1]
 # extended-channel envelope, from the walker_env training draws:
 VY_MAX = 0.3               # lateral sway amplitude the sway scenarios use
