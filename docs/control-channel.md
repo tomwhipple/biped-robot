@@ -404,8 +404,8 @@ new commander is a class in `link/sources.py` or a front end on
   `q` quit (disarms first). A terminal has no key-up event, so a motion key
   holds for `--hold-ms` (default 700) after the last auto-repeat; the console
   measures the repeat delay on screen.
-- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then
-  `make -C firmware/host deps gui`): the windowed console. Arming, the E-stop
+- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then `make console`,
+  which builds and opens it): the windowed console. Arming, the E-stop
   latch and frame building are shared with `bimo_tui` in `link/client.h`, so
   the two cannot disagree about what a keypress puts on the wire. A window
   adds:

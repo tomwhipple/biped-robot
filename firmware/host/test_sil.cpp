@@ -537,6 +537,15 @@ void testSequencingAndReset() {
     CHECK_NEAR(slow.obs[obs::kOffPhase + 0],
                sinf(kTwoPi * obs::kControlDt * 1.25f * sc), 1e-6);
 
+    // No frequency given: the policy's own clock (obs_spec.h).
+    CHECK_EQ(sil_init(nullptr, nom.c_str(), 0.0f), 0);
+    SilTargets own{};
+    CHECK_EQ(sil_tick(&in, &own), 0);
+    CHECK_NEAR(own.obs[obs::kOffPhase + 0],
+               sinf(kTwoPi * obs::kControlDt * obs::kGaitFreqHz * sc), 1e-6);
+    CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.25f), 0);
+    CHECK_EQ(sil_tick(&in, &slow), 0);
+
     // Stand-freeze regression (2026-08-30): a plain-stand tick must HOLD the
     // phase. sil_lib ran the clock unconditionally for the whole v22fix era
     // and the SIL column under-scored every freeze-trained run (39 vs 69 of

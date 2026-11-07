@@ -349,6 +349,11 @@ def make_parser():
     p.add_argument("--w-qacc", type=float, default=None,
                    help="weight on sum qdd^2 of the servo DOFs, qdd = the tick's mean joint "
                         "acceleration in rad/s^2 (default 0)")
+    p.add_argument("--w-joint-speed", type=float, default=None,
+                   help="weight on sum max(|qd| - soft, 0)^2 over the servo DOFs, rad/s (default 0): "
+                        "a soft speed cost, trading against the gait; see env_mjx")
+    p.add_argument("--joint-speed-soft", type=float, default=None, metavar="DEG_S",
+                   help="the speed above which --w-joint-speed charges, deg/s (default 120)")
     p.add_argument("--w-symmetry", type=float, default=None,
                    help="gait-symmetry penalty: on touchdown, the swing-duration\nmismatch vs the other foot. Was pinned at 1.0 and untunable until 2026-08-06.")
     p.add_argument("--w-power", type=float, default=None)
@@ -497,6 +502,11 @@ def make_parser():
                         "phase reaches PHASE (rad), then holds: the firmware's "
                         "`standclock coast` (default target pi/2 = 1.5708, measured "
                         "on the robot 2026-11-02). Exclusive with --clock-freeze-stand")
+    p.add_argument("--gait-freq", default=None, metavar="LO,HI",
+                   help="per-episode gait-clock draw, lo,hi Hz (default 1.25,1.75; "
+                        "the bound 0.5 is _mimic_ref's floor). config.json records it as "
+                        "gait_freq_range: the referee and grader run the policy at the "
+                        "midpoint and gen_obs_spec.py emits that as obs::kGaitFreqHz")
     p.add_argument("--w-squeeze", type=float, default=None,
                    help="stand-gated L1 penalty on the servo position error "
                         "|served target - q| (rad, less the backlash band): the "
@@ -1038,6 +1048,10 @@ def build_env_kw(args):
         env_kw["w_action_acc"] = args.w_action_acc
     if getattr(args, "w_qacc", None) is not None:
         env_kw["w_qacc"] = args.w_qacc
+    if getattr(args, "w_joint_speed", None) is not None:
+        env_kw["w_joint_speed"] = args.w_joint_speed
+    if getattr(args, "joint_speed_soft", None) is not None:
+        env_kw["joint_speed_soft_dps"] = args.joint_speed_soft
     if getattr(args, "w_gyro_hinge", None) is not None:
         env_kw["w_gyro_hinge"] = args.w_gyro_hinge
     if getattr(args, "gyro_hinge", None) is not None:
@@ -1132,6 +1146,16 @@ def build_env_kw(args):
         if args.clock_freeze_stand:
             raise SystemExit("--clock-coast-stand and --clock-freeze-stand are exclusive")
         env_kw["clock_stand_coast"] = float(args.clock_coast_stand)
+    if getattr(args, "gait_freq", None) is not None:
+        if not env_kw.get("gait_clock"):
+            raise SystemExit("--gait-freq needs the gait clock (--precision)")
+        try:
+            lo, hi = (float(x) for x in str(args.gait_freq).split(","))
+        except ValueError:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: expected lo,hi in Hz")
+        if not 0.5 <= lo <= hi:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: need 0.5 <= lo <= hi")
+        env_kw["gait_freq_range"] = (lo, hi)
     if args.w_squeeze is not None:
         env_kw["w_squeeze"] = args.w_squeeze
     if args.squeeze_lash_band:

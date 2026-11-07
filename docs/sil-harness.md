@@ -63,7 +63,7 @@ typedef struct {
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
               const char* cal_path,       // JSON; NULL/"" = nominal (2048, +1)
-              float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
+              float gait_freq_hz);        // <= 0 = the compiled kGaitFreqHz; 0 on success
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
 const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
