@@ -349,6 +349,11 @@ def make_parser():
     p.add_argument("--w-qacc", type=float, default=None,
                    help="weight on sum qdd^2 of the servo DOFs, qdd = the tick's mean joint "
                         "acceleration in rad/s^2 (default 0)")
+    p.add_argument("--w-joint-speed", type=float, default=None,
+                   help="weight on sum max(|qd| - soft, 0)^2 over the servo DOFs, rad/s (default 0): "
+                        "a soft speed cost, trading against the gait; see env_mjx")
+    p.add_argument("--joint-speed-soft", type=float, default=None, metavar="DEG_S",
+                   help="the speed above which --w-joint-speed charges, deg/s (default 120)")
     p.add_argument("--w-symmetry", type=float, default=None,
                    help="gait-symmetry penalty: on touchdown, the swing-duration\nmismatch vs the other foot. Was pinned at 1.0 and untunable until 2026-08-06.")
     p.add_argument("--w-power", type=float, default=None)
@@ -1043,6 +1048,10 @@ def build_env_kw(args):
         env_kw["w_action_acc"] = args.w_action_acc
     if getattr(args, "w_qacc", None) is not None:
         env_kw["w_qacc"] = args.w_qacc
+    if getattr(args, "w_joint_speed", None) is not None:
+        env_kw["w_joint_speed"] = args.w_joint_speed
+    if getattr(args, "joint_speed_soft", None) is not None:
+        env_kw["joint_speed_soft_dps"] = args.joint_speed_soft
     if getattr(args, "w_gyro_hinge", None) is not None:
         env_kw["w_gyro_hinge"] = args.w_gyro_hinge
     if getattr(args, "gyro_hinge", None) is not None:

@@ -520,6 +520,13 @@ class BimoMJXEnv:
         w_action_acc: float = 0.0,     # -w sum (a_t - 2 a_t-1 + a_t-2)^2: the action's
         # second difference (Tom 2026-11-03: "avoid big jerks, especially when a joint
         # comes to a stop"), next to w_action_rate's first difference
+        # -w sum max(|qd| - soft, 0)^2 over the servo DOFs, rad/s (Tom 2026-11-06, "precision of
+        # movement with reduced speed"). No other term prices sustained speed: action rate and
+        # qacc price changes, so every walking policy runs at the servo's ceiling for ~85% of the
+        # time it moves, whatever speed is commanded. Soft, unlike --fw-limit, so it trades
+        # against the gait instead of removing it. joint_speed_soft_dps is in deg/s.
+        w_joint_speed: float = 0.0,
+        joint_speed_soft_dps: float = 120.0,
         w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
         # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
         yaw_kick_range=None,           # (lo, hi) rad/s: extra body yaw rate kicks while a move is commanded
@@ -1310,6 +1317,8 @@ class BimoMJXEnv:
         self.w_action_rate = w_action_rate
         self.w_action_acc = float(w_action_acc)
         self.w_qacc = float(w_qacc)
+        self.w_joint_speed = float(w_joint_speed)
+        self._joint_speed_soft = float(np.radians(joint_speed_soft_dps))
         self.yaw_kick_range = None if yaw_kick_range is None else tuple(float(x) for x in yaw_kick_range)
         self.yaw_kick_prob = float(yaw_kick_prob)
         self.w_gyro_hinge = float(w_gyro_hinge)
@@ -2975,6 +2984,7 @@ class BimoMJXEnv:
         action_acc = jp.sum((action - 2.0 * state.prev_action + state.prev_action2) ** 2)
         qdd_j = (qd_j - state.data.qvel[self._jv0:self._jv1]) / self.control_dt
         qacc_sq = jp.sum(qdd_j ** 2)
+        joint_speed_over = jp.sum(jp.maximum(jp.abs(qd_j) - self._joint_speed_soft, 0.0) ** 2)
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
 
         # command tracking (exp kernels sigma=0.5; cmd_dense option)
@@ -3182,6 +3192,7 @@ class BimoMJXEnv:
                   - self.w_action_rate * action_rate
                   - self.w_action_acc * action_acc
                   - self.w_qacc * qacc_sq
+                  - self.w_joint_speed * joint_speed_over
                   - self.w_power * power_w)
 
         # gait shaping: on for moving commands, double-support bonus for stand
