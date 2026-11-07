@@ -391,13 +391,22 @@ def test_gen_obs_spec_emits_the_midpoint(tmp_path):
 
 
 def test_committed_specs_keep_the_clock():
-    """The specs on main regenerate to the same behaviour: 1.5 Hz."""
+    """Every committed spec runs its policy at the clock it trained on: the midpoint of the run's
+    gait_freq_range (1.5 Hz for a run with none). sim/runs is not committed, so where the run is
+    absent the clock must at least lie in the trainable band. (A deploy branch carries a slower
+    policy on purpose, e.g. deploy/prec16-f075 at 0.75 Hz.)"""
     specs = [os.path.join(ROOT, "firmware", "components", "obs", "include", "obs", "obs_spec.h")]
     pol = os.path.join(ROOT, "firmware", "policies")
     specs += [os.path.join(pol, d, "obs", "obs_spec.h") for d in sorted(os.listdir(pol))]
     assert len(specs) >= 3
     for s in specs:
-        assert _freq_line(s) == 1.5, s
+        hz = _freq_line(s)
+        assert hz is not None and 0.5 <= hz <= 1.75, s
+        run = re.search(r'kRunName = "([^"]+)"', open(s).read())
+        cfg = os.path.join(ROOT, "sim", "runs", run.group(1), "config.json") if run else ""
+        if run and os.path.exists(cfg):
+            rng = json.load(open(cfg)).get("gait_freq_range")
+            assert hz == pytest.approx(0.5 * (rng[0] + rng[1]) if rng else 1.5), s
 
 
 @pytest.mark.parametrize("src", ["firmware/main/ctrl_task.cpp", "firmware/host/sil_lib.cpp"])
