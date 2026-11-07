@@ -257,7 +257,7 @@ def episode(job):
         arm_pose = qm.copy()
     adapter = None
     if o["sil"] or o["pin_clock"]:
-        # the firmware's gait clock (1.5 Hz, phase 0 at the arm), so the SIL
+        # the firmware's gait clock (the run's rate, phase 0 at the arm), so the SIL
         # and python columns see the same phase (harness.pin_gait_clock)
         sys.path.insert(0, os.path.join(ROOT, "sim", "sil"))
         cfg_xml = _xml(json.load(open(os.path.join(RUNS, run, "config.json"))))

@@ -67,9 +67,9 @@ bool g_ready = false;
 bool g_primed = false;
 obs::Calibration g_cal;
 obs::History g_hist;
-obs::GaitClock g_clock(1.5f);
+obs::GaitClock g_clock(obs::kGaitFreqHz);
 sil::LoadedNet g_net;
-float g_gait_hz = 1.5f;
+float g_gait_hz = obs::kGaitFreqHz;
 
 // The C2 command shaper + goal-speed streaming, the mirror of ctrl_task's
 // act path. Shaping defaults ON (kShaperPoleHz), matching the deployed boot
@@ -268,7 +268,7 @@ int sil_init(const char* weights_path, const char* cal_path,
         return -3;
     }
 
-    g_gait_hz = (gait_freq_hz > 0.0f) ? gait_freq_hz : 1.5f;
+    g_gait_hz = (gait_freq_hz > 0.0f) ? gait_freq_hz : obs::kGaitFreqHz;
     g_clock.setFrequency(g_gait_hz);
     // init == boot: shaping back to the firmware default (see sil.h).
     sil_set_shaper(obs::kShaperPoleHz);

@@ -265,8 +265,9 @@ q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin
   robot has no sensor for either.
 - **prev_action**: the raw policy output of the previous tick, not the shaped
   or ramped target, because that is what the policy saw in training.
-- **phase**: a gait clock at a base 1.5 Hz, the centre of training's
-  per-episode draw U(1.25, 1.75). With `kSpeedClock` the rate is scaled by
+- **phase**: a gait clock at the base `kGaitFreqHz`, generated per policy: the
+  centre of the run's per-episode draw (`gait_freq_range`, U(1.25, 1.75) unless
+  the run set `--gait-freq`, so 1.5 Hz). With `kSpeedClock` the rate is scaled by
   clip(sqrt(v / 0.35 m/s), 0.7, 1.25), v the commanded planar speed; with
   `kClockStandFreeze` the phase holds at a plain stand (|vx|, |vy|, |wz| ≤
   0.05 and |lift| < 0.5). Both flags come from the run, as in training.
@@ -904,8 +905,8 @@ joint all look the same from outside. `obsdump` measures them.
   slope at 0.69: a scale question, not a unit error. The sim uses true
   `qvel`; decide in sys-ID and match the sim's randomisation to whichever
   ships.
-- **Gait base frequency.** Fixed at 1.5 Hz, speed-scaled (§5.1). A commanded
-  frequency is not on the wire.
+- **Gait base frequency.** Fixed per policy (`kGaitFreqHz`), speed-scaled
+  (§5.1). A commanded frequency is not on the wire.
 - **Pack sense.** `battguard` reads register 62 (0.1 V, and only while a
   servo answers). The INA219 sees the pack even with the bus released;
   switching to it is not done.

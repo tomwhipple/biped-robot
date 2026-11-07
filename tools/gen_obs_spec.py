@@ -36,7 +36,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "sim"))
 
 import mujoco                                          # noqa: E402
-from walker_env import BimoWalkerEnv                   # noqa: E402
+from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
 
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
@@ -179,6 +179,9 @@ def write_spec(cfg, env, path, profile=None):
       % ("true" if env.imu_obs else "false"))
     w("inline constexpr bool kGaitClock = %s;"
       % ("true" if env.gait_clock else "false"))
+    w("inline constexpr float kGaitFreqHz = %s;   // base clock: the midpoint of "
+      "the trained gait_freq_range (walker_env.deploy_gait_hz)"
+      % fl(deploy_gait_hz(cfg)))
     w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
       "plain stand (must match training; env_mjx.clock_stand_freeze)"
       % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))

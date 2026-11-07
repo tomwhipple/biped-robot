@@ -72,3 +72,30 @@ def test_mjx_env_profiles_delay_and_penalties():
         r.append(float(st.reward))
         assert st.prev_action2.shape == (e.action_size,)
     assert r[1] < r[0]                                            # the penalties cost
+
+
+def test_joint_speed_cost_is_off_by_default_and_charges_only_above_the_soft_speed():
+    import jax
+    import jax.numpy as jp
+    import train_mjx
+    from env_mjx import BimoMJXEnv
+    args = ["--robot", "--xml", "bimo_biped_v6legs_meas.xml", "--servo-kp-scale", "asbuilt",
+            "--precision", "--mjx-impl", "jax"]
+    p = train_mjx.make_parser()
+    kw = train_mjx.build_env_kw(p.parse_args(args))
+    assert "w_joint_speed" not in kw
+    k2 = train_mjx.build_env_kw(p.parse_args(args + ["--w-joint-speed", "0.05", "--joint-speed-soft", "90"]))
+    assert k2["w_joint_speed"] == 0.05 and k2["joint_speed_soft_dps"] == 90.0
+    act = 0.8 * jp.ones(BimoMJXEnv(**kw).action_size)
+
+    def reward(**over):
+        e = BimoMJXEnv(**dict(kw, **over))
+        st = e.reset(jax.random.PRNGKey(1))
+        for _ in range(5):
+            st = e.step(st, act)
+        return float(st.reward)
+
+    r0 = reward()
+    assert reward(w_joint_speed=0.0, joint_speed_soft_dps=1.0) == pytest.approx(r0)    # weight 0: no change
+    assert reward(w_joint_speed=1.0, joint_speed_soft_dps=1e5) == pytest.approx(r0)    # nothing above the soft speed
+    assert reward(w_joint_speed=1.0, joint_speed_soft_dps=1.0) < r0                    # moving above it costs
