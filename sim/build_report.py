@@ -434,6 +434,30 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-06 card: night 16 -- the omni line. Only dq-lag students survive the robot-speed probes; the robot
+# itself tripped and fell on steps5; the stride command overruns the clock cycle.
+fig_1106 = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-11-06/t1_emeet.mp4',
+               '<b>omni5_dqlag on the robot, one stride at 0.3 m/s:</b> stood. The command ended 33 ms past the '
+               'stand phase, so the clock ran another cycle under the stand command: a third swing, rate trip 3.08 rad/s',
+               name='hw1106_t1_stride1'),
+    video_file('../hw_sessions/2026-11-06/t2_emeet.mp4',
+               '<b>omni5_dqlag on the robot, five steps at 0.3 m/s:</b> about 4 steps, rate trip 3.07, then it tips '
+               'over. Second-swing yaw +42 deg; the sim reads about +9 at the robot\'s joint speed',
+               name='hw1106_t2_steps5'),
+    video_figure('robot_legs_omni5_dqlag_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni5_dqlag_s128r24_walk_steps',
+                 'the same policy in the sim: all six directions and 0 falls on every robot-speed probe, '
+                 'which the robot then failed. A sim pass is necessary, not sufficient'),
+    video_figure('robot_legs_omni6_dqlag_crouch_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni6_dqlag_crouch_s128r24_walk_steps',
+                 'with the crouch channel (Tom: a slight knee bend): the lowest rates on the robot-speed probes, '
+                 'but it loses the x1.5 margin (2/8 falls)'),
+    video_figure('robot_legs_omni2_d13_gh2h14_sub25_s128r24', ['turn_180'],
+                 'robot_legs_omni2_d13_gh2h14_sub25_s128r24_turn',
+                 'the gyro hinge at 1.4 rad/s, for comparison: clean guard numbers, but it walks forward only. '
+                 'It lost back, both sidesteps and both turns'),
+] if f)
 # 2026-11-05 card: night 15 -- the get-up on the deploy-faithful start
 # (w19k 48/48 x2, its DART student 48/48, 16/16; all 16/16 on the measured sole
 # friction mu 0.45 / 0.3); smoothness terms dropped. Legs: walk21_fricact is the
@@ -933,6 +957,30 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·06 · night 16: the omni line, and why the robot trips</span></p>
+    <p><b>The best policy yet still fell on the robot.</b> omni5_dqlag is the first student with all six
+    directions and no falls on any probe at the robot's measured joint speed. On the robot it stood after one
+    stride, then fell during the five-step run. So those probes are necessary, not sufficient.</p>
+    <p><b>The stride command outlives the gait cycle.</b> stride1 ended at +700 ms, just past the stand phase,
+    so the coasting clock ran a whole extra cycle under the stand command and the robot took a third swing.
+    The sim's schedule ended exactly on the cycle and never saw this. Ending 20 or 40 ms late trips all 13
+    students 8/8. A stride script that ends early is built, but not yet tested: the steps5 fall broke a leg
+    link, so the robot is out of service until Tom's replacement is on.</p>
+    <p><b>The sim's joints were too fast.</b> The robot peaks at hip 250 and knee 290 deg/s in all three flight
+    records; the refit actuator reaches 360+. Only students trained on the robot's late joint velocity survive
+    probes at the real speed. The delay margin is thin: the probes first reach the robot's body rate at 100 ms
+    of joint-velocity lag, where omni5 starts to fall.</p>
+    <p><b>Still open:</b> the robot's second swing yaws +42 deg, and the sim about +9. Replaying the robot's
+    measured joints does produce that yaw, so the plant can make it, and on the first swing the floor's friction
+    barely matters. <b>Tonight:</b> nine teachers on the robot's actuator: delay range, crouch, yaw kicks, a
+    lower swing, a longer stop grace and a gentle hinge. Analysis: experiments/policy/yaw-gap/README.md.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1106}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·05 · night 15: the get-up as the firmware starts it; the walk through the robot-speed stride</span></p>
