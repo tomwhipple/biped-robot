@@ -1703,8 +1703,9 @@ void cmdStandClock(Sink out, int argc, char** argv) {
             "it always holds (option ignored)\r\n");
     }
     if (m == obs::StandClock::kCoast) {
-        say(out, "standclock: coast -- at a plain stand the clock keeps 1.5 Hz until phase "
-            "%.3f rad, then holds\r\n", static_cast<double>(robot::g_stand_phase.load()));
+        say(out, "standclock: coast -- at a plain stand the clock keeps %.2f Hz until phase "
+            "%.3f rad, then holds\r\n", static_cast<double>(obs::kGaitFreqHz),
+            static_cast<double>(robot::g_stand_phase.load()));
     } else if (m == obs::StandClock::kFreeze) {
         out("standclock: freeze -- at a plain stand the clock holds where it is\r\n");
     } else {

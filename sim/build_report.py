@@ -434,6 +434,30 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-07 card: night 17 -- precision at reduced speed (Tom 11-06). A slower gait clock (0.75 Hz) plus a soft
+# joint-speed cost halves the knee speed with 0 falls on every probe; the 2 cm lift is a shuffle.
+fig_1107 = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-11-06/shp8_run3.mp4',
+               '<b>omni14_shp8 on the robot (battery, shape 8), one stride at 0.3 m/s:</b> no trip, no fall, yaw '
+               'ended -3 deg. Tom: "the servos are still moving very fast": knees 281-299 deg/s, the servo top speed',
+               name='hw1106_shp8_run3'),
+    video_file('../hw_sessions/2026-11-06/shp8_run1.mp4',
+               '<b>the same policy, run 1:</b> a normal stride, then it tipped slowly at the stand, folded both '
+               'hips, tripped the pose guard outside the recovery window and fell during the autohome',
+               name='hw1106_shp8_run1'),
+    video_figure('robot_legs_prec16_f075_js20_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec16_f075_js20_s128r24_walk_steps',
+                 'the reduced-speed candidate: 0.75 Hz clock and a soft joint-speed cost. Mean knee 77/82 deg/s '
+                 '(omni14: 164/178), 0 falls on every grade probe, all six directions, but the feet barely lift '
+                 '(median swing 1.2 cm)'),
+    video_figure('robot_legs_omni14_rs_shp8_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni14_rs_shp8_s128r24_walk_steps',
+                 'what flew on 11-06, for comparison: the 1.5 Hz clock, knees at the servo ceiling'),
+    video_figure('robot_legs_prec12_f075_l3_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec12_f075_l3_s128r24_walk_steps',
+                 'the slow clock with a 3 cm lift and no speed cost: swings reach 2.5 cm median, but it loses the '
+                 'x1.5 margin and falls walking backward. Tonight prec22 tries 3 cm with the speed cost'),
+] if f)
 # 2026-11-06 card: night 16 -- the omni line. Only dq-lag students survive the robot-speed probes; the robot
 # itself tripped and fell on steps5; the stride command overruns the clock cycle.
 fig_1106 = "\n    ".join(f for f in [
@@ -957,6 +981,31 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·07 · night 17: precision at reduced speed</span></p>
+    <p><b>Tom, after omni14_shp8's clean strides on the repaired robot:</b> "significant side to side movement of
+    the feet with not as much forward motion as desired, but the servos are still moving very fast. Focus on the
+    precision of movement with reduced speed." The flight records agree: knees at 281-299 deg/s and hip pitch at
+    257-275, the servo top speed.</p>
+    <p><b>The reference was the problem.</b> The imitation reference asked the knees for 475-940 deg/s against a
+    ~222 deg/s servo ceiling, because a swing had to fit half a cycle of a fixed 1.5 Hz clock. So every policy ran
+    its servos flat out. A firmware speed cap alone made the policy stand still. A lower lift or a 1.0 Hz clock
+    alone did not change the speed.</p>
+    <p><b>What worked:</b> a 0.75 Hz clock (new, per policy, through training, grader and firmware), a 2 cm lift
+    and a soft joint-speed cost. <b>prec16</b> halves the mean knee speed (77/82 deg/s, was 164/178) and has 0
+    falls on every grade probe, the robot-speed and delay-margin ones included, in all six directions.
+    <b>But it shuffles:</b> its median swing peaks at 1.2 cm. Its knees still peak near 229 deg/s, it drifts
+    ~29 deg of yaw per five steps, and its knees are asymmetric (91 vs 50 deg).</p>
+    <p><b>Housekeeping:</b> the referee on main didn't know the new clock, so this morning's cards scored the slow
+    policies at 1.5 Hz. The feature is now merged to main and the cards were re-refereed. <b>Tonight:</b> eight
+    teachers on the prec16 line: a seed replicate, 0.6 Hz, a 180 deg/s cap, a mirror-symmetry loss, a stronger
+    speed cost, a 3 cm lift, a heading term and the knee-bend channel.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1107}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·06 · night 16: the omni line, and why the robot trips</span></p>

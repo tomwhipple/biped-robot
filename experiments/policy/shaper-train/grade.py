@@ -17,7 +17,8 @@ Probes (falls / flail-guard trips out of the seeds):
   push 0.4         kicks at 3 / 5.5 / 8 s
   walk 0.3 -> stop 4 s at 0.3 m/s then the stand (training's walk band is |vx| >= 0.3)
   stride1 <v>      link/sources.py `stride1`: stand, at t = 2 s vx <v> for one gait cycle
-                   (0.667 s at 1.5 Hz), then the stand -- the robot's first walk command
+                   (0.667 s at 1.5 Hz; every cycle-based probe follows the policy's trained
+                   clock, Stride.at), then the stand -- the robot's first walk command
                    (walk16_act, v 0.6) tripped the guard on body rate 0.28 s in
   stride1 0.6 mu<m> the same on a slippery floor: effective contact friction mu (and a low
                    torsion) on the floor AND the pads (set_contact) -- walk18_shp10sq on the
@@ -82,8 +83,20 @@ def walk(vx):
     return (vx, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
 
 
-def stride(vx, t0=2.0, cyc=1.0 / S.CLOCK_HZ):
-    return [(0.0, STAND_CMD), (t0, walk(vx)), (t0 + cyc, STAND_CMD)]
+class Stride(list):
+    """stride()'s schedule [(t_s, cmd), ...] at a clock: `cycles` gait cycles of vx from t0, plus
+    extra_s of absolute time (how far the robot's command misses the cycle). The list is the 1.5 Hz
+    one; episode() re-times it to the graded policy's clock with at()."""
+    def __init__(self, vx, t0=2.0, cycles=1.0, extra_s=0.0, hz=S.CLOCK_HZ):
+        super().__init__([(0.0, STAND_CMD), (t0, walk(vx)), (t0 + (cycles / hz + extra_s), STAND_CMD)])
+        self.spec = (vx, t0, cycles, extra_s)
+
+    def at(self, hz):
+        return Stride(*self.spec, hz=hz)
+
+
+def stride(vx, t0=2.0, cycles=1.0, extra_s=0.0):
+    return Stride(vx, t0, cycles, extra_s)
 
 
 PROBES = {
@@ -120,26 +133,35 @@ _MU = dict(contact=dict(mu=0.4, torsion=0.005))
 for _v in (0.4, 0.3):
     PROBES[f"stride1 {_v} refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R)
     PROBES[f"stride1 {_v} mu0.4 refit"] = dict(cmd_schedule=stride(_v), run_s=8.0, **_R, **_MU)
-PROBES["steps5 0.3 refit"] = dict(cmd_schedule=stride(0.3, cyc=2.5 / S.CLOCK_HZ), run_s=10.0, **_R)
+PROBES["steps5 0.3 refit"] = dict(cmd_schedule=stride(0.3, cycles=2.5), run_s=10.0, **_R)
 PROBES["stride1 0.3 refit dqlag"] = dict(PROBES["stride1 0.3 refit"], dq_obs=DQ_ROBOT)
 PROBES["steps5 0.3 refit dqlag"] = dict(PROBES["steps5 0.3 refit"], dq_obs=DQ_ROBOT)
 
 
-def yaw_kicks(dw, t0=2.0, n=2, lead=0.25, half=0.5 / S.CLOCK_HZ):
-    """One kick of dw rad/s per half gait cycle (in single support; a kick in double support dies in the
-    two feet's grip), `lead` s after the walk command at t0. Calibrated on the robot's steps5 run
-    (experiments/policy/yaw-gap/README.md)."""
-    return {int(round((t0 + lead + k * half) / DT)): dw for k in range(n)}
+class YawKicks(dict):
+    """{tick: dw}: one kick of dw rad/s per half gait cycle (in single support; a kick in double support
+    dies in the two feet's grip), `lead` s after the walk command at t0. Calibrated on the robot's steps5
+    run (experiments/policy/yaw-gap/README.md). The dict is the 1.5 Hz one; episode() re-times it with at()."""
+    def __init__(self, dw, t0=2.0, n=2, lead=0.25, hz=S.CLOCK_HZ):
+        super().__init__({int(round((t0 + lead + k * 0.5 / hz) / DT)): dw for k in range(n)})
+        self.spec = (dw, t0, n, lead)
+
+    def at(self, hz):
+        return YawKicks(*self.spec, hz=hz)
+
+
+def yaw_kicks(dw, t0=2.0, n=2, lead=0.25):
+    return YawKicks(dw, t0, n, lead)
 
 
 # The robot's command does not end on the sim's tick grid: stride1_03 on 2026-11-06 stopped at +700 ms, 40 ms
 # after the coasting clock had passed the stand phase, so the clock ran another whole cycle under the stand
 # command (experiments/policy/yaw-gap/README.md). "late <ms>" ends the command that long after the cycle.
 for _ms in (20, 40, 60, 100):
-    _c = stride(0.3, cyc=1.0 / S.CLOCK_HZ + _ms / 1e3)
+    _c = stride(0.3, extra_s=_ms / 1e3)
     PROBES[f"stride1 0.3 refit dqlag late{_ms}"] = dict(PROBES["stride1 0.3 refit dqlag"], cmd_schedule=_c)
 for _ms in (-20, -40, -60):
-    _c = stride(0.3, cyc=1.0 / S.CLOCK_HZ + _ms / 1e3)
+    _c = stride(0.3, extra_s=_ms / 1e3)
     PROBES[f"stride1 0.3 refit dqlag early{-_ms}"] = dict(PROBES["stride1 0.3 refit dqlag"], cmd_schedule=_c)
 # 2026-11-06, the robot's own peak speed: hip pitch 246-254 and knee 281-303 deg/s in all three flight
 # records (11-03 walk18, 11-06 omni5 t1, t2), where the refit runs 360+. With this cap and 60 ms of dead
@@ -150,10 +172,10 @@ ROBOT_SPEED_PLANT = dict(supply_v=12.0, stall_scale=dict(hip_pitch=2.0, knee=2.0
 ROBOT_SPEED_SERVO = dict(FAST, dead15=60.0)
 _RS = dict(plant=ROBOT_SPEED_PLANT, typed=ROBOT_SPEED_SERVO, dq_obs=DQ_ROBOT)
 PROBES["stride1 0.3 robot"] = dict(cmd_schedule=stride(0.3), run_s=8.0, **_RS)
-PROBES["stride1 0.3 robot early40"] = dict(cmd_schedule=stride(0.3, cyc=1.0 / S.CLOCK_HZ - 0.04), run_s=8.0, **_RS)
-PROBES["stride1 0.3 robot late40"] = dict(cmd_schedule=stride(0.3, cyc=1.0 / S.CLOCK_HZ + 0.04), run_s=8.0, **_RS)
-PROBES["steps5 0.3 robot"] = dict(cmd_schedule=stride(0.3, cyc=2.5 / S.CLOCK_HZ), run_s=10.0, **_RS)
-PROBES["back3 -0.3 robot"] = dict(cmd_schedule=stride(-0.3, cyc=1.5 / S.CLOCK_HZ), run_s=10.0, **_RS)
+PROBES["stride1 0.3 robot early40"] = dict(cmd_schedule=stride(0.3, extra_s=-0.04), run_s=8.0, **_RS)
+PROBES["stride1 0.3 robot late40"] = dict(cmd_schedule=stride(0.3, extra_s=0.04), run_s=8.0, **_RS)
+PROBES["steps5 0.3 robot"] = dict(cmd_schedule=stride(0.3, cycles=2.5), run_s=10.0, **_RS)
+PROBES["back3 -0.3 robot"] = dict(cmd_schedule=stride(-0.3, cycles=1.5), run_s=10.0, **_RS)
 PROBES["walk 0.3 -> stop robot"] = dict(PROBES["walk 0.3 -> stop"], **_RS)
 for _w in (5, 6):
     PROBES[f"steps5 0.3 robot dq{_w}"] = dict(PROBES["steps5 0.3 robot"], dq_obs=dict(DQ_ROBOT, window=_w))
@@ -165,7 +187,7 @@ for _dw in (-1.0, -2.0, -3.0):
     PROBES[f"stride1 0.3 refit dqlag yk{-_dw:g}"] = dict(PROBES["stride1 0.3 refit dqlag"], yaw_kicks=yaw_kicks(_dw))
     PROBES[f"steps5 0.3 refit dqlag yk{-_dw:g}"] = dict(PROBES["steps5 0.3 refit dqlag"], yaw_kicks=yaw_kicks(_dw, n=5, lead=0.06))
 for _v in (0.3, 0.2):
-    _c3 = stride(_v, cyc=3.0 / S.CLOCK_HZ)
+    _c3 = stride(_v, cycles=3.0)
     PROBES[f"stride3 {_v} refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R)
     PROBES[f"stride3 {_v} mu0.4 refit"] = dict(cmd_schedule=_c3, run_s=10.0, **_R, **_MU)
     PROBES[f"walk {_v} -> stop refit"] = dict(PROBES[f"walk {_v} -> stop"], **_R)
@@ -282,6 +304,15 @@ def _dq_env():
     return dict(window=w, quantum=float(os.environ.get("DQ_OBS_QUANTUM", "50")))
 
 
+def at_clock(v, hz):
+    """The variant/probe with its cycle-based schedule and kicks re-timed to clock hz."""
+    v = dict(v)
+    for k in ("cmd_schedule", "yaw_kicks"):
+        if hasattr(v.get(k), "at"):
+            v[k] = v[k].at(hz)
+    return v
+
+
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     """stand_sim.episode with the flail guard, the squeeze and walk progress recorded.
     v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase,
@@ -289,6 +320,9 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     the takeover ramp, as in ctrl_task)."""
     run = v["run"]; settle_s = 1.5
     env, act, zoff = simh.build("fit", run=run, ep_s=run_s + hold_s + settle_s + 1.0)
+    # the policy's own clock: the phase, and the cycle-based command and kick times with it
+    hz = S.trained_hz(env)
+    v = at_clock(v, hz)
     rng = np.random.default_rng(1000 + seed)
     env.domain_rand = False; env.push_prob = 0.0
     # the dq obs: the probe's (dq_obs), else DQ_OBS_WINDOW, else as the run trained (the
@@ -315,11 +349,11 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     env._prev_action[:] = 0.0
     sched = list(v.get("cmd_schedule") or [])
     env.set_command(*(sched[0][1] if sched else STAND_CMD))
-    w0 = S.H.pin_gait_clock(env, S.CLOCK_HZ)
+    w0 = S.H.pin_gait_clock(env, hz)
     clock = v.get("clock", "coast")
     env._gait_freq = 0.0
     env._gait_phase = float(w0)
-    clk = dict(ph=float(w0), f=S.CLOCK_HZ, held=False)
+    clk = dict(ph=float(w0), f=hz, hz=hz, held=False)
     env._obs_hist = []
     first = env._obs()
     env._obs_hist = [first.copy() for _ in range(env.obs_hist_len - 1)]
@@ -353,7 +387,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         _mj.mj_step = _step0
     GO, GY, PW, TL, SQ, X, fell, ext = res
     return _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed,
-                            np.array(QV), np.array(WZ), v=v, **ext)
+                            np.array(QV), np.array(WZ), v=v, hz=hz, **ext)
 
 
 def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
@@ -409,7 +443,7 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
 
 
 def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ,
-                     v=None, YW=(), QM=(), QD=(), LM=(), AC=(), Y=()):
+                     v=None, hz=S.CLOCK_HZ, YW=(), QM=(), QD=(), LM=(), AC=(), Y=()):
     v = v or {}
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
@@ -419,7 +453,7 @@ def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, Q
     m_smooth = dict(qacc_sq=float(np.mean(np.sum(qdd_all[:npol] ** 2, axis=1))) if len(qdd_all) else float("nan"),
                     action_acc=float(np.mean(np.sum(np.diff(ac[:npol], 2, axis=0) ** 2, axis=1))) if npol > 2 else float("nan"),
                     action_rate=float(np.mean(np.sum(np.diff(ac[:npol], axis=0) ** 2, axis=1))) if npol > 1 else float("nan"))
-    m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()), **m_smooth,
+    m = dict(seed=seed, fell=fell, t_end=len(GO) * DT, tilt_max=float(TL.max()), gait_hz=hz, **m_smooth,
              trip=fg.trip, trips_by=fg.first, peak_rate=fg.peak_rate, peak_rate_xyz=fg.peak_rax.tolist(), peak_chatter=fg.peak_chat,
              dx=float(X[-1]),
              dy=float(Y[-1]) if len(Y) else float("nan"),
@@ -465,11 +499,12 @@ def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, Q
             # stop"): qdd = the tick's mean joint acceleration (rad/s^2, servo DOFs, 50 Hz
             # differences of qvel -- a lower bound on the substep peak); deceleration = the part
             # of qdd that opposes the joint's motion. start = the first 300 ms of the walk
-            # command, stop = 300 ms .. 1.2 s (the swing ends, the stride's last step, the stop)
+            # command, stop = 300 ms .. 1.2 s at the 1.5 Hz clock, longer at a slower one (the swing
+            # ends, the stride's last step, the stop)
             qd = np.array(QD); lm = np.array(LM)
             qdd = np.diff(qd, axis=0, prepend=qd[:1]) / DT
             dec = np.maximum(-np.sign(np.vstack([qd[:1], qd[:-1]])) * qdd, 0.0)
-            w0, w3, w12 = j0, min(len(qd), j0 + int(0.3 / DT)), min(len(qd), j0 + int(1.2 / DT))
+            w0, w3, w12 = j0, min(len(qd), j0 + int(0.3 / DT)), min(len(qd), j0 + int(1.2 * S.CLOCK_HZ / hz / DT))
             ref = lm[j0 - 1] if j0 > 0 else lm[0]
             m["walk_qdd_start"] = float(np.abs(qdd[w0:w3]).max())
             m["walk_qdd_stop"] = float(np.abs(qdd[w3:w12]).max()) if w12 > w3 else float("nan")

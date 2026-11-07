@@ -56,12 +56,11 @@ class History {
 
 // The gait clock walker_env advances on-board:
 //   phase = wrap_pi(phase + 2*pi*dt*freq)
-// Deployed frequency is an open question (docs/firmware-design.md section 8):
-// training draws it uniformly from [1.25, 1.75] Hz per episode, so 1.5 Hz is
-// the distribution's centre and the v1 default.
+// Training draws the frequency per episode from the run's gait_freq_range; the
+// robot runs its midpoint, kGaitFreqHz (generated into obs_spec.h per policy).
 class GaitClock {
   public:
-    explicit GaitClock(float hz = 1.5f) : freq_(hz) {}
+    explicit GaitClock(float hz = kGaitFreqHz) : freq_(hz) {}
     void advance(float dt);
     // Speed clock (kSpeedClock): the phase advances at freq * scale where
     // scale = clip(sqrt(v_planar / kSpeedClockRef), kSpeedClockLo,
