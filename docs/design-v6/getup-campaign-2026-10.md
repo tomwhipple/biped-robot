@@ -2454,7 +2454,7 @@ Every slow-clock student trips `pose` on walk→stop and stride1 refit: the clos
 | **prec24** @ crouch 0.9 | (graded with cmd[3] = 0.9) | 0/0, 0/0, 0/8 | 0/7, 0/8, 0/8 | 0/8, 0/8, 0/0, 0/0, 0/8, 0/6 | 0/0 ×3 | +0.82 −0.84 +0.47 −0.45 +110 **−79** (0) | **held**: Tom's knee bend with 0 falls on every probe; turn R short |
 | omni8_rs_dq25_s1 (shape 10) | seed of omni8 | 0/0, 0/0, 0/8 | 1/8, 0/8, 0/8 | 0/8 ×6 | 0/8, 0/8, 1/8 | +1.08 **−0.68 (6)** +0.64 −0.44 +111 −107 | **not held**: replicates omni8's back loss |
 
-**Speed table** (new: `/tmp/plan1108/speed.py`, grade.py's episode with the speed stats added. It takes the 50 Hz qvel over the walk window of
+**Speed table** (new: `experiments/policy/shaper-train/speed.py`, grade.py's episode with the speed stats added. It takes the 50 Hz qvel over the walk window of
 `steps5 0.3 robot` (2.5 cycles at 0.3 m/s), 8 seeds. "above 180" is the share of walk ticks where any knee or hip pitch is above 180 deg/s.
 This method reads prec16 at 83/68; the hardware session's method read 77/82. Compare students within this table only.)
 
@@ -2521,7 +2521,7 @@ operator command sets it to 0.9.
 
 Rank tomorrow: 0 falls on the robot, margin and direction probes first, then clearance (median swing peak, lowest step),
 then speed (the speed table, same method), knee symmetry and yaw. Grade crouch runs at 0.9 as well
-(`/tmp/plan1108/grade_crouch.py`, which patches `set_command`'s cmd[3]).
+(`experiments/policy/shaper-train/grade_crouch.py`, which patches `set_command`'s cmd[3]).
 
 **Fallback:** the prec24 recipe (crouch channel), saved over the prec16 one (`fallback.job.prec16-20261108`).
 Preflight passed 18/18.
