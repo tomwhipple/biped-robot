@@ -434,6 +434,27 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-08 card: night 18 -- the prec line, night 2. The knee-bend channel keeps 0 falls at crouch 0.9; a
+# mirror loss evens the knees; the speed cap, 0.6 Hz, a 0.4 speed cost, a 3 cm lift and a heading term each lose
+# something; the shuffle is traced to the swing reward's wide kernel.
+fig_1108 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec24_f075_js20_crouch_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec24_f075_js20_crouch_s128r24_walk_steps',
+                 'prec24, the knee-bend channel on prec16 (referee clip at crouch 1.0): 0 falls on every grade probe '
+                 'at crouch 0.9 and 1.0, all six directions; same joint speed as prec16; still a 1.2 cm shuffle'),
+    video_figure('robot_legs_prec20_f075_js20_mirror_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec20_f075_js20_mirror_s128r24_walk_steps',
+                 'prec20, mirror-symmetry loss: knee range 57/54 deg (prec16 67/47), mean knee 73/74 deg/s; '
+                 'the yaw drift moves (+12 on five steps, -54 on a 4 s forward walk) instead of going away'),
+    video_figure('robot_legs_prec22_f075_js20_l3_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec22_f075_js20_l3_s128r24_walk_steps',
+                 'prec22, a 3 cm reference lift: median swing 1.8 cm (from 1.2), but the x1.5 margin goes (8/8 falls) '
+                 'and walk-to-stop falls 5/8'),
+    video_figure('robot_legs_prec19_f075_js20_cap180_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec19_f075_js20_cap180_s128r24_walk_steps',
+                 'prec19, the firmware 180 deg/s cap: the left knee moves 4 deg, a one-legged hop that yaws +74 deg. '
+                 'The third failure of the cap; closed as a training variable'),
+] if f)
 # 2026-11-07 card: night 17 -- precision at reduced speed (Tom 11-06). A slower gait clock (0.75 Hz) plus a soft
 # joint-speed cost halves the knee speed with 0 falls on every probe; the 2 cm lift is a shuffle.
 fig_1107 = "\n    ".join(f for f in [
@@ -981,6 +1002,27 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·08 · night 18: the slow gait, night 2</span></p>
+    <p><b>Eight variations on prec16, the 0.75 Hz reduced-speed gait.</b> Two kept prec16's record of 0 falls on every
+    grade probe, in all six directions: a seed replicate, and <b>prec24, the knee-bend channel</b> (your "slight
+    bend to the knee"). prec24 holds that record at crouch 0.9 as well as 1.0, at the same joint speed as prec16. It is
+    the new lead. The mirror-symmetry loss (prec20) evens the knees (range 57/54 deg, was 67/47), but it moves the yaw
+    drift instead of removing it.</p>
+    <p><b>What lost something:</b> the firmware 180 deg/s cap (the left leg stops stepping, the third time the cap
+    has failed), the 0.6 Hz clock (loses the x1.5 margin and the 0.3 m walk), a 0.4 speed cost (loses sidestep
+    left), a 3 cm reference lift (loses the margin) and a strong heading term (loses the margin; turns overshoot).</p>
+    <p><b>Every policy still shuffles</b> (median swing 1.1-1.8 cm). The cause looks like the reward: its swing-height
+    term pays a 1 cm swing 73 % of the full reward for a 2.5 cm target, so lifting the foot earns little. Tonight's nine
+    teachers test a tighter swing reward and a higher swing target with the joint-space reference unchanged, a mild
+    clearance penalty, the mirror loss on the knee-bend policy, a gentler heading term, a 0.3 speed cost and two seed
+    replicates. <b>Still open for you:</b> does the 3 cm clearance rule hold for the slow gait?
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1108}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·07 · night 17: precision at reduced speed</span></p>
