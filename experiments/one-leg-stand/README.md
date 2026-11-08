@@ -71,7 +71,7 @@ lift command does not lift the foot at all; use 30 mm.
 
 ## Closed loop: stance-leg roll PI
 
-`balance.py` (sim) and `firmware/components/balance/roll_pi.h` (bench, `pose ...
+`balance.py` (sim) and `firmware/components/balance/include/balance/roll_pi.h` (bench, `pose ...
 B<L|R>`) are the same controller: the torso roll relative to the roll captured
 when feedback engages (the shifted pose, before the lift) goes through a PI plus a
 gyro roll-rate damping term (`kd * rate`, derivative on the measurement; rate is the

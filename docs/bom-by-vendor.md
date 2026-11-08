@@ -86,7 +86,7 @@ All-in from zero (robot + printer order): **~$845**.
 - **Battery: buy to the spec filter, not to an ASIN.** The bay was originally cut
   for the Zeee 3S 850 (67 × 30 × 18.5, 74 g), which went unavailable — and every
   other 3S 850 is stubbier but *taller*, so nothing dropped in. The bay is now
-  sized (`BATT` in `cad/dimensions.py`) to swallow the whole class. **Any pack
+  sized (`BATT` in `cad/common/dimensions.py`) to swallow the whole class. **Any pack
   meeting all four of these fits, no CAD change:**
   
   |           | requirement                      | why                                                       |
