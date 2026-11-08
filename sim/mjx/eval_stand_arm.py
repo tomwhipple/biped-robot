@@ -82,7 +82,6 @@ OFF_DEG = 4.0              # --off-deg
 PREFALL_DEG = 10.0         # tilted this far at the arm tick: the HOLD tipped it, not the policy
 PUSH_T = (3.0, 5.5, 8.0, 10.5)
 PUSH_DIR = ((1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0))
-N_SENSOR = None            # sensor slots per frame: q, dq, up, linvel, gyro (set per env)
 
 
 def _xml(cfg):
