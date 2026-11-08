@@ -9,7 +9,7 @@ from bus_cal import BusCal, BusCalError, asbuilt_prototype_cal, fetch_cal
 ap = argparse.ArgumentParser(description=__doc__)
 ap.add_argument('out'); ap.add_argument('--joints', default='L_hip_roll,R_hip_roll,L_hip_pitch,R_hip_pitch,L_ankle,R_ankle,L_knee,R_knee')
 ap.add_argument('--step', type=float, default=0.5); ap.add_argument('--max', type=float, default=4.0)
-ap.add_argument('--tilt-abort', type=float, default=8.0); ap.add_argument('--home-after', action='store_true', default=True)
+ap.add_argument('--tilt-abort', type=float, default=8.0)
 ap.add_argument('--spd', type=int, default=10, help='step slew, ticks/s (10 = quasi-static; 60 rang the structure on a single-leg stance, Tom 2026-09-03)')
 ap.add_argument('--settle', type=float, default=1.0, help='seconds after a step before reading tilt')
 ap.add_argument('--watch', default='', help='comma list of NON-swept joints whose servo load to read every step (free-leg contact detector, Tom 2026-09-03); abort the joint if |load| > --watch-abort')
