@@ -370,6 +370,13 @@ long Link::lag() const {
 }
 
 // -- Intent -----------------------------------------------------------------
+namespace {
+// Intent::arm's note, and the one syncToRobot replaces once the beacon has
+// left BENCH: a green LIVE beside "waiting for the robot to leave BENCH" is
+// two answers to one question.
+const char kArmSentNote[] = "arm sent: waiting for the robot to leave BENCH";
+}  // namespace
+
 void Intent::say(const char* s) {
     strncpy(note, s, sizeof note - 1);
     note[sizeof note - 1] = 0;
@@ -429,7 +436,7 @@ void Intent::arm(double now_ms) {
     armed = true;
     estop = false;
     armed_at_ms = now_ms;
-    say("arm sent: waiting for the robot to leave BENCH");
+    say(kArmSentNote);
 }
 
 void Intent::disarm() {
@@ -561,7 +568,14 @@ bool Intent::checkHome(const Link& link, double now_ms) {
 
 bool Intent::syncToRobot(const Link& link, double now_ms) {
     if (!armed || link.linkLost(now_ms)) return false;
-    if (link.tlm.state != LinkState::kBench) return false;
+    if (link.tlm.state != LinkState::kBench) {
+        // The arm landed: the wait the note describes is over. Only that
+        // note -- anything said since is newer news.
+        if (strcmp(note, kArmSentNote) == 0) {
+            sayf2("armed: the robot left BENCH, now %s", stateName(link.tlm.state));
+        }
+        return false;
+    }
     if (now_ms - armed_at_ms <= kArmSyncMs) return false;
     armed = false;
     releaseAll();

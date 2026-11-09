@@ -201,6 +201,29 @@ void test_arm_sync_ignores_a_dead_link() {
     CHECK(in.armed);
 }
 
+// The arm's "waiting for the robot to leave BENCH" goes once it has (#239);
+// a note said after it is left alone.
+void test_arm_note_clears_when_the_robot_leaves_bench() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm_at_ms = 0.0;
+    in.arm(0.0);
+    CHECK(strstr(in.note, "waiting for the robot to leave BENCH") != nullptr);
+    CHECK(!in.syncToRobot(link, 50.0));       // still BENCH: still waiting
+    CHECK(strstr(in.note, "waiting") != nullptr);
+    link.tlm.state = LinkState::kLive;
+    link.tlm_at_ms = 100.0;
+    CHECK(!in.syncToRobot(link, 100.0));
+    CHECK(in.armed);
+    CHECK(strstr(in.note, "waiting") == nullptr);
+    CHECK(strstr(in.note, "LIVE") != nullptr);
+    in.say("E-stop cleared: standing");       // newer news stays
+    CHECK(!in.syncToRobot(link, 150.0));
+    CHECK(strcmp(in.note, "E-stop cleared: standing") == 0);
+}
+
 // Benched, seq_echo carries the diagnostic byte, not an echo: a lag computed
 // from it is a large, growing number that means nothing (#237).
 void test_lag_is_zero_while_benched() {
@@ -1272,6 +1295,7 @@ int main() {
     test_arm_sync_gives_up_and_quotes_the_robot();
     test_arm_sync_ignores_a_dead_link();
     test_lag_is_zero_while_benched();
+    test_arm_note_clears_when_the_robot_leaves_bench();
     test_home_is_sent_disarmed_and_estopped();
     test_home_level_is_held_then_released();
     test_home_without_an_answer_says_so();

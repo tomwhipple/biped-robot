@@ -317,7 +317,8 @@ struct Intent {
     // The robot is authoritative: armed here but BENCH there, after the edge
     // has had time to land, means the arm was refused or the robot rebooted.
     // Returns true if it just gave up (and fills `note` with the robot's own
-    // reason).
+    // reason). Armed and out of BENCH, it replaces arm()'s "waiting for the
+    // robot to leave BENCH" note, if that is still the note, with the state.
     bool syncToRobot(const Link& link, double now_ms);
 };
 
