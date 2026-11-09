@@ -236,6 +236,19 @@ void test_home_is_sent_disarmed_and_estopped() {
 // The level is held for kHomeFrames and then DROPS: the robot acts on the
 // rising edge, so a level that never falls would make the second press a
 // no-op, and one that falls too soon can be lost with a single UDP packet.
+// The firmware's home ends with torque RELEASED (cli.cpp homeVerify), and its
+// verdict says so (protocol.cpp kDisarmedHome); the console's note must not
+// say the opposite (#238).
+void test_home_note_agrees_with_the_robots_verdict() {
+    Intent in;
+    in.requestHome(0.0);
+    CHECK(strstr(in.note, "RELEASED") != nullptr);
+    CHECK(strstr(in.note, "HOLD") == nullptr);
+    CHECK(strstr(linkproto::diagReason(linkproto::packDiag(
+                     false, true, linkproto::ArmResult::kDisarmedHome)),
+                 "torque RELEASED") != nullptr);
+}
+
 void test_home_level_is_held_then_released() {
     Intent in;
     Speeds s;
@@ -1137,6 +1150,7 @@ int main() {
     test_arm_sync_gives_up_and_quotes_the_robot();
     test_arm_sync_ignores_a_dead_link();
     test_home_is_sent_disarmed_and_estopped();
+    test_home_note_agrees_with_the_robots_verdict();
     test_home_level_is_held_then_released();
     test_home_without_an_answer_says_so();
     test_home_answers_are_not_warned_about();

@@ -108,7 +108,6 @@ def main():
     p.add_argument("--home", action="store_true",
                    help="RESET SERVOS (FLAG_HOME edge) first; arm only if the "
                         "robot reports DISARMED_HOME")
-    p.add_argument("--home-settle", type=float, default=4.0)
     p.add_argument("--no-prearm", action="store_true",
                    help="skip the ARM=0 preamble (twin --boot-armed reference)")
     p.add_argument("--port", type=int, default=None)

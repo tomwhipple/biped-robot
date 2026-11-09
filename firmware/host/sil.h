@@ -89,7 +89,7 @@ typedef struct {
 //   cal_path      JSON [{bus_id, zero_steps, dir}, ...]: one entry per servo
 //                 the policy drives at least, any bus servo at most. NULL or
 //                 "" -> the nominal Calibration() (zero_steps 2048, dir +1).
-//   gait_freq_hz  gait-clock frequency; <= 0 -> the 1.5 Hz firmware default.
+//   gait_freq_hz  gait-clock frequency; <= 0 -> the compiled obs::kGaitFreqHz.
 // Returns 0 on success, negative on failure (see sil_last_error()).
 int sil_init(const char* weights_path, const char* cal_path,
              float gait_freq_hz);

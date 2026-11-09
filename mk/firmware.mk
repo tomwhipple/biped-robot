@@ -1,5 +1,5 @@
 ##@ Firmware
-.PHONY: host vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
+.PHONY: host console vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
 FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
@@ -7,6 +7,13 @@ WCLI_VECTORS := firmware/host/vectors/wcli_vectors.h
 
 host: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
 	$(MAKE) -C firmware/host -j1 check
+
+# ARGS replaces the default --host: a console given only --bench-telemetry or
+# --cam-relay starts as an observer, and a --host would make it a commander.
+console: ## build and open the GUI control panel (bimo_gui) on the local sim; ARGS="--host <robot-ip>" for the robot
+	$(MAKE) -C firmware/host deps
+	$(MAKE) -C firmware/host gui
+	firmware/host/build/bimo_gui $(or $(ARGS),--host 127.0.0.1)
 
 vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors, from link/protocol.py, tools/flightrec.py and link/wcliproto.py
 $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)

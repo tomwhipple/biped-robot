@@ -160,6 +160,18 @@ def joint_role(name):
 
 
 
+# The per-episode gait-clock draw, Hz, when a run does not set its own (--gait-freq).
+GAIT_FREQ_RANGE = (1.25, 1.75)
+
+
+def deploy_gait_hz(cfg=None):
+    """The fixed clock a policy runs at outside training (the firmware's
+    obs::kGaitFreqHz, the SIL, the grader), from its run's config.json: the
+    midpoint of the trained gait_freq_range, 1.5 Hz for a run without the setting."""
+    lo, hi = (cfg or {}).get("gait_freq_range") or GAIT_FREQ_RANGE
+    return 0.5 * (float(lo) + float(hi))
+
+
 def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     """Calibration for the imitation reference's swing lift (mimic_lift):
     per leg (L, R), the hip-pitch and knee offsets from the home pose
@@ -679,6 +691,7 @@ class BimoWalkerEnv(gym.Env):
         # timing comes from the commanded pattern, not from the clock.
         # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
         gait_clock: bool = False,
+        gait_freq_range: tuple = GAIT_FREQ_RANGE,  # Hz, the per-episode clock draw (mirrors sim/mjx)
         speed_clock: bool = False,  # scale the clock with commanded planar
         # speed (mirror of env_mjx.speed_clock_scale -- referee obs must
         # match training)
@@ -983,6 +996,11 @@ class BimoWalkerEnv(gym.Env):
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
+        self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
+        if not 0.5 <= self.gait_freq_range[0] <= self.gait_freq_range[1]:
+            raise ValueError(f"gait_freq_range {gait_freq_range}: need 0.5 <= lo <= hi")
+        # the clock this policy runs at outside training (obs::kGaitFreqHz)
+        self.deploy_gait_freq = deploy_gait_hz(dict(gait_freq_range=self.gait_freq_range))
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
         self.speed_clock_hi = speed_clock_hi
@@ -2249,7 +2267,7 @@ class BimoWalkerEnv(gym.Env):
         self._step_i = 0
         self._phase_cmd()
         if self.gait_clock:
-            self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
+            self._gait_freq = float(self.np_random.uniform(*self.gait_freq_range))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
         self._chain0 = None                   # chain seed: taken on the first step
@@ -2819,8 +2837,7 @@ class BimoWalkerEnv(gym.Env):
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
         if self.w_mimic:
-            q_ref = self._mimic_ref(self._cmd, self._gait_phase,
-                                    self._gait_freq)
+            q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
             dq = np.asarray(d.qpos[self._jqpos]) - q_ref
             mim_gate = 1.0
             if self.ext_cmd:

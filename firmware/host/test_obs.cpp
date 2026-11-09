@@ -149,6 +149,14 @@ void testGaitClockWraps() {
     c2.setPhase(0.0f);
     for (int i = 0; i < 100; ++i) c2.advance(1.0f / 150.0f);   // exactly 1 rev
     CHECK_NEAR(c2.phase(), 0.0, 1e-3);
+    // The default clock is the policy's own (obs_spec.h, per run); a slower one
+    // takes a proportionally smaller phase step.
+    obs::GaitClock c3;
+    c3.advance(0.02f);
+    CHECK_NEAR(c3.phase(), 2.0f * 3.14159265f * 0.02f * obs::kGaitFreqHz, 1e-5);
+    obs::GaitClock c4(1.0f);
+    c4.advance(0.02f);
+    CHECK_NEAR(c4.phase(), 2.0f * 3.14159265f * 0.02f, 1e-5);
 }
 
 // Coast: the trained rate until the stand phase, then held exactly there --

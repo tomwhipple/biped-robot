@@ -200,13 +200,6 @@ def pad_heights(m, d, p: DesignParams, stance: str, other: str) -> np.ndarray:
     return np.array(hs)
 
 
-def torso_tilt_vs_foot(m, d, stance: str) -> float:
-    pos, R = foot_frame(m, d, stance)
-    Rt = d.xmat[m.body("torso").id].reshape(3, 3)
-    up = R.T @ Rt[:, 2]
-    return math.degrees(math.acos(max(-1.0, min(1.0, up[2]))))
-
-
 def self_collides(m, d) -> int:
     """number of active contacts with the robot held in the air (only the
     enumerated inter-leg pairs can fire). Call after set_pose with a high

@@ -448,7 +448,11 @@ void Intent::requestHome(double now_ms) {
     // homing answers "the robot is on the floor", not "carry on".
     armed = false;
     releaseAll();
-    say("reset servos: robot benches, joints slew to the stand, torque HOLDS");
+    // The firmware's home ends RELEASED (cli.cpp homeVerify: readback, then
+    // torque off broadcast; control-channel.md); gear friction holds the
+    // stand. Its verdict (protocol.cpp kDisarmedHome) says the same.
+    say("reset servos: robot benches, joints slew to the stand, then torque "
+        "is RELEASED (friction holds the stand); arm to walk");
 }
 
 void Intent::fireEstop() {

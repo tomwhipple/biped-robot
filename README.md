@@ -52,11 +52,10 @@ make test                                  # the firmware's pure modules under A
 ```
 
 The console drives a simulated robot over the real command protocol, and
-`--host <robot-ip>` drives a real one:
+`make console ARGS="--host <robot-ip>"` drives a real one:
 
 ```bash
-brew install glfw && make -C firmware/host deps gui
-firmware/host/build/bimo_gui --host 127.0.0.1
+brew install glfw && make console
 #   SIM: pick a run, Start; [a] arm, arrows to walk, PgUp/PgDn to turn
 ```
 

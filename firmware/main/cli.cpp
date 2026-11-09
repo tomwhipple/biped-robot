@@ -1725,8 +1725,9 @@ void cmdStandClock(Sink out, int argc, char** argv) {
             "it always holds (option ignored)\r\n");
     }
     if (m == obs::StandClock::kCoast) {
-        say(out, "standclock: coast -- at a plain stand the clock keeps 1.5 Hz until phase "
-            "%.3f rad, then holds\r\n", static_cast<double>(robot::g_stand_phase.load()));
+        say(out, "standclock: coast -- at a plain stand the clock keeps %.2f Hz until phase "
+            "%.3f rad, then holds\r\n", static_cast<double>(obs::kGaitFreqHz),
+            static_cast<double>(robot::g_stand_phase.load()));
     } else if (m == obs::StandClock::kFreeze) {
         out("standclock: freeze -- at a plain stand the clock holds where it is\r\n");
     } else {
@@ -3941,7 +3942,7 @@ void banner(Sink out) {
     out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
         "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
     out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
-    out("                       torque ON and holding -- works after a fall\r\n");
+    out("                       then torque RELEASED (friction holds) -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");

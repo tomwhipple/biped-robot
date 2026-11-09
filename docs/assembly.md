@@ -733,6 +733,10 @@ outboard, with the cheek off.
 
 1. **Plug its leads first.** They rise from the connector trench on the idler
    face and leave up through the open-topped notch in the pod's inboard wall.
+   One of them is the shoulder-to-elbow lead (about 380 mm, [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)): run it aft
+   inside the girdle and out through the square opening in the aft tie beside
+   the pod (its print support cleared out), plug first, and leave it hanging
+   behind the pod for the arm.
 2. **Push the servo in along the shoulder axis from outboard**, **no idler
    disc** (§2): case length fore-aft with the cable end aft, width vertical,
    horn outboard. Rest it on the pod's floor, between the end walls, and slide
@@ -786,7 +790,9 @@ letter faces out and reads upright with the arm hanging.
    upper arm's lower end from the front, output end down, horn outboard, so the
    case runs up the arm. **6 × M2.5 × 8 flat-heads**: four from outboard, two
    from inboard. Plug the shoulder-to-elbow lead in first and take it out
-   through the web window just above the case.
+   through the web window just above the case. Its other end comes from the
+   slot in the girdle's aft tie, round the pod's aft lug, and down the back
+   of the upper arm's web.
 
    ![Elbow servo into the upper arm](assembly/v6_18_elbow_servo.png)
 
@@ -840,6 +846,11 @@ number still owed.
   through the deck opening between the boards.
 - **Neck:** the leads leave the plugs through the neck floor's window, toward
   +Y, and rise through the deck aperture beside the tube.
+- **Shoulder to elbow:** the lead rises out of the notch in the pod's inboard
+  wall, runs aft inside the girdle and leaves through the slot in the aft
+  tie's web beside the pod (square, 11 × 11 mm; the plug passes), then
+  goes round the pod's aft lug and down the back of the upper arm's web to
+  the window above the elbow servo's case (#198).
 
 **Rules:**
 

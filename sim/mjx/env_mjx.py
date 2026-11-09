@@ -520,6 +520,13 @@ class BimoMJXEnv:
         w_action_acc: float = 0.0,     # -w sum (a_t - 2 a_t-1 + a_t-2)^2: the action's
         # second difference (Tom 2026-11-03: "avoid big jerks, especially when a joint
         # comes to a stop"), next to w_action_rate's first difference
+        # -w sum max(|qd| - soft, 0)^2 over the servo DOFs, rad/s (Tom 2026-11-06, "precision of
+        # movement with reduced speed"). No other term prices sustained speed: action rate and
+        # qacc price changes, so every walking policy runs at the servo's ceiling for ~85% of the
+        # time it moves, whatever speed is commanded. Soft, unlike --fw-limit, so it trades
+        # against the gait instead of removing it. joint_speed_soft_dps is in deg/s.
+        w_joint_speed: float = 0.0,
+        joint_speed_soft_dps: float = 120.0,
         w_qacc: float = 0.0,           # -w sum qdd^2 over the servo DOFs, qdd = the tick's
         # mean joint acceleration (qd_end - qd_start) / control_dt, rad/s^2 -- stand and walk
         yaw_kick_range=None,           # (lo, hi) rad/s: extra body yaw rate kicks while a move is commanded
@@ -806,7 +813,7 @@ class BimoMJXEnv:
         # Gaussian: a 10 cm target must still pay gradient from a 2 cm lift.
         march_hz: float = 0.0,        # COMMANDED march cadence, full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock and
-        # inherit its 1.25-1.75 Hz draw (0.29-0.40 s per lift -- a sprinter's
+        # inherit its draw (at 1.25-1.75 Hz, 0.29-0.40 s per lift -- a sprinter's
         # march; 165 ms of upswing to knee height is the trainability risk).
         # A positive march_hz pins a deliberate cadence (1.0 -> 0.5 s per
         # lift) and DECOUPLES the march from the gait clock: the gait-clock
@@ -819,9 +826,12 @@ class BimoMJXEnv:
         # -- plan-v2 Phase A terms (2026-07-20, MuJoCo Playground recipes) ------
         # Numbers from the Playground biped envs (T1 / Berkeley Humanoid),
         # adapted to our 0.34 m scale. All default OFF -> old runs bit-exact.
-        gait_clock: bool = False,   # per-episode gait clock (freq U(1.25,
-        # 1.75) Hz) replaces the episode-fraction phase in the obs; feet are
-        # half a cycle apart (left = phase, right = phase + pi)
+        gait_clock: bool = False,   # per-episode gait clock (freq drawn from
+        # gait_freq_range) replaces the episode-fraction phase in the obs; feet
+        # are half a cycle apart (left = phase, right = phase + pi)
+        gait_freq_range: tuple = (1.25, 1.75),  # Hz, the per-episode clock draw;
+        # the firmware and the grader run a policy at its midpoint
+        # (walker_env.deploy_gait_hz, obs::kGaitFreqHz)
         w_feet_phase: float = 0.0,  # exp(-sum((foot_z - rz(phase))^2)/s2):
         # periodic swing-height targets -- Playground's strongest gait term
         swing_height: float = 0.06, # rz peak (m; Playground 0.10-0.12 on
@@ -1307,6 +1317,8 @@ class BimoMJXEnv:
         self.w_action_rate = w_action_rate
         self.w_action_acc = float(w_action_acc)
         self.w_qacc = float(w_qacc)
+        self.w_joint_speed = float(w_joint_speed)
+        self._joint_speed_soft = float(np.radians(joint_speed_soft_dps))
         self.yaw_kick_range = None if yaw_kick_range is None else tuple(float(x) for x in yaw_kick_range)
         self.yaw_kick_prob = float(yaw_kick_prob)
         self.w_gyro_hinge = float(w_gyro_hinge)
@@ -1343,6 +1355,10 @@ class BimoMJXEnv:
         self.w_stand_zero = w_stand_zero
         self.w_stand_home = w_stand_home
         self.stand_com_sigma = stand_com_sigma
+        self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
+        if not 0.5 <= self.gait_freq_range[0] <= self.gait_freq_range[1]:
+            # 0.5 Hz: _mimic_ref's floor, below it the stride stops following the clock
+            raise ValueError(f"gait_freq_range {gait_freq_range}: need 0.5 <= lo <= hi")
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
         self.speed_clock_hi = speed_clock_hi
@@ -2610,7 +2626,8 @@ class BimoMJXEnv:
             traj = jp.zeros(3)
         if self.gait_clock:
             rng, r_gf, r_gp = jax.random.split(rng, 3)
-            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_freq = jax.random.uniform(r_gf, minval=self.gait_freq_range[0],
+                                           maxval=self.gait_freq_range[1])
             gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
         else:
             gait_freq = jp.zeros(())
@@ -2702,7 +2719,8 @@ class BimoMJXEnv:
             traj = jp.zeros(3)
         if self.gait_clock:
             rng, r_gf, r_gp = jax.random.split(rng, 3)
-            gait_freq = jax.random.uniform(r_gf, minval=1.25, maxval=1.75)
+            gait_freq = jax.random.uniform(r_gf, minval=self.gait_freq_range[0],
+                                           maxval=self.gait_freq_range[1])
             gait_phase = jax.random.uniform(r_gp, minval=-jp.pi, maxval=jp.pi)
         else:
             gait_freq = jp.zeros(())
@@ -2966,6 +2984,7 @@ class BimoMJXEnv:
         action_acc = jp.sum((action - 2.0 * state.prev_action + state.prev_action2) ** 2)
         qdd_j = (qd_j - state.data.qvel[self._jv0:self._jv1]) / self.control_dt
         qacc_sq = jp.sum(qdd_j ** 2)
+        joint_speed_over = jp.sum(jp.maximum(jp.abs(qd_j) - self._joint_speed_soft, 0.0) ** 2)
         power_w = jp.sum(jp.maximum(tau * qd_j, 0.0) + _K_CU * tau ** 2)
 
         # command tracking (exp kernels sigma=0.5; cmd_dense option)
@@ -3173,6 +3192,7 @@ class BimoMJXEnv:
                   - self.w_action_rate * action_rate
                   - self.w_action_acc * action_acc
                   - self.w_qacc * qacc_sq
+                  - self.w_joint_speed * joint_speed_over
                   - self.w_power * power_w)
 
         # gait shaping: on for moving commands, double-support bonus for stand
@@ -3231,7 +3251,7 @@ class BimoMJXEnv:
                                 2 * jp.pi) - jp.pi
             if self.clock_stand_freeze:
                 # at a plain stand the clock HOLDS (user 2026-08-12, stand
-                # shaking): sin/cos phase is a 1.25-1.75 Hz oscillator in
+                # shaking): sin/cos phase is an oscillator at the clock rate in
                 # the obs that the policy otherwise has to actively ignore
                 # to stand still -- w_still fights the symptom, this removes
                 # the drive. Freeze is gated exactly like w_still: no

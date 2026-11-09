@@ -36,7 +36,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "sim"))
 
 import mujoco                                          # noqa: E402
-from walker_env import BimoWalkerEnv                   # noqa: E402
+from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
 
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
@@ -94,6 +94,14 @@ def build_env(run_dir):
         # The quantizer is a property of the sensor path, tested where it
         # lives (angleToSteps/stepsToAngle, and the SIL closed loop).
         quantize_ticks=False,
+        # The reg-58 dq view is the same kind of thing. A run trained with
+        # --dq-obs-window computes dq from a joint-position history that the
+        # scripted states below never fill, so every frame would read dq = 0
+        # against a non-zero scripted input (84 false failures in test_obs on
+        # the first deploy that regenerated these vectors, 2026-11-06). On the
+        # robot the speed register IS the lagged view; obs::Assembler just
+        # takes it as an input.
+        dq_obs_window=None, dq_obs_quantum=0.0,
         render_mode=None,
     )
     return cfg, BimoWalkerEnv(**kw)
@@ -171,6 +179,9 @@ def write_spec(cfg, env, path, profile=None):
       % ("true" if env.imu_obs else "false"))
     w("inline constexpr bool kGaitClock = %s;"
       % ("true" if env.gait_clock else "false"))
+    w("inline constexpr float kGaitFreqHz = %s;   // base clock: the midpoint of "
+      "the trained gait_freq_range (walker_env.deploy_gait_hz)"
+      % fl(deploy_gait_hz(cfg)))
     w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
       "plain stand (must match training; env_mjx.clock_stand_freeze)"
       % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))

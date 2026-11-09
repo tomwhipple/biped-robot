@@ -294,7 +294,8 @@ def test_reset_servos_works_with_the_estop_latched():
     in when it is on the floor: ARM is refused, every motion key is refused,
     and the console is correctly sending nothing but the latch. `home` is the
     way out -- it needs no arm, it reaches the robot through the E-stop, and
-    the robot benches and holds the standing pose rather than staying limp.
+    the robot benches, slews to the standing pose and then releases torque
+    (cli.cpp homeVerify), leaving gear friction to hold the stand.
     """
     out, log, rc = _run([
         (1.0, "arm"),
@@ -310,12 +311,13 @@ def test_reset_servos_works_with_the_estop_latched():
     assert "estop" in kinds, log
     assert _home_lines(log), "the robot never saw the request\n" + log
 
-    # After the reset: benched (the run is over) but torque ON -- the one
-    # combination nothing else on this wire produces, and the whole point.
+    # After the reset: benched (the run is over) with torque released, as
+    # the robot's home ends.
     i = max(k for k, s in enumerate(seq) if s[0] == "estop")
-    held = [s for s in seq[i:] if s[0] == "bench" and s[3] == "on"]
-    assert held, log
+    after = seq[i + 1:]
+    assert after and all(s[0] == "bench" and s[3] == "off" for s in after), log
     assert "servos reset to the standing pose" in log, log
+    assert "then torque RELEASED" in log, log
 
     # It is a request, not a command: the robot never leaves the bench on the
     # strength of it -- re-arming stays a deliberate, separate act.

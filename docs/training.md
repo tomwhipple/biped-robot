@@ -172,8 +172,12 @@ observation nor the action.
   episode, per-step noise, and optional gyro gain and delay (§6). On the robot
   the QMI8658C is sampled at 250 Hz and fused by `imu::Fusion`; a per-axis
   gyro scale is stored in NVS (`imu gscale`).
-- **Gait clock**: a per-episode frequency U(1.25, 1.75) Hz, the feet half a
-  cycle apart. `--speed-clock` scales it with the commanded planar speed (√
+- **Gait clock**: a per-episode frequency U(1.25, 1.75) Hz, or U(lo, hi) with
+  `--gait-freq lo,hi`, the feet half a cycle apart. config.json records the
+  range as `gait_freq_range`; the referee draws from it, the grader and the SIL
+  run the policy at its midpoint, and `tools/gen_obs_spec.py` emits the midpoint
+  as `obs::kGaitFreqHz`. The link sources' cycle lengths (`link/sources.py`,
+  `1.0 / 1.5`) are written for 1.5 Hz. `--speed-clock` scales it with the commanded planar speed (√
   law, ×1 at 0.35 m/s, clipped to [0.7, `--speed-clock-hi`]).
   `--clock-freeze-stand` holds the phase under a plain stand command, so the
   policy does not have to ignore an oscillating input to stand still.

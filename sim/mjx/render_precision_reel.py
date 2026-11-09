@@ -76,7 +76,7 @@ def main():
     if not os.path.isabs(xml) and not os.path.exists(xml):
         xml = os.path.join(HERE, "..", os.path.basename(xml))
 
-    reg = ep._registry()
+    reg = ep._registry(ep.deploy_gait_hz(cfg))
     names = ep.ORDER
     fam = (cfg.get("train", {}) or {}).get("family", "all")
     if not args.scenarios and fam in ep.FAMILY_SCENARIOS:
