@@ -474,11 +474,14 @@ LOW_SWING_CLEAR = 0.03    # m: every step's sole peak (the referee's SWING_CLEAR
 LOW_SWING_MIN_TICKS = 3   # a shorter swing is contact chatter, not a step (the referee's SWING_MIN_TICKS)
 
 
-def low_swing_shortfall(peak, xp):
-    """Fraction of LOW_SWING_CLEAR a completed swing's sole peak fell short by:
-    0 at or above 3 cm, 1 for a foot that left the floor without rising.
-    xp = jax.numpy or numpy, so both envs share the exact formula."""
-    return xp.clip((LOW_SWING_CLEAR - peak) / LOW_SWING_CLEAR, 0.0, 1.0)
+def low_swing_shortfall(peak, xp, clear=LOW_SWING_CLEAR):
+    """Fraction of `clear` (default LOW_SWING_CLEAR, the referee's 3 cm) a
+    completed swing's sole peak fell short by: 0 at or above it, 1 for a foot
+    that left the floor without rising. A lower `clear` (--low-swing-clear)
+    lets the penalty run with a low imitation lift (a 2 cm --mimic-lift fought
+    the fixed 3 cm). xp = jax.numpy or numpy, so both envs share the exact
+    formula."""
+    return xp.clip((clear - peak) / clear, 0.0, 1.0)
 
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
@@ -744,6 +747,8 @@ class BimoWalkerEnv(gym.Env):
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_low_swing: float = 0.0,      # per-step clearance penalty on touchdown
         # (mirrors sim/mjx; low_swing_shortfall above)
+        low_swing_clear: float = LOW_SWING_CLEAR,  # m: w_low_swing's clearance
+        # target (mirrors sim/mjx; the referee keeps its own SWING_CLEAR)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
         w_up_vel: float = 0.0,         # mirrors sim/mjx w_up_vel (getup_v5)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
@@ -1031,6 +1036,9 @@ class BimoWalkerEnv(gym.Env):
         self._obs_hist = []
         self.w_symmetry = w_symmetry
         self.w_low_swing = w_low_swing
+        self.low_swing_clear = float(low_swing_clear)
+        if self.low_swing_clear <= 0.0:
+            raise ValueError("low_swing_clear must be > 0")
         self._swing_peak = np.zeros(2)   # per-foot sole peak (m) of the swing in progress
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -2689,7 +2697,8 @@ class BimoWalkerEnv(gym.Env):
                             and self._air_time[f]
                             >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt):
                         reward -= self.w_low_swing * float(
-                            low_swing_shortfall(self._swing_peak[f], np))
+                            low_swing_shortfall(self._swing_peak[f], np,
+                                                self.low_swing_clear))
                     self._last_air[f] = self._air_time[f]
                 self._air_time[f] = 0.0
                 self._swing_peak[f] = 0.0

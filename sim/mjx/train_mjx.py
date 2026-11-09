@@ -606,6 +606,18 @@ def make_parser():
                         ">= 3 cm on every step): on touchdown of a >= 3-tick "
                         "swing, w x (3 cm - sole peak) / 3 cm, under ANY command "
                         "(the start and stop steps included); 0 = off")
+    p.add_argument("--low-swing-clear", type=float, default=None, metavar="M",
+                   help="the clearance target of --w-low-swing, and the clearance gate of "
+                        "--w-walk-shift, in m (default 0.03, the referee's walk_steps rule; "
+                        "lower it with a low --mimic-lift, which the fixed 3 cm fought)")
+    p.add_argument("--w-walk-shift", type=float, default=None,
+                   help="walking weight-transfer reward (default 0 = off; needs the gait "
+                        "clock): under a moving command, per leg, its _mimic_ref swing "
+                        "activity x exp(-(d/--walk-shift-sigma)^2) x clip(clearance / "
+                        "--low-swing-clear, 0, 1), d = horizontal CoM to the stance sole; "
+                        "see env_mjx")
+    p.add_argument("--walk-shift-sigma", type=float, default=None, metavar="M",
+                   help="--w-walk-shift's CoM kernel width, m (default 0.015)")
     p.add_argument("--swing-height", type=float, default=None,
                    help="swing-foot peak height target for w_feet_phase (m; preset 0.06)")
     p.add_argument("--w-feet-phase", type=float, default=None,
@@ -1060,6 +1072,12 @@ def build_env_kw(args):
         env_kw["w_symmetry"] = args.w_symmetry
     if args.w_low_swing:
         env_kw["w_low_swing"] = args.w_low_swing
+    if getattr(args, "low_swing_clear", None) is not None:
+        env_kw["low_swing_clear"] = args.low_swing_clear
+    if getattr(args, "w_walk_shift", None) is not None:
+        env_kw["w_walk_shift"] = args.w_walk_shift
+    if getattr(args, "walk_shift_sigma", None) is not None:
+        env_kw["walk_shift_sigma"] = args.walk_shift_sigma
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:

@@ -943,6 +943,18 @@ class BimoMJXEnv:
                                     # below 3 cm (walker_env.low_swing_shortfall),
                                     # under any command (Tom 2026-10-24: every
                                     # foot >= 3 cm on every step)
+        low_swing_clear: float = 0.03,  # m: w_low_swing's clearance target (default =
+        # walker_env.LOW_SWING_CLEAR, the referee's SWING_CLEAR); lower it with a low
+        # --mimic-lift, which the fixed 3 cm fought. Also w_walk_shift's clearance gate.
+        w_walk_shift: float = 0.0,  # WALKING weight transfer (2026-11-09 hardware: a 2 cm-lift
+        # policy bent the swing knee 45 deg but never unloaded the foot -- hip roll moved
+        # 4-8 deg, the CoM stayed between the feet, the loaded bending leg yawed the body
+        # 46 deg). Under a moving command, per leg: its _mimic_ref swing activity sw x
+        # exp(-(d/walk_shift_sigma)^2) x clip(clear/low_swing_clear, 0, 1), d = horizontal
+        # CoM to the OTHER (stance) sole, clear = the swinging sole's height. The clearance
+        # gate is what makes it pay for a step: an ungated CoM kernel was farmed by leaning
+        # with both feet down (skills_v2, see w_com_stance).
+        walk_shift_sigma: float = 0.015,  # m: w_walk_shift's CoM kernel width
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -1558,6 +1570,13 @@ class BimoMJXEnv:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
         self.w_low_swing = w_low_swing
+        self.low_swing_clear = float(low_swing_clear)
+        if self.low_swing_clear <= 0.0:
+            raise ValueError("low_swing_clear must be > 0")
+        self.w_walk_shift = float(w_walk_shift)
+        self.walk_shift_sigma = float(walk_shift_sigma)
+        if self.w_walk_shift and not gait_clock:
+            raise ValueError("w_walk_shift requires gait_clock")
         self.lift_clear = lift_clear
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -1700,7 +1719,9 @@ class BimoMJXEnv:
             ("squeeze",) if w_squeeze else ()) + (
             ("height_err", "foot_err", "foot_clear", "foot_sep", "lift_ok",
              "vy_body", "recovered", "com_stance", "head_err")
-            if ext_cmd else ())
+            if ext_cmd else ()) + (
+            ("walk_swing_w", "walk_swing_clear", "walk_shift_err")
+            if gait_clock else ())
 
     # -- pieces ---------------------------------------------------------------
     def _p(self, x):
@@ -3274,6 +3295,38 @@ class BimoMJXEnv:
                 gait_phase = jp.where(plain_stand,
                                       jp.where(arrive, tgt_ph, gait_phase),
                                       gait_phase)
+        if self.gait_clock:
+            # walking weight transfer (w_walk_shift; 2026-11-09 hardware: a swing knee
+            # bent 45 deg under load, the foot never left the floor). Per leg, the
+            # reference swing activity sw (EXACTLY _mimic_ref's: L swings on sin > 0, R on
+            # sin < 0) weights a kernel on the CoM's ground projection over the OTHER,
+            # stance, sole, gated by the swinging sole's clearance -- leaning with both
+            # feet down pays nothing (the skills_v2 lesson behind w_com_stance's gate).
+            # The diagnostics are reported whenever the clock runs, weight 0 included.
+            ws_s = jp.sin(gait_phase)
+            ws_sw = jp.stack([jp.clip(ws_s, 0.0, None), jp.clip(-ws_s, 0.0, None)])
+            ws_soles = jp.stack([data.geom_xpos[self._sole_gids[0]],
+                                 data.geom_xpos[self._sole_gids[1]]])
+            ws_clear = (ws_soles[:, 2]
+                        - jp.stack([self._gz(ws_soles[0, 0], ws_soles[0, 1]),
+                                    self._gz(ws_soles[1, 0], ws_soles[1, 1])])
+                        - self._sole_z0)
+            ws_stance = ws_soles[::-1]                 # leg i's stance foot is the other one
+            ws_com = data.subtree_com[self._torso_bid]
+            if self.tilt_max_deg > 0.0:
+                ws_cxy = jp.stack([_grav_proj_xy(m, ws_com, ws_stance[0, 2]),
+                                   _grav_proj_xy(m, ws_com, ws_stance[1, 2])])
+            else:
+                ws_cxy = jp.stack([ws_com[:2], ws_com[:2]])
+            ws_d = jp.sqrt(jp.sum((ws_cxy - ws_stance[:, :2]) ** 2, axis=-1) + 1e-12)
+            ws_gate = (cmd_moving_raw & (state.recovered > 0.5)).astype(jp.float32)
+            walk_swing_w = ws_gate * jp.sum(ws_sw)
+            walk_swing_clear = ws_gate * jp.sum(ws_sw * ws_clear)
+            walk_shift_err = ws_gate * jp.sum(ws_sw * ws_d)
+            if self.w_walk_shift:
+                reward += self.w_walk_shift * ws_gate * jp.sum(
+                    ws_sw * jp.exp(-((ws_d / self.walk_shift_sigma) ** 2))
+                    * jp.clip(ws_clear / self.low_swing_clear, 0.0, 1.0))
         if self.w_feet_phase:
             # periodic swing-height targets: feet half a cycle apart
             # (left swings on sin(phase) > 0, right on the opposite half)
@@ -3400,7 +3453,8 @@ class BimoMJXEnv:
             step_done = landed & (state.air_time
                                   >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt)
             reward -= jp.where(state.recovered > 0.5, self.w_low_swing * jp.sum(
-                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp), 0.0)), 0.0)
+                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp,
+                                                    self.low_swing_clear), 0.0)), 0.0)
         swing_peak = jp.where(con, 0.0, jp.maximum(state.swing_peak, z_soles))
         last_air = jp.where(landed, state.air_time, state.last_air)
         air_time = jp.where(con, 0.0, state.air_time + self.control_dt)
@@ -3686,6 +3740,13 @@ class BimoMJXEnv:
                 recovered=recovered,
                 com_stance=lifted.astype(jp.float32) * com_off,
                 head_err=jp.abs(head_err))
+        if self.gait_clock:
+            # walking (moving command): sum over legs of the swing activity sw, and
+            # the sw-weighted swing-sole clearance and CoM-to-stance-sole distance (m);
+            # episode sum of either over walk_swing_w's = its swing-weighted mean
+            metrics.update(walk_swing_w=walk_swing_w,
+                           walk_swing_clear=walk_swing_clear,
+                           walk_shift_err=walk_shift_err)
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
