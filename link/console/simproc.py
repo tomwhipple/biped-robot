@@ -63,6 +63,29 @@ def scan_runs(repo: str) -> list[str]:
     return sorted(names, key=lambda n: n.encode())
 
 
+def no_runs_help(repo: str) -> str:
+    """What the Sim tab says when scan_runs() finds nothing (#236): what makes
+    a run runnable, and the two ways to get one into a clone."""
+    wdir = os.path.join(repo, "sim", "sil", "weights")
+    try:
+        tracked = sorted(f[:-len(".silw.json")] for f in os.listdir(wdir)
+                         if f.endswith(".silw.json"))
+    except OSError:
+        tracked = []
+    lines = ["No runnable sim run in this clone. A run is listed when it has both "
+             "sim/runs/<run>/config.json and sim/sil/weights/<run>.silw.json; "
+             "sim/runs/ is not in git."]
+    if tracked:
+        lines.append("Weights are here for: " + ", ".join(tracked) + ". Their run "
+                     "directories are on the training box (mira, ~/code/robot/sim/runs/"
+                     "<run>/): copy that run's config.json and params.pkl into "
+                     "sim/runs/<run>/ keeping their times (scp -p), then rescan.")
+    lines.append("Or export a run you have: python tools/export_policy_weights.py "
+                 "--run <run> --no-golden (without --no-golden it rewrites the tracked "
+                 "sim/sil/golden/*.json).")
+    return "\n".join(lines)
+
+
 def run_plant(repo: str, run: str) -> str:
     """The plant a run trained on (its config.json xml_path), '' if unknown."""
     try:

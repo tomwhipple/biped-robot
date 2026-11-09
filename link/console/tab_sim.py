@@ -70,6 +70,9 @@ class SimTab(QtWidgets.QWidget):
         form.addRow(lab("plant", DIM), self.plant_box)
         form.addRow(lab("options", DIM), hbox(self.hang, self.twin, "stretch", spacing=20))
         form.addRow(lab("ports", DIM), vbox(self.ports, self.ports_why, spacing=2))
+        self.no_runs = lab("", AMBER, 12)              # #236: the empty list says how
+        self.no_runs.setWordWrap(True)
+        self.no_runs.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         self.start_btn = btn("Start", 110, h=36)
         self.start_btn.clicked.connect(self._start)
         self.stop_btn = btn("Stop", 110, h=36)
@@ -91,7 +94,7 @@ class SimTab(QtWidgets.QWidget):
         about.setWordWrap(True)
         left = group("SIM TWIN   sim/sil_twin.py · the firmware's control code against the "
                      "CPU plant",
-                     vbox(form, ctl, self.ident, self.twin_state, self.tee, about, spacing=12))
+                     vbox(form, self.no_runs, ctl, self.ident, self.twin_state, self.tee, about, spacing=12))
 
         # -- the stream ------------------------------------------------------
         self.stream_line = lab("", ID_COLOUR, 12, mono=True)
@@ -141,6 +144,8 @@ class SimTab(QtWidgets.QWidget):
                                     "exported SIL weights)")
         else:
             self.run_box.addItem(f"(no runs with SIL weights under {self.sim.repo}/sim/runs)")
+        self.no_runs.setText("" if self.sim.runs else simproc.no_runs_help(self.sim.repo))
+        self.no_runs.setVisible(not self.sim.runs)
         self.run_box.blockSignals(False)
 
     def _fill_plants(self):

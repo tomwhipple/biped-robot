@@ -156,6 +156,20 @@ def test_runs_need_a_config_and_exported_weights(tmp_path):
     assert simproc.plants(str(repo)) == ["bimo_biped_v6ar.xml"]
 
 
+def test_no_runs_says_how_to_get_one(tmp_path):
+    """#236: an empty list names the pair a run needs, the runs whose weights
+    are tracked (their directories live on the training box), and the export."""
+    repo = fake_repo(tmp_path, runs=())
+    add_run(repo, "robot_legs_x", config=False)          # tracked weights, no run dir
+    assert simproc.scan_runs(str(repo)) == []
+    msg = simproc.no_runs_help(str(repo))
+    assert "sim/runs/<run>/config.json" in msg and ".silw.json" in msg
+    assert "robot_legs_x" in msg and "params.pkl" in msg
+    assert "export_policy_weights.py --run <run> --no-golden" in msg
+    bare = simproc.no_runs_help(str(tmp_path / "nowhere"))
+    assert "Weights are here" not in bare and "export_policy_weights" in bare
+
+
 def test_run_list_is_capped_like_the_cpp(tmp_path):
     repo = fake_repo(tmp_path, runs=[f"r{i:03d}" for i in range(simproc.MAX_RUNS + 5)])
     runs = simproc.scan_runs(str(repo))
@@ -483,6 +497,7 @@ def test_sim_tab_builds_runs_and_opens_its_log_on_failure(tmp_path):
         tab = w.tab_widgets["Sim"]
         pump(0.3)
         assert [tab.run_box.itemText(i) for i in range(tab.run_box.count())] == ["loco_a", "loco_b"]
+        assert not tab.no_runs.isVisibleTo(tab)           # runs: no empty-state note
         assert tab.state.text() == "STOPPED" and not tab.stop_btn.isEnabled()
         assert not tab.twin.isChecked()                    # off by default
         tab.run_box.setCurrentText("loco_b")
@@ -509,3 +524,23 @@ def test_sim_tab_builds_runs_and_opens_its_log_on_failure(tmp_path):
         assert "{}".format(o.sim_cmd_port) in tab.ports.text()
     finally:
         w.close()
+    # #236: a clone with no runnable run says how to get one, and Start stays off
+    for d in (repo / "sim" / "runs").iterdir():
+        (d / "config.json").unlink()
+    port = next(_ports)
+    o2 = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                        str(port + 1), "--no-record", "--sessions", str(tmp_path / "s2"),
+                        "--repo", str(repo), "--keymap", str(tmp_path / "keys.conf"),
+                        "--tab", "sim"])
+    ctl2 = Controller(o2)
+    assert ctl2.start()
+    w2 = Window(o2, ctl2)
+    w2.show()
+    try:
+        pump(0.3)
+        tab = w2.tab_widgets["Sim"]
+        assert tab.no_runs.isVisibleTo(tab) and "No runnable sim run" in tab.no_runs.text()
+        assert "loco_a" in tab.no_runs.text()             # its weights are there
+        assert not tab.start_btn.isEnabled()
+    finally:
+        w2.close()
