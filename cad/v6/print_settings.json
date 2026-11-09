@@ -83,7 +83,7 @@
         "shoulder_cheek_v6",
         "shoulder_cheek_v6"
       ],
-      "note": "the shoulder girdle, the neck floor and the two shoulder cheeks (one part, twice) on one plate, no supports"
+      "note": "the shoulder girdle, the neck floor and the two shoulder cheeks (one part, twice) on one plate. Manual supports: the girdle's two lead openings inside their enforcer boxes, nothing else"
     },
     "hip_yoke_glued": {
       "parts": [
@@ -269,13 +269,23 @@
     },
     "neck_floor": {
       "orient": "IDENT",
-      "supports": false,
-      "note": "flat, bottom face down, no supports."
+      "supports": true,
+      "note": "flat, bottom face down. Needs no support: manual supports with no enforcer box print it unsupported, and agree with the girdle on the girdle_neck plate.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      }
     },
     "shoulder_cheek_v6": {
       "orient": "RY_YDOWN",
-      "supports": false,
-      "note": "flat, outer face down, no supports. One part for both pods (turned over for the right): two on the girdle_neck plate.",
+      "supports": true,
+      "note": "flat, outer face down. Needs no support: manual supports with no enforcer box print it unsupported, and agree with the girdle on the girdle_neck plate. One part for both pods (turned over for the right): two on the girdle_neck plate.",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      },
       "spin": 90
     },
     "pelvis_v8": {
@@ -320,8 +330,37 @@
     },
     "shoulder_girdle_v6": {
       "orient": "IDENT",
-      "supports": false,
-      "note": "base down, no supports: the trapezius webs are thin walls (no windows) and the neck tube's aft wall is closed, and every roof on the part -- the web recesses, the platform detents, the elbow lead's peaked slot through the aft tie -- rises at 50 deg (shoulder_girdle_v6.ROOF_RISE)."
+      "supports": true,
+      "note": "base down. Supports under the flat tops of the elbow lead's two square openings through the aft tie only: manual supports, snug, from the part (each opening's sill, the tie beam's top), inside the enforcer boxes (shoulder_girdle_v6.support_enforcers()). The trapezius webs are otherwise thin walls, the neck tube's aft wall is closed, and every other roof on the part -- the web recesses, the platform detents -- rises at 50 deg (shoulder_girdle_v6.ROOF_RISE).",
+      "settings": {
+        "support_type": "normal(manual)",
+        "support_style": "snug",
+        "support_on_build_plate_only": "0"
+      },
+      "support_enforcers": [
+        {
+          "box": [
+            -35.75,
+            -34.65,
+            45.25,
+            55.75,
+            10.0,
+            21.3
+          ],
+          "note": "the elbow lead's square opening through the aft tie's thin wall, +y side: its flat top spans 11 mm, wider than a bridge, and stands on the opening's sill (the tie beam's top, z 10). The box keeps 0.25 inside the thin wall's faces and the opening's sides and reaches 0.3 into its ceiling"
+        },
+        {
+          "box": [
+            -35.75,
+            -34.65,
+            -55.75,
+            -45.25,
+            10.0,
+            21.3
+          ],
+          "note": "the elbow lead's square opening through the aft tie's thin wall, -y side: its flat top spans 11 mm, wider than a bridge, and stands on the opening's sill (the tie beam's top, z 10). The box keeps 0.25 inside the thin wall's faces and the opening's sides and reaches 0.3 into its ceiling"
+        }
+      ]
     },
     "torso_v8": {
       "orient": "RX180",

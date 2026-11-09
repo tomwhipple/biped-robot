@@ -506,16 +506,18 @@ target.
 
 ### 5.4 Arms and shoulder girdle
 
-- **`shoulder_girdle_v6`** (one print, 98 g, 200 × 62 × 33 mm, square-edged, no supports)
+- **`shoulder_girdle_v6`** (one print, 98 g, 200 × 62 × 33 mm, square-edged, slicer supports in the elbow lead's two openings only)
   sits on the deck and holds both shoulder servos in pods open at the top and
   outboard, plus the neck servo's tube, whose side walls carry four bosses for
   the neck floor (§5.5). Ten M2.5 × 8 flat-heads into deck pilots on two edge
   rails. The neck is built into the girdle on the bench first: the neck floor's
   screws are under it once it is on the deck. The trapezius webs from the tube
   out to the pods are thin walls, with one opening on each side: the **elbow
-  lead's slot** through the aft tie beside the pod (|y| 45–56, from the tie
-  beam's top at 10 mm to a 50° peak at 23.6 mm, so it prints unsupported and
-  passes the lead's plug). The shoulder-to-elbow lead rises out of the pod's
+  lead's opening** through the aft tie beside the pod, square, 11 × 11 mm
+  (|y| 45–56, z 10–21 from the tie beam's top), which passes the lead's plug.
+  Its flat top is supported by the slicer from the opening's sill, inside an
+  enforcer box, and the support is cleared out after printing
+  ([PRINT_LIST](cad/PRINT_LIST.md)). The shoulder-to-elbow lead rises out of the pod's
   inboard notch, runs aft through it, round the pod's aft lug and down the
   back of the upper arm (#198).
 - **Each pod's outboard grip plate is its own print, the cheek**
