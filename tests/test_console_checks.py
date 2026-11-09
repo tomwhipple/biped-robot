@@ -130,6 +130,19 @@ def test_flight_hello_adds_calibration_fitted_and_rec(qapp):
     assert status(t, "11", 1)[0] == "FAIL"
 
 
+def test_hot_row_has_no_temperature_from_the_sim(qapp):
+    """#244: the sim's records carry temp 0, which is not a temperature."""
+    tick = {"joints": [{"bus": 2, "temp_c": 0}, {"bus": 6, "temp_c": 0}]}
+    flight = SimpleNamespace(last_tick=lambda: tick, simulated=lambda: True)
+    t, _ = tab(qapp, flight=flight)
+    t.update_from(beacon(), 1000.0)
+    assert t.watch["hot"] == ("na", "sim records: no servo temperature")
+    flight.simulated = lambda: False
+    tick["joints"][1]["temp_c"] = 41
+    t.update_from(beacon(), 1100.0)
+    assert t.watch["hot"][0] == "info" and "max 41 °C" in t.watch["hot"][1]
+
+
 def test_home_readback_and_the_arm_window(qapp):
     t, _ = tab(qapp)
     t.update_from(beacon(result=AR.DISARMED_HOME), 1000.0)   # already there at start

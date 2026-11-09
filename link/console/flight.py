@@ -77,6 +77,11 @@ JOINT_COLS = ("nominal", "goal", "pos", "speed", "load", "current", "voltage_dv"
 JC = {n: i for i, n in enumerate(JOINT_COLS)}
 _FB_COLS = [JC[k] for k in ("pos", "speed", "load", "current", "voltage_dv", "temp_c",
                             "status", "moving")]
+# What the sim twin's servos do not have (sim/sil_twin_wire.py joint_block):
+# it sends 0 there, so its rows store NaN -- absent, not a reading of 0.
+_NO_SIM_COLS = [JC[k] for k in ("load", "current", "voltage_dv", "temp_c", "status",
+                                "moving")]
+SIM_FW_PREFIX = "sil_twin"     # the twin's HELLO fw: "sil_twin <run>" (sim/sil_twin.py)
 
 
 def status_text(status: int) -> str:
@@ -269,6 +274,16 @@ class _Source:
             return [BUS[j["bus"]] for j in self.last_tick["joints"] if j["bus"] < NJ]
         return []
 
+    @property
+    def simulated(self) -> bool:
+        """These records are the sim twin's: its own port, or a HELLO whose
+        fw says sil_twin (a console driving the sim gets them on the robot's
+        port, standing in for the robot's)."""
+        if self.name == "sim":
+            return True
+        h = self.hello
+        return h is not None and str(h.get("fw", "")).startswith(SIM_FW_PREFIX)
+
     def rad(self, b: int, steps):
         if self.zero is None:
             return None
@@ -366,6 +381,8 @@ class _Source:
                 r[JC["goal"]] = np.nan
             if not self.ever_ok[b]:
                 r[_FB_COLS] = np.nan        # never answered: the block is not a reading
+        if self.simulated:
+            jrow[:, _NO_SIM_COLS] = np.nan  # the sim has no servo load/current/V/temp/status
         self.ring.push(t, row, jrow)
         self.last_tick = p
         self.last_tick_rx = rx
@@ -530,13 +547,16 @@ class FlightStore:
         """Per joint in the newest tick, the servo's feedback block in units:
         {bus_name: {"temp_c", "load_pct", "current_ma", "voltage_v", "status",
         "fb_ok", "answered" (since listening), "fault" (missed a read that
-        ran), "fault_since" (host monotonic s or None)}}. Values are None until
-        the servo has answered once."""
+        ran), "fault_since" (host monotonic s or None), "simulated"}}. Values
+        are None until the servo has answered once. "simulated": the sim
+        twin's records, which have no load, current, voltage, temperature or
+        status -- those are None and status is None, never a reading."""
         s = self.src[source]
         p = s.last_tick
         if p is None:
             return {}
         read_ran = bool(p["flags"] & F.TF_FB_READ)
+        sim = s.simulated
         out = {}
         for j in p["joints"]:
             b = j["bus"]
@@ -544,12 +564,14 @@ class FlightStore:
                 continue
             ok = bool(j["flags"] & F.JF_FB_OK)
             have = bool(s.ever_ok[b])
+            real = have and not sim
             out[BUS[b]] = {
-                "temp_c": j["temp_c"] if have else None,
-                "load_pct": j["load"] / 10.0 if have else None,
-                "current_ma": j["current"] * 6.5 if have else None,
-                "voltage_v": j["voltage_dv"] / 10.0 if have else None,
-                "status": j["status"] if have else 0,
+                "temp_c": j["temp_c"] if real else None,
+                "load_pct": j["load"] / 10.0 if real else None,
+                "current_ma": j["current"] * 6.5 if real else None,
+                "voltage_v": j["voltage_dv"] / 10.0 if real else None,
+                "status": None if sim else (j["status"] if have else 0),
+                "simulated": sim,
                 "fb_ok": ok, "answered": have, "fault": read_ran and not ok,
                 "fault_since": s.fault_since[b],
             }
@@ -573,6 +595,11 @@ class FlightStore:
             return None
         return s.last_tick
 
+    def simulated(self, source: str = "robot") -> bool:
+        """This source's records come from the sim twin (sim/sil_twin.py),
+        whose servos have no load, current, voltage, temperature or status."""
+        return self.src[source].simulated
+
     def bus_id(self, source: str, name: str):
         """The servo ID the robot's HELLO gives a bus joint, or None."""
         h = self.src[source].hello
@@ -593,7 +620,8 @@ class FlightStore:
                 "undecodable": s.undecodable, "reboots": s.boots,
                 "boot_id": s.boot_id, "peer": s.peer,
                 "skew_ms": None if sk is None else sk / 1000.0,
-                "calibrated": s.zero is not None}
+                "calibrated": s.zero is not None, "simulated": s.simulated,
+                "fw": s.hello["fw"] if s.hello is not None else None}
 
     def fresh(self, source: str) -> bool:
         """Ticks have arrived from this source within STALE_S."""
@@ -609,7 +637,8 @@ class FlightStore:
         Joint fields, "<bus_name>.<field>": pos, goal, nominal (rad), err
         (pos - goal, rad, as tools/flight_reader.py), err_nominal (pos -
         nominal), speed (rad/s), load (%), current (mA), voltage (V), temp
-        (°C), status, flags. NaN where a value is invalid; angles are empty
+        (°C), status, flags. NaN where a value is invalid (the sim twin's
+        load, current, voltage, temp, status: it has none); angles are empty
         until the source's HELLO has given the calibration.
         Tick fields: work_ms, fb_read_ms, imu_age_ms, tilt_deg (from the up
         vector), gyro (|ω| rad/s), gyro_x/y/z, roll_deg, pitch_deg, vbat (V,

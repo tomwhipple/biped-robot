@@ -164,11 +164,12 @@ class TelemetryTab(QtWidgets.QWidget):
                 return np.zeros(0), np.zeros(0)
             return t, v
 
+        rec = "sim rec" if fs is not None and fs.simulated("robot") else "flight rec"
         for chart, fname, bcol in ((self.c_vbat, "vbat", "vbat"),
                                    (self.c_tilt, "tilt_deg", "tilt")):
             t, v = flight(fname)
             if len(t):
-                chart.set(t, v, "flight rec")
+                chart.set(t, v, rec)
             elif len(bt):
                 chart.set(*beacon(bcol), "beacon")
             else:
@@ -176,7 +177,7 @@ class TelemetryTab(QtWidgets.QWidget):
         for chart, fname, fmt in ((self.c_gyro, "gyro", "{:.2f}"),
                                   (self.c_work, "work_ms", "{:.2f}")):
             t, v = flight(fname)
-            chart.set(t, v, "flight rec" if len(t) else "no flight records", fmt)
+            chart.set(t, v, rec if len(t) else "no flight records", fmt)
         at = self.ages.column("t") - nows if len(self.ages) else np.zeros(0)
         av = self.ages.column("age") if len(self.ages) else np.zeros(0)
         m = at >= -WINDOW_S
@@ -189,7 +190,7 @@ class TelemetryTab(QtWidgets.QWidget):
         self.c_age.set(at, av, "beacon", "{:.0f}", note)
         if fs is not None and fs.stats("robot")["seen"]:
             t, v = fs.series("robot", "holes", WINDOW_S)
-            self.c_holes.set(t, v, "flight rec", "{:.0f}")
+            self.c_holes.set(t, v, rec, "{:.0f}")
         else:
             self.c_holes.set(np.zeros(0), np.zeros(0), "no flight records")
 
@@ -229,6 +230,8 @@ class TelemetryTab(QtWidgets.QWidget):
             if f.get("fault"):
                 set_cell(self.servos, r, 6, "FAULT · held" if f.get("answered") else "no reply",
                          RED)
+            elif f.get("simulated"):
+                set_cell(self.servos, r, 6, "— sim", DIM)
             elif f.get("status"):
                 set_cell(self.servos, r, 6, status_text(f["status"]), RED)
             elif not f.get("answered"):

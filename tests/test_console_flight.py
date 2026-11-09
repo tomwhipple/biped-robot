@@ -36,8 +36,9 @@ def rad_to_steps(b: int, rad: float) -> int:
     return int(round(ZERO[b] + rad / (2 * math.pi / F.STEPS_PER_REV) / DIR[b]))
 
 
-def hello(seq, boot=BOOT, fitted=LEG_BUS, cal_ok=1, t_boot_us=0, t_utc_us=0):
-    m = dict(fw="bimo-test-1", utc_synced=1 if t_utc_us else 0, enabled=1, idle_hz=10,
+def hello(seq, boot=BOOT, fitted=LEG_BUS, cal_ok=1, t_boot_us=0, t_utc_us=0,
+          fw="bimo-test-1"):
+    m = dict(fw=fw, utc_synced=1 if t_utc_us else 0, enabled=1, idle_hz=10,
              cal_ok=cal_ok, produced=seq, sent=seq, ctrl_ticks=seq, ctrl_worst_us=13400,
              us_read=3400, us_imu=180, us_obs=7200, us_net=60, us_write=250, us_other=90,
              uptime_ms=t_boot_us // 1000, id=[b + 1 for b in range(F.MAX_JOINTS)],
@@ -348,6 +349,33 @@ def test_sim_source_is_separate(store):
     assert "sim" in store.line()
 
 
+def test_sim_records_have_no_servo_feedback(store):
+    """#244: the twin sends 0 for load, current, voltage, temperature and
+    status (sim/sil_twin_wire.py joint_block). On the robot's port (a console
+    driving the sim) its HELLO's fw names it; those fields are absent, not 0."""
+    goal = {b: 0.3 for b in LEG_BUS}
+    send(store, hello(1, fw="bimo-test-1"), tick(2, 1_000_000, goal))
+    real = store.feedback("robot")["L_knee"]
+    assert not store.simulated("robot") and not real["simulated"]
+    assert real["temp_c"] == 36 and real["voltage_v"] == pytest.approx(11.8)
+    assert real["status"] == 0
+    send(store, hello(1, boot=BOOT + 1, fw="sil_twin robot_legs_walk16_act_s128r24"),
+         tick(2, 2_000_000, goal, boot=BOOT + 1, load=0, temp=0, status={}))
+    assert store.simulated("robot") and store.stats("robot")["simulated"]
+    assert store.stats("robot")["fw"].startswith("sil_twin")
+    f = store.feedback("robot")["L_knee"]
+    assert f["simulated"] and f["answered"] and f["fb_ok"]
+    for k in ("temp_c", "load_pct", "current_ma", "voltage_v", "status"):
+        assert f[k] is None, k
+    t, load = store.series("robot", "L_knee.load", 60.0)
+    assert np.isnan(load[-1]) and np.isfinite(load[0])      # the robot's tick kept its load
+    for field in ("current", "voltage", "temp", "status"):
+        assert np.isnan(store.series("robot", f"L_knee.{field}", 60.0)[1][-1]), field
+    assert np.isfinite(store.series("robot", "L_knee.pos", 60.0)[1][-1])
+    send(store, hello(1), tick(2, 1_000_000, goal), source="sim")
+    assert store.simulated("sim") and store.feedback("sim")["L_knee"]["temp_c"] is None
+
+
 def test_decimate_keeps_peaks():
     t = np.linspace(-120, 0, 6000)
     v = np.zeros(6000)
@@ -499,6 +527,46 @@ def test_telemetry_tab_charts_and_tables(qapp, store):
     n = len(tab.ages)
     tab.update_from(app.ctl.st, 1000_400.0)
     assert len(tab.ages) == n + 1
+    tab.close()
+
+
+def test_tabs_show_the_sims_missing_servo_feedback_as_absent(qapp, store):
+    """#244: a console driving the sim gets its records on the robot's port.
+    Servos and Joints show -- for load, current, voltage, temperature and
+    status, and name the source as the sim."""
+    from console.tab_joints import JointsTab, ORDER, TABLE_COLS
+    from console.tab_telemetry import TelemetryTab
+    now = time.monotonic()
+    s = store.src["robot"]
+    s.ingest(hello(1, fw="sil_twin robot_legs_walk16_act_s128r24"), ("127.0.0.1", 4220),
+             now - 2.0, time.time())
+    for k in range(50):
+        s.ingest(tick(2 + k, 1_000_000 + k * 20_000, gait(k * 0.02), load=0, temp=0),
+                 ("127.0.0.1", 4220), now - 1.0 + k * 0.02, time.time())
+    app = FakeApp(store)
+    tel = TelemetryTab(app)
+    tel.resize(1600, 1000)
+    tel.show()
+    tel.update_from(app.ctl.st, 1000_000.0)
+    rows = {tel.servos.item(r, 0).text(): [tel.servos.item(r, c).text() for c in range(7)]
+            for r in range(tel.servos.rowCount())}
+    assert rows["L_knee"][2:] == ["—", "—", "—", "—", "— sim"]
+    assert tel.c_tilt.src.text() == "sim rec"
+    tel.close()
+    tab = JointsTab(app)
+    tab.resize(1400, 1000)
+    tab.show()
+    tab._toggle_table()
+    tab.update_from(app.ctl.st, 0.0, force=True)
+    r = ORDER.index("L_knee")
+    cell = {c: tab.table.item(r, TABLE_COLS.index(c)).text()
+            for c in ("load", "current", "temp", "volt", "status")}
+    assert cell["load"] == cell["current"] == cell["temp"] == cell["volt"] == "—"
+    assert "sim" in cell["status"] and cell["status"] != "ok"
+    assert "SIM TWIN records (sil_twin robot_legs_walk16_act_" in tab.legend.text()
+    tab._toggle_table()
+    tab.update_from(app.ctl.st, 0.0, force=True)
+    assert "— % load" in tab.cells["L_knee"].stat.text()
     tab.close()
 
 

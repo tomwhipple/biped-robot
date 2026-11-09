@@ -381,7 +381,7 @@ class JointsTab(QtWidgets.QWidget):
         fitted = lt["fitted"] if lt else []
         sim_on = fs.fresh("sim")
         rs = fs.stats("robot")
-        self._legend(rs, sim_on)
+        self._legend(rs, sim_on, fs)
         self._banner(rs, lt)
         fb = fs.feedback("robot")
         k = 180.0 / math.pi if self.deg else 1.0
@@ -425,6 +425,7 @@ class JointsTab(QtWidgets.QWidget):
             e = e[np.isfinite(e)]
             rms = float(np.sqrt(np.mean(e ** 2))) * k if len(e) else None
             lr = np.abs(load[recent & ok])
+            lr = lr[np.isfinite(lr)]          # the sim twin has no load: NaN, not 0
             mload = float(np.mean(lr)) if len(lr) else None
         if sim_on:
             ts, sim = fs.series("sim", f"{name}.pos", w, now)
@@ -546,6 +547,8 @@ class JointsTab(QtWidgets.QWidget):
             cur, temp, volt = f.get("current_ma"), f.get("temp_c"), f.get("voltage_v")
             if d["fault"]:
                 status, scol = "FAULT · reading held", RED
+            elif f.get("simulated"):
+                status, scol = "— (sim: no servo status)", DIM
             elif d["status"]:
                 status, scol = status_text(d["status"]), RED
             else:
@@ -568,15 +571,20 @@ class JointsTab(QtWidgets.QWidget):
             for col, (text, colour) in vals.items():
                 set_cell(self.table, r, TC[col], text, colour)
 
-    def _legend(self, rs: dict, sim_on: bool) -> None:
+    def _legend(self, rs: dict, sim_on: bool, fs=None) -> None:
         g = "nominal" if self.nominal else "goal"
+        # A console driving the sim gets the twin's records on the robot's
+        # port: say so, or its traces read as the robot's.
+        src = (f"<span style='color:{SIMC}'>SIM TWIN records "
+               f"({rs.get('fw') or 'sil_twin'}): no servo load, current, V, temp, "
+               f"status</span> · " if rs.get("simulated") else "flight recorder ")
         rate = f"{rs['rate_hz']:.0f} Hz" if rs["seen"] and not rs["stale"] else "—"
         sim = (f"&nbsp;&nbsp;&nbsp;<span style='color:{SIMC}'>—— sim twin</span>"
                if sim_on else "")
         mark = "——" if self.window_s >= DENSE_WINDOW_S else "– –"
         txt = (f"<span style='color:{CYAN}'>{mark} {g}</span>&nbsp;&nbsp;&nbsp;"
                f"<span style='color:{MEAS}'>—— measured</span>{sim}&nbsp;&nbsp;&nbsp;"
-               f"<span style='color:{DIM}'>flight recorder {rate} · one SYNC READ per tick · "
+               f"<span style='color:{DIM}'>{src}{rate} · one SYNC READ per tick · "
                f"robot time · rms over {RMS_S:.0f} s</span>")
         if self.legend.text() != txt:
             self.legend.setText(txt)

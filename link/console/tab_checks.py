@@ -431,7 +431,9 @@ class ChecksTab(QtWidgets.QWidget):
                 b = j.get("bus", -1)
                 temps.append((j.get("temp_c", 0), BUS_NAMES[b] if 0 <= b < len(BUS_NAMES)
                               else f"bus {b}"))
-        if temps:
+        if temps and _get(self.app.flight, "simulated"):
+            w["hot"] = ("na", "sim records: no servo temperature")
+        elif temps:
             t, name = max(temps)
             w["hot"] = ("info", f"max {t} °C ({name})")
         else:

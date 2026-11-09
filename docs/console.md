@@ -105,6 +105,10 @@ with `--bench-telemetry` / `--cam-relay`.
   held"), the sim twin as an amber trace; click a joint to highlight it in 3D.
 - **Telemetry** (`tab_telemetry.py`): pack, tilt, gyro, tick work time, beacon
   age and flight-record holes on a time axis; the servo table; the link table.
+  Records from the sim twin (its HELLO's firmware reads `sil_twin ...`, or
+  they arrive on `--sim-flight-port`) are labelled the sim's, and the
+  servo fields the sim has no model of (load, current, voltage, temperature,
+  status) show `—` in Joints, Telemetry and Checks, never `0`.
 - **Sim**: start, stop and reset `sim/sil_twin.py`, its log, and
   twin-in-the-loop (off by default): every command frame sent to the robot is
   also sent to the sim on its own ports.
