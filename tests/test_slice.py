@@ -381,6 +381,30 @@ def test_torso_window_enforcers_match_the_cad():
             assert z0 == pytest.approx(bb.min.Z - T.ENF_INTO) and z1 == pytest.approx(bb.max.Z)
 
 
+def test_girdle_lead_opening_enforcers_match_the_cad():
+    """The girdle's boxes are shoulder_girdle_v6's: one per elbow lead
+    opening through the aft tie's thin wall (#198), whose flat top spans more
+    than a bridge, each inside the wall's faces and the opening's sides, from
+    the sill into the ceiling. The neck floor and the cheeks share the
+    girdle_neck plate's manual supports with no box, so they print unsupported."""
+    import shoulder_girdle_v6 as SG
+    entry = SPEC["parts"]["shoulder_girdle_v6"]
+    assert entry["supports"] and entry["settings"]["support_type"] == "normal(manual)"
+    assert entry["settings"]["support_on_build_plate_only"] == "0"     # it stands on the sill
+    boxes = [e["box"] for e in entry["support_enforcers"]]
+    assert boxes == SG.support_enforcers() and len(boxes) == 2
+    y0, y1 = SG.LEAD_SLOT_Y
+    z0, z1 = SG.LEAD_SLOT_Z
+    assert y1 - y0 > SG.BRIDGE_OK and z1 - z0 == pytest.approx(y1 - y0)   # square, wider than a bridge
+    for (bx0, bx1, by0, by1, bz0, bz1), s in zip(boxes, (1, -1)):
+        assert SG.TIE_X[0] < bx0 < bx1 < SG.TIE_X[0] + SG.WEB_T             # inside the thin wall
+        assert y0 < s * by0 < y1 and y0 < s * by1 < y1 and by0 < by1
+        assert bz0 == pytest.approx(z0) and bz1 == pytest.approx(z1 + SG.ENF_INTO)
+    for part in ("neck_floor", "shoulder_cheek_v6"):
+        assert "support_enforcers" not in SPEC["parts"][part]
+    assert S.job_entry(SPEC, "girdle_neck")["settings"]["support_type"] == "normal(manual)"
+
+
 def test_forearm_pad_enforcers_match_the_cad():
     """The forearms' boxes are arm_v6's: one per elbow pad, across its tine,
     from the bed to where the pad's arc is steeper than the spec's support

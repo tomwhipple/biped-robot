@@ -125,10 +125,11 @@ Open (issue #77):
 - **Lead lengths** per hop are measured in
   [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1): every hop
   fits the stock 150 mm lead with the fold loop folded in **except the
-  shoulder→elbow hop, which needs ~200 mm** — it crosses the 290° shoulder
-  fold with no strain relief drawn. The shoulder lead itself exits the pod
-  through the girdle's open-to-top notch (shoulder_girdle_v6.py §216); the
-  elbow servo rides the upper arm, so the lead does not cross the elbow.
+  shoulder→elbow hop, which needs ~380 mm** along its route (312 mm of route plus the fold loop) — it crosses the
+  290° shoulder fold with no strain relief drawn. The shoulder lead itself
+  exits the pod through the girdle's open-to-top notch, then runs aft through
+  the elbow lead's slot in the aft tie and round the pod; the elbow servo
+  rides the upper arm, so the lead does not cross the elbow.
   Source: `cad/v6/lead_lengths.py` (constants + an assembly-sweep
   crosscheck).
 

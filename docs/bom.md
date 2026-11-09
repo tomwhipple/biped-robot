@@ -236,8 +236,9 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   connector.
 - **Servo extension leads.** Per-hop lengths from the v6 CAD are in
   [wiring.md](wiring.md) (`cad/v6/lead_lengths.py`, #77): every hop rides a
-  stock 150 mm lead except **shoulder → elbow, both arms** (152 mm needed with
-  the shoulder fold's loop): buy two ~200 mm leads for it.
+  stock 150 mm lead except **shoulder → elbow, both arms**: 312 mm along its
+  route through the girdle's aft slot, plus the shoulder fold's loop: buy two
+  ~380 mm leads for it.
 
 ## 5. Hip-yaw bearing
 
