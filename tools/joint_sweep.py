@@ -81,7 +81,7 @@ sc = cmd('scan', until=r'servo\(s\)', timeout=6); print(sc.strip().splitlines()[
 for j in ALL_FITTED:
     o = cmd(f'move {j.servo_id} {base_ticks(j)} 0 {SPD}', until=r'(: ok|refusing|torque is OFF)')
     if 'torque is OFF' in o or 'refusing' in o:
-        print(f'!! {j.name} id {j.servo_id}: {o.strip()[:70]} -- torque must be ON (run `home` / `torque` first); stopping', flush=True); s.close(); sys.exit(2)
+        print(f'!! {j.name} id {j.servo_id}: {o.strip()[:70]} -- torque must be ON (run `torque` first; a `home` ends with torque released); stopping', flush=True); s.close(); sys.exit(2)
 print(f'all fitted joints accept goals at the baseline (torque on); base offsets {BASE}', flush=True); time.sleep(6.0)
 base = imu(); print('imu tilt reference (taken IN the baseline pose)', base, flush=True)
 csvf = open(OUT,'w',newline=''); w = csv.writer(csvf); w.writerow(['joint','id','cmd_deg','goal_ticks','pos_ticks','pos_err','load','spd','tilt_deg','epoch'] + [f'load_{j.name}' for j in WATCH])
