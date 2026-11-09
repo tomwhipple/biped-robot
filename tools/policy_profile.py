@@ -7,9 +7,9 @@ The DEPLOYED policy's generated files live where they always have:
     firmware/host/vectors/{obs,policy}_vectors.h
     sim/sil/golden/*.json
 
-A named PROFILE is a second, complete set of the same generated files, for a
-plant the deployed policy does not drive (v6legs: the 12-joint legs-only robot,
-while the deployed net is the 10-joint v5 prototype's):
+A named PROFILE is a second, complete set of the same generated files: a
+policy flashed instead of the deployed one, on its own plant or the same one
+(v6legs, v6legs256: walk policies for the 12-joint legs-only robot):
 
     firmware/policies/<profile>/obs/obs_spec.h
     firmware/policies/<profile>/policy/weights.h

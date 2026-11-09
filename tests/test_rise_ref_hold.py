@@ -28,7 +28,7 @@ REF = "getup_ref_v6ar_prone_ik.npz"
 def _env(hold):
     import eval_precision as ep
     import robot_plant
-    kw = robot_plant.robot_env_kwargs()
+    kw = robot_plant.robot_env_kwargs("bimo_biped_v6ar.xml")
     held = {k: v for k, v in kw["held_joints"].items()
             if robot_plant._role(k) not in ("shoulder", "elbow")}
     secs, factory, _ = ep._registry()["recover_prone_fall"]
@@ -82,6 +82,6 @@ def test_tracking_pays_after_the_stand(hold):
 
 def test_mjx_flag_needs_a_reference():
     from env_mjx import BimoMJXEnv
-    xml = os.path.join(SIM, "bimo_biped_v5body.xml")
+    xml = os.path.join(SIM, "bimo_biped_v6legs.xml")
     with pytest.raises(ValueError, match="rise_ref_hold needs rise_ref_npz"):
         BimoMJXEnv(xml_path=xml, ext_cmd=True, rise_ref_hold=True)

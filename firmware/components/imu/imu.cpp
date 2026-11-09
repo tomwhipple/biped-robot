@@ -29,7 +29,7 @@ void upYawStrippedFromQuaternion(float qw, float qx, float qy, float qz,
 
 void upFromQuaternion(float qw, float qx, float qy, float qz, float out[3]) {
     // The obs's "up" is MuJoCo's framezaxis sensor on the torso imu site
-    // (sim/bimo_biped_v5body.xml:609 <framezaxis objtype="site" objname="imu">),
+    // (sim/bimo_biped_v6legs.xml <framezaxis objtype="site" objname="imu">),
     // which reports the site's own z-axis expressed in the WORLD frame -- not
     // gravity in the body frame. For a body->world quaternion that is the
     // third COLUMN of R(q). Upright gives (0, 0, 1), matching the sim.

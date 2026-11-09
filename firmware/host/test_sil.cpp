@@ -4,9 +4,9 @@
 //   * the calibration map survives a round trip through the encoder's 4096
 //     quantisation under a NOMINAL and a PERTURBED calibration -- a wrong
 //     zero or a flipped dir is the classic bring-up failure;
-//   * the kServoId permutation is applied on BOTH sides of the boundary. On
-//     the 10-DOF plant this is not the identity (wiring.md said it was), so
-//     the test asserts an identity mapping would give a different answer;
+//   * the kServoId permutation is applied on BOTH sides of the boundary. It
+//     is not the identity, so the test asserts an identity mapping would
+//     give a different answer;
 //   * the exported-weight reader agrees, float for float, with an
 //     independently written forward pass -- byte order, row-major kernels,
 //     swish, the 2*act_dim head and the tanh mode;
@@ -255,10 +255,8 @@ void testServoPermutationEndToEnd() {
     CHECK_EQ(slotOf(0), 9);         // L_hip_yaw: bus index 9, servo ID 9
     CHECK_EQ(slotOf(jointIndex("R_hip_yaw")), 8);   // bus index 8, servo ID 10
     CHECK_EQ(slotOf(1), 4);         // L_hip_roll: bus index 4, servo ID 51
-    if (jointIndex("L_ankle_roll") >= 0) {          // the v6 legs' 6th joint
-        CHECK_EQ(slotOf(jointIndex("R_ankle_roll")), 10);   // servo ID 11
-        CHECK_EQ(slotOf(jointIndex("L_ankle_roll")), 11);   // servo ID 12
-    }
+    CHECK_EQ(slotOf(jointIndex("R_ankle_roll")), 10);   // servo ID 11
+    CHECK_EQ(slotOf(jointIndex("L_ankle_roll")), 11);   // servo ID 12
 
     // Targets: the SYNC WRITE view must be indexed the same way.
     float angle[obs::kNumJoints];
@@ -538,6 +536,15 @@ void testSequencingAndReset() {
     CHECK_EQ(sil_tick(&in, &slow), 0);
     CHECK_NEAR(slow.obs[obs::kOffPhase + 0],
                sinf(kTwoPi * obs::kControlDt * 1.25f * sc), 1e-6);
+
+    // No frequency given: the policy's own clock (obs_spec.h).
+    CHECK_EQ(sil_init(nullptr, nom.c_str(), 0.0f), 0);
+    SilTargets own{};
+    CHECK_EQ(sil_tick(&in, &own), 0);
+    CHECK_NEAR(own.obs[obs::kOffPhase + 0],
+               sinf(kTwoPi * obs::kControlDt * obs::kGaitFreqHz * sc), 1e-6);
+    CHECK_EQ(sil_init(nullptr, nom.c_str(), 1.25f), 0);
+    CHECK_EQ(sil_tick(&in, &slow), 0);
 
     // Stand-freeze regression (2026-08-30): a plain-stand tick must HOLD the
     // phase. sil_lib ran the clock unconditionally for the whole v22fix era

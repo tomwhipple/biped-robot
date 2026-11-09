@@ -11,13 +11,13 @@ body has proven its margins on the floor.
 
 ![The robot as drawn: front 3/4, side, front](docs/img/assembly_v6_arms.png)
 
-**Status:** designed, not yet built. The CAD is complete and passes its
-swept-ROM interference gate; the design passes simulation Gates A–D. The next
-step is one bench measurement on one servo — whether raising the STS3215's
-position-loop gain gives the roll-joint stiffness the walk needs (issue #73) —
-which gates the servo purchase and the first print. The software stack
-(firmware, command link, training, software-in-the-loop) runs on hardware today
-on a 10-joint prototype and is being ported to the 17-joint robot.
+**Status:** the legs are built (the 12 leg servos and the control board; no
+pack, Pi, head, neck or arms yet), and a trained legs policy —
+`robot_legs_walk16_act_s128r24`, a distilled (128, 128) student on the v6 legs
+plant — runs on the ESP32 and holds the robot standing. Walking on the floor
+is not yet shown on hardware. The CAD for the whole robot is complete and
+passes its swept-ROM interference gate; the design passes simulation Gates
+A–D, and walking and get-ups train on the robot's plants.
 Where everything stands: [DESIGN.md](DESIGN.md) §12–13 and the GitHub issues.
 
 *Loosely inspired by the [Bimo Project](https://github.com/mekion/the-bimo-project);
@@ -52,11 +52,10 @@ make test                                  # the firmware's pure modules under A
 ```
 
 The console drives a simulated robot over the real command protocol, and
-`--host <robot-ip>` drives a real one:
+`make console ARGS="--host <robot-ip>"` drives a real one:
 
 ```bash
-brew install glfw && make -C firmware/host deps gui
-firmware/host/build/bimo_gui --host 127.0.0.1
+brew install glfw && make console
 #   SIM: pick a run, Start; [a] arm, arrows to walk, PgUp/PgDn to turn
 ```
 
@@ -85,7 +84,7 @@ wants an NVIDIA GPU; the referee, distillation and export run on a laptop.
 
 ```
 cad/v6/     the robot's parametric CAD (build123d); cad/v6/dimensions_v6.py is the source of truth
-cad/        shared CAD builders and checks, and the prototype's parts (its plant still trains)
+cad/        shared CAD library (cad/common/), slicing and checks
 sim/        the plants, design gates, open-loop gait and get-up; the CPU env (referee); sim/mjx/ (GPU training); sim/sil/
 firmware/   the ESP32 target: the 50 Hz control loop, and its host test build
 link/       the command channel: wire protocol, consoles, bench probes
@@ -96,6 +95,6 @@ docs/       build, electrical, software and design records
 
 ## Hardware
 
-17 × Feetech STS3215 (12 V) · Waveshare General Driver for Robots (ESP32,
-onboard IMU) · Raspberry Pi 4B + Camera Module 3 Wide · 3S 2200–2600 mAh LiPo ·
+15 × Feetech STS3215 (12 V) + 2 × STS3250 (hip rolls) · Waveshare General
+Driver for Robots (ESP32, onboard IMU) · Raspberry Pi 4B + Camera Module 3 Wide · 3S 2200–2600 mAh LiPo ·
 PETG prints + silicone rubber soles. Full list: [docs/bom.md](docs/bom.md).

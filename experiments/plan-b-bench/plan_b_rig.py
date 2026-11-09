@@ -56,8 +56,8 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "cad"))                 # dimensions, parts, check_assembly
 sys.path.insert(0, ROOT)                                      # paths
 from paths import build_dir  # noqa: E402
-import dimensions as D  # noqa: E402
-import parts as PT  # noqa: E402  (the leg link's own helpers, for idler_seat)
+from common import dimensions as D  # noqa: E402
+from common import shapes as PT  # noqa: E402  (the leg link's own helpers, for idler_seat)
 
 # ------------------------------------------------------------------ the rig
 AXIS_Y = 50.0          # output axis past the table edge
@@ -80,7 +80,7 @@ PLATE_X1 = SEAT_OUT - D.SV_IDLER_CASE_FACE                   # -3.15
 SLAB_T = 6.0
 SLAB_X0 = PLATE_X1 - SLAB_T                                  # -9.15, back face (on the bed)
 # connector WINDOW over the measured trench, through seat and plate (the roll
-# bay's margins, parts.py: 0.45 axis side, 1.0 cable-end side, +/-0.5 across)
+# bay's margins: 0.45 axis side, 1.0 cable-end side, +/-0.5 across)
 WIN_Z = (-D.SV_CONN_L[1] - 1.0, -D.SV_CONN_L[0] + 0.45)      # servo frame
 WIN_HW = D.SV_CONN_HW + 0.5
 CRADLE_CLR = 0.25      # per side, across the case width
@@ -376,7 +376,7 @@ def servo_frame():
 
 
 def servo_in_world():
-    import check_assembly as CA
+    from common import mocks as CA
     return servo_frame() * CA.servo_mock()
 
 
@@ -450,12 +450,6 @@ def main():
     for d in (0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 20.0):   # its way on: straight onto the face
         check(f"servo {d:g} mm off the face along the axis (seats straight on)",
               vol(br, Pos(d, 0, 0) * sv))
-    # the seat IS leg_link's idler grip plate over that plate's footprint
-    # below the connector window (servo frame)
-    reg = PT.box(*SEAT_X, SEAT_OUT, SEAT_IN, D.GRIP_BOT, WIN_Z[0] - 0.01)
-    ref, ours = PT.leg_link() & reg, (idler_seat() - access_bores()) & reg
-    check("seat vs parts.leg_link's idler grip plate (symmetric difference)",
-          ref.volume + ours.volume - 2 * (ref & ours).volume)
     check("bracket vs table", vol(br, tb))
     check("servo vs table", vol(sv, tb))
     for name, lev in (("stiff lever", ls), ("hold lever", lh)):

@@ -436,8 +436,7 @@ vectors:
 # because somebody said which run to deploy -- an argument-less run of either
 # silently re-points the firmware at a different policy. Hence:
 #
-#   make -C firmware/host deploy-headers RUN=loco_v41rsi_b_s128r24
-#
+#   make -C firmware/host deploy-headers RUN=robot_legs_walk16_act_s128r24
 #
 # ... or, for a policy profile's set in ../policies/<name>/ (a second plant):
 #

@@ -16,8 +16,7 @@ inertia), printed parts as lumped boxes at the masses the current parts
 weigh, battery/board at catalogue mass. sim/build_v6_inertia.py builds the
 CAD-inertial plant from the exported STLs instead.
 
-Conventions kept from sim/bimo_biped_v5body.xml so walker_env / the tools
-work unchanged: +X forward, +Y left, torso freejoint, joint names
+Conventions walker_env, env_mjx and the tools rely on: +X forward, +Y left, torso freejoint, joint names
 {L,R}_{hip_yaw,hip_roll,hip_pitch,knee,ankle,ankle_roll}, sim-negative knee =
 human flexion (axis 0 -1 0), 8 pad spheres per sole as the only ground
 contact, non-colliding L_sole/R_sole reference boxes, enumerated inter-leg
@@ -43,7 +42,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_NAME = "bimo_biped_v6ar_lumped.xml"   # not the dressed plant's name: build/v6/sim will hold that one too
 
-# STS3215 / STS3250 case (cad/dimensions.py, STEP-measured): 45.22 long x
+# STS3215 / STS3250 case (cad/common/dimensions.py, STEP-measured): 45.22 long x
 # 24.72 wide x 34.70 across the output axis; output axis 10.11 from the
 # output end, centred in the width.
 SV_LEN, SV_WID, SV_T = 0.04522, 0.02472, 0.03470

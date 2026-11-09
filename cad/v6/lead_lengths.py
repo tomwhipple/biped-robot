@@ -89,7 +89,7 @@ import sys
 
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import dimensions as D  # noqa: E402
+from common import dimensions as D  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 
 STOCK_LEAD = 150.0    # docs/wiring.md "Servo bus" (stock 5264-3P lead)

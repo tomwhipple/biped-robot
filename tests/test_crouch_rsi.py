@@ -18,12 +18,14 @@ import jax  # noqa: E402
 import jax.numpy as jp  # noqa: E402
 import pytest  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def _env(**kw):
     from env_mjx import BimoMJXEnv
-    base = dict(xml_path=XML, ext_cmd=True, gait_clock=True, obs_hist_len=3,
+    base = dict(ROBOT, ext_cmd=True, gait_clock=True, obs_hist_len=3,
                 domain_rand=False, imu_noise=0.0, quantize_ticks=False,
                 latency_ms=0.0, backlash_deg=0.0, crouch_pose_ref=True,
                 cmd_crouch_range=(0.7, 1.0))

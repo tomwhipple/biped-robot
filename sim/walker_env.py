@@ -1,6 +1,6 @@
 """Stage-2a: Gymnasium environment for the biped (CPU MuJoCo).
 
-Wraps sim/bimo_biped.xml as a standard RL env so a policy can learn to walk
+Wraps a plant (default sim/bimo_biped_v6ar.xml) as a standard RL env so a policy can learn to walk
 forward. Kept deliberately framework-light (plain MuJoCo, no MJX) so it runs on
 the Mac for fast iteration; the reward/obs design carries over to the MJX port
 (Stage 2b) unchanged.
@@ -21,7 +21,7 @@ Terminate: torso falls (height above local ground < 0.18 m) or tips over
           (up-vector z < 0.4). On flat ground local ground z == 0, so this is
           identical to the original world-z check.
 Terrain : optional procedural heightfield (terrain_amplitude > 0). The flat
-          plane in bimo_biped.xml is swapped for an hfield geom at model-load
+          plane in the plant is swapped for an hfield geom at model-load
           time; height data is re-randomized every reset (smoothed uniform
           noise with a flattened spawn pad). Default (0.0) keeps the original
           flat-plane model byte-for-byte.
@@ -42,7 +42,7 @@ import mujoco
 import gymnasium as gym
 from gymnasium import spaces
 
-_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped.xml")
+_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
 
 # qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the hinge joints. The
 # actuated-joint slices/index maps are derived per-instance from the loaded
@@ -103,17 +103,12 @@ def policy_range(m, physical=False, within_stops=False):
     The plant's JOINT limit is the mechanical stop: how far the joint can be
     driven before it hits metal. The POLICY range is a separate, narrower
     thing: action +-1 is defined as its edge, so moving it silently rescales
-    every action a trained policy emits, and every scorecard with it. The two
-    were the same number until bimo_biped_v4rom.xml (2026-08-03), where the
-    hip-roll and hip-pitch stops widened to the measured/CAD-verified truth
-    while the training range deliberately stayed at v3yaw's.
+    every action a trained policy emits, and every scorecard with it.
 
     A plant declares the split by putting a ctrlrange on its <position>
     actuators; that is the policy range, and the joint limit is left as the
-    mechanical stop. Plants that declare none -- bimo_biped_v2*.xml,
-    bimo_biped_v3yaw.xml, every legacy referee -- fall back to the joint
-    limit, which is what they have always used, so they load bit-identically
-    and their runs keep meaning what they meant.
+    mechanical stop. A plant that declares none falls back to the joint
+    limit.
 
     This is the same split firmware/main/mech_envelope.h draws between
     obs_spec.h's kJointLo/kJointHi (policy, action scaling) and the bench
@@ -163,6 +158,18 @@ def joint_role(name):
         return name[2:]
     return None
 
+
+
+# The per-episode gait-clock draw, Hz, when a run does not set its own (--gait-freq).
+GAIT_FREQ_RANGE = (1.25, 1.75)
+
+
+def deploy_gait_hz(cfg=None):
+    """The fixed clock a policy runs at outside training (the firmware's
+    obs::kGaitFreqHz, the SIL, the grader), from its run's config.json: the
+    midpoint of the trained gait_freq_range, 1.5 Hz for a run without the setting."""
+    lo, hi = (cfg or {}).get("gait_freq_range") or GAIT_FREQ_RANGE
+    return 0.5 * (float(lo) + float(hi))
 
 
 def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
@@ -228,6 +235,32 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
         ch.append(np.linalg.lstsq(V, sol[:, 0], rcond=None)[0])
         ck.append(np.linalg.lstsq(V, sol[:, 1], rcond=None)[0])
     return np.array(ch), np.array(ck)
+
+
+DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
+
+
+def parse_dq_obs_window(spec):
+    """dq_obs_window -> (lo, hi) control ticks, or None when off. Accepts None, 0, N,
+    (lo, hi) / [lo, hi], or the CLI strings "N" / "lo,hi". Shared by env_mjx and the
+    CPU env so both read a config.json the same way."""
+    if spec is None:
+        return None
+    if isinstance(spec, str):
+        spec = [int(x) for x in spec.split(",")]
+    if isinstance(spec, (int, np.integer)):
+        spec = (int(spec), int(spec))
+    spec = [int(x) for x in spec]
+    if len(spec) == 1:
+        spec = spec * 2
+    if len(spec) != 2:
+        raise ValueError(f"dq_obs_window {spec}: want N or lo,hi")
+    lo, hi = spec
+    if lo == 0 and hi == 0:
+        return None
+    if not 1 <= lo <= hi <= DQ_OBS_WINDOW_MAX:
+        raise ValueError(f"dq_obs_window {spec}: need 1 <= lo <= hi <= {DQ_OBS_WINDOW_MAX}")
+    return (lo, hi)
 
 
 def apply_floor_contacts(model, floor_contacts):
@@ -658,6 +691,7 @@ class BimoWalkerEnv(gym.Env):
         # timing comes from the commanded pattern, not from the clock.
         # -- plan-v2 Phase A terms (2026-07-20; mirror sim/mjx, default off) ---
         gait_clock: bool = False,
+        gait_freq_range: tuple = GAIT_FREQ_RANGE,  # Hz, the per-episode clock draw (mirrors sim/mjx)
         speed_clock: bool = False,  # scale the clock with commanded planar
         # speed (mirror of env_mjx.speed_clock_scale -- referee obs must
         # match training)
@@ -784,6 +818,15 @@ class BimoWalkerEnv(gym.Env):
         # sim/mjx/env_mjx.py (parity gate 2i). Default False = bit-exact
         # legacy behavior.
         quantize_ticks: bool = False,
+        # -- robot-like joint-velocity OBS (2026-11-05 kick analysis) ----------
+        # The robot's dq is the STS3215 speed register 58: the MEAN joint velocity
+        # over the last ~40 ms in 50 steps/s steps. dq_obs_window = N (or a
+        # per-episode (lo, hi) draw) feeds (q_t - q_{t-N}) / (N control_dt);
+        # dq_obs_quantum = Q rounds the dq obs to Q steps/s (replacing
+        # quantize_ticks' 1-step dq rounding). Mirror of env_mjx's; None / 0 =
+        # off = the instantaneous qvel, bit-exact old behaviour.
+        dq_obs_window=None,
+        dq_obs_quantum: float = 0.0,
         # -- action-chain lag (referee-side servo dynamics, 2026-09-02) --------
         # The 2026-08-31 bench measured the STS3215's dynamic response at
         # ~10 rad/s^2 accel cap / ~1.7 Hz bandwidth; ~2 Hz of 3-stage target
@@ -953,6 +996,11 @@ class BimoWalkerEnv(gym.Env):
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
+        self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
+        if not 0.5 <= self.gait_freq_range[0] <= self.gait_freq_range[1]:
+            raise ValueError(f"gait_freq_range {gait_freq_range}: need 0.5 <= lo <= hi")
+        # the clock this policy runs at outside training (obs::kGaitFreqHz)
+        self.deploy_gait_freq = deploy_gait_hz(dict(gait_freq_range=self.gait_freq_range))
         self.speed_clock = speed_clock
         self.speed_clock_lo = speed_clock_lo
         self.speed_clock_hi = speed_clock_hi
@@ -1005,6 +1053,7 @@ class BimoWalkerEnv(gym.Env):
         if ext_cmd:
             self._cmd[3] = 1.0            # crouch channel: 1 = full height
         self.quantize_ticks = bool(quantize_ticks)
+        self.set_dq_obs(dq_obs_window, dq_obs_quantum)
         self.act_lag_hz = float(act_lag_hz)
         self.act_lag_dr_max = None if act_lag_dr_max is None else float(act_lag_dr_max)
         self._act_lag_ep = self.act_lag_hz   # this episode's pole (DR draws it in reset)
@@ -1391,11 +1440,8 @@ class BimoWalkerEnv(gym.Env):
             # standing sole-center height: lift clearance reference
             self._sole_z0 = float(d0.geom_xpos[self._sole_gids[0]][2])
             # KNEE-HIGH reference, MEASURED on the plant (not guessed):
-            # world z of the knee joint's anchor in the standing pose. On
-            # bimo_biped_v3yaw.xml that is 0.107 m, with the sole center at
-            # 0.003 m -> a knee-high swing sole must clear 0.104 m, i.e.
-            # 1.7x the 0.06 m nominal lift_height / 3.5x the 0.03 m
-            # lift_clear floor. Mirrored in sim/mjx/env_mjx.py.
+            # world z of the knee joint's anchor in the standing pose, less
+            # the sole center's. Mirrored in sim/mjx/env_mjx.py.
             _knee_jid = self.model.joint(
                 self._act_names[self._legL["knee"]]).id
             self._knee_z0 = float(d0.xanchor[_knee_jid][2])
@@ -1487,6 +1533,34 @@ class BimoWalkerEnv(gym.Env):
                                              / _TICK_RAD * dr),
                         0.0, float(_TICK_MAX))
         return (ticks - _TICK_ZERO) * _TICK_RAD * dr
+
+    def set_dq_obs(self, window=None, quantum=0.0):
+        """(Re)configure the robot-like dq obs (takes effect at the next reset).
+        Graders flip it on a cached env per probe."""
+        self.dq_obs_window = parse_dq_obs_window(window)
+        self.dq_obs_quantum = float(quantum or 0.0)
+        assert self.dq_obs_quantum >= 0.0
+        self._dq_win = self.dq_obs_window[0] if self.dq_obs_window else 0
+        self._dq_qhist = None          # newest first; seeded in reset()
+
+    def _dq_q(self):
+        return np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+
+    def _dq_qhist_seed(self):
+        """The history at rest at the current pose (env_mjx _dq_qhist0)."""
+        if self.dq_obs_window is None:
+            self._dq_qhist = None
+            return
+        q = self._dq_q()
+        self._dq_qhist = [q.copy() for _ in range(self.dq_obs_window[1] + 1)]
+
+    def _quant_vel_q(self, rad_s, quantum, tick_dir=None):
+        """_quant_vel on a coarser grid (dq_obs_quantum steps/s)."""
+        dr = self._tick_dir if tick_dir is None else tick_dir
+        steps = np.clip(quantum * np.rint(np.asarray(rad_s, dtype=np.float64)
+                                          / (_TICK_RAD * quantum) * dr),
+                        -float(_TICK_VEL_MAX), float(_TICK_VEL_MAX))
+        return steps * _TICK_RAD * dr
 
     def _quant_vel(self, rad_s, tick_dir=None):
         """rad/s -> integer reg-58 steps/s -> rad/s (harness.rad_s_to_steps_s /
@@ -1664,11 +1738,19 @@ class BimoWalkerEnv(gym.Env):
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
+        if self.dq_obs_window is not None and self._dq_qhist is not None:
+            # reg-58 view: the mean joint velocity over the last _dq_win ticks
+            # (the history is advanced in reset()/step(); this stays a pure read)
+            dq_j = ((self._dq_qhist[0] - self._dq_qhist[self._dq_win])
+                    / (self._dq_win * self.control_dt))
         if self.quantize_ticks:
             # servo-side view: what a SYNC READ can actually report (encoder
             # ticks + reg-58 steps/s). The physics state is untouched.
             q_j = self._quant_angle(q_j, self._tick_dir_p)
-            dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+            if self.dq_obs_quantum <= 0.0:
+                dq_j = self._quant_vel(dq_j, self._tick_dir_p)
+        if self.dq_obs_quantum > 0.0:
+            dq_j = self._quant_vel_q(dq_j, self.dq_obs_quantum, self._tick_dir_p)
         parts = [
             q_j,                                    # 8 joint angles
             dq_j,                                   # 8 joint velocities
@@ -2075,8 +2157,8 @@ class BimoWalkerEnv(gym.Env):
                                  else self.rise_secs / 3.0)
             else:                      # sit: torso UP, waist 90 deg, legs
                 j[self._i_pitch] = -1.57   # out front, feet splayed apart
-                j[self._i_knee] = -0.09    # (mirrors sim/mjx; verified by
-                j[self._legL["hip_roll"]] = 0.10    # check_sit_pose.py)
+                j[self._i_knee] = -0.09    # (mirrors sim/mjx)
+                j[self._legL["hip_roll"]] = 0.10
                 j[self._legR["hip_roll"]] = -0.10
                 self.data.qpos[2] = 0.08
                 self.data.qpos[self._jqpos] = np.clip(j, self._lo, self._hi)
@@ -2185,7 +2267,7 @@ class BimoWalkerEnv(gym.Env):
         self._step_i = 0
         self._phase_cmd()
         if self.gait_clock:
-            self._gait_freq = float(self.np_random.uniform(1.25, 1.75))
+            self._gait_freq = float(self.np_random.uniform(*self.gait_freq_range))
             self._gait_phase = float(self.np_random.uniform(-np.pi, np.pi))
         self._lag_y = None                    # re-seed the act-lag cascade
         self._chain0 = None                   # chain seed: taken on the first step
@@ -2197,6 +2279,11 @@ class BimoWalkerEnv(gym.Env):
         else:
             self._act_lag_ep = self.act_lag_hz
         self._act_hist = None                 # re-seed the dead-time ring
+        if self.dq_obs_window is not None:
+            lo, hi = self.dq_obs_window
+            # drawn last, so every other draw keeps its stream
+            self._dq_win = lo if lo == hi else int(self.np_random.integers(lo, hi + 1))
+        self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
             first = self._obs()                # frame only (hist empty)
@@ -2750,8 +2837,7 @@ class BimoWalkerEnv(gym.Env):
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
         if self.w_mimic:
-            q_ref = self._mimic_ref(self._cmd, self._gait_phase,
-                                    self._gait_freq)
+            q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
             dq = np.asarray(d.qpos[self._jqpos]) - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
@@ -2941,6 +3027,8 @@ class BimoWalkerEnv(gym.Env):
                     self._cmd[5] = 0.0
                     self._cmd[6] = self._march_dz * abs(np.sin(th_m))
         self._phase_cmd()
+        if self._dq_qhist is not None:
+            self._dq_qhist = [self._dq_q()] + self._dq_qhist[:-1]
         obs_out = self._obs()
         if self.obs_hist_len > 1:
             self._obs_hist = ([obs_out[:self.obs_frame].copy()]

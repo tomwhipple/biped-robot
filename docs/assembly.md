@@ -873,10 +873,10 @@ number still owed.
 
 Bare board to first arm: [bringup.md](bringup.md).
 
-**The compiled policy still drives the prototype's 10 joints.** The firmware's
+**The compiled policy drives the v6 legs' 12 joints.** The firmware's
 bus side carries all 17 servos: the bus map, calibration blob v3, and the gain
-check at boot and before every arm. The 17-servo bench steps and a robot-plant
-policy are open (#81, #86). The procedure is the one the prototype uses:
+check at boot and before every arm. The 17-servo bench steps and a 17-joint
+policy are open (#81, #86). The procedure:
 
 1. **Zero.** Standing is angle zero for every joint.
    - Hold the robot in the CAD standing pose on a stand, then run `cal zero` and
@@ -904,10 +904,10 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
     ±4°, slow slew, 1 s settle.
   - Read the torso tilt from the IMU at each step. The dead band at reversal is
     the play.
-- **Tools.** `tools/joint_sweep.py` runs this on the prototype; its ID and zero
-  table is the prototype's. For hip yaw, `tools/yaw_probe.py` yaws both hips
+- **Tools.** `tools/joint_sweep.py` runs this; its ID and zero table are the
+  earlier prototype's and need porting. For hip yaw, `tools/yaw_probe.py` yaws both hips
   together and reads the pelvis's yaw from the gyro.
-- **On the prototype** this test found 2–3° at a hip roll.
+- **On the earlier prototype** this test found 2–3° at a hip roll.
 - **If a joint is over the limit,** check the disc screws, the idler seating and
   the grip screws, then re-zero.
 

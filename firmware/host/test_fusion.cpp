@@ -4,7 +4,7 @@
 // against MuJoCo's framezaxis sensor on the real plant, because the sim is
 // what the policy was trained on and therefore what "correct" means:
 //
-//   sim/bimo_biped_v5body.xml, <framezaxis objtype="site" objname="imu">
+//   sim/bimo_biped_v6legs.xml, <framezaxis objtype="site" objname="imu">
 //     upright            (0,      0,      1)
 //     roll  +20 deg      (0,     -0.342,  0.9397)
 //     pitch +20 deg      (0.342,  0,      0.9397)

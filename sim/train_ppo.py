@@ -40,8 +40,8 @@ def main():
     p.add_argument("--run-name", default="ppo_baseline", help="subdir under runs/")
     # -- model / actuator -----------------------------------------------------
     p.add_argument("--xml", default=None,
-                   help="MJCF file (default: bimo_biped.xml; use bimo_biped_v2.xml "
-                        "for the CAD-true model). Relative paths resolve in sim/.")
+                   help="MJCF file (default: walker_env's, bimo_biped_v6ar.xml). "
+                        "Relative paths resolve in sim/.")
     p.add_argument("--actuator-model", default="ideal", choices=["ideal", "sts3215"],
                    help="'sts3215' = PD torque clamped to the servo torque-speed "
                         "envelope at --voltage; 'ideal' = original position servos")

@@ -2,10 +2,11 @@
 (obsfreeze gain=0.5 -> gyro obs x0.5, shape 6 -> 6 Hz C2 shaper) on the measured actuator
 (rca/simh.MEAS_SERVO + JF_PLANT on the fitted plant), and the stand-still candidates:
 
-  clock      "run"        the firmware today: phase advances at 1.5 Hz at the stand command
+  clock      the policy's trained clock (trained_hz: 1.5 Hz unless the run set --gait-freq)
+             "run"        the firmware today: phase advances at that clock at the stand command
              "freeze"     phase held (at `phase0`, else wherever the clock was at the arm tick)
-             "slow"       phase advances at `clock_hz` (< 1.5)
-             "ramp"       clock frequency ramps 1.5 -> 0 over `ramp_s` once the stand gate opens
+             "slow"       phase advances at `clock_hz` (below the trained clock)
+             "ramp"       clock frequency ramps trained -> 0 over `ramp_s` once the stand gate opens
              "coast"      at a plain stand the clock keeps its rate until the phase reaches
                           `stand_phase`, then holds there (the firmware `standclock coast`)
   The phase is advanced HERE (env._gait_freq = 0, so walker_env never moves it), the
@@ -13,7 +14,7 @@
   changes the command mid-episode (the walk -> stop probe); the stand gate is ctrl_task's.
   act_filter None | ("lpf", hz) first-order low-pass on the action at zero command
              | ("db", deg) per-joint deadband (play operator) on the shaped target
-             | ("notch", q) notches at 1.5 and 3 Hz on the action
+             | ("notch", q) notches at the clock and its first harmonic on the action
   prev_action always stays the RAW policy output (what the policy saw in training).
 
 Episode = rca/takeover.episode's arm path (history of the first frame, prev 0, shaper
@@ -32,8 +33,14 @@ import harness as H  # noqa: E402  (sim/sil/harness.py, via simh)
 
 RAMP = 50
 PUSHES = {150: (1.0, 0.0), 275: (-1.0, 0.0), 400: (0.0, 1.0)}   # takeover.PUSHES
-CLOCK_HZ = 1.5
+CLOCK_HZ = 1.5                                 # a run without its own gait_freq_range
 _Q0 = {}
+
+
+def trained_hz(env):
+    """The clock env's run trained at (config.json's gait_freq_range midpoint, the value
+    gen_obs_spec.py emits as obs::kGaitFreqHz)."""
+    return float(getattr(env, "deploy_gait_freq", CLOCK_HZ))
 
 
 def arm_pose():
@@ -45,7 +52,7 @@ def arm_pose():
 
 
 class Notch:
-    """Biquad notches at 1.5 and 3 Hz (RBJ), per channel, fs 50 Hz."""
+    """Biquad notches, by default at the 1.5 Hz clock and 3 Hz (RBJ), per channel, fs 50 Hz."""
     def __init__(self, q=2.0, freqs=(1.5, 3.0)):
         self.c = []
         for f0 in freqs:
@@ -75,29 +82,34 @@ def _wrap(p):
 
 
 def advance_clock(clk, mode, v, cmd, dt):
-    """One tick of the candidate clock; returns the phase the next frame carries."""
+    """One tick of the candidate clock at clk["hz"] (the policy's; CLOCK_HZ if absent); returns
+    the phase the next frame carries."""
+    hz = clk.get("hz", CLOCK_HZ)
     stand = stand_gate(cmd)
     if not stand:
-        clk["held"] = False; clk["f"] = CLOCK_HZ
-        clk["ph"] = _wrap(clk["ph"] + 2 * math.pi * CLOCK_HZ * dt)
+        clk["held"] = False; clk["f"] = hz
+        clk["ph"] = _wrap(clk["ph"] + 2 * math.pi * hz * dt)
         return clk["ph"]
     if mode == "run":
-        f = CLOCK_HZ
+        f = hz
     elif mode == "slow":
         f = float(v["clock_hz"])
     elif mode == "freeze":
         f = 0.0
     elif mode == "ramp":
-        clk["f"] = max(0.0, clk["f"] - CLOCK_HZ * dt / float(v.get("ramp_s", 2.0))); f = clk["f"]
+        clk["f"] = max(0.0, clk["f"] - hz * dt / float(v.get("ramp_s", 2.0))); f = clk["f"]
     elif mode == "coast":
         if clk["held"]:
             return clk["ph"]
-        step = 2 * math.pi * CLOCK_HZ * dt
+        step = 2 * math.pi * hz * dt
         to_go = (float(v["stand_phase"]) - clk["ph"]) % (2 * math.pi)
+        if 2 * math.pi - to_go <= float(v.get("coast_back", 0.0)):  # just past it: hold, don't run another cycle
+            clk["ph"] = _wrap(float(v["stand_phase"])); clk["held"] = True
+            return clk["ph"]
         if to_go <= step:
             clk["ph"] = _wrap(float(v["stand_phase"])); clk["held"] = True
             return clk["ph"]
-        f = CLOCK_HZ
+        f = hz
     else:
         raise ValueError(mode)
     clk["ph"] = _wrap(clk["ph"] + 2 * math.pi * f * dt)
@@ -134,12 +146,13 @@ def episode(v, plant="fit", seed=0, run_s=20.0, hold_s=2.0, record=False):
     sched = list(v.get("cmd_schedule") or [])
     if sched:
         env.set_command(*sched[0][1])
-    w0 = H.pin_gait_clock(env, CLOCK_HZ)
+    hz = trained_hz(env)
+    w0 = H.pin_gait_clock(env, hz)
     clock = v.get("clock", "run")
     ph = float(v["phase0"]) if v.get("phase0") is not None and clock != "run" else float(w0)
     env._gait_freq = 0.0                      # the clock is advanced below, not by walker_env
     env._gait_phase = ph
-    clk = dict(ph=ph, f=CLOCK_HZ, held=False)
+    clk = dict(ph=ph, f=hz, hz=hz, held=False)
     env._obs_hist = []
     first = env._obs()
     env._obs_hist = [first.copy() for _ in range(env.obs_hist_len - 1)]
@@ -154,7 +167,7 @@ def episode(v, plant="fit", seed=0, run_s=20.0, hold_s=2.0, record=False):
     out_gain = v.get("out_gain", 1.0); push = v.get("push", 0.0)
     filt = v.get("act_filter")
     if filt and filt[0] == "notch":
-        notch = Notch(q=filt[1])
+        notch = Notch(q=filt[1], freqs=(hz, 2 * hz))
     hold = qm.copy(); cur = {"t": hold}
     env._action_to_ctrl = lambda a_: cur["t"]
     n = int(round(run_s / env.control_dt)); nh = int(round(hold_s / env.control_dt))

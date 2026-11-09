@@ -14,8 +14,8 @@ The wire protocol it rides on is [control-channel.md](control-channel.md).*
 
 The viewer poses the plant from that line, **by joint name**
 (`protocol.JOINT_NAMES`): a plant joint the line names is posed, and a wire
-joint the plant does not have (the prototype plant has no ankle rolls, neck
-or arms) is skipped. It renders the result. **No policy, no
+joint the plant does not have (the legs-only plant has no neck or arms) is
+skipped. It renders the result. **No policy, no
 physics, no integration**: the picture is a mannequin held in the last state
 the robot reported, and every part of it is a measurement. The console draws
 the viewer's stream in its own window.
@@ -63,12 +63,11 @@ that sets `POSE` is by construction one that can read the answer.
 | 69 | base + joints + attitude | both |
 
 - The joint block is 17 × i16 milli-radians, one per **bus** servo in
-  **bus order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): the ten prototype
-  leg joints, then the ankle rolls, the neck and the arms
+  **bus order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): ten leg joints, then
+  the ankle rolls, the neck and the arms
   ([servo-map.md](servo-map.md) §2.1); the servo IDs are not the positions.
   It is not the policy's joint order; consumers map it by name. A servo the
-  robot does not carry (the ankle rolls, neck and arms on the prototype)
-  reads 0.0.
+  robot does not carry (the neck and arms on the legs-only robot) reads 0.0.
 - With joints present, `t_us` is the instant they were read off the bus.
 - The robot publishes the pose every armed tick through `main/joint_pose.h`
   (a double buffer with a sequence counter, so one beacon never mixes two

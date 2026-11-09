@@ -28,8 +28,10 @@ sys.path.insert(0, os.path.join(HERE, "..", "sim"))
 import mujoco  # noqa: E402
 
 import mirror  # noqa: E402
+import robot_plant  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
+XML = ROBOT["xml_path"]
 
 
 @pytest.fixture(scope="module")
@@ -114,7 +116,7 @@ def test_obs_frame_mirror():
     import jax
     import jax.numpy as jp
 
-    kw = dict(xml_path=XML, ext_cmd=True, gait_clock=True, obs_hist_len=3,
+    kw = dict(ROBOT, ext_cmd=True, gait_clock=True, obs_hist_len=3,
               domain_rand=False, imu_noise=0.0, quantize_ticks=False,
               latency_ms=0.0, backlash_deg=0.0)
     cmd_a = (0.3, 0.10, 0.4, 1.0, -1.0, 0.0, 0.02)
@@ -155,8 +157,9 @@ def test_obs_frame_mirror():
         want = mirror.mirror(np.array(sa.obs), perm, sign)
         err = np.max(np.abs(got - want))
         # tolerance: the two episodes run real physics from mirrored states,
-        # and the plant's ~1e-4 inertial asymmetries make the trajectories
-        # (hence dq/gyro obs) drift ~1e-2 apart within a few steps -- same
+        # and the plant's asymmetries (the as-built body's CoM sits 0.4 mm off
+        # the centreline) make the trajectories (hence dq/gyro obs) drift
+        # apart within a few steps: 0.027 at most here, in gyro z -- same
         # scale test_mirrored_dynamics measures. A LAYOUT error (wrong slot
         # or sign) mismatches by O(1), far above this gate.
-        assert err < 2e-2, f"obs mirror mismatch {err:.5f} at step {it}"
+        assert err < 4e-2, f"obs mirror mismatch {err:.5f} at step {it}"

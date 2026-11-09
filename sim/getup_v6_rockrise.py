@@ -37,7 +37,7 @@ def qq(off):
 
 def build_seq(hold=-95, ktuck=-130, rock_h=-70, rock_a=-40, lift_h=-50, lift_k=-50,
               t1=1.4, t2=2.0, t3=2.0, t4=2.2):
-    # FOLD FIRST, then TUCK (getup_study.py pitfall): with legs STRAIGHT as the
+    # FOLD FIRST, then TUCK: with legs STRAIGHT as the
     # counterweight, fold the torso to hip -95 (CoM comes forward over the feet;
     # weight stays on the skid seat); THEN bend the knees to bring the feet
     # under the hips; THEN rock forward onto the toes and rise.

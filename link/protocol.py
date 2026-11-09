@@ -62,7 +62,7 @@ TLM_LEN = _TLM_TIME_OFF + 8 + 2                     # 31
 #
 # The joint set is the BUS joint set -- every servo the robot carries
 # (firmware/components/obs/include/obs/bus_map.h, docs/servo-map.md section
-# 2.1) -- not the policy's: the 10-joint prototype reports 0.0 for the seven
+# 2.1) -- not the policy's: the legs-only robot reports 0.0 for the five
 # servos it does not have. A consumer maps angles to its plant BY NAME.
 JOINT_NAMES = (
     "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle",

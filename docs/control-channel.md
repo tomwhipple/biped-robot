@@ -175,6 +175,13 @@ One line of reason per rule:
   the torso thrashing or past 20 deg, the targets chattering) freezes every
   servo where it is with torque on and benches without the usual release
   (`DISARMED_FLAIL`); the bench homes the robot once it is upright and still.
+  **Except during a walk** (since 2026-11-05, `flailguard::WalkRecovery`):
+  a trip within 2 s of a walk or step command does not hold. The policy keeps
+  running, which keeps its IMU feedback, and its command goes to the stand
+  over 300 ms, latched for the rest of the run. The guard pauses 2 s, then
+  judges the stand afresh, and a second trip holds. On 11-05 a hold mid-stride
+  froze the robot into a fall. In sim the hold turned 104 of 114 tripped
+  strides into falls, against 0 for the stand.
   Limp stays the fall guard's answer, past 45 deg. [firmware-design.md](firmware-design.md),
   "Flail guard".
 - **The real E-stop is the inline battery switch.** No flag that has to
@@ -397,8 +404,8 @@ new commander is a class in `link/sources.py` or a front end on
   `q` quit (disarms first). A terminal has no key-up event, so a motion key
   holds for `--hold-ms` (default 700) after the last auto-repeat; the console
   measures the repeat delay on screen.
-- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then
-  `make -C firmware/host deps gui`): the windowed console. Arming, the E-stop
+- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then `make console`,
+  which builds and opens it): the windowed console. Arming, the E-stop
   latch and frame building are shared with `bimo_tui` in `link/client.h`, so
   the two cannot disagree about what a keypress puts on the wire. A window
   adds:

@@ -63,7 +63,7 @@ typedef struct {
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
               const char* cal_path,       // JSON; NULL/"" = nominal (2048, +1)
-              float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
+              float gait_freq_hz);        // <= 0 = the compiled kGaitFreqHz; 0 on success
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
 const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
@@ -233,11 +233,12 @@ Numbered because code cites them.
    deviation *d* into *d*·10⁶ at the first layer. The crouch channel
    (`cmd[3]`) is fed by the pack guard's landing ramp on the robot, so
    training varies it (the crouch-command variation in `walker_env` and
-   `env_mjx`). In the deployed run, `loco_v41rsi_b_s128r24`, the frozen
-   channels are `linvel` (3), `height` and `cmd[5]` (`foot_dx`). The first
-   four are hard zeros on the robot. `foot_dx` is not: a console that sends
-   an extended frame with `foot_dx` ≠ 0 (clamped to ±0.05 m) puts it ~5·10⁴ σ
-   out, so for this policy it must stay at 0. The exporter warns about frozen
+   `env_mjx`) when a recipe trains it. In the deployed run,
+   `robot_legs_walk16_act_s128r24`, which trains only the planar command, the
+   frozen channels are `linvel` (3), `height` and `cmd[3:7]` (crouch, lift,
+   `foot_dx`, `foot_dz`). The first four are hard zeros on the robot. The
+   command channels are not: a console or guard that fed one of them anything
+   but its trained value would put it ~10⁴ σ out. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
    the deployed run.
    Since the v6 legs deployment the firmware enforces this itself:
@@ -268,7 +269,7 @@ env is the deployment referee by project convention).
 ## One run: the deployed one
 
 The suite, the goldens and the compiled headers are **one run**, the
-deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
+deployed one (`robot_legs_walk16_act_s128r24` on `bimo_biped_v6legs.xml`):
 
 - The harness does not keep its own default. `harness.DEFAULT_RUN` is
   `obs::kRunName`, read out of the generated `obs_spec.h`, so

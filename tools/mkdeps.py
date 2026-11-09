@@ -35,18 +35,13 @@ GENERATORS = [
     "cad/v6/render_steps_v6.py",
     "cad/v6/hip_yoke_glued.py",
     "cad/v6/ankle_link_glued.py",
-    "cad/parts.py",
-    "cad/fasteners.py",
-    "cad/servos.py",
     "cad/slice.py",
-    "cad/freecad_articulate.py",
     "experiments/plan-b-bench/plan_b_rig.py",
     "experiments/plan-b-bench/plan_b_rig_v3.py",
     "sim/build_v6_inertia.py",
     "sim/add_cad_meshes.py",
     "sim/record_getup_ref.py",
     "sim/mjx/gen_terrain_mosaic.py",
-    "sim/mjx/harvest_rise_states.py",
     "sim/fig_getup_noappendage.py",
     "sim/render_link_demo.py",
     "tools/gen_protocol_vectors.py",
@@ -90,7 +85,7 @@ def imported_names(path, index):
         elif isinstance(node, ast.ImportFrom):
             pkg = node.module.split(".") if node.module else []
             names.update(pkg)
-            # `from build123d import export_step` names an attribute, not cad/export_step.py
+            # `from build123d import export_step` names an attribute, not a repo module
             if node.level or (pkg and pkg[0] in index):
                 names.update(a.name for a in node.names)
         elif (isinstance(node, ast.Call) and node.args

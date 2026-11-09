@@ -106,7 +106,8 @@ Trip Detector::update(const Input& in, uint32_t dt_ms) {
                               in.gyro[2] * in.gyro[2]);
         rate_ema_ = ema(rate_ema_, w, L_.rate_tau_s, dt_ms);
         if (rate_ema_ > peak_rate_) peak_rate_ = rate_ema_;
-        if (hit == Trip::kNone && (L_.criteria & kCritRate) && rate_ema_ > L_.rate_rad_s) {
+        if (hit == Trip::kNone && (L_.criteria & kCritRate) &&
+            rate_ema_ > (in.walking ? L_.rate_walk_rad_s : L_.rate_rad_s)) {
             hit = Trip::kRate;
             hit_value = rate_ema_;
         }
@@ -189,6 +190,46 @@ Trip Detector::update(const Input& in, uint32_t dt_ms) {
         trip_joint_ = hit_joint;
     }
     return hit;
+}
+
+// -- WalkRecovery ------------------------------------------------------------
+
+void WalkRecovery::reset() {
+    quiet_ms_ = UINT32_MAX;
+    active_ = false;
+    since_ms_ = 0;
+    grace_reported_ = false;
+}
+
+void WalkRecovery::tick(bool moving_cmd, uint32_t dt_ms) {
+    if (moving_cmd) {
+        quiet_ms_ = 0;
+    } else if (quiet_ms_ != UINT32_MAX) {
+        quiet_ms_ = (UINT32_MAX - quiet_ms_ > dt_ms) ? quiet_ms_ + dt_ms : UINT32_MAX - 1;
+    }
+    if (active_ && since_ms_ < UINT32_MAX - dt_ms) since_ms_ += dt_ms;
+}
+
+bool WalkRecovery::onTrip() {
+    if (active_) return false;                       // once per run: a second trip holds
+    if (quiet_ms_ == UINT32_MAX || quiet_ms_ > C_.recent_ms) return false;   // a stand trip holds
+    active_ = true;
+    since_ms_ = 0;
+    grace_reported_ = false;
+    return true;
+}
+
+float WalkRecovery::overrideFrac() const {
+    if (!active_) return 0.0f;
+    if (C_.ramp_ms == 0) return 1.0f;
+    const float f = static_cast<float>(since_ms_) / static_cast<float>(C_.ramp_ms);
+    return f < 1.0f ? f : 1.0f;
+}
+
+bool WalkRecovery::graceJustEnded() {
+    if (!active_ || grace_reported_ || since_ms_ < C_.grace_ms) return false;
+    grace_reported_ = true;
+    return true;
 }
 
 }  // namespace flailguard

@@ -1,9 +1,9 @@
 """Rebuild the training-log report page (sim/runs/night_summary.html).
 
 Run:  .venv/bin/python sim/build_report.py
-Needs: gifs under sim/runs/<run>/, and the prototype's CAD images in
-build/v5/renders/ and build/v5/movies/ (cad/render_assembly.py and
-cad/animate_assembly.py; the page builds without them).
+Needs: gifs under sim/runs/<run>/; the early rounds' CAD stills and fly-in
+under build/v5/ are shown when present (nothing builds them any more; the
+page builds without them).
 Images are inlined (base64); the referee REELS are not -- a 70 MB .mov does
 not belong in a data: URI, so build_report cuts small web-playable .mp4 clips
 into runs/_clips/ and the page points at them with relative paths. Keep the
@@ -316,11 +316,9 @@ if os.path.exists(cad_png):
     cad_img = (f'<img src="{cad_uri}" alt="CAD assembly render with the GoPro '
                f'MAX mounted on top of the torso">')
 else:
-    print(f"build_report: missing {cad_png} (cad/render_assembly.py makes it), "
-          f"the CAD render is left out")
+    print(f"build_report: missing {cad_png}, the CAD render is left out")
     cad_uri = ''
-    cad_img = ('<p class="muted">CAD render not built on this machine '
-               '(cad/render_assembly.py).</p>')
+    cad_img = '<p class="muted">CAD render not on this machine.</p>'
 
 # marathon-era reels (v5body plant, pelvis v6). The reel is scenario takes in
 # scorecard order; the early minute is the walking block (line/backward/
@@ -435,6 +433,75 @@ fig_1007b = "\n    ".join(f for f in [
     video_figure('robot_walk_c0_mac', ['line_1m', 'pursuit'],
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
+] if f)
+# 2026-11-08 card: night 18 -- the prec line, night 2. The knee-bend channel keeps 0 falls at crouch 0.9; a
+# mirror loss evens the knees; the speed cap, 0.6 Hz, a 0.4 speed cost, a 3 cm lift and a heading term each lose
+# something; the shuffle is traced to the swing reward's wide kernel.
+fig_1108 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec24_f075_js20_crouch_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec24_f075_js20_crouch_s128r24_walk_steps',
+                 'prec24, the knee-bend channel on prec16 (referee clip at crouch 1.0): 0 falls on every grade probe '
+                 'at crouch 0.9 and 1.0, all six directions; same joint speed as prec16; still a 1.2 cm shuffle'),
+    video_figure('robot_legs_prec20_f075_js20_mirror_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec20_f075_js20_mirror_s128r24_walk_steps',
+                 'prec20, mirror-symmetry loss: knee range 57/54 deg (prec16 67/47), mean knee 73/74 deg/s; '
+                 'the yaw drift moves (+12 on five steps, -54 on a 4 s forward walk) instead of going away'),
+    video_figure('robot_legs_prec22_f075_js20_l3_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec22_f075_js20_l3_s128r24_walk_steps',
+                 'prec22, a 3 cm reference lift: median swing 1.8 cm (from 1.2), but the x1.5 margin goes (8/8 falls) '
+                 'and walk-to-stop falls 5/8'),
+    video_figure('robot_legs_prec19_f075_js20_cap180_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec19_f075_js20_cap180_s128r24_walk_steps',
+                 'prec19, the firmware 180 deg/s cap: the left knee moves 4 deg, a one-legged hop that yaws +74 deg. '
+                 'The third failure of the cap; closed as a training variable'),
+] if f)
+# 2026-11-07 card: night 17 -- precision at reduced speed (Tom 11-06). A slower gait clock (0.75 Hz) plus a soft
+# joint-speed cost halves the knee speed with 0 falls on every probe; the 2 cm lift is a shuffle.
+fig_1107 = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-11-06/shp8_run3.mp4',
+               '<b>omni14_shp8 on the robot (battery, shape 8), one stride at 0.3 m/s:</b> no trip, no fall, yaw '
+               'ended -3 deg. Tom: "the servos are still moving very fast": knees 281-299 deg/s, the servo top speed',
+               name='hw1106_shp8_run3'),
+    video_file('../hw_sessions/2026-11-06/shp8_run1.mp4',
+               '<b>the same policy, run 1:</b> a normal stride, then it tipped slowly at the stand, folded both '
+               'hips, tripped the pose guard outside the recovery window and fell during the autohome',
+               name='hw1106_shp8_run1'),
+    video_figure('robot_legs_prec16_f075_js20_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec16_f075_js20_s128r24_walk_steps',
+                 'the reduced-speed candidate: 0.75 Hz clock and a soft joint-speed cost. Mean knee 77/82 deg/s '
+                 '(omni14: 164/178), 0 falls on every grade probe, all six directions, but the feet barely lift '
+                 '(median swing 1.2 cm)'),
+    video_figure('robot_legs_omni14_rs_shp8_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni14_rs_shp8_s128r24_walk_steps',
+                 'what flew on 11-06, for comparison: the 1.5 Hz clock, knees at the servo ceiling'),
+    video_figure('robot_legs_prec12_f075_l3_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec12_f075_l3_s128r24_walk_steps',
+                 'the slow clock with a 3 cm lift and no speed cost: swings reach 2.5 cm median, but it loses the '
+                 'x1.5 margin and falls walking backward. Tonight prec22 tries 3 cm with the speed cost'),
+] if f)
+# 2026-11-06 card: night 16 -- the omni line. Only dq-lag students survive the robot-speed probes; the robot
+# itself tripped and fell on steps5; the stride command overruns the clock cycle.
+fig_1106 = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-11-06/t1_emeet.mp4',
+               '<b>omni5_dqlag on the robot, one stride at 0.3 m/s:</b> stood. The command ended 33 ms past the '
+               'stand phase, so the clock ran another cycle under the stand command: a third swing, rate trip 3.08 rad/s',
+               name='hw1106_t1_stride1'),
+    video_file('../hw_sessions/2026-11-06/t2_emeet.mp4',
+               '<b>omni5_dqlag on the robot, five steps at 0.3 m/s:</b> about 4 steps, rate trip 3.07, then it tips '
+               'over. Second-swing yaw +42 deg; the sim reads about +9 at the robot\'s joint speed',
+               name='hw1106_t2_steps5'),
+    video_figure('robot_legs_omni5_dqlag_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni5_dqlag_s128r24_walk_steps',
+                 'the same policy in the sim: all six directions and 0 falls on every robot-speed probe, '
+                 'which the robot then failed. A sim pass is necessary, not sufficient'),
+    video_figure('robot_legs_omni6_dqlag_crouch_s128r24', ['walk_steps_L'],
+                 'robot_legs_omni6_dqlag_crouch_s128r24_walk_steps',
+                 'with the crouch channel (Tom: a slight knee bend): the lowest rates on the robot-speed probes, '
+                 'but it loses the x1.5 margin (2/8 falls)'),
+    video_figure('robot_legs_omni2_d13_gh2h14_sub25_s128r24', ['turn_180'],
+                 'robot_legs_omni2_d13_gh2h14_sub25_s128r24_turn',
+                 'the gyro hinge at 1.4 rad/s, for comparison: clean guard numbers, but it walks forward only. '
+                 'It lost back, both sidesteps and both turns'),
 ] if f)
 # 2026-11-05 card: night 15 -- the get-up on the deploy-faithful start
 # (w19k 48/48 x2, its DART student 48/48, 16/16; all 16/16 on the measured sole
@@ -935,6 +1002,76 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·08 · night 18: the slow gait, night 2</span></p>
+    <p><b>Eight variations on prec16, the 0.75 Hz reduced-speed gait.</b> Two kept prec16's record of 0 falls on every
+    grade probe, in all six directions: a seed replicate, and <b>prec24, the knee-bend channel</b> (your "slight
+    bend to the knee"). prec24 holds that record at crouch 0.9 as well as 1.0, at the same joint speed as prec16. It is
+    the new lead. The mirror-symmetry loss (prec20) evens the knees (range 57/54 deg, was 67/47), but it moves the yaw
+    drift instead of removing it.</p>
+    <p><b>What lost something:</b> the firmware 180 deg/s cap (the left leg stops stepping, the third time the cap
+    has failed), the 0.6 Hz clock (loses the x1.5 margin and the 0.3 m walk), a 0.4 speed cost (loses sidestep
+    left), a 3 cm reference lift (loses the margin) and a strong heading term (loses the margin; turns overshoot).</p>
+    <p><b>Every policy still shuffles</b> (median swing 1.1-1.8 cm). The cause looks like the reward: its swing-height
+    term pays a 1 cm swing 73 % of the full reward for a 2.5 cm target, so lifting the foot earns little. Tonight's nine
+    teachers test a tighter swing reward and a higher swing target with the joint-space reference unchanged, a mild
+    clearance penalty, the mirror loss on the knee-bend policy, a gentler heading term, a 0.3 speed cost and two seed
+    replicates. <b>Still open for you:</b> does the 3 cm clearance rule hold for the slow gait?
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1108}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·07 · night 17: precision at reduced speed</span></p>
+    <p><b>Tom, after omni14_shp8's clean strides on the repaired robot:</b> "significant side to side movement of
+    the feet with not as much forward motion as desired, but the servos are still moving very fast. Focus on the
+    precision of movement with reduced speed." The flight records agree: knees at 281-299 deg/s and hip pitch at
+    257-275, the servo top speed.</p>
+    <p><b>The reference was the problem.</b> The imitation reference asked the knees for 475-940 deg/s against a
+    ~222 deg/s servo ceiling, because a swing had to fit half a cycle of a fixed 1.5 Hz clock. So every policy ran
+    its servos flat out. A firmware speed cap alone made the policy stand still. A lower lift or a 1.0 Hz clock
+    alone did not change the speed.</p>
+    <p><b>What worked:</b> a 0.75 Hz clock (new, per policy, through training, grader and firmware), a 2 cm lift
+    and a soft joint-speed cost. <b>prec16</b> halves the mean knee speed (77/82 deg/s, was 164/178) and has 0
+    falls on every grade probe, the robot-speed and delay-margin ones included, in all six directions.
+    <b>But it shuffles:</b> its median swing peaks at 1.2 cm. Its knees still peak near 229 deg/s, it drifts
+    ~29 deg of yaw per five steps, and its knees are asymmetric (91 vs 50 deg).</p>
+    <p><b>Housekeeping:</b> the referee on main didn't know the new clock, so this morning's cards scored the slow
+    policies at 1.5 Hz. The feature is now merged to main and the cards were re-refereed. <b>Tonight:</b> eight
+    teachers on the prec16 line: a seed replicate, 0.6 Hz, a 180 deg/s cap, a mirror-symmetry loss, a stronger
+    speed cost, a 3 cm lift, a heading term and the knee-bend channel.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1107}
+    </div>
+  </div>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·06 · night 16: the omni line, and why the robot trips</span></p>
+    <p><b>The best policy yet still fell on the robot.</b> omni5_dqlag is the first student with all six
+    directions and no falls on any probe at the robot's measured joint speed. On the robot it stood after one
+    stride, then fell during the five-step run. So those probes are necessary, not sufficient.</p>
+    <p><b>The stride command outlives the gait cycle.</b> stride1 ended at +700 ms, just past the stand phase,
+    so the coasting clock ran a whole extra cycle under the stand command and the robot took a third swing.
+    The sim's schedule ended exactly on the cycle and never saw this. Ending 20 or 40 ms late trips all 13
+    students 8/8. A stride script that ends early is built, but not yet tested: the steps5 fall broke a leg
+    link, so the robot is out of service until Tom's replacement is on.</p>
+    <p><b>The sim's joints were too fast.</b> The robot peaks at hip 250 and knee 290 deg/s in all three flight
+    records; the refit actuator reaches 360+. Only students trained on the robot's late joint velocity survive
+    probes at the real speed. The delay margin is thin: the probes first reach the robot's body rate at 100 ms
+    of joint-velocity lag, where omni5 starts to fall.</p>
+    <p><b>Still open:</b> the robot's second swing yaws +42 deg, and the sim about +9. Replaying the robot's
+    measured joints does produce that yaw, so the plant can make it, and on the first swing the floor's friction
+    barely matters. <b>Tonight:</b> nine teachers on the robot's actuator: delay range, crouch, yaw kicks, a
+    lower swing, a longer stop grace and a gentle hinge. Analysis: experiments/policy/yaw-gap/README.md.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1106}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·05 · night 15: the get-up as the firmware starts it; the walk through the robot-speed stride</span></p>

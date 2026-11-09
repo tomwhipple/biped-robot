@@ -130,11 +130,9 @@ bool SimProc::start(const char* repo, const char* run_name, bool hang,
         // Its own process group, so stop() cannot signal this console and a
         // ctrl-C in the launching terminal does not race us to the child.
         setpgid(0, 0);
-        // Run from sim/. A run config's xml_path is often a BARE filename
-        // (loco_v11gait: "bimo_biped_v3yaw.xml"), which MuJoCo resolves against
-        // the cwd -- so spawning from the repo root kills every plant except
-        // the --hang one, whose path sil_twin builds absolutely. Found by
-        // ticking the hang box off.
+        // Run from sim/. A run config's xml_path is a BARE filename
+        // ("bimo_biped_v6legs.xml"), which MuJoCo resolves against the cwd --
+        // so spawning from the repo root would kill every plant.
         char simdir[600];
         snprintf(simdir, sizeof simdir, "%s/sim", repo);
         if (chdir(simdir) != 0) {

@@ -1,7 +1,7 @@
 """Re-render a sil_twin --hang obs capture from fixed cameras.
 
     .venv/bin/python tools/rerender_hang_views.py \
-        sim/bimo_biped_v5body_hang.xml <parsed_obs.csv> <out_prefix>
+        sim/bimo_biped_v6legs_hang.xml <parsed_obs.csv> <out_prefix>
 
 The hang plant welds the torso, so the parsed obs CSV's q_* columns ARE the
 full pose trajectory (torso = qpos0). Renders <out_prefix>_side.mp4 and

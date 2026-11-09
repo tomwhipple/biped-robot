@@ -40,6 +40,7 @@ struct Rig {
     bool stand_cmd = true;
     bool pose_armed = true;
     bool imu_valid = true;
+    bool walking = false;
     Rig() {
         for (float& l : limit) l = 15.0f * kDeg;
     }
@@ -53,6 +54,7 @@ struct Rig {
         i.stand_cmd = stand_cmd;
         i.pose_armed = pose_armed;
         i.imu_valid = imu_valid;
+        i.walking = walking;
         i.up = up;
         i.gyro = gyro;
         return i;
@@ -428,6 +430,110 @@ void testRecording() {
     CHECK(all.peak_tilt_3s < 0.5f * flailguard::kLimits.tilt_deg);
 }
 
+// WalkRecovery (Tom 2026-11-05): a trip during a walk -> the stand, not a hold.
+//   * a trip with no moving command this run, or after recent_ms of stand, holds
+//   * a trip during a walk command, and one up to recent_ms after it ends (the
+//     robot's 11-05 trip came 0.2 s after the one-cycle stride command), recovers
+//   * once per run: a second trip holds; reset() is a fresh run
+//   * the guard pauses for grace_ms, graceJustEnded() fires exactly once
+//   * the command reaches the stand over ramp_ms, monotonically, never overshooting
+// The walking rate limit (Tom 2026-11-05, for a 5-step walk): 2.5 rad/s while
+// walking, 1.5 at the stand; tilt is the same either way.
+void testWalkRate() {
+    CHECK_NEAR(flailguard::kLimits.rate_walk_rad_s, 3.0f, 1e-6f);
+    {   // 2.0 rad/s walking: under the walking line
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[2] = 2.0f;
+        CHECK(run(d, r, 5000) == Trip::kNone);
+    }
+    {   // the same 2.0 at the stand: trips, as before
+        Detector d; Rig r; r.gyro[2] = 2.0f;
+        CHECK(run(d, r, 2000) == Trip::kRate);
+    }
+    {   // 2.8 rad/s walking: under the 3.0 walking line
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[1] = 2.8f;
+        CHECK(run(d, r, 5000) == Trip::kNone);
+    }
+    {   // 3.5 rad/s walking: trips on the walking line
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.gyro[1] = 3.5f;
+        CHECK(run(d, r, 2000) == Trip::kRate);
+        CHECK(d.tripValue() > 3.0f);
+    }
+    {   // tilt is unchanged while walking: 25 deg for 200 ms still trips
+        Detector d; Rig r; r.walking = true; r.stand_cmd = false; r.tilt(25.0f);
+        CHECK(run(d, r, 1000) == Trip::kTilt);
+    }
+    {   // WalkRecovery::walkingRecent: a walk now / within recent_ms, and not once recovered
+        flailguard::WalkRecovery w;
+        CHECK(!w.walkingRecent());
+        w.tick(true, kDt);
+        CHECK(w.walkingRecent());
+        for (int i = 0; i < 100; ++i) w.tick(false, kDt);     // 2000 ms of stand
+        CHECK(w.walkingRecent());
+        w.tick(false, kDt);                                     // 2020 ms
+        CHECK(!w.walkingRecent());
+        w.tick(true, kDt);
+        CHECK(w.onTrip());
+        CHECK(!w.walkingRecent());                              // recovering: the stand line
+    }
+}
+
+void testWalkRecovery() {
+    using flailguard::WalkRecovery;
+    WalkRecovery::Config c;
+    c.recent_ms = 2000; c.grace_ms = 2000; c.ramp_ms = 300;
+
+    {   // stand only: holds
+        WalkRecovery w(c);
+        for (int i = 0; i < 100; ++i) w.tick(false, kDt);
+        CHECK(w.judging());
+        CHECK(!w.onTrip());
+        CHECK(!w.standOverride());
+        CHECK(w.overrideFrac() == 0.0f);
+    }
+    {   // a stand long after a walk: holds
+        WalkRecovery w(c);
+        for (int i = 0; i < 25; ++i) w.tick(true, kDt);
+        for (int i = 0; i < 101; ++i) w.tick(false, kDt);   // 2020 ms of stand
+        CHECK(!w.onTrip());
+    }
+    {   // the 11-05 case: the trip 200 ms after the stride command ended -> recovers
+        WalkRecovery w(c);
+        for (int i = 0; i < 100; ++i) w.tick(false, kDt);     // 2 s stand
+        for (int i = 0; i < 33; ++i) w.tick(true, kDt);       // 0.667 s stride command
+        for (int i = 0; i < 10; ++i) w.tick(false, kDt);      // 200 ms later
+        CHECK(w.onTrip());
+        CHECK(w.standOverride());
+        CHECK(!w.judging());                                  // grace: the guard pauses
+        // the ramp: monotonic, 0 -> 1 over 300 ms, then held at 1
+        float prev = w.overrideFrac();
+        CHECK(prev == 0.0f);
+        bool ended = false;
+        int ends = 0;
+        for (int i = 1; i <= 150; ++i) {                      // 3 s
+            w.tick(i < 20, kDt);                               // the link may still say "walk"
+            const float f = w.overrideFrac();
+            CHECK(f >= prev && f <= 1.0f);
+            prev = f;
+            if (i * static_cast<int>(kDt) >= 300) CHECK(f == 1.0f);
+            if (w.graceJustEnded()) { ++ends; ended = true; CHECK(i * static_cast<int>(kDt) == 2000); }
+            CHECK(w.judging() == (i * static_cast<int>(kDt) >= 2000));
+        }
+        CHECK(ended && ends == 1);
+        CHECK(w.standOverride());                              // latched for the run
+        CHECK(!w.onTrip());                                    // a second trip holds
+        w.reset();                                             // a fresh run
+        CHECK(!w.standOverride() && w.judging() && w.overrideFrac() == 0.0f);
+        CHECK(!w.onTrip());                                    // no walk in this run yet
+    }
+    {   // ramp 0: the stand at once
+        WalkRecovery::Config c0 = c; c0.ramp_ms = 0;
+        WalkRecovery w(c0);
+        w.tick(true, kDt);
+        CHECK(w.onTrip());
+        CHECK(w.overrideFrac() == 1.0f);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -439,5 +545,7 @@ int main() {
     testChatter();
     testCriteriaMask();
     testRecording();
+    testWalkRecovery();
+    testWalkRate();
     return testutil::report("test_flailguard");
 }

@@ -39,12 +39,11 @@ void testSpecMatchesVectors() {
     CHECK_EQ(obs::kNumCmd, obs_vectors::kNumCmd);
     CHECK_EQ(obs::kFrameDim, obs_vectors::kFrameDim);
     CHECK_EQ(obs::kObsDim, obs::kFrameDim * obs::kHistLen);
-    // The joint count is the plant's: five per leg on the 10-DOF prototype
-    // (the deployed v5body policy), six -- ankle roll included -- on the v6
-    // robot's legs (the v6legs profile). Never 8: hip yaw is on both.
-    const bool ankle_roll = jointIndex("L_ankle_roll") >= 0;
-    CHECK_EQ(obs::kNumJoints, ankle_roll ? 12 : 10);
-    CHECK_EQ(jointIndex("R_ankle_roll") >= 0, ankle_roll);
+    // The joint count is the plant's: six per leg on the v6 robot's legs,
+    // hip yaw and ankle roll included.
+    CHECK_EQ(obs::kNumJoints, 12);
+    CHECK(jointIndex("L_ankle_roll") >= 0);
+    CHECK(jointIndex("R_ankle_roll") >= 0);
     CHECK(obs::kImuObs);
     // action_map "full" is the only map actionToAngles implements (the
     // generator and the exporter both refuse anything else).
@@ -63,7 +62,7 @@ void testServoIdMapIsAPermutation() {
         seen[id] = true;
     }
     // The sim's action order: left leg then right, proximal to distal, hip
-    // yaw first -- on every plant.
+    // yaw first.
     CHECK(strcmp(obs::kJointNames[0], "L_hip_yaw") == 0);
     CHECK(strcmp(obs::kJointNames[obs::kNumJoints / 2], "R_hip_yaw") == 0);
     CHECK_EQ(servoIdOf("L_hip_yaw"), 9);
@@ -76,10 +75,8 @@ void testServoIdMapIsAPermutation() {
     CHECK_EQ(servoIdOf("R_hip_pitch"), 6);
     CHECK_EQ(servoIdOf("R_knee"), 7);
     CHECK_EQ(servoIdOf("R_ankle"), 8);
-    if (jointIndex("L_ankle_roll") >= 0) {
-        CHECK_EQ(servoIdOf("L_ankle_roll"), 12);
-        CHECK_EQ(servoIdOf("R_ankle_roll"), 11);
-    }
+    CHECK_EQ(servoIdOf("L_ankle_roll"), 12);
+    CHECK_EQ(servoIdOf("R_ankle_roll"), 11);
 }
 
 void testFramesMatchTheSim() {
@@ -152,6 +149,14 @@ void testGaitClockWraps() {
     c2.setPhase(0.0f);
     for (int i = 0; i < 100; ++i) c2.advance(1.0f / 150.0f);   // exactly 1 rev
     CHECK_NEAR(c2.phase(), 0.0, 1e-3);
+    // The default clock is the policy's own (obs_spec.h, per run); a slower one
+    // takes a proportionally smaller phase step.
+    obs::GaitClock c3;
+    c3.advance(0.02f);
+    CHECK_NEAR(c3.phase(), 2.0f * 3.14159265f * 0.02f * obs::kGaitFreqHz, 1e-5);
+    obs::GaitClock c4(1.0f);
+    c4.advance(0.02f);
+    CHECK_NEAR(c4.phase(), 2.0f * 3.14159265f * 0.02f, 1e-5);
 }
 
 // Coast: the trained rate until the stand phase, then held exactly there --

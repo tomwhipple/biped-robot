@@ -19,7 +19,9 @@ import jax.numpy as jp  # noqa: E402
 from env_mjx import (speed_clock_scale, SPEED_CLOCK_REF,  # noqa: E402
                      SPEED_CLOCK_LO, SPEED_CLOCK_HI)
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def test_law_shape():
@@ -39,7 +41,7 @@ def test_mjx_phase_advances_with_command():
     from env_mjx import BimoMJXEnv
 
     def phase_rate(vx):
-        env = BimoMJXEnv(xml_path=XML, ext_cmd=True, gait_clock=True,
+        env = BimoMJXEnv(**ROBOT, ext_cmd=True, gait_clock=True,
                          speed_clock=True, obs_hist_len=3,
                          domain_rand=False, imu_noise=0.0,
                          quantize_ticks=False, latency_ms=0.0,
@@ -62,7 +64,7 @@ def test_referee_matches_mjx_law():
     """walker_env's inline mirror must advance phase by the same scaled rate
     for the same command and base frequency."""
     from walker_env import BimoWalkerEnv
-    env = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+    env = BimoWalkerEnv(**ROBOT, command_mode=True, ext_cmd=True,
                         gait_clock=True, speed_clock=True,
                         actuator_model="sts3215", imu_obs=True,
                         domain_rand=False, latency_ms=0.0, backlash_deg=0.0)
@@ -82,7 +84,7 @@ def test_off_by_default():
     """speed_clock defaults False: the old fixed-rate advance is untouched
     (old configs referee identically)."""
     from walker_env import BimoWalkerEnv
-    env = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+    env = BimoWalkerEnv(**ROBOT, command_mode=True, ext_cmd=True,
                         gait_clock=True,
                         actuator_model="sts3215", imu_obs=True,
                         domain_rand=False, latency_ms=0.0, backlash_deg=0.0)
@@ -100,7 +102,7 @@ def test_hi_knob_threads_both_envs():
     """speed_clock_hi must reach both the law and the referee mirror."""
     assert abs(float(speed_clock_scale(5.0, hi=1.25)) - 1.25) < 1e-6
     from walker_env import BimoWalkerEnv
-    env = BimoWalkerEnv(xml_path=XML, command_mode=True, ext_cmd=True,
+    env = BimoWalkerEnv(**ROBOT, command_mode=True, ext_cmd=True,
                         gait_clock=True, speed_clock=True,
                         speed_clock_hi=1.25,
                         actuator_model="sts3215", imu_obs=True,

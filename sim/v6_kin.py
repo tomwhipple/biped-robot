@@ -4,7 +4,7 @@ Analytic leg IK in the PELVIS frame (pelvis level, hip yaw 0, sole parallel
 to the pelvis), pose setters for a MuJoCo model built by gen_plant_v6, and
 the support-polygon / centre-of-mass geometry that Gate A needs.
 
-Sign conventions == sim/bimo_biped_v5body.xml:
+Sign conventions == the v6 plants (sim/bimo_biped_v6*.xml):
   hip_roll   axis +X : positive swings the foot toward +Y (robot left)
   hip_pitch  axis +Y : positive swings the foot BACKWARD (flexion is negative)
   knee       axis -Y : negative = human flexion (shank swings backward)
@@ -198,13 +198,6 @@ def pad_heights(m, d, p: DesignParams, stance: str, other: str) -> np.ndarray:
             q = R.T @ (d.geom_xpos[g] - pos)
             hs.append(q[2] - m.geom_size[g][0] + p.roll_h)   # sphere bottom vs stance sole
     return np.array(hs)
-
-
-def torso_tilt_vs_foot(m, d, stance: str) -> float:
-    pos, R = foot_frame(m, d, stance)
-    Rt = d.xmat[m.body("torso").id].reshape(3, 3)
-    up = R.T @ Rt[:, 2]
-    return math.degrees(math.acos(max(-1.0, min(1.0, up[2]))))
 
 
 def self_collides(m, d) -> int:

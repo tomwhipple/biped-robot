@@ -4,6 +4,35 @@ You were launched headless by `night/plan_morning.sh` (cron 07:30 on mira, as
 claw) after the morning collection. No human is watching. Tom has
 pre-authorized the work below; do it without asking.
 
+## PRECISION AT REDUCED SPEED -- TOP PRIORITY (Tom 2026-11-06; findings of the 11-06 night)
+Tom, after the omni14_shp8 hardware runs: "significant side to side movement of the feet with not as much
+forward motion as desired, but the servos are still moving very fast. focus on the precision of movement
+with reduced speed." Every plan must serve this. Findings (grades in the interactive session's job tmp;
+deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
+- The imitation reference (_mimic_ref) asked for knee speeds of 475-940 deg/s against a ~222 deg/s servo
+  ceiling (hip pitch ~170), so every policy ran its servos at the ceiling. Reference hip speed is set by
+  commanded v, not the clock. Peak joint speed only finds the ceiling; judge per-joint MEAN speed, time above
+  180 deg/s, knee/roll range, travel, direction falls and guard trips (all slower-clock runs trip `pose` on
+  the one-stride probe: the closing step outlasts the 0.3 s pose hold).
+- Failed: 180 deg/s --fw-limit at 1.5 Hz (prec1/3/4: stands still); lower lift alone (prec2); 1.0 Hz alone
+  (prec5: same speed, bigger swing); --w-low-swing 10 forces >= 3 cm clearance and fights a 2 cm lift.
+- Worked: a slower clock (--gait-freq, branch train/gait-freq), 2 cm lift with --w-low-swing 0, a v band of
+  0.05-0.24 for 0.75 Hz (reference caps v at 0.32 f), and the soft --w-joint-speed 0.2 --joint-speed-soft 120
+  (branch train/joint-speed, a superset of gait-freq).
+- Best: robot_legs_prec16_f075_js20 (prec13 parent, 0.75 Hz, 2 cm, js 0.2): 0 direction falls, 0 trips, mean
+  knee 77/82 deg/s (was 164/178), 0.69 m per 5 steps. Remaining: knee peaks still ~229, yaw drift ~+29 deg
+  per 5 steps, L/R knee asymmetry (goal 91/50 deg). prec14 (0.6 Hz) also 0 direction falls; prec15
+  (0.75 Hz + 180 deg/s limit) cut time above 180 by half but falls sidestepping left 7/8.
+- Next sensible variables (one per run, parent prec16): the 0.6 Hz clock with js 0.2; a seed replicate;
+  --fw-limit 180,3000 on prec16; a symmetry term for the knee asymmetry. Jobs need BRANCH=train/joint-speed.
+  Do NOT queue more 1.5 Hz omni variants ahead of this line.
+- 11-07 (planner): `train/joint-speed` is MERGED to main, so the morning referee and grade.py on main run each
+  policy at its own clock (before this, collect scored the 0.75 Hz policies at 1.5 Hz: those cards were stale).
+  Prec jobs may use BRANCH=main. Grade prec students with SHAPE_HZ=8. The family card commands up to 0.7 m/s,
+  outside the line's 0.05-0.24 band, so rank by grade.py, not the card. prec16 SHUFFLES: median swing peak
+  1.2 cm, lowest 0.3 cm (the 3 cm gate fails); prec22 (3 cm lift + js) tests the fix, and Tom was asked whether
+  the 3 cm rule holds. My grade (shaper 8): prec15 lost side R (dy -0.03) and back 2 falls; prec10 and prec12 lose x1.5.
+
 ## OVERRIDES EVERYTHING BELOW (Tom, 2026-11-05)
 
 > I want you not to spend any more time on getup until we have stride working.
@@ -61,12 +90,20 @@ pre-authorized the work below; do it without asking.
   direction its deployed policy fails in sim (11-05: walk25_msole_d13_gh2h14_s1 kept only forward
   and FELL on side R 3/4). The gyro hinge erased directions (gh4: all lost); walk21_fricact had all six.
 - **The robot reads joint velocity late** (hw_sessions/2026-11-05/kick_analysis.md): the servo speed
-  register is the mean over ~40 ms in 4.4 deg/s steps. Branch `train/omni-night` (not yet on main)
-  adds `--dq-obs-window 2,3 --dq-obs-quantum 50` to training and the `*dqlag` probes to grade.py,
-  which reproduce the robot's flail trips. Grade candidates on the dqlag probes. Merge the branch
-  once its students are evaluated, if it helps.
+  register is the mean over ~40 ms in 4.4 deg/s steps. `--dq-obs-window 2,3 --dq-obs-quantum 50` trains
+  on it (on main since 11-06). Every legs teacher carries them: only students trained on it stayed
+  0 falls on all six `robot` probes (experiments/policy/yaw-gap/README.md).
+- **Robot probes (11-06):** grade.py's `* robot` probes use the robot's measured peak joint speed
+  (hip 250, knee 290 deg/s; the refit runs 360+), 60 ms of dead time and the dq lag. Rank on them, and
+  on stride1 `late40` / `early40` too: the robot's stride command ended 33 ms past the stand phase, which
+  ran the coasting clock through a whole extra cycle. A pass is necessary, not sufficient: omni5_dqlag
+  passes steps5 robot 0/8 and FELL on the robot (rate 3.07 vs sim 1.52, second-swing yaw +42 vs +5 deg).
 - **Knee bend** (Tom: "walk with a slight bend to the knee for stability"): `--cmd-crouch-range
-  0.85,1.0 --init-norm-crouch` (the same branch) trains a crouch channel; grade at crouch 0.9.
+  0.85,1.0 --init-norm-crouch` trains a crouch channel; grade at crouch 0.9.
+- **Hardware 11-06: the robot is BACK IN SERVICE** (leg link replaced; 2.5 deg lean baseline). omni5 on
+  `stride1_03e`: no third swing but a rate trip in the second swing; omni14_shp8 (shape 8): run 1 fell at the stand
+  (pose trip outside the recovery window), runs 2-3 clean strides -> Tom's precision verdict above
+  (hw_sessions/2026-11-06/NOTES.md). Robot tests stay Tom's call.
 - **Hardware 11-05 evening:** firmware flail WalkRecovery (a walking trip -> stand, the policy keeps
   balancing; walking rate limit 3.0) on branch fw/flail-walk-recovery, flashed. Single strides
   stood 2/3, five-step commands gave ~3 steps then a stop. Don't raise guard limits further.
