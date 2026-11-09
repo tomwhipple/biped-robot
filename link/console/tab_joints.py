@@ -225,8 +225,10 @@ class JointsTab(QtWidgets.QWidget):
         self.table_btn = btn("table view", 110, h=30)
         self.table_btn.clicked.connect(self._toggle_table)
         self.legend = lab("", rich=True)
-        top = hbox(lab("window", DIM), w_lay, 14, self.pause_btn, 14, u_lay, 14, n_lay, 20,
-                   self.legend, "stretch", self.table_btn, spacing=8)
+        self.legend.setWordWrap(True)        # its own row: it is the widest thing on the tab
+        top = vbox(hbox(lab("window", DIM), w_lay, 14, self.pause_btn, 14, u_lay, 14, n_lay,
+                        "stretch", spacing=8),
+                   hbox(self.legend, self.table_btn, spacing=8), spacing=4)
         self.banner = lab("", AMBER, 12, True)
         self.banner.setWordWrap(True)
 
@@ -513,6 +515,7 @@ class JointsTab(QtWidgets.QWidget):
             vals = [v for v in vals if len(v)]
             if vals:
                 yr.fit(min(float(v.min()) for v in vals), max(float(v.max()) for v in vals), mp)
+
 
     def _fill_table(self, rows, fitted, fs, have) -> None:
         k = 180.0 / math.pi if self.deg else 1.0

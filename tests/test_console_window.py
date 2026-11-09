@@ -189,6 +189,28 @@ def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
         w.close()
 
 
+def test_setup_and_joints_fit_the_pane_at_1440x900(qapp, twin, tmp_path):
+    """#241: at the 1440 x 900 pt window and the default split, Setup and
+    Joints are no wider than the pane they sit in: no horizontal scrollbar."""
+    from console.ui import QSS, dark_palette
+    qapp.setStyle("Fusion")                  # the look the console runs with: its
+    qapp.setPalette(dark_palette())          # padding and fonts set the widths
+    qapp.setStyleSheet(QSS)
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        w.resize(1440, 900)
+        w.split.setSizes([547, 893])         # the default split: 38 % to the view
+        for name in ("Setup", "Joints"):
+            w.select_tab(name)
+            pump(qapp, 0.3)
+            sa = w.tabs.currentWidget()
+            assert sa.horizontalScrollBar().maximum() == 0, (name, sa.widget().size(),
+                                                              sa.viewport().size())
+            assert sa.widget().minimumSizeHint().width() <= sa.viewport().width(), name
+    finally:
+        w.close()
+
+
 def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
     """SDL (pygame) would take SIGTERM for itself; the console must still
     close on it, through the window's own close path."""
