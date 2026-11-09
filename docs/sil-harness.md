@@ -284,6 +284,10 @@ bench/run mode) and the armed loop's fall guard.
 - **No pick-up home.** The bench guard's recovery (upright and still for
   2 s, then a slow home) waits for someone to lift the robot; nobody lifts
   the plant. Stdin `reset` re-rolls the episode standing.
+- **A home ends released.** A reset-servos request (`FLAG_HOME`) benches
+  the loop and releases torque, as the robot's `home` does after its
+  readback; the twin has no bench half to slew the joints to the stand
+  first, so the plant goes limp where it is.
 - With `--hang` the torso is welded upright and the guard never trips.
 
 `test_sil_twin.py` pins the limits against the header, the debounce, the

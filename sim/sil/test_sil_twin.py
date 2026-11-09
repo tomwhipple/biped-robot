@@ -235,3 +235,38 @@ def test_a_toppled_plant_trips_the_guard_through_the_obs_frame(cfg):
             break
     assert first_below is not None, "the toppled torso never read past 45 deg"
     assert tripped == first_below + g.debounce_ms // DT_MS
+
+
+# =====================================================================
+#  mirror mode: the robot's reported tilt reaches the drawn torso
+# =====================================================================
+@pytest.mark.parametrize("xml", ["bimo_biped_v6legs.xml",
+                                 "bimo_biped_v6legs_meas_sole.xml",
+                                 "bimo_biped_v6ar.xml"])
+def test_the_free_plant_root_is_found_and_takes_the_reported_tilt(xml):
+    """The generator writes a bare <freejoint/> (no name), so the twin finds
+    the torso's free joint by type. Posed from a reported up vector, the
+    drawn torso's own z axis must BE that vector -- the mirror/--viewer
+    mannequin tilts as the robot does."""
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(os.path.join(SIM, xml))
+    d = mujoco.MjData(m)
+    adr = sil_twin.root_qposadr(m)
+    free = [j for j in range(m.njnt)
+            if m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE]
+    assert len(free) == 1 and adr == int(m.jnt_qposadr[free[0]])
+    torso = int(m.jnt_bodyid[free[0]])
+    for up in (_up(30.0), (math.sin(math.radians(20)), 0.0,
+                           math.cos(math.radians(20))), UPRIGHT):
+        d.qpos[adr + 3:adr + 7] = sil_twin.up_to_quat(up)
+        mujoco.mj_forward(m, d)
+        z = d.xmat[torso].reshape(3, 3)[:, 2]
+        assert np.allclose(z, up, atol=1e-9), (xml, up, z)
+
+
+def test_the_hung_plant_has_no_root_pose_to_set():
+    """--hang welds the torso to the world: the twin draws joints only."""
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(
+        os.path.join(SIM, "bimo_biped_v6legs_hang.xml"))
+    assert sil_twin.root_qposadr(m) == -1
