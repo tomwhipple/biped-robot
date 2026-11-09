@@ -62,6 +62,8 @@ void poseTick(Sink out);
 void fallTick(Sink out);
 // STS3215 RAM response config (regs 85/81): re-applied when a benched check finds it reset.
 void servoRamTick(Sink out);
+// Benched pack voltage into the beacon (shared.h g_telemetry.vbat_mv), 1 Hz, idle bus only.
+void benchVbatTick();
 // Flail guard + operator stop, bench half (cli.cpp flailTickImpl): every
 // housekeeping tick, right after fallTick. Takes over an armed-loop HOLD
 // (shared.h g_armed_holds) and homes it once upright and still; stops bench
