@@ -12,6 +12,11 @@ the test stand, for eyeballing sim-vs-bench with the SAME console inputs
 (2026-08-30: the bench gait resembled nothing; the question is whether the
 sim twin, hanging, does the same thing for the same reasons).
 
+Armed, the twin runs the robot's fall guard (fallguard::kPolicyLimits, read
+from the firmware header): torso past 45 deg for 200 ms ends the run, torque
+off, benched with DISARMED_FALL -- what operators rehearse against is what
+the robot does. Re-arm with a fresh ARM edge; stdin `reset` stands it up.
+
 Live view: --stream-port serves MJPEG on 0.0.0.0 (http://mira:<port>/) so
 the rendered sim is watchable next to the physical robot. --record writes
 the same frames to an mp4 on exit (hw_sessions/... is the natural home).
@@ -69,6 +74,77 @@ def _deployed_run():
 
 DEFAULT_RUN = _deployed_run()
 HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+
+
+# -- the armed loop's fall guard ---------------------------------------------
+# The robot's armed loop ends a run when the torso is down (ctrl_task.cpp,
+# components/fallguard): fallguard::kPolicyLimits, up_z below cos 45 deg
+# continuously for 200 ms. The numbers are read out of the firmware header,
+# the way obs_spec.h's are, so the twin cannot drift from the robot.
+FALLGUARD_H = os.path.join(ROOT, "firmware", "components", "fallguard",
+                           "include", "fallguard", "fallguard.h")
+
+
+def fallguard_limits(path=FALLGUARD_H):
+    """(fall_up_z, debounce_ms) of fallguard::kPolicyLimits."""
+    try:
+        txt = open(path).read()
+    except OSError:
+        txt = ""
+    m = re.search(r"kPolicyLimits\s*=\s*\{\s*([-\d.eE+]+)f?\s*,\s*(\d+)u?\s*\}",
+                  txt)
+    if m is None:
+        raise SystemExit(f"no fallguard::kPolicyLimits in {path}")
+    return float(m.group(1)), int(m.group(2))
+
+
+class FallGuard:
+    """fallguard::Detector's fall half under Motion::kPolicy, sample for sample.
+
+    up_z below the limit continuously for the debounce latches it, once; an
+    invalid (non-finite) sample breaks the run without deciding anything. The
+    latch clears only on a fresh arm (clear()), as ctrl_task's handover does.
+    The pick-up half is the bench Detector's and has no twin analogue: nobody
+    lifts a simulated robot (stdin `reset` stands it back up)."""
+
+    def __init__(self, limits=None):
+        self.fall_up_z, self.debounce_ms = limits or fallguard_limits()
+        self.clear()
+
+    def clear(self):
+        self.fallen = False
+        self.tilt_deg = 0.0
+        self._since = None
+
+    def update(self, up, gyro, now_ms) -> bool:
+        """One attitude sample; True on the sample the latch trips."""
+        if self.fallen:
+            return False
+        up = np.asarray(up, dtype=np.float64)
+        if not (np.all(np.isfinite(up)) and
+                np.all(np.isfinite(np.asarray(gyro, dtype=np.float64)))):
+            self._since = None
+            return False
+        if not up[2] < self.fall_up_z:
+            self._since = None
+            return False
+        if self._since is None:
+            self._since = now_ms
+        if now_ms - self._since < self.debounce_ms:
+            return False
+        self.fallen = True
+        self.tilt_deg = float(np.degrees(np.arccos(np.clip(up[2], -1.0, 1.0))))
+        self._since = None
+        return True
+
+    def tick(self, sup, up, gyro, now_ms) -> bool:
+        """ctrl_task's fall check for one tick of an ARMED loop: a trip ends
+        the run (Supervisor.fell: benched, torque off, DISARMED_FALL).
+        Benched, nothing is checked. True on the trip tick."""
+        if sup.armed and self.update(up, gyro, now_ms):
+            sup.fell()
+            return True
+        return False
 
 
 # -- MJPEG live view --------------------------------------------------------
@@ -265,6 +341,7 @@ def run(args):
         return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
 
     dog = Supervisor(armed=args.boot_armed)
+    fall = FallGuard()
     stream = Mjpeg(args.stream_port) if args.stream_port else None
     frames = []
     peer = None
@@ -396,17 +473,31 @@ def run(args):
                     time.sleep(slack)
                 continue
 
+            # Firmware run-entry: fresh history, fresh clock, fresh fall latch
+            # (ctrl_task's bench handover). Mirror it on the arm edge.
+            if dog.armed and not was_armed:
+                act.begin_episode()
+                fall.clear()
+            # The armed loop's fall guard, on the attitude this tick senses
+            # (the obs frame's up and gyro: what the firmware stack is fed),
+            # in sim time so the debounce is the plant's 200 ms whatever the
+            # wall clock does. A trip benches the loop before anything acts:
+            # torque goes off on this very tick and the beacon says BENCH with
+            # DISARMED_FALL, as the robot's does.
+            f = act.split_obs(obs)
+            if fall.tick(dog, f["up"], f["gyro"],
+                         int(round(i * dt * 1000.0))):
+                print(f"  [{now_ms / 1000:6.2f}s] FALL: tilt "
+                      f"{fall.tilt_deg:.0f} deg (up_z < {fall.fall_up_z:g} "
+                      f"for {fall.debounce_ms} ms) -> torque off, run over, "
+                      f"benched; re-arm with a fresh ARM edge", flush=True)
+            was_armed = dog.armed
+
             state = dog.state(now_ms)
             if state is not last_state:
                 print(f"  [{now_ms / 1000:6.2f}s] link -> {state.value}",
                       flush=True)
                 last_state = state
-
-            # Firmware run-entry: fresh history, fresh clock (ctrl_task's
-            # bench handover). Mirror it on the arm edge.
-            if dog.armed and not was_armed:
-                act.begin_episode()
-            was_armed = dog.armed
 
             # Full 7-wide ext_cmd off the link (vx, vy, wz, crouch, lift,
             # foot_dx, foot_dz) -- extended frames drive the foot-target
