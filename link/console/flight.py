@@ -70,7 +70,7 @@ FLAIL_HOLDS = {1: "torque held", 0: "already limp", 2: "autohome started"}
 TICK_COLS = ("source", "flags", "link_state", "tick", "work_us", "fb_off_us",
              "fb_read_us", "imu_age_us", "ax", "ay", "az", "gx", "gy", "gz",
              "upx", "upy", "upz", "roll", "pitch", "phase", "vbat_mv", "batt",
-             "home_stage", "bal_state", *(f"cmd{i}" for i in range(F.NUM_CMD)))
+             "home_stage", "bal_state", *(f"cmd{i}" for i in range(F.NUM_CMD)), "pack_mv")
 TC = {n: i for i, n in enumerate(TICK_COLS)}
 JOINT_COLS = ("nominal", "goal", "pos", "speed", "load", "current", "voltage_dv",
               "temp_c", "status", "flags", "moving", "goal_speed")
@@ -82,6 +82,24 @@ _FB_COLS = [JC[k] for k in ("pos", "speed", "load", "current", "voltage_dv", "te
 _NO_SIM_COLS = [JC[k] for k in ("load", "current", "voltage_dv", "temp_c", "status",
                                 "moving")]
 SIM_FW_PREFIX = "sil_twin"     # the twin's HELLO fw: "sil_twin <run>" (sim/sil_twin.py)
+
+
+def pack_mv(p: dict, simulated: bool) -> int:
+    """A TICK's pack voltage in mV, 0 = none (#245).
+
+    A ctrl tick's vbat_mv is the pack read off the servos that tick. A robot
+    BENCH tick's is not a reading: the firmware fills it from the beacon's
+    value, which only the armed loop updates (ctrl_task.cpp publish), so it
+    is the last armed tick's pack, or 0 since boot. Its own SYNC READ has
+    the pack though -- the first servo that answered, the ctrl loop's own
+    rule -- so a bench tick uses that. The sim twin's vbat_mv is the plant's
+    supply on every tick (sim/sil_twin_wire.py tick_body), armed or not."""
+    if simulated or p["source"] == F.SRC_CTRL:
+        return int(p["ctrl"]["vbat_mv"])
+    for j in p["joints"]:
+        if j["flags"] & F.JF_FB_OK and j["voltage_dv"]:
+            return int(j["voltage_dv"]) * 100
+    return 0
 
 
 def status_text(status: int) -> str:
@@ -359,7 +377,7 @@ class _Source:
         row = (p["source"], p["flags"], p["link_state"], p["tick"], p["work_us"],
                p["fb_off_us"], p["fb_read_us"], p["imu_age_us"], *p["accel"], *p["gyro"],
                *p["up"], p["roll"], p["pitch"], c["phase"], c["vbat_mv"], c["batt"],
-               c["home_stage"], p["bal"]["state"], *c["cmd"])
+               c["home_stage"], p["bal"]["state"], *c["cmd"], pack_mv(p, self.simulated))
         jrow = np.full((NJ, len(JOINT_COLS)), np.nan, dtype=np.float32)
         read_ran = bool(p["flags"] & F.TF_FB_READ)
         for j in p["joints"]:
@@ -642,7 +660,7 @@ class FlightStore:
         until the source's HELLO has given the calibration.
         Tick fields: work_ms, fb_read_ms, imu_age_ms, tilt_deg (from the up
         vector), gyro (|ω| rad/s), gyro_x/y/z, roll_deg, pitch_deg, vbat (V,
-        ctrl ticks only), phase, link_state, source, flags, cmd.<vx|vy|wz|
+        every tick that has a pack reading: pack_mv()), phase, link_state, source, flags, cmd.<vx|vy|wz|
         crouch|lift|foot_dx|foot_dz>.
         "holes": sequence holes per 1 s bin (host arrival time)."""
         s = self.src[source]
@@ -679,8 +697,8 @@ class FlightStore:
             elif name in ("roll_deg", "pitch_deg"):
                 v = np.degrees(tk[:, TC[name[:-4]]])
             elif name == "vbat":
-                v = tk[:, TC["vbat_mv"]] / 1000.0
-                v[(tk[:, TC["source"]] != F.SRC_CTRL) | (v <= 0)] = nan
+                v = tk[:, TC["pack_mv"]] / 1000.0
+                v[v <= 0] = nan
             elif name.startswith("cmd."):
                 v = tk[:, TC[f"cmd{CMD_NAMES.index(name[4:])}"]].copy()
                 v[tk[:, TC["source"]] != F.SRC_CTRL] = nan

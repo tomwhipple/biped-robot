@@ -49,7 +49,7 @@ def hello(seq, boot=BOOT, fitted=LEG_BUS, cal_ok=1, t_boot_us=0, t_utc_us=0,
 
 def tick(seq, t_boot_us, goal, pos=None, boot=BOOT, source=F.SRC_CTRL, cmd=None,
          fault=(), up=(0.0, 0.0, 1.0), load=200, t_utc_us=0, temp=36, status=None,
-         gyro=(0.01, -0.02, 0.0), vbat_mv=11850, work_us=11000):
+         gyro=(0.01, -0.02, 0.0), vbat_mv=11850, work_us=11000, volt_dv=118):
     """goal/pos: {bus: rad}. A bus in `fault` missed this tick's read: its
     position is the held value passed in pos."""
     pos = goal if pos is None else pos
@@ -58,7 +58,7 @@ def tick(seq, t_boot_us, goal, pos=None, boot=BOOT, source=F.SRC_CTRL, cmd=None,
         fl = JF_ALL & ~(F.JF_FB_OK if b in fault else 0)
         g = rad_to_steps(b, goal[b])
         joints.append(dict(bus=b, flags=fl, status=(status or {}).get(b, 0), temp_c=temp,
-                           voltage_dv=118, moving=1, nominal=g, goal=g, goal_speed=0,
+                           voltage_dv=volt_dv, moving=1, nominal=g, goal=g, goal_speed=0,
                            pos=rad_to_steps(b, pos[b]), speed=12, load=load, current=50))
     t = dict(source=source, flags=F.TF_TORQUE | F.TF_IMU_VALID | F.TF_FB_READ | F.TF_WROTE,
              link_state=0, tick=seq, work_us=work_us, gyro=gyro, up=up,
@@ -374,6 +374,33 @@ def test_sim_records_have_no_servo_feedback(store):
     assert np.isfinite(store.series("robot", "L_knee.pos", 60.0)[1][-1])
     send(store, hello(1), tick(2, 1_000_000, goal), source="sim")
     assert store.simulated("sim") and store.feedback("sim")["L_knee"]["temp_c"] is None
+
+
+def test_vbat_is_continuous_across_bench_and_armed_ticks(store):
+    """#245: the vbat trace had gaps wherever the source was benched. A robot
+    bench tick's vbat_mv is the last armed value (only the armed loop updates
+    it), so the pack comes from that tick's own servo read; the sim's vbat_mv
+    is its plant's supply on every tick."""
+    goal = {b: 0.1 for b in LEG_BUS}
+    pk = [hello(1)]
+    for k in range(30):
+        bench = 10 <= k < 20
+        pk.append(tick(2 + k, 1_000_000 + k * 20_000, goal,
+                       source=F.SRC_BENCH_IDLE if bench else F.SRC_CTRL,
+                       vbat_mv=11850, volt_dv=117 if bench else 118))
+    # a bench tick whose read found nobody: no reading, a gap
+    pk.append(tick(32, 1_600_000, goal, source=F.SRC_BENCH_IDLE, fault=tuple(LEG_BUS)))
+    send(store, *pk)
+    _, v = store.series("robot", "vbat", 60.0)
+    assert len(v) == 31 and np.isfinite(v[:30]).all() and np.isnan(v[30])
+    assert v[5] == pytest.approx(11.85) and v[15] == pytest.approx(11.7)   # bench: its own read
+    sim = [hello(1, fw="sil_twin robot_legs_w16")]
+    for k in range(30):
+        sim.append(tick(2 + k, 1_000_000 + k * 20_000, goal, volt_dv=0, vbat_mv=11100,
+                        source=F.SRC_BENCH_IDLE if k % 3 else F.SRC_CTRL))
+    send(store, *sim, source="sim")
+    _, v = store.series("sim", "vbat", 60.0)
+    assert len(v) == 30 and np.allclose(v, 11.1)
 
 
 def test_decimate_keeps_peaks():
