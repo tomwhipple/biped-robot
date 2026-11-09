@@ -284,12 +284,11 @@ def test_beacon_path_with_no_flight_store(qt):
         assert p.info["measured"]["source"] == "beacon" and p.frozen("measured")
         p.update_from(beacon(q, count=4), 3600.0)
         assert ("attitude not sent" in [r[1] for r in p.legend_rows()])
-        img = None
-        try:
-            img = p.render_now()
-        except Exception as e:      # no GL context
-            pytest.skip(f"no offscreen GL: {e}")
-        assert img is not None and not img.isNull() and p.renders >= 1
+        img = p.render_now()            # the pane guards a renderer it cannot
+        if p._render_error is None:     # build: no GL here to prove pixels with
+            assert img is not None and not img.isNull() and p.renders >= 1
+        else:
+            assert img is None          # latched, said in the pane
     finally:
         p.close_streams()
 
@@ -362,3 +361,40 @@ def test_camera_pip_waits_and_close_stops_every_stream(qt):
     while any(s.state() != "off" for s in streams) and time.monotonic() < end:
         time.sleep(0.05)
     assert all(s.state() == "off" for s in streams)
+
+
+def test_a_renderer_that_cannot_be_built_is_not_an_exception(qt, monkeypatch):
+    """A GL context the box cannot give (headless, MUJOCO_GL=disabled, a
+    driver with no offscreen context) breaks the 3D picture alone: the pane
+    latches the failure once, paints why instead of the robot, and never
+    raises into the GUI loop -- #241's pane-fit test must survive a suite
+    run where sibling tests disabled MUJOCO_GL first."""
+    import mujoco
+
+    calls = []
+
+    def broken(*a, **k):
+        calls.append(1)
+        raise mujoco.FatalError("gladLoadGL error")     # headless glfw; or an
+        # AttributeError raised inside mujoco when a sibling test set
+        # MUJOCO_GL=disabled before the pane was built
+
+    monkeypatch.setattr(pose3d, "Renderer", broken)     # first: pane_for renders
+    p = pane_for(qt, Flight())                          # eagerly (processEvents)
+    try:
+        assert calls and p._render_error == "FatalError: gladLoadGL error"
+        n = len(calls)
+        p.update_from(None, 1000.0)             # a new sample: it wants a render
+        img = p.render_now()                    # the pane's own entry point
+        assert img is None
+        assert len(calls) == n                  # latched: no second attempt
+        assert p.render_now() is None and len(calls) == n
+        assert p.renders >= n
+        painted = p.grab()                      # the message paints; nothing raised
+        assert not painted.isNull()
+        pix = painted.toImage()
+        colors = {pix.pixelColor(x, y).name() for x in range(0, 700, 7)
+                  for y in range(0, 600, 7)}
+        assert len(colors) > 1                  # text on the sky: it is not a void
+    finally:
+        p.close_streams()

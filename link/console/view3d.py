@@ -12,6 +12,10 @@ commanded and sim poses as ghosts, the bench cameras and the sim's own render.
   * Cameras (tools/cam_relay.py) and the sim render (sil_twin's MJPEG) are
     shown beside the model -- picture-in-picture, split, or alone -- and
     never composited under it: no camera here is registered to the plant.
+  * The 3D picture only: a renderer that cannot be built (no display / GL
+    context on a headless box, MUJOCO_GL=disabled) is latched once and
+    drawn as a message -- it never raises into the GUI loop, the streams
+    still show.
 
 The 3D picture is rendered offscreen into a QImage only when what it shows
 changed (a new sample, a camera move, a toggle, a resize), at most once per
@@ -178,6 +182,7 @@ class ViewPane(QtWidgets.QWidget):
         self._beacon = None                 # (q, up, sample time ms, tlm_count)
         self._rate = {"robot": [None, 0.0], "sim": [None, 0.0]}
         self._renderer = None
+        self._render_error = None           # a renderer that cannot be built (no GL)
         self._img = None
         self._img_key = None
         self._want = False
@@ -212,6 +217,11 @@ class ViewPane(QtWidgets.QWidget):
         self.cam_pick.currentTextChanged.connect(lambda _t: self._toggled())
         self.lay_group, lay_lay = _segmented(["PiP", "split"])
         self.lay_group.idClicked.connect(lambda i: self.set_split(i == 1))
+        # The pickers yield when the pane is squeezed (#241): the split keeps
+        # its designed 38 % on any font size -- an item list's popup keeps its
+        # width, so nothing is out of reach when the line shrinks.
+        self.cam_pick.setMinimumWidth(60)
+        self.preset.setMinimumWidth(60)
         row1 = hbox(src_lay, 18, self.show_cmd, self.show_sim, self.show_pip, "stretch",
                     spacing=12)
         row2 = hbox(lab("camera", DIM), self.cam_pick, lay_lay, "stretch", self.preset,
@@ -494,6 +504,8 @@ class ViewPane(QtWidgets.QWidget):
         size = self._rects_key()
         if size is None:
             return None
+        if self._render_error is not None:
+            return None
         r = self._renderer
         if r is not None and (r.width, r.height) != size:
             if self._img is None:
@@ -502,7 +514,20 @@ class ViewPane(QtWidgets.QWidget):
             elif not self._rebuild_timer.isActive():
                 self._rebuild_timer.start()          # mid-resize: scale the old one
         if r is None:
-            r = self._renderer = pose3d.Renderer(self.model, *size)
+            try:
+                r = self._renderer = pose3d.Renderer(self.model, *size)
+            except Exception as e:
+                # No GL context (headless box, MUJOCO_GL=disabled, a driver that
+                # will not make an offscreen context): one latch, a message in
+                # the pane, never an exception into the GUI loop -- the streams
+                # and the other tabs still work. Same deal as a bad --plant.
+                self._render_error = f"{type(e).__name__}: {e}"
+                self._img = None
+                self._img_key = None
+                self._last_render = time.monotonic()
+                self.renders += 1
+                self.canvas.update()
+                return None
         cam = pose3d.camera(self.model.look_z, self.cam["az"], self.cam["el"], self.cam["dist"],
                             (self.cam["ox"], self.cam["oy"], self.cam["oz"]))
         frame = r.render(self.meas, self.ghosts, cam, self.selected())
@@ -543,10 +568,26 @@ class ViewPane(QtWidgets.QWidget):
         p.fillRect(QtCore.QRectF(0, 0, w, h), QtGui.QColor("#0b0d10"))
         r3d, rc = self.rects(w, h)
         if r3d is not None:
-            self._paint_3d(p, r3d)
+            if self._render_error is None:
+                self._paint_3d(p, r3d)
+            else:
+                self._paint_render_error(p, r3d)
         if rc is not None:
             key = SIM_KEY if self.source == "sim" else self.cam_name
             self._paint_stream(p, rc, key)
+
+    def _paint_render_error(self, p, r):
+        """The 3D picture alone is unbuildable (no GL context): say so, red,
+        in the rect the robot would fill -- the streams beside it still paint."""
+        p.save()
+        p.setClipRect(r)
+        p.fillRect(r, QtGui.QColor(SKY))
+        p.setPen(QtGui.QColor(RED))
+        p.setFont(QtGui.QFont(MONO, 11))
+        p.drawText(r.adjusted(16, 16, -16, -16), int(QtCore.Qt.TextFlag.TextWordWrap),
+                   f"3D render unavailable: {self._render_error}\n"
+                   "the streams (camera, sim render) still show")
+        p.restore()
 
     def _paint_3d(self, p, r):
         p.save()
