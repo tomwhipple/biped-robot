@@ -292,6 +292,8 @@ class JointsTab(QtWidgets.QWidget):
         e.setLabel("left", "err°", color=DIM)
         ld.setLabel("left", "load %", color=DIM)
         ld.setLabel("bottom", "s (robot time)", color=DIM)
+        for pi in self.d_plots:
+            self._axis_shown(pi, False)       # until the first data
         self.detail = group("DETAIL", vbox(self.gl))
         self.detail.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
                                   QtWidgets.QSizePolicy.Policy.Fixed)
@@ -494,6 +496,8 @@ class JointsTab(QtWidgets.QWidget):
             self.detail.setTitle(f"DETAIL   {name} · not fitted · click any cell")
             for c in (self.d_goal, self.d_meas, self.d_sim, self.d_err, self.d_load):
                 c.setData([], [])
+            for pi in self.d_plots:
+                self._axis_shown(pi, False)
             return
         self.detail.setTitle(f"DETAIL   {name} · {gtxt} / measured · error (meas − {gtxt}) · "
                              f"load · click any cell · highlighted in the 3D view")
@@ -513,9 +517,17 @@ class JointsTab(QtWidgets.QWidget):
                              (self.d_yr[2], (np.where(d["ok"], d["load"], np.nan),), 5.0)):
             vals = [v[np.isfinite(v)] for v in arrs]
             vals = [v for v in vals if len(v)]
+            self._axis_shown(yr.pi, bool(vals))
             if vals:
                 yr.fit(min(float(v.min()) for v in vals), max(float(v.max()) for v in vals), mp)
 
+    @staticmethod
+    def _axis_shown(pi, shown: bool) -> None:
+        """A plot's y-axis ticks and label only once it has data: the empty
+        axis is a crowd of overlapping labels in a 70 pt plot."""
+        ax = pi.getAxis("left")
+        ax.setStyle(showValues=shown)
+        ax.showLabel(shown)
 
     def _fill_table(self, rows, fitted, fs, have) -> None:
         k = 180.0 / math.pi if self.deg else 1.0

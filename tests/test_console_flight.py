@@ -432,6 +432,28 @@ def test_joints_tab_draws_cells_faults_and_the_sim_trace(qapp, store):
     tab.close()
 
 
+def test_joints_detail_axes_wait_for_data(qapp, store):
+    """#243: with no data the DETAIL plots' y axes (labels, ticks) are hidden
+    rather than drawn over one another; they come with the data."""
+    from console.tab_joints import JointsTab
+    app = FakeApp(store)
+    tab = JointsTab(app)
+    tab.show()
+    tab.update_from(app.ctl.st, 0.0)
+    qapp.processEvents()
+    for pi in tab.d_plots:
+        ax = pi.getAxis("left")
+        assert not ax.style["showValues"] and not ax.label.isVisible()
+    backfill(store, 10.0)
+    app.selected_joint = "L_knee"
+    tab.update_from(app.ctl.st, 0.0, force=True)
+    qapp.processEvents()
+    for pi in tab.d_plots:
+        ax = pi.getAxis("left")
+        assert ax.style["showValues"] and ax.label.isVisible()
+    tab.close()
+
+
 def test_joints_tab_says_when_there_are_no_records(qapp, store):
     from console.tab_joints import JointsTab
     app = FakeApp(store)
@@ -525,3 +547,4 @@ def test_the_window_receives_records_and_feeds_its_tabs(qapp, tmp_path):
     finally:
         tx.close()
         w.close()
+
