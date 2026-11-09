@@ -61,6 +61,16 @@ def test_status_mirror_matches_the_library():
     assert lib.bimo_api_version() == core.API_VERSION
 
 
+def test_no_beacon_lag_while_benched():
+    """#237: benched, seq_echo is the diagnostic byte; the lag is not shown
+    (Link::lag() gives 0 there, test_client.cpp)."""
+    st = core.Status()
+    st.state, st.lag = core.BENCH, 0
+    assert core.lag_text(st) == "lag —" and core.lag_text(st, 3) == "lag   —"
+    st.state, st.lag = core.LIVE, 3
+    assert core.lag_text(st) == "lag 3" and core.lag_text(st, 3) == "lag   3"
+
+
 def test_an_observer_sends_only_stop_frames(robot, tmp_path):
     c = make(robot.getsockname()[1], tmp_path=tmp_path)
     assert c.readonly is True                     # the default role

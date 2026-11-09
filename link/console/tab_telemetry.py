@@ -26,6 +26,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6 import QtCore, QtWidgets
 
+from .core import lag_text
 from .flight import decimate, status_text
 from .tab_drive import History
 from .tab_joints import ORDER
@@ -256,7 +257,7 @@ class TelemetryTab(QtWidgets.QWidget):
             elif st.link_lost:
                 vals["beacon"] = (f"LINK LOST {st.tlm_age_ms / 1000.0:.1f} s ago", RED)
             else:
-                vals["beacon"] = (f"{st.rate_hz:.1f} Hz · lag {st.lag} · bad {st.tlm_bad} · "
+                vals["beacon"] = (f"{st.rate_hz:.1f} Hz · {lag_text(st)} · bad {st.tlm_bad} · "
                                   f"age {st.tlm_age_ms:.0f} ms", BRIGHT)
         for key, src in (("flight recorder", "robot"), ("sim records", "sim")):
             if fs is None:

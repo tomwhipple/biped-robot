@@ -1026,7 +1026,7 @@ void drawHeader(App& a, double now_ms) {
         // Ages and counters are clamped to their field, so a long session or a
         // stalled beacon cannot widen the line either.
         const double age = a.link.tlmAgeMs(now_ms);
-        const long lag = a.link.tlm.state == LinkState::kBench ? 0 : a.link.lag();
+        const long lag = a.link.lag();     // 0 in BENCH (Link::lag)
         if (a.link.readonly) {
             // seq and lag both measure OUR frames against the robot's echo.
             // A watcher has sent none, so lag would be a large negative

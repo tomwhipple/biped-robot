@@ -201,6 +201,20 @@ void test_arm_sync_ignores_a_dead_link() {
     CHECK(in.armed);
 }
 
+// Benched, seq_echo carries the diagnostic byte, not an echo: a lag computed
+// from it is a large, growing number that means nothing (#237).
+void test_lag_is_zero_while_benched() {
+    Link link;
+    link.have_tlm = true;
+    link.seq = 1000;
+    link.tlm.state = LinkState::kBench;
+    link.tlm.seq_echo = 66;                   // the diag byte
+    CHECK_EQ(link.lag(), 0L);
+    link.tlm.state = LinkState::kLive;
+    link.tlm.seq_echo = 996;
+    CHECK_EQ(link.lag(), 3L);                 // seq - 1 - echo
+}
+
 // -- reset the servos -------------------------------------------------------
 // The point of the request is that it survives the states in which every
 // other channel on this wire correctly refuses to move anything.
@@ -1257,6 +1271,7 @@ int main() {
     test_extras_alone_set_enable();
     test_arm_sync_gives_up_and_quotes_the_robot();
     test_arm_sync_ignores_a_dead_link();
+    test_lag_is_zero_while_benched();
     test_home_is_sent_disarmed_and_estopped();
     test_home_level_is_held_then_released();
     test_home_without_an_answer_says_so();

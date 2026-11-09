@@ -18,6 +18,7 @@ import time
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from . import core
+from .core import lag_text
 from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, RED, STATE_COLOUR, btn, hbox,
                  lab, restyle, vbox)
 
@@ -204,7 +205,7 @@ class SafetyBar(QtWidgets.QFrame):
         else:
             rx = (f"{d}←</span> :{o.tlm_port} beacon&nbsp;{_nb(f'{st.tlm_age_ms:4.0f} ms')}"
                   f"&nbsp;&nbsp;{_nb(f'{st.rate_hz:4.1f} Hz')}&nbsp;&nbsp;"
-                  f"{_nb(f'lag {st.lag:3d}')}&nbsp;&nbsp;{_nb(f'bad {st.tlm_bad:3d}')}")
+                  f"{_nb(lag_text(st, 3))}&nbsp;&nbsp;{_nb(f'bad {st.tlm_bad:3d}')}")
         parts = [tx, rx, app.flight_line()]
         if st.watch_on:
             parts.append(f"{d}relay</span>&nbsp;{st.watched}")

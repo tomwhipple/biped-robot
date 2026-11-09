@@ -211,6 +211,8 @@ struct Link {
     void poll(double now_ms);
     double tlmAgeMs(double now_ms) const;
     bool linkLost(double now_ms) const;
+    // Our seq minus the robot's echo; 0 while the beacon says BENCH (its
+    // seq_echo is then the diagnostic byte).
     long lag() const;
 };
 

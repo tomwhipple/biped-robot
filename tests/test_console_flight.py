@@ -546,6 +546,12 @@ def test_telemetry_tab_charts_and_tables(qapp, store):
     link = {tab.link.item(r, 0).text(): tab.link.item(r, 1).text()
             for r in range(tab.link.rowCount())}
     assert link["commands sent"].startswith("observer")
+    assert "lag 0" in link["beacon"]                     # LIVE (state 0)
+    from console import core
+    app.ctl.st.state = core.BENCH                        # #237: seq_echo is the diag
+    tab.update_from(app.ctl.st, 1000_100.0)
+    assert "lag —" in tab.link.item(tab.link_rows.index("beacon"), 1).text()
+    app.ctl.st.state = core.LIVE
     assert "worst tick 13.4 ms" in link["loop"] and "overruns" in link["loop"]
     assert "read 3.4" in link["ctrl tick (last)"]
     assert tab.obs.isVisibleTo(tab)

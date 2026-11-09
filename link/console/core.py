@@ -206,6 +206,15 @@ def diag_arm_result(diag: int) -> int:
     return library().bimo_diag_arm_result(diag)
 
 
+def lag_text(st, width: int = 0) -> str:
+    """The beacon lag for a label: "lag —" while the robot reports BENCH,
+    when seq_echo carries the diagnostic byte and there is no lag (#237;
+    Link::lag() gives 0 there)."""
+    if st.state == BENCH:
+        return "lag " + "—".rjust(width)
+    return f"lag {st.lag:{width}d}" if width else f"lag {st.lag}"
+
+
 def fault_ids(servo_err: int) -> str:
     buf = ctypes.create_string_buffer(128)
     return _s(library().bimo_fault_ids(servo_err & 0xFFFFFFFF, buf, len(buf)))

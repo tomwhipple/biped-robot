@@ -361,6 +361,11 @@ bool Link::linkLost(double now_ms) const {
 }
 
 long Link::lag() const {
+    // Benched, seq_echo carries the diagnostic byte (protocol.h kDiag*), not
+    // an echo of our sequence: there is no lag to measure, and seq minus the
+    // diag would be a large, growing number that means nothing. 0 for every
+    // client; a front end that can draw "none" checks the state itself.
+    if (tlm.state == LinkState::kBench) return 0;
     return static_cast<long>(seq) - 1 - static_cast<long>(tlm.seq_echo);
 }
 
