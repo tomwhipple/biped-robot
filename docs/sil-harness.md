@@ -260,6 +260,37 @@ Numbered because code cites them.
    soft, so a joint leaning on its stop sits past it, and the sensor path
    (`angle_to_steps(..., clamp_joint_range=False)`) must pass that through.
 
+## The twin behind the link
+
+`sim/sil_twin.py` puts `libctrl_sil` and the CPU plant behind the real UDP
+link ([control-channel.md](control-channel.md), "Simulated robots behind the
+link"), so a console drives the control law the robot runs. Around the
+library it composes, in Python, what `ctrl_task.cpp` does outside the
+control law: the link's `protocol.Supervisor` (arm latch, watchdog,
+bench/run mode) and the armed loop's fall guard.
+
+- **The fall guard is the robot's.** `sil_twin.FallGuard` is
+  `fallguard::Detector`'s fall half under `Motion::kPolicy`, with
+  `kPolicyLimits` read out of `fallguard.h`: `up_z` below cos 45 deg
+  continuously for 200 ms. It reads the obs frame's up vector and gyro, the
+  attitude the firmware stack is fed, once per armed tick in sim time; a
+  non-finite sample breaks the run and decides nothing.
+- **A trip ends the run on that tick**, as on the robot: torque off,
+  benched, `DISARMED_FALL` recorded (`Supervisor.fell`). The beacon says
+  `BENCH` with that reason in the diagnostic byte, which is how the robot's
+  beacon reports a fall. The commander's held `ARM` level re-arms nothing; a
+  fresh `ARM` edge does, and clears the latch, so a plant still lying down
+  trips again 200 ms later.
+- **No pick-up home.** The bench guard's recovery (upright and still for
+  2 s, then a slow home) waits for someone to lift the robot; nobody lifts
+  the plant. Stdin `reset` re-rolls the episode standing.
+- With `--hang` the torso is welded upright and the guard never trips.
+
+`test_sil_twin.py` pins the limits against the header, the debounce, the
+composition with the `Supervisor`, and, on the deployed run's plant, that a
+toppled torso trips the guard through the obs frame exactly one debounce
+after it first reads past the line.
+
 ## Non-goals
 
 UART framing and CRC in the loop (`linkproto` has its own golden tests);
@@ -287,9 +318,10 @@ deployed one (`robot_legs_walk16_act_s128r24` on `bimo_biped_v6legs.xml`):
   local artifact.
 
 `pytest sim/sil` is a hard gate in the pre-push hook, after the host build
-that produces the library. On the deployed run it is 35 passed in ~15 s,
-closed loop included (python vs SIL: `stand_10s` 8/8 vs 8/8, `line_1m` 1/8 vs
-1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 16 passed and 19 skipped.
+that produces the library. On the deployed run it is 51 passed and 2
+skipped in ~45 s on mira, closed loop included (python vs SIL: `stand_10s`
+8/8 vs 8/8, `line_1m` 1/8 vs 1/8, `goal_home` 0/8 vs 0/8); on a clean clone,
+29 passed and 24 skipped.
 
 Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
 command is set: with the deployed spec's speed clock and stand freeze, the

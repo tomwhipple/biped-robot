@@ -137,7 +137,7 @@ argument, so link loss is tested exactly rather than slept through.
 | `ESTOP` | 3 | the `ESTOP` flag | torque off, latched |
 | `VLAND` | 4 | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
 | `VSAFE` | 5 | 1.5 s after `VLAND` | torque off, latched until `batt reset` or a power cycle |
-| `FALLEN` | 6 | `up_z` < 0.4 for 200 ms | torque off; the run ends and the loop benches |
+| `FALLEN` | 6 | torso past 45 deg (`up_z` < 0.707) for 200 ms, armed | torque off; the run ends and the loop benches |
 | `BENCH` | 7 | boot, an `ARM` 1→0 edge, a fall, a flail-guard trip, an operator `STOP`, a home, or the tethered `bench` | the CLI owns the bus; the link commands nothing |
 
 The first four describe the link. The rest are decided by the robot and
@@ -166,7 +166,9 @@ One line of reason per rule:
   (`components/fallguard`; tighter than the sim's own `fall_up_z` = 0.4,
   66 deg, which stays the training episode end) holding torque only grinds
   the servos against the floor. Nothing re-arms by itself: re-arming is a
-  fresh `ARM` edge or `run`, by someone looking at the robot. Once the robot
+  fresh `ARM` edge or `run`, by someone looking at the robot. The trip
+  benches the loop on the same tick, so on the wire a fall reads as `BENCH`
+  with `DISARMED_FALL` in the diagnostic byte. Once the robot
   is benched, the bench fall guard holds the latch and, when the robot is
   picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
   ends with torque released.
@@ -514,7 +516,11 @@ console can be exercised on a laptop.
   that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
   writes the fed observations in `obsdump` format, and `--plant`,
   `--act-delay-ticks`, `--act-lag-hz`, `--play-deg` load it like the
-  hardware. `--viewer` is [mirror mode](mirror-mode.md).
+  hardware. `--viewer` is [mirror mode](mirror-mode.md). Armed, it runs
+  the robot's fall guard (`fallguard::kPolicyLimits`, read from the
+  header): a fall ends the run, torque off, and benches it with
+  `DISARMED_FALL` ([sil-harness.md](sil-harness.md#the-twin-behind-the-link)).
+  With `--hang` the torso cannot tip, so it never trips.
 
 ```sh
 .venv/bin/python link/link_twin.py                       # plant-free robot

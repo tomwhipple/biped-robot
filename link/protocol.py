@@ -799,6 +799,19 @@ class Supervisor:
             return False
         return self.dog.accept(pkt, now_ms)
 
+    def fell(self) -> None:
+        """The armed loop's fall latch tripped (firmware ctrl_task.cpp,
+        components/fallguard): the run is over. Bench with torque released and
+        DISARMED_FALL recorded, as the firmware does on the trip tick, so the
+        BENCH beacon says why (wifi_link.cpp reports BENCH as soon as the mode
+        request is bench). Re-arming takes a fresh ARM edge: the level the
+        commander still holds makes none. No-op while benched."""
+        if not self.armed:
+            return
+        self.armed = False
+        self.holding = False
+        self.result = ArmResult.DISARMED_FALL
+
     def diag(self) -> int:
         """The bench diagnostic byte the robot would beacon right now.
 
