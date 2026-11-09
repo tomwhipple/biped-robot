@@ -3796,7 +3796,7 @@ void banner(Sink out) {
     out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
         "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
     out("  home [steps/s]       every joint to its calibrated zero (the stand),\r\n");
-    out("                       torque ON and holding -- works after a fall\r\n");
+    out("                       then torque RELEASED (friction holds) -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
     out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");

@@ -1193,8 +1193,8 @@ void drawHeader(App& a, double now_ms) {
                            "asking (%d frames)...", a.in.home_frames);
     } else {
         ImGui::TextDisabled(
-            "all joints -> calibrated zero (the stand), slowly, torque ON. "
-            "Benches the loop; no arm needed.");
+            "all joints -> calibrated zero (the stand), slowly, then torque "
+            "RELEASED. Benches the loop; no arm needed.");
     }
 
     // The robot's own answer to "why is nothing happening?", drawn whenever
