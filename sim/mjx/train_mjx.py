@@ -1199,8 +1199,39 @@ def build_env_kw(args):
     return env_kw
 
 
+def hold_warp_mempool(impl):
+    """MuJoCo Warp allocates its contact scratch (wp.empty in
+    convex_narrowphase, ~99 MB per call) from a CUDA mempool whose release
+    threshold defaults to 0: freed memory goes back to the driver at every
+    sync. ollama (Honcho's deriver, qwen2.5 on the same GPU) loads into that
+    gap mid-run, and the next Warp step dies with CUDA OOM.
+    robot_legs_prec28 hit this twice on 2026-11-09 at the 15th eval, both
+    times a few minutes after an ollama runner started. Keep the pool's high
+    water mark instead (XLA's BFC pool, with PREALLOCATE=false, never
+    shrinks either), so the run keeps the memory it has already shown it
+    needs. BIMO_WARP_MEMPOOL_HOLD=0 turns this off. Returns the threshold set,
+    or None."""
+    if impl != "warp" or os.environ.get("BIMO_WARP_MEMPOOL_HOLD", "1") == "0":
+        return None
+    try:
+        import warp as wp
+        wp.init()
+        dev = wp.get_device("cuda:0")
+        if not dev.is_mempool_supported:
+            return None
+        thr = int(dev.total_memory)
+        wp.set_mempool_release_threshold(dev, thr)
+        print(f"warp mempool release threshold -> {thr / 2**30:.1f} GiB "
+              "(hold, not release)")
+        return thr
+    except Exception as e:   # no CUDA device (CPU tests) or older Warp
+        print(f"warp mempool hold skipped: {e}")
+        return None
+
+
 def main():
     args = make_parser().parse_args()
+    hold_warp_mempool(getattr(args, "mjx_impl", "jax"))
     env_kw = build_env_kw(args)
     env = BimoMJXEnv(**env_kw)
     if env_kw.get("servo_kp_scale") is not None:
