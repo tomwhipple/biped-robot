@@ -434,6 +434,25 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-09 card: night 19 -- the prec line, night 3. Every lever that moved the gait (clearance, speed, yaw,
+# symmetry) cost the x1.5 stand margin; prec24's margin was the draw. Tonight: loop-gain DR as the repair.
+fig_1109 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec26_f075_js20_sh35_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec26_f075_js20_sh35_s128r24_walk_steps',
+                 'prec26, swing-height target 3.5 cm (reference lift still 2 cm): the best clearance so far (median '
+                 '1.6 cm, 12 % of swings >= 3 cm) and the least yaw (+9 deg on five steps), but the x1.5 margin goes (6/6)'),
+    video_figure('robot_legs_prec31_f075_js30_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec31_f075_js30_s128r24_walk_steps',
+                 'prec31, joint-speed cost 0.3: the slowest gait yet (mean knee 72/61 deg/s, 30 % of walk ticks above '
+                 '180 deg/s, prec16 52 %); x1.5 6/8'),
+    video_figure('robot_legs_prec29_f075_js20_crouch_s1_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec29_f075_js20_crouch_s1_s128r24_walk_steps',
+                 'prec29, a second seed of prec24 (the knee-bend channel): 0 falls on every probe again, but the x1.5 '
+                 'margin does not replicate (8/8): prec24 had it by the draw'),
+    video_figure('robot_legs_prec16_f075_js20_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec16_f075_js20_s128r24_walk_steps',
+                 'prec16, the parent, for comparison: x1.5 0/0 (re-graded this morning), median swing 1.2 cm'),
+] if f)
 # 2026-11-08 card: night 18 -- the prec line, night 2. The knee-bend channel keeps 0 falls at crouch 0.9; a
 # mirror loss evens the knees; the speed cap, 0.6 Hz, a 0.4 speed cost, a 3 cm lift and a heading term each lose
 # something; the shuffle is traced to the swing reward's wide kernel.
@@ -1002,6 +1021,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·09 · night 19: the slow gait, night 3</span></p>
+    <p><b>Eight more variations on the 0.75 Hz gait. Every one that changed how it walks cost the stand margin.</b>
+    The x1.5 probe makes the policy's corrections around its own average 1.5x larger while it stands (the robot runs about 1.5x the sim's loop gain). prec16 and prec24 pass it
+    (re-graded this morning, same code), but the
+    higher swing target (prec26), the tighter swing reward (prec25), the 0.3 speed cost (prec31), the gentler heading
+    term (prec30) and the mirror loss on the knee-bend policy (prec28) all fall on it. A second seed of prec24 (prec29)
+    loses it as well, so prec24 had its margin by the draw. Every student still walks with 0 falls on the stride and
+    robot probes and in all six directions (apart from back-walk falls on the one run that kept the margin).</p>
+    <p><b>Gains to keep:</b> a 3.5 cm swing target gives the best clearance and the least yaw so far (median swing
+    1.6 cm, +9 deg over five steps; prec16 1.2 cm, +38 deg). The 0.3 speed cost gives the slowest gait yet (30 % of walk
+    ticks above 180 deg/s; prec16 52 %). Still no policy lifts every step 3 cm.</p>
+    <p><b>Tonight:</b> the trainer already has a loop-gain randomisation that is the x1.5 probe itself. It tests that as a
+    repair on the three policies that lost the margin (clearance, knee bend, speed), with a control on prec16. It also stacks the
+    clearance levers (3.5 cm + tighter reward, 4.5 cm, 3.5 cm on the knee-bend policy) and adds a seed of prec26.
+    <b>Still open for you:</b> does the 3 cm clearance rule hold for the slow gait? The deploy candidate is unchanged
+    (prec16, branch deploy/prec16-f075, not flashed). Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1109}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·08 · night 18: the slow gait, night 2</span></p>
