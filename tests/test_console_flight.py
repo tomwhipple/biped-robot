@@ -548,3 +548,45 @@ def test_the_window_receives_records_and_feeds_its_tabs(qapp, tmp_path):
         tx.close()
         w.close()
 
+
+def _in_pane(qapp, tab, w=869, h=688):
+    """The tab as the 1440 x 900 pt window shows it: in a scroll area the size
+    of its pane at the default split."""
+    from PyQt6 import QtWidgets
+    sa = QtWidgets.QScrollArea()
+    sa.setWidgetResizable(True)
+    sa.setWidget(tab)
+    sa.resize(w + 2, h + 2)
+    sa.show()
+    qapp.processEvents()
+    return sa
+
+
+def test_telemetry_charts_share_the_pane_and_names_fit(qapp, store):
+    """#246, #242: the six strip charts fit the 1440 x 900 pane (no 480 pt rows
+    in a 3000 pt page), the chart column gets the width, the servo table's
+    joint column shows whole names, and the empty state spans the table."""
+    from console.tab_telemetry import TelemetryTab
+    app = FakeApp(store)
+    tab = TelemetryTab(app)
+    sa = _in_pane(qapp, tab)
+    tab.update_from(app.ctl.st, 1000_000.0)
+    qapp.processEvents()
+    assert tab.servos.columnSpan(0, 0) == 7                  # "no flight records" spans
+    assert tab.servos.columnWidth(0) >= tab.servos.horizontalHeader().sectionSizeHint(0)
+    backfill(store, 40.0, sim=False)
+    for k in range(5):
+        tab.update_from(app.ctl.st, 1000_000.0 + k * 66)
+    qapp.processEvents()
+    vp = sa.viewport()
+    assert sa.verticalScrollBar().maximum() <= 40, "all six charts are in the viewport"
+    assert sa.horizontalScrollBar().maximum() == 0
+    for c in tab.charts:
+        assert 80 <= c.plot.height() <= vp.height() // 5
+        assert c.plot.width() >= 330, "the chart column has the width"
+    assert tab.servos.columnSpan(0, 0) == 1
+    fm = tab.servos.fontMetrics()
+    names = [tab.servos.item(r, 0).text() for r in range(tab.servos.rowCount())]
+    need = max(fm.horizontalAdvance(n) for n in names)
+    assert tab.servos.columnWidth(0) >= need + 6, (names, tab.servos.columnWidth(0))
+    sa.close()

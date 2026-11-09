@@ -96,9 +96,8 @@ class TelemetryTab(QtWidgets.QWidget):
         grid = QtWidgets.QGridLayout()
         grid.setVerticalSpacing(3)
         for i, c in enumerate(self.charts):
-            grid.addWidget(wrap(vbox(c.name, c.src, "stretch", spacing=0)), i, 0)
+            grid.addWidget(wrap(vbox(c.name, c.src, c.value, "stretch", spacing=0)), i, 0)
             grid.addWidget(c.plot, i, 1)
-            grid.addWidget(c.value, i, 2)
             if c is not self.c_vbat:
                 c.plot.setXLink(self.c_vbat.plot)
         grid.setColumnStretch(1, 1)
@@ -110,8 +109,9 @@ class TelemetryTab(QtWidgets.QWidget):
         left_lay.setStretchFactor(grid, 1)
         left = group(f"ROBOT   last {WINDOW_S:.0f} s", left_lay)
 
+        # The joint names set the first column; the slack goes to status.
         self.servos = table(["joint", "id", "temp", "load", "current", "volt", "status"], 0,
-                            stretch_col=0)
+                            stretch_col=6)
         self._servo_rows = None
         right_servos = group("SERVOS   flight recorder feedback block, per fitted joint",
                              vbox(self.servos))
@@ -129,7 +129,10 @@ class TelemetryTab(QtWidgets.QWidget):
         self.obs.setWordWrap(True)
         right = vbox(right_servos, group("LINK", vbox(self.link)),
                      group("POWER BOARD", vbox(self.power)), self.obs, "stretch", spacing=10)
-        self.setLayout(hbox(left, right, spacing=12, margins=(12, 12, 12, 12)))
+        lay = hbox(left, right, spacing=12, margins=(12, 12, 12, 12))
+        lay.setStretch(0, 2)          # the 60 s traces get the width, the tables the rest
+        lay.setStretch(1, 1)
+        self.setLayout(lay)
 
     # -- the refresh -----------------------------------------------------------
     def update_from(self, st, now_ms: float) -> None:
@@ -197,6 +200,7 @@ class TelemetryTab(QtWidgets.QWidget):
             self._servo_rows = fitted
             self.servos.setRowCount(max(1, len(fitted)))
             self.servos.setFixedHeight(26 * max(1, len(fitted)) + 34)
+            self.servos.setSpan(0, 0, 1, 1 if fitted else 7)   # the empty-state text spans
             for r, n in enumerate(fitted):
                 set_cell(self.servos, r, 0, n)
         if not fitted:

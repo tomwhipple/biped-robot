@@ -199,6 +199,11 @@ def mkplot(h=None, xr=(-30, 0), yr=None, bottom=True, left_w=38):
     pi.getAxis("left").setWidth(left_w)
     if not bottom:
         pi.hideAxis("bottom")
+    # A PlotWidget's sizeHint is 640 x 480 pt: left to it, a column of plots
+    # makes its tab 480 pt per row and wider than the pane. Take what the
+    # layout gives (with the caller's minimum), not what the plot would like.
+    P = QtWidgets.QSizePolicy.Policy
+    p.setSizePolicy(P.Ignored, P.Ignored)
     if h:
         p.setFixedHeight(h)
     return p
