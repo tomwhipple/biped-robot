@@ -850,7 +850,10 @@ def test_drive_view_starts_on_drive(qapp, tmp_path):
         assert "Bench" in w.tab_widgets
         assert w.tabs.tabText(w.tabs.currentIndex()) == "Drive"
         w.select_tab("Bench")
-        pump(qapp, 0.3)
+        end = time.monotonic() + 2.0
+        while w.ctl.st is None and time.monotonic() < end:   # the tick rate, under
+            pump(qapp, 0.05)            # load: the bridge text needs the first st
+        pump(qapp, 0.1)
         tab = w.tab_widgets["Bench"]
         assert tab.bridge.text() == "no bridge"
         assert tab.panes[0].view.msg == "pick a camera above"
