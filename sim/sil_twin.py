@@ -196,6 +196,65 @@ class Mjpeg:
             self.jpeg = buf.getvalue()
 
 
+def root_qposadr(model):
+    """qpos address of the torso's free joint, or -1 when there is no pose to set.
+
+    The attitude half of a mirrored pose goes here: qpos layout is
+    [x y z qw qx qy qz] at this address. The joint is found BY TYPE -- a free
+    joint whose body hangs off the world -- because the plant generator
+    (sim/build_v6_inertia.py) writes a bare `<freejoint/>` with no name.
+    -1 when the plant has none, or when that body is welded to the world
+    (the --hang plant): its torso has no pose to set, and the joints are
+    the whole picture.
+    """
+    import mujoco
+    for j in range(model.njnt):
+        if model.jnt_type[j] != mujoco.mjtJoint.mjJNT_FREE:
+            continue
+        b = int(model.jnt_bodyid[j])
+        if int(model.body_parentid[b]) != 0:
+            continue
+        welded = any(
+            model.eq_type[e] == mujoco.mjtEq.mjEQ_WELD
+            and model.eq_active0[e]
+            and {int(model.eq_obj1id[e]), int(model.eq_obj2id[e])} == {b, 0}
+            for e in range(model.neq))
+        return -1 if welded else int(model.jnt_qposadr[j])
+    return -1
+
+
+def up_to_quat(up):
+    """Torso orientation from the robot's up vector, as a wxyz quaternion.
+
+    `up` is the torso's own z axis EXPRESSED IN THE WORLD FRAME -- MuJoCo
+    framezaxis, and the same convention the obs frame uses
+    (obs/obs_spec.h kOffUp, filled from imu::Sample::up). So the rotation
+    wanted is the one taking world +Z onto `up`: the shortest such
+    rotation, because that is all the information there is.
+
+    It fixes roll and pitch and leaves yaw at zero, which is honest --
+    this robot has no magnetometer, and the filter's heading is
+    dead-reckoned and drifts. Drawing a mannequin with an invented heading
+    would make a drifting number look like a measurement.
+    """
+    v = np.asarray(up, dtype=np.float64)
+    n = float(np.linalg.norm(v))
+    if not np.isfinite(n) or n < 1e-6:
+        return np.array([1.0, 0.0, 0.0, 0.0])
+    v = v / n
+    z = np.array([0.0, 0.0, 1.0])
+    axis = np.cross(z, v)                 # world +Z -> up, not the reverse
+    sn = float(np.linalg.norm(axis))
+    c = float(np.dot(z, v))
+    if sn < 1e-9:
+        # Parallel or antiparallel: upright, or flat on its back.
+        return (np.array([1.0, 0.0, 0.0, 0.0]) if c > 0
+                else np.array([0.0, 1.0, 0.0, 0.0]))
+    axis = axis / sn
+    ang = float(np.arctan2(sn, c))
+    return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
+
+
 def _local_xml(xml):
     """A run's config.json may store the plant relative to sim/ (or just its
     basename: train_mjx.py on a remote host) -- resolve it against the local
@@ -303,42 +362,8 @@ def run(args):
     _pol_names = json.loads(lib.spec_string())["joint_names"]
     beacon_src = [(_pol_names.index(jn) if jn in _pol_names else -1)
                   for jn in JOINT_NAMES]     # wire index -> policy joint
-    # The torso free joint, for the attitude half of a pose. qpos layout is
-    # [x y z qw qx qy qz] at its address; -1 when the plant is welded (--hang),
-    # where the torso has no pose to set and the joints are the whole picture.
-    _root = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, "root")
-    root_adr = int(env.model.jnt_qposadr[_root]) if _root >= 0 else -1
-
-    def up_to_quat(up):
-        """Torso orientation from the robot's up vector, as a wxyz quaternion.
-
-        `up` is the torso's own z axis EXPRESSED IN THE WORLD FRAME -- MuJoCo
-        framezaxis, and the same convention the obs frame uses
-        (obs/obs_spec.h kOffUp, filled from imu::Sample::up). So the rotation
-        wanted is the one taking world +Z onto `up`: the shortest such
-        rotation, because that is all the information there is.
-
-        It fixes roll and pitch and leaves yaw at zero, which is honest --
-        this robot has no magnetometer, and the filter's heading is
-        dead-reckoned and drifts. Drawing a mannequin with an invented heading
-        would make a drifting number look like a measurement.
-        """
-        v = np.asarray(up, dtype=np.float64)
-        n = float(np.linalg.norm(v))
-        if not np.isfinite(n) or n < 1e-6:
-            return np.array([1.0, 0.0, 0.0, 0.0])
-        v = v / n
-        z = np.array([0.0, 0.0, 1.0])
-        axis = np.cross(z, v)                 # world +Z -> up, not the reverse
-        sn = float(np.linalg.norm(axis))
-        c = float(np.dot(z, v))
-        if sn < 1e-9:
-            # Parallel or antiparallel: upright, or flat on its back.
-            return (np.array([1.0, 0.0, 0.0, 0.0]) if c > 0
-                    else np.array([0.0, 1.0, 0.0, 0.0]))
-        axis = axis / sn
-        ang = float(np.arctan2(sn, c))
-        return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
+    # The torso free joint, for the attitude half of a pose (-1 when --hang).
+    root_adr = root_qposadr(env.model)
 
     dog = Supervisor(armed=args.boot_armed)
     fall = FallGuard()
@@ -347,6 +372,7 @@ def run(args):
     peer = None
     was_armed = args.boot_armed
     last_state = None
+    homes_seen = dog.homes
     t0 = time.monotonic()
     late = 0
     dt = env.control_dt
@@ -492,6 +518,16 @@ def run(args):
                       f"for {fall.debounce_ms} ms) -> torque off, run over, "
                       f"benched; re-arm with a fresh ARM edge", flush=True)
             was_armed = dog.armed
+            # A reset-servos request (FLAG_HOME): the robot benches, slews to
+            # the stand on the bus, reads back, then releases torque (cli.cpp
+            # homeVerify). The twin has no bench half to do the slew, so the
+            # plant goes limp where it is -- torque_on() is False from here.
+            if dog.homes != homes_seen:
+                homes_seen = dog.homes
+                print(f"  [{now_ms / 1000:6.2f}s] home: benched, torque "
+                      f"released (the plant is not re-posed first: it goes "
+                      f"limp where it is; stdin `reset` re-rolls it standing)",
+                      flush=True)
 
             state = dog.state(now_ms)
             if state is not last_state:

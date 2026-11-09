@@ -408,9 +408,10 @@ def test_first_frame_never_homes():
 
 
 def test_home_works_from_the_states_that_refuse_to_move():
-    # E-stopped and armed: the request ends the run, and torque comes back to
-    # HOLD the stand. That is the whole point -- a latched E-stop is exactly
-    # when an operator needs the robot back on its feet.
+    # E-stopped and armed: the request ends the run and homes the joints --
+    # a latched E-stop is exactly when an operator needs the robot back on
+    # its feet. The home then ends with torque RELEASED, as the firmware's
+    # does (cli.cpp homeVerify): gear friction holds the stand.
     sup = Supervisor()
     sup.accept(live(seq=1, flags=0), 0.0)
     sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
@@ -421,7 +422,7 @@ def test_home_works_from_the_states_that_refuse_to_move():
     sup.accept(live(seq=4, flags=FLAG_ARM | FLAG_ESTOP | FLAG_HOME), 3.0)
     assert sup.homes == 1
     assert sup.state(3.0) is LinkState.BENCH        # the run is over ...
-    assert sup.torque_on(3.0)                       # ... but it is HOLDING
+    assert not sup.torque_on(3.0)                   # ... and torque released
     assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_HOME
     assert "standing pose" in diag_reason(sup.diag())
 
@@ -453,10 +454,27 @@ def test_home_needs_no_arm_and_never_arms():
     sup.accept(live(seq=2, flags=FLAG_HOME), 1.0)
     assert sup.homes == 1 and not sup.armed
     assert sup.state(1.0) is LinkState.BENCH
+    assert not sup.torque_on(1.0)                   # a home ends released
     # Arming afterwards is an ordinary edge, and it hands the bus back to the
-    # loop -- the "holding" state belongs to the bench half only.
+    # loop.
     sup.accept(live(seq=3, flags=FLAG_ARM), 2.0)
     assert sup.armed and not sup.holding
+
+
+def test_home_ends_a_soft_stops_hold_released():
+    # A soft operator stop freezes the joints and HOLDS them; a home after it
+    # takes the bus over and, like every home, ends with torque off -- on the
+    # robot the readback is followed by a torque-off broadcast whether it
+    # passed or failed (cli.cpp homeVerify; control-channel.md).
+    sup = Supervisor()
+    sup.accept(live(seq=1, flags=0), 0.0)
+    sup.accept(live(seq=2, flags=FLAG_ARM), 1.0)
+    sup.accept(live(seq=3, flags=P.FLAG_STOP), 2.0)
+    assert sup.state(2.0) is LinkState.BENCH and sup.torque_on(2.0)
+    sup.accept(live(seq=4, flags=FLAG_HOME), 3.0)
+    assert sup.homes == 1 and not sup.torque_on(3.0)
+    assert diag_arm_result(sup.diag()) is ArmResult.DISARMED_HOME
+    assert "torque RELEASED" in diag_reason(sup.diag())
 
 
 def test_supervisor_boots_benched_and_arms_on_an_edge():
