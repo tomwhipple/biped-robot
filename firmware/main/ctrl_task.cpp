@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "fallguard/fallguard.h"
 #include "flailguard/flailguard.h"
+#include "flailguard/heading_hold.h"
 #include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -149,6 +150,9 @@ flailguard::Detector g_flail;
 flailguard::WalkRecovery g_walkrec;
 // ... whose grace window still judges tilt (flailguard.h kGraceLimits).
 flailguard::Detector g_flail_grace(flailguard::kGraceLimits);
+// The IMU heading loop around the walking policy (heading_hold.h): on by default (Tom
+// 2026-11-06: "heading hold seems like something we'd always want"), `heading off` on the tether.
+flailguard::HeadingHold g_heading;
 
 // The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
 // the foot offsets off the plain stand (the same thresholds as the flail
@@ -397,6 +401,7 @@ void ctrlTask(void*) {
             g_flail.reset();
             g_walkrec.reset();
             g_flail_grace.reset();
+            g_heading.reset();
             g_hold_on_bench = false;
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
@@ -635,6 +640,24 @@ void ctrlTask(void*) {
                 if (k < obs::kNumCmd) in.cmd[k] *= keep;
             }
             policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        }
+        // Heading hold (heading_hold.h): while a walk is commanded and no recovery has taken
+        // the command to the stand, steer the fused heading back to where the walk began
+        // (advanced by any commanded turn). The policy sees body rates, never its heading.
+        {
+            const bool walking = walkCmd(in.cmd) && !g_walkrec.standOverride() &&
+                                 g_heading_on.load() && s.valid;
+            g_heading.setGain(g_heading_k.load());
+            const float corr = g_heading.update(flailguard::HeadingHold::yawOf(s.quat), in.cmd[2],
+                                                walking, static_cast<float>(kTickUs) * 1e-6f);
+            if (corr != 0.0f) {
+                float w = in.cmd[2] + corr;
+                if (w > 1.0f) w = 1.0f;          // the trained turn range (cmd_w_range 1.0)
+                if (w < -1.0f) w = -1.0f;
+                in.cmd[2] = w;
+            }
+            g_heading_err.store(g_heading.error());
+            g_heading_corr.store(corr);
         }
         const float vx = in.cmd[0];
         const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
