@@ -9,7 +9,15 @@ Input rules (bimo_gui's, each from a fixed bug):
   * a held key or button is a LEVEL; releasing it stands on the next frame,
     and auto-repeat changes nothing;
   * losing window focus releases everything;
-  * a focused text field gets the keys (typing a host name must not arm);
+  * a focused text field gets the keys (typing a host name must not arm),
+    and the safety bar says so for as long as it has them;
+  * focus enters a text field only when the operator clicks it: a tab
+    change, Tab, or the window coming back never puts it there (#234);
+    Escape or a click anywhere outside the field gives the keys back;
+  * while the robot is LIVE (this console armed, or a fresh LIVE beacon),
+    HOLD and E-STOP fire from their keys even inside a text field;
+  * a key-up always reaches the held-key state, whatever has focus, so a
+    motion key cannot stay held (#235);
   * buttons never take focus (a focused button would eat Space = STAND);
   * window close and quit disarm (Controller.shutdown).
 """
@@ -91,6 +99,7 @@ class Window(QtWidgets.QMainWindow):
         self.mouse_held = [False] * core.NUM_AXES
         self.asked = [False] * core.NUM_AXES     # a press was asked for (maybe refused)
         self.rebind_action = None
+        self._closed = False
         self.message = ""
         self._note = self._status = ""
         self.rec_started = None
@@ -124,6 +133,13 @@ class Window(QtWidgets.QMainWindow):
             self.tabs.addTab(sa, title)
         if self.pad is not None:
             self.pad.install(self)
+        # A text field takes focus from a click only: never from Tab, from a
+        # tab change (QStackedLayout hands focus to the new page's first
+        # Tab-focusable child) or from window activation. eventFilter's
+        # FocusIn guard backs this up for anything that still tries.
+        for f in self.findChildren(QtWidgets.QWidget):
+            if is_text_input(f):
+                f.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus)
         self.split = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal)
         self.split.setHandleWidth(6)
         self.split.addWidget(self.view)
@@ -259,6 +275,8 @@ class Window(QtWidgets.QMainWindow):
         self.mouse_held[axis] = on
 
     def release_everything(self, why: str) -> None:
+        if self._closed:
+            return              # shutdown already disarmed and freed the core
         self.key_held = [False] * core.NUM_AXES
         self.mouse_held = [False] * core.NUM_AXES
         if self.pad is not None:
@@ -328,8 +346,54 @@ class Window(QtWidgets.QMainWindow):
         self.ctl.say_status(f"screenshot -> {path}" if ok else f"screenshot FAILED: {path}")
 
     # -- keyboard and focus --------------------------------------------------
+    def text_focus(self):
+        """The text field that has the keys, or None."""
+        f = QtWidgets.QApplication.focusWidget()
+        return f if is_text_input(f) else None
+
+    def stops_win(self) -> bool:
+        """HOLD and E-STOP fire from their keys even inside a text field
+        while the robot is LIVE: this console armed it, or a fresh beacon
+        says LIVE (an observer watching another console drive). Not
+        otherwise: a stray E-STOP drops a standing robot (torque off), so
+        `e` typed into a host name on a disarmed robot must stay a letter."""
+        st = self.ctl.st
+        return st is not None and bool(st.armed or (st.fresh and st.state == core.LIVE))
+
+    def give_keys_back(self, why: str) -> None:
+        f = self.text_focus()
+        if f is not None:
+            f.clearFocus()
+            self.ctl.log("focus", f"keys back to the console: {why}")
+
+    def _focus_in(self, obj, ev) -> None:
+        """Undo focus that entered a text field by any route but a click."""
+        if not is_text_input(obj) or ev.reason() == QtCore.Qt.FocusReason.MouseFocusReason:
+            return
+
+        def undo():
+            if obj.hasFocus():
+                obj.clearFocus()
+        QtCore.QTimer.singleShot(0, undo)
+
+    def _click(self, obj) -> None:
+        """A click outside the focused text field gives the keys back (Qt
+        would leave them in the field: buttons here never take focus)."""
+        f = self.text_focus()
+        if f is None or not isinstance(obj, QtWidgets.QWidget) or obj.window() is not self:
+            return
+        if obj is f or f.isAncestorOf(obj) or is_text_input(obj):
+            return
+        self.give_keys_back("click outside the field")
+
     def eventFilter(self, obj, ev):
         t = ev.type()
+        if t == QtCore.QEvent.Type.FocusIn:
+            self._focus_in(obj, ev)
+            return False
+        if t == QtCore.QEvent.Type.MouseButtonPress:
+            self._click(obj)
+            return False
         if t not in (QtCore.QEvent.Type.KeyPress, QtCore.QEvent.Type.KeyRelease):
             return False
         if not isinstance(obj, QtGui.QWindow):
@@ -342,17 +406,30 @@ class Window(QtWidgets.QMainWindow):
             self.rebind_action = None
             self.keymap_changed()
             return True
-        focus = QtWidgets.QApplication.focusWidget()
-        if is_text_input(focus):
-            return False
-        if not code:
-            return False
-        action = self.ctl.core.action_for(code)
+        action = self.ctl.core.action_for(code) if code else -1
+        motion = 0 <= action < core.motion_actions()
+        # A key-up ends a held motion whatever has focus (#235): the press
+        # went to key_held, so the release must too, or the robot keeps
+        # walking with nothing pressed.
+        if not press and motion and not ev.isAutoRepeat() and self.key_held[action]:
+            self.key_held[action] = False
+            return True
+        field = self.text_focus()
+        if field is not None:
+            if press and ev.key() == QtCore.Qt.Key.Key_Escape:
+                self.give_keys_back("Escape")
+                return True
+            if (action >= 0 and core.action_name(action) in ("hold", "estop")
+                    and self.stops_win()):
+                if press and not ev.isAutoRepeat():
+                    self.ctl.fire(core.action_name(action))
+                return True                      # a stop key never types while LIVE
+            return False                         # the field gets the key
         if action < 0:
             return False
         if ev.isAutoRepeat():
             return True
-        if action < core.motion_actions():
+        if motion:
             self.key_held[action] = press
         elif press:
             self.ctl.fire(core.action_name(action))
@@ -400,6 +477,10 @@ class Window(QtWidgets.QMainWindow):
                 headless.command(self.ctl, " ".join(words))
 
     def closeEvent(self, ev):
+        # The core is freed below: a key reaching this filter, or a
+        # deactivation releasing keys, would hand the library a null handle.
+        QtWidgets.QApplication.instance().removeEventFilter(self)
+        self._closed = True
         self.link_timer.stop()
         self.ui_timer.stop()
         if self.pad is not None:

@@ -57,9 +57,19 @@ the same link loop with line commands on stdin, which is what
 - A held key or button is a level: release stands the robot on the next
   frame; auto-repeat changes nothing; the window losing focus releases
   everything.
-- While a text field has focus it takes every key, including the keymap's:
-  typing a host name with an `a` in it must not arm the robot. The buttons
-  never take focus.
+- A text field gets the keys only after the operator clicks into it: no tab
+  change, `Tab` or window switch puts focus there. While one has focus it
+  takes every key, including the keymap's (typing a host name with an `a` in
+  it must not arm the robot), and the safety bar's note line says
+  **KEYS CAPTURED**; `Escape` or a click anywhere outside the field gives the
+  keys back. The exceptions:
+  - while the robot is LIVE (this console armed it, or a fresh beacon says
+    LIVE), the HOLD and E-STOP keys still fire from inside a field and do
+    not type;
+  - a key-up always ends a held motion key, whatever has focus, so the
+    console never keeps commanding motion with nothing pressed.
+
+  The HOLD and E-STOP buttons always work. The buttons never take focus.
 - Keys are `~/.bimo/keymap.conf`, the file `bimo_gui` uses; rebind them in
   Setup. Defaults: arrows translate, PgUp/PgDn turn, `a` arm, `space` stand,
   `f` hold, `e` E-stop, `h` reset servos, `r` record, `0` reset the extended

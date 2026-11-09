@@ -3,7 +3,8 @@
 State badge, ARM / STAND, HOLD and E-STOP (out of band, every role), RESET
 SERVOS on its own amber, battery, servo health, pad, recording, the
 handover button; a fixed-width link line; the BENCH reason whenever the
-robot gives one; the console's last message.
+robot gives one; the console's last message, or KEYS CAPTURED while a text
+field has the keys.
 
 Every numeric field is fixed width (bimo_gui's "text that moves has to be
 re-read"), E-STOP is always red, and a control that does not apply in this
@@ -216,8 +217,21 @@ class SafetyBar(QtWidgets.QFrame):
             self.bench.show()
         else:
             self.bench.hide()
-        self.note.setText(f"<span style='color:{DIM}'>note</span>&nbsp;&nbsp;"
-                          f"{app.message.replace('<', '&lt;')}")
+        if app.text_focus() is not None:
+            self.note.setText(self.captured_text(app.stops_win()))
+        else:
+            self.note.setText(f"<span style='color:{DIM}'>note</span>&nbsp;&nbsp;"
+                              f"{app.message.replace('<', '&lt;')}")
+
+    def captured_text(self, stops_win: bool) -> str:
+        """The note line while a text field has the keys (#234): they are
+        never captured without the bar saying so."""
+        stops = f"HOLD{self._key('hold')} / E-STOP{self._key('estop')}".replace("   [", " [")
+        what = (f"{stops} still fire (robot LIVE)" if stops_win else f"{stops} too")
+        return (f"<span style='background:{AMBER}; color:#111; font-weight:800'>"
+                f"&nbsp;KEYS CAPTURED&nbsp;</span>&nbsp;&nbsp;"
+                f"<span style='color:{AMBER}; font-weight:700'>robot keys go to the text "
+                f"field, {what} · Escape or a click outside gives them back</span>")
 
     def keymap_changed(self) -> None:
         self._labels()
