@@ -300,15 +300,23 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_omni11_rs_lowswing | 11-06 | omni7_rs | lower swing | less rate and yaw, >= 3 cm kept | | | | | |
 | robot_legs_omni12_rs_grace07 | 11-06 | omni7_rs | `--stop-grace-s 0.7` | stride1 late40 trips down | | | | | |
 | robot_legs_omni13_rs_gh1h20 | 11-06 | omni7_rs | hinge 1 above 2.0 | less runaway rate, directions kept | | | | | |
-| robot_legs_prec25_f075_js20_s2t | 11-08 | prec16_f075_js20 | `--feet-phase-s2` 0.002 → 0.0008 | median swing peak 1.2 → ≥ 1.8 cm, prec16's margin kept | | | | | |
-| robot_legs_prec26_f075_js20_sh35 | 11-08 | prec16_f075_js20 | `--swing-height` 0.025 → 0.035 (reference lift stays 2 cm) | clearance up without prec22's knee-speed cost | | | | | |
-| robot_legs_prec27_f075_js20_ls2 | 11-08 | prec16_f075_js20 | `--w-low-swing 2` | lowest step 0.3 → ≥ 1 cm, 0 falls kept | | | | | |
-| robot_legs_prec28_f075_js20_crouch_mirror | 11-08 | prec24_f075_js20_crouch | `--w-mirror-loss 1.0` | symmetric knees on the knee-bend policy | | | | | |
-| robot_legs_prec29_f075_js20_crouch_s1 | 11-08 | prec16_f075_js20 | seed 15 (prec24 recipe) | replicate | | | | | |
-| robot_legs_prec30_f075_js20_head03 | 11-08 | prec16_f075_js20 | `--w-heading 0.3` | steps5 yaw +38 → < +20 deg, x1.5 kept | | | | | |
-| robot_legs_prec31_f075_js30 | 11-08 | prec16_f075_js20 | `--w-joint-speed` 0.2 → 0.3 | time above 180 deg/s −25 %, six directions kept | | | | | |
-| robot_legs_prec32_f075_js20_crouch_s2t | 11-08 | prec24_f075_js20_crouch | `--feet-phase-s2 0.0008` | the bent-knee gait lifts ≥ 1.8 cm | | | | | |
+| robot_legs_prec25_f075_js20_s2t | 11-08 | prec16_f075_js20 | `--feet-phase-s2` 0.002 → 0.0008 | median swing peak 1.2 → ≥ 1.8 cm, prec16's margin kept | | | | | **not held**: median swing peak 1.2 → 1.5 cm, lowest step 0.3 cm; x1.5 lost (8/8); fwd yaw −66 |
+| robot_legs_prec26_f075_js20_sh35 | 11-08 | prec16_f075_js20 | `--swing-height` 0.025 → 0.035 (reference lift stays 2 cm) | clearance up without prec22's knee-speed cost | | | | | **clearance held, margin lost**: best clearance yet (median 1.6 cm, walk_steps 1.8/1.8, 12 % ≥ 3 cm), yaw +9/−8, knees 62/53; x1.5 6/6 |
+| robot_legs_prec27_f075_js20_ls2 | 11-08 | prec16_f075_js20 | `--w-low-swing 2` | lowest step 0.3 → ≥ 1 cm, 0 falls kept | | | | | **not held**: lowest step 0.4/0.5 cm, ≥ 3 cm 1 %; keeps x1.5 0/0 but back falls 3/8 |
+| robot_legs_prec28_f075_js20_crouch_mirror | 11-08 | prec24_f075_js20_crouch | `--w-mirror-loss 1.0` | symmetric knees on the knee-bend policy | | | | | **not held** (confounded: 229M + 70.6M resume after 4 OOMs): knees even (53/55) but x1.5 8/8 (7/7 at crouch 0.9) |
+| robot_legs_prec29_f075_js20_crouch_s1 | 11-08 | prec16_f075_js20 | seed 15 (prec24 recipe) | replicate | | | | | **half held**: 0 falls on every probe but x1.5 8/8 at 1.0 and 0.9; prec24's margin was the draw; turn R short replicates (−82) |
+| robot_legs_prec30_f075_js20_head03 | 11-08 | prec16_f075_js20 | `--w-heading 0.3` | steps5 yaw +38 → < +20 deg, x1.5 kept | | | | | **not held**: steps5 yaw +38 → +28 only; x1.5 3/3 |
+| robot_legs_prec31_f075_js30 | 11-08 | prec16_f075_js20 | `--w-joint-speed` 0.2 → 0.3 | time above 180 deg/s −25 %, six directions kept | | | | | **speed held, margin lost**: time above 180 0.52 → 0.30 (lowest yet), knees 72/61 (range 56/45); x1.5 6/8 |
+| robot_legs_prec32_f075_js20_crouch_s2t | 11-08 | prec24_f075_js20_crouch | `--feet-phase-s2 0.0008` | the bent-knee gait lifts ≥ 1.8 cm | | | | | teacher only (distil left for tonight): x1.5 6/6 at 1.0, 0/0 at crouch 0.9; median 1.5 cm; back falls 3/8 at 1.0 |
 | robot_legs_prec33_f075_js20_mirror_s1 | 11-08 | prec16_f075_js20 | seed 15 (prec20 recipe) | replicate | | | | | |
+| robot_legs_prec34_f075_js20_sh35_lg | 11-09 | prec26_f075_js20_sh35 | `--loop-gain-range 1.0,1.6` | x1.5 back to 0/0 with prec26's clearance kept | | | | | |
+| robot_legs_prec35_f075_js20_lg | 11-09 | prec16_f075_js20 | `--loop-gain-range 1.0,1.6` | control: x1.5 stays 0/0, x2 improves, no direction lost | | | | | |
+| robot_legs_prec36_f075_js20_sh35_s1 | 11-09 | prec16_f075_js20 | seed 15 (prec26 recipe) | replicate | | | | | |
+| robot_legs_prec37_f075_js20_sh35_s2t | 11-09 | prec26_f075_js20_sh35 | `--feet-phase-s2 0.0008` | the clearance levers stack: median ≥ 2.0 cm | | | | | |
+| robot_legs_prec38_f075_js20_crouch_sh35 | 11-09 | prec24_f075_js20_crouch | `--swing-height 0.035` | bent-knee gait lifts like prec26 | | | | | |
+| robot_legs_prec39_f075_js20_sh45 | 11-09 | prec26_f075_js20_sh35 | `--swing-height` 0.035 → 0.045 | median ≥ 2.0 cm, mean knee < 90 deg/s | | | | | |
+| robot_legs_prec40_f075_js20_crouch_lg | 11-09 | prec29_f075_js20_crouch_s1 | `--loop-gain-range 1.0,1.6` | repair: x1.5 back to 0/0 at crouch 0.9 and 1.0 | | | | | |
+| robot_legs_prec41_f075_js30_lg | 11-09 | prec31_f075_js30 | `--loop-gain-range 1.0,1.6` | repair: x1.5 back to 0/0, time above 180 ≤ 0.33 kept | | | | | |
 
 ## Nights
 
@@ -2525,3 +2533,109 @@ then speed (the speed table, same method), knee symmetry and yaw. Grade crouch r
 
 **Fallback:** the prec24 recipe (crouch channel), saved over the prec16 one (`fallback.job.prec16-20261108`).
 Preflight passed 18/18.
+
+### Night of 2026-11-08 (evaluated 2026-11-09)
+
+**Precision at reduced speed, night 3.** Stride only; get-up stays parked. Tom has not commented on #137 since 11-04, so
+**the 3 cm question is still open**. There was no hardware session (no new `hw_sessions/2026-11-0[7-9]` directory).
+
+**The runner** ran 22:00 – 05:39 on main (`769812d` → `8681f63`; the commits in between are the SIL twin and the firmware
+console, with no training code changed). It ran 8 of the 9 teachers and 7 distils. The prec32 distil and the prec33 pair
+did not start before 05:00, so they run first tonight. One fetch failed on DNS at 00:06 and the retry succeeded.
+
+**Fixer (4 sessions, all on prec28).** prec28 died with a CUDA OOM in Warp's `convex_narrowphase` scratch (99 MB) four
+times. Each time it was at the **same 16th eval**: twice in full runs at 229M steps, and twice in resumes at +55M. Fixer 1 called it
+transient. Fixer 2 blamed an ollama model loading onto the GPU and wrote a Warp mempool hold (branch
+`fix/warp-mempool-hold`, 61f986f). Fixer 3 saw the third OOM with no ollama model loaded and ran the hold. Fixer 4 saw the hold fail
+too and found the pattern: brax derives the eval key from the seed, so eval index 15 replays the same rollout on every
+attempt. It re-queued the resume (`--init-from …_oom229M_b --steps 70624000 --num-evals 12`), which finished.
+- **Not merged:** `fix/warp-mempool-hold`. The 4th OOM happened with the hold active, so there is no evidence that it helps.
+  It stays a pushed branch with no PR.
+- **Stopgap, still open:** `--num-evals 12` avoids the eval but does not explain it. Some rollout on prec28's policy with seed
+  14 at eval 15 asks Warp for contact scratch beyond the GPU's headroom, probably from a contact blow-up. Nothing tonight
+  warm-starts from prec28.
+- **prec28 is confounded:** 229M + 70.6M with a fresh optimizer. Treat it as indicative only.
+- **collect-sync fixer (07:15):** `~/code/robot` was left on that branch. The fixer switched it back to main (it is now level with
+  origin/main) and kept the uncommitted STL / `one_leg.py` edits.
+
+**Merged / branched:** nothing. The open PRs (#254 beacon vbat, #247 heading hold, #232 walk-recovery tilt, #229 power rail,
+#228 CAD, #206 console) are firmware, CAD and console work, with no stride-training content. Tonight runs on `BRANCH=main`.
+Every recipe was parsed with main's `make_parser()`, and preflight passed 19/19.
+
+**Students** (`grade.py` on main, measured sole, 8 seeds, SHAPE_HZ=8; falls/trips; `/tmp/plan1109/gradeA.md`,
+`gradeC09.md`). **Control re-grade this morning, same code:** prec16, prec24 and prec20 reproduce x1.5 0/0 (`gradeP.md`), so
+the losses below are real.
+
+| student | variable vs parent | x1.5 | stride1 refit 0.6 / 0.4 / 0.3 falls | robot probes falls | directions (falls) | verdict |
+|---|---|---|---|---|---|---|
+| prec25_s2t | s2 0.0008 (prec16) | **8/8** | 0 / 0 / 0 | 0 | +0.83 −0.79 +0.37 −0.44 +104 −122 (0) | not held (margin) |
+| prec26_sh35 | swing-height 0.035 (prec16) | **6/6** | 0 / 0 / 0 | 0 | +0.91 −0.95 +0.44 −0.52 +102 −101 (0) | clearance held, margin lost |
+| prec27_ls2 | w-low-swing 2 (prec16) | 0/0 | 0 / 0 / 0 | 0 | +0.62 **−0.93 (3)** +0.44 −0.45 +107 −109 | not held |
+| prec28_crouch_mirror* | mirror 1.0 (prec24) | **8/8**; 7/7 @0.9 | 0 / 0 / 0 | 0 | +0.77 −0.90 +0.50 −0.50 +96 −116 (0) | not held (confounded) |
+| prec29_crouch_s1 | seed 15 (prec24 recipe) | **8/8**; 8/8 @0.9 | 0 / 0 / 0 | 0 | +0.94 −0.91 +0.48 −0.39 +104 **−82** (0) | half held |
+| prec30_head03 | heading 0.3 (prec16) | **3/3** | 0 / 0 / 0 | 0 | +0.81 −0.89 +0.43 −0.49 +112 −98 (0) | not held |
+| prec31_js30 | js 0.3 (prec16) | **6/8** | 0 / 0 / 0 | 0 | +0.91 −0.81 +0.46 −0.44 +101 −121 (0) | speed held, margin lost |
+| prec32_crouch_s2t (teacher) | s2 0.0008 (prec24) | 6/6; **0/0 @0.9** | 1 / 0 / 0 | 0 | +1.00 **−0.92 (3)** +0.49 −0.45 +94 −88 | student tonight |
+
+Every student WALKS. The only falls outside x1.5 are prec27's back (3/8) and the prec32 teacher's back (3/8) and stride1 0.6 (1/8). Every
+slow-clock student still trips `pose` on walk→stop, the known closing-step pattern.
+
+**Clearance and speed** (student scorecards; `speed.py` on steps5 0.3 robot, the same method as 11-08, so prec16 reads 83/68 again):
+
+| student | median swing peak / ≥ 3 cm / lowest step | walk_steps median L / R | mean knee L/R | above 180 | knee range L/R | steps5 yaw / fwd yaw |
+|---|---|---|---|---|---|---|
+| prec16 | 1.2 cm / 4 % / 0.3 | 1.1 / 1.1 | 83 / 68 | 0.52 | 67 / 47 | +38 / +2 |
+| prec25 (s2t) | 1.5 / 8 % / 0.3 | 1.5 / 1.2 | 80 / 73 | 0.41 | 64 / 50 | +18 / **−66** |
+| **prec26 (sh35)** | **1.6 / 12 % / 0.4** | **1.8 / 1.8** | 80 / 76 | 0.43 | **62 / 53** | **+9 / −8** |
+| prec27 (ls2) | 1.3 / 1 % / 0.4 | 1.2 / 1.3 | 77 / 69 | 0.37 | 59 / 48 | +35 / +40 |
+| prec28 (crouch mirror) | 1.6 / 6 % / 0.3 | 2.1 / 1.4 | 64 / 80 | 0.40 | **53 / 55** | +30 / +2 |
+| prec29 (crouch s1) | 1.3 / 3 % / 0.3 | 1.2 / 1.3 | 86 / 69 | 0.38 | 66 / 49 | +20 / −3 |
+| prec30 (head 0.3) | 1.3 / 7 % / 0.3 | 1.1 / 1.2 | 79 / 79 | 0.47 | 62 / 55 | +28 / +1 |
+| **prec31 (js 0.3)** | 1.3 / 3 % / 0.4 | 1.5 / 1.5 | **72 / 61** | **0.30** | 56 / 45 | +14 / −22 |
+
+**Hypotheses:**
+- s2 0.0008 (prec25): a tighter kernel moves the median 1.2 → 1.5 cm. **Not held**: below the 1.8 target, x1.5 lost, fwd yaw −66.
+- Swing height 0.035 (prec26): **the best clearance and yaw so far** (median 1.6 cm, walk_steps 1.8/1.8, yaw +9/−8, knees
+  more even). It still falls short of the ≥ 1.8 cm overall target and loses x1.5 (6/6). Of the levers tried, the reward
+  target moves the shuffle most.
+- w-low-swing 2 (prec27): **not held**. It does not move the lowest step (0.4/0.5 cm). It is the only run that keeps x1.5, and it adds back falls.
+- Crouch + mirror (prec28): the knees even out (53/55) on the crouch policy too. It loses x1.5, but the resume confounds it.
+- Seed of prec24 (prec29): 0 falls on every probe replicates; **the x1.5 margin does not** (8/8 at 1.0 and 0.9). prec16's
+  recipe held x1.5 on 2 of 2 seeds (prec16, prec18), and prec24's crouch recipe on 1 of 2.
+- Heading 0.3 (prec30): yaw +38 → +28 only, and x1.5 lost. **Not held.**
+- js 0.3 (prec31): **the slowest gait yet** (time above 180 0.30; mean knee 72/61), but the knees are less even and x1.5 is 6/8.
+
+**What the night says.** Every variable that moved the gait (clearance, speed, yaw, symmetry) cost the x1.5 stand margin. The
+one that moved nothing (ls2) kept it. In the prec line, x1.5 is a fragile property of the particular draw: it is not trained, it is
+inherited from prec16. The repo already has the fix in kind: `--loop-gain-range` trains on exactly the grade's x1.5 law (targets =
+0.5 s mean + g × deviation). walk18_shp10lg (11-02) tried it on a policy that already passed x1.5 and was "not a candidate"
+because its walking body rate rose to 1.2-1.3 rad/s. The slow gait walks at ~1.0, so it has that headroom. **Tonight
+tests loop-gain DR as a margin repair** on three policies that lost x1.5 (prec26 clearance, prec29 crouch, prec31 speed),
+with a control on prec16. It also stacks the clearance levers on prec26.
+
+**Distil gap** (card seed-passes, teacher → student): prec25 32 → 30, prec26 23 → 26, prec27 28 → 40, prec28 22 → 34, prec29
+20 → 39, prec30 32 → 34, prec31 28 → 32. The median is +4, so distillation is not the limit.
+
+**Ranking (deploy view):** prec16 ≥ prec24 (both x1.5 0/0, 0 falls) > prec26 (best clearance and yaw, no margin). The deploy
+candidate is unchanged: `deploy/prec16-f075` (not flashed). None of tonight's students is a candidate until it keeps x1.5.
+
+**Tonight** (after the left-over prec32 distil and prec33 pair: 8 teachers + distils, `BRANCH=main`, 300M warm starts, ~44 min a
+pair, ends ~04:40):
+
+| # | run | parent | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | prec34_f075_js20_sh35_lg | prec26 | `--loop-gain-range 1.0,1.6` | x1.5 back to 0/0 with prec26's clearance (median ≥ 1.6 cm) kept |
+| 2 | prec35_f075_js20_lg | prec16 | `--loop-gain-range 1.0,1.6` | control: x1.5 stays 0/0, x2 improves, nothing lost |
+| 3 | prec36_f075_js20_sh35_s1 | prec16 | seed 15 (prec26 recipe) | prec26's clearance and yaw are the recipe |
+| 4 | prec37_f075_js20_sh35_s2t | prec26 | `--feet-phase-s2 0.0008` | the clearance levers stack: median ≥ 2.0 cm |
+| 5 | prec38_f075_js20_crouch_sh35 | prec24 | `--swing-height 0.035` | the bent-knee gait lifts like prec26 |
+| 6 | prec39_f075_js20_sh45 | prec26 | `--swing-height` 0.035 → 0.045 | the swing-height trend continues: median ≥ 2.0 cm, mean knee < 90 |
+| 7 | prec40_f075_js20_crouch_lg | prec29 | `--loop-gain-range 1.0,1.6` | repair 2: x1.5 0/0 at crouch 0.9 and 1.0 |
+| 8 | prec41_f075_js30_lg | prec31 | `--loop-gain-range 1.0,1.6` | repair 3: x1.5 0/0 with time above 180 ≤ 0.33 |
+
+Tomorrow: rank by 0 falls on the robot and direction probes plus **x1.5** first, then clearance, then speed, symmetry and yaw.
+If loop-gain DR repairs x1.5 in 2 of 3 cases, it joins every prec recipe, and the clearance and speed levers can be stacked
+under it.
+
+**Fallback:** back to the prec16 recipe (x1.5 held on 2 of 2 seeds), warm-starting from prec16. The prec24 recipe is saved as
+`fallback.job.prec24-20261109`.
