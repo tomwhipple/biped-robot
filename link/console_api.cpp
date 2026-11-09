@@ -18,7 +18,7 @@ struct BimoConsole {
     Link link;
     Intent in;
     Speeds speeds;
-    Keymap keys{};
+    Keymap keys;      // its constructor loads the built-in defaults
     Recorder rec;
     // what the last tick put on the wire
     float vx = 0.0f, vy = 0.0f, wz = 0.0f;
