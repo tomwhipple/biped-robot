@@ -237,6 +237,41 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     return np.array(ch), np.array(ck)
 
 
+def mimic_sway_coefs(model, sg_roll):
+    """Calibration for the imitation reference's lateral weight shift
+    (mimic_sway): per leg (L, R), the hip-roll offset from the home pose
+    (qpos0), per metre, that moves the torso +y (toward the LEFT foot)
+    relative to that leg's sole, with the ankle roll cancelling the hip roll
+    exactly as the reference does (the sole stays parallel to the torso).
+    Finite difference on MuJoCo kinematics, torso fixed: the sign comes from
+    the model, not from axis conventions. sg_roll: the env's (hip roll,
+    ankle roll) x-axis signs. Returns a (2,) array, rad/m. Jax-free; both
+    envs call it on their own model so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    out = []
+    for li, side in enumerate("LR"):
+        ar = model.jnt_qposadr[model.joint(f"{side}_hip_roll").id]
+        aa = model.jnt_qposadr[model.joint(f"{side}_ankle_roll").id]
+        s_hr, s_ar = (float(np.ravel(np.asarray(v))[li]) for v in sg_roll)
+        sole = model.geom(f"{side}_sole").id
+
+        def y(x):
+            d.qpos[:] = q0
+            d.qpos[ar] += x
+            d.qpos[aa] -= s_hr * x / s_ar
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            return float((R.T @ (d.geom_xpos[sole] - d.xpos[torso]))[1])
+        dy = (y(1e-4) - y(-1e-4)) / 2e-4       # sole y in the torso frame, per rad
+        if abs(dy) < 0.05:
+            raise ValueError(f"mimic_sway: {side} hip roll barely moves the sole ({dy:.3f} m/rad)")
+        out.append(-1.0 / dy)                  # torso +y vs the sole = sole -y vs the torso
+    return np.array(out)
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -474,11 +509,14 @@ LOW_SWING_CLEAR = 0.03    # m: every step's sole peak (the referee's SWING_CLEAR
 LOW_SWING_MIN_TICKS = 3   # a shorter swing is contact chatter, not a step (the referee's SWING_MIN_TICKS)
 
 
-def low_swing_shortfall(peak, xp):
-    """Fraction of LOW_SWING_CLEAR a completed swing's sole peak fell short by:
-    0 at or above 3 cm, 1 for a foot that left the floor without rising.
-    xp = jax.numpy or numpy, so both envs share the exact formula."""
-    return xp.clip((LOW_SWING_CLEAR - peak) / LOW_SWING_CLEAR, 0.0, 1.0)
+def low_swing_shortfall(peak, xp, clear=LOW_SWING_CLEAR):
+    """Fraction of `clear` (default LOW_SWING_CLEAR, the referee's 3 cm) a
+    completed swing's sole peak fell short by: 0 at or above it, 1 for a foot
+    that left the floor without rising. A lower `clear` (--low-swing-clear)
+    lets the penalty run with a low imitation lift (a 2 cm --mimic-lift fought
+    the fixed 3 cm). xp = jax.numpy or numpy, so both envs share the exact
+    formula."""
+    return xp.clip((clear - peak) / clear, 0.0, 1.0)
 
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
@@ -525,6 +563,8 @@ class BimoWalkerEnv(gym.Env):
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
+        mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -744,6 +784,8 @@ class BimoWalkerEnv(gym.Env):
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_low_swing: float = 0.0,      # per-step clearance penalty on touchdown
         # (mirrors sim/mjx; low_swing_shortfall above)
+        low_swing_clear: float = LOW_SWING_CLEAR,  # m: w_low_swing's clearance
+        # target (mirrors sim/mjx; the referee keeps its own SWING_CLEAR)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
         w_up_vel: float = 0.0,         # mirrors sim/mjx w_up_vel (getup_v5)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
@@ -1031,6 +1073,9 @@ class BimoWalkerEnv(gym.Env):
         self._obs_hist = []
         self.w_symmetry = w_symmetry
         self.w_low_swing = w_low_swing
+        self.low_swing_clear = float(low_swing_clear)
+        if self.low_swing_clear <= 0.0:
+            raise ValueError("low_swing_clear must be > 0")
         self._swing_peak = np.zeros(2)   # per-foot sole peak (m) of the swing in progress
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -1412,6 +1457,12 @@ class BimoWalkerEnv(gym.Env):
         if self.mimic_lift > 0.0:
             self._lift_ch, self._lift_ck = mimic_lift_coefs(
                 self.model, self._sg_pitch if self.mimic_sole_level else None)
+        self.mimic_sway = float(mimic_sway)
+        self.mimic_sway_lead = float(mimic_sway_lead)
+        if self.mimic_sway != 0.0:
+            if self._i_aroll is None:
+                raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
+            self._sway_k = mimic_sway_coefs(self.model, self._sg_roll)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1873,6 +1924,13 @@ class BimoWalkerEnv(gym.Env):
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_sway != 0.0:
+            # lateral weight shift (mirror of env_mjx): the torso moves toward
+            # the stance foot by mimic_sway, leading the swing by the lead
+            # phase (L swings on sin > 0, so the torso goes -y, toward R)
+            g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            roll = roll + self._sway_k * (-self.mimic_sway * g
+                                          * np.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain
             s_h, s_k, s_a = self._sg_pitch
@@ -2689,7 +2747,8 @@ class BimoWalkerEnv(gym.Env):
                             and self._air_time[f]
                             >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt):
                         reward -= self.w_low_swing * float(
-                            low_swing_shortfall(self._swing_peak[f], np))
+                            low_swing_shortfall(self._swing_peak[f], np,
+                                                self.low_swing_clear))
                     self._last_air[f] = self._air_time[f]
                 self._air_time[f] = 0.0
                 self._swing_peak[f] = 0.0
