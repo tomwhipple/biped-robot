@@ -17,9 +17,11 @@ standing (§11). The pack, Pi, head, neck and arms are not yet on it.
 
 A small 3D-printed biped that **walks by lifting one foot completely off the
 ground**, gets itself up after a fall, and carries an onboard computer and a
-head camera for navigation. Walking and get-up come from the body and an
-open-loop gait first; a learned policy comes last, once the hardware has shown
-its margins.
+head camera for navigation. Walking is driven by a learned policy on the
+ESP32: standing, balance, stepping, turning and walking all come from it, with
+no separate scripted gait or balance mode on the robot. Simulation proves first
+that the body has the margins; safety (fall detection, stop, autohome) is one
+module serving whatever drives the robot.
 
 Each requirement traces to a measurement on the earlier prototype
 (see [lessons learned](docs/archive/2026-09-13-lessons-learned-walking.md)):
@@ -27,7 +29,7 @@ Each requirement traces to a measurement on the earlier prototype
 | | requirement | how the design meets it |
 |---|---|---|
 | R1 | A **static single-foot stance** must exist, with margin | ankle roll: a 6th joint per leg (Gate A: 30 mm CoM margin on one foot) |
-| R2 | Margins are measured on the body **before any policy** | Gates A–D in simulation, then the same open-loop script on the bench; the policy (Gate E) is last |
+| R2 | Margins are proven on the body **before a policy is trusted** | Gates A–D in simulation (the open-loop gait is a design gate, not a gait the robot runs); the policy (Gate E) is trained in a simulation that reproduces what the robot has shown (#259) |
 | R3 | The **roll chains must be stiff** | every roll joint double-supported (horn + idler); servo stiffness measured on the bench and on the legs (§4) |
 | R4 | **Speed and torque margin** under load: ≥ 2× speed, ≥ 1.5× torque at 11.1 V | met at the design cadence (§8) |
 | R5 | Contact realism made adversarial | every gate runs μ 0.3–1.0, full self-collision, free play on the rolls, and the deployed actuation chain |
@@ -663,12 +665,13 @@ exist.
 
 ## 8. Walking
 
-**First walk is open-loop**: `sim/static_gait.py` shifts the whole-robot CoM 5 mm
+**The design-gate walk is open-loop**: `sim/static_gait.py` shifts the whole-robot CoM 5 mm
 *inboard* of the stance sole centreline (so any drift falls toward the incoming
 foot), swings the other foot on a sine arc, settles, and crosses over; joint
 targets from the analytic IK (`sim/v6_kin.py`) at 50 Hz, min-jerk transitions
-throughout. On hardware the same keyframes stream through the firmware's
-`pose` path.
+throughout. The robot does not run this gait: on hardware, scripted open-loop
+motion exists only as system-identification probes (the one-leg lifts, the sway
+probe, #260) whose measurements feed the simulation fit.
 
 - **Cadence**: shift 1.6 s per 60 mm, swing 1.6 s, land 0.5 s — 5.25 s per 6 cm
   step. A step command is a fall; the swing leg lags its command ~0.3 s through
@@ -686,8 +689,12 @@ throughout. On hardware the same keyframes stream through the firmware's
 
 **The policy** (Gate E) trains on the robot's plants with the measured masses,
 stiffness, play and joint stops in it —
-[docs/training.md](docs/training.md). The open-loop gait on the floor is
-still open (#82).
+[docs/training.md](docs/training.md). The robot is fully policy-driven. The
+walking milestones on hardware, in order: march in place with full weight
+transfer (#261), a stride, the full vx/vy/wz command volume so the robot
+follows arbitrary directional commands (#263), then goal-conditioned
+locomotion (#88). A policy trained in the simulation is trusted only once the
+simulation reproduces what the robot has shown (#259).
 
 ## 9. Get-up
 
@@ -739,8 +746,8 @@ gates, in order:
 | A — kinematic capability | does a static single-foot stance exist, with margin, inside every joint limit and without self-contact? | `sim/design_gates.py` |
 | B — actuator envelope | do the needed motions leave ≥ 2× speed and ≥ 1.5× torque at 11.1 V? | `sim/design_gates.py` |
 | C — contact realism | does it survive μ 0.3–1.0, play as free travel, self-collision, the measured actuation lag and dead time? | built into D |
-| D — open-loop capability | does the scripted walk (and get-up) hold across the adversity matrix? then: the same script on the bench | `sim/static_gait.py`, `sim/gate_no3250.py walk|sweep|envelope|arms|getup`, `sim/getup_v6_shoulder.py` |
-| E — policy | only after D passes on hardware | [docs/training.md](docs/training.md) |
+| D — open-loop capability | does the scripted walk (and get-up) hold across the adversity matrix? it is a design gate in simulation; on the robot only system-identification probes run, and they feed the plant | `sim/static_gait.py`, `sim/gate_no3250.py walk|sweep|envelope|arms|getup`, `sim/getup_v6_shoulder.py` |
+| E — policy | trusted once the simulation reproduces what the robot has shown (#259) | [docs/training.md](docs/training.md) |
 
 `tests/test_v6_design_gates.py` pins the plant, the IK and Gates A/B in the
 pre-push suite.
@@ -803,13 +810,22 @@ Everything open is a GitHub issue.
 | first print and fit check | #79 |
 | assembly guide with figures | #80 |
 | firmware port to 17 joints | #81 |
-| measured plant, then the open-loop floor sequence | #82 |
+| measured plant, then the floor work: system-identification rungs, then the policy milestones | #82 |
 | shoulder overload margin | #83 |
 | scripted get-up on hardware | #84 |
 | training stack port (Gate E) | #86 |
 | Pi and head camera integration | #87 |
 | goal-conditioned locomotion | #88 |
 | servo model: overload cutoff, sag, thermal | #6 |
+| sim-reproduces-hardware gate for weight transfer | #259 |
+| open-loop sway probe on the robot (system identification) | #260 |
+| march in place: training slice, grade probe, first hardware walking milestone | #261 |
+| nightly planner: seed replicates, stop-and-escalate rule, @-mention on decisions | #262 |
+| full vx/vy/wz command volume: combinations, no dead bands, compass probes | #263 |
+| firmware and link command envelope generated from the deployed run | #264 |
+| vy from a stick: gamepad source and commander send the lateral channel | #265 |
+| slew-limit the operator command | #266 |
+| floor-test fall protection (catch line) and the hip yoke as fitted | #267 |
 
 ## 13. Build sequence
 
@@ -829,20 +845,24 @@ Everything open is a GitHub issue.
    tethered; the pack, Pi, head, neck and arms are not yet on.
 5. **Put the measurements in the plant** and re-run the gates
    (`gate_no3250.py walk | sweep | arms | getup`).
-6. **Floor sequence, over the tether, one motion per go**: stand → crouch →
-   shift → one-foot → step in place → six steps; each step a margin, clearance
-   and slip number against the sim's. Then the scripted get-up. Powered from a
+6. **Floor work, over the tether, one motion per go**: system-identification
+   rungs (stand → crouch → shift → one-foot, the sway probe #260), each a
+   margin, clearance and slip number against the sim's, whose measurements go
+   into the plant; then the policy milestones: march in place with full weight
+   transfer (#261), a stride, the full command volume (#263). Then the scripted
+   get-up. Powered from a
    bench supply instead of the pack, the supply tether's check T1
    ([pcb/power-board/harness.md](pcb/power-board/harness.md)) comes first.
-7. **Gate E**: train a policy on the measured plant. A legs policy holds the
+7. **Gate E**: train a policy on the measured plant, trusted once the
+   simulation reproduces what the robot has shown (#259). A legs policy holds the
    built legs standing (§11); walking and the 17-servo policy are open (#86).
 
 ## 14. Design principles
 
 - The servos are the skeleton: geometry comes from the vendor's STEP and
   datasheet, never from photos.
-- Bench before policy. Measure a margin on the body before asking a policy to
-  find it.
+- Measure before you model. The simulation must reproduce what the robot has
+  shown before a policy trained in it is trusted (#259).
 - Model a term only after the bench has measured it; a guessed
   domain-randomization range makes a policy robust to a thing the robot does
   not do.

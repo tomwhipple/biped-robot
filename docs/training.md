@@ -990,7 +990,8 @@ the obs-spec generator rebuild the same robot:
 
 **When.** The design is validated in stages (DESIGN.md, "Validation method"):
 kinematics, actuator margins and contact realism first, then the scripted
-open-loop walk in the plant and on the bench (#82, open). Policies (Gate E)
+open-loop walk in the plant, with system-identification probes on the robot
+feeding the plant fit (#82, open). Policies (Gate E)
 train on the plants with the measured stiffness, play and joint stops in them;
-a legs policy holds the built legs standing, and walking on the floor is the
-next hardware gate.
+a legs policy holds the built legs standing, and walking on the floor, beginning
+with marching in place (#261), is the next hardware gate.
