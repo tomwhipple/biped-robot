@@ -237,6 +237,41 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     return np.array(ch), np.array(ck)
 
 
+def mimic_sway_coefs(model, sg_roll):
+    """Calibration for the imitation reference's lateral weight shift
+    (mimic_sway): per leg (L, R), the hip-roll offset from the home pose
+    (qpos0), per metre, that moves the torso +y (toward the LEFT foot)
+    relative to that leg's sole, with the ankle roll cancelling the hip roll
+    exactly as the reference does (the sole stays parallel to the torso).
+    Finite difference on MuJoCo kinematics, torso fixed: the sign comes from
+    the model, not from axis conventions. sg_roll: the env's (hip roll,
+    ankle roll) x-axis signs. Returns a (2,) array, rad/m. Jax-free; both
+    envs call it on their own model so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    out = []
+    for li, side in enumerate("LR"):
+        ar = model.jnt_qposadr[model.joint(f"{side}_hip_roll").id]
+        aa = model.jnt_qposadr[model.joint(f"{side}_ankle_roll").id]
+        s_hr, s_ar = (float(np.ravel(np.asarray(v))[li]) for v in sg_roll)
+        sole = model.geom(f"{side}_sole").id
+
+        def y(x):
+            d.qpos[:] = q0
+            d.qpos[ar] += x
+            d.qpos[aa] -= s_hr * x / s_ar
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            return float((R.T @ (d.geom_xpos[sole] - d.xpos[torso]))[1])
+        dy = (y(1e-4) - y(-1e-4)) / 2e-4       # sole y in the torso frame, per rad
+        if abs(dy) < 0.05:
+            raise ValueError(f"mimic_sway: {side} hip roll barely moves the sole ({dy:.3f} m/rad)")
+        out.append(-1.0 / dy)                  # torso +y vs the sole = sole -y vs the torso
+    return np.array(out)
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -528,6 +563,8 @@ class BimoWalkerEnv(gym.Env):
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
+        mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -1420,6 +1457,12 @@ class BimoWalkerEnv(gym.Env):
         if self.mimic_lift > 0.0:
             self._lift_ch, self._lift_ck = mimic_lift_coefs(
                 self.model, self._sg_pitch if self.mimic_sole_level else None)
+        self.mimic_sway = float(mimic_sway)
+        self.mimic_sway_lead = float(mimic_sway_lead)
+        if self.mimic_sway != 0.0:
+            if self._i_aroll is None:
+                raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
+            self._sway_k = mimic_sway_coefs(self.model, self._sg_roll)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1881,6 +1924,13 @@ class BimoWalkerEnv(gym.Env):
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_sway != 0.0:
+            # lateral weight shift (mirror of env_mjx): the torso moves toward
+            # the stance foot by mimic_sway, leading the swing by the lead
+            # phase (L swings on sin > 0, so the torso goes -y, toward R)
+            g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            roll = roll + self._sway_k * (-self.mimic_sway * g
+                                          * np.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain
             s_h, s_k, s_a = self._sg_pitch

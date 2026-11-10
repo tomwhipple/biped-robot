@@ -666,6 +666,8 @@ class BimoMJXEnv:
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
+        mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -1285,6 +1287,13 @@ class BimoMJXEnv:
             from walker_env import mimic_lift_coefs      # jax-free, shared with the CPU env
             ch, ck = mimic_lift_coefs(m, self._sg_pitch if self.mimic_sole_level else None)
             self._lift_ch, self._lift_ck = jp.asarray(ch), jp.asarray(ck)
+        self.mimic_sway = float(mimic_sway)
+        self.mimic_sway_lead = float(mimic_sway_lead)
+        if self.mimic_sway != 0.0:
+            if self._i_aroll is None:
+                raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
+            from walker_env import mimic_sway_coefs      # jax-free, shared with the CPU env
+            self._sway_k = jp.asarray(mimic_sway_coefs(m, self._sg_roll))
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -1996,6 +2005,16 @@ class BimoMJXEnv:
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_sway != 0.0:
+            # lateral weight shift (2026-11-09 hardware: hip roll moved 4-8 deg,
+            # the R foot never unloaded; this reference held the rolls at the
+            # standing pose while walking forward, so w_mimic paid AGAINST any
+            # shift). The torso moves toward the stance foot by mimic_sway (m),
+            # leading the swing by mimic_sway_lead; L swings on sin > 0, so the
+            # torso goes -y, toward R. The ankle roll below keeps the sole level.
+            g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
+            roll = roll + self._sway_k * (-self.mimic_sway * g
+                                          * jp.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain;
             # the ankle cancels the hip and knee (the knee axis is -y)

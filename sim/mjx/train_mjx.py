@@ -293,6 +293,14 @@ def make_parser():
                    help="imitation reference: the swing sole rises this high (m, IK "
                         "from the home pose) at any walking speed; 0 = the knee-bend "
                         "reference, which lifts the robot's foot only 0-2 cm")
+    p.add_argument("--mimic-sway", type=float, default=0.0, metavar="M",
+                   help="imitation reference: while walking, the torso shifts this far "
+                        "(m) toward the stance foot (hip + ankle roll, sole level; "
+                        "walker_env.mimic_sway_coefs). 0 = none: the reference holds the "
+                        "rolls at the standing pose, which pays AGAINST weight transfer "
+                        "(the 2026-11-09 robot never unloaded its R foot)")
+    p.add_argument("--mimic-sway-lead", type=float, default=None, metavar="RAD",
+                   help="--mimic-sway's phase lead over the swing clock (default 0.785)")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -931,6 +939,10 @@ def build_env_kw(args):
         env_kw["warp_envs"] = int(args.envs)
     if args.mimic_lift > 0.0:
         env_kw["mimic_lift"] = args.mimic_lift
+    if getattr(args, "mimic_sway", 0.0):
+        env_kw["mimic_sway"] = args.mimic_sway
+    if getattr(args, "mimic_sway_lead", None) is not None:
+        env_kw["mimic_sway_lead"] = args.mimic_sway_lead
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
