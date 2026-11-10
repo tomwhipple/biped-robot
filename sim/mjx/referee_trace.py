@@ -1,4 +1,4 @@
-"""Trace capture + loading (design §3 — the load-bearing interface).
+"""Trace capture + loading for the referee.
 
 One Trace per episode, written by the referee's capture hook
 (`eval_precision --trace`) as `runs/<run>/traces/<scenario>_s{seed}.npz`.

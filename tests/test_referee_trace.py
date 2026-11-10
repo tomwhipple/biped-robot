@@ -1,5 +1,5 @@
-"""Parity gate (the critical-path acceptance): trace capture must leave every
-referee number unchanged.
+"""Referee trace capture (`eval_precision --trace`): parity gate -- capture must
+leave every referee number unchanged -- and the trace file round-trip.
 
 Drives eval_precision.run_one TWICE on an identical deterministic fake env
 (rollouts identical by construction — the same _FakeEnv reset + scripted
@@ -17,10 +17,9 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "sim", "mjx"))
-sys.path.insert(0, os.path.join(HERE, "..", "sim"))
 
 import eval_precision as E                          # noqa: E402
-from gradebook import trace as gb_trace             # noqa: E402
+import referee_trace                                  # noqa: E402
 
 
 class _Data:
@@ -128,7 +127,7 @@ def test_trace_capture_parity():
     assert _nan_eq(off, on)
     # the trace file exists and carries the episode
     assert "trace" in r_on and r_on["trace"].endswith("balance_L_s7.npz")
-    t = gb_trace.load(os.path.join(tmp, "traces",
+    t = referee_trace.load(os.path.join(tmp, "traces",
                                    os.path.basename(r_on["trace"])))
     assert t["meta"]["scenario"] == "balance_L"
     assert t["meta"]["seed"] == 7
@@ -145,3 +144,51 @@ def test_trace_off_writes_nothing(tmp_path):
     r = _drive(trace_dir=None)
     assert "trace" not in r
     assert not os.path.exists(os.path.join(os.getcwd(), "traces"))
+
+
+# =================================================================
+#  trace schema round-trip
+# =================================================================
+def test_trace_save_load_round_trip(tmp_path):
+    rows = [{"t": 0.04 * i, "x": 0.01 * i, "y": 0.0, "yaw": 0.1,
+             "planar": 0.2, "wob2": 0.3, "watts": 10.0, "height": 0.31,
+             "up_z": 0.99, "con_l": i % 2 == 0, "con_r": i % 2 == 1,
+             "foot_err": 0.01, "foot_clear": 0.035, "foot_dx": 0.001,
+             "foot_dz": -0.002, "cmd_lift": 0.0, "com_stance": 0.02,
+             "recovered": 1.0}
+            for i in range(50)]
+    cmds = [(0.4, 0, 0, 1, 0)] * 50
+    path = str(tmp_path / "traces" / "line_1m_s7.npz")
+    referee_trace.save(path, scenario="line_1m", seed=7, dt=0.04,
+                   episode_seconds=14.0, rows=rows, cmds=cmds,
+                   fell=False, success=True,
+                   events={"cross_t": 4.2, "cross_x": 1.01},
+                   swing_summary={"swing_n": 5, "lift_frac": 0.31},
+                   shared={"cot": 12.5}, headline="t=4.2s",
+                   metrics={"time_to_1m": 3.2})
+    t = referee_trace.load(path)
+    assert t["up_z"].shape == (50,) and t["up_z"][0] == pytest.approx(0.99)
+    assert t["con_l"].dtype == np.bool_
+    assert t["cmd"].shape == (50, 7) and t["cmd"][0][0] == pytest.approx(0.4)
+    assert t["meta"]["scenario"] == "line_1m" and t["meta"]["seed"] == 7
+    assert t["meta"]["schema"] == referee_trace.SCHEMA_VERSION
+    assert t["events"]["cross_t"] == 4.2
+    assert t["meta"]["success"] is True and t["meta"]["fell"] is False
+
+
+def test_trace_events_sanitize_numpy():
+    import numpy as _np
+    rows = [{"t": 0.04, "x": 0.0, "y": 0.0, "yaw": 0.0, "planar": 0.0,
+             "wob2": 0.0, "watts": 0.0, "height": 0.3, "up_z": 1.0,
+             "con_l": True, "con_r": True, "foot_err": 0.0,
+             "foot_clear": 0.0, "foot_dx": 0.0, "foot_dz": 0.0,
+             "cmd_lift": 0.0, "com_stance": 0.0, "recovered": 1.0}]
+    ev = {"cross_t": _np.float64(4.2), "weird": object()}
+    path = os.path.join(tempfile.mkdtemp(), "t.npz")
+    referee_trace.save(path, scenario="x", seed=0, dt=0.04, episode_seconds=1.0,
+                   rows=rows, cmds=[(0, 0, 0, 1, 0)], fell=False,
+                   success=True, events=ev, swing_summary={}, shared={},
+                   headline="", metrics={})
+    t = referee_trace.load(path)
+    assert t["events"]["cross_t"] == pytest.approx(4.2)
+    assert isinstance(t["events"]["weird"], str)      # degraded, not lost
