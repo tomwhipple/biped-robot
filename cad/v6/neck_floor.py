@@ -71,8 +71,8 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Pos, Rot, export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as P  # noqa: E402
-import check_assembly as CA  # noqa: E402
+from common import shapes as P  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 D = V.D
@@ -272,7 +272,7 @@ def check_screw_bite(verbose=True):
 
 
 def check_print(verbose=True):
-    import check_printability as CP
+    from common import check_printability as CP
     rot, note = PRINT_ORIENT["neck_floor"]
     CP.STL = OUT_STL
     CP.ORIENT["neck_floor"] = (rot, note)

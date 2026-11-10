@@ -18,11 +18,11 @@ with torque released, arms over the radio or the USB tether, and runs the
 `main/mech_envelope.h`, `pose`/`home`, the gain check, the telemetry joint
 block and the SIL arrays are all 17 wide. The **policy** is what the compiled
 network observes and commands, from the generated `obs_spec.h`: the
-prototype's 10 joints (`kNumJoints = 10`,
-`kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}` — the v6 legs' IDs as assembled, plant
-`sim/bimo_biped_v5body.xml`), policy `loco_v41rsi_b_s128r24`. The loop drives
-the policy's joints and holds every other fitted servo; the prototype's
-calibration marks IDs 11–17 not fitted
+v6 legs' 12 joints (`kNumJoints = 12`,
+`kServoId = {9, 51, 2, 3, 4, 12, 10, 52, 6, 7, 8, 11}`, plant
+`sim/bimo_biped_v6legs.xml`), policy `robot_legs_walk16_act_s128r24`. The loop drives
+the policy's joints and holds every other fitted servo; the legs-only robot's
+calibration marks the neck and arms (IDs 13–17) not fitted
 ([docs/firmware-design.md](../docs/firmware-design.md) §5.8).
 
 ## Build and flash
@@ -93,7 +93,7 @@ hardware-touching files are excluded by construction.
 |---|---|
 | `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
-| `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
+| `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the motion limiter (bounds, braking, no overshoot, S-curve), the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
@@ -203,7 +203,7 @@ because a flash write stalls the control tick.
 | `id <old> <new>` | assign a servo ID (EEPROM; one servo on the bus) |
 | `pos <id>` | position, speed, load, voltage, temperature, faults |
 | `move <id> <ticks> [ms] [steps/s]` | one servo; 2048 = middle, 4096 ticks/rev; clamped to the mechanical envelope |
-| `pose <17 ticks> [...]` / `pose <10 ticks> [...]` | 17 targets in servo-ID order (every bus servo), or 10 in policy order (the prototype's tools); unfitted servos ignored; streamed as a smooth minimum-jerk move by default |
+| `pose <17 ticks> [...]` / `pose <10 ticks> [...]` | 17 targets in servo-ID order (every bus servo), or the policy's joints in policy order; unfitted servos ignored; streamed as a smooth minimum-jerk move by default |
 | `trace` | dump the per-servo trace recorded during the last `pose` stream |
 | `reg <id> <addr> [1\|2]` | read a servo register |
 | `gains [id [P D]]` | position-loop P/D (registers 21/22): no id checks every driven servo against `main/servo_gains.h` (the arm gate); `<id>` reads one; `<id> <P> <D>` writes one, only with its torque off (EEPROM unlock, write, lock, read back; no goal) |
@@ -214,6 +214,7 @@ because a flash write stalls the control tick.
 | `batt [reset]` | pack guard state; `reset` clears a latched trip after a pack swap (bench) |
 | `cal [show\|zero [j]\|dir j d\|set j z d\|fit j 0\|1\|migrate\|save\|load\|reset]` | per-bus-joint zero, direction and fitted flag in NVS; `j` is a joint name or a servo ID |
 | `shape [hz]` | command-shaper pole; 0 = raw targets |
+| `limit [off\|on\|vmax [amax [jmax]]]` | per-joint motion limiter (deg/s, deg/s², deg/s³; braking look-ahead, optional jerk boxcar; its velocity is the goal speed); off at boot, `on` = 200 / 2000 / no jerk limit |
 | `obsfreeze [none\|up\|gyro\|imu\|dq\|gain=k]` | pin or scale parts of the policy observation (diagnostic, not persisted) |
 | `run` / `bench` | hand the bus to the control loop / take it back; `run` refuses without an NVS calibration or with any servo's gains off the expected table |
 | `imu [scan\|raw [n]\|ring [ms]\|avg [on\|off]\|gscale [x y z]\|reinit\|bias\|mount\|forget\|ae]` | IMU status, I²C scan, raw axes, ringing meter, calibration |

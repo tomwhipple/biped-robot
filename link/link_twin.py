@@ -102,7 +102,7 @@ def run(port=CMD_PORT, tlm_port=TLM_PORT, armed=False, arm_allowed=True,
             if not quiet:
                 print(f"  [{now_ms/1000:7.2f}s] home: benched, all "
                       f"{NUM_JOINTS} joints -> calibrated zero (the stand), "
-                      f"torque HOLDING", flush=True)
+                      f"then torque RELEASED", flush=True)
         if not quiet and (state is not last_state or cmd != last_cmd
                           or diag != last_diag):
             why = f"  -- {diag_reason(diag)}" if state is LinkState.BENCH \

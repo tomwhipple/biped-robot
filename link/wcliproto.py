@@ -12,7 +12,8 @@ Every datagram (little-endian):
 
 tag = HMAC-SHA256(direction key, everything before it)[:16]. The direction
 keys are derived from the 32-byte shared key, which is provisioned into the
-robot's NVS over the USB tether (`wcli key <hex>`) and never crosses the air.
+robot's NVS over the USB tether (`wcli key <hex>`) and never crosses the air
+(Client.command refuses to send that line, or `wifi <ssid> <psk>`).
 
 The session (the robot side is firmware/components/wcli/wcli.cpp):
 
@@ -160,6 +161,26 @@ def new_key_file(path: str = DEFAULT_KEY_FILE) -> bytes:
 def key_fingerprint(key: bytes) -> str:
     """What the robot's `wcli` prints: SHA-256(key)[:4], hex. Not the key."""
     return hashlib.sha256(key).digest()[:4].hex()
+
+
+NOT_SENT = "KEY NOT SENT (tether only)"
+
+
+def secret_line(line: str) -> Optional[str]:
+    """The redacted form of a line that carries a secret, else None.
+
+    `wcli key <hex>` (the CLI key) and `wifi <ssid> <psk>` (the PSK) are
+    taken over the USB tether only. The robot refuses them over Wi-Fi, but a
+    refusal comes after the datagram -- the secret in it, in clear -- has
+    crossed the air, so the client refuses to send them at all (#193). Same
+    tokens and same redacted text as the robot's wcli::redactForLog().
+    """
+    t = line.replace("\t", " ").split()
+    if len(t) >= 3 and t[0] == "wcli" and t[1] == "key" and t[2] != "clear":
+        return "wcli key <redacted>"
+    if len(t) >= 3 and t[0] == "wifi":
+        return f"wifi {t[1]} <redacted>"   # the SSID is broadcast anyway
+    return None
 
 
 # -- the client ----------------------------------------------------------------
@@ -415,7 +436,17 @@ class Client:
 
     def command(self, line: str, accept_timeout: float = 3.0,
                 idle_timeout: float = 30.0) -> Result:
-        """Run one CLI line on the robot, at most once. Connects if needed."""
+        """Run one CLI line on the robot, at most once. Connects if needed.
+
+        A line carrying a tether-only secret (secret_line) is never sent: it
+        comes back "refused", with the redacted line in the text and a note.
+        """
+        shown = secret_line(line)
+        if shown is not None:
+            msg = f"{NOT_SENT}: {shown}"
+            self.on_note(msg)
+            return Result(seq=0, status="refused", text=msg + "\r\n",
+                          refused=True)
         data = line.encode("ascii", "strict")
         if len(data) > MAX_LINE:
             raise ValueError(f"line longer than {MAX_LINE} bytes")

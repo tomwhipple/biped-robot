@@ -21,6 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import build_v6_inertia as B  # noqa: E402  (also puts cad/ and cad/v6 on sys.path)
+from stable_stl import replace_if_changed  # noqa: E402
 
 V = B.V
 SERVO_DIR = os.path.join(HERE, "meshes", "v6")
@@ -52,7 +53,9 @@ def parts(arms=True, head=True):
     out = {"torso": [("pelvis_v8", (0, 0, zdeck), PLA),
                      ("torso_v8" + ("" if arms else "_armless"), (0, 0, zdeck), PLA),
                      ("front_cover_v8", (0, 0, zdeck), PLA)]
-           + ([("power_cover_v8", (0, 0, zdeck), PLA), ("battery_door_v8", (0, 0, zdeck), PLA)] if head else [])
+           + ([("power_cover_v8", (0, 0, zdeck), PLA), ("power_bracket_v8", (0, 0, zdeck), PLA),
+               ("balance_park_v8", (0, 0, zdeck), PLA), ("switch_pod_v8", (0, 0, zdeck), PLA),
+               ("battery_door_v8", (0, 0, zdeck), PLA)] if head else [])
            + [("yaw_bearing_housing", (0, 0, zdeck), PLA)]
            + ([("neck_floor", (0, 0, zdeck), PLA)] if head else [])
            + ([("shoulder_girdle_v6", (0, 0, zdeck), PLA)] + cheeks if arms else
@@ -61,13 +64,15 @@ def parts(arms=True, head=True):
         out["head"] = [("head", (0, 0, 0), PLA)]
     for s in ("L", "R"):
         out[f"{s}_hip_yaw"] = [("yaw_carrier_v6", (0, 0, 0), PLA)]
-        out[f"{s}_hip"] = [("hip_yoke_v6", (0, 0, 0), PLA)]
+        # the glued hip yoke: two prints glued into one link, same frame
+        out[f"{s}_hip"] = [("hip_yoke_glued_roll", (0, 0, 0), PLA), ("hip_yoke_glued_pitch", (0, 0, 0), PLA)]
         out[f"{s}_thigh"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_shin"] = [("leg_link_v6", (0, 0, 0), PLA)]
         out[f"{s}_ankle_blk"] = [("ankle_link", (0, 0, 0), PLA)]
         out[f"{s}_foot"] = [(f"foot_{s}", (0, 0, z_foot), PLA), (f"sole_tpu_{s}", (0, 0, z_foot), SOLE)]
         if arms:
-            out[f"{s}_arm"] = [(f"arm_upper_v6_{s}", (0, 0, 0), PLA)]
+            # the head insert (#199) is glued into the upper arm, in its frame
+            out[f"{s}_arm"] = [(f"arm_upper_v6_{s}", (0, 0, 0), PLA), (f"arm_head_insert_v6_{s}", (0, 0, 0), PLA)]
             out[f"{s}_forearm"] = [(f"arm_fore_v6_{s}", (0, 0, 0), PLA)]
     return out
 
@@ -76,7 +81,10 @@ def export_servos():
     os.makedirs(SERVO_DIR, exist_ok=True)
     keys = sorted({k for ks in SERVOS.values() for k in ks})
     for k in keys:
-        shutil.copyfile(B._mock_stl(k), os.path.join(SERVO_DIR, f"servo_{k}.stl"))
+        # an unchanged mock keeps its committed bytes (cad/stable_stl.py: OCC tessellates per platform)
+        tmp = os.path.join(SERVO_DIR, f".tmp_servo_{k}.stl")
+        shutil.copyfile(B._mock_stl(k), tmp)
+        replace_if_changed(tmp, os.path.join(SERVO_DIR, f"servo_{k}.stl"))
         print(f"servo_{k}.stl")
 
 

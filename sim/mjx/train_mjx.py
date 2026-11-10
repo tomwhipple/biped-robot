@@ -104,7 +104,9 @@ class BatchedEnv(brax_base.Env):
                     torso_bid=e._torso_bid, torso_mass_range=e.torso_mass_range,
                     torso_com_y=e.torso_com_y, nom_ipos=e._nom_ipos,
                     floor_contact_range=e.floor_contact_range,
-                    contact_gids=e._contact_gids, nom_solref=e._nom_solref)
+                    contact_gids=e._contact_gids, nom_solref=e._nom_solref,
+                    contact_mu_range=e.contact_mu_range,
+                    contact_torsion_range=e.contact_torsion_range)
         return self._dr_cache[n]
 
     @property
@@ -188,6 +190,36 @@ class BatchedEnv(brax_base.Env):
                                metrics=dict(st.metrics), info=info)
 
 
+def crouch_obs_slots(env):
+    """Observation indices of the crouch command (cmd[3]) in every stacked frame. The frame
+    ends with the command vector (env_mjx._obs: ..., phase sin/cos, cmd)."""
+    n_cmd = 7                     # ext_cmd: vx, vy, wz, crouch, lift, foot_dx, foot_dz
+    if not getattr(env, "ext_cmd", False):
+        raise ValueError("--init-norm-crouch needs an ext_cmd (7-channel command) env")
+    off = int(env.obs_frame) - n_cmd + 3
+    return [k * int(env.obs_frame) + off for k in range(int(env.obs_hist_len))]
+
+
+def reseat_crouch_norm(restore, env, lo, hi):
+    """restore = (normalizer RunningStatisticsState, policy, value): set the crouch slots'
+    mean to the draw midpoint and std to the uniform draw's (>= 0.02), with summed_variance
+    consistent with the stored count so the running update continues from there."""
+    import numpy as _np
+    norm = restore[0]
+    idx = crouch_obs_slots(env)
+    mean = _np.array(norm.mean, dtype=_np.float32).copy()
+    std = _np.array(norm.std, dtype=_np.float32).copy()
+    sv = _np.array(norm.summed_variance, dtype=_np.float32).copy()
+    cnt = norm.count
+    n = float(int(cnt.hi) * 2 ** 32 + int(cnt.lo)) if hasattr(cnt, "hi") else float(cnt)
+    s_new = max((hi - lo) / _np.sqrt(12.0), 0.02)
+    mean[idx] = 0.5 * (lo + hi)
+    std[idx] = s_new
+    sv[idx] = s_new ** 2 * n
+    norm = norm.replace(mean=jp.asarray(mean), std=jp.asarray(std), summed_variance=jp.asarray(sv))
+    return (norm,) + tuple(restore[1:]), idx
+
+
 def make_parser():
     """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
     one set of flags means one env config, whichever trainer runs it."""
@@ -227,10 +259,18 @@ def make_parser():
     p.add_argument("--precision", action="store_true",
                    help="7-channel precision command curriculum (ext_cmd): "
                         "sidestep, backward, crouch, one-leg balance, air "
-                        "circles; severe fall cost; as-built plant default")
+                        "circles; severe fall cost")
     p.add_argument("--xml", default=None,
-                   help="plant override (default: v2; precision default: "
-                        "bimo_biped_v2_asbuilt.xml -- the 100 mm printed feet)")
+                   help="the plant (default: bimo_biped_v6ar.xml, the env's and "
+                        "--robot's). A basename resolves in sim/. bimo_biped_v6legs_meas.xml / "
+                        "bimo_biped_v6ar_meas.xml: the v6 plants with the joint stops "
+                        "measured on the robot 2026-11-02; under --ctrl-within-stops "
+                        "their action map is the old plants', so --init-from a "
+                        "v6legs/v6ar checkpoint is unchanged (not under --ctrl-physical). "
+                        "bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction "
+                        "measured on the robot 2026-11-04 (mu 0.5, no torsional brake, pad "
+                        "priority, flat pads; pair it with --contact-mu, never --contact-torsion "
+                        "at the old 0.001,0.02)")
     p.add_argument("--robot", action="store_true",
                    help="train on the ROBOT's plant (robot_plant.py): "
                         "bimo_biped_v6ar.xml, the 12 leg joints as the "
@@ -297,6 +337,23 @@ def make_parser():
                    help="free torso-pitch band in DEGREES before "
                         "--w-pitch-hinge bites (default 5)")
     p.add_argument("--w-action-rate", type=float, default=None)
+    p.add_argument("--w-action-acc", type=float, default=None,
+                   help="weight on the action's second difference sum (a_t - 2a_t-1 + a_t-2)^2 "
+                        "(smooth starts and stops; default 0)")
+    p.add_argument("--w-gyro-hinge", type=float, default=None,
+                   help="weight on max(|torso angular velocity| - --gyro-hinge, 0)^2: the "
+                        "firmware flail guard's quantity (EMA(|gyro|) > 1.5 rad/s trips it); "
+                        "default 0 = off")
+    p.add_argument("--gyro-hinge", type=float, default=None,
+                   help="free |gyro| band in rad/s before --w-gyro-hinge bites (default 1.2)")
+    p.add_argument("--w-qacc", type=float, default=None,
+                   help="weight on sum qdd^2 of the servo DOFs, qdd = the tick's mean joint "
+                        "acceleration in rad/s^2 (default 0)")
+    p.add_argument("--w-joint-speed", type=float, default=None,
+                   help="weight on sum max(|qd| - soft, 0)^2 over the servo DOFs, rad/s (default 0): "
+                        "a soft speed cost, trading against the gait; see env_mjx")
+    p.add_argument("--joint-speed-soft", type=float, default=None, metavar="DEG_S",
+                   help="the speed above which --w-joint-speed charges, deg/s (default 120)")
     p.add_argument("--w-symmetry", type=float, default=None,
                    help="gait-symmetry penalty: on touchdown, the swing-duration\nmismatch vs the other foot. Was pinned at 1.0 and untunable until 2026-08-06.")
     p.add_argument("--w-power", type=float, default=None)
@@ -330,6 +387,14 @@ def make_parser():
                         "(1/s^2) and damping b (1/s) drawn log-uniformly, solref=(-k,-b) on "
                         "the floor and the sole pads; needs DR on (--precision). The carpet.."
                         "hard range of experiments/one-leg-stand/2026-11-01-floors-fit.md")
+    p.add_argument("--contact-mu", default=None,
+                   help="lo,hi: per-env EFFECTIVE foot/floor sliding friction, one draw set on "
+                        "the floor AND the sole pads (MuJoCo takes the max of the pair, so the "
+                        "floor-only friction DR never goes below the pads' 1.0); replaces the "
+                        "floor friction draw; needs DR on (--precision). experiments/policy/friction-dr")
+    p.add_argument("--contact-torsion", default=None,
+                   help="lo,hi m: per-env torsional friction on the floor and the sole pads "
+                        "(plant: 0.02); needs DR on (--precision)")
     p.add_argument("--joint-frictionloss-range", default=None,
                    help="lo,hi N*m: per-env joint friction DR (one draw for "
                         "every servo DOF), e.g. 0.05,0.5; needs DR on "
@@ -338,6 +403,15 @@ def make_parser():
     p.add_argument("--servo-3250", default=None,
                    help="comma roles/actuators given the STS3250 stall/speed "
                         "envelope on top of the robot's (e.g. knee): a servo-set study")
+    p.add_argument("--servo-envelope", default=None,
+                   help="role_or_actuator=STALL:W0[,...]: a measured torque-speed envelope, stall "
+                        "torque and no-load speed as ratios to the STS3215 model (2.94 N*m, "
+                        "4.04 rad/s per 12 V), e.g. hip_pitch=1.3:1.5,knee=1.0:1.1 (the fit of "
+                        "experiments/policy/actuator-refit/refit.py); applied after --servo-3250. "
+                        "The referee inherits it from config.json (servo_types)")
+    p.add_argument("--supply-voltage", type=float, default=None,
+                   help="servo bus volts the envelope scales with (default 11.1; the robot's "
+                        "servos read ~12.0 V on the board, flight 2026-11-03)")
     p.add_argument("--robot-arms", action="store_true",
                    help="with --robot: the policy drives the shoulders and "
                         "elbows (the neck stays held); for the get-up")
@@ -423,6 +497,24 @@ def make_parser():
                         "sin/cos obs stop oscillating, removing the rhythmic "
                         "drive the policy otherwise must ignore to stand "
                         "still (2026-08-12)")
+    p.add_argument("--clock-coast-stand", type=float, default=None, metavar="PHASE",
+                   help="at a plain stand the gait clock keeps its rate until the "
+                        "phase reaches PHASE (rad), then holds: the firmware's "
+                        "`standclock coast` (default target pi/2 = 1.5708, measured "
+                        "on the robot 2026-11-02). Exclusive with --clock-freeze-stand")
+    p.add_argument("--gait-freq", default=None, metavar="LO,HI",
+                   help="per-episode gait-clock draw, lo,hi Hz (default 1.25,1.75; "
+                        "the bound 0.5 is _mimic_ref's floor). config.json records it as "
+                        "gait_freq_range: the referee and grader run the policy at the "
+                        "midpoint and gen_obs_spec.py emits that as obs::kGaitFreqHz")
+    p.add_argument("--w-squeeze", type=float, default=None,
+                   help="stand-gated L1 penalty on the servo position error "
+                        "|served target - q| (rad, less the backlash band): the "
+                        "robot's armed stand drew ~1 W on targets the legs cannot "
+                        "reach vs 0.05-0.19 W for a static hold (2026-11-02)")
+    p.add_argument("--squeeze-lash-band", action="store_true",
+                   help="--w-squeeze ignores errors inside half the backlash (the sim PD's "
+                        "dead zone); default: the full error the servo's encoder sees")
     p.add_argument("--stop-grace-s", type=float, default=None,
                    help="keep the gait shaping on this many seconds after a "
                         "walk -> stand stop, so the closing step is shaped "
@@ -550,6 +642,12 @@ def make_parser():
                         "(2026-09-13: the referee's squat_reps cycles 1.5 s "
                         "holds, faster than the 2.5-4.5 s default ever "
                         "trains; 1.0,4.5 puts that cadence in-distribution)")
+    p.add_argument("--init-norm-crouch", action="store_true",
+                   help="with --init-from: re-seat the restored observation normalizer's crouch "
+                        "command slots (cmd[3] in every stacked frame) to this run's "
+                        "--cmd-crouch-range (mean = midpoint, std = the uniform draw's). A run "
+                        "trained with the channel frozen at 1.0 has std 1e-6 there, so any other "
+                        "crouch reads as ~1e5 sigma (2026-11-05, knee-bend walking)")
     p.add_argument("--cmd-crouch-range", default="1,1",
                    help="per-episode crouch-command draw, lo,hi (SIL finding "
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
@@ -589,6 +687,21 @@ def make_parser():
                         "robot stands with the gyro obs at 0.5x, falls at 1x)")
     p.add_argument("--gyro-delay-max", type=int, default=None,
                    help="per-episode gyro OBS delay DR, 0..N ticks (max 2)")
+    p.add_argument("--yaw-kick-range", default=None,
+                   help="'lo,hi' rad/s: body yaw rate kicks, either way, while a move is commanded "
+                        "(experiments/policy/yaw-gap: the robot's step onset yaws harder than the sim's); "
+                        "with --yaw-kick-prob")
+    p.add_argument("--yaw-kick-prob", type=float, default=None,
+                   help="per control tick; 0.03 = about one kick per 0.67 s gait cycle")
+    p.add_argument("--dq-obs-window", default=None,
+                   help="robot-like joint-velocity OBS: the mean joint velocity over the "
+                        "last N control ticks, (q_t - q_t-N)/(N dt), as the STS3215 reg 58 "
+                        "reports it (2026-11-05 kick analysis: ~40 ms = N 2). 'N' fixed, "
+                        "or 'lo,hi' drawn per episode; 0 = off")
+    p.add_argument("--dq-obs-quantum", type=float, default=None,
+                   help="round the joint-velocity OBS to this many reg-58 steps/s (the "
+                        "robot's reg 58 moves in 50 steps/s = 4.4 deg/s); replaces "
+                        "--quantize's 1-step dq rounding")
     p.add_argument("--act-delay-max", type=int, default=None,
                    help="per-episode servo dead time DR, 0..N control ticks "
                         "(20 ms each); 2026-09-05 bench measured ~85 ms")
@@ -601,10 +714,42 @@ def make_parser():
                         "~0.17x the modelled kd at stand amplitudes), e.g. 0.1,1.0")
     p.add_argument("--servo-kp-range", default=None,
                    help="per-episode servo stiffness multiplier DR 'lo,hi', e.g. 0.6,1.2")
+    p.add_argument("--seed-chain-at-q", action="store_true",
+                   help="seed the servo chain (dead-time ring, act-lag cascade, firmware "
+                        "shaper, last target) at the episode's start pose, not the stand "
+                        "pose, as the firmware seeds its shaper at measured q: a get-up "
+                        "from lying no longer starts with a yank toward standing "
+                        "(2026-11-04). config.json records it; the referee inherits it")
     p.add_argument("--init-pose-deg", type=float, default=None,
                    help="episode start-pose jitter half-width per joint, deg "
                         "(unset = the historical 1.7 deg); served target starts "
                         "at the jittered pose when set")
+    p.add_argument("--fw-shaper", default=None, metavar="HZ[,HZ_MAX]",
+                   help="the firmware's C2 command shaper (obs::CommandShaper: 3 "
+                        "cascaded first-order lags) on the policy's targets, before "
+                        "the goal ticks and the servo; one pole per episode drawn "
+                        "uniform(HZ, HZ_MAX), or fixed at HZ. Deploy with `shape` = "
+                        "the trained pole (firmware default obs::kShaperPoleHz = 10)")
+    p.add_argument("--fw-goal-speed", action="store_true",
+                   help="with --fw-shaper (or --fw-limit): the firmware's per-joint goal speed "
+                        "(1.25 x |goal - present| per tick, 50..3400 steps/s): the "
+                        "servo set point slews to each new goal within the tick")
+    p.add_argument("--fw-limit", default=None, metavar="VMAX,AMAX[,JMAX]",
+                   help="the firmware's per-joint motion limiter (obs::MotionLimiter, CLI "
+                        "`limit`) after --fw-shaper, before the goal ticks: |v| <= VMAX deg/s, "
+                        "|a| <= AMAX deg/s^2, braking look-ahead (a still target is reached at "
+                        "rest, never passed), optional jerk limit JMAX deg/s^3 (S-curve "
+                        "boxcar). With --fw-goal-speed the goal speed is the limited velocity. "
+                        "Deploy with `limit VMAX AMAX [JMAX]` = the trained values")
+    p.add_argument("--loop-gain-range", default=None, metavar="LO,HI",
+                   help="loop-gain DR: per episode the served targets follow the action's "
+                        "0.5 s mean + g x its deviation, g ~ U(LO, HI); the policy sees its "
+                        "raw action. The stand-still loop-gain probe (the robot runs ~1.5x "
+                        "the sim's loop gain, 2026-11-02) as training DR, e.g. 1.0,1.6")
+    p.add_argument("--act-lag-order", type=int, default=None, choices=(1, 3),
+                   help="stages in the --act-lag cascade: 3 (default; the historical "
+                        "stand-in for shaper + servo) or 1 (the servo's own "
+                        "first-order rise, pole = 1/(2 pi tau), with --fw-shaper)")
     p.add_argument("--act-lag", default=None,
                    help="per-episode action-chain lag pole draw, lo,hz "
                         "(3 cascaded stages, the deployed C2 shaper's "
@@ -656,25 +801,15 @@ def build_env_kw(args):
             # 67.9 mm too high -- it floats the 154 g camera (12 % of the
             # robot) well clear of the body, visibly so in the render.
             # v6 bolts gopro_base flat to the deck: CAD cam_z is 54.0 mm over
-            # the deck (GP_BASE_T + GP_HOLE_H + 6 + CAM_BODY_z/2, parts.py),
-            # and the deck is 4.11 mm over the torso centre.
-            # z from check_assembly.camera_mock()'s CORRECTED body bottom
-            # (hole_z + GP_PRONG_OD/2 + 0.5, fixed 2026-08-04), not parts.py's
-            # cam_z, which still carries the tower-era hole_z + 6.0 and is
-            # 2 mm low. CG = 56.0 over the deck, deck = 4.11 over torso centre.
+            # the deck, and the deck is 4.11 mm over the torso centre.
+            # z from common/mocks.camera_mock()'s body bottom
+            # (hole_z + GP_PRONG_OD/2 + 0.5): CG = 56.0 over the deck, deck =
+            # 4.11 over torso centre.
             payload_cg_z=0.0601,   # was 0.1260 (tower top), 0.0945 before that
             # And the camera is NOT on the centreline: it bolts to gopro_base
             # at GP_MOUNT_X. x was hard-coded 0 in both envs until 2026-08-06,
             # which floated it 24 mm forward of its own mount.
             payload_cg_x=-0.0240,  # GP_MOUNT_X
-            # DEFAULT PLANT = the 10-DOF hip-yaw robot (user 2026-07-24:
-            # "assume the 10-dof with the new pelvis for all simulations
-            # going forward" -- the A/B verdict made yaw the build target).
-            # 8-DOF plants remain available via --xml for legacy referees.
-            # 2026-08-05: v3yaw and v4rom BOTH load the retired tower.stl,
-            # which pelvis v6 deleted, so neither opens any more. v5body is
-            # the pelvis-v6 plant and the only 10-DOF model that loads.
-            xml_path=os.path.join(HERE, "..", "bimo_biped_v5body.xml"),
             # dense directional progress: without it precision_v1 converged
             # to a 0-falls/0-motion standing optimum (kernels pay standers)
             cmd_dense=True,
@@ -713,6 +848,14 @@ def build_env_kw(args):
         if len(v) != 4 or not (0 < v[0] <= v[1] and 0 < v[2] <= v[3]):
             raise SystemExit("--floor-contact wants k_lo,k_hi,b_lo,b_hi (all > 0, lo <= hi)")
         env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
+    if getattr(args, "supply_voltage", None) is not None:
+        env_kw["supply_voltage"] = float(args.supply_voltage)
+    for flag, key in (("contact_mu", "contact_mu_range"), ("contact_torsion", "contact_torsion_range")):
+        if getattr(args, flag, None) is not None:
+            v = [float(x) for x in getattr(args, flag).split(",")]
+            if len(v) != 2 or not (0 <= v[0] <= v[1]):
+                raise SystemExit(f"--{flag.replace('_', '-')} wants lo,hi (0 <= lo <= hi)")
+            env_kw[key] = (v[0], v[1])
     if args.joint_frictionloss_range is not None:
         # get-up campaign 2026-10-22: friction DR (training only; the referee
         # grades at joint_frictionloss, or eval_precision --joint-frictionloss)
@@ -723,6 +866,9 @@ def build_env_kw(args):
         # live) or an explicit path -- night-queue args use basenames
         env_kw["xml_path"] = (args.xml if os.path.exists(args.xml)
                               else os.path.join(HERE, "..", args.xml))
+    else:
+        # the env's default plant, written down so config.json names it
+        env_kw["xml_path"] = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")
     if args.robot:
         # the robot's plant, resolved against its own actuators -- held_joints
         # and the stiffness map land in config.json explicitly per actuator
@@ -731,6 +877,16 @@ def build_env_kw(args):
         if args.servo_3250:
             env_kw["servo_types"] = dict(env_kw.get("servo_types") or {},
                                          **{r.strip(): "sts3250" for r in args.servo_3250.split(",") if r.strip()})
+        if getattr(args, "servo_envelope", None):
+            env = {}
+            for kv in args.servo_envelope.split(","):
+                k, _, v = kv.strip().partition("=")
+                a, _, b = v.partition(":")
+                try:
+                    env[k] = [float(a), float(b)]
+                except ValueError:
+                    raise SystemExit(f"--servo-envelope {kv!r}: want role=STALL:W0")
+            env_kw["servo_types"] = dict(env_kw.get("servo_types") or {}, **env)
         if args.robot_arms:
             env_kw["held_joints"] = {k: v for k, v in env_kw["held_joints"].items()
                                      if robot_plant._role(k) not in ("shoulder", "elbow")}
@@ -814,6 +970,23 @@ def build_env_kw(args):
     if args.act_lag is not None:
         lo, hi = (float(x) for x in args.act_lag.split(","))
         env_kw.update(act_lag_hz=lo, act_lag_hz_max=hi)
+    if args.act_lag_order is not None:
+        env_kw["act_lag_order"] = int(args.act_lag_order)
+    if args.fw_shaper is not None:
+        hz = [float(x) for x in args.fw_shaper.split(",")]
+        env_kw["fw_shaper_hz"] = hz[0]
+        if len(hz) > 1:
+            env_kw["fw_shaper_hz_max"] = hz[1]
+    if args.fw_goal_speed:
+        env_kw["fw_goal_speed"] = True
+    if args.fw_limit is not None:
+        import fw_limit as _fwl
+        cfg = _fwl.parse(args.fw_limit)
+        env_kw["fw_limit"] = None if cfg is None else list(cfg)
+    if args.seed_chain_at_q:
+        env_kw["seed_chain_at_q"] = True
+    if args.loop_gain_range is not None:
+        env_kw["loop_gain_range"] = tuple(float(x) for x in args.loop_gain_range.split(","))
     if args.roll_lash_deg is not None:
         lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
         env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
@@ -833,6 +1006,17 @@ def build_env_kw(args):
             float(x) for x in args.gyro_gain_range.split(","))
     if args.gyro_delay_max is not None:
         env_kw["gyro_delay_max"] = int(args.gyro_delay_max)
+    if getattr(args, "yaw_kick_range", None):
+        env_kw["yaw_kick_range"] = tuple(float(x) for x in str(args.yaw_kick_range).split(","))
+        env_kw["yaw_kick_prob"] = float(args.yaw_kick_prob or 0.03)
+    if getattr(args, "dq_obs_window", None) is not None:
+        # 'N' or 'lo,hi' control ticks; the envs validate (walker_env.parse_dq_obs_window)
+        w = tuple(int(x) for x in str(args.dq_obs_window).split(","))
+        w = (w[0], w[0]) if len(w) == 1 else w
+        if w != (0, 0):
+            env_kw["dq_obs_window"] = w
+    if getattr(args, "dq_obs_quantum", None):
+        env_kw["dq_obs_quantum"] = float(args.dq_obs_quantum)
     if args.act_delay_max is not None:
         env_kw["act_delay_max"] = int(args.act_delay_max)
     if getattr(args, "act_delay_types", None):
@@ -860,6 +1044,18 @@ def build_env_kw(args):
         env_kw["pitch_deadband_deg"] = args.pitch_deadband
     if args.w_action_rate is not None:
         env_kw["w_action_rate"] = args.w_action_rate
+    if getattr(args, "w_action_acc", None) is not None:
+        env_kw["w_action_acc"] = args.w_action_acc
+    if getattr(args, "w_qacc", None) is not None:
+        env_kw["w_qacc"] = args.w_qacc
+    if getattr(args, "w_joint_speed", None) is not None:
+        env_kw["w_joint_speed"] = args.w_joint_speed
+    if getattr(args, "joint_speed_soft", None) is not None:
+        env_kw["joint_speed_soft_dps"] = args.joint_speed_soft
+    if getattr(args, "w_gyro_hinge", None) is not None:
+        env_kw["w_gyro_hinge"] = args.w_gyro_hinge
+    if getattr(args, "gyro_hinge", None) is not None:
+        env_kw["gyro_hinge"] = args.gyro_hinge
     if args.w_symmetry is not None:
         env_kw["w_symmetry"] = args.w_symmetry
     if args.w_low_swing:
@@ -946,6 +1142,24 @@ def build_env_kw(args):
         env_kw["sched_duty"] = args.sched_duty
     if args.clock_freeze_stand:
         env_kw["clock_stand_freeze"] = True
+    if args.clock_coast_stand is not None:
+        if args.clock_freeze_stand:
+            raise SystemExit("--clock-coast-stand and --clock-freeze-stand are exclusive")
+        env_kw["clock_stand_coast"] = float(args.clock_coast_stand)
+    if getattr(args, "gait_freq", None) is not None:
+        if not env_kw.get("gait_clock"):
+            raise SystemExit("--gait-freq needs the gait clock (--precision)")
+        try:
+            lo, hi = (float(x) for x in str(args.gait_freq).split(","))
+        except ValueError:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: expected lo,hi in Hz")
+        if not 0.5 <= lo <= hi:
+            raise SystemExit(f"--gait-freq {args.gait_freq!r}: need 0.5 <= lo <= hi")
+        env_kw["gait_freq_range"] = (lo, hi)
+    if args.w_squeeze is not None:
+        env_kw["w_squeeze"] = args.w_squeeze
+    if args.squeeze_lash_band:
+        env_kw["squeeze_lash_band"] = True
     if args.stop_grace_s is not None:
         env_kw["stop_grace_s"] = args.stop_grace_s
     if args.mimic_crouch_gate:
@@ -1091,6 +1305,10 @@ def main():
         with open(os.path.join(RUNS, args.init_from, "params.pkl"), "rb") as f:
             restore = pickle.load(f)
         print(f"warm-starting from {args.init_from}/params.pkl")
+        if getattr(args, "init_norm_crouch", False):
+            lo, hi = (float(x) for x in str(args.cmd_crouch_range).split(","))
+            restore, idx = reseat_crouch_norm(restore, env, lo, hi)
+            print(f"re-seated the crouch normalizer slots {idx} to mean {(lo + hi) / 2:.3f}")
 
     train_fn = functools.partial(
         ppo.train,

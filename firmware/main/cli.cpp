@@ -9,6 +9,7 @@
 #include "balance/roll_pi.h"
 #include "fallguard/fallguard.h"
 #include "flailguard/flailguard.h"
+#include "flailguard/heading_hold.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -216,9 +217,10 @@ void cmdId(Sink out, int argc, char** argv) {
                  "same id will not enumerate\r\n", b);
         return;
     }
-    const scsbus::Status st = bus->setId(static_cast<uint8_t>(a),
-                                         static_cast<uint8_t>(b));
-    if (st != scsbus::Status::kOk) {
+    const uint8_t old_id = static_cast<uint8_t>(a), new_id = static_cast<uint8_t>(b);
+    bool ack_lost = false;
+    const scsbus::Status st = bus->setId(old_id, new_id, &ack_lost);
+    if (st == scsbus::Status::kBadArg) {
         say(out, "id %ld -> %ld: %s\r\n", a, b, statusName(st));
         return;
     }
@@ -227,14 +229,44 @@ void cmdId(Sink out, int argc, char** argv) {
     // -- exactly how a servo set through the vendor web UI came back as ID 1
     // on 2026-07-26. Hold, then prove the servo answers to the new ID before
     // saying anything reassuring, so nobody unplugs on the strength of "ok".
+    // The servo decides the verdict, not the ack: a rename can land with its
+    // ack lost (#101), so read reg 5 back from whichever id answers, then reg
+    // 55, and re-lock an EEPROM left open.
     vTaskDelay(pdMS_TO_TICKS(kEepromCommitMs));
-    if (!bus->ping(static_cast<uint8_t>(b))) {
-        say(out, "id %ld -> %ld: WROTE BUT DID NOT VERIFY -- rescan before "
-                 "trusting it\r\n", a, b);
+    uint8_t got = 0xFF;
+    const bool at_new = bus->readU8(new_id, scsbus::kRegId, got) == scsbus::Status::kOk &&
+                        got == new_id;
+    const bool at_old = !at_new && bus->readU8(old_id, scsbus::kRegId, got) == scsbus::Status::kOk &&
+                        got == old_id;
+    if (!at_new && !at_old) {
+        say(out, "id %ld -> %ld: %s, and NEITHER id answers after commit -- rescan "
+                 "before trusting it\r\n", a, b, statusName(st));
         return;
     }
-    say(out, "id %ld -> %ld: ok, verified after commit -- safe to power down\r\n",
-        a, b);
+    const uint8_t now_id = at_new ? new_id : old_id;
+    uint8_t lock = 0xFF;
+    if (bus->readU8(now_id, scsbus::kRegEepromLock, lock) == scsbus::Status::kOk && lock == 0) {
+        bus->lockEeprom(now_id);
+        lock = 0xFF;
+        bus->readU8(now_id, scsbus::kRegEepromLock, lock);
+    }
+    const char* lock_note = lock == 1   ? "EEPROM locked"
+                            : lock == 0 ? "EEPROM STILL UNLOCKED: `gains` with torque off re-locks it"
+                                        : "EEPROM lock unread: `reg <id> 55` before trusting it";
+    if (!at_new) {
+        say(out, "id %ld -> %ld: NOT renamed (%s); id %ld answers, %s\r\n", a, b,
+            statusName(st), a, lock_note);
+        return;
+    }
+    if (ack_lost) {
+        say(out, "  note: id %ld -> %ld: the ID write's ack was lost, but the servo "
+                 "answers to %ld\r\n", a, b, b);
+    } else if (st != scsbus::Status::kOk) {
+        say(out, "  note: id %ld -> %ld reported %s, but the servo answers to %ld\r\n",
+            a, b, statusName(st), b);
+    }
+    say(out, "id %ld -> %ld: ok, verified after commit -- safe to power down (%s)\r\n",
+        a, b, lock_note);
 }
 
 void cmdPos(Sink out, int argc, char** argv) {
@@ -687,8 +719,9 @@ void cmdStepResp(Sink out, int argc, char** argv) {
 // actuator experiments (2026-11-02: STS3215 vs STS3250 differ in undocumented regs 81/84/85/86;
 // the STS3215 has ~70 ms dead time). RAM only: EEPROM (addr < 40) is refused, so nothing persists
 // past a power cycle. Torque enable (40) and goal registers (42-47) are refused too -- use
-// torque/move/pose. Bench only (claimBus); the Wi-Fi CLI allowlist does not include it.
+// torque/move/pose. Bench only (claimBus); tether only (the Wi-Fi allowlist refuses it too).
 void cmdRegw(Sink out, int argc, char** argv) {
+    if (tetherOnly(out, "`regw` writes a servo register")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc < 4) { out("usage: regw <id> <addr 41|48-86 RAM> <value 0-255>   (RAM only, lost at power-off)\r\n"); return; }
@@ -1351,7 +1384,7 @@ void fallTickImpl(Sink out) {
 //    stream, balance, home -- stops where it is; a HARD stop also releases
 //    torque. Armed, ctrl has already acted; this only logs (kStop), once per
 //    burst (the tool repeats its frame for a second).
-static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0;
+static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0, s_walkrec_seen = 0;
 static bool s_hold_cand = false;
 static uint32_t s_hold_since = 0;
 static TickType_t s_stop_logged = 0;
@@ -1398,6 +1431,23 @@ void flailTickImpl(Sink out) {
             robot::flight::event(flightrec::Ev::kStop, what, hard ? 1 : 0, benched ? 0 : 1);
             say(out, "%s\r\n", what);
         }
+    }
+
+    // -- a trip during a walk, recovered (flailguard.h WalkRecovery) -------
+    const uint32_t recs = robot::g_flail_walk_recovers.load();
+    if (recs != s_walkrec_seen) {
+        s_walkrec_seen = recs;
+        const uint8_t trip = robot::g_flail_walk_trip.load();
+        const bool deg = trip == static_cast<uint8_t>(flailguard::Trip::kPose) ||
+                         trip == static_cast<uint8_t>(flailguard::Trip::kTilt);
+        const flailguard::WalkRecovery::Config C{};
+        char msg[120];   // say()'s line is 128: keep the whole event on one line
+        snprintf(msg, sizeof msg,
+                 "FLAIL guard: %s %.2f%s in a walk -> stand over %lu ms, policy runs on, guard off %lu ms",
+                 holdWhy(trip), static_cast<double>(robot::g_flail_walk_value.load()), deg ? " deg" : " rad/s",
+                 static_cast<unsigned long>(C.ramp_ms), static_cast<unsigned long>(C.grace_ms));
+        robot::flight::event(flightrec::Ev::kFlail, msg, trip, 3);
+        say(out, "%s\r\n", msg);
     }
 
     // -- a hold handed over from the armed loop ---------------------------
@@ -1467,20 +1517,49 @@ void cmdFlail(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_flail_on.store(true);
     else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_flail_on.store(false);
     const flailguard::Limits& L = flailguard::kLimits;
-    say(out, "flail guard (flailguard.h) %s: trips -> policy stopped, joints HELD, disarmed (kDisarmedFlail)\r\n",
+    const flailguard::WalkRecovery::Config WC{};
+    say(out, "flail guard (flailguard.h) %s: a trip at the stand -> policy stopped, joints HELD, disarmed\r\n",
         robot::g_flail_on.load() ? "ON" : "OFF (the armed loop is NOT judged)");
+    say(out, "  a trip within %lu ms of a walk/step command -> command to the stand over %lu ms,\r\n",
+        static_cast<unsigned long>(WC.recent_ms), static_cast<unsigned long>(WC.ramp_ms));
+    say(out, "    the policy keeps balancing, the guard pauses %lu ms; once per run (WalkRecovery)\r\n",
+        static_cast<unsigned long>(WC.grace_ms));
     say(out, "  pose    written target > %.0f deg from the stand for %lu ms (stand command, after the ramp)\r\n",
         static_cast<double>(flailguard::poseLimitDeg(nullptr)), static_cast<unsigned long>(L.pose_hold_ms));
-    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s\r\n", static_cast<double>(L.rate_tau_s),
-        static_cast<double>(L.rate_rad_s));
+    say(out, "  rate    |gyro| EMA(%.1f s) > %.2f rad/s (walking: > %.2f)\r\n",
+        static_cast<double>(L.rate_tau_s), static_cast<double>(L.rate_rad_s),
+        static_cast<double>(L.rate_walk_rad_s));
     say(out, "  tilt    > %.0f deg for %lu ms (the fall guard, limp, stays at 45)\r\n",
         static_cast<double>(L.tilt_deg), static_cast<unsigned long>(L.tilt_hold_ms));
     say(out, "  chatter mean |d raw target/dt| EMA(%.1f s) > %.1f rad/s\r\n", static_cast<double>(L.chatter_tau_s),
         static_cast<double>(L.chatter_rad_s));
+    say(out, "  %lu walk recover(ies) since boot\r\n",
+        static_cast<unsigned long>(robot::g_flail_walk_recovers.load()));
     say(out, "  %lu hold(s) since boot%s%s; %s\r\n", static_cast<unsigned long>(robot::g_armed_holds.load()),
         robot::g_armed_holds.load() ? ", last: " : "",
         robot::g_armed_holds.load() ? holdWhy(robot::g_armed_hold_trip.load()) : "",
         s_hold_pending ? "HOLDING now, homes when upright and still" : "not holding");
+}
+
+// `heading` status | on | off | k <gain>: the IMU heading loop around the walking policy
+// (flailguard/heading_hold.h). On at boot.
+void cmdHeading(Sink out, int argc, char** argv) {
+    // Like shape / limit: a setting for the next run, allowed over Wi-Fi while benched
+    // (wcli/policy.cpp kBenchAny); armed, the Wi-Fi allowlist refuses it.
+    if (argc >= 2 && !strcmp(argv[1], "on")) robot::g_heading_on.store(true);
+    else if (argc >= 2 && !strcmp(argv[1], "off")) robot::g_heading_on.store(false);
+    else if (argc >= 3 && !strcmp(argv[1], "k")) {
+        const float k = strtof(argv[2], nullptr);
+        if (k >= 0.0f && k <= 3.0f) robot::g_heading_k.store(k);
+        else out("heading: k must be 0..3 (rad/s per rad)\r\n");
+    }
+    const flailguard::HeadingHold::Config C{};
+    say(out, "heading hold %s: k %.2f rad/s per rad, |wz| <= %.2f rad/s, while walking\r\n",
+        robot::g_heading_on.load() ? "ON" : "OFF", static_cast<double>(robot::g_heading_k.load()),
+        static_cast<double>(C.wz_max));
+    say(out, "  last error %+.1f deg, correction %+.2f rad/s\r\n",
+        static_cast<double>(robot::g_heading_err.load() * 57.2958f),
+        static_cast<double>(robot::g_heading_corr.load()));
 }
 
 // `fall` status | on | off | autohome on|off | clear
@@ -1562,6 +1641,64 @@ void cmdShape(Sink out, int argc, char** argv) {
     }
 }
 
+void cmdLimit(Sink out, int argc, char** argv) {
+    // limit [off | on | <vmax deg/s> [<amax deg/s^2> [<jmax deg/s^3>]]]
+    // obs::MotionLimiter, live like `shape`: three atomics, one writer
+    // (here), one reader (ctrl), vmax written last (shared.h g_limit_*).
+    // `on` = the proposed obs::kLimit* settings; an omitted amax / jmax keeps
+    // the current one; jmax 0 = no jerk limit.
+    if (argc >= 2) {
+        if (!strcmp(argv[1], "off")) {
+            robot::g_limit_vmax.store(0.0f);
+        } else {
+            float v = obs::kLimitVmaxDeg, a = obs::kLimitAmaxDeg, j = obs::kLimitJmaxDeg;
+            if (strcmp(argv[1], "on") != 0) {
+                char* end = nullptr;
+                v = strtof(argv[1], &end);
+                if (end == argv[1]) {
+                    out("limit [off|on|<vmax deg/s> [<amax deg/s^2> [<jmax deg/s^3>]]]\r\n");
+                    return;
+                }
+                a = argc >= 3 ? strtof(argv[2], nullptr) : robot::g_limit_amax.load();
+                j = argc >= 4 ? strtof(argv[3], nullptr) : robot::g_limit_jmax.load();
+            }
+            // vmax: the servo's goal-speed register tops out at 3400 steps/s
+            // (299 deg/s); amax: 100 deg/s^2 is a 2 s stop from 200 deg/s
+            if (!(v >= 1.0f && v <= 300.0f)) { out("limit: vmax 1..300 deg/s\r\n"); return; }
+            if (!(a >= 100.0f && a <= 100000.0f)) {
+                out("limit: amax 100..100000 deg/s^2\r\n");
+                return;
+            }
+            if (!(j == 0.0f || (j >= 1000.0f && j <= 1.0e7f))) {
+                out("limit: jmax 0 (off) or 1000..1e7 deg/s^3\r\n");
+                return;
+            }
+            robot::g_limit_amax.store(a);
+            robot::g_limit_jmax.store(j);
+            robot::g_limit_vmax.store(v);     // last: the enable
+        }
+    }
+    const float v = robot::g_limit_vmax.load();
+    const float a = robot::g_limit_amax.load();
+    const float j = robot::g_limit_jmax.load();
+    if (v > 0.0f && a > 0.0f) {
+        const int n = obs::limitTaps(a, j, obs::kControlDt);
+        say(out, "limit: vmax %.0f deg/s  amax %.0f deg/s^2 (stop from vmax: %.0f ms, %.1f deg)\r\n",
+            static_cast<double>(v), static_cast<double>(a),
+            static_cast<double>(1000.0f * v / a), static_cast<double>(0.5f * v * v / a));
+        if (n > 1) {
+            say(out, "       jerk <= %.0f deg/s^3 (S-curve boxcar %d ticks, +%.0f ms delay)\r\n",
+                static_cast<double>(2.0f * a / (static_cast<float>(n) * obs::kControlDt)), n,
+                static_cast<double>(500.0f * static_cast<float>(n - 1) * obs::kControlDt));
+        } else {
+            out("       jerk: unlimited (no S-curve)\r\n");
+        }
+        out("       goal speed = the limited velocity x1.25\r\n");
+    } else {
+        out("limit: off (shaped targets go to the servos unbounded)\r\n");
+    }
+}
+
 void cmdStandClock(Sink out, int argc, char** argv) {
     // standclock [run|freeze|coast [<phase rad>]] -- what the gait clock does
     // at a plain stand (obs::StandClock; experiments/policy/stand-still).
@@ -1588,8 +1725,9 @@ void cmdStandClock(Sink out, int argc, char** argv) {
             "it always holds (option ignored)\r\n");
     }
     if (m == obs::StandClock::kCoast) {
-        say(out, "standclock: coast -- at a plain stand the clock keeps 1.5 Hz until phase "
-            "%.3f rad, then holds\r\n", static_cast<double>(robot::g_stand_phase.load()));
+        say(out, "standclock: coast -- at a plain stand the clock keeps %.2f Hz until phase "
+            "%.3f rad, then holds\r\n", static_cast<double>(obs::kGaitFreqHz),
+            static_cast<double>(robot::g_stand_phase.load()));
     } else if (m == obs::StandClock::kFreeze) {
         out("standclock: freeze -- at a plain stand the clock holds where it is\r\n");
     } else {
@@ -1836,6 +1974,7 @@ void servoRamTickImpl(Sink out) {
 
 // `servocfg [fast|factory]` -- show / set the STS3215 response config (RAM regs 85/81).
 void cmdServocfg(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`servocfg fast|factory` rewrites servo registers")) return;
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
     if (argc >= 2 && !strcmp(argv[1], "fast")) s_servo_fast = true;
@@ -1896,8 +2035,15 @@ void cmdGains(Sink out, int argc, char** argv) {
     scsbus::PositionGains rb{0, 0};
     const scsbus::GainWrite r =
         scsbus::writePositionGains(*bus, sid, want, &rb, &eepromSettle);
+    if (r == scsbus::GainWrite::kAckLost) {
+        // #101: an EEPROM write that changes the cell can ack late or not at
+        // all; the read-back and reg 55 say this one landed and is locked
+        say(out, "  note: id %ld: the write's ack was lost, but the read-back "
+            "matches and the EEPROM reads locked\r\n", id);
+    }
     switch (r) {
         case scsbus::GainWrite::kOk:
+        case scsbus::GainWrite::kAckLost:
             say(out, "id %ld: P %u D %u, verified after commit -- safe to "
                 "power down\r\n", id, static_cast<unsigned>(rb.p),
                 static_cast<unsigned>(rb.d));
@@ -3803,10 +3949,12 @@ void banner(Sink out) {
     out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
+    out("  limit [off|on|vmax [amax [jmax]]]  per-joint motion limiter (deg/s, /s^2, /s^3)\r\n");
     out("  standclock [run|freeze|coast [ph]]  gait clock at a stand (coast: hold at ph)\r\n");
     out("  obsfreeze [none|up|gyro|imu|dq|gain=k]  bench: freeze/scale policy-obs parts\r\n");
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
+    out("  heading [on|off|k x] IMU heading hold while walking (on at boot)\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
@@ -3902,6 +4050,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "trace")) traceDump(out);
     else if (!strcmp(c, "home")) cmdHome(out, argc, argv);
     else if (!strcmp(c, "shape")) cmdShape(out, argc, argv);
+    else if (!strcmp(c, "limit")) cmdLimit(out, argc, argv);
     else if (!strcmp(c, "standclock")) cmdStandClock(out, argc, argv);
     else if (!strcmp(c, "obsfreeze")) cmdObsFreeze(out, argc, argv);
     else if (!strcmp(c, "volt")) cmdVolt(out);
@@ -3914,6 +4063,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "stream")) { if (!fallLocked(out)) cmdStream(out, argc, argv); }
     else if (!strcmp(c, "fall")) cmdFall(out, argc, argv);
     else if (!strcmp(c, "flail")) cmdFlail(out, argc, argv);
+    else if (!strcmp(c, "heading")) cmdHeading(out, argc, argv);
     else if (!strcmp(c, "sweep")) cmdSweep(out, argc, argv);
     else if (!strcmp(c, "wifi")) cmdWifi(out, argc, argv);
     else if (!strcmp(c, "wcli")) cmdWcli(out, argc, argv);

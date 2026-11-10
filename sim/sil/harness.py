@@ -73,8 +73,7 @@ def _parse_run_name(path=SPEC_H):
 
 # The suite's run is the DEPLOYED run -- the one obs_spec.h and weights.h were
 # generated from -- read out of the header rather than written down a second
-# time. A hand-kept default drifted once (it named a v3yaw run while the
-# library compiled a v5body spec, issue #89); reading it here means a
+# time. A hand-kept default drifted once (issue #89); reading it here means a
 # `make deploy-headers RUN=...` re-points the suite in the same step.
 DEPLOYED_RUN = _parse_run_name()
 DEFAULT_RUN = DEPLOYED_RUN or "unknown-run"
@@ -105,10 +104,6 @@ RAD_PER_STEP = 2.0 * math.pi / STEPS_PER_REV
 MAX_STEPS = 4095
 CENTER_STEPS = 2048
 
-# The firmware's default gait-clock frequency (obs::GaitClock, ctrl_task.cpp).
-DEFAULT_GAIT_HZ = 1.5
-
-
 class LibMissing(RuntimeError):
     """libctrl_sil is not built yet."""
 
@@ -133,6 +128,7 @@ class ObsSpec:
     joint_names: tuple = ()
     off: dict = field(default_factory=dict)
     plant_xml: str = ""
+    gait_freq_hz: float = 1.5
 
     def __post_init__(self):
         if not self.off:
@@ -180,6 +176,7 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
         frame_dim=ints.get("kFrameDim", 49),
         obs_dim=ints.get("kObsDim", 147),
         control_dt=floats.get("kControlDt", 0.02),
+        gait_freq_hz=floats.get("kGaitFreqHz", 1.5),
         servo_id=ids or (9, 1, 2, 3, 4, 10, 5, 6, 7, 8),
         joint_names=names,
         plant_xml=plant,
@@ -193,6 +190,9 @@ def _parse_obs_spec(path=SPEC_H) -> ObsSpec:
 
 
 SPEC = _parse_obs_spec()
+
+# The compiled policy's gait-clock frequency (obs::kGaitFreqHz, ctrl_task.cpp).
+DEFAULT_GAIT_HZ = SPEC.gait_freq_hz
 
 
 
@@ -538,6 +538,13 @@ class SilLib:
             self.has_shaper = True
         except AttributeError:
             self.has_shaper = False
+        # sil_abi 4 (optional on older libraries): the motion limiter.
+        try:
+            self.lib.sil_set_limiter.argtypes = [ctypes.c_float] * 3
+            self.lib.sil_set_limiter.restype = None
+            self.has_limiter = True
+        except AttributeError:
+            self.has_limiter = False
         rc = self.lib.sil_init(weights.encode(), cal_path.encode(),
                                ctypes.c_float(gait_hz))
         if rc != 0:
@@ -586,6 +593,20 @@ class SilLib:
         abi-1 library (which shipped raw targets unconditionally)."""
         try:
             return json.loads(self.spec_string()).get("shaper")
+        except (ValueError, AttributeError):
+            return None
+
+    def set_limiter(self, vmax_deg_s, amax_deg_s2=2000.0, jmax_deg_s3=0.0):
+        """sil_abi 4: the motion limiter (CLI `limit`, deg units); vmax 0 = off (the
+        boot state sil_init restores). No-op on an older library."""
+        if self.has_limiter:
+            self.lib.sil_set_limiter(ctypes.c_float(vmax_deg_s), ctypes.c_float(amax_deg_s2),
+                                     ctypes.c_float(jmax_deg_s3))
+
+    def limiter_spec(self):
+        """The library's CURRENT limiter config from sil_spec(), or None before abi 4."""
+        try:
+            return json.loads(self.spec_string()).get("limiter")
         except (ValueError, AttributeError):
             return None
 
@@ -771,12 +792,18 @@ def gait_step(freq_hz, dt=None):
     return 2.0 * math.pi * (dt if dt is not None else SPEC.control_dt) * freq_hz
 
 
-def first_clock_step(env, freq_hz=DEFAULT_GAIT_HZ):
+def _env_clock_hz(env, freq_hz=None):
+    """freq_hz, else the clock env's run trained at, else the compiled one."""
+    return float(freq_hz if freq_hz is not None
+                 else getattr(env, "deploy_gait_freq", DEFAULT_GAIT_HZ))
+
+
+def first_clock_step(env, freq_hz=None):
     """The phase the firmware's clock gains on a tick under env's CURRENT
     command: 0 at a plain stand when the spec freezes the clock there,
     otherwise 2*pi*dt*f, with f speed-scaled when the spec has the speed
     clock -- ctrl_task.cpp's rule, which walker_env mirrors at the end of
-    step()."""
+    step(). freq_hz None: the clock env's run trained at."""
     c = np.asarray(env._cmd, dtype=np.float64)
     ext = len(c) > 2
     moving = bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05
@@ -785,7 +812,7 @@ def first_clock_step(env, freq_hz=DEFAULT_GAIT_HZ):
     if getattr(env, "clock_stand_freeze", False) and not moving \
             and not lifted:
         return 0.0
-    f = float(freq_hz)
+    f = _env_clock_hz(env, freq_hz)
     if getattr(env, "speed_clock", False):
         v = float(np.hypot(c[0], c[1])) if ext else abs(float(c[0]))
         f *= float(np.clip(np.sqrt(max(v, 0.0) / 0.35),
@@ -793,7 +820,7 @@ def first_clock_step(env, freq_hz=DEFAULT_GAIT_HZ):
     return gait_step(f, env.control_dt)
 
 
-def pin_gait_clock(env, freq_hz=DEFAULT_GAIT_HZ):
+def pin_gait_clock(env, freq_hz=None):
     """Align walker_env's gait clock with the firmware's, AFTER env.reset()
     AND env.set_command() -- the first step depends on the command.
 
@@ -803,10 +830,11 @@ def pin_gait_clock(env, freq_hz=DEFAULT_GAIT_HZ):
     (k+1)*w and walker_env's is p0 + k*w; setting p0 = w makes them equal,
     where w is this command's per-tick step (speed-scaled, or 0 at a frozen
     stand -- first_clock_step).  The history ring is refilled so tick 0 is
-    not fed a stale phase.
+    not fed a stale phase. freq_hz None: the clock env's run trained at.
     """
+    freq_hz = _env_clock_hz(env, freq_hz)
     w = first_clock_step(env, freq_hz)
-    env._gait_freq = float(freq_hz)
+    env._gait_freq = freq_hz
     env._gait_phase = float(w)
     if getattr(env, "obs_hist_len", 1) > 1:
         env._obs_hist = []
@@ -967,10 +995,11 @@ class SilActAdapter:
 # =====================================================================
 #  convenience: open everything
 # =====================================================================
-def open_lib(run=DEFAULT_RUN, cal="nominal", gait_hz=DEFAULT_GAIT_HZ,
+def open_lib(run=DEFAULT_RUN, cal="nominal", gait_hz=None,
              probe=True) -> SilLib:
-    """Load libctrl_sil with this run's exported weights.  Raises LibMissing
-    if the library (or the export) is not there yet."""
+    """Load libctrl_sil with this run's exported weights, at gait_hz (None: the
+    run's own clock, config.json's midpoint, else the compiled one).  Raises
+    LibMissing if the library (or the export) is not there yet."""
     path = find_lib()
     if path is None:
         raise LibMissing(
@@ -987,4 +1016,13 @@ def open_lib(run=DEFAULT_RUN, cal="nominal", gait_hz=DEFAULT_GAIT_HZ,
         CAL_DIR, f"cal_{cal}.json")
     if not os.path.exists(cal_path):
         write_cal_files()
+    if gait_hz is None:
+        gait_hz = DEFAULT_GAIT_HZ
+        cfg_path = os.path.join(RUNS_DIR, run, "config.json")
+        if os.path.exists(cfg_path):
+            if SIM not in sys.path:
+                sys.path.insert(0, SIM)
+            from walker_env import deploy_gait_hz
+            with open(cfg_path) as f:
+                gait_hz = deploy_gait_hz(json.load(f))
     return SilLib(path, weights, cal_path, gait_hz=gait_hz, probe=probe)

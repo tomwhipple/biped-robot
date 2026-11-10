@@ -82,7 +82,6 @@ OFF_DEG = 4.0              # --off-deg
 PREFALL_DEG = 10.0         # tilted this far at the arm tick: the HOLD tipped it, not the policy
 PUSH_T = (3.0, 5.5, 8.0, 10.5)
 PUSH_DIR = ((1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0))
-N_SENSOR = None            # sensor slots per frame: q, dq, up, linvel, gyro (set per env)
 
 
 def _xml(cfg):
@@ -257,7 +256,7 @@ def episode(job):
         arm_pose = qm.copy()
     adapter = None
     if o["sil"] or o["pin_clock"]:
-        # the firmware's gait clock (1.5 Hz, phase 0 at the arm), so the SIL
+        # the firmware's gait clock (the run's rate, phase 0 at the arm), so the SIL
         # and python columns see the same phase (harness.pin_gait_clock)
         sys.path.insert(0, os.path.join(ROOT, "sim", "sil"))
         cfg_xml = _xml(json.load(open(os.path.join(RUNS, run, "config.json"))))

@@ -53,12 +53,11 @@ Both arm links print ON THEIR BACK (model +X up, check_printability's RY_XUP),
 as leg_link_v6 does. This is deliberate and it is the whole reason the
 sections below are open C's rather than closed boxes.
 
-Read the block above `yoke_roll` in cad/parts.py: both hip clevises used to
-print flange-down, arms rising as vertical columns, which lays the layer lines
-ACROSS the arm -- and a cantilevered arm carries its bending load as tension
-ALONG the arm, straight through the interlayer bond. They kept snapping
-mid-arm. The control case cited there is v5's leg_link, which "prints web-down,
-so the filament runs the length of the leg", far longer arm, thinner mid-span,
+Printed with its arms rising as vertical columns, a clevis lays the layer
+lines ACROSS the arm -- and a cantilevered arm carries its bending load as
+tension ALONG the arm, straight through the interlayer bond: the hip clevises
+snapped mid-arm that way. The leg link, printed web-down so "the filament runs
+the length of the leg", has a far longer arm and a thinner mid-span and has
 never broken. These arms are 160 mm cantilevers that the robot pushes its own
 mass up on; they get the control case's orientation. Laid on their back, the
 joint-to-joint axis (model Z) and the straddle direction (model Y) are BOTH
@@ -103,8 +102,8 @@ from build123d import (Cone, Plane, Pos, Rot, export_step, export_stl,  # noqa: 
                        fillet, mirror)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/wedge_*/csk_*/bcd_*)
-import check_assembly as CA  # noqa: E402  (the canonical servo mock)
+from common import shapes as parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
@@ -118,6 +117,12 @@ IDENT = np.eye(3)
 PRINT_ORIENT = {
     "arm_upper_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
     "arm_fore_v6": (RY_XUP, "on its back: web face on bed, arm length in the bed plane"),
+    # the head insert is a mirror pair printed outboard face down: model +Y
+    # down on the left, -Y down on the right
+    "arm_head_insert_v6_L": (np.array([(1, 0, 0), (0, 0, 1), (0, -1, 0)], float),
+                             "flat, outboard face down, the lip rising"),
+    "arm_head_insert_v6_R": (np.array([(1, 0, 0), (0, 0, -1), (0, 1, 0)], float),
+                             "flat, outboard face down, the lip rising"),
 }
 # Parts printed WITH OrcaSlicer supports (check_printability waives their
 # overhang findings; cad/PRINT_LIST.md's "supports" column says the
@@ -136,6 +141,8 @@ ENF_INTO = 0.3         # an enforcer box reaches this far into the solid (torso_
 ROLL_UP = 90
 
 # derived, local to this module (everything dimensional lives in dimensions_v6)
+HEAD_TOP = 12.0        # the upper arm head's top, above the shoulder axis
+HEAD_CHAMFER = {"aft": (8.0, 6.0), "fwd": (6.5, 7.0)}   # (dx, dz) of its two top corners' chamfers
 _AX = V.ARM_SHOULDER_X                                   # 0.0 -- the hip plane
 _AZ = V.ARM_AXIS_Z                                       # 16.36 above the deck top
 
@@ -325,7 +332,7 @@ def arm_upper_v6(side="L"):
     gy1 = D.SV_TOPFACE + D.GRIP_PLATE_T                                   # +19.75 grip, horn outer face
     boss_y0, boss_y1 = -D.PLATE / 2 - D.HORN_BOSS_H, -D.PLATE / 2  # -2.5, -1.5
     py1 = D.PLATE / 2                                              # +1.5
-    head_top = 12.0                           # plate reaches above the axis to
+    head_top = HEAD_TOP                       # plate reaches above the axis to
                                               # cover the upper bolt-circle pair
     trans_z = -40.0                           # head plate -> full shaft section
 
@@ -360,7 +367,7 @@ def arm_upper_v6(side="L"):
     # corner faces UP and is free, so it keeps the tighter shape.
     for cx in (wx0, hfx):
         s = 1 if cx > 0 else -1
-        dx, dz = (8.0, 6.0) if cx < 0 else (6.5, 7.0)
+        dx, dz = HEAD_CHAMFER["aft"] if cx < 0 else HEAD_CHAMFER["fwd"]
         p -= parts.wedge_y([(cx + s * 0.5, head_top + 0.5),
                             (cx + s * 0.5, head_top - dz),
                             (cx - s * dx, head_top + 0.5)],
@@ -405,6 +412,119 @@ def arm_upper_v6(side="L"):
         p -= h
     p -= parts.cyl_y(D.HORN_CENTER_RELIEF_D / 2, boss_y0 - 1, py1 + 1, 0, 0)
     return _side_label(_mirrored(p, side), side, sy1, V.ARM_LABEL_Z_UPPER)
+
+
+# ===========================================================================
+# 2b. arm_head_insert_v6 -- the glued insert that closes the head's C (#199)
+# ===========================================================================
+def _chamfer_line(which):
+    """Two points on the cut line of one of the head's top-corner chamfers
+    (arm_upper_v6 cuts them as wedges through both flanges), (x, z), L frame."""
+    top = HEAD_TOP
+    cx = V.ARM_WEB_X[0] if which == "aft" else V.ARM_HEAD_FRONT_X
+    s = 1 if cx > 0 else -1
+    dx, dz = HEAD_CHAMFER[which]
+    return (cx + s * 0.5, top - dz), (cx - s * dx, top + 0.5)
+
+
+def _x_at(line, z):
+    (x0, z0), (x1, z1) = line
+    return x0 + (x1 - x0) * (z - z0) / (z1 - z0)
+
+
+def _z_at(line, x):
+    (x0, z0), (x1, z1) = line
+    return z0 + (z1 - z0) * (x - x0) / (x1 - x0)
+
+
+def _offset(line, d, outward):
+    """``line`` moved ``d`` along its normal, toward the side ``outward`` (x, z) points to."""
+    (x0, z0), (x1, z1) = line
+    nx, nz = (z1 - z0), -(x1 - x0)
+    n = math.hypot(nx, nz)
+    nx, nz = nx / n, nz / n
+    if nx * outward[0] + nz * outward[1] < 0:
+        nx, nz = -nx, -nz
+    return (x0 + d * nx, z0 + d * nz), (x1 + d * nx, z1 + d * nz)
+
+
+def _meet(a, b):
+    """Intersection of two (x, z) lines, each given by two points."""
+    (x1, z1), (x2, z2) = a
+    (x3, z3), (x4, z4) = b
+    den = (x1 - x2) * (z3 - z4) - (z1 - z2) * (x3 - x4)
+    t = ((x1 - x3) * (z3 - z4) - (z1 - z3) * (x3 - x4)) / den
+    return x1 + t * (x2 - x1), z1 + t * (z2 - z1)
+
+
+def head_insert_profiles():
+    """The insert's two (x, z) outlines, L frame (the shoulder axis at the
+    origin): the BODY, inside the head's outline in the C between the flanges,
+    and the LIP, a band ARM_INSERT_LIP wide just outside the head's front edge,
+    its forward chamfer, its top and its aft chamfer, ending at the web's aft
+    face. Returned as (body_pts, lip_pts)."""
+    fx = V.ARM_HEAD_FRONT_X                               # 13.40, the flanges' front edge
+    top = HEAD_TOP                                        # 12.0
+    zb = V.ARM_HEAD_WALL_Z[1] + V.ARM_INSERT_SEAT_CLR     # -10.6, over the end wall
+    xw = V.ARM_WEB_X[1] + V.ARM_INSERT_SEAT_CLR           # -12.56, off the web's inner face
+    xa = V.ARM_WEB_X[0]                                   # -15.16, the web's aft face
+    fwd, aft = _chamfer_line("fwd"), _chamfer_line("aft")
+    i_front = (fx, _z_at(fwd, fx))                        # forward chamfer meets the front edge
+    i_ftop = (_x_at(fwd, top), top)                       # ... and the top
+    i_atop = (_x_at(aft, top), top)                       # aft chamfer meets the top
+    body = [(xw, zb), (fx, zb), i_front, i_ftop, i_atop, (xw, _z_at(aft, xw))]
+
+    L = V.ARM_INSERT_LIP
+    front_o = ((fx + L, 0.0), (fx + L, 1.0))
+    top_o = ((0.0, top + L), (1.0, top + L))
+    fwd_o = _offset(fwd, L, (1.0, 1.0))
+    aft_o = _offset(aft, L, (-1.0, 1.0))
+    web_aft = ((xa, 0.0), (xa, 1.0))
+    lip = [(fx + L, zb), _meet(front_o, fwd_o), _meet(fwd_o, top_o), _meet(top_o, aft_o),
+           _meet(aft_o, web_aft), (xa, _z_at(aft, xa)), i_atop, i_ftop, i_front, (fx, zb)]
+    return body, lip
+
+
+def arm_head_insert_v6(side="L"):
+    """The upper arm head's glued insert (issue #199). Local frame: the upper
+    arm's own (arm_upper_v6), so it is placed exactly as the arm is.
+    Qty 2 (mirror pair). Print: flat, its outboard face down (PRINT_ORIENT).
+
+    The head is an open C -- horn plate (inboard flange), aft web, outboard
+    flange -- open at the front and the top, because a wall closing either is
+    an unbridgeable ceiling in the arm's print (dimensions_v6, the head block).
+    So the horn plate, the one pane that carries the shoulder's load, is tied
+    to the rest of the section along its aft edge (the web) and its bottom (the
+    end wall) only; its front and top edges are free and the head twists.
+
+    This closes the front and the top. The BODY fills the C between the two
+    flanges' inner faces (ARM_INSERT_GLUE glue line each side), from the front
+    and the top inward to the access bore's cylinder (ARM_INSERT_BORE_R, so the
+    four disc screws and the driver still go in through the bore after it is
+    glued), and from the top down the web (the aft-top corner) and from the
+    front down to the end wall (x >= ARM_INSERT_FRONT_X0): glue faces on both
+    flanges, the web and the end wall. The LIP stands ARM_INSERT_LIP proud
+    round the outside of the head's front, top and both chamfers, from the horn
+    plate's horn face (less 0.2) to the body's outboard face: it laps the horn
+    plate's front and top edge faces, so the insert is pushed down from above
+    until the lip sits on them, and that is where it belongs.
+
+    The lip covers the horn plate's edges, not the outboard flange's: printed
+    outboard face down, the body is the bottom layers and the lip carries on
+    above them over the plate's edge, so nothing on the part overhangs. A lip
+    on both flanges would put the body on top of a narrower lip.
+    """
+    body_pts, lip_pts = head_insert_profiles()
+    y0 = D.PLATE / 2 + V.ARM_INSERT_GLUE                          # 1.65, off the horn plate
+    y1 = V.ARM_SHAFT_Y[1] - V.ARM_RAIL_T - V.ARM_INSERT_GLUE      # 7.75, off the outboard flange
+    p = parts.wedge_y(body_pts, y0, y1)
+    p -= parts.cyl_y(V.ARM_INSERT_BORE_R, y0 - 1, y1 + 1, 0, 0)
+    # below the axis only the front is closed (the web and the end wall already
+    # close the aft-bottom quarter)
+    p -= parts.box(V.ARM_WEB_X[0] - 1, V.ARM_INSERT_FRONT_X0, y0 - 1, y1 + 1,
+                   V.ARM_HEAD_WALL_Z[0], 0.0)
+    p += parts.wedge_y(lip_pts, V.ARM_INSERT_LIP_Y0, y1)
+    return _mirrored(p, side)
 
 
 # ===========================================================================
@@ -548,6 +668,8 @@ INSERT = {
     "arm_upper": (0, 1, 0),          # offered straight in onto the horn, outboard->in
     "servo_elbow": (1, 0, 0),        # slid into the upper arm's grip channel from the front
     "arm_fore": (0, 0, -1),          # lifted up, its fork tines either side of the discs
+    "arm_head_insert": (0, 0, 1),    # glued, BEFORE the arm goes on the horn: lowered into the
+                                     # head's C from above until its lip sits on the horn plate
 }
 
 
@@ -610,15 +732,15 @@ def run_audits(built, verbose=True):
     """printability (in each part's declared orientation) + the deck pilots +
     the elbow ROM + the mass table. Returns True if nothing failed."""
     sys.path.insert(0, os.path.join(HERE, ".."))
-    import check_printability as CP  # noqa: E402 -- runtime override only
+    from common import check_printability as CP  # noqa: E402 -- runtime override only
 
     ok = True
-    print("\n== printability (cad/check_printability.py, declared orientations) ==")
+    print("\n== printability (cad/common/check_printability.py, declared orientations) ==")
     CP.STL = OUT_STL
     for name, path in built.items():
         # the right-hand parts too: their letter is not the left's mirror image
         base = name[:-2] if name.endswith(("_L", "_R")) else name
-        rot, note = PRINT_ORIENT[base]
+        rot, note = PRINT_ORIENT.get(name) or PRINT_ORIENT[base]
         CP.ORIENT[name] = (rot, note)
         CP.PRINT_STL[name] = os.path.basename(path)
         if base in SUPPORT_NOTE:
@@ -635,7 +757,7 @@ def run_audits(built, verbose=True):
 
     print("\n== mass ==")
     per_arm = 0.0
-    for name in ("arm_upper_v6_L", "arm_fore_v6_L"):
+    for name in ("arm_upper_v6_L", "arm_head_insert_v6_L", "arm_fore_v6_L"):
         s = BUILDERS[name]()
         m = mass_g(s)
         per_arm += m
@@ -733,6 +855,8 @@ BUILDERS = {
     "arm_upper_v6_R": lambda: arm_upper_v6("R"),
     "arm_fore_v6_L": lambda: arm_fore_v6("L"),
     "arm_fore_v6_R": lambda: arm_fore_v6("R"),
+    "arm_head_insert_v6_L": lambda: arm_head_insert_v6("L"),
+    "arm_head_insert_v6_R": lambda: arm_head_insert_v6("R"),
 }
 
 

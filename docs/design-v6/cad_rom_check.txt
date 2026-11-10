@@ -1,87 +1,49 @@
 =================== check_assembly_v6 (default build: arms) ===================
-HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
 arms on (the default build): two 2-DOF get-up arms (cad/v6/arm_v6.py). Swept ROM shoulder (-90.0, 200.0), elbow (-100.0, 10.0); leg rows sweep the leg against the arms HANGING (torque off) and at REST (folded: shoulder -15, elbow -95).
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
-  [girdle] top edges eased: 34/42
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
-  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
-  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
-  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
-  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
-  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
-  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
-  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
-  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
-  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
-  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
-  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
-  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
-  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
-  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
-  [hip_yoke_v6] 6 edge(s) NOT rounded:
-      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
-      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
-      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
-      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
-      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
-      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
-  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
-  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
-  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
-  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
-  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
-  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
-  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
-  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
-  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
-  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
-  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
-  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
-  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
-  [hip_yoke_v6] 6 edge(s) NOT rounded:
-      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
-      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
-      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
-      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
-      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
-      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [roll_u] horn arm root, servo side: 1/1 at R2.00
+  [roll_u] idler arm root, servo side: 1/1 at R0.60
+  [roll_u] fin into the arms: chain of 6 at R0.70
+  [roll_u] flange ends, underside: 2/2 at R1.00
+  [roll_u] flange +y edge, ends: 2/2 at R1.00
+  [pitch_u] horn arm root, servo side: 1/1 at R2.50
+  [pitch_u] idler arm root, servo side: 1/1 at R2.50
+  [pitch_u] horn arm root, front: 2/2 at R2.50
+  [pitch_u] idler arm root, front: 2/2 at R4.00
+  [pitch_u] flange top, idler-side edge: 1/1 at R1.00
+  [roll_u] horn arm root, servo side: 1/1 at R2.00
+  [roll_u] idler arm root, servo side: 1/1 at R0.60
+  [roll_u] fin into the arms: chain of 6 at R0.70
+  [roll_u] flange ends, underside: 2/2 at R1.00
+  [roll_u] flange +y edge, ends: 2/2 at R1.00
+  [pitch_u] horn arm root, servo side: 1/1 at R2.50
+  [pitch_u] idler arm root, servo side: 1/1 at R2.50
+  [pitch_u] horn arm root, front: 2/2 at R2.50
+  [pitch_u] idler arm root, front: 2/2 at R4.00
+  [pitch_u] flange top, idler-side edge: 1/1 at R1.00
 hip_yaw      yaw_carrier_L          pelvis_v8                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
 hip_yaw      yaw_carrier_L          torso_v8                      0.00      2.30   -45.0  ok   carrier vs the torso's bottom edge through +-45
 hip_yaw      servo_hip_roll_L       pelvis_v8                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
-hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
-hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
-hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   one-print yoke on the roll servo discs: seated, must not intersect
+hip_yaw      servo_hip_roll_L       switch_pod_v8                 0.00     61.34    45.0  ok   roll servo vs the switch pod's bottom, 3 mm under the torso's
+hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   yoke vs the bay walls: idler boss rides the bore, volume only
+hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00    27.5  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
+hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   yoke on the roll servo discs: seated, must not intersect
 hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
-hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
+hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms, front wall vs the roll flange (0.7 mm v5 rule; sets ROM hip_pitch)
+hip_pitch    servo_hip_pitch_L      hip_yoke_L                    0.00      0.00  -120.0  ok   pitch servo case turning between the yoke's pitch arms, seated on its discs: must not intersect
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     17.60  -120.0  ok   thigh top vs the carrier at deep flexion
 hip_pitch    thigh_L                pelvis_v8                     0.00     65.42  -120.0  ok   thigh vs the pelvis at deep flexion
 hip_pitch    thigh_L                torso_v8                      0.00     45.88  -120.0  ok   thigh vs the torso at deep flexion
 hip_pitch    thigh_L                battery_door_v8               0.00     93.16  -120.0  ok   thigh vs the battery door at deep flexion
+hip_pitch    thigh_L                switch_pod_v8                 0.00     79.25    90.0  ok   thigh vs the switch pod's bottom, at full extension
+hip_pitch    servo_knee_L           switch_pod_v8                 0.00     82.05    90.0  ok   knee servo vs the switch pod's bottom, at full extension
 hip_pitch    thigh_L                servo_hip_roll_L              0.00     13.01  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.58   130.0  ok   shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's bottom end wall (r 16 rule)
+knee         shin_L                 switch_pod_v8                 0.00    122.20   130.0  ok   shin vs the switch pod's bottom at deep flexion
+knee         foot_L                 switch_pod_v8                 0.00     43.77   130.0  ok   foot vs the switch pod's bottom at deep flexion
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
 ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
 ankle_pitch  foot_L                 shin_L                        0.00     35.64    40.0  ok   foot tabs / cradle vs the shin tines at +-40
@@ -98,9 +60,9 @@ hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      4.00
 hip_yaw      bearing_inner_L        pelvis_v8                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
 hip_yaw      yaw_carrier_L          yaw_bearing_housing           0.00      6.06    45.0  ok   turning carrier vs the housing through +-45
 hip_yaw      servo_hip_roll_L       yaw_bearing_housing           0.00     11.57   -22.5  ok   roll servo vs the housing through +-45
-hip_roll     hip_yoke_L             bearing_inner_L               0.00     28.08    55.0  ok   yoke at full roll vs the inner race
-hip_roll     hip_yoke_L             bearing_outer_L               0.00     28.08    55.0  ok   yoke at full roll vs the outer race
-hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     27.58    55.0  ok   yoke at full roll vs the housing
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     21.77    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     21.81    55.0  ok   yoke at full roll vs the outer race
+hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     21.52    55.0  ok   yoke at full roll vs the housing
 hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     46.05    55.0  ok   pitch servo at full roll vs the outer race
 hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86    55.0  ok   pitch servo at full roll vs the housing
 hip_roll     thigh_L                bearing_inner_L               0.00     59.50    55.0  ok   thigh at full roll vs the inner race
@@ -115,11 +77,13 @@ shoulder     arm_upper_L            head                          0.00     67.98
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the neck tube at the fold-up (shoulder 180)
 shoulder     arm_upper_L            shoulder_girdle_v6            0.00      1.50   -90.0  ok   upper arm vs the girdle it hangs off, whole sweep
 shoulder     arm_upper_L            servo_shoulder_L              0.00      0.00   -90.0  ok   horn plate seated on the shoulder disc: must not intersect
+shoulder     arm_upper_L            shoulder_cheek_L              0.00      1.50   -90.0  ok   upper arm vs the cheek it turns 0.7 mm off, whole sweep
+shoulder     arm_fore_L             shoulder_cheek_L              0.00    106.32   127.5  ok   forearm vs the cheek, FOLDED
 shoulder     arm_fore_L             torso_v8                      0.00     52.24    55.0  ok   forearm vs the torso through the whole sweep, hanging
 shoulder     arm_fore_L             battery_door_v8               0.00     72.98    55.0  ok   forearm vs the battery door, whole sweep, hanging
 shoulder     arm_fore_L             head                          0.00     82.95   200.0  ok   forearm vs the head, FOLDED (elbow -90, the sit-up pose)
 shoulder     arm_fore_L             torso_v8                      0.00     43.81    55.0  ok   forearm vs the torso, FOLDED (elbow -90, the sit-up pose)
-shoulder     arm_fore_L             shoulder_girdle_v6            0.00    106.20    55.0  ok   forearm vs the girdle, FOLDED
+shoulder     arm_fore_L             shoulder_girdle_v6            0.00    103.71    55.0  ok   forearm vs the girdle, FOLDED
 shoulder     servo_elbow_L          torso_v8                      0.00     35.67    55.0  ok   the elbow servo case vs the torso through the sweep
 shoulder     servo_elbow_L          battery_door_v8               0.00     53.34    55.0  ok   the elbow servo case vs the battery door, whole sweep
 elbow        arm_fore_L             arm_upper_L                   0.00      0.70  -100.0  ok   THE ELBOW LIMIT: forearm fork vs the upper arm's grip channel (sets V.ARM_ROM)
@@ -131,12 +95,12 @@ hip_pitch    thigh_L                servo_elbow_L                 0.00     24.80
 hip_pitch    servo_hip_pitch_L      arm_fore_L                    0.00     20.50  -120.0  ok   hip pitch servo case vs the hanging forearm
 knee         shin_L                 arm_fore_L                    0.00     29.90    17.5  ok   shin swept against the hanging forearm (the plant's own contact pair)
 knee         servo_knee_L           arm_fore_L                    0.00     32.90   -95.0  ok   knee servo case vs the hanging forearm
-hip_yaw      hip_yoke_L             arm_upper_L                   0.00     21.35    45.0  ok   hip yaw: yoke vs the upper arm, arms at rest (folded)
-hip_yaw      hip_yoke_L             servo_elbow_L                 0.00     24.57    45.0  ok   hip yaw: yoke vs the elbow servo, arms at rest (folded)
-hip_yaw      hip_yoke_L             arm_fore_L                    0.00     23.37     0.0  ok   hip yaw: yoke vs the forearm, arms at rest (folded)
-hip_roll     hip_yoke_L             arm_upper_L                   0.00      8.85    55.0  ok   hip roll: yoke vs the upper arm, arms at rest (folded)
-hip_roll     hip_yoke_L             servo_elbow_L                 0.00     12.16    55.0  ok   hip roll: yoke vs the elbow servo, arms at rest (folded)
-hip_roll     hip_yoke_L             arm_fore_L                    0.00     19.95    27.5  ok   hip roll: yoke vs the forearm, arms at rest (folded)
+hip_yaw      hip_yoke_L             arm_upper_L                   0.00     15.13    22.5  ok   hip yaw: yoke vs the upper arm, arms at rest (folded)
+hip_yaw      hip_yoke_L             servo_elbow_L                 0.00     18.76    22.5  ok   hip yaw: yoke vs the elbow servo, arms at rest (folded)
+hip_yaw      hip_yoke_L             arm_fore_L                    0.00     19.14     0.0  ok   hip yaw: yoke vs the forearm, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_upper_L                   0.00      8.58    55.0  ok   hip roll: yoke vs the upper arm, arms at rest (folded)
+hip_roll     hip_yoke_L             servo_elbow_L                 0.00     11.90    55.0  ok   hip roll: yoke vs the elbow servo, arms at rest (folded)
+hip_roll     hip_yoke_L             arm_fore_L                    0.00     16.19    27.5  ok   hip roll: yoke vs the forearm, arms at rest (folded)
 hip_roll     servo_hip_pitch_L      arm_upper_L                   0.00     10.19    55.0  ok   hip roll: pitch servo vs the upper arm, arms at rest (folded)
 hip_roll     servo_hip_pitch_L      servo_elbow_L                 0.00     13.46    55.0  ok   hip roll: pitch servo vs the elbow servo, arms at rest (folded)
 hip_roll     servo_hip_pitch_L      arm_fore_L                    0.00     19.05    55.0  ok   hip roll: pitch servo vs the forearm, arms at rest (folded)
@@ -160,10 +124,10 @@ discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.0
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    ankle_link             tine_idler               4 x M3x5  stack 3.00  engages 1.60  ok
-discscrew    hip_yoke_v6            roll_horn                4 x M3x6  stack 4.00  engages 1.60  ok
-discscrew    hip_yoke_v6            roll_idler               4 x M3x8  stack 5.80  engages 1.80  ok
-discscrew    hip_yoke_v6            pitch_horn               4 x M3x5  stack 3.00  engages 1.60  ok
-discscrew    hip_yoke_v6            pitch_idler              4 x M3x6  stack 3.60  engages 2.00  ok
+discscrew    hip_yoke_glued         roll_horn                4 x M3x6  stack 4.00  engages 1.60  ok
+discscrew    hip_yoke_glued         roll_idler               4 x M3x8  stack 5.80  engages 1.80  ok
+discscrew    hip_yoke_glued         pitch_horn               4 x M3x5  stack 3.00  engages 1.60  ok
+discscrew    hip_yoke_glued         pitch_idler              4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    yaw_carrier_v6         yaw_horn                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    head                   horn                     4 x M3x6  stack 4.00  engages 1.60  ok
 discscrew    arm_v6                 shoulder_horn            4 x M3x6  stack 4.00  engages 1.60  ok
@@ -182,13 +146,47 @@ static       yaw_bearing_housing    pelvis_v8                     0.00      0.00
 static       yaw_bearing_housing    torso_v8                      0.00      0.50          ok   housing under the torso's bottom edge (>= 0.4 mm)
 static       pelvis_v8              torso_v8                      0.00      0.00          ok   pelvis snapped and glued into the torso: must not intersect
 static       front_cover_v8         torso_v8                      0.00      0.20          ok   front cover screwed between the skins: must not intersect
-static       power_cover_v8         torso_v8                      0.00      0.20          ok   aft cover screwed between the skins: must not intersect
+static       power_cover_v8         torso_v8                      0.00      0.00          ok   the power cap on the torso's aft end, its lip inside the skins: must not intersect
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
+static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
-static       power_board_mock       power_cover_v8                0.00      2.00          ok   power board's tallest part (C21) vs the cover (>= 1.5 mm)
+static       power_board_mock       power_cover_v8                0.00      1.80          ok   power board's parts vs the cap (K1 2.0 under its plate) (>= 1.5 mm)
+static       power_standoffs_mock   power_board_mock              0.00      0.00          ok   the BMS bracket's standoffs on the board: must not intersect
+static       power_standoffs_mock   torso_v8                      0.00      0.80          ok   the BMS bracket's standoffs vs the torso (>= 0.4 mm)
+static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
+static       power_bracket_v8       power_board_mock              0.00      4.50          ok   the BMS bracket over the board's parts (>= 2.0 mm)
+static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
+static       power_bracket_v8       power_cover_v8                0.00      2.00          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       bms_mock               power_bracket_v8              0.00      0.30          ok   the BMS on the bracket's foam tape, between its stops: must not intersect
+static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
+static       bms_mock               power_cover_v8                0.00      2.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
+static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
+static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
+static       balance_male_mock      balance_park_v8               0.00      0.00          ok   the extension's male end in the park: must not intersect
+static       balance_male_mock      power_board_mock              0.00      1.55          ok   the pack's balance plug on the park vs J1's plug (>= 1.0 mm)
+static       balance_male_mock      battery_door_v8               0.00      2.96          ok   the pack's balance plug on the park vs the battery door (>= 1.0 mm)
+static       balance_park_v8        battery_door_v8               0.00      2.51          ok   the balance park vs the battery door (>= 1.0 mm)
+static       balance_lead_mock      power_board_mock              0.00      0.00          ok   the balance lead out of its plug in J2: must not intersect
+static       balance_lead_mock      power_bracket_v8              0.00      1.10          ok   the balance lead under the BMS bracket (>= 1.0 mm)
+static       balance_lead_mock      torso_v8                      0.00      4.12          ok   the balance lead vs the torso (>= 1.0 mm)
+static       balance_lead_mock      pelvis_v8                     0.00      6.93          ok   the balance lead vs the pelvis's lugs (>= 1.0 mm)
+static       switch_pod_v8          power_cover_v8                0.00      0.00          ok   the switch pod screwed onto the cap: must not intersect
+static       switch_pod_v8          torso_v8                      0.00      4.70          ok   the switch pod vs the torso's aft end and deck (>= 1.0 mm)
+static       switch_pod_v8          pelvis_v8                     0.00     37.19          ok   the switch pod's bottom, 3 mm under the torso's, vs the pelvis (>= 5.0 mm)
+static       switch_pod_v8          yaw_bearing_housing           0.00     35.21          ok   the switch pod's bottom vs the bearing housing's rear lugs (>= 5.0 mm)
+static       switch_pod_v8          battery_door_v8               0.00     25.15          ok   the switch pod vs the battery door (>= 5.0 mm)
+static       switches_mock          switch_pod_v8                 0.00      0.00          ok   the toggles in the pod, nuts on its panels: must not intersect
+static       switches_mock          power_cover_v8                0.00      3.49          ok   the toggles vs the cap (>= 2.0 mm)
+static       switches_mock          power_board_mock              0.00      8.83          ok   the toggles vs the board's parts, outside the bay through the cap (K1) (>= 5.0 mm)
+static       switches_mock          bms_mock                      0.00      8.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
+static       switches_mock          power_bracket_v8              0.00     15.62          ok   the toggles vs the BMS bracket (outside the bay) (>= 10.0 mm)
+static       switch_pod_v8          shoulder_girdle_v6            0.00     41.26          ok   the switch pod's well vs the neck's mount (>= 5.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -196,11 +194,20 @@ static       servo_hip_yaw_L        pelvis_v8                     0.00      0.00
 static       servo_hip_yaw_L        pack_mock                     0.00      1.50          ok   the yaw servo's free-hub post under the pack (on its 1.5 mm foam pads) (>= 0.8 mm)
 static       yaw_bearing_housing    pi4_mock                      0.00      0.50          ok   housing under the Pi 4B's bottom edge (>= 0.5 mm)
 static       yaw_bearing_housing    gd_mock                       0.00      4.00          ok   the General Driver's bottom edge over the housing: must not intersect
+static       servo_shoulder_L       shoulder_girdle_v6            1.09      0.00          ok   shoulder servo on its inboard wall: the crush pads' bite (designed 1.1 mm3)
+static       servo_shoulder_R       shoulder_girdle_v6            1.09      0.00          ok   shoulder servo on its inboard wall: the crush pads' bite (designed 1.1 mm3)
+static       shoulder_cheek_L       servo_shoulder_L              0.00      0.00          ok   cheek on the case's horn face, over the boss: must not intersect
+static       shoulder_cheek_R       servo_shoulder_R              0.00      0.00          ok   cheek on the case's horn face, over the boss: must not intersect
+static       shoulder_cheek_L       shoulder_girdle_v6            0.00      0.00          ok   cheek in its rebate, on the end lugs: must not intersect
+static       shoulder_cheek_R       shoulder_girdle_v6            0.00      0.00          ok   cheek in its rebate, on the end lugs: must not intersect
+static       shoulder_cheek_L       torso_v8                      0.00     36.52          ok   cheek vs the torso skin (>= 10.0 mm)
 insert       7a yaw servo up into its cell        no overlap                         approach clearance  0.30 mm (vs pelvis_v8, 1 mm out)  ok
 insert       7b bearing into the housing (bench)  no overlap                         approach clearance  4.13 mm (vs yaw_bearing_housing, 1 mm out)  ok
 insert       7c housing + bearings up under the cells no overlap                         approach clearance  1.00 mm (vs pelvis_v8, 1 mm out)  ok
 insert       7d carrier up through the bearing    no overlap                         approach clearance  1.00 mm (vs servo_hip_yaw_L, 1 mm out)  ok
 insert       7e roll servo up into the bay        no overlap                         approach clearance  0.00 mm (vs yaw_carrier_L, 1 mm out)  ok
+insert       11c shoulder servo in from outboard  no overlap                         approach clearance  6.65 mm (vs torso_v8, 1 mm out)  ok
+insert       11c cheek on over the boss           no overlap                         approach clearance  0.20 mm (vs shoulder_girdle_v6, 1 mm out)  ok
 insert       press fits allowed along the paths: inner race on the hub 261.5 mm3, outer race in the housing 28.6 mm3 (designed)
 access       bearing-housing screws, before the carriers           5 screws, 7 mm driver: no part in the way  ok
 access       carrier horn screws, from inside the empty bay        4 screws, 7 mm driver: no part in the way  ok
@@ -212,91 +219,54 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (175 s)
+=> ALL CLEAR  (201 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
-HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch
 joint        A                      B                      overlap mm3  min dist  at deg  verdict
   [head] vertical fillet: R4.0 did not fit this section's material, used R1.20 instead
-  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
-  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
-  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
-  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
-  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
-  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
-  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
-  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
-  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
-  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
-  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
-  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
-  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
-  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
-  [hip_yoke_v6] 6 edge(s) NOT rounded:
-      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
-      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
-      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
-      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
-      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
-      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
-  [hip_yoke_v6] roll arm root, plate sides: 4/4 edge(s) at R2.50
-  [hip_yoke_v6] roll arm root, servo side: 3/3 edge(s) at R0.60
-  [hip_yoke_v6] pitch horn arm root, plate sides: 2/2 edge(s) at R2.50, smallest R0.88
-  [hip_yoke_v6] pitch horn arm root, servo side: 1/1 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, plate sides: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] pitch riser root, servo side: 2/2 edge(s) at R2.50
-  [hip_yoke_v6] flexion chamfer foot: 1/1 edge(s) at R1.00, smallest R0.70
-  [hip_yoke_v6] waist cove, fore/aft: 1/1 edge(s) at R2.75
-  [hip_yoke_v6] 'waist cove, sides': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] block corners, roll flange: 2/2 edge(s) at R4.50
-  [hip_yoke_v6] 'block corners, pitch flange': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flexion chamfer corners: 2/2 edge(s) at R2.00, smallest R0.70, 1 chamfered
-  [hip_yoke_v6] flange rim, roll top: 2/2 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll top ends: 4/4 edge(s) at R1.00
-  [hip_yoke_v6] flange rim, roll ledge: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] flange rim, roll ledge sides: 1/1 edge(s) at R1.00, smallest R0.20
-  [hip_yoke_v6] 'flange rim, pitch top': no edges matched (geometry changed?) -- left sharp
-  [hip_yoke_v6] flange rim, pitch top ends: 0/2 edge(s) at R1.00, 2 SKIPPED
-  [hip_yoke_v6] flange rim, pitch bottom: 3/3 edge(s) at R1.00, smallest R0.70, 2 chamfered
-  [hip_yoke_v6] block corner arcs: 1/2 edge(s) at R1.00, 1 SKIPPED
-  [hip_yoke_v6] roll arm plate corners: 7/9 edge(s) at R2.00, smallest R1.00, 2 SKIPPED
-  [hip_yoke_v6] pitch horn plate corners: 3/3 edge(s) at R2.00, smallest R1.00
-  [hip_yoke_v6] pitch riser corners: 4/4 edge(s) at R2.00, smallest R1.00, 2 chamfered
-  [hip_yoke_v6] pitch idler hub rim: 0/1 edge(s) at R1.20, 1 SKIPPED
-  [hip_yoke_v6] 6 edge(s) NOT rounded:
-      flange rim, pitch top ends         at (  16.00, -18.70, -20.00)  length   3.40
-      flange rim, pitch top ends         at (  16.00,  19.22, -20.00)  length   4.45
-      block corner arcs                  at (  22.99,  15.54, -20.00)  length   6.75
-      roll arm plate corners             at ( -20.95,  12.00,  -7.70)  length  15.40
-      roll arm plate corners             at ( -20.95, -12.00,  -7.70)  length  15.40
-      pitch idler hub rim                at (  -4.79, -20.40, -63.16)  length  53.76
+  [roll_u] horn arm root, servo side: 1/1 at R2.00
+  [roll_u] idler arm root, servo side: 1/1 at R0.60
+  [roll_u] fin into the arms: chain of 6 at R0.70
+  [roll_u] flange ends, underside: 2/2 at R1.00
+  [roll_u] flange +y edge, ends: 2/2 at R1.00
+  [pitch_u] horn arm root, servo side: 1/1 at R2.50
+  [pitch_u] idler arm root, servo side: 1/1 at R2.50
+  [pitch_u] horn arm root, front: 2/2 at R2.50
+  [pitch_u] idler arm root, front: 2/2 at R4.00
+  [pitch_u] flange top, idler-side edge: 1/1 at R1.00
+  [roll_u] horn arm root, servo side: 1/1 at R2.00
+  [roll_u] idler arm root, servo side: 1/1 at R0.60
+  [roll_u] fin into the arms: chain of 6 at R0.70
+  [roll_u] flange ends, underside: 2/2 at R1.00
+  [roll_u] flange +y edge, ends: 2/2 at R1.00
+  [pitch_u] horn arm root, servo side: 1/1 at R2.50
+  [pitch_u] idler arm root, servo side: 1/1 at R2.50
+  [pitch_u] horn arm root, front: 2/2 at R2.50
+  [pitch_u] idler arm root, front: 2/2 at R4.00
+  [pitch_u] flange top, idler-side edge: 1/1 at R1.00
 hip_yaw      yaw_carrier_L          pelvis_v8                     0.00      1.80   -45.0  ok   carrier under the cell through +-45
 hip_yaw      yaw_carrier_L          torso_v8                      0.00      2.30   -45.0  ok   carrier vs the torso's bottom edge through +-45
 hip_yaw      servo_hip_roll_L       pelvis_v8                     0.00     11.80   -45.0  ok   roll servo in the carrier bay vs the housing floor
-hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   one-print yoke vs the bay walls: idler boss rides the bore, volume only
-hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
-hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   one-print yoke on the roll servo discs: seated, must not intersect
+hip_yaw      servo_hip_roll_L       switch_pod_v8                 0.00     61.34    45.0  ok   roll servo vs the switch pod's bottom, 3 mm under the torso's
+hip_roll     hip_yoke_L             yaw_carrier_L                 0.00      0.30     0.0  ok   yoke vs the bay walls: idler boss rides the bore, volume only
+hip_roll     hip_yoke_L~seats       yaw_carrier_L                 0.00      1.00    27.5  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
+hip_roll     hip_yoke_L             servo_hip_roll_L              0.00      0.00   -55.0  ok   yoke on the roll servo discs: seated, must not intersect
 hip_roll     hip_yoke_L~seats       servo_hip_roll_L              0.00      0.58   -55.0  ok   same pair minus the disc seats: arms, pads, both flanges get the full buffer
-hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms (0.7 mm v5 rule)
+hip_pitch    thigh_L                hip_yoke_L                    0.00      0.70  -120.0  ok   thigh grip plates vs the yoke arms, front wall vs the roll flange (0.7 mm v5 rule; sets ROM hip_pitch)
+hip_pitch    servo_hip_pitch_L      hip_yoke_L                    0.00      0.00  -120.0  ok   pitch servo case turning between the yoke's pitch arms, seated on its discs: must not intersect
 hip_pitch    thigh_L                servo_hip_pitch_L             0.00      0.00    37.5  ok   grip channel vs its own servo: seated, must not intersect
 hip_pitch    thigh_L                yaw_carrier_L                 0.00     17.60  -120.0  ok   thigh top vs the carrier at deep flexion
 hip_pitch    thigh_L                pelvis_v8                     0.00     65.42  -120.0  ok   thigh vs the pelvis at deep flexion
 hip_pitch    thigh_L                torso_v8                      0.00     45.88  -120.0  ok   thigh vs the torso at deep flexion
 hip_pitch    thigh_L                battery_door_v8               0.00     93.16  -120.0  ok   thigh vs the battery door at deep flexion
+hip_pitch    thigh_L                switch_pod_v8                 0.00     79.25    90.0  ok   thigh vs the switch pod's bottom, at full extension
+hip_pitch    servo_knee_L           switch_pod_v8                 0.00     82.05    90.0  ok   knee servo vs the switch pod's bottom, at full extension
 hip_pitch    thigh_L                servo_hip_roll_L              0.00     13.01  -120.0  ok   thigh grip top vs the roll servo case at -125 (hits at -135)
 knee         shin_L                 thigh_L                       0.00      0.58   130.0  ok   shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket
 knee         servo_knee_L           thigh_L                       0.00      0.00   -95.0  ok   knee servo case sweeping under the thigh's bottom end wall (r 16 rule)
+knee         shin_L                 switch_pod_v8                 0.00    122.20   130.0  ok   shin vs the switch pod's bottom at deep flexion
+knee         foot_L                 switch_pod_v8                 0.00     43.77   130.0  ok   foot vs the switch pod's bottom at deep flexion
 ankle_pitch  ankle_link_L           shin_L                        0.00      0.70   -40.0  ok   ankle link grip plates vs the shin fork (0.7 mm)
 ankle_pitch  servo_ankle_pitch_L    shin_L                        0.00      0.00   -40.0  ok   ankle pitch servo case vs the shin's fork and bottom end wall
 ankle_pitch  foot_L                 shin_L                        0.00     35.64    40.0  ok   foot tabs / cradle vs the shin tines at +-40
@@ -313,9 +283,9 @@ hip_yaw      bearing_inner_L        yaw_bearing_housing           0.00      4.00
 hip_yaw      bearing_inner_L        pelvis_v8                     0.00      1.80   -45.0  ok   turning inner race vs the cell block's rim
 hip_yaw      yaw_carrier_L          yaw_bearing_housing           0.00      6.06    45.0  ok   turning carrier vs the housing through +-45
 hip_yaw      servo_hip_roll_L       yaw_bearing_housing           0.00     11.57   -22.5  ok   roll servo vs the housing through +-45
-hip_roll     hip_yoke_L             bearing_inner_L               0.00     28.08    55.0  ok   yoke at full roll vs the inner race
-hip_roll     hip_yoke_L             bearing_outer_L               0.00     28.08    55.0  ok   yoke at full roll vs the outer race
-hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     27.58    55.0  ok   yoke at full roll vs the housing
+hip_roll     hip_yoke_L             bearing_inner_L               0.00     21.77    55.0  ok   yoke at full roll vs the inner race
+hip_roll     hip_yoke_L             bearing_outer_L               0.00     21.81    55.0  ok   yoke at full roll vs the outer race
+hip_roll     hip_yoke_L             yaw_bearing_housing           0.00     21.52    55.0  ok   yoke at full roll vs the housing
 hip_roll     servo_hip_pitch_L      bearing_outer_L               0.00     46.05    55.0  ok   pitch servo at full roll vs the outer race
 hip_roll     servo_hip_pitch_L      yaw_bearing_housing           0.00     44.86    55.0  ok   pitch servo at full roll vs the housing
 hip_roll     thigh_L                bearing_inner_L               0.00     59.50    55.0  ok   thigh at full roll vs the inner race
@@ -328,10 +298,10 @@ discscrew    leg_link_v6            horn_pad                 4 x M3x5  stack 3.0
 discscrew    leg_link_v6            idler_pad                4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    ankle_link             tine_horn                4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    ankle_link             tine_idler               4 x M3x5  stack 3.00  engages 1.60  ok
-discscrew    hip_yoke_v6            roll_horn                4 x M3x6  stack 4.00  engages 1.60  ok
-discscrew    hip_yoke_v6            roll_idler               4 x M3x8  stack 5.80  engages 1.80  ok
-discscrew    hip_yoke_v6            pitch_horn               4 x M3x5  stack 3.00  engages 1.60  ok
-discscrew    hip_yoke_v6            pitch_idler              4 x M3x6  stack 3.60  engages 2.00  ok
+discscrew    hip_yoke_glued         roll_horn                4 x M3x6  stack 4.00  engages 1.60  ok
+discscrew    hip_yoke_glued         roll_idler               4 x M3x8  stack 5.80  engages 1.80  ok
+discscrew    hip_yoke_glued         pitch_horn               4 x M3x5  stack 3.00  engages 1.60  ok
+discscrew    hip_yoke_glued         pitch_idler              4 x M3x6  stack 3.60  engages 2.00  ok
 discscrew    yaw_carrier_v6         yaw_horn                 4 x M3x5  stack 3.00  engages 1.60  ok
 discscrew    head                   horn                     4 x M3x6  stack 4.00  engages 1.60  ok
 static       neck_floor             pack_mock                     0.00      4.00          ok   floor over the pack (the pack goes in first) (>= 4.0 mm)
@@ -347,13 +317,47 @@ static       yaw_bearing_housing    pelvis_v8                     0.00      0.00
 static       yaw_bearing_housing    torso_v8                      0.00      0.50          ok   housing under the torso's bottom edge (>= 0.4 mm)
 static       pelvis_v8              torso_v8                      0.00      0.00          ok   pelvis snapped and glued into the torso: must not intersect
 static       front_cover_v8         torso_v8                      0.00      0.20          ok   front cover screwed between the skins: must not intersect
-static       power_cover_v8         torso_v8                      0.00      0.20          ok   aft cover screwed between the skins: must not intersect
+static       power_cover_v8         torso_v8                      0.00      0.00          ok   the power cap on the torso's aft end, its lip inside the skins: must not intersect
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
+static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
-static       power_board_mock       power_cover_v8                0.00      2.00          ok   power board's tallest part (C21) vs the cover (>= 1.5 mm)
+static       power_board_mock       power_cover_v8                0.00      1.80          ok   power board's parts vs the cap (K1 2.0 under its plate) (>= 1.5 mm)
+static       power_standoffs_mock   power_board_mock              0.00      0.00          ok   the BMS bracket's standoffs on the board: must not intersect
+static       power_standoffs_mock   torso_v8                      0.00      0.80          ok   the BMS bracket's standoffs vs the torso (>= 0.4 mm)
+static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
+static       power_bracket_v8       power_board_mock              0.00      4.50          ok   the BMS bracket over the board's parts (>= 2.0 mm)
+static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
+static       power_bracket_v8       power_cover_v8                0.00      2.00          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       bms_mock               power_bracket_v8              0.00      0.30          ok   the BMS on the bracket's foam tape, between its stops: must not intersect
+static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
+static       bms_mock               power_cover_v8                0.00      2.00          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
+static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
+static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
+static       balance_male_mock      balance_park_v8               0.00      0.00          ok   the extension's male end in the park: must not intersect
+static       balance_male_mock      power_board_mock              0.00      1.55          ok   the pack's balance plug on the park vs J1's plug (>= 1.0 mm)
+static       balance_male_mock      battery_door_v8               0.00      2.96          ok   the pack's balance plug on the park vs the battery door (>= 1.0 mm)
+static       balance_park_v8        battery_door_v8               0.00      2.51          ok   the balance park vs the battery door (>= 1.0 mm)
+static       balance_lead_mock      power_board_mock              0.00      0.00          ok   the balance lead out of its plug in J2: must not intersect
+static       balance_lead_mock      power_bracket_v8              0.00      1.10          ok   the balance lead under the BMS bracket (>= 1.0 mm)
+static       balance_lead_mock      torso_v8                      0.00      4.12          ok   the balance lead vs the torso (>= 1.0 mm)
+static       balance_lead_mock      pelvis_v8                     0.00      6.93          ok   the balance lead vs the pelvis's lugs (>= 1.0 mm)
+static       switch_pod_v8          power_cover_v8                0.00      0.00          ok   the switch pod screwed onto the cap: must not intersect
+static       switch_pod_v8          torso_v8                      0.00      4.70          ok   the switch pod vs the torso's aft end and deck (>= 1.0 mm)
+static       switch_pod_v8          pelvis_v8                     0.00     37.19          ok   the switch pod's bottom, 3 mm under the torso's, vs the pelvis (>= 5.0 mm)
+static       switch_pod_v8          yaw_bearing_housing           0.00     35.21          ok   the switch pod's bottom vs the bearing housing's rear lugs (>= 5.0 mm)
+static       switch_pod_v8          battery_door_v8               0.00     25.15          ok   the switch pod vs the battery door (>= 5.0 mm)
+static       switches_mock          switch_pod_v8                 0.00      0.00          ok   the toggles in the pod, nuts on its panels: must not intersect
+static       switches_mock          power_cover_v8                0.00      3.49          ok   the toggles vs the cap (>= 2.0 mm)
+static       switches_mock          power_board_mock              0.00      8.83          ok   the toggles vs the board's parts, outside the bay through the cap (K1) (>= 5.0 mm)
+static       switches_mock          bms_mock                      0.00      8.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
+static       switches_mock          power_bracket_v8              0.00     15.62          ok   the toggles vs the BMS bracket (outside the bay) (>= 10.0 mm)
+static       switch_pod_v8          neck_collar                   0.00     34.59          ok   the switch pod's well vs the neck's mount (>= 5.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
 static       pi4_mock               torso_v8                      0.00      0.00          ok   Pi 4B on its standoffs: must not intersect
 static       gd_mock                torso_v8                      0.00     10.49          ok   General Driver on the Pi as a HAT: must not intersect
@@ -377,7 +381,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (123 s)
+=> ALL CLEAR  (128 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
@@ -485,11 +489,29 @@ check_assembly_v6 (ARMS=0): PASS
   PASS
 
 == power_cover_v8  [outer face on bed]
-  first-layer contact    5731 mm2  (75.5% of 66x115 bbox)
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
-    BEAM         11 mm2    1.6 x   6.0 mm  at z   7.4  through-wall strip, 6 mm between anchors
+  first-layer contact    8085 mm2  (92.3% of 72x123 bbox)
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+    BEAM          5 mm2    0.9 x   6.0 mm  at z  12.4  through-wall strip, 6 mm between anchors
+  PASS
+
+== switch_pod_v8  [aft face on bed]
+  first-layer contact    5521 mm2  (100.0% of 74x74 bbox)
+    bore-top      8 mm2    3.0 x   2.8 mm  at z  17.6  over 6.7 mm cavity
+    BEAM          2 mm2    3.0 x   0.7 mm  at z  13.8  through-wall strip, 3 mm between anchors
+    CEILING      15 mm2    3.0 x   5.1 mm  at z  20.3  over 12.1 mm cavity
+    BEAM          1 mm2    2.0 x   0.7 mm  at z  13.8  through-wall strip, 2 mm between anchors
+    thin-note    2.2 mm2  wall < 0.85 mm  around (20, -21, 14)
+    thin-note    2.2 mm2  wall < 0.85 mm  around (20, -21, 15)
+  PASS
+
+== power_bracket_v8  [standoff face on bed]
+  first-layer contact    1377 mm2  (47.4% of 65x44 bbox)
+    BEAM          1 mm2    0.5 x   3.3 mm  at z   2.8  through-wall strip, 3 mm between anchors
+  PASS
+
+== balance_park_v8  [floor on bed, the cup's walls rising]
+  first-layer contact     121 mm2  (82.0% of 9x16 bbox)
   PASS
 
 == battery_door_v8  [outer face on bed]

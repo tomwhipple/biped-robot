@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "fallguard/fallguard.h"
 #include "flailguard/flailguard.h"
+#include "flailguard/heading_hold.h"
 #include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -51,7 +52,7 @@ linkproto::HomeLatch g_home;
 battguard::Guard g_batt;
 obs::Calibration g_cal;
 obs::History g_hist;
-obs::GaitClock g_clock(1.5f);
+obs::GaitClock g_clock(obs::kGaitFreqHz);
 obs::VelocityEstimator g_vel;
 
 float g_prev_action[obs::kActDim];
@@ -71,13 +72,22 @@ uint16_t g_target_speed[obs::kNumJoints];
 // prev_action stays the RAW policy output: that is what the policy saw in
 // training; the shaper is downstream of the policy's world.
 obs::CommandShaper g_shaper;
+// Motion limiter (obs/actuation.h): per-joint vmax / amax with braking
+// look-ahead (+ optional jerk boxcar) on what is about to be WRITTEN -- after
+// the shaper and the takeover ramp, before the goal ticks -- so no joint is
+// ever asked to start or stop harder than amax. Its velocity is the goal
+// speed of every policy joint while it is on. Seeded and invalidated exactly
+// where the shaper is; off at boot (shared.h g_limit_*), `limit` turns it on.
+obs::MotionLimiter g_limiter;
+float g_limit_cfg[3] = {0.0f, 0.0f, 0.0f};    // deg units g_limiter was last configured with
+float g_limit_vel[obs::kNumJoints];           // rad/s, this tick's limited velocity
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 // The BUS side (obs/bus_map.h). The loop reads and writes every FITTED bus
 // joint (Calibration::fitted), not just the policy's: the policy's joints
-// get the policy's targets, and every other fitted servo -- the robot's
-// ankle rolls, neck and arms under a 10-joint policy -- is HELD where it was
-// measured at takeover. Unfitted servos (IDs 11-17 on the prototype) are not
+// get the policy's targets, and every other fitted servo -- the neck and arms
+// under a legs-only policy that does not hold them -- is HELD where it was
+// measured at takeover. Unfitted servos (IDs 13-17 on the legs-only robot) are not
 // on the wire at all: a SYNC READ that waits on an absent servo costs its
 // whole timeout every tick. The fitted list is taken from the calibration
 // at the arm handover, when the CLI cannot be changing it.
@@ -134,6 +144,25 @@ fallguard::Detector g_fall;
 // acting tick; on a trip -- or a soft operator stop -- the loop holds
 // instead of going limp: holdAndDisarm() below.
 flailguard::Detector g_flail;
+// ... and what a trip during a walk does instead of holding (flailguard.h
+// WalkRecovery, Tom 2026-11-05): the policy keeps balancing, its command is
+// taken to the stand, the guard pauses, then judges the stand afresh.
+flailguard::WalkRecovery g_walkrec;
+// ... whose grace window still judges tilt (flailguard.h kGraceLimits).
+flailguard::Detector g_flail_grace(flailguard::kGraceLimits);
+// The IMU heading loop around the walking policy (heading_hold.h): on by default (Tom
+// 2026-11-06: "heading hold seems like something we'd always want"), `heading off` on the tether.
+flailguard::HeadingHold g_heading;
+
+// The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
+// the foot offsets off the plain stand (the same thresholds as the flail
+// guard's stand gate below). Crouch alone is not a walk.
+bool walkCmd(const float* cmd) {
+    const auto at = [cmd](int i, float dflt) { return i < obs::kNumCmd ? cmd[i] : dflt; };
+    return fabsf(at(0, 0.0f)) > 0.05f || fabsf(at(1, 0.0f)) > 0.05f ||
+           fabsf(at(2, 0.0f)) > 0.05f || fabsf(at(4, 0.0f)) >= 0.5f ||
+           fabsf(at(5, 0.0f)) > 0.005f || fabsf(at(6, 0.0f)) > 0.005f;
+}
 float g_flail_limit[obs::kNumJoints];      // rad, per policy joint (poseLimitDeg)
 // Set on a hold: the bench handover that follows keeps torque ON (the servos
 // keep the hold goals) instead of releasing it, and housekeeping takes the
@@ -299,7 +328,10 @@ void recordFlight(int64_t t0, int64_t t_read0, int64_t t_read1,
     v.nwr = nwr;
     v.wr_id = g_wr_id;
     v.wr_steps = g_wr_steps;
-    v.wr_speed = g_shape_hz.load() > 0.0f ? g_wr_speed : nullptr;
+    // the speeds went on the wire iff shaping or limiting (the act path's rule)
+    v.wr_speed = (g_shape_hz.load() > 0.0f ||
+                  (g_limit_vmax.load() > 0.0f && g_limit_amax.load() > 0.0f))
+                     ? g_wr_speed : nullptr;
     if (in) {
         v.action = g_action;
         v.cmd = in->cmd;
@@ -342,6 +374,7 @@ void ctrlTask(void*) {
                 g_ctrl_owns_bus.store(false);
                 g_primed = false;
                 g_shaper.invalidate();
+                g_limiter.invalidate();
             }
         } else if (!g_ctrl_owns_bus.load()) {
             // The fitted bus set for this run, from the calibration as it
@@ -359,12 +392,16 @@ void ctrlTask(void*) {
             memset(g_prev_action, 0, sizeof g_prev_action);
             g_primed = false;
             g_shaper.invalidate();
+            g_limiter.invalidate();
             // Fresh run, fresh fall latch: `bench` + `run` is the tethered
             // clear (and a disarm + arm the wireless one), and the operator
             // doing it is looking at the robot.
             g_fall.clear();
             // ... and a fresh flail guard: every filter, run and the latch.
             g_flail.reset();
+            g_walkrec.reset();
+            g_flail_grace.reset();
+            g_heading.reset();
             g_hold_on_bench = false;
             // Fresh takeover ramp: re-arm it for this run's first acting
             // ticks. The hold pose is captured lazily at the first tick
@@ -512,6 +549,7 @@ void ctrlTask(void*) {
                 if (hard) {
                     releaseAll();
                     g_shaper.invalidate();
+                    g_limiter.invalidate();
                     g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kDisarmedStop));
                     g_mode_request.store(Mode::kBench);
                     recordFlight(t0, t_read0, t_read1, state, s, 0, nullptr, vbat_dv);
@@ -549,6 +587,7 @@ void ctrlTask(void*) {
             // operator put them; the shaper must reseed from MEASURED q on
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
+            g_limiter.invalidate();
             recordFlight(t0, t_read0, t_read1, rep_state, s, 0, nullptr, vbat_dv);
             publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));
@@ -588,6 +627,38 @@ void ctrlTask(void*) {
         // ~1e6 sigma out at the first layer. Before the clock gate, so the
         // gate sees what the policy sees. Mirrored in sil_lib.cpp.
         policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        // Flail walk recovery: once a trip during a walk has engaged it, the
+        // policy is fed the stand on every locomotion/step channel (vx, vy,
+        // wz, lift, foot offsets -> 0; crouch untouched, so the pack guard's
+        // ramp still rules it), for the rest of the run. The policy itself
+        // keeps running: it is the IMU-in-the-loop controller.
+        g_walkrec.tick(walkCmd(in.cmd), static_cast<uint32_t>(kTickUs / 1000));
+        if (g_walkrec.standOverride()) {
+            const float keep = 1.0f - g_walkrec.overrideFrac();
+            static constexpr int kWalkCh[] = {0, 1, 2, 4, 5, 6};
+            for (const int k : kWalkCh) {
+                if (k < obs::kNumCmd) in.cmd[k] *= keep;
+            }
+            policy::pinFrozen(obs::kOffCmd, obs::kNumCmd, in.cmd);
+        }
+        // Heading hold (heading_hold.h): while a walk is commanded and no recovery has taken
+        // the command to the stand, steer the fused heading back to where the walk began
+        // (advanced by any commanded turn). The policy sees body rates, never its heading.
+        {
+            const bool walking = walkCmd(in.cmd) && !g_walkrec.standOverride() &&
+                                 g_heading_on.load() && s.valid;
+            g_heading.setGain(g_heading_k.load());
+            const float corr = g_heading.update(flailguard::HeadingHold::yawOf(s.quat), in.cmd[2],
+                                                walking, static_cast<float>(kTickUs) * 1e-6f);
+            if (corr != 0.0f) {
+                float w = in.cmd[2] + corr;
+                if (w > 1.0f) w = 1.0f;          // the trained turn range (cmd_w_range 1.0)
+                if (w < -1.0f) w = -1.0f;
+                in.cmd[2] = w;
+            }
+            g_heading_err.store(g_heading.error());
+            g_heading_corr.store(corr);
+        }
         const float vx = in.cmd[0];
         const float vy = obs::kNumCmd > 1 ? in.cmd[1] : 0.0f;
         const float wz = in.cmd[2];
@@ -666,11 +737,37 @@ void ctrlTask(void*) {
             }
         }
 
+        // -- limit (see g_limiter above; docs/firmware-design.md) ------------
+        // Read live every tick, like the shape pole. Last before the goal
+        // ticks, so it bounds whatever the shaper and the ramp produced.
+        const float lim_cfg[3] = {g_limit_vmax.load(), g_limit_amax.load(),
+                                  g_limit_jmax.load()};
+        const bool limiting = lim_cfg[0] > 0.0f && lim_cfg[1] > 0.0f;
+        if (limiting) {
+            if (lim_cfg[0] != g_limit_cfg[0] || lim_cfg[1] != g_limit_cfg[1] ||
+                lim_cfg[2] != g_limit_cfg[2]) {
+                g_limiter.configure(lim_cfg[0] * obs::kDegToRad,
+                                    lim_cfg[1] * obs::kDegToRad,
+                                    lim_cfg[2] * obs::kDegToRad,
+                                    obs::kControlDt);
+                memcpy(g_limit_cfg, lim_cfg, sizeof g_limit_cfg);
+            }
+            if (!g_limiter.primed()) g_limiter.reset(g_q);   // measured, at rest
+            g_limiter.update(angle, angle, g_limit_vel);
+        } else {
+            g_limiter.invalidate();     // re-enable reseeds from measured q
+        }
+
         // -- flail guard (components/flailguard) -----------------------------
         // Judges what this tick is about to WRITE (pose), the raw targets
         // (chatter) and the torso (rate, tilt -- the real IMU, not the
-        // obsfreeze'd copy). A trip: nothing of the policy is written, the
-        // servos freeze where they are with torque ON, and the run ends.
+        // obsfreeze'd copy). A trip at the stand: nothing of the policy is
+        // written, the servos freeze where they are with torque ON, and the
+        // run ends. A trip during a walk (WalkRecovery): the policy keeps
+        // running with its command taken to the stand, the guard pauses for
+        // its grace window -- judging tilt alone (kGraceLimits) -- then judges
+        // the stand from fresh filters on every criterion.
+        if (g_flail_on.load() && g_walkrec.graceJustEnded()) g_flail.reset();
         if (g_flail_on.load()) {
             flailguard::Input fin;
             fin.n = obs::kNumJoints;
@@ -687,15 +784,23 @@ void ctrlTask(void*) {
                             fabsf(lift) < 0.5f && fabsf(cmd_at(3, 1.0f) - 1.0f) <= 0.05f &&
                             fabsf(cmd_at(5, 0.0f)) <= 0.005f && fabsf(cmd_at(6, 0.0f)) <= 0.005f;
             fin.pose_armed = g_ramp_ticks >= kArmRampTicks;
+            fin.walking = g_walkrec.walkingRecent();
             fin.imu_valid = s.valid;
             fin.up = s.up;
             fin.gyro = s.gyro;
+            const bool full = g_walkrec.judging();
+            flailguard::Detector& det = full ? g_flail : g_flail_grace;
             const flailguard::Trip trip =
-                g_flail.update(fin, static_cast<uint32_t>(kTickUs / 1000));
-            if (trip != flailguard::Trip::kNone) {
+                det.update(fin, static_cast<uint32_t>(kTickUs / 1000));
+            if (trip != flailguard::Trip::kNone && full && g_walkrec.onTrip()) {
+                g_flail_grace.reset();                  // the grace judges tilt from fresh
+                g_flail_walk_trip.store(static_cast<uint8_t>(trip));
+                g_flail_walk_value.store(g_flail.tripValue());
+                g_flail_walk_recovers.fetch_add(1);     // housekeeping logs it
+            } else if (trip != flailguard::Trip::kNone) {
                 const int nwr = writeHoldHere();
                 holdAndDisarm(linkproto::ArmResult::kDisarmedFlail, static_cast<uint8_t>(trip),
-                              g_flail.tripValue(), g_flail.tripJoint());
+                              det.tripValue(), det.tripJoint());
                 recordFlight(t0, t_read0, t_read1, rep_state, s, nwr, &in, vbat_dv);
                 publish(rep_state, faults, s.up, vbat_dv,
                         static_cast<uint32_t>(esp_timer_get_time() - t0));
@@ -708,8 +813,10 @@ void ctrlTask(void*) {
             // g_fb[b].position holds the last reply from that servo; a joint
             // that has never answered reads 0, the error saturates and the
             // speed clamps to max -- exactly the legacy behaviour.
-            g_target_speed[i] = obs::goalSpeedSteps(
-                g_target_steps[i], g_fb[obs::policyToBus(i)].position);
+            g_target_speed[i] =
+                limiting ? obs::limitGoalSpeedSteps(g_limit_vel[i])
+                         : obs::goalSpeedSteps(g_target_steps[i],
+                                               g_fb[obs::policyToBus(i)].position);
         }
         // One SYNC WRITE over the fitted bus: the policy's targets, and a
         // hold at the takeover pose for every fitted servo it does not
@@ -757,7 +864,7 @@ void ctrlTask(void*) {
         }
         const int64_t t_wr0 = esp_timer_get_time();
         if (g_bus && nwr > 0) {
-            if (shape_hz > 0.0f) {
+            if (shape_hz > 0.0f || limiting) {
                 g_bus->syncWritePositions(g_wr_id, g_wr_steps, g_wr_speed,
                                           static_cast<size_t>(nwr));
             } else {

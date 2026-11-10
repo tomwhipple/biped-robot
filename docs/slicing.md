@@ -14,11 +14,11 @@ python3 cad/slice.py leg_link_v6       # the same job without make (it does not 
 python3 cad/slice.py feet              # -> build/v6/gcode/feet.3mf: foot_L + foot_R
 python3 cad/slice.py --all             # every plate, and every part on no plate
 python3 cad/slice.py --harvest
-python3 cad/slice.py --variant hip_yoke_glued hip_yoke_glued   # a build variant's plate
+python3 cad/slice.py --variant ankle_link_glued ankle_link_glued   # a build variant's plate
 ```
 
 `--variant` adds a `print_settings.json` `variants` entry's parts and plates to
-the run. These are parts of a non-default build, such as the glued hip yoke,
+the run. These are parts of a non-default build, such as the glued ankle link,
 that the default table leaves out.
 
 Output goes to `build/v6/gcode/` (gitignored: regenerate, don't commit). Its

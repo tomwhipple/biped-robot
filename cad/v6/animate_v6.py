@@ -52,10 +52,8 @@ INSERT = [
     ("servo_knee_",        (0, 0, 1), 4),
     ("thigh_",             (0, 0, 1), 5),
     ("servo_hip_pitch_",   (0, 0, 1), 5),
-    ("yoke_pitch_",        (0, 0, 1), 6),
-    ("yoke_roll_",         (0, 0, 1), 6),
-    ("hip_yoke_",          (0, 0, 1), 6),    # HIP_YOKE_VARIANT=single: the one-print yoke lowered onto the pitch servo
-                                              # discs from above (same path the pair took; the roll servo then slides in)
+    ("hip_yoke_",          (0, 0, 1), 6),    # the yoke lowered onto the pitch servo discs from above
+                                              # (the roll servo then slides in)
     ("servo_hip_roll_",    (1, 0, 0), 7),    # roll servo slides into the carrier bay from the front
     ("yaw_carrier_",       (0, 0, 1), 7),
     ("yaw_bearing_housing", (0, 0, 1), 8),   # housing DOWN with both bearings pressed into it, the inner
@@ -66,11 +64,19 @@ INSERT = [
     ("torso_v8",           (0, 0, 1), 10),   # with the torso it is glued into
     ("gd_mock",            (1, 0, 0), 11),   # the Pi + General Driver stack in from the front
     ("pi4_mock",           (1, 0, 0), 11),
-    ("front_cover_v8",     (1, 0, 0), 12),   # then the front cover
-    ("power_board_mock",   (-1, 0, 0), 11),  # power board onto its standoffs from aft
-    ("power_cover_v8",     (-1, 0, 0), 12),  # then its cover
-    ("pack_mock",          (0, 1, 0), 12),   # pack in sideways through the battery door's opening,
-    ("battery_door_v8",    (0, 1, 0), 12),   # then the door over it (one screw)
+    ("front_cover_v8",     (1, 0, 0), 13),   # then the front cover
+    ("power_board_mock",   (-1, 0, 0), 11),  # power board onto its standoff bosses from aft
+    ("power_standoffs_mock", (-1, 0, 0), 11),  # with the BMS bracket's two standoffs in its +y holes,
+    ("balance_park_v8",    (-1, 0, 0), 11),  # the balance park onto the aft wall, the extension's male end in it,
+    ("balance_male_mock",  (-1, 0, 0), 11),  # its lead from J2 (plugged in with the board)
+    ("balance_lead_mock",  (-1, 0, 0), 11),
+    ("power_bracket_v8",   (-1, 0, 0), 12),  # the BMS bracket onto them from aft,
+    ("bms_mock",           (-1, 0, 0), 12),  # the BMS onto the bracket's tape (wired to the board)
+    ("power_cover_v8",     (-1, 0, 0), 13),  # then its cover, the switch pod and its toggles on it
+    ("switch_pod_v8",      (-1, 0, 0), 13),
+    ("switches_mock",      (-1, 0, 0), 13),
+    ("pack_mock",          (0, 1, 0), 13),   # pack in sideways through the battery door's opening,
+    ("battery_door_v8",    (0, 1, 0), 13),   # then the door over it (one screw)
     # The neck is built into its tube ON THE BENCH (neck_floor.py): the floor
     # screwed up into the tube's bosses, the servo dropped in onto it and
     # screwed from below. Then the girdle (or, armless, the collar) goes onto
@@ -78,11 +84,11 @@ INSERT = [
     # film shows the tube + floor going down together, then the servo going
     # into the tube from above -- on the bench the servo is in before the
     # tube goes on (its stator screws are under the floor, over the pack).
-    ("shoulder_girdle_v6", (0, 0, 1), 13),
-    ("neck_collar",        (0, 0, 1), 13),
-    ("neck_floor",         (0, 0, 1), 13),
-    ("servo_neck",         (0, 0, 1), 14),   # dropped into the tube from above, onto the floor's pads
-    ("head",               (0, 0, 1), 15),
+    ("shoulder_girdle_v6", (0, 0, 1), 14),
+    ("neck_collar",        (0, 0, 1), 14),
+    ("neck_floor",         (0, 0, 1), 14),
+    ("servo_neck",         (0, 0, 1), 15),   # dropped into the tube from above, onto the floor's pads
+    ("head",               (0, 0, 1), 16),
     # ARMS (cad/v6/arm_v6.py): each shoulder servo pushed into its pod along
     # its own axis from OUTBOARD, cheek off (the features on both its faces
     # stand proud along the axis, so that is the only way in), then the cheek
@@ -92,14 +98,15 @@ INSERT = [
     # elbow servo slid into the upper arm's grip channel from the FRONT (the
     # same channel entry leg_link uses) -> forearm lifted UP, its fork tines
     # either side of the two discs.
-    ("servo_shoulder_",    (0, 1, 0), 16),
-    ("shoulder_cheek_",    (0, 1, 0), 16),
-    ("arm_upper_",         (0, 1, 0), 17),
-    ("servo_elbow_",       (1, 0, 0), 18),
-    ("arm_fore_",          (0, 0, -1), 19),
+    ("servo_shoulder_",    (0, 1, 0), 17),
+    ("shoulder_cheek_",    (0, 1, 0), 17),
+    ("arm_upper_",         (0, 1, 0), 18),
+    ("arm_head_insert_",   (0, 1, 0), 18),   # glued into the upper arm's head on the bench: arrives with it
+    ("servo_elbow_",       (1, 0, 0), 19),
+    ("arm_fore_",          (0, 0, -1), 20),
 ]
 # filmstrip row 2, by arms?: the insertion groups the strip shows
-FEATURE_GROUPS = {True: (8, 13, 14, 17, 19), False: (8, 12, 13, 14, 15)}
+FEATURE_GROUPS = {True: (8, 14, 15, 18, 20), False: (8, 13, 14, 15, 16)}
 FLY_MM = 60.0
 FRAMES_PER_GROUP = 14
 HOLD = 6
@@ -180,8 +187,6 @@ def main():
         r.update_scene(d, cam)
         frames.append(r.render().copy())
     suffix = ""
-    if A.hip_yoke_variant() != "single":      # the one-print yoke is the default now
-        suffix += "_" + A.hip_yoke_variant()
     if A.ankle_link_variant() != "box":
         suffix += "_ankle_" + A.ankle_link_variant()
     if A.arms_on():

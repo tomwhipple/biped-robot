@@ -42,7 +42,7 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
 from build123d import Cone, Pos, export_step, export_stl  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
-import parts as P  # noqa: E402
+from common import shapes as P  # noqa: E402
 
 D = V.D
 box, cyl_z, csk_z = P.box, P.cyl_z, P.csk_z

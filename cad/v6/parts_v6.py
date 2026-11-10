@@ -10,9 +10,6 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   with the girdle's deck pilots; ARMS=0 is the
                                   armless variant (neck_collar, no pilots), which
                                   is not a print target (cad/PRINT_LIST.md).
-    HIP_YOKE_VARIANT=single|glued|split the one-print hip yoke (default), the
-                                  glued U-channel pair, or the legacy bolted
-                                  yoke_roll + yoke_pitch_v6 pair.
     ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
                                   glued cradle + fork (cad/v6/ankle_link_glued.py).
     SERVO_PLAN=hips (default) | B | 3250
@@ -38,9 +35,9 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 
-from build123d import export_step, export_stl  # noqa: E402
+from build123d import export_step  # noqa: E402
+from stable_stl import export_stl_stable  # noqa: E402  (keeps an unchanged part's bytes)
 import dimensions_v6 as V  # noqa: E402
-import parts as v5  # noqa: E402
 import paths  # noqa: E402
 D = V.D
 
@@ -54,7 +51,6 @@ def _on(name, default):
 
 
 ARMS = _on("ARMS", "1")
-HIP_YOKE = os.environ.get("HIP_YOKE_VARIANT", "single")
 ANKLE_LINK = os.environ.get("ANKLE_LINK_VARIANT", "box")
 SERVO_PLAN = os.environ.get("SERVO_PLAN", "hips")
 SERVO_PLANS = {"hips": V.SERVO_3250_JOINTS, "B": (), "3250": V.SERVO_3250_JOINTS_SIX}
@@ -83,7 +79,13 @@ PARTS = [
     ("front_cover_v8", _lazy("torso_v8", "front_cover_v8"), 1,
      "outer face down, no supports; the board-stack bay's front wall, 4 screws through the skins"),
     ("power_cover_v8", _lazy("torso_v8", "power_cover_v8"), 1,
-     "outer face down, no supports; the power bay's aft wall, 4 screws through the skins"),
+     "outer face down, no supports; the power bay's cap (K1 under it), 3 screws through the skins"),
+    ("power_bracket_v8", _lazy("torso_v8", "power_bracket_v8"), 1,
+     "flat, no supports; the BMS's tray on two standoffs in the power board's +y holes"),
+    ("switch_pod_v8", _lazy("torso_v8", "switch_pod_v8"), 1,
+     "aft face down, no supports; holds the main switch and the E-stop side by side on the cap, levers up"),
+    ("balance_park_v8", _lazy("torso_v8", "balance_park_v8"), 1,
+     "floor down, no supports; holds the balance extension lead's male end at the door's sill"),
     ("battery_door_v8", _lazy("torso_v8", "battery_door_v8"), 1,
      "outer face down, no supports; the +y skin over the pack and J1: a bevelled tab aft, one screw forward"),
     ("yaw_bearing_housing", _lazy("yaw_bearing_housing", "yaw_bearing_housing"), 1,
@@ -92,19 +94,10 @@ PARTS = [
     ("head_face", _lazy("head", "head_face"), 1, "camera face plate, flat"),
     ("neck_floor", _lazy("neck_floor", "neck_floor"), 1, "the neck servo's seat, flat (#90)"),
     ("yaw_carrier_v6", _lazy("yaw_carrier_v6", "yaw_carrier_v6"), 2, "hip-yaw carrier, round hub for the 6810-2RS"),
-]
-if HIP_YOKE == "single":
-    PARTS.append(("hip_yoke_v6", _lazy("hip_yoke_v6", "hip_yoke_v6"), 2,
-                  "ONE PRINT: roll + pitch clevis fused, no flange bolts (on edge; supports + brim)"))
-elif HIP_YOKE == "glued":
-    PARTS += [("hip_yoke_glued_roll", _lazy("hip_yoke_glued", "roll_u"), 2,
-               "glued yoke, roll U-channel: on edge, no supports, no brim; snaps onto the pitch U"),
-              ("hip_yoke_glued_pitch", _lazy("hip_yoke_glued", "pitch_u"), 2,
-               "glued yoke, pitch U-channel: on its back, no supports, no brim")]
-else:
-    PARTS += [("yoke_roll", v5.yoke_roll, 2, "legacy split yoke (slicer supports)"),
-              ("yoke_pitch_v6", _lazy("yoke_pitch_v6", "yoke_pitch_v6"), 2, "legacy split yoke (slicer supports)")]
-PARTS += [
+    ("hip_yoke_glued_roll", _lazy("hip_yoke_glued", "roll_u"), 2,
+     "hip yoke, roll U-channel: on edge, no supports, no brim, 100 % infill; snaps onto the pitch U"),
+    ("hip_yoke_glued_pitch", _lazy("hip_yoke_glued", "pitch_u"), 2,
+     "hip yoke, pitch U-channel: on its back, no supports, no brim, 100 % infill"),
     ("leg_link_v6", _lazy("leg_link_v6", "leg_link_v6"), 4, "thigh + shin, 110 mm, open U, end walls"),
 ] + ([
     ("ankle_link_glued_cradle", _lazy("ankle_link_glued", "cradle"), 2,
@@ -128,6 +121,9 @@ if ARMS:
          "(turned over for the right), flat, outer face down"),
         ("arm_upper_v6_L", _lazy("arm_v6", "arm_upper_v6", "L"), 1, "shoulder horn -> elbow servo grip, 160 mm (on its back)"),
         ("arm_upper_v6_R", _lazy("arm_v6", "arm_upper_v6", "R"), 1, "mirror of _L, its own letter R"),
+        ("arm_head_insert_v6_L", _lazy("arm_v6", "arm_head_insert_v6", "L"), 1,
+         "glued into the upper arm's head, closing its C at the front and top (#199); flat, outboard face down"),
+        ("arm_head_insert_v6_R", _lazy("arm_v6", "arm_head_insert_v6", "R"), 1, "mirror of _L"),
         ("arm_fore_v6_L", _lazy("arm_v6", "arm_fore_v6", "L"), 1, "elbow fork -> hand knuckle, 160 mm (on its back)"),
         ("arm_fore_v6_R", _lazy("arm_v6", "arm_fore_v6", "R"), 1, "mirror of _L, its own letter R"),
     ]
@@ -186,12 +182,12 @@ def main(argv=None):
         m = mass_g(s, tpu=name.startswith("sole_tpu"))
         total_print += m * qty
         if export:
-            export_stl(s, os.path.join(OUT_STL, f"{name}.stl"))
+            export_stl_stable(s, os.path.join(OUT_STL, f"{name}.stl"))
             export_step(s, os.path.join(OUT_STEP, f"{name}.step"))
         tag = ("BED-OK" if bed_ok else "** TOO BIG **") if qty else "reference, not printed"
         rows.append((name, qty, m, dims, tag + "  " + note))
     out = []
-    out.append(f"build: ARMS={int(ARMS)}  HIP_YOKE_VARIANT={HIP_YOKE}  SERVO_PLAN={SERVO_PLAN}"
+    out.append(f"build: ARMS={int(ARMS)}  SERVO_PLAN={SERVO_PLAN}"
                + (f"  ANKLE_LINK_VARIANT={ANKLE_LINK}" if ANKLE_LINK != "box" else ""))
     out.append(f"{'part':20s} {'qty':>3s} {'g each':>7s} {'bbox (mm)':>22s}  note")
     for name, qty, m, dims, note in rows:
@@ -199,7 +195,7 @@ def main(argv=None):
             out.append(f"{name:20s} {qty:3d} {'-':>7s} {'-':>22s}  {note}")
         else:
             out.append(f"{name:20s} {qty:3d} {m:7.1f} {dims[0]:6.1f}x{dims[1]:6.1f}x{dims[2]:6.1f}  {note}")
-    elec = V.BATT_MASS + V.PI4_MASS + V.GD_MASS + V.PWR_MASS + V.CAM3_MASS + V.WIRING_MASS
+    elec = V.BATT_MASS + V.PI4_MASS + V.GD_MASS + V.PWR_MASS + V.BMS_MASS + V.CAM3_MASS + V.WIRING_MASS
     servos = servo_mass_g()
     counts = ", ".join(f"{n} x {k}" for k, n in SERVO_COUNT.items() if n)
     out.append("")
@@ -211,7 +207,7 @@ def main(argv=None):
                "before supports and brims; bought parts at catalogue mass")
     text = "\n".join(out)
     print(text)
-    default_build = ARMS and HIP_YOKE == "single" and SERVO_PLAN == "hips"
+    default_build = ARMS and SERVO_PLAN == "hips"
     path = a.rollup or (ROLLUP if default_build else None)
     if path and not a.only:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)

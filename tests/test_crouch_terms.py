@@ -16,12 +16,14 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 import jax  # noqa: E402
 import jax.numpy as jp  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def _env(crouch=1.0, **kw):
     from env_mjx import BimoMJXEnv
-    base = dict(xml_path=XML, ext_cmd=True, gait_clock=True, obs_hist_len=3,
+    base = dict(ROBOT, ext_cmd=True, gait_clock=True, obs_hist_len=3,
                 domain_rand=False, imu_noise=0.0, quantize_ticks=False,
                 latency_ms=0.0, backlash_deg=0.0,
                 cmd_fixed=(0.0, 0.0, 0.0, crouch, 0.0, 0.0, 0.0))
@@ -33,7 +35,7 @@ def test_defaults_off():
     env = _env()
     assert env.w_hip_yaw == 0.0 and env.w_crouch_track == 0.0
     assert env.crouch_release is False
-    assert env._i_yaw is not None  # v5body has hip yaw
+    assert env._i_yaw is not None  # v6legs has hip yaw
 
 
 def _reward_after_step(env, qpos_edit=None):
@@ -64,7 +66,7 @@ def test_crouch_track_only_under_crouch_command():
     # standing tall (crouch 1.0): the kernel is gated off, reward unchanged
     assert abs(_reward_after_step(_env(1.0, w_crouch_track=2.0))
                - _reward_after_step(_env(1.0))) < 1e-5
-    # crouch 0.8 commanded while standing at nominal height: err ~ 5.7 cm
+    # crouch 0.8 commanded while standing at nominal height: err ~ 7.8 cm
     # >> sigma 1.5 cm, so the kernel pays ~0 -- no free income for ignoring
     r_off = _reward_after_step(_env(0.8)); r_on = _reward_after_step(_env(0.8, w_crouch_track=2.0))
     assert abs(r_on - r_off) < 0.02, (r_on, r_off)

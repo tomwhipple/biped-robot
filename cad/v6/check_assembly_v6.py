@@ -43,22 +43,33 @@ PAIRS = [
     ("hip_yaw", "yaw_carrier_{s}", "pelvis_v8", "carrier under the cell through +-45"),
     ("hip_yaw", "yaw_carrier_{s}", "torso_v8", "carrier vs the torso's bottom edge through +-45"),
     ("hip_yaw", "servo_hip_roll_{s}", "pelvis_v8", "roll servo in the carrier bay vs the housing floor"),
-    ("hip_roll", "yoke_roll_{s}", "yaw_carrier_{s}", "roll clevis vs the bay walls (v5 pair)"),
-    ("hip_roll", "yoke_pitch_{s}", "yaw_carrier_{s}", "pitch yoke flange vs the bay at abduction"),
-    ("hip_roll", "yoke_pitch_{s}", "servo_hip_roll_{s}", "yoke vs the roll servo case"),
-    ("hip_pitch", "thigh_{s}", "yoke_pitch_{s}", "thigh grip plates vs the yoke arms (0.7 mm v5 rule)"),
-    # the pair that actually limits hip flexion: the thigh's front wall vs the
-    # ROLL flange (hip-yoke-single-print.md section 6 item 1). The split sweep
-    # never listed it, which is how a -125 ROM stood unchallenged for 10 days.
-    ("hip_pitch", "thigh_{s}", "yoke_roll_{s}", "thigh front wall vs the ROLL flange (sets ROM hip_pitch)"),
+    ("hip_yaw", "servo_hip_roll_{s}", "switch_pod_v8", "roll servo vs the switch pod's bottom, 3 mm under the torso's"),
+    # The hip yoke is DESIGNED to touch the carrier (the roll idler boss rides
+    # the bay bore at its 0.30 slip) and the roll servo (both roll bosses
+    # seated on the discs), so each of those pairs is checked twice: whole
+    # (volume only, TOUCHING) and as "hip_yoke_{s}~seats", the yoke minus
+    # hip_yoke_glued.disc_seat_zones, which holds the arms, pads, both flanges
+    # and the fin to the full buffer.
+    ("hip_roll", "hip_yoke_{s}", "yaw_carrier_{s}", "yoke vs the bay walls: idler boss rides the bore, volume only"),
+    ("hip_roll", "hip_yoke_{s}~seats", "yaw_carrier_{s}", "same pair minus the disc seats: arms, pads, both flanges get the full buffer"),
+    ("hip_roll", "hip_yoke_{s}", "servo_hip_roll_{s}", "yoke on the roll servo discs: seated, must not intersect"),
+    ("hip_roll", "hip_yoke_{s}~seats", "servo_hip_roll_{s}", "same pair minus the disc seats: arms, pads, both flanges get the full buffer"),
+    # the thigh's grip plates vs the pitch clevis's arms, and the thigh's front
+    # wall vs the ROLL flange, the pair that sets ROM hip_pitch
+    ("hip_pitch", "thigh_{s}", "hip_yoke_{s}", "thigh grip plates vs the yoke arms, front wall vs the roll flange (0.7 mm v5 rule; sets ROM hip_pitch)"),
+    ("hip_pitch", "servo_hip_pitch_{s}", "hip_yoke_{s}", "pitch servo case turning between the yoke's pitch arms, seated on its discs: must not intersect"),
     ("hip_pitch", "thigh_{s}", "servo_hip_pitch_{s}", "grip channel vs its own servo: seated, must not intersect"),
     ("hip_pitch", "thigh_{s}", "yaw_carrier_{s}", "thigh top vs the carrier at deep flexion"),
     ("hip_pitch", "thigh_{s}", "pelvis_v8", "thigh vs the pelvis at deep flexion"),
     ("hip_pitch", "thigh_{s}", "torso_v8", "thigh vs the torso at deep flexion"),
     ("hip_pitch", "thigh_{s}", "battery_door_v8", "thigh vs the battery door at deep flexion"),
+    ("hip_pitch", "thigh_{s}", "switch_pod_v8", "thigh vs the switch pod's bottom, at full extension"),
+    ("hip_pitch", "servo_knee_{s}", "switch_pod_v8", "knee servo vs the switch pod's bottom, at full extension"),
     ("hip_pitch", "thigh_{s}", "servo_hip_roll_{s}", "thigh grip top vs the roll servo case at -125 (hits at -135)"),
     ("knee", "shin_{s}", "thigh_{s}", "shin grip plates vs the thigh fork; shin vs the thigh's end walls and pocket"),
     ("knee", "servo_knee_{s}", "thigh_{s}", "knee servo case sweeping under the thigh's bottom end wall (r 16 rule)"),
+    ("knee", "shin_{s}", "switch_pod_v8", "shin vs the switch pod's bottom at deep flexion"),
+    ("knee", "foot_{s}", "switch_pod_v8", "foot vs the switch pod's bottom at deep flexion"),
     ("ankle_pitch", "ankle_link_{s}", "shin_{s}", "ankle link grip plates vs the shin fork (0.7 mm)"),
     ("ankle_pitch", "servo_ankle_pitch_{s}", "shin_{s}", "ankle pitch servo case vs the shin's fork and bottom end wall"),
     ("ankle_pitch", "foot_{s}", "shin_{s}", "foot tabs / cradle vs the shin tines at +-40"),
@@ -95,13 +106,47 @@ STATIC_PAIRS = [
     ("yaw_bearing_housing", "torso_v8", "housing under the torso's bottom edge", 0.4),
     ("pelvis_v8", "torso_v8", "pelvis snapped and glued into the torso: must not intersect", None),
     ("front_cover_v8", "torso_v8", "front cover screwed between the skins: must not intersect", None),
-    ("power_cover_v8", "torso_v8", "aft cover screwed between the skins: must not intersect", None),
+    ("power_cover_v8", "torso_v8", "the power cap on the torso's aft end, its lip inside the skins: must not intersect", None),
     ("battery_door_v8", "torso_v8", "battery door in its opening, tab behind the power bay's skin: must not intersect", None),
     ("battery_door_v8", "pack_mock", "the door's ribs 0.5 off the pack's +y end", 0.4),
     ("battery_door_v8", "power_board_mock", "battery door vs the power board and J1's plug", 0.5),
+    ("battery_door_v8", "power_bracket_v8", "battery door's tongue vs the BMS bracket", 1.0),
+    ("battery_door_v8", "bms_mock", "battery door's tongue vs the BMS", 1.0),
     ("gd_mock", "front_cover_v8", "the General Driver's PCB vs the front cover", 9.0),
     ("power_board_mock", "torso_v8", "power board on its standoffs: must not intersect", None),
-    ("power_board_mock", "power_cover_v8", "power board's tallest part (C21) vs the cover", 1.5),
+    ("power_board_mock", "power_cover_v8", "power board's parts vs the cap (K1 2.0 under its plate)", 1.5),
+    ("power_standoffs_mock", "power_board_mock", "the BMS bracket's standoffs on the board: must not intersect", None),
+    ("power_standoffs_mock", "torso_v8", "the BMS bracket's standoffs vs the torso", 0.4),
+    ("power_bracket_v8", "power_standoffs_mock", "the BMS bracket on its standoffs: must not intersect", None),
+    ("power_bracket_v8", "power_board_mock", "the BMS bracket over the board's parts", 2.0),
+    ("power_bracket_v8", "torso_v8", "the BMS bracket vs the torso (the deck over it)", 0.4),
+    ("power_bracket_v8", "power_cover_v8", "the BMS bracket vs the cap's corner blocks", 1.0),
+    ("bms_mock", "power_bracket_v8", "the BMS on the bracket's foam tape, between its stops: must not intersect", None),
+    ("bms_mock", "power_board_mock", "the BMS over the fuses, J1 and J2", 2.0),
+    ("bms_mock", "power_cover_v8", "the BMS under the cap (its +y top corner block)", 1.0),
+    ("bms_mock", "torso_v8", "the BMS vs the +y skin", 0.5),
+    ("bms_mock", "pack_mock", "the BMS vs the pack", 1.0),
+    ("balance_park_v8", "torso_v8", "the balance park on its foam tape on the aft wall", 0.5),
+    ("balance_park_v8", "power_board_mock", "the balance park vs the board's +y edge", 0.4),
+    ("balance_male_mock", "balance_park_v8", "the extension's male end in the park: must not intersect", None),
+    ("balance_male_mock", "power_board_mock", "the pack's balance plug on the park vs J1's plug", 1.0),
+    ("balance_male_mock", "battery_door_v8", "the pack's balance plug on the park vs the battery door", 1.0),
+    ("balance_park_v8", "battery_door_v8", "the balance park vs the battery door", 1.0),
+    ("balance_lead_mock", "power_board_mock", "the balance lead out of its plug in J2: must not intersect", None),
+    ("balance_lead_mock", "power_bracket_v8", "the balance lead under the BMS bracket", 1.0),
+    ("balance_lead_mock", "torso_v8", "the balance lead vs the torso", 1.0),
+    ("balance_lead_mock", "pelvis_v8", "the balance lead vs the pelvis's lugs", 1.0),
+    ("switch_pod_v8", "power_cover_v8", "the switch pod screwed onto the cap: must not intersect", None),
+    ("switch_pod_v8", "torso_v8", "the switch pod vs the torso's aft end and deck", 1.0),
+    ("switch_pod_v8", "pelvis_v8", "the switch pod's bottom, 3 mm under the torso's, vs the pelvis", 5.0),
+    ("switch_pod_v8", "yaw_bearing_housing", "the switch pod's bottom vs the bearing housing's rear lugs", 5.0),
+    ("switch_pod_v8", "battery_door_v8", "the switch pod vs the battery door", 5.0),
+    ("switches_mock", "switch_pod_v8", "the toggles in the pod, nuts on its panels: must not intersect", None),
+    ("switches_mock", "power_cover_v8", "the toggles vs the cap", 2.0),
+    ("switches_mock", "power_board_mock", "the toggles vs the board's parts, outside the bay through the cap (K1)", 5.0),
+    ("switches_mock", "bms_mock", "the toggles vs the BMS (outside the bay)", 5.0),
+    ("switches_mock", "power_bracket_v8", "the toggles vs the BMS bracket (outside the bay)", 10.0),
+    ("switch_pod_v8", "shoulder_girdle_v6" if A.arms_on() else "neck_collar", "the switch pod's well vs the neck's mount", 5.0),
     ("pack_mock", "torso_v8", "pack between the torso's ribs", 0.4),
     ("pi4_mock", "torso_v8", "Pi 4B on its standoffs: must not intersect", None),
     ("gd_mock", "torso_v8", "General Driver on the Pi as a HAT: must not intersect", None),
@@ -125,22 +170,10 @@ if A.arms_on():
 # for intersection VOLUME only (must be ~0), the distance rule is waived
 TOUCHING = {("thigh_{s}", "servo_hip_pitch_{s}"), ("shin_{s}", "thigh_{s}"),
             ("ankle_link_{s}", "shin_{s}"), ("foot_{s}", "ankle_link_{s}"),
-            ("head", "servo_neck"), ("yoke_roll_{s}", "yaw_carrier_{s}"),
+            ("head", "servo_neck"), ("hip_yoke_{s}", "yaw_carrier_{s}"), ("hip_yoke_{s}", "servo_hip_roll_{s}"),
+            ("servo_hip_pitch_{s}", "hip_yoke_{s}"),
             ("servo_hip_roll_{s}", "pelvis_v8"), ("servo_ankle_roll_{s}", "ankle_link_{s}"),
             ("servo_knee_{s}", "thigh_{s}"), ("servo_ankle_pitch_{s}", "shin_{s}")}
-# HIP_YOKE_VARIANT=single (assembly_v6.hip_yoke_variant): yoke_roll and
-# yoke_pitch are ONE piece, hip_yoke_{s}. Every PAIRS row naming either yoke is
-# renamed onto it (duplicates collapse), and the two pairs where the part is
-# DESIGNED to touch its neighbour -- the carrier (roll idler boss riding the
-# bay bore at its 0.30 slip) and the roll servo (both roll bosses seated on
-# the discs) -- are checked twice: whole (volume only, TOUCHING) and as
-# "<label>~seats", the piece minus hip_yoke_v6.disc_seat_zones, which holds
-# the arms, pads and both flanges to the full buffer. That second row is
-# STRICTER than the split check, where yoke_roll vs the carrier was
-# volume-only and yoke_roll vs the roll servo was not listed at all.
-SINGLE_RENAME = {"yoke_roll_{s}": "hip_yoke_{s}", "yoke_pitch_{s}": "hip_yoke_{s}"}
-SINGLE_SEATED = {("hip_yoke_{s}", "yaw_carrier_{s}"): "one-print yoke vs the bay walls: idler boss rides the bore, volume only",
-                 ("hip_yoke_{s}", "servo_hip_roll_{s}"): "one-print yoke on the roll servo discs: seated, must not intersect"}
 
 # the arms (assembly_v6.arms_on, the default build): docs/design-v6/arms.md.
 # Rows are (joint swept, A, B, note, extra pose) -- the 5th field is what the
@@ -167,6 +200,14 @@ ARM_PAIRS = [
     ("shoulder", "arm_upper_{s}", "shoulder_girdle_v6", "upper arm vs the girdle it hangs off, whole sweep", None),
     ("shoulder", "arm_upper_{s}", "servo_shoulder_{s}", "horn plate seated on the shoulder disc: must not intersect", None),
     ("shoulder", "arm_upper_{s}", "shoulder_cheek_{s}", "upper arm vs the cheek it turns 0.7 mm off, whole sweep", None),
+    # the head's glued insert (issue #199) rides the upper arm; its lip stands
+    # ARM_INSERT_LIP proud of the head's front and top edges
+    ("shoulder", "arm_head_insert_{s}", "arm_upper_{s}", "head insert glued in the head's C, lip on the horn plate: must not intersect", None),
+    ("shoulder", "arm_head_insert_{s}", "shoulder_cheek_{s}", "head insert's lip vs the cheek, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "servo_shoulder_{s}", "head insert vs the shoulder servo, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "shoulder_girdle_v6", "head insert vs the girdle, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "torso_v8", "head insert vs the torso, whole sweep", None),
+    ("shoulder", "arm_head_insert_{s}", "head", "head insert vs the head at the fold-up", None),
     ("shoulder", "arm_fore_{s}", "shoulder_cheek_{s}", "forearm vs the cheek, FOLDED", {"{s}_elbow": -90.0}),
     ("shoulder", "arm_fore_{s}", "torso_v8", "forearm vs the torso through the whole sweep, hanging", None),
     ("shoulder", "arm_fore_{s}", "battery_door_v8", "forearm vs the battery door, whole sweep, hanging", None),
@@ -188,12 +229,12 @@ ARM_PAIRS = [
     # folded 95) is what they hold whenever the legs move, so every leg joint
     # is swept through its full range against the folded arm (DESIGN.md 5.4).
     # Hanging straight (the rows above) is only the torque-off pose.
-    ("hip_yaw", "yoke_pitch_{s}", "arm_upper_{s}", "hip yaw: yoke vs the upper arm, arms at rest (folded)", REST),
-    ("hip_yaw", "yoke_pitch_{s}", "servo_elbow_{s}", "hip yaw: yoke vs the elbow servo, arms at rest (folded)", REST),
-    ("hip_yaw", "yoke_pitch_{s}", "arm_fore_{s}", "hip yaw: yoke vs the forearm, arms at rest (folded)", REST),
-    ("hip_roll", "yoke_pitch_{s}", "arm_upper_{s}", "hip roll: yoke vs the upper arm, arms at rest (folded)", REST),
-    ("hip_roll", "yoke_pitch_{s}", "servo_elbow_{s}", "hip roll: yoke vs the elbow servo, arms at rest (folded)", REST),
-    ("hip_roll", "yoke_pitch_{s}", "arm_fore_{s}", "hip roll: yoke vs the forearm, arms at rest (folded)", REST),
+    ("hip_yaw", "hip_yoke_{s}", "arm_upper_{s}", "hip yaw: yoke vs the upper arm, arms at rest (folded)", REST),
+    ("hip_yaw", "hip_yoke_{s}", "servo_elbow_{s}", "hip yaw: yoke vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_yaw", "hip_yoke_{s}", "arm_fore_{s}", "hip yaw: yoke vs the forearm, arms at rest (folded)", REST),
+    ("hip_roll", "hip_yoke_{s}", "arm_upper_{s}", "hip roll: yoke vs the upper arm, arms at rest (folded)", REST),
+    ("hip_roll", "hip_yoke_{s}", "servo_elbow_{s}", "hip roll: yoke vs the elbow servo, arms at rest (folded)", REST),
+    ("hip_roll", "hip_yoke_{s}", "arm_fore_{s}", "hip roll: yoke vs the forearm, arms at rest (folded)", REST),
     ("hip_roll", "servo_hip_pitch_{s}", "arm_upper_{s}", "hip roll: pitch servo vs the upper arm, arms at rest (folded)", REST),
     ("hip_roll", "servo_hip_pitch_{s}", "servo_elbow_{s}", "hip roll: pitch servo vs the elbow servo, arms at rest (folded)", REST),
     ("hip_roll", "servo_hip_pitch_{s}", "arm_fore_{s}", "hip roll: pitch servo vs the forearm, arms at rest (folded)", REST),
@@ -212,6 +253,7 @@ ARM_PAIRS = [
     ("ankle_pitch", "ankle_link_{s}", "arm_fore_{s}", "ankle link vs the hanging forearm (the arm reaches to z 154)", None),
 ]
 ARM_TOUCHING = {("arm_upper_{s}", "servo_shoulder_{s}"), ("arm_fore_{s}", "servo_elbow_{s}"),
+                ("arm_head_insert_{s}", "arm_upper_{s}"),
                 ("servo_elbow_{s}", "arm_upper_{s}")}
 
 
@@ -257,19 +299,19 @@ def _designed_press_fits():
     width, less what the hub's and the recess's lead-ins take out of it."""
     import yaw_bearing_housing as H
     import yaw_carrier_v6 as YC
-    import parts as Pv5
+    from common import shapes as S
     from build123d import Cone, Pos
     y, zh = V.HIP_SEP / 2, V.HIP_YAW_Z
     z0, z1 = zh - V.YAW_BRG_W, zh
-    race_in = Pv5.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - Pv5.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
+    race_in = S.cyl_z(V.YAW_BRG_INNER_RING_R, z0, z1, 0, y) - S.cyl_z(V.YAW_BRG_ID / 2, z0 - 1, z1 + 1, 0, y)
     # the hub as modelled: its print allowance overlaps the race too
     rh = V.YAW_BRG_BOSS_MODEL_R
-    hub = Pv5.cyl_z(rh, z0, z1, 0, y)
+    hub = S.cyl_z(rh, z0, z1, 0, y)
     hub -= Pos(0, y, z1 - YC.HUB_LEAD_IN / 2 + 0.05) * Cone(rh - YC.HUB_LEAD_IN, rh + 0.05, YC.HUB_LEAD_IN + 0.1)
     zd = V.DECK_TOP_Z
     r0, r1 = V.YAW_BRG_RECESS_Z
-    race_out = Pv5.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)
-    seat_wall = Pv5.cyl_z(V.YAW_BRG_OD / 2 + 1, r0 + zd, r1 + zd, 0, y) - Pv5.cyl_z(V.YAW_BRG_RECESS_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    race_out = S.cyl_z(V.YAW_BRG_OD / 2, r0 + zd, r1 + zd, 0, y) - S.cyl_z(V.YAW_BRG_OUTER_RING_R, r0 + zd - 1, r1 + zd + 1, 0, y)
+    seat_wall = S.cyl_z(V.YAW_BRG_OD / 2 + 1, r0 + zd, r1 + zd, 0, y) - S.cyl_z(V.YAW_BRG_RECESS_R, r0 + zd - 1, r1 + zd + 1, 0, y)
     hz0 = V.YAW_HOUSING_Z[0] + zd
     seat_wall -= Pos(0, y, hz0 + H.LEAD_IN / 2 - 0.05) * Cone(V.YAW_BRG_RECESS_R + H.LEAD_IN + 0.05, V.YAW_BRG_RECESS_R,
                                                            H.LEAD_IN + 0.1)
@@ -284,48 +326,19 @@ def _designed_press_fits():
 
 
 def active_pairs():
-    """(pairs, touching) for the assembly as built -- unchanged unless the
-    one-print hip yoke or the arms are switched on. Rows come back as
-    5-tuples (joint, A, B, note, extra pose)."""
-    pairs, touching = _yoke_pairs()
-    b_pairs = BEARING_PAIRS
-    if not A.one_piece_yoke():
-        b_pairs = [(j, "yoke_pitch_{s}" if a == "hip_yoke_{s}" else a, b, n) for j, a, b, n in BEARING_PAIRS]
-    pairs = list(pairs) + b_pairs
+    """(pairs, touching) for the assembly as built: the arm rows join when
+    the arms are on. Rows come back as 5-tuples (joint, A, B, note, extra
+    pose)."""
+    pairs, touching = PAIRS + BEARING_PAIRS, set(TOUCHING)
     if A.arms_on():
-        arm_pairs = ARM_PAIRS + ARM_HOUSING_PAIRS
-        if A.one_piece_yoke():
-            # the arm rows name the split yoke too (the abduction row sweeps
-            # yoke_pitch toward the arm plane); with the one-print yoke that
-            # part does not exist and the row crashed with a KeyError.
-            arm_pairs = [(j, SINGLE_RENAME.get(a, a), SINGLE_RENAME.get(b, b), *rest)
-                         for j, a, b, *rest in arm_pairs]
-        pairs = list(pairs) + arm_pairs
-        touching = set(touching) | ARM_TOUCHING
+        pairs = pairs + ARM_PAIRS + ARM_HOUSING_PAIRS
+        touching |= ARM_TOUCHING
     return [r if len(r) == 5 else (*r, None) for r in pairs], touching
-
-
-def _yoke_pairs():
-    if not A.one_piece_yoke():
-        return PAIRS, TOUCHING
-    pairs, seen = [], set()
-    for joint, la, lb, note in PAIRS:
-        la, lb = SINGLE_RENAME.get(la, la), SINGLE_RENAME.get(lb, lb)
-        if (joint, la, lb) in seen:
-            continue
-        seen.add((joint, la, lb))
-        if (la, lb) in SINGLE_SEATED:
-            pairs.append((joint, la, lb, SINGLE_SEATED[(la, lb)]))
-            pairs.append((joint, la + "~seats", lb, "same pair minus the disc seats: arms, pads, both flanges get the full buffer"))
-        else:
-            pairs.append((joint, la, lb, note))
-    touching = {(SINGLE_RENAME.get(a, a), SINGLE_RENAME.get(b, b)) for a, b in TOUCHING} | set(SINGLE_SEATED)
-    return pairs, touching
 
 
 def piece(P, label, side, pose):
     """The posed solid for a pair label; "<label>~seats" strips the designed
-    contacts (one-print hip yoke only)."""
+    contacts (the hip yoke only)."""
     base, _, mod = label.partition("~")
     s = P[base.format(s=side)]
     if mod == "seats":
@@ -345,7 +358,7 @@ def check_disc_screws(verbose=True):
     length's thread (V.DISC_SCREW_THREAD) and the stack each part declares;
     one row per distinct (part, joint side, stack)."""
     import importlib
-    mods = ["leg_link_v6", "ankle_link", "hip_yoke_v6", "yaw_carrier_v6", "head"]
+    mods = ["leg_link_v6", "ankle_link", "hip_yoke_glued", "yaw_carrier_v6", "head"]
     if A.arms_on():
         mods.append("arm_v6")
     fails, seen = 0, {}
@@ -544,7 +557,7 @@ ACCESS_REACH = 50.0
 
 def check_driver_access(verbose=True):
     import importlib
-    import parts as Pv5
+    from common import shapes as S
     P0 = pieces_by_label(A.robot({}))
     fails = 0
     for group, mod, prefix, frame, present in ACCESS_STATES:
@@ -562,9 +575,9 @@ def check_driver_access(verbose=True):
             ax = sc["axis"]
             r = D.ACCESS_D / 2
             if abs(ax[2]) > 0.5:
-                drv = Pv5.cyl_z(r, z - ax[2] * 0.05, z - ax[2] * ACCESS_REACH, x, y)
+                drv = S.cyl_z(r, z - ax[2] * 0.05, z - ax[2] * ACCESS_REACH, x, y)
             else:
-                drv = Pv5.cyl_x(r, x - ax[0] * 0.05, x - ax[0] * ACCESS_REACH, y, z)
+                drv = S.cyl_x(r, x - ax[0] * 0.05, x - ax[0] * ACCESS_REACH, y, z)
             for lab in present:
                 try:
                     vol = (drv & P0[lab]).volume
@@ -589,10 +602,6 @@ def main(argv=None):
     t0 = time.time()
     fails = 0
     pairs, touching_set = active_pairs()
-    if A.hip_yoke_variant() == "single":
-        print("HIP_YOKE_VARIANT=single: one-print hip yoke (hip_yoke_v6) in place of yoke_roll + yoke_pitch")
-    elif A.hip_yoke_variant() == "glued":
-        print("HIP_YOKE_VARIANT=glued: the glued U-channel pair (hip_yoke_glued) in place of yoke_roll + yoke_pitch")
     if A.ankle_link_variant() == "glued":
         print("ANKLE_LINK_VARIANT=glued: the glued cradle + fork (ankle_link_glued) in place of ankle_link")
     if A.arms_on():

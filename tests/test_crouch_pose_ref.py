@@ -18,12 +18,15 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 import jax.numpy as jp  # noqa: E402
 import mujoco  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
+XML = ROBOT["xml_path"]
 
 
 def _mjx(**kw):
     from env_mjx import BimoMJXEnv
-    base = dict(xml_path=XML, ext_cmd=True, gait_clock=True, obs_hist_len=3,
+    base = dict(ROBOT, ext_cmd=True, gait_clock=True, obs_hist_len=3,
                 domain_rand=False, imu_noise=0.0, quantize_ticks=False,
                 latency_ms=0.0, backlash_deg=0.0,
                 cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0))
@@ -33,7 +36,7 @@ def _mjx(**kw):
 
 def _walker(**kw):
     from walker_env import BimoWalkerEnv
-    base = dict(xml_path=XML, command_mode=True, ext_cmd=True, gait_clock=True,
+    base = dict(ROBOT, command_mode=True, ext_cmd=True, gait_clock=True,
                 actuator_model="sts3215", imu_obs=True, domain_rand=False,
                 latency_ms=0.0, backlash_deg=0.0, quantize_ticks=False)
     base.update(kw)
@@ -57,9 +60,9 @@ def test_theta_mapping_and_feasible_depth():
     assert abs(float(e._crouch_theta(0.85)) - np.radians(19.5)) < 1e-6
     assert float(e._crouch_theta(0.5)) <= np.radians(39.0) + 1e-6   # clipped (float32)
     drop = e._nominal_h - float(e._crouch_h_target(0.7))
-    assert 0.03 < drop < 0.06, drop           # ~4.0 cm for 18 cm of leg at 39 deg
+    assert 0.03 < drop < 0.06, drop           # ~4.9 cm for 22 cm of leg at 39 deg
     assert abs(drop - e._leg_len * (1 - np.cos(np.radians(39)))) < 1e-6
-    # the knee at theta_max stays inside its limit (-95 deg on v5body)
+    # the knee at theta_max stays inside its limit (-130 deg on v6legs)
     cmd = jp.array([0.0, 0.0, 0.0, 0.7, 0.0, 0.0, 0.0])
     q = np.asarray(e._mimic_ref(cmd, 0.0, 1.5))
     lo = np.asarray(e._lo)
@@ -145,7 +148,7 @@ def test_deep_ref_pose_and_depth():
     np.testing.assert_allclose(np.degrees(q[np.asarray(e._i_ankle)] - d[np.asarray(e._i_ankle)]), [-40, -40], atol=1e-3)
     drop = e._nominal_h - float(e._crouch_h_target(0.7))
     want = e._shank * (1 - np.cos(np.radians(40))) + e._thigh * (1 - np.cos(np.radians(55)))
-    assert abs(drop - want) < 1e-6 and 0.05 < drop < 0.07, (drop, want)   # ~5.9 cm
+    assert abs(drop - want) < 1e-6 and 0.06 < drop < 0.08, (drop, want)   # ~7.3 cm
     # walking keeps the plain reference and the old height law
     walk_c = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 0.7, 0, 0, 0.0]), 0.7, 1.5))
     walk_t = np.asarray(e._mimic_ref(jp.array([0.3, 0, 0, 1.0, 0, 0, 0.0]), 0.7, 1.5))

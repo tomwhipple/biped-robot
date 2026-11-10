@@ -27,7 +27,7 @@ def _drive(env, steps=150, action=-1.0):
     once -- an engaged servo must produce torque to track it, a released one
     cannot produce any.
     """
-    act = np.full(8, action, dtype=np.float32)
+    act = np.full(env.action_space.shape, action, dtype=np.float32)
     peak = 0.0
     for _ in range(steps):
         env.step(act)
@@ -85,7 +85,7 @@ def test_limp_on_flat_ground_does_not_imply_falling_over():
     env = BimoWalkerEnv(command_mode=True, actuator_model="sts3215")
     env.reset(seed=0)
     env.set_torque_enabled(False)
-    act = np.zeros(8, dtype=np.float32)
+    act = np.zeros(env.action_space.shape, dtype=np.float32)
     for _ in range(100):
         env.step(act)
     assert env.data.qpos[2] > 0.2                  # still up, unperturbed

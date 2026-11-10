@@ -20,7 +20,7 @@ GoPro + rough ground **16/16** vs 12/16), and what the decision changed:
   the window, and a ribbon under the pack is the pull-tab. Tower grew for
   headroom (`TOWER_H` 32→37→43.5; the last +6.5 on 2026-07-15 widened the bay
   from the one flat Zeee pack to the whole 3S 850 XT30 field). Envelope is
-  parametric (`BATT` in `cad/dimensions.py`) — taller pack, one edit, reprint.
+  parametric (`BATT` in `cad/common/dimensions.py`) — taller pack, one edit, reprint.
 - **Servos**: unchanged — the 12 V-class ST3215 (6–12.6 V) was already the pick.
 - **Sim**: torso inertia rebuilt for the 3S pack (78 g vs the old 110 g 2S
   estimate, correct orientation); dash policies re-evaluated on the updated
@@ -82,7 +82,7 @@ robot + ~$74 filament + $219 printer ≈ **$620–670 all-in from zero**.
 ## Verify on arrival, before committing plastic
 
 1. **Servo case holes**: tapped M3 or needs M4? (vendor STEP shows Ø3.5 —
-   community self-taps M3; `cad/dimensions.py` parameterizes this).
+   community self-taps M3; `cad/common/dimensions.py` parameterizes this).
 2. ~~**Idler screw depth**: M3×8 + washer assumed; confirm no bottoming.~~
    **RESOLVED 2026-07-30**: the Ø14 circle taps a 2.1 mm flange. M3×6 no washer
    (M3×8 at the hip-roll idler, into a sunk pad). See assembly.md.

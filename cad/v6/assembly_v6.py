@@ -9,10 +9,11 @@ and the fly-in animation (animate_v6.py) -- so a figure cannot show a
 placement the checker never tried.
 
 Parts come from the v6 part modules when they exist (leg_link_v6, ankle_link,
-foot_v6, torso_v8, head) and from v5 for the unchanged hip stack
-(yaw_carrier, yoke_roll, yoke_pitch); a missing v6 module falls back to a
-labelled envelope box so the chain, the export and the checks run while the
-parts are still being drawn.
+foot_v6, torso_v8, head); a missing v6 module falls back to a labelled
+envelope box so the chain, the export and the checks run while the parts are
+still being drawn. The hip stack's parts are v5's, reworked: yaw_carrier_v6
+(v5's carrier + the hip-yaw bearing hub) and hip_yoke_glued (the v5 clevises
+as two glued U-channels).
 
 Variants (env vars; the defaults are the robot to print):
     ARMS=1 (default) | 0        the two get-up arms: the shoulder girdle (both
@@ -22,9 +23,6 @@ Variants (env vars; the defaults are the robot to print):
                                 built with the girdle's deck pilots. ARMS=0 is
                                 the armless variant: neck_collar instead of the
                                 girdle, a torso without the pilots.
-    HIP_YOKE_VARIANT=single|glued|split  the one-print hip yoke (default), the
-                                glued U-channel pair, or the legacy bolted
-                                yoke_roll + yoke_pitch pair.
     ANKLE_LINK_VARIANT=box|glued  the one-print ankle link (default) or the
                                 glued cradle + fork, carried as their union.
 
@@ -51,8 +49,7 @@ from build123d import (Box, Color, Compound, Cylinder, Location, Pos, Rot,  # no
                        export_step, export_stl)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import check_assembly as CA  # noqa: E402  (v5 servo mocks)
-import parts as v5parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
@@ -79,26 +76,6 @@ def _try(modname, fn, *a, **k):
         return None, False
 
 
-def hip_yoke_variant():
-    """Which hip yoke (link 2, the roll/pitch universal joint) the assembly
-    builds: "single" (DEFAULT since 2026-09-24: cad/v6/hip_yoke_v6.py, the roll
-    and pitch clevises as one print, no flange bolts) or "split" (the legacy
-    v5 yoke_roll + yoke_pitch_v6 bolted flange to flange) via the
-    HIP_YOKE_VARIANT env var. Promoted once both clearance findings its sweep
-    exposed were resolved (hip-yoke-single-print.md section 6): the roll-
-    corner relief, and hip flexion -120 with the leg link's LL_HIP_RELIEF_X0 trim.
-    "glued" (cad/v6/hip_yoke_glued.py) is the same two clevises as two
-    support-free U-channels snapped and glued at the old bolted plane; the
-    assembly carries their glued union as one piece."""
-    return os.environ.get("HIP_YOKE_VARIANT", "single")
-
-
-def one_piece_yoke():
-    """True when link 2 is ONE solid in the assembly -- the one print, or the
-    glued pair -- and so is checked as hip_yoke_{s} with its seat zones."""
-    return hip_yoke_variant() in ("single", "glued")
-
-
 def arms_on():
     """Whether this build carries the two get-up arms (docs/design-v6/
     getup-decision-2026-09-17.md). ON by default -- the arms are the design;
@@ -107,23 +84,20 @@ def arms_on():
 
 
 def part_hip_yoke():
-    """The one-print hip yoke, or the glued pair's union (HIP_YOKE_VARIANT=
-    glued). No envelope fallback: a caller that opted in asked for this part,
-    and two bolted pieces are not a stand-in for one."""
-    if hip_yoke_variant() == "glued":
-        import hip_yoke_glued
-        return hip_yoke_glued.hip_yoke_glued()
-    import hip_yoke_v6
-    return hip_yoke_v6.hip_yoke_v6()
+    """The hip yoke (cad/v6/hip_yoke_glued.py): the roll and pitch U-channels'
+    glued union, carried as one piece. No envelope fallback: a box is not a
+    stand-in for the joint the checks sweep."""
+    import hip_yoke_glued
+    return hip_yoke_glued.hip_yoke_glued()
 
 
 def hip_yoke_seat_zone(side):
-    """World-frame (standing pose) solid of the one-print yoke's DESIGNED
-    contacts -- hip_yoke_v6.disc_seat_zones -- for check_assembly_v6's
-    "~seats" rows. Cached like the parts."""
-    import hip_yoke_v6
+    """World-frame (standing pose) solid of the hip yoke's DESIGNED contacts
+    -- hip_yoke_glued.disc_seat_zones -- for check_assembly_v6's "~seats"
+    rows. Cached like the parts."""
+    import hip_yoke_glued
     y = V.HIP_SEP / 2 * (1 if side == "L" else -1)
-    return cached(("hip_yoke_seats", side), lambda: Pos(0, y, V.HIP_ROLL_Z) * hip_yoke_v6.disc_seat_zones())
+    return cached(("hip_yoke_seats", side), lambda: Pos(0, y, V.HIP_ROLL_Z) * hip_yoke_glued.disc_seat_zones())
 
 
 def posed_hip_yoke_seats(side, pose):
@@ -135,23 +109,9 @@ def posed_hip_yoke_seats(side, pose):
 
 
 def part_yaw_carrier():
-    """v6 carrier (v5's + the hip-yaw bearing hub); falls back to v5's."""
-    try:
-        import yaw_carrier_v6
-        return yaw_carrier_v6.yaw_carrier_v6()
-    except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yaw_carrier_v6 unavailable ({type(e).__name__}: {e}); v5 yaw_carrier")
-        return v5parts.yaw_carrier()
-
-
-def part_yoke_pitch():
-    """v6 clevis (flange chamfer for hip flexion 125); falls back to v5's."""
-    try:
-        import yoke_pitch_v6
-        return yoke_pitch_v6.yoke_pitch_v6()
-    except Exception as e:  # noqa: BLE001
-        print(f"  [assembly_v6] yoke_pitch_v6 unavailable ({type(e).__name__}: {e}); v5 yoke_pitch")
-        return v5parts.yoke_pitch()
+    """the hip-yaw carrier with its bearing hub (cad/v6/yaw_carrier_v6.py)"""
+    import yaw_carrier_v6
+    return yaw_carrier_v6.yaw_carrier_v6()
 
 
 def part_leg_link():
@@ -226,11 +186,21 @@ def part_front_cover():
 
 
 def part_power_cover():
+    """The power bay's cap, PCAP_PROUD aft of the torso (torso_v8.py)."""
     s, ok = _try("torso_v8", "power_cover_v8")
     if ok:
         return s
-    return Pos((V.HOUSING_X[0] + V.PWRB_AFT_X) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
-        V.PWRB_AFT_X - V.HOUSING_X[0], 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+    return Pos((V.PCAP_X[0] + V.PCAP_X[1]) / 2, 0, (V.TORSO_BOT_Z - D.DECK_T) / 2) * Box(
+        V.PCAP_X[1] - V.PCAP_X[0], 2 * V.TORSO_IN_HW, -D.DECK_T - V.TORSO_BOT_Z)
+
+
+def part_power_bracket():
+    """The BMS's tray on two standoffs in the power board's +y holes (torso_v8.py)."""
+    s, ok = _try("torso_v8", "power_bracket_v8")
+    if ok:
+        return s
+    return Pos((V.PBR_X[0] + V.PBR_X[1]) / 2, (V.BMS_Y[0] + V.BMS_Y[1]) / 2, (V.BMS_Z[0] + V.BMS_Z[1]) / 2) * Box(
+        V.PBR_X[0] - V.PBR_X[1], V.BMS_Y[1] - V.BMS_Y[0], V.BMS_Z[1] - V.BMS_Z[0])
 
 
 def part_battery_door():
@@ -295,9 +265,57 @@ def mock_gd():
 
 
 def mock_power_board():
-    """The power board's PCB and tall parts (torso_v8.mock_pwrb)."""
+    """The power board (power lite): its PCB and tall parts (torso_v8.mock_pwrb)."""
     import torso_v8
     return torso_v8.mock_pwrb()
+
+
+def mock_power_standoffs():
+    """The BMS bracket's two M2.5 x 15 standoffs on the power board (torso_v8.mock_pwrb_standoffs)."""
+    import torso_v8
+    return torso_v8.mock_pwrb_standoffs()
+
+
+def mock_bms():
+    """The BMS, ShillehTek CF-3SJH25A-C, on the bracket (torso_v8.mock_bms)."""
+    import torso_v8
+    return torso_v8.mock_bms()
+
+
+def part_switch_pod():
+    """The block on the cap that holds both toggles side by side (torso_v8.py)."""
+    s, ok = _try("torso_v8", "switch_pod_v8")
+    if ok:
+        return s
+    return Pos((V.SWP_X[0] + V.SWP_X[1]) / 2, 0, (V.SWP_BOT_Z + V.SWP_WELL_Z) / 2) * Box(
+        V.SWP_X[1] - V.SWP_X[0], 2 * V.SWP_HW, V.SWP_WELL_Z - V.SWP_BOT_Z)
+
+
+def mock_switches():
+    """The main switch and the E-stop in the pod (torso_v8.mock_switches)."""
+    import torso_v8
+    return torso_v8.mock_switches()
+
+
+def part_balance_park():
+    """The cup that holds the balance extension lead's male end (torso_v8.py)."""
+    s, ok = _try("torso_v8", "balance_park_v8")
+    if ok:
+        return s
+    return Pos(sum(V.BAL_IN_X) / 2, V.BAL_Y, (V.BAL_FLOOR_Z + V.BAL_RIM_Z) / 2) * Box(
+        V.BAL_X0 - V.BAL_IN_X[1], V.BAL_IN_Y[1] - V.BAL_IN_Y[0], V.BAL_RIM_Z - V.BAL_FLOOR_Z)
+
+
+def mock_balance_male():
+    """The extension lead's male end in the park, the pack's plug on it (torso_v8.mock_balance_male)."""
+    import torso_v8
+    return torso_v8.mock_balance_male()
+
+
+def mock_balance_lead():
+    """The balance extension lead, J2 to the park (torso_v8.mock_balance_lead)."""
+    import torso_v8
+    return torso_v8.mock_balance_lead()
 
 
 def mock_roll_servo_in_foot(side):
@@ -365,15 +383,10 @@ def _leg_chain(side):
 
 def hip_yoke_pieces(side, at):
     """Link 2 -- the hip universal joint between the roll servo (link 1) and
-    the pitch servo (link 3): the bolted pair (default) or the one print.
-    Both yokes' frames are the joint frames themselves (roll axis / pitch
-    axis at their origins), so the split parts are placed at HIP_ROLL_Z and
-    HIP_PITCH_Z; the single part carries the pitch clevis at -ROLL_TO_PITCH
-    in its own frame and is placed at HIP_ROLL_Z alone."""
-    if one_piece_yoke():
-        return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
-    return [(2, f"yoke_roll_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * v5parts.yoke_roll()),
-            (2, f"yoke_pitch_{side}", COL_PRINT, at(V.HIP_PITCH_Z) * part_yoke_pitch())]
+    the pitch servo (link 3): the hip yoke, one piece. Its frame is the roll
+    joint's (roll axis along X through the origin, the pitch axis along Y
+    at z -ROLL_TO_PITCH), so it is placed at HIP_ROLL_Z."""
+    return [(2, f"hip_yoke_{side}", COL_PRINT, at(V.HIP_ROLL_Z) * part_hip_yoke())]
 
 
 def yaw_bearing_pieces(side, y):
@@ -408,6 +421,14 @@ def _torso_pieces():
         (0, "pi4_mock", COL_MOCK, Pos(0, 0, z) * mock_pi()),
         (0, "gd_mock", COL_MOCK, Pos(0, 0, z) * mock_gd()),
         (0, "power_board_mock", COL_MOCK, Pos(0, 0, z) * mock_power_board()),
+        (0, "power_standoffs_mock", COL_MOCK, Pos(0, 0, z) * mock_power_standoffs()),
+        (0, "power_bracket_v8", COL_PRINT, Pos(0, 0, z) * part_power_bracket()),
+        (0, "bms_mock", COL_MOCK, Pos(0, 0, z) * mock_bms()),
+        (0, "balance_park_v8", COL_PRINT, Pos(0, 0, z) * part_balance_park()),
+        (0, "switch_pod_v8", COL_PRINT, Pos(0, 0, z) * part_switch_pod()),
+        (0, "switches_mock", COL_MOCK, Pos(0, 0, z) * mock_switches()),
+        (0, "balance_male_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_male()),
+        (0, "balance_lead_mock", COL_MOCK, Pos(0, 0, z) * mock_balance_lead()),
         (0, "servo_neck", COL_SERVO, Pos(V.NECK_X, 0, z + V.NECK_AXIS_Z) * Rot(180, 0, 0) * CA.servo_mock_z()),
         (0, "neck_floor", COL_PRINT, Pos(0, 0, z) * part_neck_floor()),
         (0, "shoulder_girdle_v6" if arms_on() else "neck_collar", COL_PRINT,
@@ -444,6 +465,8 @@ def _arm_chain(side):
         (0, f"servo_shoulder_{side}", COL_SERVO, deck * SG.shoulder_servo_mock(side)),
         (0, f"shoulder_cheek_{side}", COL_PRINT, deck * SG.shoulder_cheek_v6(side)),
         (1, f"arm_upper_{side}", COL_PRINT, at_sh * arm_v6.arm_upper_v6(side)),
+        # glued into the upper arm's head (issue #199): rides it
+        (1, f"arm_head_insert_{side}", COL_PRINT, at_sh * arm_v6.arm_head_insert_v6(side)),
         # the elbow servo's case rides the UPPER arm (arm_v6.elbow_servo_mock)
         (1, f"servo_elbow_{side}", COL_SERVO, at_el * arm_v6.elbow_servo_mock(side)),
         (2, f"arm_fore_{side}", COL_PRINT, at_el * arm_v6.arm_fore_v6(side)),

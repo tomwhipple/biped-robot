@@ -1,8 +1,8 @@
-##@ CAD: the printed parts (V=v6 | v5 | bench-v2 | bench-v3)
-.PHONY: cad cad-v6 cad-v5 cad-bench-v2 cad-bench-v3 freecad slice check-cad
+##@ CAD: the printed parts (V=v6 | bench-v2 | bench-v3)
+.PHONY: cad cad-v6 cad-bench-v2 cad-bench-v3 slice check-cad
 
 # The robot to print; a variant's own parts are built with the variant's setting.
-V6_ENV := ARMS=1 HIP_YOKE_VARIANT=single SERVO_PLAN=hips
+V6_ENV := ARMS=1 SERVO_PLAN=hips
 V6_ALL_PARTS := $(V6_PARTS) $(V6_VARIANT_PARTS)
 V6_ROLLUP := build/v6/reports/parts_v6_rollup.txt
 
@@ -33,40 +33,21 @@ $(foreach p,$(V6_ALL_PARTS),$(eval $(call v6_part,$(p))))
 $(V6_ROLLUP): $(V6_ROLLUP_DEPS)
 	$(V6_ENV) $(PY) cad/v6/parts_v6.py --no-export > /dev/null
 
-# The prototype and the bench rigs: one run of each script writes all its
-# files, so each is a pattern rule with the version as its stem (how make 3.81
-# knows that). The prototype's STLs (cad/stl, committed for now) come with its STEPs.
-V5_PARTS := pelvis yaw_carrier yoke_roll yoke_pitch leg_link foot gopro_base leg_link_print \
-	yaw_carrier_print tower imu_carrier
-V5_SCREWS := grip disc_y roll yaw_carrier deck gopro board tower head_stack foot
-V5_SERVOS := yaw roll pitch ankle
+# The bench rigs: one run of each script writes all its files, so each is a
+# pattern rule with the version as its stem (how make 3.81 knows that).
 BENCH := experiments/plan-b-bench
 BENCH_V2 := stl/plan_b_bracket.stl stl/plan_b_lever_stiff.stl stl/plan_b_lever_hold.stl \
 	stl/plan_b_lid.stl stl/plan_b_stop_pin.stl renders/plan_b_rig_render.png renders/plan_b_rig_side.svg
 BENCH_V3 := stl/plan_b_v3_bracket.stl stl/plan_b_v3_fork.stl step/Bracket_v3.step \
 	step/Fork_level.step step/Fork_hanging.step step/Weights_envelope_level.step
 
-V5_STEPS := $(V5_PARTS:%=build/v5/step/%.step) $(V5_SCREWS:%=build/v5/step/screws_%.step) $(V5_SERVOS:%=build/v5/step/servo_%.step)
-
-cad-v5: $(V5_STEPS)
 cad-bench-v2: $(BENCH_V2:%=build/bench-v2/%)
 cad-bench-v3: $(BENCH_V3:%=build/bench-v3/%)
 
-$(V5_PARTS:%=build/\%/step/%.step): $(PYDEPS_cad/parts.py)
-	$(PY) cad/parts.py > /dev/null
-$(V5_SCREWS:%=build/\%/step/screws_%.step): $(PYDEPS_cad/fasteners.py)
-	$(PY) cad/fasteners.py > /dev/null
-$(V5_SERVOS:%=build/\%/step/servo_%.step): $(PYDEPS_cad/servos.py)
-	$(PY) cad/servos.py > /dev/null
 $(BENCH_V2:%=build/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig.py)
 	$(PY) $(BENCH)/plan_b_rig.py > /dev/null
 $(BENCH_V3:%=build/\%/%): $(PYDEPS_$(BENCH)/plan_b_rig_v3.py)
 	$(PY) $(BENCH)/plan_b_rig_v3.py > /dev/null
-
-FREECADCMD ?= /Applications/FreeCAD.app/Contents/Resources/bin/freecadcmd
-freecad: build/v5/step/bimo_v3yaw_articulated.FCStd ## the prototype's articulated FreeCAD model (needs FreeCAD)
-build/v5/step/bimo_v3yaw_articulated.FCStd: $(PYDEPS_cad/freecad_articulate.py) $(V5_STEPS)
-	$(FREECADCMD) cad/freecad_articulate.py
 
 # The slicer is multithreaded itself; the Makefile runs half as many jobs for it.
 SLICE_OUT := build/v6/gcode
@@ -88,8 +69,10 @@ check-cad: cad-v6 ## the CAD gate: swept-ROM interference, armless and with arms
 
 V6_STEP_FIGS := $(wildcard docs/assembly/v6_*.png)
 V6_GLUED := hip_yoke_glued ankle_link_glued
+V6_POWER_BAY := power_bay_v8 power_bay_prints_v8 switch_pod_v8
 V6_DOC_FIGS := docs/img/assembly_v6_arms.png docs/img/servo_map.png docs/img/arm_side_labels.png $(V6_GLUED:%=docs/img/%.png) \
-	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS)
+	docs/assembly/assembly_v6_flyin_arms_strip.png docs/assembly/assembly_v6_flyin_strip.png $(V6_STEP_FIGS) \
+	$(V6_POWER_BAY:%=docs/assembly/%.png)
 
 assembly: build/v6/step/assembly_v6_arms.step build/v6/step/assembly_v6.step ## the articulated v6 assembly, STEP + render, with and without arms
 figures: $(V6_DOC_FIGS) ## re-render the v6 images the docs show and copy them into the docs (committed)
@@ -119,7 +102,7 @@ build/%/renders/arm_side_labels.png: $(PYDEPS_cad/v6/arm_v6.py) $(foreach l,uppe
 	$(PY) cad/v6/arm_v6.py --labels-figure $@ > /dev/null
 docs/img/arm_side_labels.png: build/v6/renders/arm_side_labels.png
 	cp $< $@
-# the glued test parts: each module writes its STLs, STEPs and its strip
+# the glued parts: each module writes its STLs, STEPs and its strip
 build/%/renders/hip_yoke_glued.png: $(PYDEPS_cad/v6/hip_yoke_glued.py)
 	$(PY) cad/v6/hip_yoke_glued.py > /dev/null
 build/%/renders/ankle_link_glued.png: $(PYDEPS_cad/v6/ankle_link_glued.py)
@@ -131,4 +114,9 @@ docs/assembly/assembly_v6_flyin_arms_strip.png: build/v6/movies/assembly_v6_flyi
 docs/assembly/assembly_v6_flyin_strip.png: build/v6/movies/assembly_v6_flyin_strip.png
 	cp $< $@
 docs/assembly/v6_%.png: build/v6/renders/v6_%.png
+	cp $< $@
+# the power bay (assembly.md 9c): torso_v8.py --figures renders its three strips and writes nothing else
+build/%/renders/power_bay_v8.png build/%/renders/power_bay_prints_v8.png build/%/renders/switch_pod_v8.png: $(PYDEPS_cad/v6/torso_v8.py)
+	$(PY) cad/v6/torso_v8.py --figures > /dev/null
+$(V6_POWER_BAY:%=docs/assembly/%.png): docs/assembly/%.png: build/v6/renders/%.png
 	cp $< $@

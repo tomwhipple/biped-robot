@@ -11,6 +11,10 @@
 # 07:00-interrupted job does not re-run the next night (its checkpoint is
 # collectible either way).
 set -uo pipefail
+# queue order is `ls | sort`: pin the C locale. en_US collation ignores '-', so a
+# hand-started runner (2026-11-05) ordered 11052000021-x before 1105200002-y
+# while cron's C locale orders it after
+export LC_ALL=C
 BASE="$HOME/code/robot-mjx"
 N="$BASE/night"
 exec >> "$N/night.log" 2>&1
@@ -32,15 +36,41 @@ PY="$BASE/.venv/bin/python"
 # queue file's optional BRANCH= line selects a branch for one-off
 # experiments (default main). This runner copy lives OUTSIDE the tree
 # (night/ is untracked) so a reset can never rewrite it mid-run.
+fix() {   # STEP LOG TIMEOUT_MIN <<< detail -> 0 if a Claude session fixed it
+  "$N/claude_fix.sh" "$@"
+}
 sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
-  local BR=$1
-  if git -C "$BASE" fetch -q --filter=blob:none origin "$BR"; then
-    git -C "$BASE" reset -q --hard FETCH_HEAD
-    echo "$(date +%H:%M) repo @ $BR $(git -C "$BASE" rev-parse --short HEAD)"
-  else
-    echo "$(date +%H:%M) !!! fetch $BR failed; training on existing tree" \
-         "@ $(git -C "$BASE" rev-parse --short HEAD)"
+  # Tom 2026-11-05: "Always check to make sure we have the latest from github
+  # before starting a training run." Retry the fetch (a blip must not train a
+  # night on stale code), verify HEAD == the fetched tip, and record the
+  # outcome in SYNC (ok|STALE) -> the job's state file -> the morning card.
+  local BR=$1 TRY TIP
+  SYNC=STALE
+  for TRY in 1 2 3; do
+    if git -C "$BASE" fetch -q --filter=blob:none origin "$BR"; then
+      TIP=$(git -C "$BASE" rev-parse FETCH_HEAD)
+      git -C "$BASE" reset -q --hard "$TIP"
+      if [[ $(git -C "$BASE" rev-parse HEAD) == "$TIP" ]]; then
+        SYNC=ok
+        echo "$(date +%H:%M) repo @ $BR $(git -C "$BASE" rev-parse --short HEAD) (origin tip, verified)"
+        return 0
+      fi
+    fi
+    echo "$(date +%H:%M) !!! fetch/reset of $BR failed (try $TRY/3)"
+    (( TRY < 3 )) && sleep $((TRY * 60))
+  done
+  # fix-and-continue (Tom 2026-11-05): a headless Claude session gets the
+  # failure, then one more try
+  if [[ -z ${IN_FIX_RETRY:-} ]] && fix "sync-$BR" "$N/night.log" 20 <<EOF
+night_run.sh could not fetch origin/$BR into the training clone $BASE (3 tries)
+or could not reset it to the fetched tip. The runner retries sync_repo once
+after you exit and then launches the next queued job on whatever tree it has.
+EOF
+  then
+    IN_FIX_RETRY=1 sync_repo "$BR"; return
   fi
+  echo "$(date +%H:%M) !!! SYNC=STALE: could not confirm origin/$BR; training on" \
+       "$(git -C "$BASE" rev-parse --short HEAD) -- the morning planner must flag every card from this job"
 }
 sync_repo main
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
@@ -51,12 +81,20 @@ mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
 # the recipe's env_kw (constructor catches plant/servo/hold contract bugs --
 # the class that burned night 2, 2026-10-22 -- at 22:00, not 07:00).
 if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
-  if ! NO_NOTIFY= python3 "$N/preflight.sh.py"; then
+  if ! NO_NOTIFY= python3 "$N/preflight.sh.py" \
+     && ! { fix preflight "$N/preflight.log" 30 <<EOF
+night/preflight.sh.py FAILED on tonight's queue ($N/queue), so no job can launch.
+Its report is $N/preflight.log. Fix the job files (or the code they need) so
+that pre-flight passes; the runner re-runs pre-flight once after you exit.
+EOF
+            NO_NOTIFY= python3 "$N/preflight.sh.py"; }; then
     echo "$(date +%H:%M) !!! pre-flight FAILED; refusing to launch the queue" \
-         "(fix the jobs or move them to queue/held/). Notifying Tom."
-    "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
-      "Night pre-flight FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/preflight.log; jobs are still queued but the runner refused to burn the night on them." \
-      || true
+         "(fix the jobs or move them to queue/held/). DM notify is OFF (Tom 2026-11-02);"
+    if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
+      "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+        "Night pre-flight FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/preflight.log; jobs are still queued but the runner refuses to burn the night on them." \
+        || true
+    fi
     "$N/vision_pause.sh" resume 2>/dev/null || true
     exit 1
   fi
@@ -128,6 +166,10 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
       sleep 5
       continue
     fi
+    # idle but memory held (an ollama model resident, e.g. Honcho's deriver
+    # between requests): recheck in 30 s, so the unload above comes after ~1 min,
+    # not 20 (2026-11-05 day run: every job lost 20 min this way)
+    if (( UTIL < 5 )); then sleep 30; continue; fi
     echo "$(date +%H:%M) gpu busy (util=${UTIL}% free=${FREE}MiB); retry in 10 m"
     sleep 600
   done
@@ -168,6 +210,17 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
     if kill -0 "$PID" 2>/dev/null; then
       echo "$(date +%H:%M) CMD job $JOB hit the 06:55 guard; killing"
       kill "$PID" 2>/dev/null
+      continue
+    fi
+    wait "$PID"; RC=$?
+    if (( RC != 0 )); then
+      echo "$(date +%H:%M) !!! CMD job $JOB exited $RC"
+      fix "job-$OUT" "$BASE/sim/runs/cmd_${OUT}.log" 30 <<EOF || true
+The night queue's CMD job $JOB (OUT=$OUT, command: $CMD) exited with status
+$RC after it ran in $BASE. Its job file is in $N/queue/done/$JOB. Find the
+cause and fix it. If the job should run again tonight, re-queue it (copy it back
+to $N/queue/). The runner picks up the queue again as soon as you exit.
+EOF
     fi
     continue
   fi
@@ -216,6 +269,7 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   PID=$!
   { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
     echo "SHA=$(git -C "$BASE" rev-parse HEAD)"
+    echo "SYNC=${SYNC:-unknown}"
     echo "BRANCH=${BR:-main}"
     echo "ARGS=$ARGS"; } > "$N/state"
   echo "$(date +%H:%M) launched $JOB pid=$PID out=$OUT"
@@ -228,8 +282,23 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
     echo "$(date +%H:%M) $JOB still running at the 06:55 guard; night_stop takes it"
     break
   fi
-  echo "$(date +%H:%M) $JOB finished"
+  wait "$PID"; RC=$?
+  echo "$(date +%H:%M) $JOB finished (exit $RC)"
   mv -f "$N/state" "$N/state.done.$OUT"
+  if (( RC != 0 )); then
+    RUNMIN=$(( ($(date +%s) - $(sed -n 's/^STARTED=//p' "$N/state.done.$OUT")) / 60 ))
+    cp "$BASE/sim/runs/train.log" "$BASE/sim/runs/train_${OUT}_rc${RC}.log" 2>/dev/null
+    fix "job-$OUT" "$BASE/sim/runs/train_${OUT}_rc${RC}.log" 30 <<EOF || true
+Training job $JOB (--out $OUT, branch ${BR:-main}, sha $(git -C "$BASE" rev-parse --short HEAD))
+exited with status $RC after $RUNMIN min. Its job file is $N/queue/done/$JOB.
+The state is in $N/state.done.$OUT, and the log is
+$BASE/sim/runs/train_${OUT}_rc${RC}.log. Find the cause and fix it. If it crashed
+early and the job is still worth a slot tonight, re-queue it (copy the job file
+back to $N/queue/; rename its --out if a partial run dir would collide). The
+runner picks up the queue again as soon as you exit. The night's start
+deadline is 05:00.
+EOF
+  fi
   restore_ollama
 done
 "$N/vision_pause.sh" resume

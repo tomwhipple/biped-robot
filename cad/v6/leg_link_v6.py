@@ -1,5 +1,4 @@
-"""Thigh / shin link, v6 (qty 4, same part serves both -- see cad/parts.py's
-leg_link, of which this is a modified copy). Local frame: upper joint axis ==
+"""Thigh / shin link, v6 (qty 4, same part serves both). Local frame: upper joint axis ==
 Y axis at the origin (the gripped servo's horn axis); the servo hangs below;
 +X = robot forward; the lower fork grips the NEXT servo's horn (+Y) / idler
 (-Y) at z = -V.LL_DROP (110, not v5's 90).
@@ -57,8 +56,8 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 from build123d import (Pos, Rot, Cone, export_step, export_stl)
 import dimensions_v6 as V  # noqa: E402
 D = V.D
-import parts  # noqa: E402  (v5 helpers: box/cyl_*/teardrop_*/wedge_*/csk_*/bcd_*)
-import check_assembly as CA  # noqa: E402  (v5 servo mocks -- servo_mock_y)
+from common import shapes as parts  # noqa: E402
+from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
 OUT_STL = os.path.join(HERE, "stl")
@@ -249,7 +248,7 @@ def leg_link_v6(print_fins=False):
 # --------------------------------------------------------------- fasteners
 def SCREWS():
     """Every fastener this part carries, in the LOCAL frame (upper joint axis
-    == Y at the origin), in the spirit of cad/fasteners.py's SEATS: a list of
+    == Y at the origin), as a list of
     {name, kind, pos (x,y,z), axis (unit vector, HEAD outward -- the
     direction a driver approaches from), length}.
 
@@ -366,7 +365,7 @@ def run_audits(p, stl_path):
     import numpy as np
     HERE_CP = os.path.join(HERE, "..")
     sys.path.insert(0, HERE_CP)
-    import check_printability as CP  # noqa: E402  (v5 -- runtime override only)
+    from common import check_printability as CP  # noqa: E402
 
     ok = True
     print("\n== printability (check_printability.py, on its back: web face on the bed) ==")

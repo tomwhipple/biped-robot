@@ -38,16 +38,19 @@
     <mesh name="cad_ankle_link" file="cad/v6/stl/ankle_link.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_pitch" file="sim/meshes/v6/servo_pitch.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_upper_v6_L" file="cad/v6/stl/arm_upper_v6_L.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_arm_head_insert_v6_L" file="cad/v6/stl/arm_head_insert_v6_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_elbow_L" file="sim/meshes/v6/servo_elbow_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_foot_L" file="cad/v6/stl/foot_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_sole_tpu_L" file="cad/v6/stl/sole_tpu_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_foot_L" file="sim/meshes/v6/servo_foot_L.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_fore_v6_L" file="cad/v6/stl/arm_fore_v6_L.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="cad_hip_yoke_v6" file="cad/v6/stl/hip_yoke_v6.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_hip_yoke_glued_roll" file="cad/v6/stl/hip_yoke_glued_roll.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_hip_yoke_glued_pitch" file="cad/v6/stl/hip_yoke_glued_pitch.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_carrier_v6" file="cad/v6/stl/yaw_carrier_v6.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_roll" file="sim/meshes/v6/servo_roll.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_leg_link_v6" file="cad/v6/stl/leg_link_v6.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_arm_upper_v6_R" file="cad/v6/stl/arm_upper_v6_R.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_arm_head_insert_v6_R" file="cad/v6/stl/arm_head_insert_v6_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="servo_elbow_R" file="sim/meshes/v6/servo_elbow_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_foot_R" file="cad/v6/stl/foot_R.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_sole_tpu_R" file="cad/v6/stl/sole_tpu_R.stl" scale="0.001 0.001 0.001"/>
@@ -58,6 +61,9 @@
     <mesh name="cad_torso_v8" file="cad/v6/stl/torso_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_front_cover_v8" file="cad/v6/stl/front_cover_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_power_cover_v8" file="cad/v6/stl/power_cover_v8.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_power_bracket_v8" file="cad/v6/stl/power_bracket_v8.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_balance_park_v8" file="cad/v6/stl/balance_park_v8.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="cad_switch_pod_v8" file="cad/v6/stl/switch_pod_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_battery_door_v8" file="cad/v6/stl/battery_door_v8.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_yaw_bearing_housing" file="cad/v6/stl/yaw_bearing_housing.stl" scale="0.001 0.001 0.001"/>
     <mesh name="cad_neck_floor" file="cad/v6/stl/neck_floor.stl" scale="0.001 0.001 0.001"/>
@@ -81,11 +87,14 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0107 0.0001 0.0492" quat="0.5881 0.4087 0.4003 0.5717" mass="1.0591" diaginertia="1.8161e-03 2.9759e-03 3.1626e-03"/>
+        <inertial pos="-0.0162 0.0007 0.0483" quat="0.7061 0.0147 -0.0222 -0.7076" mass="1.1377" diaginertia="2.3255e-03 3.2649e-03 3.5386e-03"/>
         <geom name="torso_cad_pelvis_v8" class="cad" mesh="cad_pelvis_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_torso_v8" class="cad" mesh="cad_torso_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_front_cover_v8" class="cad" mesh="cad_front_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_power_cover_v8" class="cad" mesh="cad_power_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_power_bracket_v8" class="cad" mesh="cad_power_bracket_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_balance_park_v8" class="cad" mesh="cad_balance_park_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
+        <geom name="torso_cad_switch_pod_v8" class="cad" mesh="cad_switch_pod_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_battery_door_v8" class="cad" mesh="cad_battery_door_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_yaw_bearing_housing" class="cad" mesh="cad_yaw_bearing_housing" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_neck_floor" class="cad" mesh="cad_neck_floor" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
@@ -129,8 +138,9 @@
         <geom type="box" pos="0.00155 0 -0.03261" size="0.0189 0.01236 0.02261" class="servo" mass="0.055"/>
         <body name="L_hip" pos="0 0 -0.04511">
           <joint name="L_hip_roll" axis="1 0 0" range="-55 55"/>
-        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.6536 0.0498 0.1987 -0.7286" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
-        <geom name="L_hip_cad_hip_yoke_v6" class="cad" mesh="cad_hip_yoke_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <inertial pos="0.0005 0.0050 -0.0208" quat="0.7034 0.2403 0.2338 -0.6268" mass="0.0288" diaginertia="9.6550e-06 1.0858e-05 1.2324e-05"/>
+        <geom name="L_hip_cad_hip_yoke_glued_roll" class="cad" mesh="cad_hip_yoke_glued_roll" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <geom name="L_hip_cad_hip_yoke_glued_pitch" class="cad" mesh="cad_hip_yoke_glued_pitch" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="3"/>
           <body name="L_thigh" pos="0 0 -0.05">
@@ -204,8 +214,9 @@
         <geom type="box" pos="0.00155 0 -0.03261" size="0.0189 0.01236 0.02261" class="servo" mass="0.055"/>
         <body name="R_hip" pos="0 0 -0.04511">
           <joint name="R_hip_roll" axis="1 0 0" range="-55 55"/>
-        <inertial pos="-0.0023 0.0010 -0.0218" quat="0.6536 0.0498 0.1987 -0.7286" mass="0.0254" diaginertia="8.9971e-06 9.1438e-06 9.7387e-06"/>
-        <geom name="R_hip_cad_hip_yoke_v6" class="cad" mesh="cad_hip_yoke_v6" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <inertial pos="0.0005 0.0050 -0.0208" quat="0.7034 0.2403 0.2338 -0.6268" mass="0.0288" diaginertia="9.6550e-06 1.0858e-05 1.2324e-05"/>
+        <geom name="R_hip_cad_hip_yoke_glued_roll" class="cad" mesh="cad_hip_yoke_glued_roll" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <geom name="R_hip_cad_hip_yoke_glued_pitch" class="cad" mesh="cad_hip_yoke_glued_pitch" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
           <!-- yoke_roll + yoke_pitch (the hip universal, 50 mm axis offset) -->
           <geom type="box" pos="0 0 -0.025" size="0.0175 0.0125 0.025" mass="0.03" rgba="0.82 0.84 0.87 1" group="3"/>
           <body name="R_thigh" pos="0 0 -0.05">
@@ -280,8 +291,9 @@
       <geom type="box" pos="-0.0125 0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="L_arm" pos="0 0.10335 0.09016" euler="0 -15 0">
         <joint name="L_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0014 0.0023 -0.1209" quat="0.7146 -0.0167 0.6993 0.0029" mass="0.0828" diaginertia="1.2077e-05 1.9042e-04 1.9269e-04"/>
+        <inertial pos="-0.0013 0.0023 -0.1183" quat="0.7118 -0.0185 0.7021 0.0051" mass="0.0846" diaginertia="1.2332e-05 2.1759e-04 2.1963e-04"/>
         <geom name="L_arm_cad_arm_upper_v6_L" class="cad" mesh="cad_arm_upper_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <geom name="L_arm_cad_arm_head_insert_v6_L" class="cad" mesh="cad_arm_head_insert_v6_L" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="L_arm_servo_elbow_L" class="cad" mesh="servo_elbow_L" rgba="0.12 0.12 0.14 1"/>
         <geom type="box" pos="0 0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
         <geom type="box" pos="-0.00088 0.00093 -0.0725" size="0.01428 0.01882 0.0845" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>
@@ -297,8 +309,9 @@
       <geom type="box" pos="-0.0125 -0.08195 0.09016" size="0.02261 0.0189 0.01236" class="servo" mass="0.055"/>
       <body name="R_arm" pos="0 -0.10335 0.09016" euler="0 -15 0">
         <joint name="R_shoulder" axis="0 1 0" range="-90 200" ref="-15"/>   <!-- 0 = hanging down, 90 = straight back, 180 = up along the torso -->
-        <inertial pos="-0.0014 -0.0023 -0.1209" quat="0.7146 0.0167 0.6993 -0.0029" mass="0.0828" diaginertia="1.2076e-05 1.9041e-04 1.9268e-04"/>
+        <inertial pos="-0.0013 -0.0023 -0.1183" quat="0.7118 0.0184 0.7021 -0.0051" mass="0.0846" diaginertia="1.2331e-05 2.1759e-04 2.1962e-04"/>
         <geom name="R_arm_cad_arm_upper_v6_R" class="cad" mesh="cad_arm_upper_v6_R" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
+        <geom name="R_arm_cad_arm_head_insert_v6_R" class="cad" mesh="cad_arm_head_insert_v6_R" pos="0.00000 0.00000 0.00000" rgba="0.82 0.84 0.87 1"/>
         <geom name="R_arm_servo_elbow_R" class="cad" mesh="servo_elbow_R" rgba="0.12 0.12 0.14 1"/>
         <geom type="box" pos="0 -0.00155 -0.1475" size="0.01236 0.0189 0.02261" class="servo" mass="0.055"/>
         <geom type="box" pos="-0.00088 -0.00093 -0.0725" size="0.01428 0.01882 0.0845" class="fallcol" mass="0.02" rgba="0.82 0.84 0.87 1"/>

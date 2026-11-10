@@ -1,6 +1,6 @@
 """Sim twin of the on-robot command listener -- the ESP32 firmware's double.
 
-Run:  .venv/bin/python sim/udp_agent.py --run-name cmd_11v1 --render
+Run:  .venv/bin/python sim/udp_agent.py --run-name <run> --render
       .venv/bin/python link/commander.py --host 127.0.0.1 --source gamepad
 
 This is the whole point of the link design: the robot-side half of the
@@ -100,16 +100,17 @@ def run(run_dir, render=False, duration=None, port=CMD_PORT,
 
         # -- apply ---------------------------------------------------------
         # A "reset the servos" request (FLAG_HOME) benches the Supervisor and
-        # leaves torque holding, exactly as on the robot. What it does NOT do
-        # here is re-pose the plant: on the robot the move is a bench-mode
-        # SERVO BUS transaction (cli.cpp cmdHome), and this twin has no bench
-        # half -- the policy owns every actuator. Benched, the command decays
-        # to the trained stand, which is the nearest true thing the plant can
-        # do; the joint-accurate version of this belongs to the firmware.
+        # ends with torque released, as on the robot (cli.cpp homeVerify:
+        # readback, then torque off). What it does NOT do here is re-pose the
+        # plant first: on the robot the move is a bench-mode SERVO BUS
+        # transaction (cli.cpp cmdHome), and this twin has no bench half --
+        # the policy owns every actuator. So the plant goes limp from wherever
+        # it is; the joint-accurate version of this belongs to the firmware.
         if dog.homes != homes_seen:
             homes_seen = dog.homes
-            print(f"  [{now_ms/1000:6.2f}s] home: benched, torque holding a "
-                  f"stand (no bus half in sim)", flush=True)
+            print(f"  [{now_ms/1000:6.2f}s] home: benched, torque released "
+                  f"(no bus half in sim: the plant is not re-posed)",
+                  flush=True)
         state = dog.state(now_ms)
         if state is not last_state:
             print(f"  [{now_ms/1000:6.2f}s] link {last_state.value} -> "

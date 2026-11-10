@@ -90,6 +90,19 @@ extern std::atomic<uint8_t> g_armed_hold_trip;
 extern std::atomic<float> g_armed_hold_value;
 extern std::atomic<int> g_armed_hold_joint;
 extern std::atomic<bool> g_armed_hold_torque;
+// A flail trip during a walk that was RECOVERED instead of held (flailguard.h
+// WalkRecovery): ctrl stores the criterion and its value, then bumps the
+// counter; housekeeping (cli.cpp flailTick) logs it. The run goes on.
+extern std::atomic<uint32_t> g_flail_walk_recovers;
+extern std::atomic<uint8_t> g_flail_walk_trip;
+extern std::atomic<float> g_flail_walk_value;
+// `heading on|off|k <gain>` (CLI writes, ctrl reads every tick): the IMU heading loop around
+// the walking policy (flailguard/heading_hold.h). On at boot. ctrl publishes its last heading
+// error (rad) and turn correction (rad/s) for the status line.
+extern std::atomic<bool> g_heading_on;
+extern std::atomic<float> g_heading_k;
+extern std::atomic<float> g_heading_err;
+extern std::atomic<float> g_heading_corr;
 // `flail on|off` (CLI writes, ctrl reads every tick). On at boot.
 extern std::atomic<bool> g_flail_on;
 
@@ -135,6 +148,18 @@ extern std::atomic<uint8_t> g_arm_result;      // a linkproto::ArmResult
 // tunable: changing the pole mid-run is continuous because the shaper's state
 // carries over; only the gain changes.
 extern std::atomic<float> g_shape_hz;
+// -- motion limiter (core 0 -> core 1) -------------------------------------
+// Written by the CLI (`limit`), read by ctrl every tick: obs::MotionLimiter's
+// vmax (deg/s), amax (deg/s^2) and jmax (deg/s^3, 0 = no jerk limit). Off
+// when vmax or amax is 0 -- the boot state, until the limits are tuned on
+// the robot. Three independent atomics: the CLI writes vmax LAST (`limit
+// off` writes only vmax = 0), so a tick that reads mid-update sees the old
+// limits or a valid mix of old and new, never an enable with half a config.
+// Live: the limiter's state carries over a change of limits; turning it off
+// and on again reseeds it from measured q at rest (do that standing).
+extern std::atomic<float> g_limit_vmax;
+extern std::atomic<float> g_limit_amax;
+extern std::atomic<float> g_limit_jmax;
 // -- stand clock option (core 0 -> core 1) ---------------------------------
 // Written by the CLI (`standclock`), read by ctrl every tick: what the gait
 // clock does at a plain stand for a policy trained with it running

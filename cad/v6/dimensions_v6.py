@@ -20,7 +20,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import dimensions as D  # noqa: E402  (v5 -- servo truth, walls, fits, screws)
+from common import dimensions as D  # noqa: E402
 
 # ----------------------------------------------------------------------------
 # servos
@@ -121,12 +121,9 @@ DECK_BOT_Z = HIP_ROLL_Z + D.ROLL_BELOW_DECK_YAW                      # v5 stack.
 ROM = {
     "hip_yaw": (-45.0, 45.0),
     "hip_roll": (-55.0, 55.0),
-    "hip_pitch": (-120.0, 90.0),   # -110 -> -125 (yoke_pitch_v6 flange chamfer, 2026-09-14) -> -120
-                                   # (2026-09-24): -125 was never reachable -- the thigh's front wall met
-                                   # the ROLL flange from -118.4 in BOTH yoke variants, a pair the split
-                                   # sweep never listed. -120 is the deepest the joint clears at the
-                                   # 0.7 mm rule with LL_HIP_RELIEF_X0; past it the thigh's own servo case
-                                   # is next. The get-up needs >= 119 (getup_search_r5_asdrawn_hip*.txt).
+    "hip_pitch": (-120.0, 90.0),   # -120: the thigh's front wall vs the hip yoke's ROLL flange, held to
+                                   # the 0.7 mm rule (with LL_HIP_RELIEF_X0). The get-up needs >= 119
+                                   # (getup_search_r5_asdrawn_hip*.txt).
     "knee": (-95.0, 130.0),        # + = flexion (see the sign note); 95 -> 130 with LL_FLEX_CUT + LL_KNEE_POCKET + LL_FOLD_CHAMFER; hard limit ~132
     "ankle_pitch": (-40.0, 40.0),
     "ankle_roll": (-25.0, 25.0),
@@ -294,7 +291,7 @@ LL_TOP_WALL_Z = (LL_CABLE_WINDOW_Z[0] - 2.0 - LL_WALL_T, LL_CABLE_WINDOW_Z[0] - 
 # deep knee flexion the shin's web swings up inside the thigh's fork to ~33 mm
 # above the knee axis, all across the channel.
 LL_BOT_WALL_Z = (LL_WEB_END + 2.0, LL_WEB_END + 2.0 + LL_WALL_T)
-# HIP-FLEXION RELIEF (2026-09-24, hip-yoke-single-print.md section 6 item 1).
+# HIP-FLEXION RELIEF (2026-09-24, docs/archive/hip-yoke-single-print.md section 6 item 1).
 # At deep hip flexion the roll flange's front-bottom edge meets the grip
 # plates' front strip just above the jog blocks, 0.54 mm forward of the servo
 # case face (SV_WID/2 + FIT = 12.66), so that sliver locates nothing.
@@ -328,13 +325,6 @@ LL_KNEE_POCKET_RAMP = 1.3
 # across (Tom, 2026-10-06). Above the screws it is only the ~1 mm outer wall
 # over the idler-platform detent; LL_FLEX_CUT still trims its rear corner.
 LL_IDLER_PLATE_TOP = -D.CASE_HOLES_BOT[1] + D.CASE_CS_D / 2 + 5.0     # -25.05
-# hip flexion: the thigh's grip plates' front edge sweeps the pitch yoke's
-# flange front-bottom corner (x 16, z 26 above the axis) at 123 deg; the
-# plate cannot be relieved (the lower grip screw's countersink sits exactly
-# there), so the FLANGE corner gets a 45 deg chamfer instead (yoke_pitch_v6).
-# 4 mm leaves the M3 heat-set bores (x +-10, r 2.05) untouched and moves the
-# limit to ~127 deg; a bigger one runs into the bores, so the hip ROM is 125.
-YOKE_FLEX_CHAMFER = 4.0
 # The fold limit after LL_FLEX_CUT is 131 deg: the two links' REAR faces
 # meet -- the shin's jog-block rear-top corner (x web_x0, z -33, r 36.6
 # about the knee) lands on the thigh's rear face 33 mm above the knee (the
@@ -452,7 +442,7 @@ assert max(YAW_ROLL_SCREW_ROWS_Z) + D.ACCESS_D / 2 <= YAW_BRG_BAND_Z[0] - 0.5 - 
 # and the leg's upward thrust reaches the inner race on a face (the housing
 # shoulder takes it off the outer race's top face). Its reach off the hub as
 # modelled (0.90) stays under what a ledge prints with no support, horn plate
-# on the bed (cad/check_printability.py LEDGE_OK, 1.2); it stays inside d1
+# on the bed (cad/common/check_printability.py LEDGE_OK, 1.2); it stays inside d1
 # (the seal), and is thin enough for the upper idler-side roll-screw driver to
 # pass under. It carries no print allowance: printed as small as the hub
 # would, it still reaches 0.6 past the bore chamfer.
@@ -551,31 +541,29 @@ assert PI_TOP_Z < -DECK_T, "Pi 4B must be fully under the deck"
 assert PI_Y[1] + PI_USB_PROUD < TORSO_IN_HW, "Pi 4B does not fit across the torso"
 assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
-# --- AFT BAY: the power board (pcb/power-board on design/power-circuit, PR
-# #112): 97 x 64.5 x 1.6, every part on the top side, four M2.5 holes 3.2 in
-# from the corners. Vertical, right behind the pelvis and so beside the pack
-# (Tom, 2026-10-14), parts facing aft behind a screwed cover (power_cover_v8).
-# Its tallest part is C21, a Panasonic EEU-FR1E102 can, 10 x 20 (+-2) mm; its
-# THT leads stand <= 2.5 mm below it, and its 6 mm standoffs keep them clear of
-# the bearing housing's rear lugs (x >= -43.3). Seen from the parts side its
-# left edge (J1, the XT60, mating along the board) is at +y, so the board sits
-# hard to -y: the pack's lead comes through the aft wall's +y window and loops
-# into the plug in the room beside that edge. The servo headers J4-J8 are on
-# its -y edge, the control connectors along its bottom edge, the fuses along
-# its top edge.
+# --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
+# 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
+# side, four M2.5 holes 3.2 in from the corners. Vertical, right behind the
+# pelvis and so beside the pack (Tom, 2026-10-14), parts facing aft, on four
+# 6 mm standoff bosses off the aft inner wall; its THT leads stand <= 2.5 mm
+# below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
+# the parts side (from aft) its left edge is at +y: J1, the pack's XT60, mates
+# along the board out of that edge, so the board sits hard to -y and the
+# pack's lead comes through the aft wall's +y window and loops into the plug in
+# the room beside that edge. The servo headers J4-J8 are on its -y edge, J3,
+# J11 and J12 along its bottom edge, and the relay K1 (the tallest part) and
+# the fuses F1/F2 in its upper middle. Its BMS (below) is wired to its W pads
+# and rides a bracket over the board's +y part, beside the fuses; the cover is
+# a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
 PWRB_HOLE_D = 2.7
 PWRB_T = 1.6
-PWRB_COMP = 22.0                              # C21's can at its +2 tolerance
-PWRB_COMP_AIR = 2.0
 PWRB_UNDER = 2.5                              # THT leads below the board
 PWRB_STANDOFF = 6.0                           # wall face .. solder side
 PWRB_WALL_X = AFT_WALL_X                      # its standoffs grow off the aft inner wall
 PWRB_PCB_X1 = PWRB_WALL_X[0] - PWRB_STANDOFF  # -46.81 solder face
 PWRB_PCB_X0 = PWRB_PCB_X1 - PWRB_T            # -48.41 parts face
-PWRB_COMP_X = PWRB_PCB_X0 - PWRB_COMP         # -70.41
-PWRB_AFT_X = PWRB_COMP_X - PWRB_COMP_AIR      # -72.41 the cover's inner face
 PWRB_Y = (-(TORSO_IN_HW - 0.5), -(TORSO_IN_HW - 0.5) + PWRB_OUTLINE[0])   # -56.96..+40.04
 PWRB_TOP_Z = -DECK_T - 0.5                    # -5.5
 PWRB_BOT_Z = PWRB_TOP_Z - PWRB_OUTLINE[1]     # -70.0
@@ -584,9 +572,100 @@ PWRB_HOLES_YZ = [(y, z) for y in (PWRB_Y[0] + PWRB_HOLE_INSET, PWRB_Y[1] - PWRB_
                  for z in (PWRB_BOT_Z + PWRB_HOLE_INSET, PWRB_TOP_Z - PWRB_HOLE_INSET)]
 # room beside the board's +y edge for the pack's XT60 plug and the loop of its lead
 PWRB_XT60_ROOM = TORSO_IN_HW - PWRB_Y[1]      # 17.42
-HOUSING_X = (PWRB_AFT_X - COVER_T, HOUSING_FRONT_X)                   # -75.01..+53.34 outer
+
+
+def pwrb_yz(bx, by):
+    """Board coords (power-lite.kicad_pcb: origin at the top-left corner seen
+    from the parts side, bx right, by down) -> pelvis-local (y, z)."""
+    return PWRB_Y[1] - bx, PWRB_TOP_Z - by
+
+
+# Its parts above the resistors' 2.5 mm, from power-lite.kicad_pcb (PR #209)
+# and its STEP (kicad-cli pcb export step, 2026-11-03): (ref, bx0, bx1, by0,
+# by1, height off the parts face; a plug's mated height where one mates).
+# Heights from the makers' drawings: Amass XT60PW (8.4), JST XH and PH (9.8 and
+# 8.0 mated), Keystone K75 p.48 (the 3568 holder, 7.37), TE V23134 F7 (the
+# relay cover, 25.2 max, on 1.5 standoffs), Littelfuse MINI (16.3 overall: the
+# bound, blade tips on the board), Panasonic EEU-FR (10 x 20, +2 as before).
+# The Molex 22-03-5035 + 5264 mated height is NOT verified (15 assumed).
+PWRB_PARTS = (
+    ("J1", -0.25, 17.95, 7.65, 23.15, 8.4),
+    ("J2", 1.65, 7.40, 33.55, 45.95, 9.8),        # the pack's balance plug in it
+    ("F1", 26.96, 42.96, 16.13, 22.86, 7.37),     # the holders
+    ("F2", 26.96, 42.96, 31.33, 38.06, 7.37),
+    ("F1 fuse", 29.51, 40.41, 17.60, 21.40, 16.3),
+    ("F2 fuse", 29.51, 40.41, 32.80, 36.60, 16.3),
+    ("K1", 44.50, 70.70, 8.90, 35.10, 26.7),
+    ("C1", 73.50, 83.50, 26.00, 36.00, 22.0),
+    ("D2", 73.39, 78.61, 5.50, 21.74, 5.7),       # the TVS diodes, DO-201 lying down
+    ("D3", 21.50, 37.74, 39.38, 44.62, 5.7),
+    ("J3", 25.55, 32.95, 57.15, 62.90, 9.8),
+    ("J11", 38.05, 43.95, 59.25, 63.80, 8.0),
+    ("J12", 50.05, 67.95, 59.25, 63.80, 8.0),
+    ("J4-J8", 84.90, 89.80, 1.55, 55.45, 15.0),
+    ("Q1-Q2", 56.75, 62.83, 43.09, 52.83, 7.3),
+    ("LED1", 33.77, 37.17, 48.10, 51.90, 8.3),
+    ("LED2", 81.77, 85.17, 58.10, 61.90, 8.3),
+    ("C2", 71.75, 77.25, 56.25, 58.75, 5.1),
+)
+PWRB_LOW_H = 3.3                              # the rest: resistors, D1 (DO-41)
+PWRB_COMP = max(p[5] for p in PWRB_PARTS)     # 26.7, K1
+PWRB_COMP_AIR = 2.0
+PWRB_COMP_X = PWRB_PCB_X0 - PWRB_COMP         # -75.11 K1's top
+PWRB_AFT_X = PWRB_COMP_X - PWRB_COMP_AIR      # -77.11 the cover's inner face
+PWRB_FUSE_END_Y = min(pwrb_yz(p[1], 0)[0] for p in PWRB_PARTS if p[0].endswith("fuse"))   # 10.53 F1/F2's +y end
+# The torso's aft end and the cover's seat: the torso (its skins, deck, skin
+# windows and the cover's skin screw holes) was drawn round a flat cover 24.0
+# off the board's parts face, and stays so; the cover is a cap (power_cover_v8)
+# whose inner face is PWRB_AFT_X, PCAP_PROUD aft of the torso's end.
+PCOV_SEAT_X = PWRB_PCB_X0 - 24.0              # -72.41 where the torso's aft-bay features are drawn from
+TORSO_AFT_X = PCOV_SEAT_X - COVER_T           # -75.01 the skins' and the deck's aft end
+PCOV_SCREW_X = PCOV_SEAT_X + 4.0              # -68.41 the cover's skin screws (torso_v8 COVER_BLOCK)
+PCOV_SCREW_Z = (-DECK_T - 0.2 - 3.0, TORSO_BOT_Z + 3.0)                # -8.2 / -68.5
+PCAP_X = (PWRB_AFT_X - COVER_T, PWRB_AFT_X)   # -79.71..-77.11 the cap's plate
+PCAP_PROUD = TORSO_AFT_X - PCAP_X[0]          # 4.70 aft of the torso
+PCAP_BLOCK_H = 5.8                            # its corner blocks, tall (z): 3.0 to the deck side of the screw
+HOUSING_X = (TORSO_AFT_X, HOUSING_FRONT_X)    # -75.01..+53.34 the torso, outer
 HOUSING_LEN = HOUSING_X[1] - HOUSING_X[0]                             # 128.35
 assert HOUSING_LEN <= D.BED, "torso does not fit the bed"
+assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
+# The BMS: ShillehTek CF-3SJH25A-C ("3S 12V 18650 Lithium Battery Protection
+# Board with Balancing 25A", Tom 2026-11-02), wired to the board's W1-W5 (no
+# connectors). NOT BOUGHT YET: its outline and thickness are its datasheet
+# DS-NA405 rev 1.0's (the PCB's own silkscreen: 56 x 45 x 1.2; no drawing,
+# no mounting holes, only the four corner pads, live at pack potential, with
+# a plated hole each) and its overall 8 mm is the older ShillehTek manual's
+# (which gives 58 x 45 x 8) -- MEASURE ALL OF IT ON ARRIVAL. It goes component
+# side aft on double-sided foam tape on the bracket, 45 across (y), its P+/P-
+# edge up; its pads, approximate (datasheet figure 1): B- top -y, B2 top +y,
+# B3 bottom -y, B1+ bottom +y, P- and P+ along the top edge.
+BMS_L = 56.0                                  # tall (z)
+BMS_W = 45.0                                  # across (y)
+BMS_PCB_T = 1.2
+BMS_H = 8.0                                   # overall: PCB + its TO-252 MOSFETs etc.
+BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
+BMS_MASS = 15.0                               # the listing's
+BMS_TAPE = 1.0                                # foam tape, bracket .. its bare side
+# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs in
+# the board's +y holes (H1, H3; 6 mm male into the bosses, as the board's
+# screws were), screwed to them with flat heads
+PWRB_SO_L = 15.0                              # M2.5 x 15 standoffs
+PBR_T = 2.5
+PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 on the standoffs, -65.91 aft face
+BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts
+# across: from 1.0 past F1/F2's end (their fuses pull straight out aft) to the +y skin
+BMS_Y = (PWRB_FUSE_END_Y + 1.0, PWRB_FUSE_END_Y + 1.0 + BMS_W)         # 11.53..56.53
+# down from 2.0 under the cap's +y top corner block: 8 mm over its top edge for
+# its 14 AWG pair to B- and P- (WIRE_* below)
+BMS_Z = (PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0 - BMS_L,
+         PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0)                  # -69.0..-13.0
+assert BMS_Y[1] <= TORSO_IN_HW - 0.5, "the BMS does not fit beside the fuses"
+assert BMS_X[1] >= PWRB_AFT_X + 1.5, "the BMS is too close to the cap"
+assert BMS_X[0] <= PWRB_PCB_X0 - max(p[5] for p in PWRB_PARTS if p[0].endswith("fuse")) - 2.0, \
+    "the BMS must stand clear over the fuses' tops"
+assert BMS_Z[0] >= TORSO_BOT_Z + 2.4, "no room for the bracket's ledge (0.3 + 1.6) under the BMS"
+# a 58 mm one (the older manual's) does not fit under the cap's block with its
+# wires over its top edge: re-check BMS_L when it is measured
 # battery: OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07), WEIGHED
 # 205 g (Tom, 2026-10-14); its size is still the listing's 96 x 44.5 x 25.5 mm
 # -- measure it. Transverse, centred on the cells, on the pelvis's ceiling (the
@@ -631,11 +710,170 @@ DOOR_STOP_Y = BATT_HY + 0.5                   # the pack's end stops (door ribs,
 assert DOOR_Z[0] < BATT_Z[0] and BATT_Z[1] < DOOR_Z[1], "the pack does not pass through the door"
 assert DOOR_X[0] < BATT_X[0] and BATT_X[1] < DOOR_POST_X[0] < DOOR_X[1], "the pack does not pass the door's post"
 assert DOOR_SCREW[1] - 2.5 >= DOOR_POST_BOT_Z + 2.0, "the door screw runs out of its post"
+# The pack's balance plug at a pack swap (Tom, 2026-11-04): J2 is under the
+# BMS and below the door's sill, so a 3S JST-XH balance extension lead stays
+# plugged into J2 and parks its free end -- a male (pin) XH housing, mating
+# face up -- in the BALANCE PARK (balance_park_v8): a cup foam-taped to the aft
+# inner wall's aft face in the room beside the board's +y edge, under J1's
+# plug, the male's top at the door's sill. The pack's balance plug goes onto
+# it, and comes off it, through the door's opening. The male end is taken as
+# JST's B4B-XH-A body (12.4 x 5.75 x 7.0, JST XH drawing): MEASURE THE LEAD'S
+# END ON ARRIVAL; the pack's XHP-4 stands 2.8 over it mated (the XH mated
+# height 9.8 over a 7.0 header) and its wires turn within 5 more.
+BAL_MALE = (12.4, 5.75, 7.0)                  # across (y), deep (x), tall (z: pins up)
+BAL_CLR = 0.15                                # the male in the cup, per side
+BAL_WALL = 1.6
+BAL_TAPE = 1.0
+BAL_PLUG_ABOVE = 9.8 - 7.0 + 5.0              # the pack's plug and its wires' turn over the male's top
+BAL_Y = 48.5                                  # the cup's centre across
+BAL_TOP_Z = DOOR_Z[0]                         # -38.0 the male's top: the door's sill
+BAL_X0 = PWRB_WALL_X[0] - BAL_TAPE            # -41.81 the cup's face on the tape
+BAL_IN_X = (BAL_X0 - BAL_WALL, BAL_X0 - BAL_WALL - BAL_MALE[1] - 2 * BAL_CLR)   # -43.41..-49.46 the pocket
+BAL_IN_Y = (BAL_Y - BAL_MALE[0] / 2 - BAL_CLR, BAL_Y + BAL_MALE[0] / 2 + BAL_CLR)  # 42.15..54.85
+BAL_FLOOR_Z = BAL_TOP_Z - BAL_MALE[2]         # -45.0 the male sits on the floor
+BAL_RIM_Z = BAL_TOP_Z - 2.0                   # -40.0 the cup's rim: 2 mm of the male to grip
+assert BAL_IN_Y[1] + BAL_WALL <= TORSO_IN_HW - 1.0, "the balance park is too close to the +y skin"
+assert BAL_IN_Y[0] - BAL_WALL >= PWRB_Y[1] + 0.4, "the balance park is too close to the board's +y edge"
+assert BAL_TOP_Z + BAL_PLUG_ABOVE <= pwrb_yz(0, PWRB_PARTS[0][4])[1] - 1.0, \
+    "the pack's balance plug on the park runs into J1's plug"
+# --- THE CAP'S SWITCHES (Tom, 2026-11-04): the MAIN SWITCH and the E-STOP,
+# side by side in the SWITCH POD (switch_pod_v8), one block screwed onto the
+# cap's outer face at its top, both levers UP and throwing across the robot
+# (y). The MAIN SWITCH is a heavy toggle, "20A 125VAC", SPST, two screw
+# terminals on the back, on W6/W7 (14 AWG, up to 15 A). Its body (27 mm
+# behind the panel) does not fit between the cap and the board (28.7 mm,
+# less the parts and the wires), so both bodies hang in the pod, outside the
+# bay. Measured by Tom with calipers, 2026-11-04, except where marked.
+SW_BUSH_D = 11.8                              # the bushing's thread
+SW_HOLE_D = SW_BUSH_D + 0.4                   # 12.2, the panel hole (the repo's +0.4 clearance)
+SW_THREAD_L = 9.25                            # its usable thread
+SW_BODY = (30.0, 15.5, 19.0)                  # along the throw, across it, deep behind the panel
+SW_TERM_L = 8.0                               # the screw terminals behind the body: 27 in all
+SW_LEVER_L = 17.0                             # ESTIMATE (Tom's photo): the lever past the bushing's end
+SW_LEVER_D = 6.0                              # ESTIMATE: its girth
+SW_THROW_DEG = 15.0                           # ESTIMATE: each way from upright
+SW_NUT_T = 2.4                                # ASSUMED, to measure: the panel nut
+SW_NUT_AF = 14.3                              # ASSUMED, to measure: across its flats
+SW_WASHER_T = 0.0                             # none (Tom)
+SW_ENGAGE = 1.0                               # thread left past the nut, so it engages fully
+SW_PANEL_T = 3.0                              # the pod's panels the bushings go through
+assert SW_PANEL_T + SW_WASHER_T + SW_NUT_T + SW_ENGAGE <= SW_THREAD_L, \
+    "the bushing's thread does not reach through the panel and the nut"
+# Its bushing is keyed (Tom, 2026-11-04: a keyway along its threads), so a
+# tab in the panel's hole stops it turning. The slot's width and depth are
+# TO MEASURE (asked); until then the tab is narrow and shallow, for a slot
+# about 1.5 wide, and runs only the top 2 mm of the 3 mm panel, in case the
+# slot stops short of the body. It sits on the throw's axis, at -y.
+SW_KEY_W = 1.0                                # TO MEASURE: the tab's width (0.25 a side in a 1.5 slot)
+SW_KEY_IN = 0.5                               # TO MEASURE: its reach into the slot, past the thread's crest
+SW_KEY_L = 2.0                                # TO MEASURE: its length, down from the panel's top
+SW_KEY_ANG = -90.0                            # TO MEASURE: its side of the hole, deg about z from +x (-y)
+SW_KEYWAY = (1.5, 0.8)                        # ASSUMED, to measure: the bushing's slot, wide and deep (the mock's)
+assert SW_KEY_L <= SW_PANEL_T
+# clearance buffers (Tom, 2026-11-04: "make sure to add some buffer for
+# clearances for the wires or whatever"): the room the CAD keeps round them
+TERM_MARGIN = 3.0                             # round a terminal and its lug, every side
+LUG_14 = 7.0                                  # a 14 AWG ring lug and its wire's turn, past the terminal screws
+LUG_24 = 4.0                                  # a 24-26 AWG wire soldered to a lug and its turn, past the lug
+WIRE_MARGIN = 2.0                             # round a free run of wire
+WIRE_OD_14 = 3.4                              # silicone 14 AWG
+WIRE_OD_24 = 1.4
+SW_ENV = SW_BODY[2] + SW_TERM_L + LUG_14 + TERM_MARGIN             # 37: body, terminals, lugs, margin
+# The E-STOP (Tom, 2026-11-04): an E-Switch 100SP1T1B1M1QEH miniature toggle
+# -- SPDT ON-NONE-ON (SP1), the standard lever (T1), a threaded 1/4-40 bushing
+# (B1), solder lugs (M1), silver contacts, epoxy seal, with its hardware (H)
+# -- on J11 (a PHR-2 lead, 24-26 AWG on the lugs), across its terminals 2
+# (common) and 3, which close with the lever thrown toward terminal 1 (the
+# datasheet's POS. 1). Terminal 1 is inboard (+y): lever IN (toward the
+# main switch) is RUN and OUT (-y, toward the pod's end wall) is STOP. Its
+# keyway, on terminal 3's side, is then outboard. From the datasheet (E-Switch 100 series, 11.4.2025: function
+# p.2, lever p.5, bushing p.6-7, lugs p.8); its hardware is not drawn there
+# (ASSUMED, measure it).
+ES_BODY = (12.70, 6.86, 8.89)                 # along the throw (y), across it (x), deep behind the panel
+ES_LUG_L = 3.96                               # the solder lugs past the body
+ES_LUG_PITCH = 4.70                           # terminals 1-2-3, along the throw
+ES_LUG_W = 2.03                               # each lug: wide (across the throw), thick (p.8)
+ES_LUG_T = 0.76
+ES_BUSH_D = 6.35                              # 1/4-40 UNS
+ES_HOLE_D = ES_BUSH_D + 0.4                   # the datasheet's 6.35 panel hole, +0.4 for a printed hole
+ES_BUSH_L = 8.89                              # B1: the threaded bushing's length (p.6; its thread's is not dimensioned)
+ES_KEY_W = 0.85                               # the panel's anti-rotation tab (p.7), in the bushing's 1.02 keyway
+ES_KEY_R = ES_BUSH_D / 2 - 0.55               # 2.63 its face from the axis: 0.55 into the 6.35 hole
+ES_KEYWAY = (1.02, 0.67)                      # the bushing's keyway, wide and deep (p.6)
+ES_KEY_ANG = -90.0                            # the tab's side of the hole, deg about z from +x: outboard (-y)
+ES_LEVER_L = 10.41                            # T1: past the bushing's end
+ES_LEVER_D = 2.9
+ES_THROW_DEG = 25.0                           # each way
+ES_NUT_AF = 7.94                              # ASSUMED (5/16 in), to measure: its hex nut
+ES_NUT_T = 2.4                                # ASSUMED, to measure
+ES_WASHER_T = 0.5                             # ASSUMED, to measure: its lockwasher
+assert SW_PANEL_T + ES_WASHER_T + ES_NUT_T + SW_ENGAGE <= ES_BUSH_L, \
+    "the E-stop's bushing does not reach through the panel and its nut"
+ES_ENV = ES_BODY[2] + ES_LUG_L + LUG_24 + TERM_MARGIN               # 19.85 behind its panel
+# its lever's reach, pivoting at the body's face (a bound): its tip 19.3 out
+# along the axis, 9.6 off it either way with its girth
+ES_TIP = ES_BUSH_L + ES_LEVER_L               # 19.30 from the body's face
+ES_REACH = ES_TIP * math.sin(math.radians(ES_THROW_DEG)) + ES_LEVER_D / 2   # 9.61
+# THE POD: one block on the cap's outer face at its top, 26 mm proud, its
+# top flush with the deck's (Tom, 2026-11-04), the switches' bodies hanging
+# in it. Its top is one POCKET round both levers, walled on every side (the
+# cap's face is its front), each lever's tip 2 mm or more under the rim. The
+# main switch's panel is its floor at +y; the E-stop stands on a PLATFORM at
+# the -y end, higher, so its tip is 2 mm under the rim too. The E-stop sits
+# with its STOP side close to the pod's end wall (its lever's keep-out
+# touching it) and its RUN side open to the pocket, ES_FINGER clear of the
+# main switch's lever: a finger reaches in and pushes it OUT to stop; in
+# STOP its tip is 3 mm off the end wall, so nothing can get behind it to
+# push it back IN, and anything that reaches it from the pocket can only
+# push it OUT. Four M2.5 x 8 flat heads from the cap's inner face into the
+# side walls' front edges: no ears.
+SWP_IN_X = SW_BODY[1] + 2 * TERM_MARGIN + 2.0                     # 23.5 deep inside: the body, margins, a nut socket
+SWP_WALL = 2.5                                # its aft wall and floor
+SWP_X = (PCAP_X[0] - SWP_IN_X - SWP_WALL, PCAP_X[0])              # -105.71..-79.71
+SW_AXIS_X = PCAP_X[0] - SWP_IN_X / 2                              # -91.46 both bushings' axes
+SWP_SIDE = 6.0                                # the side walls: the screws go into their front edges
+SWP_RIM_Z = 0.0                               # the pod's top: the deck's top
+SW_ROOM_HY = SW_BODY[0] / 2 + TERM_MARGIN + 0.5                   # 18.5 half the main switch's room
+ES_REACH_KO = ES_REACH + TERM_MARGIN          # 12.61 the E-stop's lever keep-out, each way along its throw
+SW_REACH_KO = SW_LEVER_L * math.sin(math.radians(SW_THROW_DEG)) + SW_LEVER_D / 2   # 7.40 the main's, across
+ES_FINGER = 14.0                              # a fingertip, between the E-stop's tip at RUN and the main's lever
+ES_STEP = 2.0                                 # the wall at the E-stop platform's inboard edge
+ES_ROOM_IN = ES_BODY[0] / 2 + TERM_MARGIN + 0.5                   # 9.85 its body's room inboard of its axis
+SW_ES_DY = max(ES_REACH + ES_FINGER + SW_REACH_KO,                # 31.01 the axes apart
+               ES_ROOM_IN + ES_STEP + SW_ROOM_HY)
+SWP_HW = (2 * SWP_SIDE + ES_REACH_KO + SW_ES_DY + SW_ROOM_HY) / 2  # 37.06 half the pod's width
+ES_Y = -SWP_HW + SWP_SIDE + ES_REACH_KO                           # -18.45 the E-stop's axis
+SW_Y = ES_Y + SW_ES_DY                                            # 12.56 the main switch's axis
+ES_STEP_Y = (ES_Y + ES_ROOM_IN, ES_Y + ES_ROOM_IN + ES_STEP)      # the platform's inboard wall
+SW_LEVER_TOP_Z = SWP_RIM_Z - 2.0                                  # -2.0 the main lever's tip
+SWP_TOP_Z = SW_LEVER_TOP_Z + SW_PANEL_T - SW_THREAD_L - SW_LEVER_L  # -25.25 the main switch's panel's top
+ES_TIP_Z = SWP_RIM_Z - 2.0                                        # -2.0 the E-stop's lever's tip, upright
+ES_SHELF_Z = ES_TIP_Z + SW_PANEL_T - ES_TIP                       # -18.30 its platform's top
+SWP_WELL_Z = SWP_RIM_Z
+SW_TERM_END_Z = SWP_TOP_Z - SW_PANEL_T - SW_BODY[2] - SW_TERM_L   # -55.25
+ES_TERM_Y = {k: ES_Y + (2 - k) * ES_LUG_PITCH for k in (1, 2, 3)}  # terminal 1 inboard
+# the cap's passage for both switches' wires, a notch in its bottom edge into
+# the bay over the board's bottom parts (J11, J12): (y0, y1), (z0, z1); the
+# pod's channel runs at its middle, under the main switch's terminals' room
+SWP_CH_Z = SWP_TOP_Z - SW_PANEL_T - SW_ENV - 1.25                 # -66.5
+SW_PASS = ((-26.0, -5.0), (SWP_CH_Z - 6.0, SWP_CH_Z + 6.0))
+SWP_FLOOR_Z = SWP_CH_Z - WIRE_OD_14 - WIRE_MARGIN - 0.1           # -72.0 the floor's top
+SWP_BOT_Z = SWP_FLOOR_Z - SWP_WALL                                # -74.5 3.0 under the torso's bottom
+assert SWP_TOP_Z - SW_PANEL_T - SW_ENV >= SWP_CH_Z, "the channel is in the main switch's terminals' room"
+assert ES_SHELF_Z - SW_PANEL_T - ES_ENV > SWP_FLOOR_Z + 2 * WIRE_MARGIN + WIRE_OD_24
+assert ES_SHELF_Z > SWP_TOP_Z, "the E-stop's platform is under the main switch's panel"
+assert -SWP_HW + SWP_SIDE < SW_PASS[0][0] and SW_PASS[0][1] < SWP_HW - SWP_SIDE, "the passage is not inside the pod"
+assert ES_BODY[1] / 2 + TERM_MARGIN <= SWP_IN_X / 2 and SW_BODY[1] / 2 + TERM_MARGIN <= SWP_IN_X / 2
+assert ES_Y - ES_BODY[0] / 2 - TERM_MARGIN >= -SWP_HW + SWP_SIDE + 0.5, "the E-stop's body is in the end wall"
+assert SWP_HW + 6.0 <= HOUSING_BOT_HW, "the switch pod is wider than the torso"
 # power board envelope (the rollup's box, sim/build_v6_inertia.py)
 PWR_BOARD = (PWRB_OUTLINE[0], PWRB_T + PWRB_COMP, PWRB_OUTLINE[1])  # y, x, z
 PWR_X = (PWRB_COMP_X, PWRB_PCB_X1)
 PWR_Y = PWRB_Y
 PWR_Z = (PWRB_BOT_Z, PWRB_TOP_Z)
+# the BMS's (the rollup's box)
+BMS_BOX = (BMS_W, BMS_H, BMS_L)               # y, x, z
+BMS_C = ((BMS_X[0] + BMS_X[1]) / 2, (BMS_Y[0] + BMS_Y[1]) / 2, (BMS_Z[0] + BMS_Z[1]) / 2)
 # hip-yaw bearing HOUSING (yaw_bearing_housing.py): the bearings' outer-race
 # seats (skirt, recess, shoulder) for both hips in one print, screwed UP to
 # the underside of the cell block after the yaw servos, with the bearings in
@@ -937,9 +1175,9 @@ ARM_REST = (ARM_REST_SHOULDER, ARM_REST_ELBOW)
 
 # --- the arm links --------------------------------------------------------
 # Section: an open C -- back web + two side rails, opening FORWARD (+x), like
-# leg_link_v6 and for the same reason: it prints on its back (model +X up, v5
-# leg_link's proven "the filament runs the length of the leg" orientation, the
-# control case in cad/parts.py's yoke_roll comment), and in that orientation a
+# leg_link_v6 and for the same reason: it prints on its back (model +X up, the
+# leg link's proven "the filament runs the length of the leg" orientation),
+# and in that orientation a
 # front plate is a flat ceiling spanning the full tine-to-tine width. The load
 # that matters here is bending in the sagittal plane, which the C carries in
 # its rails; peak measured joint torque is 1.59 N-m (shoulder) / 1.18 (elbow).
@@ -1033,6 +1271,25 @@ ARM_HEAD_WALL_Z = (-ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR - LL_WALL_T,
                    -ARM_HEAD_ACCESS_R - ARM_HEAD_WALL_CLR)               # (-13.2, -10.8)
 assert ARM_HEAD_WALL_Z[1] < -(D.BCD / 2 + D.M3_HEAD_D / 2), \
     "the head's end wall sits on the lowest disc screw's head"
+# The head's glued insert (arm_v6.arm_head_insert_v6, issue #199). Tom,
+# 2026-11-02: the horn plate is "a single pane of plastic connecting to the
+# servo that's unsecured on two sides" -- its front and top edges are free, so
+# the head twists and the arm wobbles -- "build a small insert to glue in to
+# close those sides. Make sure there's a lip to guide placement." The insert
+# fills the C between the two flanges along the head's front and top (and both
+# chamfers), outside the access bore's cylinder, and glues to both flanges'
+# inner faces, the web and the end wall. A lip round its outer edge laps the
+# horn plate's front and top edges: that edge face is the stop that seats it.
+# It is a separate print because, in RY_XUP, the closing wall is the
+# unbridgeable ceiling described above; printed flat, it is a plain prism.
+ARM_INSERT_GLUE = 0.15        # per side, insert to each flange's inner face (a glue line)
+ARM_INSERT_SEAT_CLR = 0.2     # insert to the web's inner face and the end wall's top
+ARM_INSERT_BORE_R = ARM_HEAD_ACCESS_R + 0.2   # 10.5: keeps the driver's path and the heads clear
+ARM_INSERT_LIP = 1.2          # lip thickness, proud of the head's front / top edge faces
+ARM_INSERT_LIP_Y0 = -D.PLATE / 2 + 0.2        # -1.3: 0.2 short of the horn plate's horn face
+ARM_INSERT_FRONT_X0 = 6.0     # below the axis the insert closes the front only, x >= this
+assert ARM_INSERT_BORE_R > D.BCD / 2 + D.M3_HEAD_D / 2 + 0.5, \
+    "the head insert sits on a disc screw's head"
 
 ARM_SHAFT_CLR = 1.5
 ARM_SHAFT_Y = (GIRDLE_Y1 + ARM_SHAFT_CLR - ARM_Y, 10.5)     # (-1.70, 10.5)

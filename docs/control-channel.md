@@ -137,7 +137,7 @@ argument, so link loss is tested exactly rather than slept through.
 | `ESTOP` | 3 | the `ESTOP` flag | torque off, latched |
 | `VLAND` | 4 | pack ≤ 9.9 V for 0.5 s | stop travelling, crouch down under control |
 | `VSAFE` | 5 | 1.5 s after `VLAND` | torque off, latched until `batt reset` or a power cycle |
-| `FALLEN` | 6 | `up_z` < 0.4 for 200 ms | torque off; the run ends and the loop benches |
+| `FALLEN` | 6 | torso past 45 deg (`up_z` < 0.707) for 200 ms, armed | torque off; the run ends and the loop benches |
 | `BENCH` | 7 | boot, an `ARM` 1→0 edge, a fall, a flail-guard trip, an operator `STOP`, a home, or the tethered `bench` | the CLI owns the bus; the link commands nothing |
 
 The first four describe the link. The rest are decided by the robot and
@@ -166,7 +166,9 @@ One line of reason per rule:
   (`components/fallguard`; tighter than the sim's own `fall_up_z` = 0.4,
   66 deg, which stays the training episode end) holding torque only grinds
   the servos against the floor. Nothing re-arms by itself: re-arming is a
-  fresh `ARM` edge or `run`, by someone looking at the robot. Once the robot
+  fresh `ARM` edge or `run`, by someone looking at the robot. The trip
+  benches the loop on the same tick, so on the wire a fall reads as `BENCH`
+  with `DISARMED_FALL` in the diagnostic byte. Once the robot
   is benched, the bench fall guard holds the latch and, when the robot is
   picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
   ends with torque released.
@@ -175,6 +177,13 @@ One line of reason per rule:
   the torso thrashing or past 20 deg, the targets chattering) freezes every
   servo where it is with torque on and benches without the usual release
   (`DISARMED_FLAIL`); the bench homes the robot once it is upright and still.
+  **Except during a walk** (since 2026-11-05, `flailguard::WalkRecovery`):
+  a trip within 2 s of a walk or step command does not hold. The policy keeps
+  running, which keeps its IMU feedback, and its command goes to the stand
+  over 300 ms, latched for the rest of the run. The guard pauses 2 s, then
+  judges the stand afresh, and a second trip holds. On 11-05 a hold mid-stride
+  froze the robot into a fall. In sim the hold turned 104 of 114 tripped
+  strides into falls, against 0 for the stand.
   Limp stays the fall guard's answer, past 45 deg. [firmware-design.md](firmware-design.md),
   "Flail guard".
 - **The real E-stop is the inline battery switch.** No flag that has to
@@ -397,8 +406,8 @@ new commander is a class in `link/sources.py` or a front end on
   `q` quit (disarms first). A terminal has no key-up event, so a motion key
   holds for `--hold-ms` (default 700) after the last auto-repeat; the console
   measures the repeat delay on screen.
-- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then
-  `make -C firmware/host deps gui`): the windowed console. Arming, the E-stop
+- **`bimo_gui`** (`link/gui.cpp`; `brew install glfw`, then `make console`,
+  which builds and opens it): the windowed console. Arming, the E-stop
   latch and frame building are shared with `bimo_tui` in `link/client.h`, so
   the two cannot disagree about what a keypress puts on the wire. A window
   adds:
@@ -517,7 +526,11 @@ console can be exercised on a laptop.
   that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
   writes the fed observations in `obsdump` format, and `--plant`,
   `--act-delay-ticks`, `--act-lag-hz`, `--play-deg` load it like the
-  hardware. `--viewer` is [mirror mode](mirror-mode.md). `--flight
+  hardware. `--viewer` is [mirror mode](mirror-mode.md). Armed, it runs
+  the robot's fall guard (`fallguard::kPolicyLimits`, read from the
+  header): a fall ends the run, torque off, and benches it with
+  `DISARMED_FALL` ([sil-harness.md](sil-harness.md#the-twin-behind-the-link)).
+  With `--hang` the torso cannot tip, so it never trips. `--flight
   HOST:PORT` sends the robot's flight-recorder stream from the sim
   (goal, nominal and measured position per joint, IMU, command, events;
   [flight-recorder.md](flight-recorder.md#the-sil-twin-as-a-source)). Its

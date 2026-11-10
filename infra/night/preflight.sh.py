@@ -54,7 +54,9 @@ def log(msg):
 
 
 def notify(text):
-    if NOTIFY:
+    # Tom 2026-11-02: DM notifications OFF while Claude Code manages the sims;
+    # re-enable with NIGHT_DM_NOTIFY=1 (NO_NOTIFY still wins)
+    if NOTIFY and os.environ.get("NIGHT_DM_NOTIFY", "") == "1":
         subprocess.run(["/home/claw/.local/bin/hermes", "send", "-q", "-t", TOM,
                         f"Night pre-flight: {text}"],
                        timeout=60, capture_output=True)

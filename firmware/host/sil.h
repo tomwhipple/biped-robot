@@ -7,8 +7,8 @@
 // below knows it is talking to a simulator.
 //
 // Plain C layout so python can ctypes it. Every array is fixed-width for a
-// given build, and the widths ARE the compiled policy's (obs_spec.h, so the
-// deployed v5 build is 17/7/10/147 and the v6legs profile 17/7/12/165): one
+// given build, and the widths ARE the compiled policy's (obs_spec.h: bus,
+// cmd, act and obs widths 17/7/12/165 for the v6 legs' walk policies): one
 // library per policy profile (firmware/host/Makefile POLICY). sil_spec()
 // reports every width, and the python harness sizes its ctypes structs from
 // the same obs_spec.h and refuses a library whose widths differ, so a layout
@@ -44,12 +44,10 @@ extern "C" {
 //     slot = obs::busIndexOfId(servo_id)  (bus index, NOT id - 1)
 //     policy joint j  <->  slot obs::policyToBus(j)
 //
-// Slot 0 is R_hip_roll (servo 52), which is policy joint 6 under the
-// deployed 10-joint spec and joint 7 under the 12-joint v6legs one -- the
-// permutation docs/wiring.md once called an identity, and putting it on the
-// C boundary is what makes it testable end to end. The slots of servos the
-// policy does not drive (the ankle rolls under a 10-joint policy; the neck
-// and arms under either) are sensed but not observed, and their goals HOLD:
+// Slot 0 is R_hip_roll (servo 52), which is policy joint 7 -- a real
+// permutation, and putting it on the C boundary is what makes it testable
+// end to end. The slots of servos the policy does not drive (the neck and
+// arms) are sensed but not observed, and their goals HOLD:
 // the run's trained target for a servo it holds (obs_spec.h kHeld*), else
 // the position sensed on the first tick after sil_reset -- ctrl_task's hold,
 // without its takeover ramp.
@@ -91,7 +89,7 @@ typedef struct {
 //   cal_path      JSON [{bus_id, zero_steps, dir}, ...]: one entry per servo
 //                 the policy drives at least, any bus servo at most. NULL or
 //                 "" -> the nominal Calibration() (zero_steps 2048, dir +1).
-//   gait_freq_hz  gait-clock frequency; <= 0 -> the 1.5 Hz firmware default.
+//   gait_freq_hz  gait-clock frequency; <= 0 -> the compiled obs::kGaitFreqHz.
 // Returns 0 on success, negative on failure (see sil_last_error()).
 int sil_init(const char* weights_path, const char* cal_path,
              float gait_freq_hz);
@@ -124,6 +122,26 @@ const char* sil_last_error(void);
 // reseeds the shaper from the next tick's sensed positions, the mirror of
 // ctrl_task reseeding from measured q on a torque (re)engage.
 void sil_set_shaper(float pole_hz);
+
+// sil_abi 4: the motion limiter (obs::MotionLimiter), the mirror of
+// ctrl_task's g_limit_* (CLI `limit`), in the CLI's deg units: vmax deg/s,
+// amax deg/s^2, jmax deg/s^3 (0 = no jerk limit); vmax or amax 0 = off.
+// sil_init resets it OFF (the boot state). It runs after the shaper; while
+// on, every policy joint's goal speed is the limited velocity
+// (obs::limitGoalSpeedSteps). A change is continuous; sil_reset (and off ->
+// on) reseeds it from the next tick's sensed positions, at rest.
+void sil_set_limiter(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3);
+
+// sil_abi 4, pure (no sil_init needed): a FRESH obs::MotionLimiter at the
+// given limits, seeded at q0 (kNumJoints rad) at rest, stepped through n
+// ticks of targets (n x kNumJoints rad, row-major), writing each tick's
+// limited position (rad) and velocity (rad/s) to out_pos / out_vel (n x
+// kNumJoints). Returns the boxcar length (taps), or < 0 on bad arguments.
+// For pinning the training env's copy of the law to the compiled one
+// (tests/test_fw_limit.py).
+int sil_limit_trace(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3,
+                    int n, const float* q0, const float* targets,
+                    float* out_pos, float* out_vel);
 
 // The stand-clock option, the mirror of ctrl_task's g_stand_clock (CLI
 // `standclock`): 0 run (as trained, the boot state sil_init restores),

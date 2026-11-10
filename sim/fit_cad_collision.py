@@ -88,14 +88,19 @@ def _set_box(line, c, h):
     return re.sub(r"<geom\b", "<geom " + _box_attrs(c, h), line, count=1)
 
 
-def _set_capsule(line, c, h):
+def _set_capsule(line, c, h, r=None):
     """the inter-leg pair as a capsule along the link's length (z): radius = the
     link's half-width across the body (y, the axis the legs close on), axis
     through the box centre. A box pair is exact but box-box costs MJX ~17 % a
     step; capsule-capsule/box is cheap, and the capsule's only excess is
-    fore-aft (radius vs the link's x half-depth)."""
-    r = h[1]
-    z0, z1 = c[2] + h[2] - r, c[2] - h[2] + r
+    fore-aft (radius vs the link's x half-depth).
+
+    r: a radius other than the half-width, on the SAME axis (the axis ends stay
+    where the half-width puts them, so the capsule reaches r - half-width past
+    the link's ends). See fit(legcol_r=...)."""
+    hw = h[1]
+    r = hw if r is None else r
+    z0, z1 = c[2] + h[2] - hw, c[2] - h[2] + hw
     line = re.sub(r'\s(?:fromto|type|pos|size)="[^"]*"', "", line)
     return re.sub(r"<geom\b", f'<geom type="capsule" fromto="{_f(c[0])} {_f(c[1])} {_f(z0)} {_f(c[0])} {_f(c[1])} {_f(z1)}" size="{_f(r)}"', line, count=1)
 
@@ -105,7 +110,13 @@ def _centre(line):
     return np.array([float(v) for v in m.group(1).split()]) if m else np.zeros(3)
 
 
-def fit(src: str, arms=True, head=True) -> str:
+def fit(src: str, arms=True, head=True, legcol_r=None) -> str:
+    """legcol_r (m): the thigh/shank inter-leg capsules' radius; None = the leg
+    link's half-width across the body (21.9 mm), which the committed plants
+    carry. The half-width capsule's rounded ends miss the link's corners near
+    the hip and knee axes, where the thighs meet with one leg pitched forward:
+    it touches 4-5 deg LATE there against the CAD (build_v6_inertia.MEAS_LEGCOL_R
+    has the numbers), so the measured-stops plants pass a fitted radius."""
     P = part_boxes(arms, head)
     out, stack = [], []
     for line in src.split("\n"):
@@ -132,7 +143,7 @@ def fit(src: str, arms=True, head=True) -> str:
             elif s in ("thigh", "shin") and 'class="fallcol"' in line:
                 line = _set_box(line, *boxes["leg_link_v6"])
             elif name.endswith(("_col_thigh", "_col_shank")):
-                line = _set_capsule(line, *boxes["leg_link_v6"])
+                line = _set_capsule(line, *boxes["leg_link_v6"], r=legcol_r)
             elif s == "ankle_blk" and ('class="fallcol"' in line or name.endswith("_col_ankle")):
                 line = _set_box(line, *boxes["ankle_link"])
             elif s == "foot" and name.endswith("_col_foot"):

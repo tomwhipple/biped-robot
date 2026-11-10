@@ -62,7 +62,7 @@ TLM_LEN = _TLM_TIME_OFF + 8 + 2                     # 31
 #
 # The joint set is the BUS joint set -- every servo the robot carries
 # (firmware/components/obs/include/obs/bus_map.h, docs/servo-map.md section
-# 2.1) -- not the policy's: the 10-joint prototype reports 0.0 for the seven
+# 2.1) -- not the policy's: the legs-only robot reports 0.0 for the five
 # servos it does not have. A consumer maps angles to its plant BY NAME.
 JOINT_NAMES = (
     "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle",
@@ -757,7 +757,7 @@ class Supervisor:
         self.home_latch = HomeLatch()
         self.dog = Watchdog()
         self.homes = 0        # completed servo resets, for the twins' log
-        self.holding = False  # benched with torque HOLDING the homed pose
+        self.holding = False  # benched with torque HELD (a soft operator stop)
 
     def accept(self, pkt: Command, now_ms: float) -> bool:
         """Feed one decoded frame. Returns the watchdog's verdict (always
@@ -787,17 +787,33 @@ class Supervisor:
         # A home request outranks everything: it is honoured benched, fallen
         # and E-stopped, and it ends any run first. The mode goes to bench
         # BEFORE the joints move, because on the robot the move is a CLI bus
-        # transaction and the CLI only owns the bus while benched.
+        # transaction and the CLI only owns the bus while benched. It ENDS
+        # with torque released, as cli.cpp homeVerify does after the readback
+        # (pass or fail alike): gear friction holds the stand. That also ends
+        # a soft stop's hold.
         if self.home_latch.update(pkt.flags):
             self.homes += 1
             self.armed = False
-            self.holding = True
+            self.holding = False
             self.result = ArmResult.DISARMED_HOME
             self.dog = Watchdog()
             return False
         if not self.armed:
             return False
         return self.dog.accept(pkt, now_ms)
+
+    def fell(self) -> None:
+        """The armed loop's fall latch tripped (firmware ctrl_task.cpp,
+        components/fallguard): the run is over. Bench with torque released and
+        DISARMED_FALL recorded, as the firmware does on the trip tick, so the
+        BENCH beacon says why (wifi_link.cpp reports BENCH as soon as the mode
+        request is bench). Re-arming takes a fresh ARM edge: the level the
+        commander still holds makes none. No-op while benched."""
+        if not self.armed:
+            return
+        self.armed = False
+        self.holding = False
+        self.result = ArmResult.DISARMED_FALL
 
     def diag(self) -> int:
         """The bench diagnostic byte the robot would beacon right now.
@@ -817,9 +833,9 @@ class Supervisor:
                 else (0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0))
 
     def torque_on(self, now_ms: float) -> bool:
-        # A homed robot is benched with torque still ON, holding the standing
-        # pose -- that is what makes it stand up rather than fold. Nothing
-        # else about BENCH changes: the link commands nothing.
+        # Benched, torque is off except after a soft operator stop, which
+        # freezes the joints where they were and holds them. A home ends
+        # released (cli.cpp homeVerify). The link commands nothing.
         if not self.armed:
             return self.holding
         return self.state(now_ms) not in (LinkState.RELAX, LinkState.ESTOP,

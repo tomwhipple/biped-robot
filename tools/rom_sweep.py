@@ -49,6 +49,23 @@ MECH_BY_NAME = {
     "R_ankle": (-40, 40), "L_hip_roll": (-25, 55), "L_hip_pitch": (-110, 90),
     "L_knee": (-95, 95), "L_ankle": (-40, 40), "R_hip_yaw": (-45, 45),
     "L_hip_yaw": (-45, 45), "R_ankle_roll": (-25, 25), "L_ankle_roll": (-25, 25)}
+# kMechLoV6Legs / kMechHiV6Legs: what a v6legs firmware build clamps `move` to
+# (mechLo()/mechHi() pick it when the policy drives the robot's legs). 2026-11-02:
+# sweeping a v6legs board with the prototype table above put the hip-roll start
+# outside the firmware's window and ended the knees at its clamp.
+MECH_V6LEGS = {
+    "R_hip_roll": (-45, 30), "R_hip_pitch": (-120, 90), "R_knee": (-130, 5),
+    "R_ankle": (-45, 45), "L_hip_roll": (-30, 45), "L_hip_pitch": (-120, 90),
+    "L_knee": (-130, 5), "L_ankle": (-45, 45), "R_hip_yaw": (-45, 45),
+    "L_hip_yaw": (-45, 45), "R_ankle_roll": (-25, 25), "L_ankle_roll": (-25, 25)}
+
+
+def use_body(body):
+    """Point MECH_BY_NAME at the flashed firmware's table: v6legs or proto."""
+    if body == "v6legs":
+        MECH_BY_NAME.update(MECH_V6LEGS)
+
+
 POS_RE = re.compile(r"id\s+(\d+)\s+pos\s+(-?\d+)\s+spd\s+(-?\d+)\s+load\s+(-?\d+)"
                     r"\s+([\d.]+)\s*V\s+(\d+)\s*C\s+err\s+0x([0-9a-fA-F]+)")
 CAL_RE = re.compile(r"(\w+)\s+id\s+(\d+)\s+zero\s+(\d+)\s+dir\s+([+-]1)\s+(fitted|NOT FITTED)")
@@ -256,7 +273,10 @@ def main():
                     help="swept servo's RAM torque limit for the sweep, /1000 (reg 48); restored after")
     ap.add_argument("--allow-contact", action="store_true",
                     help="lift the inward hip-roll cap (the other leg must be moved clear)")
+    ap.add_argument("--body", choices=("v6legs", "proto"), default="v6legs",
+                    help="which mech_envelope.h table the flashed firmware clamps to")
     a = ap.parse_args()
+    use_body(a.body)
     sid = a.id
     log = open(a.out.rsplit(".", 1)[0] + ".log", "a")
     say = lambda s: (print(s, flush=True), log.write(s + "\n"), log.flush())

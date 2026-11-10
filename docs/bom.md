@@ -141,22 +141,32 @@ board's I²C header P1.
 The power path runs pack → protection board → fuse → switch → board inlet. A
 bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 
-**Current is open (#77):**
+**Current** (the sim budget is in
+[wiring.md, "Current: measured budget"](wiring.md#current-measured-budget-issue-77), #77):
 
 - The General Driver's XH inlet contact is rated **3 A**.
 - Waveshare's FAQ limits the board's servo power path to **5 A continuous**
   (about 5 STS3215s, not stalled at once).
 - The robot puts 17 servos on that path. The prototype measured 6.8 A peaks on
   10.
+- The sim budget for the two scripted motions: a **4.54 A** bus peak on the
+  seat-push get-up and a **2.46 A** worst per-port peak on the Gate D walk.
+  It is a sim figure; the bench number with a watt meter on the pack lead is
+  still owed.
 - The fix under consideration is to solder the power lead to the inlet pads
   instead of using the XH plug.
-- The fuse, the bulk capacitor and a current budget are required before the
-  first powered floor run.
+- The fuse and the bulk capacitor are required before the first powered floor
+  run.
 
 | item | qty | spec / filter | have |
 |---|---|---|---|
 | **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
-| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso has no pocket for it: its power bay holds the custom power board (#112) | |
+| **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso holds a 56 × 45 × 8 mm one (the ShillehTek CF-3SJH25A-C's datasheet size) on the BMS bracket in its power bay (#213) | |
+| 3S balance extension lead | 1 | JST-XH 4-pin, female (into the power board's J2) to male (pins, takes the pack's balance plug), about 100 mm; parks its male end in `balance_park_v8` ([assembly.md §9c](assembly.md)). Its male end's body is taken as JST's B4B-XH-A (12.4 × 5.75 × 7.0 mm): measure it | |
+| main switch | 1 | heavy-duty SPST toggle, "20A 125VAC", two screw terminals, 11.8 mm bushing with 9.25 mm of thread and a keyway (its width and depth to measure), no washer, body 30 × 15.5 × 19 mm behind the panel, 27 mm with its terminals (Tom's, measured 2026-11-04): on W6/W7, in `switch_pod_v8` on the cap ([assembly.md §9c](assembly.md)) | on hand |
+| E-stop | 1 | E-Switch 100SP1T1B1M1QEH: miniature toggle, SPDT ON-NONE-ON, standard lever, 1/4-40 threaded bushing, solder lugs, silver contacts, epoxy seal, with its hardware ([100 series datasheet](datasheets/switches/e-switch-100-series.pdf)); body 12.70 × 6.86 × 8.89 mm, 12.9 mm behind the panel with its lugs. On J11 (a PHR-2 lead, 24–26 AWG) across terminals 2 and 3, beside the main switch in `switch_pod_v8` ([assembly.md §9c](assembly.md)) | |
+| inline 2-pin disconnect | 1 pair | in the main switch's 14 AWG pair, so the cap comes off; XT30 size assumed (26 × 11 × 6 mm mated): check its current rating against the maker's datasheet | |
+| 14 AWG ring lugs | 2 | for the main switch's terminal screws | |
 | inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
 | mini blade fuses | 1 pack | 10 A and 15 A | |
 | bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
@@ -167,17 +177,20 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | LiPo charging bag | 1 | fits the pack | |
 
 - **Pack**
-  - The torso's battery layer is sized to its listed envelope (`BATT` and
-    `BATT_MASS` in `cad/v6/dimensions_v6.py`). It is not measured yet: measure
-    and weigh it on arrival and put the values there.
+  - The torso's battery layer is sized to the pack (`BATT` and `BATT_MASS` in
+    `cad/v6/dimensions_v6.py`). Its mass is weighed (205 g); its size is still
+    the listing's 96 × 44.5 × 25.5 mm: measure it and put the values there.
   - It lies on two 1.5 mm adhesive foam pads and is held down by the neck
     floor; it has no belt ([DESIGN.md §5.3](../DESIGN.md)).
   - An HV pack charges to 13.05 V, above the 12.6 V the servo listing and the
     board's silkscreen allow.
 - **Protection board**
-  - No board is selected yet.
-  - The torso has no pocket for a separate protection board and buck: its power
-    bay holds the custom power board (#112; [DESIGN.md §5.3](../DESIGN.md)).
+  - The ShillehTek CF-3SJH25A-C, characterised on the bench before it goes in
+    the robot (Tom, 2026-11-02:
+    [the power-lite options](design-v6/2026-11-02-power-lite-options.md)).
+  - The torso holds one 56 × 45 × 8 mm board on the BMS bracket over the power
+    board ([DESIGN.md §5.3](../DESIGN.md), [assembly.md §9c](assembly.md)); a
+    bigger one has no place.
   - The UART "smart" boards that give per-cell telemetry are the JBD SP04S010
     (80 × 60 × 12 mm) and the Daly R05J (100 × 65 × 13 mm).
 - **The Pi's 5 V** comes from the General Driver's own buck, through the
@@ -221,8 +234,11 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   to the 20 AWG lead and heat-shrink the joint. Pigtail wire colours are not
   standard: check polarity against the silkscreen. This is not a balance-lead
   connector.
-- **Servo extension leads.** Which hops need them has not been measured on this
-  robot (#77). On the prototype, the hip-roll → hip-pitch hop routed at 170 mm.
+- **Servo extension leads.** Per-hop lengths from the v6 CAD are in
+  [wiring.md](wiring.md) (`cad/v6/lead_lengths.py`, #77): every hop rides a
+  stock 150 mm lead except **shoulder → elbow, both arms**: 312 mm along its
+  route through the girdle's aft slot, plus the shoulder fold's loop: buy two
+  ~380 mm leads for it.
 
 ## 5. Hip-yaw bearing
 
@@ -267,12 +283,15 @@ M2.5, not M3.
 
 | fastener | qty | where | have |
 |---|---|---|---|
-| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **128** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front and power covers to the torso 8, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
+| **M2.5 × 8 flat-head (90° countersunk) self-tapping**, stainless | **131** | leg links 24, ankle links 12, feet 12 (tabs 8, near-row bosses 4), yaw-carrier walls 16, bearing housing to the pelvis 5, front cover 4 and power cap 3 to the torso, switch pod to the cap 4, battery door 1, neck floor to the neck tube 4, neck-servo stators 4, head face 4, girdle to deck 10, shoulder cheeks to the pods 8, shoulder servos 8, elbow grips 12 | **24 on hand** |
 | M2.5 × 5 flat-head self-tapping | 8 | yaw-servo stators: 2.6 mm through the cell ceiling, 2.4 mm into the idler-face holes (3.0 deep in the vendor STEP; an × 8 would bottom out) | |
 | M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
 | M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
 | 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
-| M2.5 × 6 pan self-tap | 4 | the power board onto its standoff bosses | |
+| M2.5 × 6 pan self-tap | 2 | the power board onto its −y standoff bosses | |
+| M2.5 × 15 male-female standoff, 6 mm male | 2 | the power board onto its +y standoff bosses; the BMS bracket screws onto them | |
+| M2.5 × 6 flat-head (90° countersunk), machine | 2 | the BMS bracket onto its standoffs | |
+| double-sided foam tape, about 1 mm | 1 strip | the BMS onto the BMS bracket, the balance park onto the aft inner wall (#213) | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
 
@@ -302,7 +321,7 @@ M2.5, not M3.
 | PETG, 1.75 mm | 2 × 1 kg | the print set is ≈ 0.86 kg before supports and brims ([PRINT_LIST](../cad/PRINT_LIST.md)) | on hand (quantity not recorded) |
 | silicone rubber sheet, **2 mm** thick: BENECREAT white silicone, 300 × 300 mm, 2 sheets ([bom-sourced](bom-sourced.md) item 16, [Amazon B08P7P69WQ](https://www.amazon.com/dp/B08P7P69WQ)) | 1 sheet cuts both soles | the soles, cut to the foot plate's outline (130 × 84 mm, R14 corners) and bonded to its flat underside; 2 mm is the design's sole (`TPU_SOLE_T`) | |
 | adhesive for the soles | — | needed unless the sheet is self-adhesive (the listing shows no backing): a silicone-rubber adhesive. Plain CA and epoxy don't hold silicone; CA does over a polyolefin primer | |
-| CA or epoxy | — | the pelvis glued into the torso: the web faces, the ledge and the skins ([assembly §7a](assembly.md)) | |
+| CA or epoxy | — | the pelvis glued into the torso: the web faces, the ledge and the skins ([assembly §7a](assembly.md)); the two upper-arm head inserts ([assembly §11d](assembly.md)) | |
 | adhesive foam pads, **1.5 mm** thick | 2 (about 30 × 20 mm) | under the pack, one over each yaw cell on the pelvis's ceiling, clear of the yaw servos' post holes (`BATT_PAD_T`) | |
 | foam pad | 1 | in the 4.0 mm between the pack and the neck floor, which holds the pack down through it | |
 | thread-locker, medium strength (removable) | 1 | on the M3 disc screws (the design calls for thread-locked horn screws); keep it off the printed parts | |

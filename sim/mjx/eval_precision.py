@@ -51,7 +51,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
-DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v2_asbuilt.xml")
+DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")   # the trainer's default plant
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
@@ -60,7 +60,7 @@ from brax.training.acme import running_statistics
 from video_annot import caption
 from brax.training.agents.ppo import networks as ppo_networks
 
-from walker_env import BimoWalkerEnv
+from walker_env import BimoWalkerEnv, deploy_gait_hz
 
 G = 9.81
 MOV_FPS = 20          # referee reel playback rate (see reel_index.json)
@@ -208,7 +208,26 @@ def make_env(cfg, episode_seconds, nominal, xml, extra=None, act_lag_hz=0.0,
               push_prob=cfg.get("_referee_push_prob", 0.01) if not nominal else 0.0)
     env = BimoWalkerEnv(**kw)
     env.rise_ref_npz = cfg.get("rise_ref_npz")   # recover_supine_ph picks its phase from it
+    set_contact_friction(env, cfg.get("_referee_contact_mu"), cfg.get("_referee_contact_torsion"))
     return env
+
+
+def set_contact_friction(env, mu=None, torsion=None):
+    """--contact-mu / --contact-torsion: grade on this EFFECTIVE foot/floor friction.
+    MuJoCo takes the max of a contact pair's friction, so the floor alone cannot go below
+    the pads' 1.0: set the floor, every sole pad and the reference soles together (as
+    experiments/policy/shaper-train/grade.py set_contact and env_mjx contact_mu_range).
+    The nominals are set too, so the per-reset floor DR (x(1 +- friction_range)) draws
+    around mu, and the effective sole friction stays >= mu. Other body geoms keep their
+    own friction (only the sole was measured, 2026-11-04: mu ~0.45, yaw grip ~0.1 N m)."""
+    if mu is None and torsion is None:
+        return
+    gids = [env._floor_gid] + [g for pads in env._pad_gids for g in pads] + list(env._sole_gids)
+    for g in gids:
+        for col, val in ((0, mu), (1, torsion)):
+            if val is not None:
+                env.model.geom_friction[g, col] = float(val)
+                env._nom_friction[g, col] = float(val)
 
 
 # =====================================================================
@@ -382,7 +401,10 @@ def sil_setup(run_name, run_dir, verbose=True, profile=None):
     if not os.path.exists(cal_path):
         H.write_cal_files()
 
-    lib = H.SilLib(lib_path, weights, cal_path, gait_hz=H.DEFAULT_GAIT_HZ)
+    # the run's own clock, whichever header the library was compiled from
+    with open(os.path.join(run_dir, "config.json")) as f:
+        gait_hz = deploy_gait_hz(json.load(f))
+    lib = H.SilLib(lib_path, weights, cal_path, gait_hz=gait_hz)
     info = dict(lib=os.path.relpath(lib_path, ROOT),
                 weights=os.path.relpath(weights, ROOT),
                 cal=os.path.relpath(cal_path, ROOT),
@@ -1860,9 +1882,10 @@ def scen_metronome():
                        else float("nan"))
         ref = next(((r["x"], r["y"]) for r in rows if r["t"] >= SETTLE),
                    (0.0, 0.0))
-        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1])
-                     for r in rows if r["t"] >= SETTLE)
-                 if rows else float("nan"))
+        # a seed that falls before SETTLE has rows but none of them settled
+        settled = [r for r in rows if r["t"] >= SETTLE]
+        drift = (max(math.hypot(r["x"] - ref[0], r["y"] - ref[1]) for r in settled)
+                 if settled else float("nan"))
         success = bool((not fell) and not math.isnan(cadence_err)
                        and errs[0] <= 0.15 and errs[2] <= 0.15
                        and not math.isnan(drift) and drift < 0.15)
@@ -1884,7 +1907,7 @@ def scen_squat_reps():
     DEPTH, HOLD, REPS, SETTLE = 0.70, 1.5, 3, 1.0
     # 2026-09-11: the expected depth is the ENV's crouch target, not
     # DEPTH x nominal -- with crouch_pose_ref the 0.7 command means the
-    # feasible level-foot squat (~5.3 cm on v5body), while DEPTH x nominal
+    # feasible level-foot squat, while DEPTH x nominal
     # asked 9.7 cm the legs cannot give. Old configs map identically.
 
     def build():
@@ -1987,9 +2010,9 @@ def scen_weight_shift():
 # shared rows), so this is the one place a swing is attributed to a FOOT and
 # checked against the clearance rule individually.
 WALK_STEPS_V = 0.30       # commanded vx, m/s
-WALK_STEPS_S = 1.8        # seconds of walk command: ~4-6 steps at 1.25-1.75 Hz strides
+WALK_STEPS_S = 1.8        # seconds of walk command at the 1.5 Hz clock (2.7 cycles, ~5 steps); follows the policy's clock
 WALK_STEPS_T0 = 1.0       # stand first, then the walk command starts
-WALK_STEPS_TAIL = 0.4     # a step that BEGINS within this long after the stop command is part of the walk
+WALK_STEPS_TAIL = 0.4     # a step that BEGINS within this long after the stop command is part of the walk (at 1.5 Hz, likewise)
 WALK_MIN_STEPS = 4        # total, and at least 2 per foot
 WALK_MIN_PROGRESS = 0.25  # m forward by the end
 
@@ -2014,7 +2037,7 @@ def walk_steps_swings(samples, t_lo, t_hi, min_ticks=SWING_MIN_TICKS):
     return out
 
 
-def scen_walk_steps(lead):
+def scen_walk_steps(lead, gait_hz=1.5):
     """Walk a few steps from standing, starting with the `lead` foot, then
     stop. The gait clock is set at the start of the command so the lead foot
     is the one the clock swings first (sin(phase) > 0 swings L; the policy is
@@ -2026,8 +2049,11 @@ def scen_walk_steps(lead):
     such step lifts ITS foot's sole at least SWING_CLEAR (3 cm) above the
     standing sole height (the per-step, per-foot minimum, not a fraction);
     forward progress >= WALK_MIN_PROGRESS; standing upright (>= 85 % height,
-    up_z >= 0.9) at the end; lateral drift < 0.25 m."""
-    t_stop = WALK_STEPS_T0 + WALK_STEPS_S
+    up_z >= 0.9) at the end; lateral drift < 0.25 m. The command and the tail
+    last as many gait cycles at the policy's clock (gait_hz) as at 1.5 Hz: the
+    step count is a count of clock cycles."""
+    t_stop = WALK_STEPS_T0 + WALK_STEPS_S * 1.5 / gait_hz
+    t_tail = WALK_STEPS_TAIL * 1.5 / gait_hz
 
     def build():
         ev = {"_h": []}
@@ -2051,7 +2077,7 @@ def scen_walk_steps(lead):
         return ctrl, ev
 
     def evaluate(rows, ev, fell, N, shared):
-        swings = walk_steps_swings(ev["_h"], WALK_STEPS_T0, t_stop + WALK_STEPS_TAIL)
+        swings = walk_steps_swings(ev["_h"], WALK_STEPS_T0, t_stop + t_tail)
         per = {f: [p for ft, _, p in swings if ft == f] for f in ("L", "R")}
         peaks = [p for _, _, p in swings]
         min_peak = min(peaks) if peaks else 0.0
@@ -2079,7 +2105,8 @@ def scen_walk_steps(lead):
 
 
 # name -> (episode_seconds, factory, is_locomotion)
-def _registry():
+def _registry(gait_hz=1.5):
+    # gait_hz: the graded policy's clock (walker_env.deploy_gait_hz)
     # (single-leg crouch scenarios removed 2026-07-18, user call;
     # scen_crouch_leg kept in source for reference only)
     reg = {}
@@ -2128,7 +2155,8 @@ def _registry():
     # short walk, every step's clearance graded per foot (2026-10-24): behind
     # --scenarios / the run's `eval_scenarios`, so the family totals stay put
     for s in ("L", "R"):
-        reg[f"walk_steps_{s}"] = (WALK_STEPS_T0 + WALK_STEPS_S + 3.2, scen_walk_steps(s), True)
+        reg[f"walk_steps_{s}"] = (WALK_STEPS_T0 + WALK_STEPS_S * 1.5 / gait_hz + 3.2,
+                                  scen_walk_steps(s, gait_hz), True)
     return reg
 
 
@@ -2321,6 +2349,13 @@ def main():
     p.add_argument("--push-prob", type=float, default=None,
                    help="push-stress grade: per-control-step shove probability "
                         "instead of the hardware-claim 0.01 (see --push-force)")
+    p.add_argument("--contact-mu", type=float, default=None,
+                   help="grade on this effective foot/floor sliding friction (floor, sole "
+                        "pads and soles together; the plant's pads are 1.0). The measured "
+                        "sole (2026-11-04 clamp test) is ~0.45. Writes scorecard_mu<value>")
+    p.add_argument("--contact-torsion", type=float, default=None,
+                   help="with --contact-mu: torsional friction (m) on the same geoms "
+                        "(plant 0.02; the measured yaw grip is ~0.1 N m)")
     p.add_argument("--rise-ref-hold", action="store_true",
                    help="grade with rise_ref_hold on (no handover from the residual "
                         "reference map at recovered) whatever the run trained with: "
@@ -2340,6 +2375,9 @@ def main():
     if args.push_force is not None or args.push_prob is not None:
         suffix = (f"{suffix}_push{5.0 if args.push_force is None else args.push_force:g}"
                   f"x{0.01 if args.push_prob is None else args.push_prob:g}")
+    if args.contact_mu is not None or args.contact_torsion is not None:
+        suffix = (f"{suffix}_mu{'' if args.contact_mu is None else f'{args.contact_mu:g}'}"
+                  f"{'' if args.contact_torsion is None else f't{args.contact_torsion:g}'}")
     if args.rise_ref_hold:
         suffix = f"{suffix}_hold"
     if args.ref_replay:
@@ -2371,6 +2409,10 @@ def main():
         cfg["_referee_push_force"] = args.push_force
     if args.push_prob is not None:
         cfg["_referee_push_prob"] = args.push_prob
+    if args.contact_mu is not None:
+        cfg["_referee_contact_mu"] = args.contact_mu
+    if args.contact_torsion is not None:
+        cfg["_referee_contact_torsion"] = args.contact_torsion
     if args.rise_ref_hold:
         cfg["rise_ref_hold"] = True
     if args.ref_replay:
@@ -2384,7 +2426,7 @@ def main():
         # remote host) -- resolve it against the local sim/ directory
         xml = os.path.join(HERE, "..", os.path.basename(xml))
 
-    reg = _registry()
+    reg = _registry(deploy_gait_hz(cfg))
     names = ORDER
     fam = (cfg.get("train", {}) or {}).get("family", "all")
     if not args.scenarios and fam in FAMILY_SCENARIOS:

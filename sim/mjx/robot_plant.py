@@ -1,6 +1,5 @@
 """The robot's training plant: the env settings that make BimoMJXEnv /
-BimoWalkerEnv the 17-joint robot (DESIGN.md) instead of the 10-joint
-prototype. One place, so the trainer (train_mjx.py --robot), the referee and
+BimoWalkerEnv the 17-joint robot (DESIGN.md). One place, so the trainer (train_mjx.py --robot), the referee and
 the tests configure the same robot.
 
 Nothing here is read by the envs themselves: a run's config.json pins every
@@ -39,6 +38,17 @@ ROBOT_XML = "bimo_biped_v6ar.xml"
 # the body as built 2026-10-24: 12 leg servos + the control board, no pack, Pi,
 # head, neck or arms (build_v6_inertia.asbuilt_legs; `--robot --xml` selects it)
 ROBOT_LEGS_XML = "bimo_biped_v6legs.xml"
+# the same bodies with the joint stops MEASURED on the robot 2026-11-02 (gen_plant_v6.
+# measured_stops; `--robot --xml bimo_biped_v6legs_meas.xml`). Their ctrlranges keep the
+# action map a --ctrl-within-stops run has on the plants above, so such a checkpoint
+# warm-starts on them unchanged; a --ctrl-physical run's map is the joint range, which
+# they widen -- physical-mode runs stay on the plants above (tests/test_plant_measured.py)
+ROBOT_LEGS_MEAS_XML = "bimo_biped_v6legs_meas.xml"
+# v6legs_meas with the sole friction MEASURED on the robot 2026-11-04 (gen_plant_v6.measured_sole:
+# mu 0.5, torsional 0, pad priority, "flat" pads; `--robot --xml bimo_biped_v6legs_meas_sole.xml`).
+# Only the pads differ (tests/test_plant_sole.py); docs/design-v6/2026-11-04-sole-friction.md
+ROBOT_LEGS_MEAS_SOLE_XML = "bimo_biped_v6legs_meas_sole.xml"
+ROBOT_MEAS_XML = "bimo_biped_v6ar_meas.xml"
 
 # rest pose per held joint role (deg); a joint the plant does not have is
 # simply not held. The arms' values are cad/v6/dimensions_v6.ARM_REST

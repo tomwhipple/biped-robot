@@ -73,9 +73,10 @@ def test_env_accepts_and_rewards_schedule():
     (match - 1), not a rollout: physics can't be forced into both contact
     patterns from one state, but the term itself is separable."""
     import jax
+    import robot_plant
     from env_mjx import BimoMJXEnv
-    xml = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
-    env = BimoMJXEnv(xml_path=xml, ext_cmd=True, gait_clock=True,
+    env = BimoMJXEnv(**robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml"),
+                     ext_cmd=True, gait_clock=True,
                      w_contact_sched=1.0, obs_hist_len=3,
                      domain_rand=False, imu_noise=0.0,
                      quantize_ticks=False, latency_ms=0.0, backlash_deg=0.0,

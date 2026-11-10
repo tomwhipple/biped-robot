@@ -1,5 +1,5 @@
 """Static rise-path feasibility: sweep the butt-up -> stand keyframes (knees
-extend while hips stay folded, torso unfolds last -- getup_study.py §95) and
+extend while hips stay folded, torso unfolds last) and
 check the whole-robot CoM stays over the foot support polygon at every step.
 If YES, a no-appendage stand exists on the skid body (the passive pelvis skid
 raises the seat; the deep ROM + butt-up carry the CoM out of the corridor).

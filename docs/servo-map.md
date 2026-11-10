@@ -15,8 +15,8 @@ This page covers:
 The robot's 17-servo ID map is in
 [§2.1](#21-the-robot-the-map-as-assembled): the v6 legs **as assembled**
 (2026-10-23), with each ID written on its servo's case. The firmware carries
-it as its bus joint set; the compiled policy drives the 10 leg joints of the
-prototype's plant ([§2.2](#22-what-the-policy-drives-today-the-10-joint-prototype)). The procedure from a bare board to the first arm is
+it as its bus joint set; the compiled policy drives the 12 leg joints of the
+v6 legs plant ([§2.2](#22-what-the-policy-drives-the-12-leg-joints)). The procedure from a bare board to the first arm is
 [bringup.md](bringup.md). The bench-safety rules are in
 [AGENTS.md](../AGENTS.md#bench-safety).
 
@@ -68,18 +68,15 @@ The robot has 17 servos: 12 in the legs, one in the neck, four in the arms.
 
 ![Front view of the robot with every joint marked: servo ID, joint name, bus port](img/servo_map.png)
 
-How the leg IDs came about:
+About the map:
 
-- **The yaw / pitch / knee / ankle IDs are swapped left ↔ right** against the
-  old prototype map: 9, 2, 3, 4 are on the robot's **left** leg, 10, 6, 7, 8
-  on its right.
-- **The STS3250 hip rolls are 52 (right) and 51 (left)**, numbered off the
-  prototype's range when they were benched.
+- **The left leg is 9, 51, 2, 3, 4, 12 and the right 10, 52, 6, 7, 8, 11**,
+  pelvis outward.
+- **The STS3250 hip rolls are 52 (right) and 51 (left).**
 - **The ankle rolls are 11 (right) and 12 (left)**, as proposed.
 - **New servos are appended, right before left:** the neck 13, then the arms,
   shoulder before elbow, which is also their chain order.
-- **Port A (H5) is the robot's right side, port B (H6) its left**, as on the
-  prototype. Each leg is one chain outward from the pelvis, ending at the
+- **Port A (H5) is the robot's right side, port B (H6) its left.** Each leg is one chain outward from the pelvis, ending at the
   ankle roll. Both ports carry the same bus, so which port each leg is
   actually plugged into is not visible from software and was not checked on
   the 2026-10-23 assembly.
@@ -91,25 +88,25 @@ How the leg IDs came about:
   to the shoulder girdle. The neck rides the right arm's branch, which
   balances the ports at 9 and 8 servos.
 
-| ID | joint | port | hop from the board | position P (Plan B) |
-|---|---|---|---|---|
-| 10 | `R_hip_yaw` | A, leg branch | 1 | stock |
-| 52 | `R_hip_roll` (STS3250) | A, leg branch | 2 | **≈ 4×** |
-| 6 | `R_hip_pitch` | A, leg branch | 3 | stock |
-| 7 | `R_knee` | A, leg branch | 4 | **≈ 4×** |
-| 8 | `R_ankle` (pitch) | A, leg branch | 5 | stock |
-| 11 | `R_ankle_roll` | A, leg branch | 6 | **≈ 4×** |
-| 13 | `neck_yaw` | A, upper branch | 1 | stock |
-| 14 | `R_shoulder` | A, upper branch | 2 | stock |
-| 15 | `R_elbow` | A, upper branch | 3 | stock |
-| 9 | `L_hip_yaw` | B, leg branch | 1 | stock |
-| 51 | `L_hip_roll` (STS3250) | B, leg branch | 2 | **≈ 4×** |
-| 2 | `L_hip_pitch` | B, leg branch | 3 | stock |
-| 3 | `L_knee` | B, leg branch | 4 | **≈ 4×** |
-| 4 | `L_ankle` (pitch) | B, leg branch | 5 | stock |
-| 12 | `L_ankle_roll` | B, leg branch | 6 | **≈ 4×** |
-| 16 | `L_shoulder` | B, upper branch | 1 | stock |
-| 17 | `L_elbow` | B, upper branch | 2 | stock |
+| ID | joint | port | hop from the board |
+|---|---|---|---|
+| 10 | `R_hip_yaw` | A, leg branch | 1 |
+| 52 | `R_hip_roll` (STS3250) | A, leg branch | 2 |
+| 6 | `R_hip_pitch` | A, leg branch | 3 |
+| 7 | `R_knee` | A, leg branch | 4 |
+| 8 | `R_ankle` (pitch) | A, leg branch | 5 |
+| 11 | `R_ankle_roll` | A, leg branch | 6 |
+| 13 | `neck_yaw` | A, upper branch | 1 |
+| 14 | `R_shoulder` | A, upper branch | 2 |
+| 15 | `R_elbow` | A, upper branch | 3 |
+| 9 | `L_hip_yaw` | B, leg branch | 1 |
+| 51 | `L_hip_roll` (STS3250) | B, leg branch | 2 |
+| 2 | `L_hip_pitch` | B, leg branch | 3 |
+| 3 | `L_knee` | B, leg branch | 4 |
+| 4 | `L_ankle` (pitch) | B, leg branch | 5 |
+| 12 | `L_ankle_roll` | B, leg branch | 6 |
+| 16 | `L_shoulder` | B, upper branch | 1 |
+| 17 | `L_elbow` | B, upper branch | 2 |
 
 ```
 H5 (A) ── splitter ─┬─ 10 R_hip_yaw ─ 52 R_hip_roll ─ 6 R_hip_pitch ─ 7 R_knee ─ 8 R_ankle ─ 11 R_ankle_roll
@@ -128,10 +125,11 @@ Open (issue #77):
 - **Lead lengths** per hop are measured in
   [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1): every hop
   fits the stock 150 mm lead with the fold loop folded in **except the
-  shoulder→elbow hop, which needs ~200 mm** — it crosses the 290° shoulder
-  fold with no strain relief drawn. The shoulder lead itself exits the pod
-  through the girdle's open-to-top notch (shoulder_girdle_v6.py §216); the
-  elbow servo rides the upper arm, so the lead does not cross the elbow.
+  shoulder→elbow hop, which needs ~380 mm** along its route (312 mm of route plus the fold loop) — it crosses the
+  290° shoulder fold with no strain relief drawn. The shoulder lead itself
+  exits the pod through the girdle's open-to-top notch, then runs aft through
+  the elbow lead's slot in the aft tie and round the pod; the elbow servo
+  rides the upper arm, so the lead does not cross the elbow.
   Source: `cad/v6/lead_lengths.py` (constants + an assembly-sweep
   crosscheck).
 
@@ -157,42 +155,41 @@ it):
 If the map changes, those, this table, the figure (`make figures`), and the
 rows of §3.3 and §4 change in one commit.
 
-### 2.2 What the policy drives today: the 10-joint prototype
+### 2.2 What the policy drives: the 12 leg joints
 
 The **policy joint set** is the joints the compiled policy observes and
 commands, a subset of the bus joints. Its source of truth is
 `firmware/components/obs/include/obs/obs_spec.h` (`kJointNames`, `kServoId`):
 
-- `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `sim/bimo_biped_v5body.xml`, and `ID_BY_ROLE`.
+- `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `sim/bimo_biped_v6legs.xml`, and `ID_BY_ROLE`.
 - `firmware/host/test_obs.cpp` pins it.
 
 | servo ID | joint | action index | bus port |
 |---|---|---|---|
-| 52 | `R_hip_roll` | 6 | A (right) |
-| 6 | `R_hip_pitch` | 7 | A (right) |
-| 7 | `R_knee` | 8 | A (right) |
-| 8 | `R_ankle` | 9 | A (right) |
+| 10 | `R_hip_yaw` | 6 | A (right) |
+| 52 | `R_hip_roll` | 7 | A (right) |
+| 6 | `R_hip_pitch` | 8 | A (right) |
+| 7 | `R_knee` | 9 | A (right) |
+| 8 | `R_ankle` | 10 | A (right) |
+| 11 | `R_ankle_roll` | 11 | A (right) |
+| 9 | `L_hip_yaw` | 0 | B (left) |
 | 51 | `L_hip_roll` | 1 | B (left) |
 | 2 | `L_hip_pitch` | 2 | B (left) |
 | 3 | `L_knee` | 3 | B (left) |
 | 4 | `L_ankle` | 4 | B (left) |
-| 10 | `R_hip_yaw` | 5 | A (right) |
-| 9 | `L_hip_yaw` | 0 | B (left) |
+| 12 | `L_ankle_roll` | 5 | B (left) |
 
-- Each leg chains outward from the pelvis:
-  - Port A is the right leg: 10 → 52 → 6 → 7 → 8.
-  - Port B is the left leg: 9 → 51 → 2 → 3 → 4.
 - "Left" is the robot's own left: +Y in the plant, with the robot facing +X.
 
 **The policy's action order is not bus-ID order.** The action vector is in sim
 actuator order:
 
 ```
-[L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle,
- R_hip_yaw, R_hip_roll, R_hip_pitch, R_knee, R_ankle]
+[L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll,
+ R_hip_yaw, R_hip_roll, R_hip_pitch, R_knee, R_ankle, R_ankle_roll]
 ```
 
-The firmware indexes `obs::kServoId = {9, 51, 2, 3, 4, 10, 52, 6, 7, 8}` by action
+The firmware indexes `obs::kServoId = {9, 51, 2, 3, 4, 12, 10, 52, 6, 7, 8, 11}` by action
 index, so action 0 (`L_hip_yaw`) drives servo ID 9. `obs::policyToBus(j)` is the bus joint of
 policy joint *j*.
 
@@ -201,8 +198,8 @@ joints, and **holds every other fitted servo**: at the trained target when
 the deployed run holds that servo (the robot's runs hold the neck at 0 and
 the arms at their walking pose; `kHeldServoId`/`kHeldTarget` in
 `obs_spec.h`), reached along the takeover ramp; otherwise where it was
-measured at the takeover (on the robot, under the prototype's 10-joint
-policy, the ankle rolls, neck and arms). `run` refuses unless every policy
+measured at the takeover (under the deployed legs policy, which holds none:
+the neck and arms, once fitted). `run` refuses unless every policy
 joint is fitted.
 
 ## 3. Calibration: zero, direction, envelope
@@ -246,8 +243,8 @@ cal migrate                       # explicit v1-blob path; see below
 `pose`, `home`, `ping`, `volt` and the gain check touch fitted servos only: a
 SYNC READ that waits on an absent servo costs its whole timeout every tick.
 `cal zero` with no joint named sets it from the bus: a servo that answers is
-fitted, one that does not is marked `NOT FITTED` (a 10-servo prototype comes
-out as its ten leg joints). `cal fit` sets it by hand.
+fitted, one that does not is marked `NOT FITTED` (the legs-only body comes
+out as its 12 leg joints). `cal fit` sets it by hand.
 
 **How calibration is stored.**
 
@@ -286,10 +283,9 @@ out as its ten leg joints). `cal fit` sets it by hand.
 
 ### 3.1 As-built zero calibration
 
-These are the prototype's current values, measured at the standing pose with
-`cal zero` + `cal save` after the horn screws were tightened on both legs. They are
-also compiled into `firmware/main/asbuilt_cal.h` as the migration reference. **If
-the robot is re-zeroed, update both files in the same commit.**
+These are the prototype's values, in its servo map, compiled into
+`firmware/main/asbuilt_cal.h` as the reference a v1 blob migrates against
+(above). Keep the two the same. The robot's zeros are in §3.2.
 
 | joint | ID | zero (ticks) | Δ from 2048 | dir |
 |---|---|---|---|---|
@@ -309,7 +305,7 @@ the robot is re-zeroed, update both files in the same commit.**
 
 ### 3.2 Direction signs
 
-This is where the toe moves at +20° in the prototype plant, for each joint in
+This is where the toe moves at +20° in the plant, for each joint in
 isolation:
 
 | joint | sim-positive moves the toe |
@@ -320,9 +316,9 @@ isolation:
 | knee | forward/up: hyperextension. **Flexion is negative** (knee axis `0 -1 0`) |
 | ankle | **down**: plantarflexion |
 
-- On the prototype, roll and knee have `dir` −1 on both legs; yaw, pitch and ankle have +1. The servos are mounted the same way on each side, not mirrored.
-- The robot adds ankle roll, the neck, the shoulders and the elbows, and remounts the legs. **Every sign is re-derived on the robot.**
-- **The v6 legs, derived 2026-10-23** (each joint moved alone, ±8° to ±35° from the standing pose, filmed from the front; `hw_sessions/2026-10-23/calibration/`). Same pattern as the prototype, and the ankle rolls are +1; every pair agrees across the legs:
+- Roll and knee have `dir` −1 on both legs; yaw, pitch, ankle and ankle roll have +1. The servos are mounted the same way on each side, not mirrored.
+- The neck, shoulder and elbow signs are derived on the robot when they are fitted. **Never carry a sign over from another body.**
+- **The v6 legs, derived 2026-10-23** (each joint moved alone, ±8° to ±35° from the standing pose, filmed from the front; `hw_sessions/2026-10-23/calibration/`); every pair agrees across the legs:
 
   | joint | left (ID, `dir`) | right (ID, `dir`) | how it was read |
   |---|---|---|---|
@@ -346,31 +342,59 @@ isolation:
 
 ### 3.3 Mechanical envelope
 
-The prototype's bench clamp, as it stands in `mech_envelope.h`. Angles are in the
-sim joint frame.
+The bench clamp in `mech_envelope.h`, as a build whose policy drives the v6
+legs (the ankle rolls) picks it: `kMechLoV6Legs` / `kMechHiV6Legs`. Angles are
+in the sim joint frame.
 
 | joint | envelope | evidence |
 |---|---|---|
-| hip yaw | ±45° | plant range; the stops have never been probed wider |
-| hip roll | 25° adduction / **55° abduction** | CAD buffer sweep: 0.60 mm at 55°, under the buffer at 70°, touching at 90°. Creep-verify on hardware before a full 55° sweep |
-| hip pitch | −110° … **+90°** | +90° backward: 0.70 mm CAD buffer, hardware-verified with both hips at +90° |
-| knee | **±95°** | measured, both directions, ≤ 5.9 % load |
-| ankle | ±40° | plant range; the toes clear the shin at both extremes |
-| ankle roll (11, 12) | ±25° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
-| neck yaw (13) | ±90° | plant range; never probed |
+| hip yaw | ±45° | v6 legs plant range; the robot's stops are at ±86° (below) |
+| hip roll | 45° abduction / 30° adduction | plant range; the legs touch from about 9° of adduction (below, §3.3a) |
+| hip pitch | −120° … +90° | plant range; forward stop measured at −124° |
+| knee | −130° … +5° | plant range; +5° is a policy cap, the mechanism hyperextends to ~95° |
+| ankle | ±45° | plant ctrlrange; not a stop (free to ±78°) |
+| ankle roll (11, 12) | ±25° | plant range; stop at +27.9 L / −26.9 R on the outer-edge-up side only |
+| neck yaw (13) | ±90° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
 | shoulder (14, 16) | −90° … +200° | plant range (`sim/gen_plant_v6.py`: 0 hanging, 90 straight back, 180 up along the torso); never probed |
 | elbow (15, 17) | ±150° | plant range; never probed |
 
-The leg rows (the ten prototype joints) are the **prototype's** legs, measured on it. The
-robot's legs are different mechanisms: its knee was expected to hyperextend only 5° (measured 2026-10-23: at least 30° from the standing pose, both knees, no stop) (the
-prototype's +95° row would let the bench drive it past its stop) and its hip
-pitch flexes to −125°. They need their own rows, probed on the robot, before
-the bench drives the robot's legs toward either limit.
+The leg rows are the v6 legs plant's policy range, not the robot's stops; the
+robot's **measured** stops lie outside every row and are below. `kMechLo` /
+`kMechHi` hold the earlier prototype's measured leg rows; `mechLo()`/`mechHi()`
+use them only for a policy with no ankle rolls, and every compiled policy has
+them.
 
-**Open, seen 2026-10-23 on the stand:** the right hip pitch (ID 6) was blocked at
-about **+23° of extension** (backward) from the standing pose, load −168 — something
-behind the right leg (not identified; the stand, a cable, or the frame). The left
-hip pitch went +25° freely. Check it before any backward hip motion on the stand.
+#### Measured on the robot, 2026-11-02 (v6 legs)
+
+Every leg joint was swept in both directions: guarded sweeps (§3.3a), robot hanging,
+sim angle conventions. The CAD was probed at the same angles and agrees with every row.
+Source: `hw_sessions/2026-11-02/NOTES.md` ("ROM pass 3"). The sim carries these stops
+in `sim/bimo_biped_v6legs_meas.xml` / `_v6ar_meas.xml` (`gen_plant_v6.MEASURED_STOPS`).
+The policy ranges there are unchanged.
+
+| joint | measured (L / R) | CAD | was assumed | sim `_meas` stop |
+|---|---|---|---|---|
+| hip yaw | free to +85.9…86.7 / −86.5…86.7 | no stop (1.8 mm gap, constant) | ±45 | ±90 |
+| hip roll | outward ≥ 57.7 (L; R start offset 51.3); inward −24.0 / +27.3 free with the other leg forward | clear to 55 | ±55 | ±58 |
+| hip pitch | forward **stop −125.1 / −123.6**; backward +104.8 light touch (L) / +84 free (R) | wall meets flange from −118.4; clear to 90 back | −120 … +90 | −124 … +104 |
+| knee | flexion ≥ 130.4; hyperextension ≥ 93.8 | ~132 hard / 95 | −130 … +95 (policy: +5) | −132 … +95 |
+| ankle pitch | free to ±78 both legs (sweep ceiling) | no stop (32 mm clear at 76) | ±40 ("stops") | ±80 |
+| ankle roll | outer edge up: **stop +27.9 / −26.9** (roll vs pitch servo cases); inner edge up free to −46.4 / +46.5 | cases 1.05 mm at 25, overlap at 27.9; 7 mm clear at 46.5 | ±25 | L −50 … +27.5, R −27.5 … +50 |
+
+- Ankle pitch ±40 is a design range, not a stop.
+- The knee's +5 is a policy cap. The mechanism hyperextends to ~95.
+- Ankle roll has a stop on the outer-edge-up side only. The policy's ±25 stays 2.5° inside it.
+- Leg-on-leg contact, from the CAD: with one hip rolled inward and the other leg at 0, the
+  feet touch at 8° and the shins overlap from 9°. With the other leg pitched −70°, the
+  thighs touch at ~27–30°.
+
+**Resolved: the right hip pitch "block" at +23° on 2026-10-23 was the test stand.** It
+was seen as about +23° of extension, load −168. On 2026-11-02 it showed up again at
++18.8°. With the leg straight, ID 6 stopped at +15.5° against the stand post. With the
+right hip roll held out at −41°, the same joint went to +58.9° with no stop. The left
+hip's backward "stop" at +52.6° was the stand too: +78.7° with the roll held out, and
++104.8° in pass 3. Clear the stand, with the roll held out, before any backward hip
+motion on the stand.
 
 Pose-dependent leg-on-leg contact is not in this table, because a per-joint clamp
 cannot express it. The plant handles it with inter-leg collision geoms.
@@ -421,10 +445,8 @@ The knee drives cleanly to **−94.6° and +94.5°**:
 - load ≤ 172/1000 (5.9 % of stall), 31 °C flat, over two continuous full-range sweeps at 400–450 steps/s;
 - reaching +95° needed the encoder re-centred (`middle`), because the zero it had left only +11.4° before the 4095 wrap. That is an encoder-placement limit, not a mechanical one.
 
-The two plants set the knee range differently:
 
-- The prototype plant (`sim/bimo_biped_v5body.xml`) allows ±95°.
-- The robot's plant (`sim/bimo_biped_v6ar.xml`) allows −130° to +5°: flexion is negative, and hyperextension is capped at 5°.
+- The robot's plant (`sim/bimo_biped_v6ar.xml`) allows −130° to +5°: flexion is negative, and hyperextension is capped at 5° (a policy cap; §3.3).
 
 ## 4. Registers
 
@@ -441,9 +463,9 @@ table's URL. Things to know about the table:
 | 3 | Model_Number (the table lists 3/4 as servo major/minor version, 9/3) | 2, read-only | 777 | STS3215 = **777**, STS3250 = **2825** (LeRobot's Feetech table). The check for a genuine part on arrival |
 | 5 | ID | 1 | 1 | 0–253; 254 is broadcast |
 | 9 / 11 | min / max angle limit | 2 | 0 / 4095 | must read 0 / 4095 in position mode |
-| 21 | **position-loop P** | 1 | 32 | 0–254. Plan B: ≈ 4× (≈ 128) on hip roll, ankle roll and knee |
-| 22 | position-loop D | 1 | 32 | raised with P |
-| 23 | position-loop I | 1 | 0 | the first fallback if the P route fails (needs an integral term in the sim servo model first) |
+| 21 | **position-loop P** | 1 | 32 | 0–254. The robot runs the factory 32 on every servo (per-ID table below) |
+| 22 | position-loop D | 1 | 32 | factory 32 on every servo |
+| 23 | position-loop I | 1 | 0 | the first fallback if a joint proves too soft (needs an integral term in the sim servo model first) |
 | 26 / 27 | CW / CCW dead zone | 1 | 1 / 1 step | |
 | 28 | protection current | 2 | 500 (× 6.5 mA) | |
 | 33 | operating mode | 1 | 0 | 0 = position |
@@ -465,15 +487,12 @@ table's URL. Things to know about the table:
 | 65 | status | 1 | | error bits: voltage, sensor, temperature, current, angle, overload |
 | 69 | present current | 2 | | 6.5 mA per LSB |
 
-**Plan B gains.**
-
-- The robot needs about 4× the stock static stiffness at the six roll and knee joints. Stock STS3215s there fail every walk and get-up gate ([DESIGN.md §4](../DESIGN.md)).
-- The plan is register 21 at ≈ 4×, with D raised with it, on those six servos.
-- That rests on one bench measurement (issue #73). Pass means:
-  - ≥ 4× the P = 32 stiffness in the same rig;
-  - with ≤ ±1 count of hold jitter.
-- 3× passes only if the printed roll chains measure ≤ 1° of play.
-- A high P can buzz or limit-cycle through gear play. LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
+**Gains.** Every servo runs the factory P / D 32 / 32 (the per-ID table
+below). The bench (issue #73, `experiments/plan-b-bench/`) found no raised P
+worth its roughness: the STS3215 is smoothest at P 96 / D 0 (≈ 2.8× its P 32
+stiffness), shakes at P 128 and limit-cycles at P 160; the STS3250
+limit-cycles from P 96. A high P can buzz or limit-cycle through gear play.
+LeRobot lowers the same register to 16 on its STS3215 arms for that reason.
 
 **The measurement: `experiments/plan-b-bench/gain_bench.py`.** It drives this CLI over the tether,
 one typed `go` per motion. Raw data goes to `hw_sessions/<date>/gain_bench/`;

@@ -6,7 +6,7 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
 [wiring.md](wiring.md); servo IDs and calibration values are
 [servo-map.md](servo-map.md); first power-up is [bringup.md](bringup.md).*
 
-**Status:** built, flashed and running on the prototype. Two joint sets
+**Status:** built, flashed and running on the v6 legs. Two joint sets
 (§5.8):
 
 - the **bus joint set** is the robot's 17 servos (`obs/bus_map.h`, the
@@ -14,10 +14,11 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
   mechanical envelope, `pose`/`home`, the readback, the gain check, the
   telemetry joint block and the SIL arrays are all 17 wide;
 - the **policy joint set** is what the compiled policy observes and commands:
-  the prototype's 10 joints (5 per leg, plant `sim/bimo_biped_v5body.xml`,
-  servo IDs 1–10), policy `loco_v41rsi_b_s128r24`.
+  the v6 legs' 12 joints (6 per leg, plant `sim/bimo_biped_v6legs.xml`),
+  policy `robot_legs_walk16_act_s128r24`.
 
-The prototype carries IDs 1–10, and its calibration marks 11–17 not fitted.
+The legs-only robot carries 12 servos, and its calibration marks the neck and
+arms (IDs 13–17) not fitted.
 The 17-joint port is done on the bus side and verified on the host (issue
 #81); a 17-servo `pose` on the bench and a 17-joint policy (#86) are what
 remain (§8).
@@ -219,7 +220,8 @@ graph LR
     RD --> OBS[obs assembler<br/>3 x 49 = 147]
     OBS --> NET[policy MLP<br/>147-128-128-20]
     NET --> SHP[command shaper<br/>+ takeover ramp]
-    SHP --> WR[scsbus SYNC WRITE<br/>+ goal speed]
+    SHP --> LIM[motion limiter]
+    LIM --> WR[scsbus SYNC WRITE<br/>+ goal speed]
     SAFE[link watchdog, fall latch fallguard,<br/>pack guard, operator stop, overrun => torque off;<br/>flail guard => hold] --- LOOP
   end
   CAL[NVS: servo cal, IMU cal] --> OBS
@@ -230,7 +232,7 @@ graph LR
 |---|---|---|
 | `components/scsbus/` | Feetech SCS/STS protocol: packet codec and transactions (PING, READ/WRITE, REG WRITE + ACTION, RESET, SYNC READ, SYNC WRITE, torque enable incl. broadcast, EEPROM lock, ID change, set-middle, error-flag decode). The golden packets are the worked examples in Feetech's own protocol manual | tested against a scripted fake port |
 | `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps, the bench diagnostic, the UART demux | golden vectors from the Python reference |
-| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
+| `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, `MotionLimiter`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
@@ -263,8 +265,9 @@ q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin
   robot has no sensor for either.
 - **prev_action**: the raw policy output of the previous tick, not the shaped
   or ramped target, because that is what the policy saw in training.
-- **phase**: a gait clock at a base 1.5 Hz, the centre of training's
-  per-episode draw U(1.25, 1.75). With `kSpeedClock` the rate is scaled by
+- **phase**: a gait clock at the base `kGaitFreqHz`, generated per policy: the
+  centre of the run's per-episode draw (`gait_freq_range`, U(1.25, 1.75) unless
+  the run set `--gait-freq`, so 1.5 Hz). With `kSpeedClock` the rate is scaled by
   clip(sqrt(v / 0.35 m/s), 0.7, 1.25), v the commanded planar speed; with
   `kClockStandFreeze` the phase holds at a plain stand (|vx|, |vy|, |wz| ≤
   0.05 and |lift| < 0.5). Both flags come from the run, as in training.
@@ -326,6 +329,65 @@ stages, both in `components/obs`, so the SIL library runs them too:
 - `shape [hz]` sets the pole live; `shape 0` writes raw targets at unlimited
   speed. The SIL equivalent is `sil_set_shaper()`.
 
+### 5.3a Motion limiter
+
+The shaper smooths the policy's 50 Hz staircase but does not bound it: a large
+target step still comes out as a fast shaped move, and the fast STS3215s
+(~240–275 deg/s at full duty) then stop dead at the goal. The reaction torque
+of such a stop can spin the robot on its stance foot.
+**`obs::MotionLimiter`** (`obs/actuation.h`) bounds what goes to the servo.
+It is the last stage before the angle → tick map, after the shaper and the
+takeover ramp. Each tick, per policy joint, with state position `p` and
+velocity `v`:
+
+```
+e  = target - p
+vb = min(vmax, limitBrakeSpeed(|e|, amax, dt))     braking look-ahead
+v += clamp(sign(e) * vb - v, -amax dt, +amax dt)
+p += v dt
+```
+
+- **Braking look-ahead.** `limitBrakeSpeed` is the exact discrete-time
+  stopping curve: the largest speed from which braking by `amax·dt` per tick
+  stops exactly on the target. With `u = amax·dt²` and `m = dist/u`, take
+  `k = ⌊(√(1+8m) − 1)/2⌋` whole braking ticks; then
+  `v = amax·dt·(k + (m − k(k+1)/2)/(k+1))`. The curve is piecewise linear
+  between the triangular numbers and tends to `√(2·amax·dist)`. A joint
+  whose target holds still arrives on it with zero velocity and never
+  passes it, and the stop takes the trapezoid's own time, rounded to the
+  tick. The joint can overshoot only when the target moves back toward it
+  faster than `amax` allows, and then by at most the `v²/(2·amax)` that the
+  bound costs.
+- **Jerk** (optional, `jmax`). The output is a boxcar (moving average) of
+  the newest `taps = ⌈2·amax/(jmax·dt)⌉` ticks of `(p, v)`, at most 16. The
+  output is a convex mix of limited positions, so it keeps the vmax and
+  amax bounds and still never overshoots. Its jerk is at most
+  `2·amax/(taps·dt) ≤ jmax`, and it delays the trajectory by
+  `(taps − 1)/2` ticks.
+- **Goal speed.** While the limiter is on, every policy joint's goal speed
+  is the limited velocity × 1.25, floor 50, cap 3400 steps/s
+  (`obs::limitGoalSpeedSteps`). The servo therefore slews along the limited
+  profile and reaches each goal just before the next one. It no longer chases
+  the measured gap at whatever speed that gap asks for. Held servos keep the
+  gap law. Unlike the gap law, this speed does not grow under a
+  disturbance. Whether that softens a pushed joint depends on how the servo
+  applies register 46, which is a bench question.
+- **Seeding.** The limiter is seeded from **measured** q at rest. It is
+  invalidated wherever the shaper is: on a bus handover, a torque release,
+  or an operator stop. The state is float, and the only transcendental is
+  `sqrtf`.
+- **Live.** `limit [off|on|<vmax> [<amax> [<jmax>]]]` takes deg/s, deg/s² and
+  deg/s³, and is read every tick from three atomics (`shared.h`
+  `g_limit_*`). vmax is written last, so a tick never sees an enable with
+  half a config. Changing the limits keeps the state. The limiter is **off
+  at boot**. `limit on` sets the proposed 200 deg/s and 2000 deg/s² with no
+  jerk limit (`kLimit*`). A policy has to be trained with the limiter in its
+  loop (`--fw-limit`, [training.md](training.md)) before it is deployed with
+  the limiter on.
+- The SIL equivalents are `sil_set_limiter()`, and `sil_limit_trace()` for
+  the pure law. `tests/test_fw_limit.py` pins the training env, the referee
+  and `sim/fw_limit.py` to the compiled code through `sil_limit_trace()`.
+
 ### 5.4 Calibration in NVS
 
 - **Two mechanisms, not interchangeable.** `middle <id>` writes the servo's
@@ -377,8 +439,8 @@ stages, both in `components/obs`, so the SIL library runs them too:
   between CLI lines, so a wireless arm never lands inside a bench-mode bus
   command. The latch outlives the watchdog, so it sees the 1 → 0 edge that
   ends a run.
-- **Every arm starts clean**: a fresh watchdog, history ring, shaper, fall
-  latch and takeover ramp.
+- **Every arm starts clean**: a fresh watchdog, history ring, shaper,
+  motion limiter, fall latch and takeover ramp.
 - **Takeover ramp** (issue #29). For the first 1000 ms of acting ticks after
   an arm, the written targets blend from the pose measured at takeover to the
   policy's shaped targets. Without it the first acting tick snaps the joints
@@ -441,8 +503,8 @@ tick writes every fitted servo's goal to the position it reported this tick
 release, so the robot ends the run stiff where it was, not sagging.
 
 The **mechanical envelope** (`main/mech_envelope.h`) is the per-bus-joint
-measured or CAD-verified travel; the leg rows are the prototype's, and the
-robot's legs need their own ([servo-map.md](servo-map.md) §3.3). Only the CLI's bench moves (`move`, `pose`,
+measured or CAD-verified travel; the leg rows are the v6 legs plant's policy
+range ([servo-map.md](servo-map.md) §3.3). Only the CLI's bench moves (`move`, `pose`,
 `home`) clamp to it; the act path clamps to the policy range from
 `obs_spec.h`. It pairs with [servo-map.md](servo-map.md). The CLI also
 refuses a goal write to a servo whose torque is off (`torqueGate`), because
@@ -605,8 +667,8 @@ value is the bench measurement (#73), so the check is on the pattern.
 
 ### 5.8 Bus joints and policy joints
 
-The robot carries 17 servos; the policy it runs may drive fewer (the
-prototype's 10 today, a 17-joint one after #86). So the firmware keeps two
+The robot carries 17 servos; the policy it runs may drive fewer (the v6 legs'
+12 today, a 17-joint one after #86). So the firmware keeps two
 joint sets and never confuses them:
 
 | | bus joints | policy joints |
@@ -625,16 +687,16 @@ servo the policy does not drive:
   `kHeldTarget`, generated from the run's `held_joints`) -- is driven from
   its takeover position to that trained target along the takeover ramp, then
   held there (clamped to the mechanical envelope);
-- any other fitted servo (the robot's ankle rolls, neck and arms under the
-  prototype's 10-joint policy) stays at its measured takeover position.
+- any other fitted servo (the neck and arms under a legs-only policy that does
+  not hold them) stays at its measured takeover position.
 
 A held servo that has not answered since the arm is left off the frame
 rather than sent a guess. The SIL library mirrors the hold without the ramp
 (its non-policy slots hold the trained target, or what they sensed on the
 first tick after a reset).
 
-`pose` takes either 17 targets in servo-ID order or 10 in policy order (the
-prototype's bench tools send that form; the other servos are left alone);
+`pose` takes either 17 targets in servo-ID order or the policy's joints in
+policy order (the other servos are left alone);
 targets for servos that are not fitted are ignored.
 
 ## 6. Fitting the network
@@ -843,8 +905,8 @@ joint all look the same from outside. `obsdump` measures them.
   slope at 0.69: a scale question, not a unit error. The sim uses true
   `qvel`; decide in sys-ID and match the sim's randomisation to whichever
   ships.
-- **Gait base frequency.** Fixed at 1.5 Hz, speed-scaled (§5.1). A commanded
-  frequency is not on the wire.
+- **Gait base frequency.** Fixed per policy (`kGaitFreqHz`), speed-scaled
+  (§5.1). A commanded frequency is not on the wire.
 - **Pack sense.** `battguard` reads register 62 (0.1 V, and only while a
   servo answers). The INA219 sees the pack even with the bus released;
   switching to it is not done.
@@ -859,15 +921,12 @@ joint all look the same from outside. `obsdump` measures them.
     as proposed;
   - a 17-servo `pose` and `home` on the bench, and the 17-servo SYNC READ
     time from `stat`;
-  - the robot's leg rows in the mechanical envelope, and every direction
-    sign, measured on the robot (the leg rows are the prototype's);
+  - every direction sign, measured on the robot;
   - a policy trained on the robot's plant (#86). `tools/gen_obs_spec.py`
     already handles one (the 12 leg joints as the policy, the held neck and
     arms with their targets, the per-servo stiffness; the SIL suite runs it
     on a robot config), and the firmware already holds the held servos.
-    What deploying one still changes, each enforced at compile time: the
-    SIL ABI's `action`/`obs` widths (10/147 today), and the leg rows of the
-    mechanical envelope, which must contain the robot's policy ranges (knee
-    −130°, hip pitch −120°);
+    What deploying a 17-joint one still changes, enforced at compile time:
+    the SIL ABI's `action`/`obs` widths (12/165 today);
   - the Plan B gain values (#73) in `main/servo_gains.h`;
   - the bench tools in `tools/` that hard-code the prototype's calibration.

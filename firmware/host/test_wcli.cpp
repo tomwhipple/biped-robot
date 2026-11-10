@@ -762,6 +762,13 @@ void testPolicy() {
         {"sweep", false, Verdict::kRefuseTether},
         {"sweep 20 1 2", false, Verdict::kRefuseTether},
         {"stepresp 7 40", false, Verdict::kRefuseTether},
+        // servo RAM tools (#195): the servocfg read only (#193)
+        {"servocfg", false, Verdict::kAllow},
+        {"servocfg fast", false, Verdict::kRefuseTether},
+        {"servocfg factory", false, Verdict::kRefuseTether},
+        {"regw", false, Verdict::kRefuseTether},
+        {"regw 2 85 0", false, Verdict::kRefuseTether},
+        {"servocfg", true, Verdict::kRefuseArmed},
         // default deny
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},
@@ -778,6 +785,16 @@ void testPolicy() {
         {"release", true, Verdict::kRefuseArmed},
         {"rec on", true, Verdict::kRefuseArmed},
         {"shape 3", true, Verdict::kRefuseArmed},
+        {"limit 200 2000", true, Verdict::kRefuseArmed},
+        {"limit off", false, Verdict::kAllow},
+        // 2026-11-06: battery runs, no tether -- the next run's controller settings over Wi-Fi
+        {"standclock coast 1.5708", false, Verdict::kAllow},
+        {"standclock", false, Verdict::kAllow},
+        {"heading", false, Verdict::kAllow},
+        {"heading off", false, Verdict::kAllow},
+        {"heading k 1.5", false, Verdict::kAllow},
+        {"standclock run", true, Verdict::kRefuseArmed},
+        {"heading off", true, Verdict::kRefuseArmed},
         {"id 1 2", true, Verdict::kRefuseArmed},
         // bytes the tether's line discipline would never deliver
         {"ping\x01", false, Verdict::kRefuseBadLine},

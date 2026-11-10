@@ -103,8 +103,8 @@ EXTRA=("$@")
 distill "$IMPL" "$BUDGET"
 if [[ ! -s $RUNS/$STUDENT/params.pkl && $IMPL == warp ]]; then
   # the Warp path is only ever exercised on the night GPU; if it dies before
-  # its first round, the jax impl on the same GPU is what every v5 student
-  # distilled on -- slower contacts, same plant
+  # its first round, the jax impl on the same GPU is the older path
+  # -- slower contacts, same plant
   BUDGET=$((BUDGET - $(date +%s) + T0))
   if (( BUDGET >= 600 )); then
     say "!!! Warp distill exited $RC before its first round; retrying on the jax impl (budget ${BUDGET}s)"

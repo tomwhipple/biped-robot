@@ -63,14 +63,20 @@ typedef struct {
 
 int  sil_init(const char* weights_path,   // .silw; NULL/"" = the compiled-in weights
               const char* cal_path,       // JSON; NULL/"" = nominal (2048, +1)
-              float gait_freq_hz);        // <= 0 = the firmware's 1.5 Hz; 0 on success
+              float gait_freq_hz);        // <= 0 = the compiled kGaitFreqHz; 0 on success
 void sil_reset(void);                     // history refill + clock zero, like an arm
 int  sil_tick(const SilSensors* in, SilTargets* out);
 const char* sil_spec(void);               // JSON: dims, offsets, kServoId, the bus map,
-                                          //   layout hash, loaded weights, "sil_abi": 3
+                                          //   layout hash, loaded weights, "sil_abi": 4
 const char* sil_last_error(void);         // text of the last failure, never NULL
 void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw targets;
                                           //   sil_init resets it to the firmware default
+void sil_set_limiter(float vmax_deg_s,    // mirror of the CLI `limit` (deg units);
+                     float amax_deg_s2,   //   vmax 0 = off, the boot state sil_init
+                     float jmax_deg_s3);  //   restores; 0 jmax = no jerk limit
+int  sil_limit_trace(float vmax, float amax, float jmax, int n,   // pure: a fresh limiter
+                     const float* q0, const float* targets,       //   from q0 at rest over n
+                     float* out_pos, float* out_vel);             //   ticks; returns its taps
 ```
 
 - **The arrays are the robot's bus**: 17 slots, one per servo
@@ -96,7 +102,12 @@ void sil_set_shaper(float pole_hz);       // mirror of the CLI `shape`; 0 = raw 
   sizes its ctypes structs from the same `obs_spec.h` (`$BIMO_POLICY` selects
   a profile's) and refuses a library whose widths differ, so a dimension
   change can never silently reinterpret bytes.
-- `sil_abi` 3 is the current ABI: the 17-slot bus arrays. `sil_abi` 2 added
+- `sil_abi` 4 is the current ABI. It added `sil_set_limiter()` and
+  `sil_limit_trace()`, which mirror the firmware's motion limiter
+  ([firmware-design.md](firmware-design.md) §5.3a). The limiter runs after
+  the shaper; while it is on, each policy slot's goal speed is the limited
+  velocity. `sil_spec()` reports the config under `"limiter"`. `sil_abi` 3
+  brought the 17-slot bus arrays, and `sil_abi` 2 added
   goal speeds in `SilTargets` and `sil_set_shaper()`, mirroring the
   firmware's command shaper ([firmware-design.md](firmware-design.md) §5.3).
   The harness resolves array order with the shaper off (the raw map is the
@@ -222,11 +233,12 @@ Numbered because code cites them.
    deviation *d* into *d*·10⁶ at the first layer. The crouch channel
    (`cmd[3]`) is fed by the pack guard's landing ramp on the robot, so
    training varies it (the crouch-command variation in `walker_env` and
-   `env_mjx`). In the deployed run, `loco_v41rsi_b_s128r24`, the frozen
-   channels are `linvel` (3), `height` and `cmd[5]` (`foot_dx`). The first
-   four are hard zeros on the robot. `foot_dx` is not: a console that sends
-   an extended frame with `foot_dx` ≠ 0 (clamped to ±0.05 m) puts it ~5·10⁴ σ
-   out, so for this policy it must stay at 0. The exporter warns about frozen
+   `env_mjx`) when a recipe trains it. In the deployed run,
+   `robot_legs_walk16_act_s128r24`, which trains only the planar command, the
+   frozen channels are `linvel` (3), `height` and `cmd[3:7]` (crouch, lift,
+   `foot_dx`, `foot_dz`). The first four are hard zeros on the robot. The
+   command channels are not: a console or guard that fed one of them anything
+   but its trained value would put it ~10⁴ σ out. The exporter warns about frozen
    channels and `test_normalizer_frozen_channels_are_known` pins the set for
    the deployed run.
    Since the v6 legs deployment the firmware enforces this itself:
@@ -248,6 +260,41 @@ Numbered because code cites them.
    soft, so a joint leaning on its stop sits past it, and the sensor path
    (`angle_to_steps(..., clamp_joint_range=False)`) must pass that through.
 
+## The twin behind the link
+
+`sim/sil_twin.py` puts `libctrl_sil` and the CPU plant behind the real UDP
+link ([control-channel.md](control-channel.md), "Simulated robots behind the
+link"), so a console drives the control law the robot runs. Around the
+library it composes, in Python, what `ctrl_task.cpp` does outside the
+control law: the link's `protocol.Supervisor` (arm latch, watchdog,
+bench/run mode) and the armed loop's fall guard.
+
+- **The fall guard is the robot's.** `sil_twin.FallGuard` is
+  `fallguard::Detector`'s fall half under `Motion::kPolicy`, with
+  `kPolicyLimits` read out of `fallguard.h`: `up_z` below cos 45 deg
+  continuously for 200 ms. It reads the obs frame's up vector and gyro, the
+  attitude the firmware stack is fed, once per armed tick in sim time; a
+  non-finite sample breaks the run and decides nothing.
+- **A trip ends the run on that tick**, as on the robot: torque off,
+  benched, `DISARMED_FALL` recorded (`Supervisor.fell`). The beacon says
+  `BENCH` with that reason in the diagnostic byte, which is how the robot's
+  beacon reports a fall. The commander's held `ARM` level re-arms nothing; a
+  fresh `ARM` edge does, and clears the latch, so a plant still lying down
+  trips again 200 ms later.
+- **No pick-up home.** The bench guard's recovery (upright and still for
+  2 s, then a slow home) waits for someone to lift the robot; nobody lifts
+  the plant. Stdin `reset` re-rolls the episode standing.
+- **A home ends released.** A reset-servos request (`FLAG_HOME`) benches
+  the loop and releases torque, as the robot's `home` does after its
+  readback; the twin has no bench half to slew the joints to the stand
+  first, so the plant goes limp where it is.
+- With `--hang` the torso is welded upright and the guard never trips.
+
+`test_sil_twin.py` pins the limits against the header, the debounce, the
+composition with the `Supervisor`, and, on the deployed run's plant, that a
+toppled torso trips the guard through the obs frame exactly one debounce
+after it first reads past the line.
+
 ## Non-goals
 
 UART framing and CRC in the loop (`linkproto` has its own golden tests);
@@ -257,7 +304,7 @@ env is the deployment referee by project convention).
 ## One run: the deployed one
 
 The suite, the goldens and the compiled headers are **one run**, the
-deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
+deployed one (`robot_legs_walk16_act_s128r24` on `bimo_biped_v6legs.xml`):
 
 - The harness does not keep its own default. `harness.DEFAULT_RUN` is
   `obs::kRunName`, read out of the generated `obs_spec.h`, so
@@ -275,9 +322,10 @@ deployed one (`loco_v41rsi_b_s128r24` on `bimo_biped_v5body.xml`):
   local artifact.
 
 `pytest sim/sil` is a hard gate in the pre-push hook, after the host build
-that produces the library. On the deployed run it is 35 passed in ~15 s,
-closed loop included (python vs SIL: `stand_10s` 8/8 vs 8/8, `line_1m` 1/8 vs
-1/8, `goal_home` 0/8 vs 0/8); on a clean clone, 16 passed and 19 skipped.
+that produces the library. On the deployed run it is 51 passed and 2
+skipped in ~45 s on mira, closed loop included (python vs SIL: `stand_10s`
+8/8 vs 8/8, `line_1m` 1/8 vs 1/8, `goal_home` 0/8 vs 0/8); on a clean clone,
+29 passed and 24 skipped.
 
 Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
 command is set: with the deployed spec's speed clock and stand freeze, the

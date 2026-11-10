@@ -1,6 +1,6 @@
 """Scenario evals for command-conditioned policies (command_mode runs).
 
-Run:  .venv/bin/python sim/eval_commands.py --run-name cmd_11v1 [--episodes 8]
+Run:  .venv/bin/python sim/eval_commands.py --run-name <run> [--episodes 8]
           [--payload 0.154] [--latency-ms 4] [--render]
 
 Scenarios (each an episode with scripted set_command sequences):

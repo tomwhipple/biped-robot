@@ -51,7 +51,8 @@ def cfg():
 
 @pytest.fixture(scope="session")
 def xml(cfg):
-    x = cfg.get("xml_path") or "bimo_biped_v3yaw.xml"
+    x = cfg.get("xml_path")
+    assert x, f"sim/runs/{RUN}/config.json has no xml_path"
     if not os.path.isabs(x) and not os.path.exists(x):
         x = os.path.join(SIM, os.path.basename(x))
     return x
@@ -120,12 +121,13 @@ def py_act(nominal_env, eval_mod):
 #  export + goldens  (feeds pyramid item 1 on the C side)
 # =====================================================================
 def test_obs_spec_parsed():
-    assert H.SPEC.num_joints == 10
-    assert H.SPEC.act_dim == 10
+    assert H.SPEC.num_joints == 12
+    assert H.SPEC.act_dim == 12
     assert H.SPEC.obs_dim == H.SPEC.frame_dim * H.SPEC.hist_len
     # The v6 legs as assembled (2026-10-23, tools/gen_obs_spec.py ID_BY_ROLE):
-    # left leg 9 / 51 / 2 / 3 / 4, right leg 10 / 52 / 6 / 7 / 8.
-    assert tuple(H.SPEC.servo_id) == (9, 51, 2, 3, 4, 10, 52, 6, 7, 8)
+    # left leg 9 / 51 / 2 / 3 / 4 / 12, right leg 10 / 52 / 6 / 7 / 8 / 11.
+    assert tuple(H.SPEC.servo_id) == (9, 51, 2, 3, 4, 12,
+                                      10, 52, 6, 7, 8, 11)
 
 
 def _weights_h_source_sha():
@@ -292,11 +294,12 @@ def test_normalizer_frozen_channels_are_known(silw):
     one of these a "harmless" different value has to be re-checked
     (docs/sil-harness.md finding 2).
 
-    The deployed run trains the crouch channel (cmd[3]), which the pack
-    guard's landing ramp feeds on the robot. Frozen: linvel and height (hard
-    zeros on the robot, harmless) and cmd[5] = foot_dx -- the live hazard: a
-    console that sends an extended frame with foot_dx != 0 puts it ~1e4 sigma
-    out, so for this policy it must stay at 0."""
+    The deployed walk policy trains only the planar command (cmd[0:3] = vx,
+    vy, wz). Frozen: linvel and height (hard zeros on the robot, harmless)
+    and the extended channels cmd[3:7] = crouch, lift, foot_dx, foot_dz,
+    which the firmware pins to their trained values (crouch 1, the rest 0;
+    policy/mlp.h pinFrozen). A console or guard that fed one of them anything
+    else would put it ~1e4 sigma out -- the hazard the pin exists for."""
     if RUN != H.DEPLOYED_RUN:
         pytest.skip(f"the pinned set is the deployed run's; SIL_RUN={RUN}")
     frozen = np.where(silw["std"] <= 1e-5)[0]
@@ -304,15 +307,17 @@ def test_normalizer_frozen_channels_are_known(silw):
     slots = sorted(set(int(i) % fd for i in frozen))
     off = H.SPEC.off
     expect = ([off["linvel"] + i for i in range(3)] + [off["height"]]
-              + [off["cmd"] + 5])
+              + [off["cmd"] + i for i in range(3, 7)])
     assert slots == sorted(expect), (
         f"frozen obs slots changed: {slots} (expected {sorted(expect)})")
     # they repeat identically in every history frame
     assert len(frozen) == len(slots) * H.SPEC.hist_len
+    for i in range(3):
+        assert silw["std"][off["cmd"] + i] > 1e-3, f"cmd[{i}] must be trained"
+    np.testing.assert_array_equal(silw["mean"][off["cmd"] + 3:off["cmd"] + 7],
+                                  [1.0, 0.0, 0.0, 0.0])
     crouch = off["cmd"] + 3
-    assert silw["std"][crouch] > 1e-3, "crouch must be a trained channel"
-    foot_dx = off["cmd"] + 5
-    amplified = abs(0.05 - silw["mean"][foot_dx]) / silw["std"][foot_dx]
+    amplified = abs(0.9 - silw["mean"][crouch]) / silw["std"][crouch]
     assert amplified > 1e4, amplified          # the hazard, made explicit
 
 
@@ -580,6 +585,37 @@ def test_lib_shaper_streams_speed(lib):
     assert np.all(np.asarray(out.goal_speed, dtype=np.int64) == 0)
 
 
+def test_lib_limiter_streams_its_velocity(lib):
+    """sil_abi 4: with the motion limiter on, the goals are obs::MotionLimiter's (its numpy
+    copy, sim/fw_limit.py, seeded at the sensed q at rest) and every policy slot's goal speed
+    is the limited velocity x 1.25 -- not the measured-gap law. Off at boot."""
+    if not lib.has_limiter:
+        pytest.skip("pre-abi-4 library: no sil_set_limiter")
+    import fw_limit as FL
+    assert lib.limiter_spec() and not lib.limiter_spec()["on"], "the limiter boots OFF"
+    n = H.SPEC.num_joints
+    # q = 0 senses exactly zero_steps, so the limiter's seed is exactly 0 rad
+    sensors = lib.make_sensors(np.zeros(n), np.zeros(n), np.array([0.0, 0.0, 1.0]),
+                               np.zeros(3), np.array([0.0, 0, 0, 1, 0, 0, 0]))
+    lib.set_shaper(0.0)
+    lib.set_limiter(150.0, 1500.0, 0.0)
+    lib.reset()
+    assert lib.limiter_spec()["on"]
+    ref = FL.MotionLimiter((150.0, 1500.0, 0.0))
+    ref.reset(np.zeros(n))
+    moved = 0
+    for t in range(10):
+        out = lib.tick_raw(sensors)
+        p, v = ref(H.action_to_angles(np.asarray(out.action, np.float64)))
+        got_ticks = H.from_bus(np.asarray(out.goal_ticks, np.int64), lib.out_order)
+        got_spd = H.from_bus(np.asarray(out.goal_speed, np.int64), lib.out_order)
+        want = H.angle_to_steps(p, lib.cal)
+        assert np.abs(got_ticks - want).max() <= 1, (t, got_ticks, want)
+        assert np.abs(got_spd - FL.goal_speed_steps(v)).max() <= 1, (t, got_spd, v)
+        moved = max(moved, int(np.abs(want - lib.cal.zero_steps).max()))
+    assert moved > 5      # the policy asked for motion and the limiter shaped it
+
+
 def test_lib_obs_matches_python(lib, nominal_env, py_act):
     """Per-tick obs/action divergence (docs/sil-harness.md item 3): with the
     gait clocks aligned, the only difference between the firmware's assembled
@@ -717,7 +753,25 @@ def test_lib_survives_perturbed_calibration(cal_files, nominal_env):
 # =====================================================================
 #  library-dependent: closed loop (pyramid item 3)
 # =====================================================================
-CLOSED_LOOP = ["stand_10s", "line_1m", "goal_home"]
+CLOSED_LOOP = ["stand_10s", "stand_off"]
+
+
+def _clock_aligned(env, freq_hz):
+    """env with its gait clock started the firmware's way on every reset.
+
+    The referee starts walker_env's clock at a random phase; the firmware's
+    starts at a fixed one on every sil_reset. Where a policy's outcome depends
+    on the start phase, that alone separates the two arms by several seeds
+    (the deployed run's stand_10s: python 27/32 at a random phase, 29/32 at
+    the firmware's), so the python arm is given the firmware's start."""
+    reset = env.reset
+
+    def aligned_reset(*a, **k):
+        out = reset(*a, **k)
+        H.pin_gait_clock(env, freq_hz)
+        return out
+    env.reset = aligned_reset
+    return env
 
 
 @pytest.mark.slow
@@ -725,31 +779,40 @@ CLOSED_LOOP = ["stand_10s", "line_1m", "goal_home"]
 def test_closed_loop_matches_python_referee(scenario, lib, cfg, xml, eval_mod,
                                             py_act):
     """PYRAMID ITEM 3: the SIL stack scored by the same referee, same seeds,
-    same plant.  Pass rates must agree within one seed."""
+    same plant.  Pass rates must agree within one seed.
+
+    The scenarios are the ones the deployed run passes on its scorecard (its
+    walk scenarios score 0/8 in both arms, which would test nothing). The
+    SIL arm runs with target shaping off, the same control law as the python
+    arm: shaping is a deliberate difference, and on this run a helpful one
+    (32 seeds, stand_10s: python 28, SIL raw 29, SIL shaped 32; stand_off:
+    27 / 28 / 31) -- the shaped wire image has its own tests."""
     reg = eval_mod._registry()
     secs, factory, _ = reg[scenario]
     env = eval_mod.make_env(cfg, secs, False, xml,
                             extra=eval_mod.ENV_EXTRA.get(scenario))
     mass = float(np.sum(env.model.body_mass))
     nominal_h = env._nominal_h
+    py_env = _clock_aligned(eval_mod.make_env(
+        cfg, secs, False, xml, extra=eval_mod.ENV_EXTRA.get(scenario)),
+        lib.gait_hz)
 
+    lib.set_shaper(0.0)
     sil = H.SilActAdapter(lib, env, log=False)
     py_pass, sil_pass = 0, 0
     for seed in SEEDS:
-        r = eval_mod.run_one(env, py_act, factory, seed, False, nominal_h, mass)
+        r = eval_mod.run_one(py_env, py_act, factory, seed, False, nominal_h,
+                             mass)
         py_pass += bool(r["success"])
         r = eval_mod.run_one(env, sil, factory, seed, False, nominal_h, mass)
         sil_pass += bool(r["success"])
     print(f"{scenario}: python {py_pass}/{len(SEEDS)}  "
           f"SIL {sil_pass}/{len(SEEDS)}")
-    # budget: 1 seed for short scenarios; 2 for goal_home, whose 24 s of
-    # closed-loop P-homing compounds the half-tick obs difference and the
-    # free-running SIL gait clock into either-direction seed flips (v8foot
-    # 7 vs 5, v9rough 3 vs 5 -- opposite signs, so not a stack bias; the
-    # per-tick net_err stays 6.6e-7). A SYSTEMATIC gap shows up as a
-    # one-direction miss across scenarios, which item-2 boundary tests and
-    # the referee's paired scorecards would surface.
-    budget = 2 if scenario == "goal_home" else 1
+    # budget: one seed. The per-tick net_err stays below 1e-6, so a seed
+    # flip is the tick quantiser compounding over a marginal episode. A SYSTEMATIC gap shows up as a one-direction miss
+    # across scenarios, which item-2 boundary tests and the referee's paired
+    # scorecards would surface.
+    budget = 1
     assert abs(py_pass - sil_pass) <= budget, (
         f"{scenario}: python {py_pass}/{len(SEEDS)} vs SIL "
         f"{sil_pass}/{len(SEEDS)} -- exceeds the {budget}-seed budget")

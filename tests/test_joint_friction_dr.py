@@ -21,12 +21,14 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import jax  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v5body.xml")
+import robot_plant  # noqa: E402
+
+ROBOT = robot_plant.robot_env_kwargs("bimo_biped_v6legs.xml")
 
 
 def _batched(**kw):
     from env_mjx import BimoMJXEnv, domain_randomize
-    e = BimoMJXEnv(xml_path=XML, ext_cmd=True, domain_rand=True,
+    e = BimoMJXEnv(**ROBOT, ext_cmd=True, domain_rand=True,
                    joint_frictionloss=0.35, **kw)
     m, axes = domain_randomize(
         e.model, jax.random.split(jax.random.PRNGKey(0), 64),

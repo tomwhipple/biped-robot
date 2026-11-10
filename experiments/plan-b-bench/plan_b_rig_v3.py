@@ -39,8 +39,8 @@ from build123d import Cylinder, Pos, Rot, export_step  # noqa: E402
 
 from paths import build_dir  # noqa: E402
 
-import dimensions as D  # noqa: E402
-import parts as PT  # noqa: E402
+from common import dimensions as D  # noqa: E402
+from common import shapes as PT  # noqa: E402
 import plan_b_rig as R  # noqa: E402  (the world frame, servo_frame, box, vol)
 
 # ------------------------------------------------- servo frame (leg_link's)
@@ -216,10 +216,6 @@ def main():
         print(f"  {'ok ' if good else 'BAD'} {name}: {v:.3f} mm3")
 
     print("fit checks (mm3 of overlap; the servo is the repo's conservative mock):")
-    region = PT.box(WEB_X0, GRIP_X1, IDLER_OUT, D.SV_TOPFACE + T, D.GRIP_BOT, D.GRIP_TOP_HORN)
-    ref, ours = PT.leg_link() & region, (servo_grip() - idler_access()) & region
-    check("grip vs parts.leg_link over the grip region (symmetric difference)",
-          ref.volume + ours.volume - 2 * (ref & ours).volume)
     check("bracket vs servo", R.vol(br, sv))
     check("bracket vs table", R.vol(br, tb))
     check("grip BEARS on the idler case face (servo 0.2 toward it)",

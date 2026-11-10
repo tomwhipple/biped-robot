@@ -38,11 +38,18 @@ std::atomic<uint32_t> g_link_home_edges{0};
 std::atomic<uint32_t> g_armed_falls{0};
 std::atomic<float> g_armed_fall_tilt_deg{0.0f};
 std::atomic<uint32_t> g_armed_holds{0};
+std::atomic<uint32_t> g_flail_walk_recovers{0};
+std::atomic<uint8_t> g_flail_walk_trip{0};
+std::atomic<float> g_flail_walk_value{0.0f};
 std::atomic<uint8_t> g_armed_hold_trip{0};
 std::atomic<float> g_armed_hold_value{0.0f};
 std::atomic<int> g_armed_hold_joint{-1};
 std::atomic<bool> g_armed_hold_torque{false};
 std::atomic<bool> g_flail_on{true};
+std::atomic<bool> g_heading_on{true};
+std::atomic<float> g_heading_k{1.0f};
+std::atomic<float> g_heading_err{0.0f};
+std::atomic<float> g_heading_corr{0.0f};
 std::atomic<uint32_t> g_op_stops{0};
 std::atomic<uint32_t> g_op_estops{0};
 
@@ -56,6 +63,11 @@ std::atomic<bool> g_link_arm_level{false};
 std::atomic<uint8_t> g_arm_result{
     static_cast<uint8_t>(linkproto::ArmResult::kNone)};
 std::atomic<float> g_shape_hz{obs::kShaperPoleHz};
+// Limiter off at boot (vmax 0); amax / jmax hold the proposed values so a
+// bare `limit <vmax>` has a sane rest of the config.
+std::atomic<float> g_limit_vmax{0.0f};
+std::atomic<float> g_limit_amax{obs::kLimitAmaxDeg};
+std::atomic<float> g_limit_jmax{obs::kLimitJmaxDeg};
 std::atomic<uint8_t> g_stand_clock{static_cast<uint8_t>(obs::StandClock::kRun)};
 // The kCoast target. pi/2, measured on the robot 2026-11-02 (walk16_act, fast servos):
 // pi/2 draws 0.88-1.11 W, pi 1.49-1.65 W (the sim's ranking does not hold); see

@@ -1,11 +1,8 @@
-"""Printability audit for the torso parts, reusing cad/check_printability.py
-verbatim (same thresholds, same algorithm) against cad/v6/stl/ instead of
-cad/stl/. check_printability.py is written around ONE STL directory
-(module-level `STL`) and ONE `ORIENT` table keyed by part name; this module
-monkey-patches both at runtime rather than forking the file, so the v6 parts
-are audited by the exact same code path as every v5 part.
+"""Printability audit for the torso parts on cad/common/check_printability.py
+(its thresholds and algorithm) against cad/v6/stl/: this module registers the
+parts' ORIENT entries and audits each.
 
-    .venv/bin/python cad/v6/audit_torso.py                # pelvis_v8, torso_v8, the covers, yaw_bearing_housing, head parts
+    .venv/bin/python cad/v6/audit_torso.py                # pelvis_v8, torso_v8, the covers, the BMS bracket, yaw_bearing_housing, head parts
     .venv/bin/python cad/v6/audit_torso.py torso_v8
 """
 import os
@@ -16,7 +13,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 
 import numpy as np  # noqa: E402
-import check_printability as CP  # noqa: E402
+from common import check_printability as CP  # noqa: E402
 
 CP.STL = os.path.join(HERE, "stl")
 # the torso prints with slicer support in its wide windows and its battery
@@ -32,6 +29,9 @@ CP.ORIENT.update({
     "torso_v8": (RX180, "upside down: deck top on bed"),
     "front_cover_v8": (np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float), "outer face on bed"),
     "power_cover_v8": (np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float), "outer face on bed"),
+    "power_bracket_v8": (np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0]], float), "standoff face on bed"),
+    "balance_park_v8": (IDENT, "floor on bed, the cup's walls rising"),
+    "switch_pod_v8": (np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]], float), "aft face on bed"),
     "battery_door_v8": (np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]], float), "outer face on bed"),
     "yaw_bearing_housing": (RX180, "upside down: the face against the pelvis on bed"),
     "head": (IDENT, "base down: neck-horn plate on bed"),
@@ -42,7 +42,8 @@ CP.ORIENT.update({
 
 
 def run(names=None):
-    names = names or ["pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "battery_door_v8",
+    names = names or ["pelvis_v8", "torso_v8", "front_cover_v8", "power_cover_v8", "switch_pod_v8", "power_bracket_v8", "balance_park_v8",
+                       "battery_door_v8",
                        "yaw_bearing_housing",
                        "head", "head_shell", "head_face"]
     bad = {}

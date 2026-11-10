@@ -3,7 +3,7 @@
 //
 // The observation layout the deployed policy was trained against. Any
 // retrain that changes joint count, command width or history depth
-// regenerates this file; nothing downstream hardcodes 10 or 49.
+// regenerates this file; nothing downstream hardcodes the widths.
 #pragma once
 #ifndef BIMO_POLICY_PROFILE_V6LEGS256
 #error "this obs_spec.h is policy profile v6legs256 (firmware/policies/v6legs256): build with BIMO_POLICY=v6legs256 (make POLICY=v6legs256, idf.py -DBIMO_POLICY=v6legs256)"
@@ -21,6 +21,7 @@ inline constexpr const char* kPlantXml = "bimo_biped_v6legs.xml";
 inline constexpr const char* kActionMap = "full";
 inline constexpr bool kImuObs = true;   // linvel + height are zeroed
 inline constexpr bool kGaitClock = true;
+inline constexpr float kGaitFreqHz = 1.5f;   // base clock: the midpoint of the trained gait_freq_range (walker_env.deploy_gait_hz)
 inline constexpr bool kClockStandFreeze = false;   // hold phase at a plain stand (must match training; env_mjx.clock_stand_freeze)
 inline constexpr bool kSpeedClock = false;   // clock freq x clip(sqrt(v/kSpeedClockRef), lo, hi) under a velocity command (env_mjx.speed_clock)
 inline constexpr float kSpeedClockRef = 0.35f;   // m/s at which the scale is x1 (env_mjx.SPEED_CLOCK_REF)
@@ -49,9 +50,8 @@ inline constexpr int kOffCmd = 48;   // 7 wide
 
 // -- joints ------------------------------------------------------------
 // Index == the policy's action index == the sim's actuator order
-// (joint-tree / qpos-address order). kServoId maps it onto the bus IDs
-// from docs/wiring.md -- a real permutation on the 10-DOF plant, since
-// the yaw servos were appended as 9/10 after IDs 1-8 were assigned.
+// (joint-tree / qpos-address order). kServoId maps it onto the servo
+// bus IDs (obs/bus_map.h) -- a real permutation, not an identity.
 inline constexpr const char* kJointNames[kNumJoints] = {"L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "L_ankle_roll", "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "R_ankle_roll"};
 inline constexpr uint8_t kServoId[kNumJoints] = {9, 51, 2, 3, 4, 12, 10, 52, 6, 7, 8, 11};
 inline constexpr float kJointLo[kNumJoints] = {-0.785398163f, -0.523598776f, -2.0943951f, -2.26892803f, -0.698131701f, -0.436332313f, -0.785398163f, -0.785398163f, -2.0943951f, -2.26892803f, -0.698131701f, -0.436332313f};

@@ -18,7 +18,7 @@ not a version among others.
 | [shoulder-girdle.md](shoulder-girdle.md) | shoulders into the torso in the hip plane; assembly order; §11 the get-up re-run on the robot as drawn |
 | [arms.md](arms.md) | the arm parts in CAD, their ROM and open items |
 | [elbow-servo-upper-arm-2026-10-07.md](elbow-servo-upper-arm-2026-10-07.md) | the elbow servo's case moves from the forearm to the upper arm; both arm links take the leg link's open-U section with end walls; before/after on every gate |
-| [hip-yoke-single-print.md](hip-yoke-single-print.md) | the hip roll and pitch clevises as one print; hip-flexion relief to −120° |
+| [2026-11-02-hip-yoke-roll-failure.md](2026-11-02-hip-yoke-roll-failure.md) | the first glued hip yoke's roll horn arm broke on the robot: the fracture read, FEM of the yoke under the servos' stall torques and two leg forces in the print frame, the redesign (toe, fin, webs, idler plate), its swept-clearance checks and its costs |
 | [failure_sweep_2026-10-07.md](failure_sweep_2026-10-07.md) | failure modes of the kinematic walk on the robot plant: 434k random walks; roll play, lift height, actuation lag and swing time decide falls and lift |
 | [foot_outline_2026-10-07.md](foot_outline_2026-10-07.md) | the printed foot sat 12 mm outboard of the spec; at the spec the feet touch at 2.1° of mutual hip-roll adduction. Gate D margin vs adduction clearance at three sole placements (open, for Tom) |
 | [study-yaw-bearing.md](study-yaw-bearing.md) | hip-yaw bearing options A / C / E and their checks; A selected 2026-10-06 (#75) |
@@ -33,6 +33,9 @@ not a version among others.
 | [2026-10-24-compute-board-survey.md](2026-10-24-compute-board-survey.md) | Pi-form-factor boards against the Pi 4B: the Pi 5 is the only drop-in; the ROCK 5C V2.1 adds an NPU but not the IMX708 camera; keep the Pi 4B until the vision workload exists |
 | [2026-11-01-operator-console-ui.md](2026-11-01-operator-console-ui.md) | the proposed operator console that replaces `bimo_gui`: Qt tabs, a 3D pose view with commanded / sim / camera overlays, per-joint goal vs measured from the flight recorder, Bluetooth gamepad, pre-arm checks; mockups in `figs/console_ui_*.png` |
 | [2026-10-29-power-board-rev-b.md](2026-10-29-power-board-rev-b.md) | power board rev B: every board change the 2026-10-24 records asked for (F-1, F-2, F-5, F-7, F-9, audit F3/F4, layout W1, M1–M3, M8, C1, C3), ERC/DRC clean, and the whole campaign re-run on ngspice 47 and 42: truth 1152/1152, sweeps 113/113, the same 52 of 62 sequences, the 10 left on OTP settings, firmware and the tether; VC0's switch-on dip deepens to −0.89 V. Evidence: [cases](2026-10-29-power-board-rev-b-cases.txt) |
+| [2026-11-02-power-board-rev-b-quote.md](2026-11-02-power-board-rev-b-quote.md) | PCBWay's reviewed turnkey quote for rev B, before shipping: $218.54 for 2 boards and $299.13 for 3, 30–35 days; every MPN quoted as specified; the 2-board assembly at $29.00 against $88.00 is unexplained. Quoted BOMs: [2](2026-11-02-power-board-rev-b-quote-bom-2.csv), [3](2026-11-02-power-board-rev-b-quote-bom-3.csv) |
+| [2026-11-02-power-lite-options.md](2026-11-02-power-lite-options.md) | a cheaper power system after the rev B quote (Tom: over $300 and 30+ days for 2): off-the-shelf 3S BMS, manual switch, E-stop dropping a relay on the servo rail, a hand-soldered 2-layer through-hole board; about $128 for 2 robots (about $76 lean) against rev B's $218.54 before shipping; no 3S BMS with both a maker spec and a 12 A rating exists, so the pick needs a bench characterisation |
+| [2026-11-04-sole-friction.md](2026-11-04-sole-friction.md) | the sole friction measured on the robot (one foot clamped, the other at half weight): the foot slides at μ ≈ 0.45–0.55 and rotates under hip yaw with ≤ 0.10–0.15 N·m of grip; `sim/sole_friction.py` puts the legs plant at 0.34 N·m (2.3–3.4×), and the measured-sole plant `bimo_biped_v6legs_meas_sole.xml` (μ 0.5, no torsion, pad priority, flat pads) at 0.155 |
 
 Records here describe what was true on their date; where one disagrees with
 DESIGN.md, DESIGN.md is current. Evidence logs for options not taken (legs-only
@@ -53,7 +56,7 @@ leans on:
 | `gateCD_sweep*.txt`, `gateD_*.txt` | the open-loop walk across the adversity matrix |
 | `no3250_{walk,sweep,envelope,arms_walk,getup}.txt`, `no3250_{walk,arms_walk}_plant17.txt`, `no3250_*_elbow_upper.txt` | Plan B: every gate with STS3215s and raised P; the walk on the regenerated 17-actuator plant; the elbow-servo move against main |
 | `getup_search_r6_asdrawn*.txt`, `getup_search_r5_asdrawn*.txt`, `getup_search_shoulder_*.txt`, `getup_search_girdle_*.txt`, `getup_search_hipplane_*.txt`, `getup_search_legroll*.txt` | the get-up on the as-drawn robot, the arm choice, the prone roll |
-| `cad_rom_check.txt`, `girdle_check_assembly.txt`, `hip_yoke_check_single.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
+| `cad_rom_check.txt`, `girdle_check_assembly.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
 | `deep_flexion_sweep.txt` | knee 130° / hip flexion limits |
 
 The part masses and the print rollup are written by `make cad` to

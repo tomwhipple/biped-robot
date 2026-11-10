@@ -18,13 +18,10 @@ off, so the IMU misalignment is identity and the gyro bias zero), driven from
 scripted qpos/qvel/quaternion/prev_action/phase/command values. If anybody
 reorders the observation, the C assembler's host test goes red.
 
-The action-index -> servo-ID map is NOT in the sim; it comes from
-docs/wiring.md's bus layout and lives in ID_BY_ROLE below. Note that on the
-10-DOF v3yaw plant it is a genuine permutation: the sim's action order is
-proximal-to-distal INCLUDING hip yaw first (L_hip_yaw is action 0), while the
-bus was numbered 1-8 for the two legs before hip yaw existed and the yaw
-servos were appended as IDs 9/10. wiring.md's claim that the action vector
-"maps to IDs 1-8 with no permutation table" was true for the 8-DOF plant only.
+The action-index -> servo-ID map is NOT in the sim; it is the robot's bus
+map (obs/bus_map.h, docs/servo-map.md) and lives in ID_BY_ROLE below. It is a
+genuine permutation: the sim's action order is left leg then right, proximal
+to distal, hip yaw first, and the bus numbering follows neither.
 """
 import argparse
 import inspect
@@ -39,7 +36,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "sim"))
 
 import mujoco                                          # noqa: E402
-from walker_env import BimoWalkerEnv                   # noqa: E402
+from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
 
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
@@ -49,33 +46,11 @@ import policy_profile                                  # noqa: E402
 SPEC_OUT = policy_profile.files()["spec_h"]
 VEC_OUT = policy_profile.files()["obs_vectors_h"]
 
-# docs/wiring.md "Servo bus": port A is the left leg (IDs 1-4, proximal to
-# distal), port B the right (5-8); the v3yaw hip-yaw servos were appended as
-# 9 (left) and 10 (right).
-#
-# ASSEMBLY ERRATA 2026-08-02. Confirmed on the robot, not inferred:
-#
-#   * driving servo 9's hip yaw rotates the RIGHT leg (toe-in at +20 deg),
-#   * hip-pitch servo 2 is on the RIGHT, hip-pitch servo 6 is on the LEFT,
-#   * knee servo 3 is the RIGHT knee, knee servo 7 is the LEFT.
-#
-# So the two bus chains went onto the opposite legs from the plan: port A
-# (9,1,2,3,4) is the RIGHT leg and port B (10,5,6,7,8) is the LEFT. The
-# original "9/10 are swapped" report was the visible corner of this.
-#
-# The servos are not coming back out, so the map absorbs it. Note the yaw
-# entries are the SAME as the first errata fix -- 9 is right, 10 is left --
-# because a whole-chain swap and a yaw-only swap agree on the yaw servos.
-#
-# The robot's seven further servos (docs/servo-map.md section 2.1, PROPOSED,
-# awaiting sign-off -- issue #77) are appended right before left: ankle rolls
-# 11/12, neck 13, arms 14-17. Only the roles the run's plant actuates are
-# looked up, so the 10-DOF prototype's spec is unchanged by them. This table
-# and the firmware's bus map (firmware/components/obs/include/obs/bus_map.h)
-# are the same map; the SIL suite checks that they agree.
-# The v6 legs as assembled (2026-10-23, written on each servo; obs/bus_map.h
-# kBusServoId): the legs' yaw / pitch / knee / ankle IDs sit opposite the old
-# prototype map, and the STS3250 hip rolls are 52 (R) / 51 (L).
+# The bus map as assembled (2026-10-23, written on each servo): one entry per
+# servo on the robot, the same map as the firmware's obs/bus_map.h
+# (kBusServoId) -- the SIL suite checks that they agree. Only the roles the
+# run's plant actuates or holds are looked up. The STS3250 hip rolls are
+# 52 (R) / 51 (L).
 ID_BY_ROLE = {
     "L_hip_roll": 51, "L_hip_pitch": 2, "L_knee": 3, "L_ankle": 4,
     "R_hip_roll": 52, "R_hip_pitch": 6, "R_knee": 7, "R_ankle": 8,
@@ -98,6 +73,9 @@ def farr(v):
 
 def build_env(run_dir):
     cfg = json.load(open(os.path.join(run_dir, "config.json")))
+    if not cfg.get("xml_path"):
+        raise SystemExit(f"{run_dir}/config.json has no xml_path: a run that "
+                         "predates recording its plant is not deployable")
     params = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
     kw = {k: v for k, v in cfg.items() if k in params}
     kw.update(
@@ -116,6 +94,14 @@ def build_env(run_dir):
         # The quantizer is a property of the sensor path, tested where it
         # lives (angleToSteps/stepsToAngle, and the SIL closed loop).
         quantize_ticks=False,
+        # The reg-58 dq view is the same kind of thing. A run trained with
+        # --dq-obs-window computes dq from a joint-position history that the
+        # scripted states below never fill, so every frame would read dq = 0
+        # against a non-zero scripted input (84 false failures in test_obs on
+        # the first deploy that regenerated these vectors, 2026-11-06). On the
+        # robot the speed register IS the lagged view; obs::Assembler just
+        # takes it as an input.
+        dq_obs_window=None, dq_obs_quantum=0.0,
         render_mode=None,
     )
     return cfg, BimoWalkerEnv(**kw)
@@ -174,7 +160,7 @@ def write_spec(cfg, env, path, profile=None):
     w("//")
     w("// The observation layout the deployed policy was trained against. Any")
     w("// retrain that changes joint count, command width or history depth")
-    w("// regenerates this file; nothing downstream hardcodes 10 or 49.")
+    w("// regenerates this file; nothing downstream hardcodes the widths.")
     w("#pragma once")
     L.extend(policy_profile.guard_lines(profile, "obs_spec.h"))
     w("#include <stdint.h>")
@@ -193,6 +179,9 @@ def write_spec(cfg, env, path, profile=None):
       % ("true" if env.imu_obs else "false"))
     w("inline constexpr bool kGaitClock = %s;"
       % ("true" if env.gait_clock else "false"))
+    w("inline constexpr float kGaitFreqHz = %s;   // base clock: the midpoint of "
+      "the trained gait_freq_range (walker_env.deploy_gait_hz)"
+      % fl(deploy_gait_hz(cfg)))
     w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
       "plain stand (must match training; env_mjx.clock_stand_freeze)"
       % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))
@@ -237,9 +226,8 @@ def write_spec(cfg, env, path, profile=None):
     w("")
     w("// -- joints ------------------------------------------------------------")
     w("// Index == the policy's action index == the sim's actuator order")
-    w("// (joint-tree / qpos-address order). kServoId maps it onto the bus IDs")
-    w("// from docs/wiring.md -- a real permutation on the 10-DOF plant, since")
-    w("// the yaw servos were appended as 9/10 after IDs 1-8 were assigned.")
+    w("// (joint-tree / qpos-address order). kServoId maps it onto the servo")
+    w("// bus IDs (obs/bus_map.h) -- a real permutation, not an identity.")
     w("inline constexpr const char* kJointNames[kNumJoints] = {%s};"
       % ", ".join('"%s"' % n for n in names))
     w("inline constexpr uint8_t kServoId[kNumJoints] = {%s};"
@@ -356,12 +344,11 @@ def main():
 
     if not args.run:
         raise SystemExit(
-            "name the run: --run <run under sim/runs/>.  This tool used to "
-            "default to loco_v5t; it does not any more, because the header it "
-            "writes IS the deployed observation layout and an argument-less "
-            "run would silently re-point the firmware's idea of its own obs "
-            "at some other policy (see gen_policy_weights.py, same guard, "
-            "same reason).  The run currently deployed is named in "
+            "name the run: --run <run under sim/runs/>.  There is no default: "
+            "the header this writes IS the deployed observation layout, and "
+            "an argument-less run would silently re-point the firmware's idea "
+            "of its own obs at some other policy (gen_policy_weights.py has "
+            "the same guard).  The run currently deployed is named in "
             "kRunName in %s." % os.path.relpath(SPEC_OUT, ROOT))
 
     run_dir = os.path.join(ROOT, "sim", "runs", args.run)

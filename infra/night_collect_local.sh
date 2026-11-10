@@ -38,8 +38,50 @@ echo "=== $(date) night_collect_local ==="
 # the referee loads what the run trained against (a --rise-ref npz, a plant)
 # from THIS checkout, which nothing else pulls: a reference added for last
 # night's run would be missing here and the scorecard would fail
-git -C "$REPO" pull -q --ff-only origin main \
-  || echo "!!! could not fast-forward $REPO to origin/main; refereeing on $(git -C "$REPO" rev-parse --short HEAD)"
+#
+# 2026-11-05: the 11-05 collection refereed four runs on stale code because
+# uncommitted generated STLs in $REPO blocked the fast-forward. Now: fetch; if
+# the fast-forward is blocked, stash ONLY the dirty paths that upstream also
+# changed (tagged, never re-applied -- `git stash list` shows them), retry, and
+# leave every other local edit alone. Then VERIFY HEAD == origin/main.
+# fix-and-continue (Tom 2026-11-05): a failure here starts a headless Claude
+# session (infra/night/claude_fix.sh, installed in $NIGHT) and the step is
+# retried once after it exits
+fix() { "$NIGHT/claude_fix.sh" "$@"; }
+
+sync_referee() {   # 0 = $REPO is at origin/main
+  git -C "$REPO" fetch -q origin main
+  if ! git -C "$REPO" merge -q --ff-only FETCH_HEAD 2>/dev/null; then
+    local -a BLOCK
+    mapfile -t BLOCK < <(comm -12 \
+      <(git -C "$REPO" diff --name-only HEAD | sort) \
+      <(git -C "$REPO" diff --name-only HEAD FETCH_HEAD | sort))
+    if (( ${#BLOCK[@]} )); then
+      local TAG="night_collect $(date +%F_%H%M) blocked ff"
+      git -C "$REPO" stash push -q -m "$TAG" -- "${BLOCK[@]}" \
+        && echo "stashed ${#BLOCK[@]} dirty path(s) that blocked the fast-forward as '$TAG': ${BLOCK[*]}"
+    fi
+    git -C "$REPO" merge -q --ff-only FETCH_HEAD
+  fi
+  if [[ $(git -C "$REPO" rev-parse HEAD) == $(git -C "$REPO" rev-parse FETCH_HEAD 2>/dev/null) ]]; then
+    echo "repo @ origin/main $(git -C "$REPO" rev-parse --short HEAD) (verified)"
+    return 0
+  fi
+  return 1
+}
+if ! sync_referee; then
+  if fix collect-sync "$LOG" 30 <<EOF && sync_referee; then
+night_collect_local.sh could not bring the referee checkout $REPO to origin/main
+(fetch, then fast-forward, after stashing only the dirty paths that upstream also
+changed). The referee must run on main's code. Fix it without discarding
+uncommitted work; the collector retries once after you exit.
+EOF
+    echo "repo synced after a fixer"
+  else
+    echo "!!! STALE REFEREE: could not bring $REPO to origin/main; refereeing on" \
+         "$(git -C "$REPO" rev-parse --short HEAD) -- re-referee every card from this morning on main"
+  fi
+fi
 
 collect_one() {   # $1 = state file, $2 = OUT name
   local ST=$1 OUT=$2
@@ -52,10 +94,22 @@ collect_one() {   # $1 = state file, $2 = OUT name
 
   # Python referee WITH the movie. --render is opt-in and forgetting it is the
   # exact failure this script exists to prevent, so it is not optional here.
-  ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$PY" \
-      eval_precision.py --run-name "$OUT" --render ) \
-    && echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy]" \
-    || echo "!!! python referee FAILED for $OUT"
+  referee() { ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$PY" \
+      eval_precision.py --run-name "$OUT" --render ); }
+  if referee; then
+    echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy]"
+  elif fix "referee-$OUT" "$LOG" 45 <<EOF && referee; then
+The morning referee failed for $OUT: in $REPO/sim/mjx,
+\`JAX_PLATFORMS=cpu $PY eval_precision.py --run-name $OUT --render\` exited
+non-zero (its output is at the end of $LOG). The run dir is
+$REPO/sim/runs/$OUT. Fix the cause in the referee or the code (a bug: fix it
+on main with tests; a run that is genuinely broken: say so). The collector
+re-runs this exact command once after you exit.
+EOF
+    echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy, after a fixer]"
+  else
+    echo "!!! python referee FAILED for $OUT"
+  fi
 
   # SIL referee: standing column, never fatal (a broken sil build must not lose
   # the night's collection).

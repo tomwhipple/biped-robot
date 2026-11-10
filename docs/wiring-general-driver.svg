@@ -1,231 +1,291 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1250" viewBox="0 0 1500 1250" font-family="Helvetica, Arial, sans-serif">
-  <rect width="1500" height="1250" fill="#ffffff"/>
-  <text x="750" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#1f2937">Bimo biped — wiring on the General Driver for Robots</text>
-  <text x="750" y="52" text-anchor="middle" font-size="11" fill="#6b7280">Every connection uses an existing connector. No soldering to the board. Nets: V+ red · GND black · DATA blue. IMU is on the board — P1 stays empty to start.</text>
-
-  <!-- ================= BATTERY COLUMN ================= -->
-  <rect x="30" y="76" width="280" height="470" rx="10" fill="#fef7ed" stroke="#c2410c" stroke-width="1.5"/>
-  <text x="170" y="98" text-anchor="middle" font-size="12" font-weight="bold" fill="#7c2d12">Pack &amp; power conditioning</text>
-
-  <!-- pack -->
-  <rect x="50" y="112" width="240" height="74" rx="6" fill="#ffffff" stroke="#9a3412"/>
-  <text x="62" y="132" font-size="11" font-weight="bold" fill="#1f2937">BT1 · 3S LiPo 850 mAh</text>
-  <text x="62" y="148" font-size="9" fill="#6b7280">11.1 V nom · 12.6 V full · never 11.4 V HV</text>
-  <text x="62" y="162" font-size="9" fill="#6b7280">XT30 main lead · JST-XH balance lead</text>
-  <text x="62" y="177" font-size="9" fill="#9a3412">BOM item — unchanged by the board swap</text>
-
-  <!-- balance -> alarm -->
-  <line x1="110" y1="186" x2="110" y2="208" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="4 3"/>
-  <text x="118" y="202" font-size="8" fill="#6b7280">balance lead</text>
-  <rect x="50" y="208" width="184" height="52" rx="6" fill="#ffffff" stroke="#16a34a"/>
-  <text x="62" y="227" font-size="11" font-weight="bold" fill="#14532d">S1 · LiPo low-voltage alarm</text>
-  <text x="62" y="242" font-size="9" fill="#4b5563">on the balance lead · per-cell · 3.3 V/cell</text>
-  <text x="62" y="254" font-size="8" fill="#16a34a">STILL REQUIRED — firmware-independent</text>
-
-  <!-- XT30 -->
-  <path d="M258 186 V 270 H 170 V 278" fill="none" stroke="#c0392b" stroke-width="2.5"/>
-  <rect x="112" y="278" width="116" height="30" rx="4" fill="#fef3c7" stroke="#b45309"/>
-  <text x="170" y="297" text-anchor="middle" font-size="10" fill="#92400e">XT30 pigtail</text>
-
-  <!-- fuse -->
-  <line x1="170" y1="308" x2="170" y2="330" stroke="#c0392b" stroke-width="2.5"/>
-  <rect x="50" y="330" width="240" height="50" rx="6" fill="#ffffff" stroke="#16a34a"/>
-  <text x="62" y="349" font-size="11" font-weight="bold" fill="#14532d">S2 + S3 · inline mini-blade fuse, 15 A</text>
-  <text x="62" y="364" font-size="9" fill="#4b5563">dead-short protection · board has no fuse</text>
-  <text x="62" y="376" font-size="9" fill="#16a34a">STILL REQUIRED</text>
-
-  <!-- bulk cap -->
-  <line x1="170" y1="380" x2="170" y2="402" stroke="#c0392b" stroke-width="2.5"/>
-  <rect x="50" y="402" width="240" height="60" rx="6" fill="#ffffff" stroke="#d97706"/>
-  <text x="62" y="421" font-size="11" font-weight="bold" fill="#92400e">S4 · 470–1000 µF, 25 V low-ESR</text>
-  <text x="62" y="436" font-size="9" fill="#4b5563">across V+/GND on the pigtail · observe polarity</text>
-  <text x="62" y="448" font-size="9" fill="#b45309">STILL WANTED, but see note 4 — pack-side only,</text>
-  <text x="62" y="458" font-size="9" fill="#b45309">so it does not shield the input connector itself.</text>
-
-  <!-- XH plug -->
-  <line x1="170" y1="462" x2="170" y2="484" stroke="#c0392b" stroke-width="2.5"/>
-  <rect x="88" y="484" width="164" height="46" rx="4" fill="#fef3c7" stroke="#b45309"/>
-  <text x="170" y="502" text-anchor="middle" font-size="10" font-weight="bold" fill="#92400e">XH2.54 2-pin plug</text>
-  <text x="170" y="517" text-anchor="middle" font-size="9" fill="#92400e">NEW PART — replaces the barrel jack</text>
-
-  <!-- run to board -->
-  <path d="M252 496 H 328 V 196 H 360" fill="none" stroke="#c0392b" stroke-width="2.5"/>
-  <path d="M252 520 H 344 V 214 H 360" fill="none" stroke="#111827" stroke-width="2.5"/>
-  <text x="292" y="490" font-size="9" font-weight="bold" fill="#991b1b">V+</text>
-  <text x="286" y="538" font-size="9" font-weight="bold" fill="#111827">GND</text>
-
-  <!-- ================= BOARD ================= -->
-  <rect x="360" y="76" width="450" height="620" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
-  <text x="585" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e3a8a">U1 · Waveshare General Driver for Robots</text>
-  <text x="585" y="114" text-anchor="middle" font-size="9" fill="#3b5bdb">ESP32-WROOM-32UE · 65 × 65 mm · mounting 49 × 58, Ø3 · DC 7–13 V</text>
-
-  <!-- H1 -->
-  <circle cx="360" cy="196" r="5" fill="#c33b2c"/>
-  <circle cx="360" cy="214" r="5" fill="#26221f"/>
-  <rect x="380" y="176" width="200" height="58" rx="5" fill="#ffffff" stroke="#93c5fd"/>
-  <text x="390" y="194" font-size="11" font-weight="bold" fill="#1e3a8a">H1 · XH2.54 2-pin power in</text>
-  <text x="390" y="209" font-size="9" fill="#4b5563">1 = V+ (VDD_DC_JACK) · 2 = GND</text>
-  <text x="390" y="225" font-size="9" fill="#b91c1c">rated 3 A — see note 3</text>
-
-  <!-- internal power chain -->
-  <path d="M580 205 H 620" stroke="#c0392b" stroke-width="2"/>
-  <rect x="620" y="176" width="170" height="112" rx="5" fill="#f8fafc" stroke="#94a3b8"/>
-  <text x="630" y="194" font-size="10" font-weight="bold" fill="#334155">on-board power path</text>
-  <text x="630" y="210" font-size="9" fill="#475569">AO4407 P-FET — reverse polarity</text>
-  <text x="630" y="224" font-size="9" fill="#475569">SW1 1P2T — main on/off switch</text>
-  <text x="630" y="238" font-size="9" fill="#475569">R11 0.01 Ω shunt → INA219 @ 0x42</text>
-  <text x="630" y="254" font-size="9" fill="#b91c1c">INA219 sees pack VOLTAGE (good)</text>
-  <text x="630" y="266" font-size="9" fill="#b91c1c">but only buck current — NOT servos</text>
-  <text x="630" y="280" font-size="9" fill="#475569">MP8759 buck → 5 V → 3V3</text>
-
-  <!-- DC_IN rail -->
-  <path d="M705 288 V 320 H 400 V 470" fill="none" stroke="#c0392b" stroke-width="2.5"/>
-  <text x="412" y="336" font-size="10" font-weight="bold" fill="#991b1b">DC_IN — raw pack, feeds both servo ports</text>
-
-  <!-- H5 -->
-  <rect x="560" y="352" width="230" height="62" rx="5" fill="#ffffff" stroke="#93c5fd"/>
-  <text x="570" y="370" font-size="11" font-weight="bold" fill="#1e3a8a">H5 · bus servo port A</text>
-  <text x="570" y="385" font-size="9" fill="#4b5563">Header 3 — 1 DATA · 2 DC_IN · 3 GND</text>
-  <text x="570" y="400" font-size="9" fill="#4b5563">half-duplex TTL, 1 Mbaud, GPIO 18 RX / 19 TX</text>
-  <circle cx="810" cy="383" r="5" fill="#2b62c3"/>
-
-  <!-- H6 -->
-  <rect x="560" y="428" width="230" height="62" rx="5" fill="#ffffff" stroke="#93c5fd"/>
-  <text x="570" y="446" font-size="11" font-weight="bold" fill="#1e3a8a">H6 · bus servo port B</text>
-  <text x="570" y="461" font-size="9" fill="#4b5563">Header 3 — same three nets, same bus</text>
-  <text x="570" y="476" font-size="9" fill="#4b5563">one port per leg halves the per-lead current</text>
-  <circle cx="810" cy="459" r="5" fill="#2b62c3"/>
-
-  <path d="M400 470 H 560" stroke="#c0392b" stroke-width="2"/>
-  <path d="M400 383 H 560" stroke="#c0392b" stroke-width="2" opacity="0.35"/>
-
-  <!-- P1 IIC -->
-  <rect x="380" y="512" width="410" height="76" rx="5" fill="#ffffff" stroke="#93c5fd"/>
-  <text x="390" y="530" font-size="11" font-weight="bold" fill="#1e3a8a">P1 · IIC expansion header — Header 4</text>
-  <text x="390" y="546" font-size="9" fill="#4b5563">1 = VDD3V3 · 2 = GND · 3 = IIC_SDA · 4 = IIC_SCL</text>
-  <text x="390" y="561" font-size="9" fill="#4b5563">SDA = GPIO 32 · SCL = GPIO 33 (not 21/22 — board.h change)</text>
-  <text x="390" y="577" font-size="9" fill="#6b7280">LEFT EMPTY to start — this is the upgrade path, not the build</text>
-  <circle cx="585" cy="588" r="5" fill="#9ca3af"/>
-
-  <!-- PRIMARY: on-board IMU -->
-  <rect x="378" y="600" width="414" height="88" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
-  <text x="390" y="620" font-size="11" font-weight="bold" fill="#14532d">IMU — on board. PLAN OF RECORD. Zero wiring.</text>
-  <text x="390" y="636" font-size="9" fill="#166534">QMI8658C 6-axis @ 0x6B (accel + gyro, via LSF0204 level shifter) · AK09918C mag @ 0x0C</text>
-  <text x="390" y="651" font-size="9" fill="#166534">Already sitting on GPIO 32/33 inside the board outline — no carrier, no cable, no header used.</text>
-  <text x="390" y="666" font-size="9" fill="#4b5563">Gyro → obs angular velocity directly. Up-vector needs host-side fusion — see note 6.</text>
-  <text x="390" y="681" font-size="9" fill="#4b5563">Also on this bus: BMP280 @ 0x77 · INA219 @ 0x42 (8-bit).</text>
-
-  <!-- ================= IMU upgrade path ================= -->
-  <rect x="360" y="722" width="450" height="112" rx="10" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="7 4"/>
-  <text x="585" y="744" text-anchor="middle" font-size="12" font-weight="bold" fill="#4b5563">UPGRADE PATH — not fitted initially</text>
-  <text x="374" y="764" font-size="9" fill="#4b5563">GY-BNO085 breakout (BOM item 18 — already owned, so nothing is wasted by starting without it).</text>
-  <text x="374" y="780" font-size="9" fill="#4b5563">Plugs into P1: VIN ← pin 1 (3V3) · GND ← pin 2 · SDA ← pin 3 · SCL ← pin 4. Addr 0x4A/0x4B, no collision.</text>
-  <text x="374" y="796" font-size="9" fill="#4b5563">Buys back SH-2 on-chip fusion if host-side fusion on the QMI8658C disappoints. RST/INT/CS/SDO/P0/P1 unused.</text>
-  <text x="374" y="812" font-size="9" fill="#b45309">Only then: verify P1's physical connector type and whether it carries pull-ups, before ordering a cable.</text>
-  <text x="374" y="828" font-size="9" fill="#6b7280">Swapping in is a firmware driver change plus one 4-wire cable — no board or CAD rework.</text>
-  <path d="M585 588 V 594 H 800 V 712 H 585 V 722" fill="none" stroke="#9ca3af" stroke-width="2" stroke-dasharray="6 4"/>
-
-  <!-- ================= SERVOS ================= -->
-  <text x="1160" y="98" text-anchor="middle" font-size="13" font-weight="bold" fill="#1f2937">Servo bus — 10 × ST3215, one leg per port</text>
-  <text x="1160" y="114" text-anchor="middle" font-size="9" fill="#6b7280">every connector: middle pin = V+ · stock 150 mm leads unless marked</text>
-
-  <!-- left leg -->
-  <rect x="860" y="132" width="270" height="560" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-  <text x="995" y="151" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">LEFT LEG → H5</text>
-  <text x="995" y="163" text-anchor="middle" font-size="8" fill="#6b7280">port → hip yaw ~50 mm</text>
-  <g font-size="10">
-    <rect x="880" y="172" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="892" y="188" font-weight="bold" fill="#1f2937">ID 9 · L hip yaw</text>
-    <text x="892" y="203" font-size="9" fill="#6b7280">action index 0</text>
-
-    <rect x="880" y="268" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="892" y="284" font-weight="bold" fill="#1f2937">ID 1 · L hip roll</text>
-    <text x="892" y="299" font-size="9" fill="#6b7280">action index 1</text>
-
-    <rect x="880" y="368" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="892" y="384" font-weight="bold" fill="#1f2937">ID 2 · L hip pitch</text>
-    <text x="892" y="399" font-size="9" fill="#6b7280">action index 2</text>
-
-    <rect x="880" y="468" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="892" y="484" font-weight="bold" fill="#1f2937">ID 3 · L knee</text>
-    <text x="892" y="499" font-size="9" fill="#6b7280">action index 3</text>
-
-    <rect x="880" y="568" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="892" y="584" font-weight="bold" fill="#1f2937">ID 4 · L ankle</text>
-    <text x="892" y="599" font-size="9" fill="#6b7280">action index 4</text>
-  </g>
-  <g stroke="#334155" stroke-width="2" fill="none">
-    <path d="M995 212 V 268"/><path d="M995 308 V 368"/>
-    <path d="M995 408 V 468"/><path d="M995 508 V 568"/>
-  </g>
-  <g font-size="8" fill="#6b7280">
-    <text x="1002" y="243">~85 mm routed</text>
-    <text x="1002" y="343" fill="#b91c1c" font-weight="bold">170 mm — needs ≥200 mm lead</text>
-    <text x="1002" y="443">111 mm routed</text>
-    <text x="1002" y="543">82 mm routed</text>
-  </g>
-  <path d="M810 383 H 830 V 192 H 880" fill="none" stroke="#2b62c3" stroke-width="2.5"/>
-
-  <!-- right leg -->
-  <rect x="1190" y="132" width="270" height="560" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-  <text x="1325" y="151" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">RIGHT LEG → H6</text>
-  <text x="1325" y="163" text-anchor="middle" font-size="8" fill="#6b7280">port → hip yaw ~50 mm</text>
-  <g font-size="10">
-    <rect x="1210" y="172" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="1222" y="188" font-weight="bold" fill="#1f2937">ID 10 · R hip yaw</text>
-    <text x="1222" y="203" font-size="9" fill="#6b7280">action index 5</text>
-
-    <rect x="1210" y="268" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="1222" y="284" font-weight="bold" fill="#1f2937">ID 5 · R hip roll</text>
-    <text x="1222" y="299" font-size="9" fill="#6b7280">action index 6</text>
-
-    <rect x="1210" y="368" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="1222" y="384" font-weight="bold" fill="#1f2937">ID 6 · R hip pitch</text>
-    <text x="1222" y="399" font-size="9" fill="#6b7280">action index 7</text>
-
-    <rect x="1210" y="468" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="1222" y="484" font-weight="bold" fill="#1f2937">ID 7 · R knee</text>
-    <text x="1222" y="499" font-size="9" fill="#6b7280">action index 8</text>
-
-    <rect x="1210" y="568" width="230" height="40" rx="4" fill="#ffffff" stroke="#94a3b8"/>
-    <text x="1222" y="584" font-weight="bold" fill="#1f2937">ID 8 · R ankle</text>
-    <text x="1222" y="599" font-size="9" fill="#6b7280">action index 9</text>
-  </g>
-  <g stroke="#334155" stroke-width="2" fill="none">
-    <path d="M1325 212 V 268"/><path d="M1325 308 V 368"/>
-    <path d="M1325 408 V 468"/><path d="M1325 508 V 568"/>
-  </g>
-  <g font-size="8" fill="#6b7280">
-    <text x="1332" y="243">~85 mm routed</text>
-    <text x="1332" y="343" fill="#b91c1c" font-weight="bold">170 mm — needs ≥200 mm lead</text>
-    <text x="1332" y="443">111 mm routed</text>
-    <text x="1332" y="543">82 mm routed</text>
-  </g>
-  <path d="M810 459 H 846 V 126 H 1170 V 192 H 1210" fill="none" stroke="#2b62c3" stroke-width="2.5"/>
-
-  <text x="860" y="712" font-size="9" fill="#6b7280">Servos ship as ID 1 — assign IDs one at a time at bring-up before chaining. Two same-ID servos will not enumerate.</text>
-  <text x="860" y="727" font-size="9" fill="#6b7280">GoPro MAX is self-powered: zero wiring to the robot.</text>
-
-  <!-- ================= NOTES ================= -->
-  <rect x="30" y="866" width="1440" height="360" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
-  <text x="46" y="890" font-size="12" font-weight="bold" fill="#92400e">Verified against Waveshare's schematic (docs/datasheets/general-driver/) unless marked otherwise</text>
-  <g font-size="10" fill="#78350f">
-    <text x="46" y="914"><tspan font-weight="bold">1 · Nothing here is soldered, and to start with, nothing plugs into P1 either.</tspan> Power and the two servo legs are the entire harness; the IMU is inside the board.</text>
-    <text x="46" y="936"><tspan font-weight="bold">2 · The external inline switch is now redundant.</tspan> SW1 on the board is a 1P2T in the input path. Keep the pigtail switch only if you want one you can reach.</text>
-    <text x="46" y="958" fill="#991b1b"><tspan font-weight="bold">3 · Input current is the weak point, and it is tighter than the old board.</tspan> H5/H6 tap DC_IN, so ALL servo current flows through the XH2.54 input,</text>
-    <text x="62" y="974" fill="#991b1b">the AO4407 and SW1. JST rates XH at 3 A (AWG#22, their datasheet); SW1's rating is not given. Against 1.4 A RMS that is fine — against the</text>
-    <text x="62" y="990" fill="#991b1b">6.8 A sim-derived peak it is not. The old board's barrel jack was 5 A, so peak headroom gets worse. Measure it (S5) before trusting either number.</text>
-    <text x="46" y="1012"><tspan font-weight="bold">4 · S4's bulk cap can only sit on the pack side</tspan>, so it cuts sag in the pack leads but the transient still crosses H1. Putting it board-side would</text>
-    <text x="62" y="1028">mean soldering or giving up a servo port — neither is available. If note 3 bites on the bench, feed servo V+ straight from the pack instead.</text>
-    <text x="46" y="1050" fill="#991b1b"><tspan font-weight="bold">5 · The onboard INA219 does NOT replace S5.</tspan> Its 0.01 Ω shunt sits between DC_IN and VIN, i.e. in the buck's feed only; the servo ports tap</text>
-    <text x="62" y="1066" fill="#991b1b">DC_IN upstream of it. You gain a pack-voltage sense independent of the servo bus — which fixes battguard's blind spot — but no servo current.</text>
-    <text x="46" y="1088" fill="#14532d"><tspan font-weight="bold">6 · Starting on the onboard IMU costs one firmware component and buys back a lot of harness.</tspan> The QMI8658C is raw accel+gyro, so the ESP32 must do</text>
-    <text x="62" y="1104" fill="#14532d">the fusion the BNO085 did on-chip. Gyro feeds obs angular velocity as-is; the up-vector needs a complementary/Madgwick filter over accel+gyro — the</text>
-    <text x="62" y="1120" fill="#14532d">magnetometer is NOT required, since the policy uses up-vector and rates, not heading. Cheaper than the BNO085 read it replaces (~0.4 ms I²C burst</text>
-    <text x="62" y="1136" fill="#14532d">+ ~50 µs of math against a 1.0 ms budget), and the tick has ~16 ms spare. New risk is filter tuning, and note the upgrade path above retires it.</text>
-    <text x="46" y="1158"><tspan font-weight="bold">7 · CAD consequence: the IMU moves from the tower top to the deck.</tspan> imu_carrier is no longer needed to carry it, which takes ~8 g (carrier + breakout)</text>
-    <text x="62" y="1174">off the highest point on the robot and lowers the CoM. Attitude and rates are identical anywhere on a rigid torso, and sitting nearer the CoM means</text>
-    <text x="62" y="1190">less lever-arm acceleration corrupting the gravity estimate — so this is neutral-to-better. Axis remap still gets set at bring-up, as before.</text>
-    <text x="46" y="1212"><tspan font-weight="bold">8 · Still unverified:</tspan> SW1's current rating, and — only if the upgrade path is ever taken — P1's connector type and pull-ups. Confirm on the board in hand.</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1210" viewBox="0 0 1700 1210" font-family="Helvetica, Arial, sans-serif">
+<rect width="1700" height="1210" fill="#ffffff"/>
+<text x="850" y="32" font-size="20" fill="#1f2937" font-weight="bold" text-anchor="middle">Bimo biped: wiring with power lite on the General Driver for Robots</text>
+<text x="850" y="52" font-size="11" fill="#6b7280" text-anchor="middle">Nets: SERVO+ / pack V+ red, GND black, servo DATA blue, control green, balance lead dashed grey. Sources: pcb/power-lite/README.md, pcb/power-board/harness.md, docs/wiring.md, docs/servo-map.md.</text>
+<rect x="30" y="80" width="320" height="100" rx="8" fill="#fef7ed" stroke="#c2410c" stroke-width="1.5"/>
+<text x="44" y="100" font-size="11" fill="#7c2d12" font-weight="bold">BT1 · OVONIC 3S 4200 mAh 130C</text>
+<text x="44" y="116" font-size="9" fill="#4b5563">11.1 V nominal, 12.6 V full; 205 g weighed</text>
+<text x="44" y="129" font-size="9" fill="#4b5563">XT60 discharge lead (to J1)</text>
+<text x="44" y="142" font-size="9" fill="#4b5563">JST-XH 4-pin balance lead (to J2)</text>
+<rect x="30" y="230" width="320" height="190" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+<text x="44" y="250" font-size="11" fill="#14532d" font-weight="bold">ShillehTek CF-3SJH25A-C · 3S BMS</text>
+<text x="44" y="268" font-size="9" fill="#4b5563">on wires; switches the negative lead,</text>
+<text x="44" y="281" font-size="9" fill="#4b5563">so the system GND is its P−.</text>
+<text x="44" y="294" font-size="9" fill="#4b5563">Its thresholds are undocumented:</text>
+<text x="44" y="307" font-size="9" fill="#4b5563">bench-check it before it goes in the</text>
+<text x="44" y="320" font-size="9" fill="#4b5563">robot (README, "Before it goes in").</text>
+<text x="44" y="333" font-size="9" fill="#4b5563">The balance lead goes only to J2,</text>
+<text x="44" y="346" font-size="9" fill="#4b5563">which feeds the BMS cell taps.</text>
+<rect x="30" y="450" width="320" height="110" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+<text x="44" y="470" font-size="11" fill="#92400e" font-weight="bold">Main switch · 20 A panel toggle</text>
+<text x="44" y="486" font-size="9" fill="#4b5563">on W6 (pack B+) and W7 (switched, VIN), in the</text>
+<text x="44" y="499" font-size="9" fill="#4b5563">power bay's switch pod (#213).</text>
+<text x="44" y="512" font-size="9" fill="#4b5563">No DC rating: turn it off only after the E-stop</text>
+<text x="44" y="525" font-size="9" fill="#4b5563">has dropped the servo rail.</text>
+<rect x="400" y="80" width="500" height="800" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="650.0" y="100" font-size="13" fill="#1e3a8a" font-weight="bold" text-anchor="middle">Power lite · 97 × 64.5 mm, 2-layer, through-hole</text>
+<text x="650.0" y="116" font-size="9" fill="#3b5bdb" text-anchor="middle">pcb/power-lite/ · the connector pin tables are in its README</text>
+<rect x="400" y="130" width="90" height="30" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="144" font-size="10" fill="#1e3a8a" font-weight="bold">J1 · XT60PW-M</text>
+<text x="405" y="157" font-size="8" fill="#4b5563">1 B−  2 B+</text>
+<rect x="400" y="170" width="90" height="30" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="184" font-size="10" fill="#1e3a8a" font-weight="bold">J2 · B4B-XH-A</text>
+<text x="405" y="197" font-size="8" fill="#4b5563">B− c1+ c2+ B+</text>
+<path d="M350 125 L375 125 L375 145 L400 145" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M350 160 L375 160 L375 185 L400 185" fill="none" stroke="#6b7280" stroke-width="1.8" stroke-dasharray="5 4"/>
+<rect x="400" y="232" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="246" font-size="10" fill="#1e3a8a" font-weight="bold">W1</text>
+<rect x="400" y="262" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="276" font-size="10" fill="#1e3a8a" font-weight="bold">W2</text>
+<rect x="400" y="292" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="306" font-size="10" fill="#1e3a8a" font-weight="bold">W3</text>
+<rect x="400" y="322" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="336" font-size="10" fill="#1e3a8a" font-weight="bold">W4</text>
+<rect x="400" y="352" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="366" font-size="10" fill="#1e3a8a" font-weight="bold">W5</text>
+<text x="494" y="246" font-size="8" fill="#6b7280">W1 B−</text>
+<text x="494" y="276" font-size="8" fill="#6b7280">W2 P− (GND)</text>
+<text x="494" y="306" font-size="8" fill="#6b7280">W3 B3</text>
+<text x="494" y="336" font-size="8" fill="#6b7280">W4 B2</text>
+<text x="494" y="366" font-size="8" fill="#6b7280">W5 B1+</text>
+<path d="M350 263 L375 263 L375 243 L400 243" fill="none" stroke="#111827" stroke-width="1.8"/>
+<text x="346" y="259" font-size="8" fill="#6b7280" text-anchor="end">B−</text>
+<path d="M350 293 L375 293 L375 273 L400 273" fill="none" stroke="#111827" stroke-width="1.8"/>
+<text x="346" y="289" font-size="8" fill="#6b7280" text-anchor="end">P−</text>
+<path d="M350 323 L375 323 L375 303 L400 303" fill="none" stroke="#c0392b" stroke-width="1.8"/>
+<text x="346" y="319" font-size="8" fill="#6b7280" text-anchor="end">B3</text>
+<path d="M350 353 L375 353 L375 333 L400 333" fill="none" stroke="#c0392b" stroke-width="1.8"/>
+<text x="346" y="349" font-size="8" fill="#6b7280" text-anchor="end">B2</text>
+<path d="M350 383 L375 383 L375 363 L400 363" fill="none" stroke="#c0392b" stroke-width="1.8"/>
+<text x="346" y="379" font-size="8" fill="#6b7280" text-anchor="end">B1+</text>
+<rect x="400" y="460" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="474" font-size="10" fill="#1e3a8a" font-weight="bold">W6 · pack B+</text>
+<rect x="400" y="492" width="90" height="22" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="405" y="506" font-size="10" fill="#1e3a8a" font-weight="bold">W7 · switched</text>
+<path d="M350 472 L400 471" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M350 505 L400 503" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<text x="520" y="530" font-size="10" fill="#991b1b" font-weight="bold">VIN</text>
+<path d="M490 503 L540 503 L540 150" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M540 503 L540 700" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="560" y="132" width="70" height="34" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+<text x="566" y="146" font-size="10" fill="#14532d" font-weight="bold">F2 3 A</text>
+<text x="566" y="159" font-size="8" fill="#6b7280">MINI blade</text>
+<path d="M540 149 L560 149" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M630 149 L690 149" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<text x="696" y="144" font-size="10" fill="#991b1b" font-weight="bold">LOGIC</text>
+<rect x="850" y="132" width="50" height="36" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="855" y="146" font-size="10" fill="#1e3a8a" font-weight="bold">J3</text>
+<text x="855" y="159" font-size="8" fill="#4b5563">XH 2-pin</text>
+<path d="M690 149 L850 149" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M690 149 L690 500" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<text x="700" y="190" font-size="8" fill="#6b7280">General Driver and the Pi stay up through an E-stop</text>
+<rect x="780" y="280" width="120" height="70" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="785" y="294" font-size="10" fill="#1e3a8a" font-weight="bold">J12 · B8B-PH-K-S</text>
+<text x="795" y="307" font-size="8" fill="#4b5563">2 SERVO_EN (IO16)</text>
+<text x="795" y="318" font-size="8" fill="#4b5563">3 GND</text>
+<text x="795" y="329" font-size="8" fill="#4b5563">5 RAIL_V (GPIO34)</text>
+<text x="795" y="340" font-size="8" fill="#4b5563">6 ESTOP_N (IO4)</text>
+<rect x="780" y="372" width="120" height="42" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="785" y="386" font-size="10" fill="#1e3a8a" font-weight="bold">J8 · Molex 22-03-5035</text>
+<text x="785" y="399" font-size="8" fill="#4b5563">1 data  2 n.c.  3 GND</text>
+<rect x="780" y="450" width="120" height="62" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="785" y="464" font-size="10" fill="#1e3a8a" font-weight="bold">J11 · B2B-PH-K-S</text>
+<text x="785" y="477" font-size="8" fill="#4b5563">1 LOGIC</text>
+<text x="785" y="489" font-size="8" fill="#4b5563">2 to K1 coil</text>
+<text x="785" y="501" font-size="8" fill="#4b5563">E-stop NC contact</text>
+<path d="M690 466 L780 466" fill="none" stroke="#c0392b" stroke-width="2"/>
+<rect x="560" y="535" width="140" height="54" rx="5" fill="#fff7ed" stroke="#c2410c" stroke-width="1.5"/>
+<text x="566" y="551" font-size="9" fill="#7c2d12" font-weight="bold">K1 coil · TE 1-1414610-0</text>
+<text x="566" y="564" font-size="8" fill="#4b5563">~0.13 A; D1 clamps turn-off</text>
+<text x="566" y="576" font-size="8" fill="#4b5563">on only if E-stop NC closed</text>
+<text x="566" y="586" font-size="8" fill="#4b5563">and SERVO_EN high</text>
+<path d="M780 496 L740 496 L740 562 L700 562" fill="none" stroke="#c0392b" stroke-width="2"/>
+<rect x="560" y="610" width="140" height="34" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="566" y="625" font-size="8" fill="#1e3a8a" font-weight="bold">Q1 · PN2222A (R2 holds off)</text>
+<text x="566" y="637" font-size="8" fill="#4b5563">coil to GND; base from SERVO_EN</text>
+<path d="M630 589 L630 610" fill="none" stroke="#111827" stroke-width="2"/>
+<rect x="410" y="548" width="126" height="34" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="416" y="563" font-size="8" fill="#1e3a8a" font-weight="bold">Q2 · open collector</text>
+<text x="416" y="575" font-size="8" fill="#4b5563">to J12 pin 6; low = released</text>
+<rect x="560" y="690" width="70" height="34" rx="4" fill="#ffffff" stroke="#16a34a" stroke-width="1.2"/>
+<text x="566" y="704" font-size="10" fill="#14532d" font-weight="bold">F1 15 A</text>
+<text x="566" y="717" font-size="8" fill="#6b7280">MINI blade</text>
+<path d="M540 707 L560 707" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<path d="M630 707 L650 707" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="650" y="690" width="110" height="34" rx="5" fill="#fff7ed" stroke="#c2410c" stroke-width="1.5"/>
+<text x="656" y="704" font-size="9" fill="#7c2d12" font-weight="bold">K1 contact</text>
+<text x="656" y="717" font-size="8" fill="#4b5563">70 A</text>
+<path d="M705 689 L705 645" fill="none" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="4 3"/>
+<path d="M705 645 L705 589" fill="none" stroke="#c2410c" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="712" y="660" font-size="8" fill="#7c2d12">relay</text>
+<path d="M760 707 L790 707" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<text x="656" y="684" font-size="9" fill="#991b1b" font-weight="bold">SERVO+</text>
+<rect x="790" y="680" width="110" height="150" rx="4" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="795" y="694" font-size="10" fill="#1e3a8a" font-weight="bold">J4-J7 · Molex</text>
+<text x="795" y="706" font-size="8" fill="#4b5563">22-03-5035</text>
+<text x="795" y="722" font-size="8" fill="#4b5563">1 data (from J8)</text>
+<text x="795" y="733" font-size="8" fill="#4b5563">2 SERVO+</text>
+<text x="795" y="744" font-size="8" fill="#4b5563">3 GND (D V G)</text>
+<text x="795" y="768" font-size="9" fill="#1e3a8a" font-weight="bold">J4 R leg</text>
+<text x="795" y="782" font-size="9" fill="#1e3a8a" font-weight="bold">J5 R upper</text>
+<text x="795" y="796" font-size="9" fill="#1e3a8a" font-weight="bold">J6 L leg</text>
+<text x="795" y="810" font-size="9" fill="#1e3a8a" font-weight="bold">J7 L upper</text>
+<path d="M780 393 L772 393 L772 750 L790 750" fill="none" stroke="#2b62c3" stroke-width="2"/>
+<text x="752" y="560" font-size="8" fill="#1f2937"></text>
+<rect x="430" y="745" width="340" height="110" rx="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+<text x="440" y="762" font-size="9" fill="#334155" font-weight="bold">On the servo rail</text>
+<text x="440" y="778" font-size="8" fill="#4b5563">C1 1000 µF: servo bulk</text>
+<text x="440" y="790" font-size="8" fill="#4b5563">D2, D3 · 1.5KE16A: clamp the servo rail and the switched input</text>
+<text x="440" y="802" font-size="8" fill="#4b5563">RAIL_V = SERVO+ / 5.7 (2.21 V at 12.6 V), filtered by C2 100 nF</text>
+<text x="440" y="814" font-size="8" fill="#4b5563">Servo GND: each header's pin 3, C1, D2, D3 join the GND plane</text>
+<path d="M900 304 L940 304" fill="none" stroke="#15803d" stroke-width="2"/>
+<path d="M900 393 L940 393" fill="none" stroke="#2b62c3" stroke-width="2"/>
+<path d="M900 149 L940 149" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<text x="410" y="872" font-size="8" fill="#6b7280">GND is the board's plane and is not drawn as wires.</text>
+<rect x="940" y="80" width="250" height="480" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="1065" y="100" font-size="12" fill="#1e3a8a" font-weight="bold" text-anchor="middle">U1 · Waveshare General Driver</text>
+<text x="1065" y="114" font-size="10" fill="#1e3a8a" font-weight="bold" text-anchor="middle">for Robots (ESP32-WROOM-32UE)</text>
+<rect x="950" y="125" width="230" height="62" rx="5" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="958" y="142" font-size="10" fill="#1e3a8a" font-weight="bold">H1 · XH 2-pin power in</text>
+<text x="958" y="156" font-size="8" fill="#4b5563">1 = V+ (VDD_DC_JACK), 2 = GND</text>
+<text x="958" y="169" font-size="8" fill="#4b5563">J3's lead, pin 1 to pin 1; 3 A per contact</text>
+<text x="958" y="182" font-size="8" fill="#b91c1c">Servo current does not pass through H1</text>
+<rect x="950" y="240" width="230" height="104" rx="5" fill="#ffffff" stroke="#86efac" stroke-width="1.2"/>
+<text x="958" y="257" font-size="10" fill="#14532d" font-weight="bold">ESP32 control pins (from J12)</text>
+<text x="958" y="272" font-size="9" fill="#166534">IO16 ← SERVO_EN (drives Q1)</text>
+<text x="958" y="286" font-size="9" fill="#166534">GPIO34 ← RAIL_V (ADC)</text>
+<text x="958" y="300" font-size="9" fill="#166534">IO4 ← ESTOP_N (internal pull-up on)</text>
+<text x="958" y="322" font-size="8" fill="#6b7280">physical headers: harness.md J12 table</text>
+<text x="958" y="334" font-size="8" fill="#6b7280">(rev B; not verified for power lite)</text>
+<rect x="950" y="365" width="230" height="62" rx="5" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="958" y="382" font-size="10" fill="#1e3a8a" font-weight="bold">H5 · bus servo port</text>
+<text x="958" y="396" font-size="8" fill="#4b5563">1 DATA · 2 DC_IN · 3 GND (D V G)</text>
+<text x="958" y="409" font-size="8" fill="#4b5563">half-duplex TTL, 1 Mbaud, GPIO 18 RX / 19 TX</text>
+<text x="958" y="421" font-size="8" fill="#b91c1c">DC_IN is unused here: J8 leaves pin 2 open</text>
+<rect x="950" y="440" width="230" height="54" rx="5" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
+<text x="958" y="457" font-size="9" fill="#14532d" font-weight="bold">On board: QMI8658C IMU @ 0x6B</text>
+<text x="958" y="470" font-size="8" fill="#166534">no wiring (I²C GPIO 32/33 inside the board)</text>
+<rect x="950" y="502" width="230" height="48" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="958" y="518" font-size="9" fill="#334155" font-weight="bold">Raspberry Pi 4B on the 40-pin header</text>
+<text x="958" y="531" font-size="8" fill="#4b5563">5 V from the board's own buck</text>
+<text x="958" y="544" font-size="8" fill="#4b5563">(through F2, H1)</text>
+<rect x="940" y="575" width="250" height="80" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+<text x="950" y="593" font-size="10" fill="#92400e" font-weight="bold">E-stop · E-Switch 100SP1T1B1M1QEH</text>
+<text x="950" y="608" font-size="8" fill="#4b5563">latching toggle, NC contact across its terminals</text>
+<text x="950" y="621" font-size="8" fill="#4b5563">2 and 3, to J11; any latching switch works</text>
+<text x="950" y="634" font-size="8" fill="#4b5563">(0.13 A). Pressing it drops K1 without firmware.</text>
+<path d="M900 458 L920 458 L920 600 L940 600" fill="none" stroke="#c0392b" stroke-width="2"/>
+<path d="M900 496 L915 496 L915 640 L940 640" fill="none" stroke="#c0392b" stroke-width="2"/>
+<text x="906" y="452" font-size="8" fill="#1f2937"></text>
+<text x="1240" y="656" font-size="10" fill="#1f2937" font-weight="bold">Servo bus: 17 servos on four branches, one shared data line</text>
+<rect x="1240" y="665" width="430" height="142" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1250" y="683" font-size="11" fill="#334155" font-weight="bold">J4 · RIGHT LEG</text>
+<text x="1250" y="696" font-size="8" fill="#6b7280">chain outward from the pelvis (docs/servo-map.md 2.1)</text>
+<rect x="1250" y="707" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="722" font-size="9" fill="#1f2937" font-weight="bold">ID 10 · R hip yaw</text>
+<text x="1256" y="736" font-size="8" fill="#6b7280">hop 1</text>
+<path d="M1378 725 L1386 725" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="707" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="722" font-size="9" fill="#1f2937" font-weight="bold">ID 52 · R hip roll</text>
+<text x="1392" y="736" font-size="8" fill="#6b7280">hop 2 · STS3250</text>
+<path d="M1514 725 L1522 725" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1522" y="707" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1528" y="722" font-size="9" fill="#1f2937" font-weight="bold">ID 6 · R hip pitch</text>
+<text x="1528" y="736" font-size="8" fill="#6b7280">hop 3</text>
+<rect x="1250" y="751" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="766" font-size="9" fill="#1f2937" font-weight="bold">ID 7 · R knee</text>
+<text x="1256" y="780" font-size="8" fill="#6b7280">hop 4</text>
+<path d="M1378 769 L1386 769" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="751" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="766" font-size="9" fill="#1f2937" font-weight="bold">ID 8 · R ankle pitch</text>
+<text x="1392" y="780" font-size="8" fill="#6b7280">hop 5</text>
+<path d="M1514 769 L1522 769" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1522" y="751" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1528" y="766" font-size="9" fill="#1f2937" font-weight="bold">ID 11 · R ankle roll</text>
+<text x="1528" y="780" font-size="8" fill="#6b7280">hop 6</text>
+<rect x="1240" y="817" width="430" height="98" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1250" y="835" font-size="11" fill="#334155" font-weight="bold">J5 · RIGHT UPPER</text>
+<text x="1250" y="848" font-size="8" fill="#6b7280">neck rides this branch; IDs 13-15 are a proposal</text>
+<rect x="1250" y="859" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="874" font-size="9" fill="#1f2937" font-weight="bold">ID 13 · neck yaw</text>
+<text x="1256" y="888" font-size="8" fill="#6b7280">hop 1 · proposed</text>
+<path d="M1378 877 L1386 877" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="859" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="874" font-size="9" fill="#1f2937" font-weight="bold">ID 14 · R shoulder</text>
+<text x="1392" y="888" font-size="8" fill="#6b7280">hop 2 · proposed</text>
+<path d="M1514 877 L1522 877" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1522" y="859" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1528" y="874" font-size="9" fill="#1f2937" font-weight="bold">ID 15 · R elbow</text>
+<text x="1528" y="888" font-size="8" fill="#6b7280">hop 3 · proposed</text>
+<rect x="1240" y="925" width="430" height="142" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1250" y="943" font-size="11" fill="#334155" font-weight="bold">J6 · LEFT LEG</text>
+<text x="1250" y="956" font-size="8" fill="#6b7280">chain outward from the pelvis (docs/servo-map.md 2.1)</text>
+<rect x="1250" y="967" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="982" font-size="9" fill="#1f2937" font-weight="bold">ID 9 · L hip yaw</text>
+<text x="1256" y="996" font-size="8" fill="#6b7280">hop 1</text>
+<path d="M1378 985 L1386 985" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="967" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="982" font-size="9" fill="#1f2937" font-weight="bold">ID 51 · L hip roll</text>
+<text x="1392" y="996" font-size="8" fill="#6b7280">hop 2 · STS3250</text>
+<path d="M1514 985 L1522 985" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1522" y="967" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1528" y="982" font-size="9" fill="#1f2937" font-weight="bold">ID 2 · L hip pitch</text>
+<text x="1528" y="996" font-size="8" fill="#6b7280">hop 3</text>
+<rect x="1250" y="1011" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="1026" font-size="9" fill="#1f2937" font-weight="bold">ID 3 · L knee</text>
+<text x="1256" y="1040" font-size="8" fill="#6b7280">hop 4</text>
+<path d="M1378 1029 L1386 1029" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="1011" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="1026" font-size="9" fill="#1f2937" font-weight="bold">ID 4 · L ankle pitch</text>
+<text x="1392" y="1040" font-size="8" fill="#6b7280">hop 5</text>
+<path d="M1514 1029 L1522 1029" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1522" y="1011" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1528" y="1026" font-size="9" fill="#1f2937" font-weight="bold">ID 12 · L ankle roll</text>
+<text x="1528" y="1040" font-size="8" fill="#6b7280">hop 6</text>
+<rect x="1240" y="1077" width="430" height="98" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+<text x="1250" y="1095" font-size="11" fill="#334155" font-weight="bold">J7 · LEFT UPPER</text>
+<text x="1250" y="1108" font-size="8" fill="#6b7280">IDs 16-17 are a proposal</text>
+<rect x="1250" y="1119" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1256" y="1134" font-size="9" fill="#1f2937" font-weight="bold">ID 16 · L shoulder</text>
+<text x="1256" y="1148" font-size="8" fill="#6b7280">hop 1 · proposed</text>
+<path d="M1378 1137 L1386 1137" fill="none" stroke="#334155" stroke-width="2"/>
+<rect x="1386" y="1119" width="128" height="36" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="1392" y="1134" font-size="9" fill="#1f2937" font-weight="bold">ID 17 · L elbow</text>
+<text x="1392" y="1148" font-size="8" fill="#6b7280">hop 2 · proposed</text>
+<path d="M900 764 L1215 764 L1215 700 L1240 700" fill="none" stroke="#c0392b" stroke-width="2"/>
+<path d="M900 778 L1225 778 L1225 855 L1240 855" fill="none" stroke="#c0392b" stroke-width="2"/>
+<path d="M900 792 L1205 792 L1205 965 L1240 965" fill="none" stroke="#c0392b" stroke-width="2"/>
+<path d="M900 806 L1195 806 L1195 1115 L1240 1115" fill="none" stroke="#c0392b" stroke-width="2"/>
+<text x="906" y="758" font-size="8" fill="#6b7280">each branch: DATA + SERVO+ + GND</text>
+<rect x="1240" y="80" width="430" height="345" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+<text x="1252" y="100" font-size="12" fill="#92400e" font-weight="bold">What this drawing shows, and what it does not</text>
+<text x="1252" y="120" font-size="9" fill="#78350f">Power lite is the robot's battery protection and power distribution; it</text>
+<text x="1252" y="132" font-size="9" fill="#78350f">replaces the rev B power board (#207). It carries the pack connectors, the</text>
+<text x="1252" y="144" font-size="9" fill="#78350f">BMS and main-switch pads, the fuses, the E-stop relay and the servo</text>
+<text x="1252" y="156" font-size="9" fill="#78350f">distribution. Nothing is soldered on the General Driver.</text>
+<text x="1252" y="176" font-size="9" fill="#78350f">The servo rail is fed through K1 and F1 (15 A). The General Driver and the</text>
+<text x="1252" y="188" font-size="9" fill="#78350f">Pi are fed through F2 (3 A) and stay up through an E-stop. K1's coil is on</text>
+<text x="1252" y="200" font-size="9" fill="#78350f">only while the E-stop's NC contact (J11) is closed and the ESP32 holds</text>
+<text x="1252" y="212" font-size="9" fill="#78350f">SERVO_EN high; until then R2 holds Q1 off and the rail stays off.</text>
+<text x="1252" y="232" font-size="9" fill="#78350f">ESTOP_N reads low while the E-stop is released and high when it is pressed,</text>
+<text x="1252" y="244" font-size="9" fill="#78350f">the board is unpowered, F2 has blown or the lead is unplugged: every failure</text>
+<text x="1252" y="256" font-size="9" fill="#78350f">reads as stop.</text>
+<text x="1252" y="276" font-size="9" fill="#78350f">Each of the four servo branches (J4-J7) is a chain of stock 5264 leads.</text>
+<text x="1252" y="288" font-size="9" fill="#78350f">Every hop fits the stock 150 mm lead except shoulder to elbow on both arms,</text>
+<text x="1252" y="300" font-size="9" fill="#78350f">which needs about 200 mm (152 mm with the shoulder fold's loop;</text>
+<text x="1252" y="312" font-size="9" fill="#78350f">docs/wiring.md, cad/v6/lead_lengths.py).</text>
+<text x="1252" y="332" font-size="9" fill="#78350f">The leg IDs are as assembled (docs/servo-map.md 2.1). Neck and arm IDs 13-17</text>
+<text x="1252" y="344" font-size="9" fill="#78350f">are still a proposal. Which General Driver port each leg was plugged into</text>
+<text x="1252" y="356" font-size="9" fill="#78350f">was not checked (servo-map.md); the servo data line is one net, from H5</text>
+<text x="1252" y="368" font-size="9" fill="#78350f">through J8.</text>
+<text x="1252" y="388" font-size="9" fill="#78350f">H6 and H5's DC_IN pin are not used by this harness; the harness tables in</text>
+<text x="1252" y="400" font-size="9" fill="#78350f">pcb/power-board/harness.md list only J8 to H5 for servo data.</text>
+<text x="1252" y="420" font-size="9" fill="#78350f">Not drawn or not verified: the physical fan-out of J12 to the General</text>
+<text x="1252" y="432" font-size="9" fill="#78350f">Driver's headers (harness.md lists it for the rev B board; J12's pins 2, 3,</text>
+<text x="1252" y="444" font-size="9" fill="#78350f">5 and 6 carry the same signals on power lite, but the header families, check</text>
+<text x="1252" y="456" font-size="9" fill="#78350f">P5, were not verified); the BMS thresholds (to be measured); the relay's</text>
+<text x="1252" y="468" font-size="9" fill="#78350f">inrush, set by the pack, BMS and wiring, which bring-up step 3 checks; the</text>
+<text x="1252" y="480" font-size="9" fill="#78350f">bench current figure with a watt meter.</text>
+<text x="1252" y="500" font-size="9" fill="#78350f">The old harness's INA219 caveat is unchanged: the board's INA219 sees only</text>
+<text x="1252" y="512" font-size="9" fill="#78350f">the buck's current, none of the servo current.</text>
 </svg>

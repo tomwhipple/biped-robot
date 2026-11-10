@@ -12,6 +12,11 @@ the test stand, for eyeballing sim-vs-bench with the SAME console inputs
 (2026-08-30: the bench gait resembled nothing; the question is whether the
 sim twin, hanging, does the same thing for the same reasons).
 
+Armed, the twin runs the robot's fall guard (fallguard::kPolicyLimits, read
+from the firmware header): torso past 45 deg for 200 ms ends the run, torque
+off, benched with DISARMED_FALL -- what operators rehearse against is what
+the robot does. Re-arm with a fresh ARM edge; stdin `reset` stands it up.
+
 Live view: --stream-port serves MJPEG on 0.0.0.0 (http://mira:<port>/) so
 the rendered sim is watchable next to the physical robot. --record writes
 the same frames to an mp4 on exit (hw_sessions/... is the natural home).
@@ -19,8 +24,8 @@ the same frames to an mp4 on exit (hw_sessions/... is the natural home).
 Flight records: --flight HOST:PORT (off by default) sends the stream the
 robot's flight recorder sends -- HELLO at 1 Hz, a TICK every control tick
 (goal written, nominal target and measured position per joint, IMU, the
-command the policy saw), events for arm/home edges, mode, link state and
-operator stops -- encoded by tools/flightrec.py, to a console or to mira's
+command the policy saw), events for arm/home edges, mode, link state,
+armed falls and operator stops -- encoded by tools/flightrec.py, to a console or to mira's
 collector (tools/flight_collector.py, UDP 4220). sim/sil_twin_wire.py builds
 the packets; docs/flight-recorder.md lists which fields the sim fills.
 
@@ -34,6 +39,7 @@ import io
 import select
 import json
 import os
+import re
 import socket
 import struct
 import sys
@@ -64,11 +70,94 @@ import sil_twin_wire as W                                   # noqa: E402
 import flightrec as FR                                      # noqa: E402  (W put tools/ on the path)
 
 # Needs BOTH a sim/runs/<name>/config.json and an exported
-# sim/sil/weights/<name>.silw.json; the previous default had only the weights,
-# so a bare `python sim/sil_twin.py` died opening config.json. bimo_gui's SIM
-# panel builds its dropdown from that same pair, for the same reason.
-DEFAULT_RUN = "loco_v11gait"
-HANG_XML = os.path.join(HERE, "bimo_biped_v5body_hang.xml")
+# sim/sil/weights/<name>.silw.json (bimo_gui's SIM panel builds its dropdown
+# from that same pair), and the run must match the compiled-in spec: the
+# DEPLOYED run, obs_spec.h's kRunName -- any other run fails sil_check_spec.
+def _deployed_run():
+    spec_h = os.path.join(ROOT, "firmware", "components", "obs", "include",
+                          "obs", "obs_spec.h")
+    try:
+        m = re.search(r'kRunName\s*=\s*"([^"]+)"', open(spec_h).read())
+    except OSError:
+        m = None
+    if m is None:
+        raise SystemExit(f"no kRunName in {spec_h}")
+    return m.group(1)
+
+
+DEFAULT_RUN = _deployed_run()
+HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+
+
+# -- the armed loop's fall guard ---------------------------------------------
+# The robot's armed loop ends a run when the torso is down (ctrl_task.cpp,
+# components/fallguard): fallguard::kPolicyLimits, up_z below cos 45 deg
+# continuously for 200 ms. The numbers are read out of the firmware header,
+# the way obs_spec.h's are, so the twin cannot drift from the robot.
+FALLGUARD_H = os.path.join(ROOT, "firmware", "components", "fallguard",
+                           "include", "fallguard", "fallguard.h")
+
+
+def fallguard_limits(path=FALLGUARD_H):
+    """(fall_up_z, debounce_ms) of fallguard::kPolicyLimits."""
+    try:
+        txt = open(path).read()
+    except OSError:
+        txt = ""
+    m = re.search(r"kPolicyLimits\s*=\s*\{\s*([-\d.eE+]+)f?\s*,\s*(\d+)u?\s*\}",
+                  txt)
+    if m is None:
+        raise SystemExit(f"no fallguard::kPolicyLimits in {path}")
+    return float(m.group(1)), int(m.group(2))
+
+
+class FallGuard:
+    """fallguard::Detector's fall half under Motion::kPolicy, sample for sample.
+
+    up_z below the limit continuously for the debounce latches it, once; an
+    invalid (non-finite) sample breaks the run without deciding anything. The
+    latch clears only on a fresh arm (clear()), as ctrl_task's handover does.
+    The pick-up half is the bench Detector's and has no twin analogue: nobody
+    lifts a simulated robot (stdin `reset` stands it back up)."""
+
+    def __init__(self, limits=None):
+        self.fall_up_z, self.debounce_ms = limits or fallguard_limits()
+        self.clear()
+
+    def clear(self):
+        self.fallen = False
+        self.tilt_deg = 0.0
+        self._since = None
+
+    def update(self, up, gyro, now_ms) -> bool:
+        """One attitude sample; True on the sample the latch trips."""
+        if self.fallen:
+            return False
+        up = np.asarray(up, dtype=np.float64)
+        if not (np.all(np.isfinite(up)) and
+                np.all(np.isfinite(np.asarray(gyro, dtype=np.float64)))):
+            self._since = None
+            return False
+        if not up[2] < self.fall_up_z:
+            self._since = None
+            return False
+        if self._since is None:
+            self._since = now_ms
+        if now_ms - self._since < self.debounce_ms:
+            return False
+        self.fallen = True
+        self.tilt_deg = float(np.degrees(np.arccos(np.clip(up[2], -1.0, 1.0))))
+        self._since = None
+        return True
+
+    def tick(self, sup, up, gyro, now_ms) -> bool:
+        """ctrl_task's fall check for one tick of an ARMED loop: a trip ends
+        the run (Supervisor.fell: benched, torque off, DISARMED_FALL).
+        Benched, nothing is checked. True on the trip tick."""
+        if sup.armed and self.update(up, gyro, now_ms):
+            sup.fell()
+            return True
+        return False
 
 
 # -- MJPEG live view --------------------------------------------------------
@@ -120,6 +209,78 @@ class Mjpeg:
             self.jpeg = buf.getvalue()
 
 
+def root_qposadr(model):
+    """qpos address of the torso's free joint, or -1 when there is no pose to set.
+
+    The attitude half of a mirrored pose goes here: qpos layout is
+    [x y z qw qx qy qz] at this address. The joint is found BY TYPE -- a free
+    joint whose body hangs off the world -- because the plant generator
+    (sim/build_v6_inertia.py) writes a bare `<freejoint/>` with no name.
+    -1 when the plant has none, or when that body is welded to the world
+    (the --hang plant): its torso has no pose to set, and the joints are
+    the whole picture.
+    """
+    import mujoco
+    for j in range(model.njnt):
+        if model.jnt_type[j] != mujoco.mjtJoint.mjJNT_FREE:
+            continue
+        b = int(model.jnt_bodyid[j])
+        if int(model.body_parentid[b]) != 0:
+            continue
+        welded = any(
+            model.eq_type[e] == mujoco.mjtEq.mjEQ_WELD
+            and model.eq_active0[e]
+            and {int(model.eq_obj1id[e]), int(model.eq_obj2id[e])} == {b, 0}
+            for e in range(model.neq))
+        return -1 if welded else int(model.jnt_qposadr[j])
+    return -1
+
+
+def up_to_quat(up):
+    """Torso orientation from the robot's up vector, as a wxyz quaternion.
+
+    `up` is the torso's own z axis EXPRESSED IN THE WORLD FRAME -- MuJoCo
+    framezaxis, and the same convention the obs frame uses
+    (obs/obs_spec.h kOffUp, filled from imu::Sample::up). So the rotation
+    wanted is the one taking world +Z onto `up`: the shortest such
+    rotation, because that is all the information there is.
+
+    It fixes roll and pitch and leaves yaw at zero, which is honest --
+    this robot has no magnetometer, and the filter's heading is
+    dead-reckoned and drifts. Drawing a mannequin with an invented heading
+    would make a drifting number look like a measurement.
+    """
+    v = np.asarray(up, dtype=np.float64)
+    n = float(np.linalg.norm(v))
+    if not np.isfinite(n) or n < 1e-6:
+        return np.array([1.0, 0.0, 0.0, 0.0])
+    v = v / n
+    z = np.array([0.0, 0.0, 1.0])
+    axis = np.cross(z, v)                 # world +Z -> up, not the reverse
+    sn = float(np.linalg.norm(axis))
+    c = float(np.dot(z, v))
+    if sn < 1e-9:
+        # Parallel or antiparallel: upright, or flat on its back.
+        return (np.array([1.0, 0.0, 0.0, 0.0]) if c > 0
+                else np.array([0.0, 1.0, 0.0, 0.0]))
+    axis = axis / sn
+    ang = float(np.arctan2(sn, c))
+    return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
+
+
+def _local_xml(xml):
+    """A run's config.json may store the plant relative to sim/ (or just its
+    basename: train_mjx.py on a remote host) -- resolve it against the local
+    sim/ directory, as eval_precision does, so the twin starts from any cwd."""
+    if not xml or os.path.isabs(xml) or os.path.exists(xml):
+        return xml
+    for cand in (os.path.join(HERE, xml),
+                 os.path.join(HERE, os.path.basename(xml))):
+        if os.path.exists(cand):
+            return cand
+    return xml
+
+
 def run(args):
     from eval_precision import (make_env, sil_check_spec,   # noqa: E402
                                 sil_profile_for, sil_setup)
@@ -128,7 +289,7 @@ def run(args):
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     xml = args.xml or (HANG_XML if args.hang else None) \
-        or cfg.get("xml_path") or None
+        or _local_xml(cfg.get("xml_path")) or None
     # the policy profile is the TRAINING plant's (a --hang override is a
     # variant of the same body)
     prof = sil_profile_for(cfg.get("xml_path") or "")
@@ -153,7 +314,7 @@ def run(args):
             v = {"true": True, "false": False, "none": None}.get(v.lower(), v)
         extra[k] = v
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
-                   xml=xml if xml else cfg.get("xml_path"),
+                   xml=xml if xml else _local_xml(cfg.get("xml_path")),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
     print(f"sil_twin: plant backlash {env.backlash_deg:g} deg, "
           f"act_lag {env.act_lag_hz:g} Hz, dead time {getattr(env, 'act_delay_ticks', 0)} ticks, play {env.play_deg:g} deg "
@@ -214,11 +375,8 @@ def run(args):
     _pol_names = json.loads(lib.spec_string())["joint_names"]
     beacon_src = [(_pol_names.index(jn) if jn in _pol_names else -1)
                   for jn in JOINT_NAMES]     # wire index -> policy joint
-    # The torso free joint, for the attitude half of a pose. qpos layout is
-    # [x y z qw qx qy qz] at its address; -1 when the plant is welded (--hang),
-    # where the torso has no pose to set and the joints are the whole picture.
-    _root = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, "root")
-    root_adr = int(env.model.jnt_qposadr[_root]) if _root >= 0 else -1
+    # The torso free joint, for the attitude half of a pose (-1 when --hang).
+    root_adr = root_qposadr(env.model)
 
     # Flight records (--flight): the robot's recorder stream, from the SIL
     # controller's targets and the plant's joints (sim/sil_twin_wire.py).
@@ -260,38 +418,8 @@ def run(args):
               f"{'' if imu_sid >= 0 else ', no imu site: IMU block not valid'})",
               flush=True)
 
-    def up_to_quat(up):
-        """Torso orientation from the robot's up vector, as a wxyz quaternion.
-
-        `up` is the torso's own z axis EXPRESSED IN THE WORLD FRAME -- MuJoCo
-        framezaxis, and the same convention the obs frame uses
-        (obs/obs_spec.h kOffUp, filled from imu::Sample::up). So the rotation
-        wanted is the one taking world +Z onto `up`: the shortest such
-        rotation, because that is all the information there is.
-
-        It fixes roll and pitch and leaves yaw at zero, which is honest --
-        this robot has no magnetometer, and the filter's heading is
-        dead-reckoned and drifts. Drawing a mannequin with an invented heading
-        would make a drifting number look like a measurement.
-        """
-        v = np.asarray(up, dtype=np.float64)
-        n = float(np.linalg.norm(v))
-        if not np.isfinite(n) or n < 1e-6:
-            return np.array([1.0, 0.0, 0.0, 0.0])
-        v = v / n
-        z = np.array([0.0, 0.0, 1.0])
-        axis = np.cross(z, v)                 # world +Z -> up, not the reverse
-        sn = float(np.linalg.norm(axis))
-        c = float(np.dot(z, v))
-        if sn < 1e-9:
-            # Parallel or antiparallel: upright, or flat on its back.
-            return (np.array([1.0, 0.0, 0.0, 0.0]) if c > 0
-                    else np.array([0.0, 1.0, 0.0, 0.0]))
-        axis = axis / sn
-        ang = float(np.arctan2(sn, c))
-        return np.concatenate(([np.cos(ang / 2)], np.sin(ang / 2) * axis))
-
     dog = Supervisor(armed=args.boot_armed)
+    fall = FallGuard()
     stream = Mjpeg(args.stream_port) if args.stream_port else None
     frames = []
     peer = None
@@ -300,6 +428,7 @@ def run(args):
     last_state = None
     flight_mode = None                   # last EV_MODE value recorded
     worst_us = 0
+    homes_seen = dog.homes
     t0 = time.monotonic()
     late = 0
     dt = env.control_dt
@@ -455,17 +584,48 @@ def run(args):
                     time.sleep(slack)
                 continue
 
+            # Firmware run-entry: fresh history, fresh clock, fresh fall latch
+            # (ctrl_task's bench handover). Mirror it on the arm edge.
+            if dog.armed and not was_armed:
+                act.begin_episode()
+                fall.clear()
+            # The armed loop's fall guard, on the attitude this tick senses
+            # (the obs frame's up and gyro: what the firmware stack is fed),
+            # in sim time so the debounce is the plant's 200 ms whatever the
+            # wall clock does. A trip benches the loop before anything acts:
+            # torque goes off on this very tick and the beacon says BENCH with
+            # DISARMED_FALL, as the robot's does.
+            f = act.split_obs(obs)
+            if fall.tick(dog, f["up"], f["gyro"],
+                         int(round(i * dt * 1000.0))):
+                print(f"  [{now_ms / 1000:6.2f}s] FALL: tilt "
+                      f"{fall.tilt_deg:.0f} deg (up_z < {fall.fall_up_z:g} "
+                      f"for {fall.debounce_ms} ms) -> torque off, run over, "
+                      f"benched; re-arm with a fresh ARM edge", flush=True)
+                if flight is not None:
+                    # cli.cpp fallEvent: a = Motion::kPolicy, b = Event::kFell.
+                    flight.post(flight.event(
+                        boot_us(), utc_us(), FR.EV_FALL, a=1, b=1,
+                        text=f"armed fall at {fall.tilt_deg:.0f} deg: loop "
+                             f"disarmed, torque off"))
+            was_armed = dog.armed
+            # A reset-servos request (FLAG_HOME): the robot benches, slews to
+            # the stand on the bus, reads back, then releases torque (cli.cpp
+            # homeVerify). The twin has no bench half to do the slew, so the
+            # plant goes limp where it is -- torque_on() is False from here.
+            if dog.homes != homes_seen:
+                homes_seen = dog.homes
+                print(f"  [{now_ms / 1000:6.2f}s] home: benched, torque "
+                      f"released (the plant is not re-posed first: it goes "
+                      f"limp where it is; stdin `reset` re-rolls it standing)",
+                      flush=True)
+
             state = dog.state(now_ms)
             if state is not last_state:
                 print(f"  [{now_ms / 1000:6.2f}s] link -> {state.value}",
                       flush=True)
                 last_state = state
 
-            # Firmware run-entry: fresh history, fresh clock (ctrl_task's
-            # bench handover). Mirror it on the arm edge.
-            if dog.armed and not was_armed:
-                act.begin_episode()
-            was_armed = dog.armed
             if flight is not None:
                 # EV_MODE as flight_rec.cpp houseTick: a = run | ctrl owns
                 # the bus << 1 (both, armed), b = the ArmResult.
@@ -585,8 +745,8 @@ def run(args):
                 # SilActAdapter keeps the tick's SilTargets (no skip ticks here).
                 view = W.sil_view(H, lib, act._last_targets)
                 # The controller's targets are reported while the loop is
-                # armed or the plant tracks them (a homed hold); goals only
-                # while it does (torque on).
+                # armed or the plant tracks them (a soft stop's hold; a home
+                # ends released); goals only while it does (torque on).
                 reported = dog.armed or torque_now
                 imu = (dict(accel=imu_truth[1], gyro=view["gyro"],
                             quat=imu_truth[0], up=view["up"])
