@@ -1,0 +1,1798 @@
+[
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.2612278141688491,
+  "lift_cm": [
+   3.0612382443729422,
+   2.028943073556206
+  ],
+  "shift_when_up": [
+   -0.21943149952705887,
+   0.14852349518080052
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.2669835278171768,
+  "lift_cm": [
+   3.1444210506423347,
+   1.915049872535286
+  ],
+  "shift_when_up": [
+   -0.2124110891547506,
+   0.15009667333544363
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.2581672022932537,
+  "lift_cm": [
+   3.2447466360826556,
+   1.9785987078862348
+  ],
+  "shift_when_up": [
+   -0.213973560411398,
+   0.15987832281392356
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.2786181066560645,
+  "lift_cm": [
+   3.1666941563277593,
+   2.242222003159125
+  ],
+  "shift_when_up": [
+   -0.21191514402160264,
+   0.15817964375207394
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.2651704488490184,
+  "lift_cm": [
+   3.0426443559187213,
+   1.9748919621796135
+  ],
+  "shift_when_up": [
+   -0.2159055186209756,
+   0.1619343771993101
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.26443420481696217,
+  "lift_cm": [
+   3.1568707336514326,
+   2.109263757945071
+  ],
+  "shift_when_up": [
+   -0.21999326336408723,
+   0.1593388270955231
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.25505563213481003,
+  "lift_cm": [
+   3.195257253770793,
+   2.1612969293147306
+  ],
+  "shift_when_up": [
+   -0.21807276060431538,
+   0.15834311493714184
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   18.744
+  ],
+  "dx": 0.29385284318419663,
+  "lift_cm": [
+   2.953875225424365,
+   2.0133821876871756
+  ],
+  "shift_when_up": [
+   -0.2121601594035673,
+   0.1599880641214185
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.683934704651202,
+  "lift_cm": [
+   3.0612382443729422,
+   2.2367137594541378
+  ],
+  "shift_when_up": [
+   -0.3754445368505338,
+   0.4906801316501413
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6810852542743281,
+  "lift_cm": [
+   3.1444210506423347,
+   2.158204237713809
+  ],
+  "shift_when_up": [
+   -0.4096194166691036,
+   0.4785708496458171
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6797673669057167,
+  "lift_cm": [
+   3.2447466360826556,
+   2.2019880005100547
+  ],
+  "shift_when_up": [
+   -0.39432041101167387,
+   0.4938703693531782
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6886871152514424,
+  "lift_cm": [
+   3.1666941563277593,
+   2.242222003159125
+  ],
+  "shift_when_up": [
+   -0.39579827139496404,
+   0.5316188229887256
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6802006381173266,
+  "lift_cm": [
+   3.0426443559187213,
+   2.1612851372057156
+  ],
+  "shift_when_up": [
+   -0.39183997888628924,
+   0.502720514366203
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6773631090546851,
+  "lift_cm": [
+   3.1568707336514326,
+   2.283392253098164
+  ],
+  "shift_when_up": [
+   -0.3977318998726857,
+   0.5243677841089012
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6606087546597569,
+  "lift_cm": [
+   3.195257253770793,
+   2.1612969293147306
+  ],
+  "shift_when_up": [
+   -0.3694832597732079,
+   0.4994462794940247
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6806489639717808,
+  "lift_cm": [
+   2.953875225424365,
+   2.2999152205850315
+  ],
+  "shift_when_up": [
+   -0.3932435383856069,
+   0.5053163869054111
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   22.337
+  ],
+  "dx": 0.2750238398845678,
+  "lift_cm": [
+   3.155822419384803,
+   1.9012900787970122
+  ],
+  "shift_when_up": [
+   -0.2217174671662862,
+   0.15434146147206843
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   18.219
+  ],
+  "dx": 0.2767473953178729,
+  "lift_cm": [
+   3.210792087161887,
+   1.7626015743403403
+  ],
+  "shift_when_up": [
+   -0.21539096272938515,
+   0.13780160633605393
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   22.621
+  ],
+  "dx": 0.26118211503527244,
+  "lift_cm": [
+   3.12311875228582,
+   1.8858799434018743
+  ],
+  "shift_when_up": [
+   -0.21409839694022248,
+   0.15406227887164645
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   28.601
+  ],
+  "dx": 0.274743165024831,
+  "lift_cm": [
+   3.233261617923125,
+   2.1088769605773043
+  ],
+  "shift_when_up": [
+   -0.22185231713841908,
+   0.17409887756313122
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   29.555
+  ],
+  "dx": 0.2823566367747025,
+  "lift_cm": [
+   3.1805179549765645,
+   1.882257172865113
+  ],
+  "shift_when_up": [
+   -0.21573912226942665,
+   0.1477948574118402
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   24.347
+  ],
+  "dx": 0.28198285243534127,
+  "lift_cm": [
+   3.1940107494262806,
+   1.963650673845538
+  ],
+  "shift_when_up": [
+   -0.22677882731405924,
+   0.1548376139225956
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   23.878
+  ],
+  "dx": 0.2643834643210316,
+  "lift_cm": [
+   3.2164410823476994,
+   2.0310207965247526
+  ],
+  "shift_when_up": [
+   -0.21714845662738927,
+   0.15934991986767807
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   30.485
+  ],
+  "dx": 0.2819136590316836,
+  "lift_cm": [
+   3.051017173206854,
+   1.8766205592237222
+  ],
+  "shift_when_up": [
+   -0.20461306653604527,
+   0.14897376488731728
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.672485015102405,
+  "lift_cm": [
+   3.155822419384803,
+   1.9012900787970122
+  ],
+  "shift_when_up": [
+   -0.4353863182686188,
+   0.4357012687855669
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6643916835006425,
+  "lift_cm": [
+   3.210792087161887,
+   1.8045486187289894
+  ],
+  "shift_when_up": [
+   -0.4499930718066537,
+   0.3853389177165024
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6602216816738102,
+  "lift_cm": [
+   3.12311875228582,
+   1.8858799434018743
+  ],
+  "shift_when_up": [
+   -0.42693371483783366,
+   0.4432941908178468
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6842123084527557,
+  "lift_cm": [
+   3.233261617923125,
+   2.1088769605773043
+  ],
+  "shift_when_up": [
+   -0.4309426365183225,
+   0.4883720694086709
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.67494658109902,
+  "lift_cm": [
+   3.1805179549765645,
+   1.882257172865113
+  ],
+  "shift_when_up": [
+   -0.4559799535579195,
+   0.3967835311444682
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6848148704257216,
+  "lift_cm": [
+   3.1940107494262806,
+   1.963650673845538
+  ],
+  "shift_when_up": [
+   -0.4463053110454646,
+   0.4729785040241807
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6641127612107242,
+  "lift_cm": [
+   3.2164410823476994,
+   2.0310207965247526
+  ],
+  "shift_when_up": [
+   -0.425976251108142,
+   0.41256322163896825
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6755932741252892,
+  "lift_cm": [
+   3.051017173206854,
+   1.916652515898581
+  ],
+  "shift_when_up": [
+   -0.43587707878314047,
+   0.4516091037299492
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   25.839
+  ],
+  "dx": 0.2770956501461731,
+  "lift_cm": [
+   2.736677650497365,
+   1.160574881052852
+  ],
+  "shift_when_up": [
+   -0.17832377913947922,
+   0.1484909811320497
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   29.813
+  ],
+  "dx": 0.27084874715307683,
+  "lift_cm": [
+   2.9406085483673348,
+   1.1231035933864337
+  ],
+  "shift_when_up": [
+   -0.175488982985939,
+   0.1492838847408296
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   30.166
+  ],
+  "dx": 0.2677451460502134,
+  "lift_cm": [
+   2.9190708314290648,
+   1.1598403745421177
+  ],
+  "shift_when_up": [
+   -0.17875921627004196,
+   0.1565999006281581
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   30.809
+  ],
+  "dx": 0.2776590887279556,
+  "lift_cm": [
+   2.86556668552971,
+   1.3955675942841117
+  ],
+  "shift_when_up": [
+   -0.16699347235371773,
+   0.15094199607059255
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   30.533
+  ],
+  "dx": 0.27561667583633015,
+  "lift_cm": [
+   2.742237006026662,
+   1.216329777140811
+  ],
+  "shift_when_up": [
+   -0.16220849055512293,
+   0.15730056561449107
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   28.294
+  ],
+  "dx": 0.2786656710561077,
+  "lift_cm": [
+   2.8682377169586966,
+   1.3041590184098188
+  ],
+  "shift_when_up": [
+   -0.16208157469032694,
+   0.15701650992206403
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   30.169
+  ],
+  "dx": 0.26433891484662314,
+  "lift_cm": [
+   2.9204609908813643,
+   1.3301010673445708
+  ],
+  "shift_when_up": [
+   -0.1726712251664401,
+   0.15411818656657272
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   28.445
+  ],
+  "dx": 0.27772203606010265,
+  "lift_cm": [
+   2.7087072298305337,
+   1.1997309331608652
+  ],
+  "shift_when_up": [
+   -0.16488215970123438,
+   0.16029100075624395
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6327458555697203,
+  "lift_cm": [
+   2.736677650497365,
+   2.2258363748319763
+  ],
+  "shift_when_up": [
+   -0.38516846156427875,
+   0.3782775318760368
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6127020129352289,
+  "lift_cm": [
+   2.9406085483673348,
+   2.1091707274819105
+  ],
+  "shift_when_up": [
+   -0.34069069441812827,
+   0.42945365022956355
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.617104759726617,
+  "lift_cm": [
+   2.9190708314290648,
+   2.1071877968367145
+  ],
+  "shift_when_up": [
+   -0.35852368573076976,
+   0.4154110861147236
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6203667934370676,
+  "lift_cm": [
+   2.86556668552971,
+   2.112434882092166
+  ],
+  "shift_when_up": [
+   -0.33799132107284213,
+   0.5846765081899643
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6346088843819836,
+  "lift_cm": [
+   2.742237006026662,
+   1.9846297686262462
+  ],
+  "shift_when_up": [
+   -0.3497200725606903,
+   0.49870520060408746
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6335523527204916,
+  "lift_cm": [
+   2.8682377169586966,
+   2.1814717520604403
+  ],
+  "shift_when_up": [
+   -0.37394897597288845,
+   0.4786754996424294
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6047147574595346,
+  "lift_cm": [
+   2.9204609908813643,
+   2.0630244327153187
+  ],
+  "shift_when_up": [
+   -0.3477672055643795,
+   0.40171973770358993
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.6285994106242517,
+  "lift_cm": [
+   2.7087072298305337,
+   2.1916951345438727
+  ],
+  "shift_when_up": [
+   -0.38065749639719754,
+   0.4992652033433375
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   36.83
+  ],
+  "dx": 0.2991702406015963,
+  "lift_cm": [
+   4.373717946753624,
+   2.9262642841279884
+  ],
+  "shift_when_up": [
+   -0.29473589692039126,
+   0.30111668364731986
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   37.871
+  ],
+  "dx": 0.3036455172616233,
+  "lift_cm": [
+   4.365009297246548,
+   2.9052912413281144
+  ],
+  "shift_when_up": [
+   -0.2900471011314748,
+   0.30495453173371867
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   37.446
+  ],
+  "dx": 0.30018207439649564,
+  "lift_cm": [
+   4.230984931978445,
+   2.816794981184386
+  ],
+  "shift_when_up": [
+   -0.31647340652995437,
+   0.2933778324745525
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.64
+  ],
+  "dx": 0.3049264210535042,
+  "lift_cm": [
+   4.411693338474063,
+   3.2136850919585873
+  ],
+  "shift_when_up": [
+   -0.3144204074209026,
+   0.2890916030725898
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.725
+  ],
+  "dx": 0.3003152664671264,
+  "lift_cm": [
+   4.462729245750861,
+   2.869711889458102
+  ],
+  "shift_when_up": [
+   -0.30855202302893586,
+   0.29288822744203147
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.159
+  ],
+  "dx": 0.31023293260414736,
+  "lift_cm": [
+   4.3085829988055195,
+   3.1077657062775974
+  ],
+  "shift_when_up": [
+   -0.30436241076462056,
+   0.29660930185553386
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.55
+  ],
+  "dx": 0.3043051414516324,
+  "lift_cm": [
+   4.474981685627352,
+   3.0322040593398305
+  ],
+  "shift_when_up": [
+   -0.31439227273035436,
+   0.28477122779668806
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.203
+  ],
+  "dx": 0.3047757176999484,
+  "lift_cm": [
+   4.36824942467191,
+   2.8805774078814483
+  ],
+  "shift_when_up": [
+   -0.2959604226269157,
+   0.3038397499575439
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.746100561609805,
+  "lift_cm": [
+   4.373717946753624,
+   2.9262642841279884
+  ],
+  "shift_when_up": [
+   -0.4247654729449341,
+   0.5776130564062214
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7520061425263074,
+  "lift_cm": [
+   4.365009297246548,
+   2.9052912413281144
+  ],
+  "shift_when_up": [
+   -0.44075898764617094,
+   0.5758024143479459
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7499995385007031,
+  "lift_cm": [
+   4.230984931978445,
+   2.816794981184386
+  ],
+  "shift_when_up": [
+   -0.43286902633213775,
+   0.6197139733284286
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7588681991319143,
+  "lift_cm": [
+   4.411693338474063,
+   3.2136850919585873
+  ],
+  "shift_when_up": [
+   -0.4620285148104913,
+   0.6412004491423822
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7456642673182716,
+  "lift_cm": [
+   4.462729245750861,
+   2.876589452402828
+  ],
+  "shift_when_up": [
+   -0.4213455981005839,
+   0.6121047219769487
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7569622398864201,
+  "lift_cm": [
+   4.3085829988055195,
+   3.1077657062775974
+  ],
+  "shift_when_up": [
+   -0.4562297006982539,
+   0.6173985070137455
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7523242338860271,
+  "lift_cm": [
+   4.474981685627352,
+   3.0322040593398305
+  ],
+  "shift_when_up": [
+   -0.45340413284224396,
+   0.6001971724495422
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7463121360480173,
+  "lift_cm": [
+   4.36824942467191,
+   2.8805774078814483
+  ],
+  "shift_when_up": [
+   -0.4355136678513245,
+   0.5691098342519997
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   37.99
+  ],
+  "dx": 0.29897384190033155,
+  "lift_cm": [
+   4.016439208400232,
+   2.4029153585627205
+  ],
+  "shift_when_up": [
+   -0.2697932702302217,
+   0.24970147204050266
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.951
+  ],
+  "dx": 0.3022828307432422,
+  "lift_cm": [
+   4.074710389000847,
+   2.3248935545488667
+  ],
+  "shift_when_up": [
+   -0.293573626737886,
+   0.2571450053002911
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.001
+  ],
+  "dx": 0.29914757036993955,
+  "lift_cm": [
+   3.9783899011756074,
+   2.3354786730364183
+  ],
+  "shift_when_up": [
+   -0.29814458674807154,
+   0.25613078126823957
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   39.833
+  ],
+  "dx": 0.30142704603855386,
+  "lift_cm": [
+   4.0401489634618875,
+   2.7107421964290612
+  ],
+  "shift_when_up": [
+   -0.31036443731253627,
+   0.2506336674143998
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.04
+  ],
+  "dx": 0.2991876183144503,
+  "lift_cm": [
+   4.15710191639949,
+   2.2816304834840118
+  ],
+  "shift_when_up": [
+   -0.2873500860981701,
+   0.24661221493608868
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.754
+  ],
+  "dx": 0.3037920651321128,
+  "lift_cm": [
+   3.938586232041935,
+   2.5975787192342574
+  ],
+  "shift_when_up": [
+   -0.2979848491227075,
+   0.2533313381516206
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.765
+  ],
+  "dx": 0.3008464886412415,
+  "lift_cm": [
+   4.104306141036542,
+   2.469856787833563
+  ],
+  "shift_when_up": [
+   -0.2996474360994208,
+   0.2437625231622895
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.169
+  ],
+  "dx": 0.3049760954861753,
+  "lift_cm": [
+   4.076482822182085,
+   2.329544846487592
+  ],
+  "shift_when_up": [
+   -0.286617425247008,
+   0.26831582920735453
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7467261939232454,
+  "lift_cm": [
+   4.072363294656863,
+   2.8188710397275734
+  ],
+  "shift_when_up": [
+   -0.48246358377018633,
+   0.5820208556628784
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7530406514855406,
+  "lift_cm": [
+   4.105754151749038,
+   2.670418568182127
+  ],
+  "shift_when_up": [
+   -0.47001500381205513,
+   0.5867523729263282
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7493637425824852,
+  "lift_cm": [
+   4.093490934707536,
+   2.623373595028207
+  ],
+  "shift_when_up": [
+   -0.4975059951983994,
+   0.6036183730698891
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7520566724180414,
+  "lift_cm": [
+   4.0401489634618875,
+   2.726784120407161
+  ],
+  "shift_when_up": [
+   -0.5050836549979542,
+   0.636044225562533
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7458167146406113,
+  "lift_cm": [
+   4.15710191639949,
+   2.8185436623278557
+  ],
+  "shift_when_up": [
+   -0.47231419481681214,
+   0.5957606261692157
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7545332815036582,
+  "lift_cm": [
+   3.938586232041935,
+   2.6857714213736203
+  ],
+  "shift_when_up": [
+   -0.49424167292049404,
+   0.5782979037286382
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.759616181947418,
+  "lift_cm": [
+   4.104306141036542,
+   2.8864124872504027
+  ],
+  "shift_when_up": [
+   -0.4647440455753885,
+   0.5996642041393493
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "roll lash 1.25 deg (train DR centre)",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7498367271460415,
+  "lift_cm": [
+   4.076482822182085,
+   2.6888492722790294
+  ],
+  "shift_when_up": [
+   -0.4822571109968968,
+   0.5859762380599114
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   40.404
+  ],
+  "dx": 0.30963408880868204,
+  "lift_cm": [
+   3.9280209084689313,
+   2.1291902670660656
+  ],
+  "shift_when_up": [
+   -0.27913371676445115,
+   0.2606765086999116
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.501
+  ],
+  "dx": 0.3082310423664058,
+  "lift_cm": [
+   4.0324705640173795,
+   2.1529199787021005
+  ],
+  "shift_when_up": [
+   -0.28471453651942746,
+   0.25394983150901695
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.348
+  ],
+  "dx": 0.308319961096467,
+  "lift_cm": [
+   3.8583233303135254,
+   2.099729686405087
+  ],
+  "shift_when_up": [
+   -0.26371062991074873,
+   0.24366115132367283
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   40.935
+  ],
+  "dx": 0.30441438262124404,
+  "lift_cm": [
+   3.87714551515276,
+   2.408910897470723
+  ],
+  "shift_when_up": [
+   -0.27161369981605676,
+   0.2554530873403102
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.826
+  ],
+  "dx": 0.3037037560902581,
+  "lift_cm": [
+   3.970419153093163,
+   2.064518266688282
+  ],
+  "shift_when_up": [
+   -0.2800546021806715,
+   0.24753526680073212
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   41.081
+  ],
+  "dx": 0.3155235459528196,
+  "lift_cm": [
+   3.817312493208546,
+   2.338727222518372
+  ],
+  "shift_when_up": [
+   -0.2722230690615358,
+   0.25889483448049494
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.407
+  ],
+  "dx": 0.302720516168953,
+  "lift_cm": [
+   4.008561077075293,
+   2.209628940506164
+  ],
+  "shift_when_up": [
+   -0.2799307483914993,
+   0.23984643969343802
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   41.322
+  ],
+  "dx": 0.31153347881376225,
+  "lift_cm": [
+   3.93380702242572,
+   2.0965173835473765
+  ],
+  "shift_when_up": [
+   -0.28263701924736256,
+   0.27315731817080624
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7313100064442106,
+  "lift_cm": [
+   3.9280209084689313,
+   2.4386898923951716
+  ],
+  "shift_when_up": [
+   -0.4543099370566094,
+   0.49374212178595833
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7368892748365182,
+  "lift_cm": [
+   4.0324705640173795,
+   2.449790122862583
+  ],
+  "shift_when_up": [
+   -0.4317575639010997,
+   0.5285072348751122
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7353503952522082,
+  "lift_cm": [
+   3.8583233303135254,
+   2.512169166660044
+  ],
+  "shift_when_up": [
+   -0.47622375551314505,
+   0.5424541120503978
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7365383799542993,
+  "lift_cm": [
+   3.87714551515276,
+   2.503118542915649
+  ],
+  "shift_when_up": [
+   -0.4628235780771616,
+   0.5988096022613413
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7372080572747622,
+  "lift_cm": [
+   3.970419153093163,
+   2.466994711833197
+  ],
+  "shift_when_up": [
+   -0.4181182069745443,
+   0.5931003532536123
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7549606408379463,
+  "lift_cm": [
+   3.817312493208546,
+   2.536056292605706
+  ],
+  "shift_when_up": [
+   -0.47100508565234406,
+   0.5735219997504292
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7409394064647371,
+  "lift_cm": [
+   4.008561077075293,
+   2.448737832295211
+  ],
+  "shift_when_up": [
+   -0.46919612702111846,
+   0.5362049146957234
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "series spring hip 14.2 N m/rad",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "dx": 0.7390544177740871,
+  "lift_cm": [
+   3.93380702242572,
+   2.5586812803370305
+  ],
+  "shift_when_up": [
+   -0.44433782770245883,
+   0.5387230997539838
+  ]
+ }
+]

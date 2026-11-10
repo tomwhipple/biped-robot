@@ -169,7 +169,15 @@ def run_replay(job):
     orig_make = SS.make_env
     SS.make_env = lambda pl_, seed=0: env
     try:
-        r = SS.Replay(st, pl, ctl).run()
+        rp = SS.Replay(st, pl, ctl)
+        alpha = getattr(env, "_gate_alpha", None)
+        if alpha is not None and np.any(alpha > 0):
+            enc0 = rp.encoder_rad
+            def enc():     # a series spring: the encoder reads the servo shaft
+                q = env.data.qpos[env._sqpos]
+                return enc0() + (alpha * (env.data.ctrl - q))[rp.jidx]
+            rp.encoder_rad = enc
+        r = rp.run()
     finally:
         SS.make_env = orig_make
     clr = np.array(clr)
@@ -262,7 +270,7 @@ def clamp_test(plant, terms):
         try:
             env = GC.make_plant(plant, terms=terms, xml=xml)
             env.domain_rand = False
-            tilt, enc, lift = RC.run(env, side)
+            tilt, enc, lift = GC.clamp_run(env, side)
         finally:
             os.unlink(xml)
         out[side] = dict(tilt=tilt, enc_ankle=enc["ankle_roll"], enc_hip=enc["hip_roll"], lift_mm=lift)

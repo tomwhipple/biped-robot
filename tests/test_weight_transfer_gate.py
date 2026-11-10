@@ -152,3 +152,57 @@ def test_train_plant_and_terms():
     assert env.model.body_mass[b] == pytest.approx(0.5 * m0)
     GC.apply_terms(env, dict(torso=1.0))                 # terms rescale from the nominal, never compound
     assert env.model.body_mass[b] == pytest.approx(m0)
+
+
+def test_grade_roll_opt_ins_default_off(monkeypatch):
+    """grade.py's roll-chain opt-ins (round 2): unset -> no change to the plant at all."""
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "shaper-train"))
+    import grade
+    monkeypatch.delenv("GRADE_ROLL_LASH", raising=False)
+    monkeypatch.delenv("GRADE_ROLL_SERIES", raising=False)
+    assert grade.roll_plant_opts() == {}
+    monkeypatch.setenv("GRADE_ROLL_LASH", "1.25")
+    monkeypatch.setenv("GRADE_ROLL_SERIES", "hip=14.2, ankle=27.8")
+    assert grade.roll_plant_opts() == dict(roll_lash_deg=1.25, ser_hip=14.2, ser_ankle=27.8)
+
+
+def test_series_joint_in_spec():
+    import mujoco
+    spec = mujoco.MjSpec.from_file(GC.XML)
+    GC.add_series_joint(spec, "L_hip_roll", 14.2)
+    m = spec.compile()
+    j, j0 = m.joint("L_hip_roll_ser"), m.joint("L_hip_roll")
+    assert j.bodyid[0] == j0.bodyid[0] and list(j.axis) == list(j0.axis)
+    assert m.jnt_stiffness[j.id] == pytest.approx(14.2) and m.nq == mujoco.MjModel.from_xml_path(GC.XML).nq + 1
+
+
+def test_wt_metrics_lift_and_shift():
+    import wt_grade as WG
+    n = 200
+    ft = np.zeros((n, 8))
+    ft[:, 3], ft[:, 5] = 0.06, -0.06                 # L sole at y +6 cm, R at -6 cm
+    ft[100:120, 1] = 0.02                            # the R foot 2 cm up for 20 ticks ...
+    ft[100:120, 7] = 0.03                            # ... with the CoM half way over the L foot
+    m = WG.wt_metrics(ft)
+    assert m["lift_cm"] == pytest.approx([0.0, 2.0])
+    assert m["shift_when_up"][0] is None and m["shift_when_up"][1] == pytest.approx(0.5)
+
+
+def test_records_and_joint_variants_are_named():
+    import check2_replay as C2
+    assert set(C2.RECORDS) == {"1109", "1106t1", "1106t2"} and C2.record_name() in C2.RECORDS
+    assert C2.JOINT_VARIANTS["plant"] == {}
+    assert C2.JOINT_VARIANTS["series spring, hip rolls 14.2 N m/rad"] == dict(ser_hip=14.2)
+
+
+@pytest.mark.skipif(not os.path.exists(os.path.join(GC.run_dir(), "config.json")),
+                    reason="the prec16 run (sim/runs, gitignored) is not on this machine")
+def test_series_term_scales_the_roll_pd_and_hides_it_from_the_encoder():
+    env = GC.train_env(terms=dict(lash=0.0, ser_hip=14.2))
+    i = env._servo_names.index("L_hip_roll")
+    k = env._sname2i["L_knee"]
+    kp = float(env._servo[0]) * env._gate_nom["kp"][i]
+    x = 14.2 / (kp + 14.2)
+    assert env._kp_prof[i] == pytest.approx(env._gate_nom["kp"][i] * x)
+    assert env._gate_alpha[i] == pytest.approx(1 - x) and env._gate_alpha[k] == 0.0
+    assert env._kp_prof[k] == pytest.approx(env._gate_nom["kp"][k])
