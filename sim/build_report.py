@@ -434,6 +434,28 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-10 card: night 20 -- weight transfer, night 1. The 11-09 robot run of prec16 never unloaded its R foot;
+# the walk-shift reward barely moved the CoM (the imitation reference held the rolls at the standing pose).
+# Tonight: --mimic-sway puts the shift into the reference.
+fig_1110 = "\n    ".join(f for f in [
+    video_file('../hw_sessions/2026-11-09/prec16_run1.mp4',
+               '<b>prec16 on the robot, one stride at 0.2 m/s (11-09):</b> the joints are slow (mean knee 115/121 '
+               'deg/s, omni14 171/131), but the right foot never leaves the floor: hip roll moves 4-8 deg, the bending '
+               'loaded leg yaws the body 46 deg and the rate guard trips',
+               name='hw1109_prec16_run1'),
+    video_figure('robot_legs_prec43_ws2_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec43_ws2_s128r24_walk_steps',
+                 'prec43, the walking weight-transfer reward at weight 2: the most shift of the line, CoM 0.35/0.24 of '
+                 'the way to the stance foot on the one-stride robot probe (prec16 0.21/0.16, bar 0.6); x1.5 kept'),
+    video_figure('robot_legs_prec37_f075_js20_sh35_s2t_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec37_f075_js20_sh35_s2t_s128r24_walk_steps',
+                 'prec37, 3.5 cm swing target + tighter swing kernel: the best lift on the robot probe (4.4/3.0 cm), '
+                 'x1.5 kept, 0 falls, yaw -2 deg, but the same small shift (0.30/0.29)'),
+    video_figure('robot_legs_prec34_f075_js20_sh35_lg_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec34_f075_js20_sh35_lg_s128r24_walk_steps',
+                 'prec34, loop-gain randomisation on prec26: the x1.5 margin comes back (6/6 -> 0/0), but turning '
+                 'slows (+52 deg in 4 s, was +102) and the median swing drops to 0.9 cm'),
+] if f)
 # 2026-11-09 card: night 19 -- the prec line, night 3. Every lever that moved the gait (clearance, speed, yaw,
 # symmetry) cost the x1.5 stand margin; prec24's margin was the draw. Tonight: loop-gain DR as the repair.
 fig_1109 = "\n    ".join(f for f in [
@@ -1021,6 +1043,30 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·10 · night 20: weight transfer, night 1</span></p>
+    <p><b>On the robot (11-09), prec16 moved slowly but never lifted its right foot.</b> The hip roll moved only 4-8 deg,
+    so the weight stayed between the feet. The loaded leg bent, the body yawed 46 deg and the rate guard tripped. In the sim
+    the same policy keeps its centre of mass only 0.14-0.23 of the way toward the standing foot while the other foot is up.
+    The new bar for a robot candidate: both feet lift at least 2 cm, and the centre of mass sits at least 0.6 of the way
+    over the standing foot.</p>
+    <p><b>Last night:</b> a reward for the centre of mass over the standing foot (four runs) moved it only to about
+    0.35/0.25. The reason is the imitation reference the policies follow. For straight walking it holds the hip and ankle
+    rolls at the standing pose, so the policy is paid to keep its weight in the middle, about 20x more than the new reward
+    pays for shifting it. The loop-gain randomisation brings back the x1.5 stand margin but slows turning and sidestepping.
+    prec37 lifts best (4.4/3.0 cm on the one-stride robot probe) and keeps the margin, but it does not shift its weight
+    either. Nothing is a robot candidate.</p>
+    <p><b>Tonight:</b> a new option, <code>--mimic-sway</code>, puts the shift into the reference. While walking, the torso
+    moves 3.5 or 5 cm toward the standing foot (hip roll 6 or 9 deg, soles kept level), slightly ahead of the step. At
+    0.75 Hz that is about what puts the support point on the standing foot. Six runs: two sizes on prec16, on prec37 (best
+    lift), on prec43 (with the shift reward), a second seed and a no-lead control. Then the three runs left over from
+    11-09. <b>Still open for you:</b> does the 3 cm clearance rule hold for the slow gait? Ledger:
+    docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1110}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·09 · night 19: the slow gait, night 3</span></p>
