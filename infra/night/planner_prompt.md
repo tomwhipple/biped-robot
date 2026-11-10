@@ -32,7 +32,9 @@ hold the work. These rules change how you plan:
 5. **Getting Tom's attention.** Tom does not read comments that do not mention him (the 3 cm question sat
    unanswered on #137 for four mornings). Any question or decision for Tom carries `@tomwhipple` once, next
    to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
-   routine status.
+   routine status. Also assign him the issue the ask lives on (`gh issue edit <n> --add-assignee tomwhipple`),
+   and remove the assignment (`--remove-assignee tomwhipple`) the morning you act on his answer: his assigned
+   list is his to-do list (Tom, 2026-11-10).
 6. **Settled, do not re-ask.** The 3 cm rule holds for the reduced-speed gait: every step of every foot peaks
    >= 3 cm (Tom, #137, 2026-11-10); a 2 cm reference lift that shuffles is not a candidate. The gradebook is
    retired (#129). The robot is policy-driven: scripted motion on the robot is only a system-identification
