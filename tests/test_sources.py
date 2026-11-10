@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 
 import sources                                                   # noqa: E402
 from protocol import (FLAG_ENABLE, V_BACK_MAX, V_BACK_MIN,       # noqa: E402
-                      V_FWD_MAX, V_FWD_MIN, CROUCH_MIN,
+                      V_FWD_MAX, V_FWD_MIN, VY_MAX, VY_MIN, CROUCH_MIN,
                       clamp_to_envelope)
 
 
@@ -45,6 +45,14 @@ def test_stick_deadzone_and_full_travel():
         assert sources.stick_to_speed(-1.0) == 0.0
 
 
+def test_lateral_stick_maps_onto_the_sidestep_band():
+    assert sources.stick_to_lateral(0.05) == 0.0
+    assert sources.stick_to_lateral(1.0) == pytest.approx(VY_MAX)
+    assert sources.stick_to_lateral(-1.0) == pytest.approx(-VY_MAX)
+    assert sources.stick_to_lateral(0.16) == pytest.approx(VY_MIN, abs=0.01)
+    assert sources.stick_to_lateral(-0.16) == pytest.approx(-VY_MIN, abs=0.01)
+
+
 def test_stick_maps_onto_a_given_band(monkeypatch):
     """The mapping follows the generated band, whatever it is: a different
     envelope (a prec-style 0.05-0.24 forward, -0.4..-0.15 backward) and a run
@@ -57,6 +65,9 @@ def test_stick_maps_onto_a_given_band(monkeypatch):
         assert sources.stick_to_speed(1.0) == pytest.approx(fwd[1])
         assert sources.stick_to_speed(0.1) == 0.0
         assert sources.stick_to_speed(-1.0) == pytest.approx(-back[1])
+        monkeypatch.setattr(sources, "VY_MIN", 0.1)
+        monkeypatch.setattr(sources, "VY_MAX", 0.25)
+        assert sources.stick_to_lateral(-1.0) == pytest.approx(-0.25)
         if back[1] > 0:
             assert sources.stick_to_speed(-0.16) == pytest.approx(-back[0],
                                                                   abs=0.02)

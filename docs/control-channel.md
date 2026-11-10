@@ -393,8 +393,10 @@ backward walks have a band of their own, not the forward one. A direction the
 run never trained (a band generated as 0–0) is a stand. Turn-in-place
 (`vx = 0, wz ≠ 0`) is trained, so the snap keeps `wz`. Lift (±1) and the foot
 offsets (±0.05 m) are scripted rather than drawn and are fixed in
-`protocol.py`. `sources.stick_to_speed()` maps stick travel onto the band of
-its direction (full deflection is the trained maximum) for the same reason.
+`protocol.py`. `sources.stick_to_speed()` and `stick_to_lateral()` (the gamepad's forward
+and left-stick axes) map stick travel past the dead zone onto the band of
+their direction (a light push is the band's minimum, full deflection its
+maximum) for the same reason.
 The host test pins the generated header against the bands derived from the
 run, and the clamp on both sides of every band against the Python reference
 (`cmd_envelope_vectors.h`); `tests/test_cmd_envelope.py` pins the generated

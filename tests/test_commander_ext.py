@@ -16,8 +16,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
 
 import commander                                                 # noqa: E402
 import sources                                                   # noqa: E402
-from protocol import (CMD_LEN, CMD_LEN_EXT, FLAG_ENABLE, VY_MAX,  # noqa: E402
-                      W_MAX, Supervisor, decode_command, encode_command)
+from protocol import (CMD_LEN, CMD_LEN_EXT, FLAG_ENABLE, V_FWD_MAX,  # noqa: E402
+                      VY_MAX, VY_MIN, W_MAX, Command, Supervisor,
+                      clamp_ext_to_envelope, decode_command, encode_command)
 
 RATE = 20.0
 
@@ -155,13 +156,13 @@ def test_gamepad_three_axes_reach_the_wire_together():
     # left stick up-left, right stick left: forward, +vy (left), +wz (left)
     g = pad({G.AX_FWD: -1.0, G.AX_LAT: -1.0, G.AX_YAW: -1.0})
     vx, wz, flags, ext = g.poll(0.0)
-    assert (vx, wz, flags, ext) == (pytest.approx(1.0), pytest.approx(W_MAX),
+    assert (vx, wz, flags, ext) == (pytest.approx(V_FWD_MAX), pytest.approx(W_MAX),
                                     FLAG_ENABLE,
                                     {"vy": pytest.approx(VY_MAX)})
     frame = encode_command(0, vx, wz, flags, **ext)
     assert len(frame) == CMD_LEN_EXT
     pkt = decode_command(frame)
-    assert (pkt.vx, pkt.vy, pkt.wz) == (pytest.approx(1.0),
+    assert (pkt.vx, pkt.vy, pkt.wz) == (pytest.approx(V_FWD_MAX),
                                         pytest.approx(VY_MAX),
                                         pytest.approx(W_MAX))
     # the right and the opposite deflection flip every sign
@@ -174,9 +175,16 @@ def test_gamepad_lateral_deadzone_and_clamp():
     assert pad({G.AX_LAT: 0.1}).poll(0.0)[3] == {}
     assert len(encode_command(0, *pad({G.AX_LAT: -0.1}).poll(0.0)[:3])) \
         == CMD_LEN
-    for a in (-1.0, -0.5, 0.5, 1.0):
+    for a in (-1.0, -0.5, -0.17, 0.17, 0.5, 1.0):
         ext = pad({G.AX_LAT: a}).poll(0.0)[3]
-        assert abs(ext["vy"]) <= VY_MAX + 1e-9
+        # on the trained sidestep band, sign kept (left stick = -axis = +vy):
+        # a light push past the dead zone is not snapped to zero by the robot
+        assert VY_MIN - 1e-9 <= abs(ext["vy"]) <= VY_MAX + 1e-9
+        assert (ext["vy"] > 0) == (a < 0)
+        assert clamp_ext_to_envelope(Command(0, 0.0, 0.0, 0, **ext))[0] \
+            == pytest.approx(ext["vy"])
+    assert pad({G.AX_LAT: -0.16}).poll(0.0)[3]["vy"] == pytest.approx(
+        VY_MIN, abs=0.01)
 
 
 def test_gamepad_deadman_and_estop_send_no_extras():
@@ -194,7 +202,7 @@ def test_gamepad_through_commander_loop(monkeypatch):
     for f in frames:
         pkt = decode_command(f)
         assert len(f) == CMD_LEN_EXT
-        assert (pkt.vx, pkt.vy, pkt.wz) == (pytest.approx(1.0),
+        assert (pkt.vx, pkt.vy, pkt.wz) == (pytest.approx(V_FWD_MAX),
                                             pytest.approx(VY_MAX),
                                             pytest.approx(W_MAX))
 
@@ -210,6 +218,6 @@ def test_vx_vy_wz_arrive_together_at_the_supervisor():
     pkt = decode_command(encode_command(1, vx, wz, flags, **ext))
     assert sup.accept(pkt, 1000.0) is not None
     cmd = sup.command_ext(1010.0)
-    assert cmd[:3] == (pytest.approx(1.0), pytest.approx(VY_MAX),
+    assert cmd[:3] == (pytest.approx(V_FWD_MAX), pytest.approx(VY_MAX),
                        pytest.approx(W_MAX))
     assert cmd[3:] == (1.0, 0.0, 0.0, 0.0)
