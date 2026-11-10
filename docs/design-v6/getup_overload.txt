@@ -1,0 +1,159 @@
+== OVERLOAD PROTECTION in the as-drawn get-up (r5_asdrawn_rom120, lumped 2.10 kg, Plan B = STS3215 with P x4 on rolls + knees), tuck hip -120 knee -130. Documented STS3215 defaults (memory table V3.7): overload threshold 80 % (reg 36), protection time 2.0 s (reg 35), protection torque 20 % (reg 34); over-current 2.0 A for 2 s (C018 datasheet 7-11; the memory table's reg 28 says 3.25 A). Timer continuous, protection latched once tripped, enforced (the tripped servo's envelope drops to 20 %). Stall at 11.1 V: 2.72 N*m x servo scale. Load = torque: |tau| / stall; load = duty: |tau/stall + w/w0|.
+
+-- sh 90->0 / el -90->0 (recommended), pace x1, load = torque: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            2%        0.00s      0.00s    0/6   0.08A       0.00s
+   hip_roll           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   hip_pitch         66%        0.00s      0.00s    0/6   1.30A       0.00s
+   knee              58%        0.00s      0.00s    0/6   1.39A       0.00s
+   ankle             36%        0.00s      0.00s    0/6   0.63A       0.00s
+   ankle_roll         0%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder          78%        0.00s      0.00s    0/6   1.68A       0.00s
+   elbow             54%        0.00s      0.00s    0/6   0.98A       0.00s
+
+-- sh 90->0 / el -90->0 (recommended), pace x1, load = duty: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.58 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.58 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.44 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.68 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 1.02 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 1.48 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            2%        0.00s      0.00s    0/6   0.08A       0.00s
+   hip_roll           2%        0.00s      0.00s    0/6   0.03A       0.00s
+   hip_pitch        102%        0.90s      0.90s    0/6   1.30A       0.00s
+   knee             105%        1.48s      1.94s    0/6   1.39A       0.00s
+   ankle             44%        0.00s      0.00s    0/6   0.63A       0.00s
+   ankle_roll         4%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder         106%        1.28s      2.34s    0/6   1.68A       0.00s
+   elbow            104%        0.72s      0.72s    0/6   0.98A       0.00s
+
+-- sh 90->0 / el -90->0 (recommended), pace x3 (3x slower), load = torque: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            2%        0.00s      0.00s    0/6   0.08A       0.00s
+   hip_roll           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   hip_pitch         54%        0.00s      0.00s    0/6   0.95A       0.00s
+   knee              50%        0.00s      0.00s    0/6   0.99A       0.00s
+   ankle             31%        0.00s      0.00s    0/6   0.57A       0.00s
+   ankle_roll         0%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder          75%        0.00s      0.00s    0/6   1.48A       0.00s
+   elbow             39%        0.00s      0.00s    0/6   0.78A       0.00s
+
+-- sh 90->0 / el -90->0 (recommended), pace x3 (3x slower), load = duty: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 0.02 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 0.24 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            2%        0.00s      0.00s    0/6   0.08A       0.00s
+   hip_roll           2%        0.00s      0.00s    0/6   0.03A       0.00s
+   hip_pitch         82%        0.08s      0.08s    0/6   0.95A       0.00s
+   knee              89%        0.22s      0.34s    0/6   0.99A       0.00s
+   ankle             43%        0.00s      0.00s    0/6   0.57A       0.00s
+   ankle_roll         4%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder         102%        0.24s      0.30s    0/6   1.48A       0.00s
+   elbow             83%        0.02s      0.04s    0/6   0.78A       0.00s
+
+-- sh 60->0 / el -60->0, pace x1, load = torque: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 1.00 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            1%        0.00s      0.00s    0/6   0.06A       0.00s
+   hip_roll           0%        0.00s      0.00s    0/6   0.04A       0.00s
+   hip_pitch         82%        0.02s      0.02s    0/6   1.38A       0.00s
+   knee              60%        0.00s      0.00s    0/6   1.42A       0.00s
+   ankle             36%        0.00s      0.00s    0/6   0.63A       0.00s
+   ankle_roll         0%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder          94%        1.00s      1.02s    0/6   1.91A       0.00s
+   elbow             47%        0.00s      0.00s    0/6   1.02A       0.00s
+
+-- sh 60->0 / el -60->0, pace x1, load = duty: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.78 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.78 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.58 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 0.92 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 1.26 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_knee 1.90 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            3%        0.00s      0.00s    0/6   0.06A       0.00s
+   hip_roll           5%        0.00s      0.00s    0/6   0.04A       0.00s
+   hip_pitch        102%        0.90s      1.00s    0/6   1.38A       0.00s
+   knee             105%        1.90s      2.36s    0/6   1.42A       0.00s
+   ankle             47%        0.00s      0.00s    0/6   0.63A       0.00s
+   ankle_roll         4%        0.00s      0.00s    0/6   0.04A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder         105%        0.96s      2.72s    0/6   1.91A       0.00s
+   elbow            104%        0.40s      0.40s    0/6   1.02A       0.00s
+
+-- sh 60->0 / el -60->0, pace x3 (3x slower), load = torque: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 1.12 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            2%        0.00s      0.00s    0/6   0.09A       0.00s
+   hip_roll           0%        0.00s      0.00s    0/6   0.04A       0.00s
+   hip_pitch         54%        0.00s      0.00s    0/6   0.95A       0.00s
+   knee              57%        0.00s      0.00s    0/6   1.11A       0.00s
+   ankle             30%        0.00s      0.00s    0/6   0.56A       0.00s
+   ankle_roll         1%        0.00s      0.00s    0/6   0.05A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder          92%        1.12s      1.14s    0/6   1.84A       0.00s
+   elbow             44%        0.00s      0.00s    0/6   0.93A       0.00s
+
+-- sh 60->0 / el -60->0, pace x3 (3x slower), load = duty: stands 6/6 with the cutoff enforced
+   play 3 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 5 mu 0.7 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.3 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 1.0 servo 1.00: STANDING up +1.00 z 0.387  longest above 80 %: L_hip_yaw 0.00 s  trips: none
+   play 3 mu 0.7 servo 0.80: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 0.18 s  trips: none
+   play 3 mu 0.7 servo 0.65: STANDING up +1.00 z 0.387  longest above 80 %: L_shoulder 1.08 s  trips: none
+   role        peak load longest >80% total >80%  trips  peak I longest >2A
+   hip_yaw            3%        0.00s      0.00s    0/6   0.09A       0.00s
+   hip_roll           3%        0.00s      0.00s    0/6   0.04A       0.00s
+   hip_pitch         82%        0.08s      0.08s    0/6   0.95A       0.00s
+   knee              98%        1.06s      1.06s    0/6   1.11A       0.00s
+   ankle             33%        0.00s      0.00s    0/6   0.56A       0.00s
+   ankle_roll         4%        0.00s      0.00s    0/6   0.05A       0.00s
+   neck_yaw           0%        0.00s      0.00s    0/6   0.03A       0.00s
+   shoulder         106%        1.08s      1.66s    0/6   1.84A       0.00s
+   elbow             66%        0.00s      0.00s    0/6   0.93A       0.00s
+
+-- margin in servo strength: the recommended sequence, play 3 mu 0.7, pace x1, servo scale swept down (stall AND no-load speed x scale; the protection threshold is 80 % of the weakened servo's own maximum)
+   load torque servo 0.65: cutoff enforced STANDING (up +1.00 z 0.387); without it STANDING;  longest above 80 %: L_hip_yaw 0.00 s (peak 2 %);  trips: none
+   load torque servo 0.60: cutoff enforced STANDING (up +1.00 z 0.387); without it STANDING;  longest above 80 %: L_shoulder 0.04 s (peak 81 %);  trips: none
+   load torque servo 0.55: cutoff enforced no       (up -0.03 z 0.054); without it no      ;  longest above 80 %: L_shoulder 0.28 s (peak 87 %);  trips: none
+   load torque servo 0.50: cutoff enforced no       (up -0.03 z 0.054); without it no      ;  longest above 80 %: L_shoulder 0.70 s (peak 93 %);  trips: none
+   load torque servo 0.45: cutoff enforced no       (up +0.59 z 0.264); without it no      ;  longest above 80 %: L_shoulder 2.60 s (peak 100 %);  trips: L_shoulder @ 23.6 s, R_shoulder @ 23.6 s
+   load torque servo 0.40: cutoff enforced no       (up +0.56 z 0.253); without it no      ;  longest above 80 %: L_shoulder 4.20 s (peak 100 %);  trips: L_shoulder @ 22.0 s, R_shoulder @ 22.0 s
+   load duty   servo 0.65: cutoff enforced STANDING (up +1.00 z 0.387); without it STANDING;  longest above 80 %: L_knee 1.48 s (peak 104 %);  trips: none
+   load duty   servo 0.60: cutoff enforced STANDING (up +1.00 z 0.387); without it STANDING;  longest above 80 %: L_knee 1.68 s (peak 104 %);  trips: none
+   load duty   servo 0.55: cutoff enforced no       (up +0.63 z 0.265); without it no      ;  longest above 80 %: L_knee 2.00 s (peak 105 %);  trips: L_knee @ 10.3 s, R_knee @ 10.3 s
+   load duty   servo 0.50: cutoff enforced no       (up +0.63 z 0.265); without it no      ;  longest above 80 %: L_knee 2.42 s (peak 105 %);  trips: L_knee @ 10.3 s, R_knee @ 10.3 s
+   load duty   servo 0.45: cutoff enforced no       (up +0.99 z 0.103); without it no      ;  longest above 80 %: L_shoulder 4.52 s (peak 109 %);  trips: L_hip_pitch @ 21.1 s, L_knee @ 10.3 s, R_hip_pitch @ 21.1 s, R_knee @ 10.3 s
+   load duty   servo 0.40: cutoff enforced no       (up +0.36 z 0.049); without it no      ;  longest above 80 %: L_shoulder 3.70 s (peak 108 %);  trips: L_hip_pitch @ 4.7 s, L_knee @ 10.2 s, L_shoulder @ 8.4 s, R_hip_pitch @ 4.7 s, R_knee @ 10.2 s, R_shoulder @ 8.4 s

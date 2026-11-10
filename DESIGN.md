@@ -174,10 +174,20 @@ joints. P × N is modelled as N × the fitted stiffness on the same envelope.
 Measured STS3215 facts: no-load speed 4.04 rad/s at 12 V (14 % under the
 datasheet), stall ≈ 2.94 N·m, dead time ≈ 85 ms plus a first-order lag.
 
-**The shoulder** is the most heavily loaded servo in the get-up: 1.77 N·m (65 %
-of stall) on the recommended sequence. STS overload protection drops a servo to
-20 % torque after > 80 % of stall for 2 s (registers 34–36), so the margin is
-real but not large; the bench should confirm it.
+**The shoulder** is the most heavily loaded servo in the seat push. On the
+current get-up references (`getup_ref_v6ar_prone_ikc.npz`,
+`getup_ref_v6ar_ik.npz`, replayed open loop on the robot's plant) it peaks at
+2.14 N·m, 79 % of its 2.72 N·m stall at 11.1 V, and at up to 2.25 N·m (83 %)
+across joint friction, sole μ, play and +10 % mass. Through each push it runs
+torque-limited, at full duty, for 0.4–1.0 s. STS overload protection drops a
+servo to 20 % torque after > 80 % of its maximum for 2 s (registers 34–36,
+modelled in `sim/sts_servo_model.py`). At full strength it never fires. With
+weakened servos it fires before the get-up runs out of strength: on the 11.1 V
+envelope, servos 15 % weak with +10 % mass and μ 1.0 trip the knees and then
+the shoulders on the duty reading
+([getup-overload-2026-11-10.md](docs/design-v6/getup-overload-2026-11-10.md)).
+The margin is about half the protection timer. The bench should confirm which
+reading of load the servo uses (#83).
 
 ## 5. The body
 
