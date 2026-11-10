@@ -1,4 +1,4 @@
-"""Laptop-side sender: streams (vx, wz) intent to the robot over UDP.
+"""Laptop-side sender: streams (vx, vy, wz, ...) intent to the robot over UDP.
 
 Run:  .venv/bin/python link/commander.py --host 192.168.4.1 --source gamepad
       .venv/bin/python link/commander.py --host bimo.local --source script \
@@ -52,8 +52,9 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
     try:
         while True:
             t = time.monotonic() - t0
-            vx, wz, flags = source.poll(t)
-            tx.sendto(encode_command(seq, vx, wz, flags), (host, cmd_port))
+            vx, wz, flags, ext = source.poll(t)
+            tx.sendto(encode_command(seq, vx, wz, flags, **ext),
+                      (host, cmd_port))
             seq += 1
 
             while True:  # drain to the freshest telemetry, never queue up
@@ -68,7 +69,7 @@ def stream(host, source, send_hz=SEND_HZ, cmd_port=CMD_PORT,
                 if watch_to is not None:
                     tx.sendto(buf, watch_to)
             if not quiet and seq % 5 == 0:
-                _status(t, vx, wz, flags, tlm)
+                _status(t, vx, wz, flags, ext, tlm)
 
             time.sleep(max(0.0, period - ((time.monotonic() - t0) - t)))
     except KeyboardInterrupt:
@@ -101,7 +102,7 @@ def _watch_addr(spec, default_port):
     return host, int(port)
 
 
-def _status(t, vx, wz, flags, tlm):
+def _status(t, vx, wz, flags, ext, tlm):
     link = "--"
     if tlm is not None:
         link = (f"{tlm.state.value:5s} {tlm.vbat_v:4.1f}V "
@@ -117,7 +118,8 @@ def _status(t, vx, wz, flags, tlm):
             # here instead of leaving the operator to watch a status line
             # that never changes (docs/control-channel.md, 2026-08-30).
             link += f"  {tlm.reason}"
-    sys.stdout.write(f"\r{t:6.1f}s  cmd v{vx:+5.2f} w{wz:+5.2f} "
+    extra = "".join(f" {k}{v:+5.2f}" for k, v in ext.items())
+    sys.stdout.write(f"\r{t:6.1f}s  cmd v{vx:+5.2f} w{wz:+5.2f}{extra} "
                      f"f{flags:02b}  | robot {link}   ")
     sys.stdout.flush()
 

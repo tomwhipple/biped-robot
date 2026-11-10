@@ -41,9 +41,10 @@ def test_every_script_stays_in_the_trained_envelope(name):
     for i in range(400):                       # 20 s at 20 Hz
         out = src.poll(i * 0.05)
         v, w = out[0], out[1]
+        assert len(out) == 4 and isinstance(out[3], dict)
         assert clamp_to_envelope(v, w) == (v, w), \
             f"{name} at t={i*0.05}s emits {(v, w)}, which the robot clamps"
-        if len(out) > 3:
+        if out[3]:
             # dict scripts: the extended channels must survive the robot's
             # envelope clamp untouched too
             from protocol import Command, clamp_ext_to_envelope
@@ -59,8 +60,7 @@ def test_script_duration_disables_rather_than_stopping_the_stream():
     # an explicit disabled command stops it now.
     src = sources.ScriptSource("walk", duration=5.0)
     assert src.poll(4.9)[2] & FLAG_ENABLE
-    v, w, flags = src.poll(5.1)
-    assert (v, w, flags) == (0.0, 0.0, 0)
+    assert src.poll(5.1) == (0.0, 0.0, 0, {})
 
 
 def test_unknown_script_is_rejected_loudly():
@@ -89,7 +89,7 @@ def test_goal_seeker_stays_inside_the_trained_envelope_everywhere():
             for yaw in [-math.pi + i * 0.2 for i in range(32)]:
                 pose.pose = (0.0, 0.0, yaw)
                 src.goal = (gx, gy)
-                v, w, _ = src.poll(0.0)
+                v, w, _, _ = src.poll(0.0)
                 assert abs(w) <= sources.W_GOAL_MAX + 1e-9
                 assert v == 0.0 or V_MIN_WALK - 1e-9 <= v <= sources.V_CRUISE
                 assert clamp_to_envelope(v, w) == (v, w)
@@ -98,19 +98,19 @@ def test_goal_seeker_stays_inside_the_trained_envelope_everywhere():
 def test_goal_seeker_arcs_when_roughly_aimed():
     # Walking-while-turning is the best-trained regime; prefer it.
     src = sources.GoalSource((2.0, 1.0), FakePose(0.0, 0.0, 0.0))
-    v, w, _ = src.poll(0.0)
+    v, w, _, _ = src.poll(0.0)
     assert v > 0.0 and w > 0.0
 
 
 def test_goal_seeker_pivots_only_when_the_goal_is_behind():
     src = sources.GoalSource((-2.0, 0.0), FakePose(0.0, 0.0, 0.0))
-    v, w, _ = src.poll(0.0)
+    v, w, _, _ = src.poll(0.0)
     assert v == 0.0 and abs(w) > 0.5
 
 
 def test_goal_seeker_stands_on_arrival():
     src = sources.GoalSource((0.1, 0.0), FakePose(0.0, 0.0, 0.0))
-    assert src.poll(0.0) == (0.0, 0.0, FLAG_ENABLE)
+    assert src.poll(0.0) == (0.0, 0.0, FLAG_ENABLE, {})
 
 
 def test_goal_seeker_turns_the_short_way_around():
@@ -119,5 +119,5 @@ def test_goal_seeker_turns_the_short_way_around():
     # wrap this spins the long way, and on a 28 cm biped that is a fall.
     src = sources.GoalSource((-2.0, 0.35),
                              FakePose(0.0, 0.0, math.radians(-170)))
-    _, w, _ = src.poll(0.0)
+    _, w, _, _ = src.poll(0.0)
     assert w == pytest.approx(math.radians(-20), abs=0.02)
