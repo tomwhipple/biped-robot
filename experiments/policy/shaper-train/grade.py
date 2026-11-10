@@ -29,6 +29,17 @@ Probes (falls / flail-guard trips out of the seeds):
                    (hw_sessions/2026-11-05/kick_analysis.md section 3) -- walker_env
                    dq_obs_window 2, dq_obs_quantum 50. DQ_OBS_WINDOW=N or lo,hi (and
                    DQ_OBS_QUANTUM=Q, default 50) applies it to every probe instead.
+  march5 <robot>   `link/sources.py march5` at the policy's clock: the lift channel alternating
+                   on the gait clock for 5 full swings (a half-way first one, then R L R L R)
+                   with c6 = 2 cm |sin|, then the stand. Per FOOT and per STEP the peak lift
+                   (the bar: >= 3 cm on every step), per side the weight-transfer shift while
+                   that foot is up (shift_when_up, bar |shift| >= 0.6), the torso's horizontal
+                   drift and yaw over the run, falls and guard trips. The commanded channels
+                   a run never saw move (normaliser std 0: c4 and c6 of every run that trained
+                   no march) are PINNED to their trained value as the firmware does
+                   (policy::pinFrozen), so such a student is shown what the robot would do:
+                   stand. MARCH_PIN=0 feeds the raw command instead (a student out of
+                   distribution by ~1e6 sigma).
 The flail guard (firmware/components/flailguard, kLimits): rate EMA(|gyro|, 0.2 s) >
 1.5 rad/s; tilt > 20 deg for 200 ms; chatter EMA(mean |d raw target / dt|, 0.1 s) >
 7 rad/s; pose (plain stand, after the ramp) any written target > 15 deg from the stand pose
@@ -42,6 +53,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 SS = os.path.join(HERE, "..", "stand-still")
 sys.path.insert(0, SS)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "link"))
 import stand_sim as S  # noqa: E402
 import simh, rec  # noqa: E402
 
@@ -97,6 +109,33 @@ class Stride(list):
 
 def stride(vx, t0=2.0, cycles=1.0, extra_s=0.0):
     return Stride(vx, t0, cycles, extra_s)
+
+
+class March(list):
+    """link/sources.py march5's schedule [(t_s, cmd), ...], one entry per control tick: `n` full
+    swings (after the half-way first one) of the lift channel alternating on the gait clock at
+    `hz`, c6 = dz |sin|, from t0, then the stand. The list is the 1.5 Hz one; episode() re-times
+    it to the graded policy's clock with at() (the march IS clock-locked: the clock runs from the
+    stand phase pi/2 the tick the lift is commanded, so time maps to phase). The commands come
+    from sources.march_cmd, the function the robot's script sends."""
+    def __init__(self, n=5, t0=2.0, hz=S.CLOCK_HZ, dz=0.02):
+        import sources as L
+        T = L.march_swings_s(n, hz)
+        sched = [(0.0, STAND_CMD)]
+        for k in range(int(round(T / DT))):
+            lift, c6 = L.march_cmd(k * DT, hz, dz)
+            sched.append((t0 + k * DT, (0.0, 0.0, 0.0, 1.0, lift, 0.0, c6)))
+        sched.append((t0 + int(round(T / DT)) * DT, STAND_CMD))
+        super().__init__(sched)
+        self.spec = (n, t0, dz)
+        self.hz, self.t0, self.n = hz, t0, n
+
+    def at(self, hz):
+        return March(*self.spec[:2], hz=hz, dz=self.spec[2])
+
+
+def march(n=5, t0=2.0, dz=None):
+    return March(n, t0, dz=float(os.environ.get("MARCH_DZ", "0.02")) if dz is None else dz)
 
 
 PROBES = {
@@ -179,6 +218,10 @@ PROBES["back3 -0.3 robot"] = dict(cmd_schedule=stride(-0.3, cycles=1.5), run_s=1
 PROBES["walk 0.3 -> stop robot"] = dict(PROBES["walk 0.3 -> stop"], **_RS)
 for _w in (5, 6):
     PROBES[f"steps5 0.3 robot dq{_w}"] = dict(PROBES["steps5 0.3 robot"], dq_obs=dict(DQ_ROBOT, window=_w))
+# the first walking milestone (#261): march in place, alternating full lifts, no velocity command.
+# 3.7 s of march at the slow-gait line's 0.75 Hz; the run is long enough for the slowest trained clock (0.6 Hz: 4.6 s)
+PROBES["march5 robot"] = dict(cmd_schedule=march(5), run_s=10.0, march=True, **_RS)
+PROBES["march5 refit"] = dict(cmd_schedule=march(5), run_s=10.0, march=True, **_R)
 PROBES["steps5 0.3 robot dead80"] = dict(PROBES["steps5 0.3 robot"], typed=dict(ROBOT_SPEED_SERVO, dead15=80.0))
 # what a firmware coast that holds when just past the stand phase would do (not on the robot)
 for _ms in (20, 40, 60, 100):
@@ -313,6 +356,23 @@ def at_clock(v, hz):
     return v
 
 
+_FROZEN = {}
+
+
+def frozen_cmd(run, env):
+    """{command channel: its trained value} for the channels the run never saw move: normaliser
+    std at or below policy::kFrozenStdMax (1e-5) -- the slots policy::pinFrozen feeds exactly
+    their trained value on the robot. Read off the run's params.pkl (current frame)."""
+    if run not in _FROZEN:
+        import pickle
+        with open(os.path.join(simh.run_root(run), run, "params.pkl"), "rb") as f:
+            norm = pickle.load(f)[0]
+        std, mean = np.asarray(norm.std).ravel(), np.asarray(norm.mean).ravel()
+        off = env.obs_frame - 7                  # the 7 command channels end the frame
+        _FROZEN[run] = {k: float(mean[off + k]) for k in range(7) if std[off + k] <= 1e-5}
+    return _FROZEN[run]
+
+
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     """stand_sim.episode with the flail guard, the squeeze and walk progress recorded.
     v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase,
@@ -348,6 +408,12 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     simh.place_and_hold(env, np.clip(S.arm_pose(), env._lo, env._hi), settle_s)
     env._prev_action[:] = 0.0
     sched = list(v.get("cmd_schedule") or [])
+    frozen = {}
+    if v.get("march") and os.environ.get("MARCH_PIN", "1") != "0":
+        # the firmware pins a channel the run never saw move to its trained value, before the
+        # clock gate and the policy read it (ctrl_task.cpp pinFrozen)
+        frozen = frozen_cmd(run, env)
+        sched = [(ts, tuple(frozen.get(k, c[k]) for k in range(7))) for ts, c in sched]
     env.set_command(*(sched[0][1] if sched else STAND_CMD))
     w0 = S.H.pin_gait_clock(env, hz)
     clock = v.get("clock", "coast")
@@ -386,8 +452,11 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     finally:
         _mj.mj_step = _step0
     GO, GY, PW, TL, SQ, X, fell, ext = res
-    return _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed,
-                            np.array(QV), np.array(WZ), v=v, hz=hz, **ext)
+    m = _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed,
+                         np.array(QV), np.array(WZ), v=v, hz=hz, **ext)
+    if v.get("march"):
+        m["frozen_cmd"] = sorted(frozen)          # the channels pinned to their trained value
+    return m
 
 
 def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
@@ -395,6 +464,7 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
     import mujoco
     GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
     Y = []; y0 = float(env.data.qpos[1])
+    FT, C4 = [], []
     fell = False; ema = None
     for i in range(n + nh):
         holding = i >= n
@@ -433,17 +503,121 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
         GO.append(tgt.copy()); GY.append(gyro); PW.append(float(info.get("power_w", np.nan)))
         TL.append(tilt); SQ.append(np.degrees(np.abs(tgt - q_meas))); X.append(float(d.qpos[0]) - x0)
         Y.append(float(d.qpos[1]) - y0)
+        # soles' height, ground x/y (L then R) and the whole-body CoM x/y: per-foot lift and the
+        # weight transfer; and the lift channel the tick was commanded with
+        FT.append((float(d.geom_xpos[env._sole_gids[0]][2]), float(d.geom_xpos[env._sole_gids[1]][2]),
+                   float(d.geom_xpos[env._sole_gids[0]][0]), float(d.geom_xpos[env._sole_gids[0]][1]),
+                   float(d.geom_xpos[env._sole_gids[1]][0]), float(d.geom_xpos[env._sole_gids[1]][1]),
+                   float(d.subtree_com[env._torso_bid][0]), float(d.subtree_com[env._torso_bid][1])))
+        C4.append(float(env._cmd[4]))
         YW.append(body_yaw(d.qpos[3:7])); QM.append(q_meas)
         QD.append(np.array(d.qvel[env._sqvel])); AC.append(np.array(a, float)); mujoco.mj_subtreeVel(env.model, d)
         LM.append(np.array(d.subtree_angmom[env._torso_bid]))
         if term:
             fell = True
             break
-    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC, Y=Y)
+    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC, Y=Y, FT=FT, C4=C4)
+
+
+def _shift_frac(ft):
+    """CoM position along the line between the soles, per tick: +1 = over the L foot, -1 = over
+    the R foot, 0 = between them (ft: the FT rows, tick x 8)."""
+    L, R, C = ft[:, 2:4], ft[:, 4:6], ft[:, 6:8]
+    mid = 0.5 * (L + R)
+    u = L - R
+    half = 0.5 * np.linalg.norm(u, axis=1)
+    u = u / np.maximum(2 * half, 1e-6)[:, None]
+    return np.sum((C - mid) * u, axis=1) / np.maximum(half, 1e-6)
+
+
+UP_CM = 0.01     # a foot is "up" above 1 cm
+
+
+def feet_metrics(FT, i0=75):
+    """Per-foot clearance and lateral weight transfer after the takeover ramp (the 11-09 robot:
+    the R foot never lifted, the CoM stayed 0.14-0.23 of the way toward the stance foot):
+    lift_cm = [L, R] peak sole height above the stand height; shift_when_up = [L-up, R-up]: how far
+    the CoM sits toward the other (stance) foot while a foot is up > 1 cm (L up: the most negative
+    value, toward R; R up: the most positive, toward L) -- the bar is |shift| >= 0.6."""
+    ft = np.asarray(FT, float)
+    if len(ft) <= 100:
+        return {}
+    z0 = np.median(ft[:50, 0:2], axis=0)
+    lift = ft[i0:, 0:2] - z0
+    f = _shift_frac(ft[i0:])
+    up = lift > UP_CM
+    return dict(lift_cm=(lift.max(0) * 100).round(2).tolist(),
+                lift_steps=[int(((lift[1:, k] > UP_CM) & (lift[:-1, k] <= UP_CM)).sum()) for k in (0, 1)],
+                shift_frac=[round(float(f.max()), 2), round(float(f.min()), 2)],
+                shift_when_up=[round(float(f[up[:, 0]].min()), 2) if up[:, 0].any() else None,
+                               round(float(f[up[:, 1]].max()), 2) if up[:, 1].any() else None])
+
+
+MARCH_BAR_CM = 3.0     # Tom, #137, 2026-11-10: every step lifts the foot >= 3 cm
+MARCH_SHIFT_BAR = 0.6
+
+
+def march_metrics(FT, C4, X, Y, YW, sched, hz, fell):
+    """The march probe: per step and per foot the peak lift, the weight transfer, the drift.
+
+    A step is one run of the commanded lift channel (c4 -1 = L, +1 = R) inside the march window;
+    the first run is the half-way L swing the clock's coast phase starts in (reported as `lead`),
+    the rest are full swings. Each is scored by its commanded foot's peak height above the stand
+    height. Drift and yaw run from the march's first tick to the end of the episode (the 2.7 s
+    after it included: the stand that follows). Per-seed pass = no fall, every full step
+    >= MARCH_BAR_CM, and |shift| >= MARCH_SHIFT_BAR on both sides."""
+    ft = np.asarray(FT, float)
+    c4 = np.asarray(C4, float)
+    marching = [ts for ts, c in sched if abs(c[4]) >= 0.5]
+    if len(ft) <= 100 or not marching:
+        return {}
+    # an entry at ts is set before tick ts/DT - 1's step and acts from that tick
+    i0 = int(round(marching[0] / DT)) - 1
+    i1 = int(round(marching[-1] / DT)) - 1
+    z0 = np.median(ft[:50, 0:2], axis=0)
+    lift = ft[:, 0:2] - z0
+    steps = []                                           # (foot, peak cm, first tick)
+    k = i0
+    n = len(c4)
+    while k < min(i1 + 1, n):
+        side = 0 if c4[k] < -0.5 else (1 if c4[k] > 0.5 else None)
+        j = k
+        while j + 1 < n and c4[j + 1] == c4[k]:
+            j += 1
+        if side is not None:
+            steps.append((side, float(lift[k:j + 2, side].max()) * 100.0, k))
+        k = j + 1
+    lead, full = steps[:1], steps[1:]
+    win = slice(i0, min(n, i1 + int(0.7 / DT)))          # the march plus the last foot's landing
+    f = _shift_frac(ft[win])
+    up = lift[win] > UP_CM
+    shift_l = float(f[up[:, 0]].min()) if up[:, 0].any() else float("nan")
+    shift_r = float(f[up[:, 1]].max()) if up[:, 1].any() else float("nan")
+    xs, ys = np.asarray(X, float), np.asarray(Y, float)
+    yw = np.degrees(np.unwrap(np.asarray(YW, float)))
+    end = len(xs) - 1
+    peaks_l = [p for s, p, _ in full if s == 0]
+    peaks_r = [p for s, p, _ in full if s == 1]
+    m = dict(march_steps=[[("L", "R")[s], round(p, 2)] for s, p, _ in full],
+             march_lead_cm=round(lead[0][1], 2) if lead else None,
+             march_n=len(full), march_min_cm=round(min((p for _, p, _ in full), default=0.0), 2),
+             march_min_l_cm=round(min(peaks_l, default=0.0), 2), march_min_r_cm=round(min(peaks_r, default=0.0), 2),
+             march_all_cm=[round(float(x), 2) for x in (lift[win].max(0) * 100)],
+             march_shift_l=round(shift_l, 2), march_shift_r=round(shift_r, 2),
+             march_drift_m=round(float(np.hypot(xs[end] - xs[i0], ys[end] - ys[i0])), 3),
+             march_dx=round(float(xs[end] - xs[i0]), 3), march_dy=round(float(ys[end] - ys[i0]), 3),
+             march_yaw_deg=round(float(yw[end] - yw[i0]), 1))
+    n_asked = int(round(2 * hz * len(marching) * DT - 0.5))      # the full swings the schedule asks for
+    m["march_steps_ok"] = int(sum(p >= MARCH_BAR_CM for _, p, _ in full))
+    m["march_shift_ok"] = bool(abs(shift_l) >= MARCH_SHIFT_BAR and abs(shift_r) >= MARCH_SHIFT_BAR)
+    m["march_pass"] = bool(not fell and len(full) >= n_asked and m["march_steps_ok"] == len(full)
+                           and m["march_shift_ok"])
+    m["march_lifts_pass"] = bool(not fell and len(full) >= n_asked and m["march_steps_ok"] == len(full))
+    return m
 
 
 def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ,
-                     v=None, hz=S.CLOCK_HZ, YW=(), QM=(), QD=(), LM=(), AC=(), Y=()):
+                     v=None, hz=S.CLOCK_HZ, YW=(), QM=(), QD=(), LM=(), AC=(), Y=(), FT=(), C4=()):
     v = v or {}
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
@@ -459,6 +633,9 @@ def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, Q
              dy=float(Y[-1]) if len(Y) else float("nan"),
              dyaw=float(np.degrees(np.unwrap(np.asarray(YW, float))[-1] - np.unwrap(np.asarray(YW, float))[0]))
              if len(YW) > 1 else float("nan"))
+    m.update(feet_metrics(FT))
+    if v.get("march"):
+        m.update(march_metrics(FT, C4, X, Y, YW, list(v["cmd_schedule"]), hz, fell))   # the command asked for, before any pinning
     # the written goals' own peak acceleration (what the limiter bounds), deg/s^2
     if len(GO) > 2:
         ga = np.abs(np.diff(GO, 2, axis=0)) / DT ** 2
@@ -579,10 +756,16 @@ def summarize(res, variants, probes):
                         "walk_tilt_max", "tilt_max", "goal_acc_peak_dps2", "joint_decel_peak_dps2",
                         "joint_vel_peak_dps", "yaw_rate_peak", "yaw_deg_2s5", "walk_yaw_180ms",
                         "walk_yaw_max", "walk_gz_max", "walk_qdd_start", "walk_qdd_stop", "walk_decel_start",
-                        "walk_decel_stop", "walk_wz_300ms", "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate"):
+                        "walk_decel_stop", "walk_wz_300ms", "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate",
+                        "march_min_cm", "march_min_l_cm", "march_min_r_cm", "march_shift_l", "march_shift_r",
+                        "march_drift_m", "march_yaw_deg", "march_steps_ok", "march_n"):
                 vals = [r[key] for r in (ok if key != "tilt_max" else e) if key in r]
                 if vals:
                     row[pn][key] = float(np.nanmean(vals))
+            if any("march_pass" in r for r in e):
+                row[pn]["march_pass"] = sum(bool(r.get("march_pass")) for r in e)
+                row[pn]["march_lifts_pass"] = sum(bool(r.get("march_lifts_pass")) for r in e)
+                row[pn]["frozen_cmd"] = sorted({tuple(r.get("frozen_cmd") or ()) for r in e})
         rows.append(row)
     return rows
 
@@ -602,6 +785,13 @@ def table(rows, probes):
             bk = {k: n for k, n in c.get("by_kind", {}).items() if n}
             if bk:
                 txt += " [" + " ".join(f"{k} {n}" for k, n in bk.items()) + "]"
+            if p.startswith("march"):
+                txt += (f" (pass {c.get('march_pass', 0)}/{c['n']}, lifts>=3cm {c.get('march_lifts_pass', 0)}/{c['n']}, "
+                        f"min lift L/R {_f(c.get('march_min_l_cm'), 1)}/{_f(c.get('march_min_r_cm'), 1)} cm, "
+                        f"shift L/R {_f(c.get('march_shift_l'), 2)}/{_f(c.get('march_shift_r'), 2)}, "
+                        f"drift {_f(c.get('march_drift_m'), 2)} m, yaw {_f(c.get('march_yaw_deg'), 0)} deg"
+                        + (f", pinned c{list(c['frozen_cmd'][0])}" if c.get("frozen_cmd") and c["frozen_cmd"][0] else "")
+                        + ")")
             if p.startswith("stride1") or p.startswith("walk"):
                 txt += f" (rate {c['peak_rate']:.2f}/{c['peak_rate_max']:.2f}, dx {_f(c.get('walk_dx_2s5'), 2)}"
                 if p.startswith("stride1"):
@@ -625,7 +815,13 @@ def table(rows, probes):
              "(rad/s) and whole-body angular momentum change (N m s) in its first 300 ms, and the "
              "peak joint acceleration / deceleration (rad/s^2, 50 Hz qvel differences) at the "
              "start (0-300 ms) / the swing ends and stop (0.3-1.2 s). `mu` probes force the "
-             "effective contact friction (sliding mu, torsion) on the floor and the pads.")
+             "effective contact friction (sliding mu, torsion) on the floor and the pads. march5 cells: "
+             "pass = no fall, every one of the 5 full steps lifts its foot >= 3 cm AND the CoM goes >= 0.6 "
+             "of the way over the stance foot on both sides; min lift = the lowest step's peak per foot "
+             "(cm, mean over seeds); shift L/R = CoM toward the stance foot while the L / R foot is up "
+             "(-1 = over R, +1 = over L); drift and yaw from the march's start to the end of the run; "
+             "pinned = the command channels the run never saw move, fed their trained value as the "
+             "firmware does.")
     return "\n".join(L)
 
 
