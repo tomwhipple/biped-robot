@@ -4,16 +4,19 @@
 // reference; nothing here was typed by hand except the CCITT-FALSE check
 // value, which is the one number the whole chain can be diffed against.
 #include <stdint.h>
+#include <initializer_list>
 #include <string.h>
 
 #include "linkproto/framing.h"
 #include "linkproto/protocol.h"
 #include "linkproto/watchdog.h"
 #include "test_util.h"
+#include <vectors/cmd_envelope_vectors.h>
 #include "vectors/protocol_vectors.h"
 
 using namespace linkproto;
 namespace V = protocol_vectors;
+namespace E = envelope_vectors;
 
 namespace {
 
@@ -110,14 +113,6 @@ void testExtendedCommandFrames() {
             CHECK_BYTES(wire, c.wire, kCmdLenExt);
         }
 
-        // envelope clamp of the decoded frame, against the python reference
-        Command cl = got;
-        clampExtToEnvelope(cl);
-        CHECK_NEAR(cl.vy, c.clamped[0], 0.0);
-        CHECK_NEAR(cl.crouch, c.clamped[1], 0.0);
-        CHECK_NEAR(cl.lift, c.clamped[2], 0.0);
-        CHECK_NEAR(cl.foot_dx, c.clamped[3], 0.0);
-        CHECK_NEAR(cl.foot_dz, c.clamped[4], 0.0);
     }
 }
 
@@ -128,15 +123,19 @@ void testWatchdogExtChannels() {
     Command pkt{};
     pkt.seq = 1;
     pkt.flags = kFlagEnable;
-    pkt.vx = 0.4f;
+    const float vx = 0.5f * (kVFwdMin + kVFwdMax);
+    pkt.vx = vx;
     pkt.lift = -1.0f;
     pkt.foot_dx = 0.03f;
-    pkt.crouch = 0.8f;
+    // a crouch inside the trained range (the envelope's own floor, kCrouchMin,
+    // may be 1: a run trained at full height only)
+    const float crouch = 0.5f * (kCrouchMin + 1.0f);
+    pkt.crouch = crouch;
     CHECK_EQ(dog.accept(pkt, 0.0f), true);
     float c7[7];
     dog.commandExt(1.0f, c7);
-    CHECK_NEAR(c7[0], 0.4f, 0.0);
-    CHECK_NEAR(c7[3], 0.8f, 0.0);
+    CHECK_NEAR(c7[0], vx, 0.0);
+    CHECK_NEAR(c7[3], crouch, 0.0);
     CHECK_NEAR(c7[4], -1.0f, 0.0);
     CHECK_NEAR(c7[5], 0.03f, 0.0);
     // stale -> the trained stand command (crouch back to 1.0)
@@ -266,13 +265,89 @@ void testBenchDiagnostics() {
     CHECK_EQ(packDiag(false, false, ArmResult::kNone), 0);
 }
 
+// The command envelope: the generated header against the bands derived from
+// the run's config.json (tools/gen_envelope.py writes both, so a hand edit of
+// either fails here), then the clamp on both sides of every band against the
+// Python reference run on the same envelope (envelope_vectors.h).
+void testEnvelopeBands() {
+    const auto& b = E::kBands;
+    CHECK_NEAR(kVFwdMin, b.v_fwd_min, 0.0);
+    CHECK_NEAR(kVFwdMax, b.v_fwd_max, 0.0);
+    CHECK_NEAR(kVBackMin, b.v_back_min, 0.0);
+    CHECK_NEAR(kVBackMax, b.v_back_max, 0.0);
+    CHECK_NEAR(kVyMin, b.vy_min, 0.0);
+    CHECK_NEAR(kVyMax, b.vy_max, 0.0);
+    CHECK_NEAR(kWMax, b.w_max, 0.0);
+    CHECK_NEAR(kCrouchMin, b.crouch_min, 0.0);
+    // a band is a band
+    CHECK(kVFwdMin <= kVFwdMax);
+    CHECK(kVBackMin <= kVBackMax);
+    CHECK(kVyMin <= kVyMax);
+    CHECK(kCrouchMin <= 1.0f);
+}
+
 void testClampToEnvelope() {
-    for (size_t i = 0; i < V::kNumClamp; ++i) {
-        const auto& c = V::kClamp[i];
+    for (size_t i = 0; i < E::kNumClamp; ++i) {
+        const auto& c = E::kClamp[i];
         float vx = 0.0f, wz = 0.0f;
         clampToEnvelope(c.vx, c.wz, vx, wz);
         CHECK_NEAR(vx, c.out_vx, 1e-6);
         CHECK_NEAR(wz, c.out_wz, 1e-6);
+    }
+    // The same property stated outright, from the header's own constants: the
+    // hole under each minimum is a stand on BOTH sides, a turn survives it,
+    // each band's edges pass through, and past a maximum is clamped.
+    float vx = 1.0f, wz = 1.0f;
+    if (kVFwdMin > 0.0f) {
+        clampToEnvelope(kVFwdMin * 0.5f, 0.7f, vx, wz);
+        CHECK_NEAR(vx, 0.0f, 0.0);
+        CHECK_NEAR(wz, 0.7f, 0.0);
+    }
+    clampToEnvelope(kVFwdMin, 0.0f, vx, wz);
+    CHECK_NEAR(vx, kVFwdMin, 0.0);
+    clampToEnvelope(kVFwdMax + 1.0f, 0.0f, vx, wz);
+    CHECK_NEAR(vx, kVFwdMax, 0.0);
+    if (kVBackMin > 0.0f) {
+        clampToEnvelope(-kVBackMin * 0.5f, 0.0f, vx, wz);
+        CHECK_NEAR(vx, 0.0f, 0.0);
+    }
+    clampToEnvelope(-kVBackMin, 0.0f, vx, wz);
+    CHECK_NEAR(vx, kVBackMax > 0.0f ? -kVBackMin : 0.0f, 0.0);
+    clampToEnvelope(-kVBackMax - 1.0f, 0.0f, vx, wz);
+    CHECK_NEAR(vx, -kVBackMax, 0.0);
+    // backward does not borrow the forward band
+    clampToEnvelope(-kVFwdMax - 1.0f, 0.0f, vx, wz);
+    CHECK_NEAR(vx, -kVBackMax, 0.0);
+}
+
+void testClampExtToEnvelope() {
+    for (size_t i = 0; i < E::kNumClampExt; ++i) {
+        const auto& c = E::kClampExt[i];
+        Command pkt{};
+        pkt.vy = c.in[0];
+        pkt.crouch = c.in[1];
+        pkt.lift = c.in[2];
+        pkt.foot_dx = c.in[3];
+        pkt.foot_dz = c.in[4];
+        clampExtToEnvelope(pkt);
+        CHECK_NEAR(pkt.vy, c.out[0], 0.0);
+        CHECK_NEAR(pkt.crouch, c.out[1], 0.0);
+        CHECK_NEAR(pkt.lift, c.out[2], 0.0);
+        CHECK_NEAR(pkt.foot_dx, c.out[3], 0.0);
+        CHECK_NEAR(pkt.foot_dz, c.out[4], 0.0);
+    }
+    // lateral: the hole under kVyMin is a stand on both sides; both edges pass
+    Command p{};
+    for (float sgn : {1.0f, -1.0f}) {
+        p.vy = sgn * kVyMin * 0.5f;
+        clampExtToEnvelope(p);
+        CHECK_NEAR(p.vy, 0.0f, 0.0);
+        p.vy = sgn * kVyMin;
+        clampExtToEnvelope(p);
+        CHECK_NEAR(p.vy, sgn * kVyMin, 0.0);
+        p.vy = sgn * (kVyMax + 1.0f);
+        clampExtToEnvelope(p);
+        CHECK_NEAR(p.vy, sgn * kVyMax, 0.0);
     }
 }
 
@@ -338,14 +413,15 @@ void testEndToEnd() {
     // docs/control-channel.md's port note 4, in miniature.
     Watchdog dog;
     uint8_t wire[kCmdLen];
-    encodeCommand(wire, 1, 0.75f, -0.5f, kFlagEnable);
+    const float v = 0.5f * (kVFwdMin + kVFwdMax);   // inside the trained band
+    encodeCommand(wire, 1, v, -0.5f, kFlagEnable);
     Command pkt{};
     CHECK_EQ(static_cast<int>(decodeCommand(wire, kCmdLen, pkt)),
              static_cast<int>(Err::kOk));
     CHECK(dog.accept(pkt, 0.0f));
     float vx = 0.0f, wz = 0.0f;
     dog.command(0.0f, vx, wz);
-    CHECK_NEAR(vx, 0.75, 1e-3);
+    CHECK_NEAR(vx, v, 1e-3);
     CHECK_NEAR(wz, -0.5, 1e-3);
 }
 
@@ -720,7 +796,9 @@ int main() {
     testHomeFlag();
     testHomeLatch();
     testBenchDiagnostics();
+    testEnvelopeBands();
     testClampToEnvelope();
+    testClampExtToEnvelope();
     testWatchdog();
     testArmLatch();
     testEndToEnd();

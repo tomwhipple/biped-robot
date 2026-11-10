@@ -61,24 +61,30 @@ uint16_t crc16Ccitt(const uint8_t* data, size_t len, uint16_t crc) {
     return crc;
 }
 
+// |x| into [lo, hi]; under lo, 0 (the untrained hole under a band).
+static float clampBand(float x, float lo, float hi) {
+    if (x < lo) return 0.0f;
+    return x > hi ? hi : x;
+}
+
 void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz) {
     if (wz > kWMax) wz = kWMax;
     if (wz < -kWMax) wz = -kWMax;
     out_wz = wz;
-    if (fabsf(vx) < kVMinWalk) {
-        // The untrained band. Snap to a stand rather than interpolate into it;
-        // a turn-in-place (vx=0, wz!=0) IS trained, so wz survives.
-        out_vx = 0.0f;
-        return;
+    // Under a band's minimum is the untrained hole: snap to a stand rather
+    // than interpolate into it; a turn-in-place (vx=0, wz!=0) IS trained, so
+    // wz survives. Backward walks have a band of their own.
+    if (vx >= 0.0f) {
+        out_vx = clampBand(vx, kVFwdMin, kVFwdMax);
+    } else {
+        const float back = clampBand(-vx, kVBackMin, kVBackMax);
+        out_vx = back > 0.0f ? -back : 0.0f;
     }
-    if (vx > kVMax) vx = kVMax;
-    if (vx < -kVMax) vx = -kVMax;
-    out_vx = vx;
 }
 
 void clampExtToEnvelope(Command& pkt) {
-    if (pkt.vy > kVyMax) pkt.vy = kVyMax;
-    if (pkt.vy < -kVyMax) pkt.vy = -kVyMax;
+    const float vy = clampBand(fabsf(pkt.vy), kVyMin, kVyMax);
+    pkt.vy = (pkt.vy < 0.0f && vy > 0.0f) ? -vy : vy;
     if (pkt.crouch > 1.0f) pkt.crouch = 1.0f;
     if (pkt.crouch < kCrouchMin) pkt.crouch = kCrouchMin;
     if (pkt.lift > 1.0f) pkt.lift = 1.0f;

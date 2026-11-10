@@ -17,7 +17,7 @@ COMPONENTS= $(ROOT)/components
 # -- policy profile (tools/policy_profile.py) --------------------------------
 # Empty: the DEPLOYED policy, whose generated headers live in the components.
 # POLICY=<name>: the complete second set in ../policies/<name>/ (obs spec,
-# weights, golden vectors), first on the include path, built into
+# weights, command envelope, golden vectors), first on the include path, built into
 # build/policy-<name>/. `make test` with no POLICY runs every profile after
 # the deployed build; the headers' #error guards make a wrong include order a
 # compile error rather than the wrong policy.
@@ -30,6 +30,8 @@ ifeq ($(POLICY),)
   WEIGHTS_H    = $(COMPONENTS)/policy/include/policy/weights.h
   OBS_VEC_H    = vectors/obs_vectors.h
   POL_VEC_H    = vectors/policy_vectors.h
+  ENV_H        = $(COMPONENTS)/linkproto/include/linkproto/cmd_envelope.h
+  ENV_VEC_H    = vectors/cmd_envelope_vectors.h
   GOLDEN_ENV   =
 else
   PROFILE_DIR  = $(ROOT)/policies/$(POLICY)
@@ -43,6 +45,8 @@ else
   WEIGHTS_H    = $(PROFILE_DIR)/policy/weights.h
   OBS_VEC_H    = $(PROFILE_DIR)/vectors/obs_vectors.h
   POL_VEC_H    = $(PROFILE_DIR)/vectors/policy_vectors.h
+  ENV_H        = $(PROFILE_DIR)/linkproto/cmd_envelope.h
+  ENV_VEC_H    = $(PROFILE_DIR)/vectors/cmd_envelope_vectors.h
   # test_sil_golden reads the profile's own sim/sil/golden/<profile>/
   GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
 endif
@@ -250,14 +254,15 @@ TESTFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS))
 
 # Generated headers are prerequisites, not just includes: regenerating the
 # golden vectors must relink the tests (this bit us once already). SPEC_H,
-# WEIGHTS_H, OBS_VEC_H and POL_VEC_H are the selected policy's (POLICY, top).
+# WEIGHTS_H, OBS_VEC_H, POL_VEC_H, ENV_H and ENV_VEC_H are the selected policy's (POLICY, top).
 # ... and so is every component header (2026-08-02: editing a constant in
 # obs/actuation.h left libctrl_sil.dylib stale and the gate green against the
 # OLD value -- a false pass this line makes impossible).
 COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h)
 
 $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
-                        vectors/protocol_vectors.h test_util.h $(COMP_HDRS) | $(BUILD)
+                        vectors/protocol_vectors.h $(ENV_H) $(ENV_VEC_H) \
+                        test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The console core: link/client.cpp's intent and frame-length rule, the
@@ -267,7 +272,7 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                       ../../link/mjpeg.cpp ../../link/recorder.cpp \
                       ../../link/bench.cpp $(SRC_LINK) $(GUI_HDRS) \
-                      test_util.h $(COMP_HDRS) | $(BUILD)
+                      $(ENV_H) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_scsbus: test_scsbus.cpp $(SRC_SCS) ../main/servo_gains.h $(SPEC_H) \
@@ -435,9 +440,10 @@ check-gui: deps gui
 vectors:
 	cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py
 
-# The other two generators write the DEPLOYED policy: obs_spec.h is the
-# observation layout the flashed weights were trained against, and
-# policy_weights.h is the net itself. They may only change together, and only
+# The other generators write the DEPLOYED policy: obs_spec.h is the
+# observation layout the flashed weights were trained against, weights.h is the
+# net itself, and cmd_envelope.h the commands it was trained to take
+# (tools/gen_envelope.py). They may only change together, and only
 # because somebody said which run to deploy -- an argument-less run of either
 # silently re-points the firmware at a different policy. Hence:
 #
@@ -453,6 +459,7 @@ vectors:
 deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
 	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	cd ../.. && .venv/bin/python tools/gen_envelope.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 
 clean:

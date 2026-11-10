@@ -12,6 +12,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "linkproto/cmd_envelope.h"   // generated: the trained command envelope
+
 namespace linkproto {
 
 // -- framing ---------------------------------------------------------------
@@ -136,16 +138,14 @@ constexpr float kRelaxMs = 5000.0f;        // -> torque off entirely
 constexpr uint32_t kSeqResyncGap = 1000;   // bigger backwards jump = restart
 
 // -- trained command envelope ----------------------------------------------
-// MUST track walker_env's cmd_v_range / cmd_w_range for the deployed policy.
-// The band (0, kVMinWalk) is a hole in the training distribution, not a slow
-// walk, so clampToEnvelope() snaps it to a stand.
-constexpr float kVMinWalk = 0.3f;
-constexpr float kVMax = 1.0f;
-constexpr float kWMax = 1.0f;
-// extended-channel envelope, from the walker_env training draws (protocol.py
-// VY_MAX / CROUCH_MIN / FOOT_D_MAX -- keep in step):
-constexpr float kVyMax = 0.3f;      // lateral sway amplitude
-constexpr float kCrouchMin = 0.6f;  // crouch_range[0], the battguard floor
+// The deployed policy's envelope -- forward, backward and lateral speed
+// bands, turn limit, crouch floor -- is GENERATED from its run's config.json
+// by tools/gen_envelope.py (`make deploy RUN=...`) into cmd_envelope.h, and
+// link/cmd_envelope.py is its Python twin. A policy profile
+// (firmware/policies/<profile>/linkproto/) carries its own, first on the
+// include path. Never edit them by hand. clampToEnvelope() below enforces it.
+// Not from a run's config: the swing-foot offsets are scripted, not drawn
+// (protocol.py FOOT_D_MAX).
 constexpr float kFootDMax = 0.05f;  // traj_radius hi: foot offsets, m
 
 enum class Err : uint8_t {
@@ -348,11 +348,14 @@ uint8_t telemetryDiag(const Telemetry& t);
 // "whatever Python said".
 uint16_t crc16Ccitt(const uint8_t* data, size_t len, uint16_t crc = 0xFFFF);
 
-// Snap a raw command into the region the policy was actually trained on.
+// Snap a raw command into the region the policy was actually trained on
+// (cmd_envelope.h): vx into its forward or backward band, a speed under the
+// band's minimum to a stand, wz to +-kWMax.
 // Enforced robot-side because the robot is what eats a bad command.
 void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz);
 
-// The extended channels, snapped into their trained draws (in place).
+// The extended channels, snapped into their trained draws (in place): |vy|
+// into the lateral band (under its minimum to 0), crouch into [kCrouchMin, 1].
 void clampExtToEnvelope(Command& pkt);
 
 // Encode into `out` (kCmdLen / kTlmLen bytes). Returns bytes written.

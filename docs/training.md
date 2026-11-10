@@ -222,7 +222,7 @@ Seven channels (`ext_cmd`, set by `--precision`), redrawn every 2.5–4.5 s
 
 | ch | meaning | training draw |
 |---|---|---|
-| c0 `vx` | forward speed, m/s | forward walks U(0.3, 1.0) (`--cmd-v-range`); backward walks U(−0.4, −0.15) |
+| c0 `vx` | forward speed, m/s | forward walks U(`--cmd-v-range`) (default 0.3–1.0; the `walk16_act` and `prec` runs 0.05–0.7 and 0.05–0.24); backward walks U(−0.4, −0.15) |
 | c1 `vy` | sidestep, m/s | ±U(0.1, 0.25) |
 | c2 `wz` | yaw rate, rad/s | U(−1, 1) on 60 % of forward walks; pivots ±U(0.3, 1.0) |
 | c3 `crouch` | torso height × nominal | crouch draws U(0.6, 0.9); otherwise 1, or the `--cmd-crouch-range` draw |
@@ -260,9 +260,23 @@ run only on that family's scenarios (§8):
 **On the robot** the console sends the command over the UDP link. When the
 link goes stale the command decays to the stand `(0, 0)` — a trained command
 the policy practises constantly, not a bolted-on pose — and after 5 s of
-silence the servos release. The robot also snaps commands outside the trained
-envelope to a stand, so `V_MIN_WALK` / `V_MAX` in the link protocol must follow
-`--cmd-v-range` ([control-channel.md](control-channel.md)).
+silence the servos release. The robot also snaps commands inside the untrained
+holes to a stand and clamps the rest to the trained bands. Those bands are
+generated from the run at deploy time (`tools/gen_envelope.py`, run by `make
+deploy`), from these settings:
+
+| band | draw | read from |
+|---|---|---|
+| forward `vx` | `--cmd-v-range` | `config.json` `cmd_v_range` |
+| backward `vx` | `cmd_back_range` (−0.4, −0.15), when `walk_submix[0] > 0` | env default: `train_mjx.py` has no flag and `config.json` does not record it, so the generator reads `BimoWalkerEnv`'s default |
+| lateral `\|vy\|` | U(0.1, `cmd_vy_range` 0.25), when `walk_submix[1] > 0` | `cmd_vy_range` likewise an env default; the 0.1 floor is a literal in both envs |
+| turn `\|wz\|` | `cmd_w_range` | `config.json` |
+| crouch | `--cmd-crouch-range`, plus `crouch_range` (0.6, 0.9) when `ext_mix` has a crouch slice | `config.json`; `crouch_range` env default |
+
+A band whose fraction of the mix is 0 (or a run without `ext_cmd`) is
+generated absent, and a run with the `ext_mix` sway slice has no lateral hole.
+Where a value is not in `config.json` the generated file says `default`.
+See [control-channel.md](control-channel.md) for the clamp.
 
 ---
 
@@ -780,6 +794,9 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
      limits, home pose, clock settings, and the action-index → bus-ID
      permutation `kServoId` (from `ID_BY_ROLE` in the generator — a genuine
      permutation), plus `obs_vectors.h` from `walker_env._obs`.
+   - `tools/gen_envelope.py --run` → `linkproto/cmd_envelope.h`, its Python
+     twin `link/cmd_envelope.py` and `cmd_envelope_vectors.h`: the command
+     envelope the robot enforces (§4).
    - `tools/gen_policy_weights.py --run` → `weights.h`, plus `policy_vectors.h`
      computed in numpy under the brax semantics the firmware reproduces:
      normalize, swish hidden layers, a linear `2·act_dim` head, `tanh` of its
@@ -809,7 +826,7 @@ scorecards and reels are on the results page.
 The firmware compiles in exactly one policy, chosen at build time. The
 deployed one's generated files are the ones above; a **policy profile** is a
 complete second set for another plant (`tools/policy_profile.py`):
-`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, vectors/*.h}`
+`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h}`
 and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
 
 | | deployed | profile `v6legs` |
@@ -821,7 +838,8 @@ and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
 
 The profile's directory goes first on the include path, and every generated
 header carries an `#error` guard against the other kind of build, so an
-include-order mistake cannot compile the wrong policy. Nothing outside the
+include-order mistake cannot compile the wrong policy. `link/protocol.py`
+reads the profile's `cmd_envelope.py` when `$BIMO_POLICY` names it. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 
