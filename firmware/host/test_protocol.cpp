@@ -279,11 +279,6 @@ void testEnvelopeBands() {
     CHECK_NEAR(kVyMax, b.vy_max, 0.0);
     CHECK_NEAR(kWMax, b.w_max, 0.0);
     CHECK_NEAR(kCrouchMin, b.crouch_min, 0.0);
-    // a band is a band
-    CHECK(kVFwdMin <= kVFwdMax);
-    CHECK(kVBackMin <= kVBackMax);
-    CHECK(kVyMin <= kVyMax);
-    CHECK(kCrouchMin <= 1.0f);
 }
 
 void testClampToEnvelope() {

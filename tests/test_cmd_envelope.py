@@ -123,6 +123,15 @@ def test_envelope_matches_the_runs_config(profile):
                                        for k in FIELDS}
 
 
+@pytest.mark.parametrize("profile", PROFILES, ids=lambda p: p or "deployed")
+def test_a_band_is_a_band(profile):
+    t = _twin(profile)
+    assert 0 <= t.V_FWD_MIN <= t.V_FWD_MAX and t.V_FWD_MAX > 0
+    assert 0 <= t.V_BACK_MIN <= t.V_BACK_MAX
+    assert 0 <= t.VY_MIN <= t.VY_MAX
+    assert 0 < t.W_MAX and 0 < t.CROUCH_MIN <= 1.0
+
+
 def test_the_deployed_envelope_is_the_deployed_runs():
     """obs_spec.h and cmd_envelope.h are generated from the same run."""
     spec = open(policy_profile.files()["spec_h"]).read()
