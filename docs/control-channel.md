@@ -486,7 +486,16 @@ new commander is a class in `link/sources.py` or a front end on
   (`stand`, `walk`, `dash_stop`, `line_1m`, `turn`, `pivot`, `square`,
   `march`, `stride1`, `sidestep1`, `crouch1`, `rom_feet`); `--source
   gamepad` reads sticks through pygame with a **held** dead-man (right
-  shoulder; letting go must stop the robot) and B/circle as E-stop.
+  shoulder; letting go must stop the robot) and B/circle as E-stop. Sticks
+  (SDL2 Xbox/PS layout): left Y is vx through `stick_to_speed` (up =
+  forward), left X is vy (left = +vy), right X is wz (left = +wz); vy and wz
+  share one dead zone (0.15) and a linear map to `VY_MAX` and `W_MAX`.
+  Every source's `poll(t)` returns `(vx, wz, flags, ext)`; `ext` is a dict of
+  the extended channels (`vy`, `crouch`, `lift`, `foot_dx`, `foot_dz`; a key
+  left out rides at its default), which `commander.py` passes to
+  `encode_command`: a 14 B frame while every extra is at its default, the
+  24 B frame otherwise. Scripts that return a dict (`sidestep1`, `crouch1`,
+  `march`, `rom_feet`) and the gamepad's vy go out through that one path.
   `--source goal --goal X Y` is a goal-seeker that needs a world (x, y, yaw)
   feed as 12-byte datagrams on UDP 4212 (`sources.PoseFeed`); the robot has
   no odometry to provide one and neither twin publishes one.

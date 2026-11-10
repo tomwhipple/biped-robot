@@ -1,8 +1,10 @@
 """Command sources: the three things allowed to steer the robot.
 
-All of them live laptop-side and emit the same (vx, wz, flags) triple, so the
-robot only ever learns one wire format (link/protocol.py) no matter who is
-driving. Adding a fourth commander is a class here, not a firmware change.
+All of them live laptop-side and emit the same (vx, wz, flags, ext) tuple, so
+the robot only ever learns one wire format (link/protocol.py) no matter who is
+driving. `ext` is a dict of the extended channels (EXT_KEYS: vy, crouch, lift,
+foot_dx, foot_dz), possibly empty; a key left out rides at its trained
+default, and encode_command(..., **ext) picks the 14 B or 24 B frame. Adding a fourth commander is a class here, not a firmware change.
 
   script  -- time-scripted sequences, the on-hardware twin of
              sim/eval_commands.py, so a real run and a sim eval are the same
@@ -13,14 +15,18 @@ driving. Adding a fourth commander is a class here, not a firmware change.
 """
 import math
 
-from protocol import (FLAG_ENABLE, FLAG_ESTOP, V_MAX, V_MIN_WALK, W_MAX)
+from protocol import (FLAG_ENABLE, FLAG_ESTOP, V_MAX, V_MIN_WALK, VY_MAX,
+                      W_MAX)
 
 # Sticks rest noisily around zero; below this the axis reads as "let go".
 STICK_DEADZONE = 0.15
 
 
 class CommandSource:
-    """Emit (vx m/s, wz rad/s, flags) for wall-clock time t (seconds)."""
+    """Emit (vx m/s, wz rad/s, flags, ext) for wall-clock time t (seconds).
+
+    `ext` is a dict keyed by EXT_KEYS (empty when no extended channel is
+    asked for)."""
 
     name = "base"
 
@@ -206,14 +212,14 @@ class ScriptSource(CommandSource):
 
     def poll(self, t):
         if self._duration is not None and t >= self._duration:
-            return 0.0, 0.0, 0        # disabled -> robot stands
+            return 0.0, 0.0, 0, {}    # disabled -> robot stands
         out = self._fn(t)
         if isinstance(out, dict):
             # dict scripts: any subset of the 7 ext_cmd channels
             ext = {k: out[k] for k in EXT_KEYS if k in out}
             return out.get("vx", 0.0), out.get("wz", 0.0), FLAG_ENABLE, ext
         v, w = out
-        return v, w, FLAG_ENABLE
+        return v, w, FLAG_ENABLE, {}
 
 
 # -- gamepad ---------------------------------------------------------------
@@ -227,6 +233,7 @@ class GamepadSource(CommandSource):
     name = "gamepad"
 
     # Xbox/PS layout under SDL2.
+    AX_LAT = 0          # left stick X (left is negative; left = +vy)
     AX_FWD = 1          # left stick Y (up is negative)
     AX_YAW = 2          # right stick X
     BTN_DEADMAN = 5     # right shoulder
@@ -251,15 +258,19 @@ class GamepadSource(CommandSource):
     def poll(self, t):
         self._pygame.event.pump()
         if self._js.get_button(self.BTN_ESTOP):
-            return 0.0, 0.0, FLAG_ESTOP
+            return 0.0, 0.0, FLAG_ESTOP, {}
         if not self._js.get_button(self.BTN_DEADMAN):
-            return 0.0, 0.0, 0
+            return 0.0, 0.0, 0, {}
         vx = stick_to_speed(-self._js.get_axis(self.AX_FWD))
         yaw = self._js.get_axis(self.AX_YAW)
         # Yaw has no training hole -- any |wz| <= 1.0 is in-distribution -- so
         # it gets a plain dead zone and a linear map, unlike stick_to_speed.
         wz = 0.0 if abs(yaw) < STICK_DEADZONE else -yaw * W_MAX
-        return vx, wz, FLAG_ENABLE
+        # Lateral: same treatment as yaw, scaled to the lateral limit. Left
+        # is +vy (as is left for +wz), so the sign flips like yaw's.
+        lat = self._js.get_axis(self.AX_LAT)
+        vy = 0.0 if abs(lat) < STICK_DEADZONE else -lat * VY_MAX
+        return vx, wz, FLAG_ENABLE, ({"vy": vy} if vy else {})
 
     def close(self):
         self._pygame.quit()
@@ -316,19 +327,19 @@ class GoalSource(CommandSource):
         dx, dy = self.goal[0] - x, self.goal[1] - y
         dist = math.hypot(dx, dy)
         if dist < self._tol:
-            return 0.0, 0.0, FLAG_ENABLE      # arrived: stand on the spot
+            return 0.0, 0.0, FLAG_ENABLE, {}  # arrived: stand on the spot
         err = math.atan2(math.sin(math.atan2(dy, dx) - yaw),
                          math.cos(math.atan2(dy, dx) - yaw))
         wz = max(-W_GOAL_MAX, min(W_GOAL_MAX, self._k_yaw * err))
         if abs(err) > self._face_first:
             # Goal is behind us: pivot. Walking a wide arc backwards wastes
             # battery and floor, and this is the one case worth the risk.
-            return 0.0, wz, FLAG_ENABLE
+            return 0.0, wz, FLAG_ENABLE, {}
         # Ease off near the goal, but never into the untrained (0, 0.3) band --
         # clamp_to_envelope would snap that to a stand anyway: stop honestly.
         v = self._cruise if dist > 1.0 else max(V_MIN_WALK,
                                                 self._cruise * dist)
-        return v, wz, FLAG_ENABLE
+        return v, wz, FLAG_ENABLE, {}
 
 
 class PoseFeed:
