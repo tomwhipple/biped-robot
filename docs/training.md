@@ -242,7 +242,7 @@ changes the observation contract or the firmware:
 | one-leg balance | c4 = ±1 |
 | air circles | c4 = ±1, c5/c6 on a circle (radius 2–5 cm, period 1.5–3.5 s) |
 | march in place | c4 alternating, c6 bobbing the swing foot |
-| knee-high march | c4 alternating on the clock (or at `--march-hz`), c6 raising the swing sole to the opposite knee's height (`--march-mix`) |
+| knee-high march | c4 alternating on the gait clock (or at `--march-hz`), c6 raising the swing-sole target to the opposite knee's height, 18 cm on the legs plant (`--march-mix`); `--march-lift L` sets the peak target (m) instead, `0.08` = c6 up to 2 cm. The link clamps c6 to 5 cm, so the knee-high target itself cannot be sent. On the gait clock (`--march-hz` 0) the half period is the clock's, 0.67 s per lift at 0.75 Hz; the plain march above runs on a per-episode clock (1.5–3.5 s per cycle), not the gait clock |
 | hip sway | c1 oscillating at 0.12 m/s amplitude, feet planted |
 
 `--family` restricts the mix to a specialist, and the referee then scores the
@@ -340,6 +340,45 @@ full step with it. It pays
 weighted by `--mimic-knee-w`.
 It supplies backward and sideways walking, which shaping alone did not
 produce, and it carries the swing timing.
+
+`--mimic-sway M` (metres) puts the weight transfer into the reference. While a
+moving command is active the torso moves toward the stance foot by M, with the
+hip rolls; the ankle rolls cancel them so the soles stay level, and the sway
+leads the swing clock by `--mimic-sway-lead` (0.785 rad). The rad/m is solved
+on the plant's kinematics (`mimic_sway_coefs`, −3.05 rad/m on the measured-sole
+plant). Without it the reference holds the rolls at the standing pose and
+`w_mimic` pays against any lateral shift.
+
+A march is a lifted command, and a lifted command gates `w_mimic` off (and
+`w_pose`, `w_feet_phase`, `w_walk_shift`, which are gated on a moving, unlifted
+command). A march therefore has no reference unless `--mimic-march M` turns it
+on: during a gait-clock march (`--march-mix`, traj mode 4, c4 alternating) the
+reference lifts the swing sole M metres on the clock (the `--mimic-lift` IK
+table, M ≤ 0.08) and applies `--mimic-sway`, with no stride; a one-leg balance
+or an air circle stays off. It needs `--mimic-lift`, the gait clock and no
+`--march-hz`. What pays for a march otherwise: `w_lift` (the swing foot ≥
+`lift_clear` 3 cm with the stance foot down), `w_track_foot` (the swing-sole
+target kernel, σ 6 cm), `w_single_support`, `w_knee_high` (the clearance as a
+fraction of the commanded swing height) and `w_com_stance` (the CoM over the
+stance sole, σ 4 cm, gated by the swing clearance): the only one of them that
+pays for lateral weight transfer, and zero in the `loco` family unless set.
+`tests/test_mimic_march.py` pins the reference, the gate, the defaults and the
+CPU/MJX agreement; parity block R13b runs the step.
+A warm start from a run that drew no march needs `--init-norm-march`: that run's
+observation normaliser holds std 1e-6 on the lift and foot-dz slots (the channels
+never moved), so a march reads as ~1e6 σ. The flag re-seats those slots to the
+march draw (`reseat_march_norm`; c6 stays frozen when the march asks no c6,
+`--march-lift 0.06`). On the robot the same frozen slots make `policy::pinFrozen`
+ignore a march command, so a student that never saw one stands.
+
+The robot's own march is `link/sources.py march5`: five full swings (after a
+quarter-cycle first one) at the trained clock, then the stand. The clock holds
+at the stand phase π/2 and runs from there the tick a lift is commanded, so the
+script's time is the clock's phase. `grade.py`'s `march5` probe grades it:
+per-foot peak lift on every step (the bar is 3 cm), the CoM's shift toward the
+stance foot while each foot is up (the bar is 0.6), drift, yaw, falls and guard
+trips, with the channels a run never saw move pinned to their trained value as
+the firmware does.
 
 `--w-mirror-loss` adds an auxiliary PPO loss (not a reward) on
 `|π(mirror(obs)) − mirror(π(obs))|`, with the signed left/right permutations

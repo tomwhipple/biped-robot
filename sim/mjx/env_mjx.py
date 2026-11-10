@@ -668,6 +668,7 @@ class BimoMJXEnv:
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
+        mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -813,6 +814,12 @@ class BimoMJXEnv:
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
         # Gaussian: a 10 cm target must still pay gradient from a 2 cm lift.
+        march_lift: float = 0.0,      # m: the march's peak commanded swing-sole
+        # height (lift_height + c6). 0 (default) = the opposite knee's standing
+        # height (march_clear, 18 cm on the legs plant); a positive value
+        # replaces it, so the march asks for a lift the robot can take at a
+        # slow clock and the link can send (c6 <= link FOOT_D_MAX, 5 cm).
+        # c6 peaks at max(march_lift - lift_height, 0).
         march_hz: float = 0.0,        # COMMANDED march cadence, full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock and
         # inherit its draw (at 1.25-1.75 Hz, 0.29-0.40 s per lift -- a sprinter's
@@ -1294,6 +1301,16 @@ class BimoMJXEnv:
                 raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
             from walker_env import mimic_sway_coefs      # jax-free, shared with the CPU env
             self._sway_k = jp.asarray(mimic_sway_coefs(m, self._sg_roll))
+        self.mimic_march = float(mimic_march)
+        if self.mimic_march != 0.0:
+            # the march reference is the walking reference's lift and sway on
+            # the gait clock (no stride), so it needs the IK lift table, the
+            # gait clock, and the march on that clock (not a pinned cadence)
+            if not 0.0 < self.mimic_march <= 0.08:
+                raise ValueError("mimic_march must be in (0, 0.08] m (the mimic_lift IK table)")
+            if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
+                raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
+                                 "(the reference follows the gait clock)")
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -1505,6 +1522,7 @@ class BimoMJXEnv:
         self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
+        self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
@@ -1707,7 +1725,8 @@ class BimoMJXEnv:
         # Mirrored in sim/walker_env.py.
         _knee_jid = m.joint(self._act_names[self._legL["knee"]]).id
         self._knee_z0 = float(d0.xanchor[_knee_jid][2])
-        self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
+        self.march_clear = (self.march_lift if self.march_lift > 0.0
+                            else max(self._knee_z0 - self._sole_z0, 0.0))
         # commanded c6 that puts the swing-foot TARGET at knee height
         self._march_dz = max(self.march_clear - self.lift_height, 0.0)
         # Fixed-cadence march clock (march_hz > 0) in WHOLE control steps.
@@ -1973,13 +1992,16 @@ class BimoMJXEnv:
             return cmd3 * self._nominal_h
         return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - self._crouch_drop(cmd3))
 
-    def _mimic_ref(self, cmd, phase, freq):
+    def _mimic_ref(self, cmd, phase, freq, march=None):
         """Joint-space procedural gait reference (plan-v2 Phase B).
         Stride amplitude ~ KX*v_leg/f (foot excursion ~0.18 m leg * A matches
         v/(4f) per half-cycle at KX=1.4); turning = differential stride via
         v_leg = vx -/+ hip_half_sep*wz; sidestep = lateral roll oscillation;
         knee bends 0.55 rad during its swing half; ankle keeps the sole
         level. At zero command the reference equals the standing pose.
+        march (traced bool, only with mimic_march): the command is a gait-clock
+        march -- the swing lift is mimic_march and mimic_sway acts, with the
+        stride terms at zero (the march command has vx = vy = wz = 0).
         Mirrored EXACTLY in walker_env.py (parity-gated)."""
         f = jp.maximum(freq, 0.5)
         d = self._default
@@ -1999,6 +2021,8 @@ class BimoMJXEnv:
             # swing lift by IK (walker_env.mimic_lift_coefs), mirror of the CPU env
             g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
             u = float(np.sqrt(self.mimic_lift)) * sw * g
+            if self.mimic_march != 0.0 and march is not None:
+                u = jp.where(march, float(np.sqrt(self.mimic_march)) * sw, u)
             ch, ck = self._lift_ch, self._lift_ck
             hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
             knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
@@ -2013,6 +2037,8 @@ class BimoMJXEnv:
             # leading the swing by mimic_sway_lead; L swings on sin > 0, so the
             # torso goes -y, toward R. The ankle roll below keeps the sole level.
             g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
+            if self.mimic_march != 0.0 and march is not None:
+                g = jp.where(march, 1.0, g)
             roll = roll + self._sway_k * (-self.mimic_sway * g
                                           * jp.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
@@ -3395,12 +3421,25 @@ class BimoMJXEnv:
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
         if self.w_mimic:
-            q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
+            if self.mimic_march != 0.0:
+                # a gait-clock march (mode 4) is a lifted command, which gates
+                # the reference off; mimic_march turns it back on for the march
+                # only (one-leg balance and circles stay off). The draw's first
+                # tick still carries c4 = 0 (the alternation starts the next
+                # tick): that tick keeps the stand reference.
+                mimic_on_march = (state.traj_on == 4.0) & lifted
+                q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq,
+                                        march=mimic_on_march)
+            else:
+                mimic_on_march = None
+                q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
             dq = self._p(data.qpos[self._jq0:self._jq1]) - q_ref
             mim_gate = 1.0
             mim_w = self._mimic_w
             if self.ext_cmd:
                 mg = (~lifted) & (state.recovered > 0.5)
+                if mimic_on_march is not None:
+                    mg = (~lifted | mimic_on_march) & (state.recovered > 0.5)
                 if self.mimic_crouch_gate:
                     mg = mg & (state.cmd[3] >= 0.97)
                 if self.mimic_crouch_gate_knee:

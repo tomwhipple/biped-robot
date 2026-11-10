@@ -220,6 +220,47 @@ def reseat_crouch_norm(restore, env, lo, hi):
     return (norm,) + tuple(restore[1:]), idx
 
 
+def march_obs_slots(env, chan):
+    """Observation indices of command channel `chan` (4 = lift, 6 = foot dz) in every stacked frame."""
+    if not getattr(env, "ext_cmd", False):
+        raise ValueError("--init-norm-march needs an ext_cmd (7-channel command) env")
+    off = int(env.obs_frame) - 7 + chan
+    return [k * int(env.obs_frame) + off for k in range(int(env.obs_hist_len))]
+
+
+def reseat_march_norm(restore, env):
+    """restore = (normalizer RunningStatisticsState, policy, value): re-seat the lift (c4) and
+    foot-dz (c6) command slots to this env's march draw, with summed_variance consistent with the
+    stored count so the running update continues from there. A run that drew no march has std 1e-6
+    there (the channels never moved), so c4 = +-1 reads as ~1e6 sigma. Mean and std come from the
+    draw: a knee-high march (march_mix of the time) holds c4 = +-1, equally often, and
+    c6 = dz |sin| with dz = env._march_dz. c6 stays frozen when dz is 0."""
+    import numpy as _np
+    norm = restore[0]
+    if not env.march_mix > 0.0:
+        raise ValueError("--init-norm-march needs --march-mix > 0")
+    p = float(env.march_mix)                                  # the share of the time in a march
+    dz = float(env._march_dz)
+    rows = {4: (0.0, _np.sqrt(p))}
+    e1 = p * dz * 2.0 / _np.pi                                # E[c6]
+    e2 = p * dz * dz * 0.5                                    # E[c6^2]
+    if dz > 0.0:
+        rows[6] = (e1, _np.sqrt(max(e2 - e1 * e1, 0.0)))
+    mean = _np.array(norm.mean, dtype=_np.float32).copy()
+    std = _np.array(norm.std, dtype=_np.float32).copy()
+    sv = _np.array(norm.summed_variance, dtype=_np.float32).copy()
+    cnt = norm.count
+    n = float(int(cnt.hi) * 2 ** 32 + int(cnt.lo)) if hasattr(cnt, "hi") else float(cnt)
+    idx = []
+    for chan, (mu, sd) in rows.items():
+        sd = max(float(sd), 1e-3)                             # well above kFrozenStdMax (1e-5)
+        for i in march_obs_slots(env, chan):
+            mean[i], std[i], sv[i] = mu, sd, sd ** 2 * n
+            idx.append(i)
+    norm = norm.replace(mean=jp.asarray(mean), std=jp.asarray(std), summed_variance=jp.asarray(sv))
+    return (norm,) + tuple(restore[1:]), idx
+
+
 def make_parser():
     """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
     one set of flags means one env config, whichever trainer runs it."""
@@ -301,6 +342,12 @@ def make_parser():
                         "(the 2026-11-09 robot never unloaded its R foot)")
     p.add_argument("--mimic-sway-lead", type=float, default=None, metavar="RAD",
                    help="--mimic-sway's phase lead over the swing clock (default 0.785)")
+    p.add_argument("--mimic-march", type=float, default=0.0, metavar="M",
+                   help="imitation reference during a gait-clock march (--march-mix): the "
+                        "swing sole rises this high (m, IK, <= 0.08) on the gait clock "
+                        "with --mimic-sway's lateral shift and no stride. 0 = the "
+                        "reference is off during a march (a lifted command gates "
+                        "w_mimic). Needs --mimic-lift, the gait clock, no --march-hz")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -484,6 +531,12 @@ def make_parser():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--march-lift", type=float, default=None, metavar="M",
+                   help="the march's peak commanded swing-sole height (m, lift_height + c6): "
+                        "default = the opposite knee's standing height, 18 cm on the legs "
+                        "plant, which the link cannot send (c6 <= 5 cm). A value such as "
+                        "0.06 (c6 stays 0) or 0.08 (c6 up to 2 cm) is a march the robot can "
+                        "be commanded at a slow clock")
     p.add_argument("--w-mirror-loss", type=float, default=None,
                    help="mirror-symmetry auxiliary loss weight: penalize "
                         "|policy(mirror(obs)) - mirror(policy(obs))| on the "
@@ -668,6 +721,13 @@ def make_parser():
                         "--cmd-crouch-range (mean = midpoint, std = the uniform draw's). A run "
                         "trained with the channel frozen at 1.0 has std 1e-6 there, so any other "
                         "crouch reads as ~1e5 sigma (2026-11-05, knee-bend walking)")
+    p.add_argument("--init-norm-march", action="store_true",
+                   help="with --init-from and --march-mix: re-seat the restored observation "
+                        "normalizer's lift (c4) and foot-dz (c6) command slots (every stacked "
+                        "frame) to this run's march draw. A run that drew no march has std 1e-6 "
+                        "there, so a march reads as ~1e6 sigma and wrecks the warm start (the "
+                        "crouch problem, --init-norm-crouch). c6 stays frozen when the march "
+                        "asks no c6 (--march-lift 0.06)")
     p.add_argument("--cmd-crouch-range", default="1,1",
                    help="per-episode crouch-command draw, lo,hi (SIL finding "
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
@@ -943,6 +1003,8 @@ def build_env_kw(args):
         env_kw["mimic_sway"] = args.mimic_sway
     if getattr(args, "mimic_sway_lead", None) is not None:
         env_kw["mimic_sway_lead"] = args.mimic_sway_lead
+    if getattr(args, "mimic_march", 0.0):
+        env_kw["mimic_march"] = args.mimic_march
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
@@ -1134,6 +1196,8 @@ def build_env_kw(args):
     # its env from.
     if args.march_mix is not None:
         env_kw["march_mix"] = args.march_mix
+    if getattr(args, "march_lift", None) is not None:
+        env_kw["march_lift"] = args.march_lift
     if args.w_still is not None:
         env_kw["w_still"] = args.w_still
     if args.w_stand_com is not None:
@@ -1339,6 +1403,9 @@ def main():
             lo, hi = (float(x) for x in str(args.cmd_crouch_range).split(","))
             restore, idx = reseat_crouch_norm(restore, env, lo, hi)
             print(f"re-seated the crouch normalizer slots {idx} to mean {(lo + hi) / 2:.3f}")
+        if getattr(args, "init_norm_march", False):
+            restore, idx = reseat_march_norm(restore, env)
+            print(f"re-seated the march (lift, foot-dz) normalizer slots {idx}")
 
     train_fn = functools.partial(
         ppo.train,

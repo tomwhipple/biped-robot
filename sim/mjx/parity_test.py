@@ -574,7 +574,37 @@ def march_blocks():
           f"(= {c._march_half * c.control_dt:.2f} s at march_hz "
           f"{c.march_hz:.1f}), {len(flips)} c4 flips, observed flip gaps "
           f"{gaps} steps")
-    return ok11 and ok12 and ok13
+    # R13b: the march reference (mimic_march): w_mimic pays during the march
+    # (a lifted command otherwise gates it off) against the lift-and-sway
+    # reference, and march_lift sets the c6 peak. Airborne, every reward term
+    # incl. the mimic one is compared CPU vs MJX; the twin without mimic_march
+    # must differ (the term is live), and c6 must peak at march_lift - lift_height.
+    kwm = dict(kw, mimic_lift=0.02, mimic_sway=0.035, mimic_march=0.035,
+               march_lift=0.08)
+    c, g, s = envs_for(kwm, solver_tol=ARITH_TOL)
+    seen = {"c6": 0.0}
+
+    def watch2(env):
+        seen["c6"] = max(seen["c6"], float(env._cmd[6]))
+
+    ok13b = run_block(
+        "R13b. march reference (mimic_march, march_lift, airborne)", 120,
+        air_acts(c, 0.359, hook=watch2), hoist, AIR_GATES, (c, g, s))
+    c0, _, _ = envs_for(dict(kwm, mimic_march=0.0), solver_tol=ARITH_TOL)
+    c0.reset(seed=3)
+    c.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = 0.0
+    for _ in range(30):
+        r_on += c.step(z)[1]
+        r_off += c0.step(z)[1]
+    dz = c._march_dz
+    ok13b = (ok13b and abs(dz - 0.02) < 1e-9 and abs(float(g._march_dz) - dz) < 1e-12
+             and abs(seen["c6"] - dz) < 1e-3 and abs(r_on - r_off) > 1e-3)
+    print(f"   march reference live: peak c6 {seen['c6']:.4f} m (= march_lift 0.08 - "
+          f"lift_height {c.lift_height:.2f}), 30-step reward with / without "
+          f"mimic_march {r_on:.3f} / {r_off:.3f}")
+    return ok11 and ok12 and ok13 and ok13b
 
 
 # -- R14: torso-pitch hinge -----------------------------------------------------
