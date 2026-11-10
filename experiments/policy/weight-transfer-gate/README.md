@@ -1,7 +1,8 @@
 # Weight-transfer gate: does the walking plant reproduce the robot? (2026-11-10, #259)
 
 Two checks of the walking plant (`sim/bimo_biped_v6legs_meas_sole.xml`) against what the robot has
-already shown about weight transfer, and a first attribution pass. CPU only; no plant XML, training
+already shown about weight transfer, a first attribution pass, and a second (Round 2: the pipeline's
+yaw sign, the one-fault hypothesis, compliance beyond the encoders, grade.py's roll opt-ins). CPU only; no plant XML, training
 default or DR default is changed. Every term below is opt-in (`--terms`).
 
 ```bash
@@ -24,7 +25,7 @@ NOTES.md robot numbers from the raw logs.
 |---|---|
 | `train` | the prec16 recipe's training actuator chain at the **centre** of its DR, on the CPU `walker_env` built from the run's `config.json` (DR off). The CPU env lacks three MJX-only knobs, so `gate_common.TrainChain` adds them in front: per-type dead time (3 ticks STS3215 / 0.5 STS3250), the one-stage action lag (5.3 Hz, x4 at the hip rolls), servo kp x0.9 / kd x0.56. Roll lash 1.25 deg, backlash 0.125 deg, joint friction 0.25, latency 4 ms, mu 0.5, torso x1, CoM 0 |
 | `train:lash0.5`, `train:lash2.0` | the same with the roll lash at its DR ends |
-| `grade` | what `grade.py`'s `robot` probes run (the `stride1 0.3 robot` probe that lifts prec16's R foot 2.1 cm): `simh.build("fit")` + `JF_PLANT` + `ROBOT_SPEED_PLANT`, `TypedServo(ROBOT_SPEED_SERVO)` in front |
+| `grade` | what `grade.py`'s `robot` probes run (the `stride1 0.3 robot` probe that lifts prec16's R foot 2.1 cm): `simh.build("fit")` + `JF_PLANT` + `ROBOT_SPEED_PLANT`, `TypedServo(ROBOT_SPEED_SERVO)` in front. `GRADE_ROLL_LASH=<deg>` / `GRADE_ROLL_SERIES=hip=<k>[,ankle=<k>]` (opt-in, unset = as before) give grade.py's every probe the roll play or the series spring (round 2) |
 | `oneleg:fit` | reference only, not the walking plant: the 10-30 one-leg fit's own harness plant (`bimo_biped_v6legs.xml`, `simfit_plant.json`) |
 
 **A premise correction.** The issue says the one-leg fit's values "never reached the walking
@@ -157,6 +158,130 @@ Best supported, with the evidence:
   load and pivots (the FK says the robot's L stance sole was on an edge, 5-8 deg off level), the
   sole/board friction and torsion, and compliance beyond the encoders that the joint-equality
   replay cannot express.
+
+## Round 2 (2026-11-10): sign check, one fault or two, compliance beyond the encoders
+
+```bash
+.venv/bin/python experiments/policy/weight-transfer-gate/check2_replay.py --record 1106t1 --schedules "" --seeds 0
+.venv/bin/python experiments/policy/weight-transfer-gate/check2_replay.py --joint-variants
+.venv/bin/python experiments/policy/weight-transfer-gate/fit_series.py
+.venv/bin/python experiments/policy/weight-transfer-gate/wt_grade.py 8
+```
+
+### 1. The pipeline's yaw sign, on a record where the plant agreed (`results/signcheck_*.md`)
+
+`--record 1106t1|1106t2` runs the same loader, metrics and replays on omni5's 2026-11-06 records
+(`flight_20261106T160828Z_omni5.frec`, walk commands 1 and 2). Yaw in deg from the walk command:
+
+| 11-06 | robot +0.4 / +0.7 / +2 s | joints replay, mu 0.5 | yaw-gap README (its own replay) |
+|---|---|---|---|
+| t1, stride1_03 | -2.4 / **+24.5** / -2.6 | -10.4 / **+46.1** / -7.4 | robot -3 to +27, replay -10 to +50 (+0.4 to +0.7 s) |
+| t2, steps5_03 | -2.6 / **+43.9** / +70.0 | -18.7 / **+28.0** / -25.7 | robot +42 by +0.72 s |
+
+The pipeline reproduces the precedent's numbers (-10.4 / +46.1 against -10 / +50) and the robot's
+sign in the second swing on both 11-06 records. So the sign is not a convention error. The 11-09
+flip (robot -45, replay +44) is in the plant's response to the robot's joint motion. The size does
+not agree on 11-06 either (t1: +46 against +24.5), and by +2 s t2 has gone the other way (-25.7
+against +70).
+
+### 2. One fault? Keeping the R foot loaded in the 11-09 joints replay (`results/r2_item2_joint_variants.md`)
+
+Measured joints imposed, mu 0.5. Perturbations: a constant pelvis roll toward R (both hip-roll
+targets offset; 4 deg is what the 10-24 clamp puts beyond the encoders), the same at the ankle
+rolls (the whole body leans), torso CoM toward R, and the torso-to-legs mass move.
+
+| perturbation | R foot's share of the floor load, +0.4..+0.7 s, min / mean | lift L / R mm | yaw +0.7 / +2 s deg | gz peak | guard-rate peak |
+|---|---|---|---|---|---|
+| robot | unknown | unknown (FK 16.9 / 13.0) | -43.6 / -45.0 | -7.2 | 3.5 |
+| plant | 0.00 / 0.20 | 23.0 / 21.8 | +12.5 / +43.6 | +4.0 | 1.7 |
+| CoM 10 / 20 / 30 / 50 mm toward R | 0.00 / 0.13-0.20 | 22-24 / 22-23 | +8.6..+15.2 / +43.9..+45.6 | +4.0..+4.9 | 1.7-1.8 |
+| torso x0.6, legs x1.2 | 0.00 / 0.20 | 23.0 / 19.1 | +11.6 / +52.2 | +3.7 | 2.0 |
+| pelvis 4 / 8 deg toward R | 0.00 / 0.13, 0.20 | 27.1 / 14.7, 20.5 / 28.9 | +7.5 / +48.4, +9.4 / +43.6 | +2.3, +2.8 | 1.6, 1.9 |
+| whole body 4 / 8 / 12 deg toward R | 0.00 / 0.23, 0.27, 0.93 | 27.8 / 17.6, 39.7 / 10.3, 22.4 / 35.4 | +5.6 / +59.3, +2.8 / +17.3, +11.0 / +132.7 | +2.6, +1.7, +7.0 | 2.0, 1.4, 3.6 |
+
+**None keeps the R foot loaded.** Its share reaches 0 inside +0.4..+0.7 s in every row. None
+gives the robot's yaw sign. The rows that reach the robot's rate (whole body 12 deg: 3.6) do so
+by falling over with the opposite yaw (+133 deg). Within these candidates the "one fault"
+hypothesis is not supported. With the robot's joint angles, the rigid plant unloads the R foot
+whatever its CoM or a fixed roll offset does.
+
+### 3. A spring beyond the encoders, fitted to the 10-24 clamp only (`fit_series.py`, `results/r2_item3_*`)
+
+**How it is modelled.** `walker_env` needs its actuated joints consecutive in qpos, so a real
+joint inside the leg chain cannot go into the walking env. The `ser_hip` / `ser_ankle` terms use
+its quasi-static form. The link sees k_eff = kp k_s / (kp + k_s), the roll PD scaled by
+k_s / (kp + k_s). The encoder (the policy's joint obs, the one-leg streamer, the clamp encoders)
+reads the servo shaft, q + kp / (kp + k_s) (target − q), so only the servo's own deflection
+shows. The shaft is massless (no extra mode), and joint velocities stay the link's. The
+bare-plant joints replay uses a real sprung joint (`gate_common.add_series_joint`). Roll play is
+set to 0, so the spring carries everything beyond the encoders. There is no free play in this
+fit: the bench cannot split play from spring, and a spring alone reaches the signature.
+
+| placement | k, N m/rad | clamp tilt R / L lifted (robot 5.2 / 5.0) | stance encoders ankle / hip (robot 1.0-1.5 / 0.7-0.9) |
+|---|---|---|---|
+| hip rolls | **14.2** | 5.08 / 5.13 | **1.39-1.41 / 0.79**: all three numbers inside the bench's |
+| ankle rolls | 27.8 | 5.00 / 5.09 | 1.68-1.71 / 0.80: ankle encoder 0.2 deg above the bench |
+| both | 40.1 | 5.06 / 5.14 | 1.58-1.61 / 0.80 |
+
+Then the checks, untuned (`train` = the training chain; `grade` = grade.py's plant, same k):
+
+| | robot | hip 14.2, train / grade | ankle 27.8, train / grade | both 40.1, train / grade |
+|---|---|---|---|---|
+| 62 mm, 30 mm tip | -5.21 | **-3.41 / -3.40** | -1.81 / -1.92 | -2.34 / -2.42 |
+| 80.6 mm, 30 mm tip R / L | -3.17 / +4.05 | **falls both** / -3.45 / +4.94 | -1.21 / +1.17, -1.39 / +3.04 | -1.99 / +1.92, -2.15 / +3.60 |
+| unloading tilt 0.5 / 1.0 / 1.3x (R) | -1.91 / -1.69 / -1.30 | -2.13 / -2.03 / -1.93, -1.82 / -1.70 / -1.57 | **-1.87 / -1.50 / -1.36**, -1.69 / -1.45 / -1.38 | -1.99 / -1.74 / -1.72, -1.71 / -1.53 / -1.44 |
+| 11-09 closed loop (record), R lift mm | ~0 by eye, FK 13.0 | **16.4 / 12.2** | 23.2 / 20.7 | 22.2 / 18.4 |
+| same, yaw +2 s / gz / rate | -45.0 / -7.2 / 3.5 | +12.3 / +1.2 / 0.6, +18.3 / +1.2 / 0.7 | +3.5 / -0.1 / 0.6, +3.9 / +1.3 / 0.7 | +4.8 / +0.5 / 0.6, +23.5 / +1.6 / 0.8 |
+| joints replay (real sprung joint): R lift, yaw +2 s, gz, rate | | 18.7, +28.6, +3.2, 1.8 | 23.2, **-3.4**, **-2.7**, 1.7 | 22.5, +27.6, +3.6, 1.5 |
+| prec16 `stride1 0.3 robot` (grade, 4 seeds): lift L / R cm, falls | | 2.89 / **1.20**, 0 falls | 3.20 / 2.07, 0 | 2.86 / 1.95, 0 |
+
+What it shows:
+- **The hip-roll spring is the first term that fits the bench's own clamp signature in full**
+  (tilt and both encoders), and it moves the most numbers toward the robot. The 62 mm tip goes from
+  -1.2..-1.9 to -3.4 deg (robot -5.2). On the grade plant the 80.6 mm tips become -3.45 / +4.94
+  (robot -3.17 / +4.05). It cuts prec16's 11-09 R lift from 20-21 to 12-16 mm, and the grade
+  probe's from 2.05 to 1.20 cm. The plant still stands and walks the probe (0 falls of 4).
+- What it does not do: the tip still does not depend on the shift (grade: -3.40 at 62 mm,
+  -3.45 at 80.6 mm, where the robot halves it). On `train` the 80.6 mm stand **falls** outward on
+  both stances, which the robot did not. The unloading curve stays flat. The yaw keeps the plant's
+  sign, and the guard rate stays at 0.6-0.8.
+- The ankle-roll spring matches the unloading-tilt curve best of anything tried (-1.87 / -1.50 /
+  -1.36 against -1.91 / -1.69 / -1.30). It is the only term that turns the 11-09 joints replay's
+  yaw to the robot's sign, though at a tenth of the size (-3.4 against -45 deg). It reads 0.2 deg
+  high at the ankle encoder and does nothing for the tip or the closed-loop lift.
+- So compliance beyond the encoders is supported by the bench record and moves check 1 and the
+  closed-loop lift the right way. It explains neither the shift dependence nor the 11-09 yaw and
+  body rate.
+
+The clamp test now reads its encoders through `gate_common.clamp_run`. `sim/roll_compliance.run`
+subtracts the full roll deadzone from every roll encoder, which over-subtracts where the play differs
+per joint (`lash_fit`: ankle 1.19 → 1.48 deg). The rows with one width for all four rolls are
+unchanged.
+
+### 4. grade.py with the roll chain (`wt_grade.py`, `results/r2_item4_wt_grade.md`)
+
+`GRADE_ROLL_LASH` / `GRADE_ROLL_SERIES` are opt-in (`grade.roll_plant_opts`, unset = the plant as
+before; `tests/test_weight_transfer_gate.py`). `wt_grade.py` re-implements the planner's
+lift_cm / shift_when_up. Its "grade as is" rows reproduce the 11-10 planner's table (prec16
+3.12 / 2.05 cm, -0.22 / +0.16; prec37 4.37 / 2.97 cm, -0.30 / +0.30). 8 seeds, SHAPE_HZ 8:
+
+| student | plant | stride1 0.3 robot: lift L / R cm (min); shift L-up / R-up | steps5 0.3 robot: lift L / R cm (min); shift |
+|---|---|---|---|
+| prec16 | as is | 3.12 (2.95) / 2.05 (1.92); -0.22 / +0.16 | 3.12 (2.95) / 2.22 (2.16); -0.39 / +0.50 |
+| prec16 | roll lash 1.25 deg | 3.17 (3.05) / 1.93 (1.76); -0.22 / +0.15 | 3.17 (3.05) / 1.94 (1.80); -0.44 / +0.44 |
+| prec16 | series hip 14.2 | 2.84 (2.71) / **1.24 (1.12)**; -0.17 / +0.15 | 2.84 (2.71) / 2.12 (1.98); -0.36 / +0.46 |
+| prec37 | as is | 4.37 (4.23) / 2.97 (2.82); -0.30 / +0.30 | 4.37 (4.23) / 2.97 (2.82); -0.44 / +0.60 |
+| prec37 | roll lash 1.25 deg | 4.05 (3.94) / 2.43 (2.28); -0.29 / +0.25 | 4.07 (3.94) / 2.74 (2.62); -0.48 / +0.60 |
+| prec37 | series hip 14.2 | 3.93 (3.82) / 2.19 (2.06); -0.28 / +0.25 | 3.93 (3.82) / 2.49 (2.44); -0.45 / +0.55 |
+
+There are no falls in any cell. The guard trips are all the `pose` criterion at 3.98 s, under the
+stand command after the stride. On `stride1 0.3 robot` they occur in 1/8 (prec16 as is) and 8/8
+in every other cell; on `steps5` there are none.
+
+With the roll chain the R lift drops on both students, most with the hip spring (prec16
+2.05 → 1.24 cm, prec37 2.97 → 2.19 cm). The shifts barely move. prec37 still clears the 2 cm bar
+on both feet under every variant, and prec16's R foot no longer does on stride1. Neither plant
+passed check 1 or 2, so this changes which plant grade.py ranks on only if the planner chooses it.
 
 ## What is still unmeasured
 

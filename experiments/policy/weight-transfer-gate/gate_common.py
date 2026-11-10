@@ -32,6 +32,11 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
   roll_k=<x>  x the roll servos' stiffness AND damping (kp/kd profile): a load-proportional
               roll compliance, the spring the walking plant does not have (it has play only)
   dead=<ms>   extra dead time on every STS3215 (loaded-servo tracking lag), ms
+  ser_hip=<k>, ser_ankle=<k>   N m/rad: a spring in series with each hip roll / ankle roll on
+              the servo's OUTPUT side, so the encoder (policy obs, Replay, clamp encoders) reads the
+              servo angle, not the link (set_series_view: the quasi-static form; walker_env cannot
+              take an extra joint inside the leg chain). The bare-plant joints replay uses a real
+              sprung joint (add_series_joint)
 """
 from __future__ import annotations
 
@@ -195,10 +200,15 @@ def apply_terms(env, terms):
                 m.body_inertia[i] = nom["legs_inertia"][i] * x
     if "com_y" in terms:
         m.body_ipos[b][1] = nom["ipos"][1] + float(terms["com_y"])
-    if "roll_k" in terms:
-        s = _role_vec(env, lambda n: float(terms["roll_k"]) if "roll" in n else 1.0)
-        env._kp_prof = nom["kp"] * s
-        env._kd_prof = nom["kd"] * s
+    if "roll_k" in terms or "ser_hip" in terms or "ser_ankle" in terms:
+        s = _role_vec(env, lambda n: float(terms.get("roll_k", 1.0)) if "roll" in n else 1.0)
+        kp_abs = float(env._servo[0]) * nom["kp"] * s          # the servo's own stiffness, N m/rad
+        ks = _role_vec(env, lambda n: float(terms.get("ser_hip", np.inf)) if n.endswith("hip_roll") else
+                       float(terms.get("ser_ankle", np.inf)) if n.endswith("ankle_roll") else np.inf)
+        x = np.where(np.isfinite(ks), ks / (kp_abs + np.where(np.isfinite(ks), ks, 0.0)), 1.0)
+        env._kp_prof = nom["kp"] * s * x
+        env._kd_prof = nom["kd"] * s * x
+        set_series_view(env, 1.0 - x)
     if "dead" in terms:
         ch = getattr(env, "_gate_chain", None)
         add = float(terms["dead"])
@@ -210,6 +220,94 @@ def apply_terms(env, terms):
             ch.sv.dead = ch.sv.dead + np.array([0.0 if "hip_roll" in n else add / 1e3 for n in env._servo_names])
             ch.sv.n = int(np.ceil(ch.sv.dead.max() / 0.02)) + 2
     return env
+
+
+def add_series_joint(spec, joint, k, damping=0.05, armature=1e-4):
+    """A passive sprung hinge in series with `joint`, on its output side: a second joint in the
+    same body, same axis and anchor, stiffness k (N m/rad, spring reference 0). For bare-MuJoCo
+    replays only: walker_env needs its actuated joints consecutive in qpos, which a joint inside
+    the leg chain breaks (see the `ser_*` probe terms for the walker_env form)."""
+    j0 = spec.joint(joint)
+    b = j0.parent if hasattr(j0, "parent") else None
+    if b is None:
+        b = next(bd for bd in spec.bodies if any(j.name == joint for j in bd.joints))
+    j = b.add_joint()
+    j.name = joint + "_ser"
+    j.type = j0.type
+    j.axis = list(j0.axis)
+    j.pos = list(j0.pos)
+    j.stiffness = [float(k), 0.0, 0.0]        # MuJoCo 3.15: (linear, and two nonlinear terms)
+    j.damping = [float(damping), 0.0, 0.0]
+    j.armature = float(armature)
+    j.range = [-0.5, 0.5]
+    j.limited = 1
+    return j
+
+
+def set_series_view(env, alpha):
+    """The `ser_hip` / `ser_ankle` terms: a spring k_s in series with the servo, on its output
+    side, in its quasi-static form. The link sees k_eff = kp k_s / (kp + k_s) (the env's PD on
+    the roll joints is scaled by k_s / (kp + k_s)), and the ENCODER reads the servo shaft
+    s = q_link + alpha (target - q_link), alpha = kp / (kp + k_s): the servo's own deflection only.
+    Applied to the policy's joint-angle observation (every frame of the history) and read by the
+    one-leg Replay and the clamp test through env._gate_alpha. The shaft is massless here (no
+    extra mode); joint velocities stay the link's."""
+    alpha = np.asarray(alpha, float)
+    env._gate_alpha = alpha
+    if getattr(env, "_gate_obs0", None) is None:
+        env._gate_obs0 = env._obs
+        nj = env._nq_act
+
+        def obs():
+            o = env._gate_obs0().copy()
+            a = env._gate_alpha
+            if np.any(a > 0):
+                d = env.data
+                ql = np.asarray(d.qpos[env._sqpos], float)
+                tgt = np.asarray(env._last_target if env._last_target is not None else ql, float)
+                o[0:nj] = o[0:nj] + (a * (tgt - ql))[:nj]
+            return o
+        env._obs = obs
+
+
+def encoder_err(env, i):
+    """what servo i's encoder reads as its error (target - shaft), rad, past the gear backlash:
+    the link error minus the deadzones, times (1 - alpha) under a series spring."""
+    a = float(getattr(env, "_gate_alpha", np.zeros(env._n_servo))[i])
+    e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]))
+    half = 0.5 * (env._lash_rad + env._roll_lash_rad * env._roll_mask[i])
+    return max(0.0, (1.0 - a) * max(e - half, 0.0) if a > 0 else e - half)
+
+
+def clamp_run(env, side, ramp=1.0, hold=3.0, settle=1.0):
+    """sim/roll_compliance.run (the 10-24 clamped-foot lift) with the encoder read through
+    encoder_err (so a series spring's deflection stays invisible to it). -> (tilt toward the
+    lifted side deg, {hip_roll, ankle_roll: stance encoder deg}, foot rise mm)"""
+    import roll_compliance as RC
+    stance = "R" if side == "L" else "L"
+    env.reset(seed=0)
+    qlift, q0 = RC.lift_targets(env, side)
+    names = env._act_names
+    base = env._default.copy()
+    tgt = base.copy()
+    n_ctrl = int((settle + ramp + hold) / env.control_dt)
+    tilts, enc, lifts = [], [], []
+    bl, bs = env.model.body(f"{side}_foot").id, env.model.body(f"{stance}_foot").id
+    sgn = 1.0 if side == "L" else -1.0
+    for k in range(n_ctrl):
+        t = k * env.control_dt
+        sc = np.clip((t - settle) / ramp, 0.0, 1.0)
+        for n, v in qlift.items():
+            tgt[names.index(n)] = base[names.index(n)] + sc * (v - q0[n])
+        env._action_to_ctrl = lambda a, tgt=tgt.copy(): tgt
+        env.step(np.zeros(len(names), np.float32))
+        if t > settle + ramp + hold - 1.0:
+            up = env.data.sensordata[env._up_id:env._up_id + 3]
+            tilts.append(np.degrees(np.arctan2(sgn * up[1], up[2])))
+            lifts.append(1e3 * (env.data.xpos[bl][2] - env.data.xpos[bs][2]))
+            enc.append({j: math.degrees(encoder_err(env, env._sname2i[f"{stance}_{j}"]))
+                        for j in ("hip_roll", "ankle_roll")})
+    return float(np.mean(tilts)), {j: float(np.mean([e[j] for e in enc])) for j in enc[0]}, float(np.mean(lifts))
 
 
 def parse_terms(spec):

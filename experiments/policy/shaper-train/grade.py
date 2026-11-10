@@ -289,6 +289,34 @@ def set_contact(env, mu=None, torsion=None):
             mm.geom_friction[g, 1] = float(torsion)
 
 
+def roll_plant_opts():
+    """Opt-in roll-chain terms for every probe (unset: the plant is exactly as before). JF_PLANT
+    zeroes the roll play; the 10-24 clamp test wants it (experiments/policy/weight-transfer-gate):
+      GRADE_ROLL_LASH=<deg>      roll-joint deadzone (walker_env roll lash), e.g. 1.25 = the prec
+                                 recipes' DR centre
+      GRADE_ROLL_SERIES=hip=<k>[,ankle=<k>]  a spring (N m/rad) in series with the hip / ankle rolls
+                                 beyond the encoders (weight-transfer-gate/gate_common, ser_* terms)"""
+    out = {}
+    if os.environ.get("GRADE_ROLL_LASH"):
+        out["roll_lash_deg"] = float(os.environ["GRADE_ROLL_LASH"])
+    for kv in (os.environ.get("GRADE_ROLL_SERIES") or "").split(","):
+        if kv.strip():
+            k, _, x = kv.partition("=")
+            out["ser_" + k.strip()] = float(x)
+    return out
+
+
+def roll_plant(env):
+    o = roll_plant_opts()
+    if "roll_lash_deg" in o:
+        simh.apply_model(env, dict(roll_lash_deg=o["roll_lash_deg"]))
+    ser = {k: x for k, x in o.items() if k.startswith("ser_")}
+    if ser:
+        sys.path.insert(0, os.path.join(HERE, "..", "weight-transfer-gate"))
+        import gate_common
+        gate_common.apply_terms(env, ser)
+
+
 def body_yaw(q):
     w, x, y, z = (float(c) for c in q)
     return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
@@ -403,6 +431,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         simh.apply_model(env, dict(simh.JF_PLANT, **v["plant"]))
     if v.get("contact"):
         set_contact(env, **v["contact"])
+    roll_plant(env)
     nj = env._nq_act
     env.set_command(*STAND_CMD)
     simh.place_and_hold(env, np.clip(S.arm_pose(), env._lo, env._hi), settle_s)

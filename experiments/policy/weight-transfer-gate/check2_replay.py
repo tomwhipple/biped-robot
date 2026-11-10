@@ -41,6 +41,16 @@ sys.path.insert(0, HERE)
 import gate_common as GC  # noqa: E402
 
 FREC = os.path.join(GC.HW, "2026-11-09", "flight_20261109T232022Z_prec16.frec")
+# the flight records the replays can run on: name -> (frec, which walk command (0 = the first)).
+# GATE_REC (or --record) picks one; 1109 is the check. 1106t1 / 1106t2 are omni5's stride1_03 and
+# steps5_03 of 2026-11-06 (experiments/policy/yaw-gap: the sign check of this pipeline)
+RECORDS = {"1109": (FREC, 0),
+           "1106t1": (os.path.join(GC.HW, "2026-11-06", "flight_20261106T160828Z_omni5.frec"), 0),
+           "1106t2": (os.path.join(GC.HW, "2026-11-06", "flight_20261106T160828Z_omni5.frec"), 1)}
+
+
+def record_name():
+    return os.environ.get("GATE_REC", "1109")
 DT = 0.02
 WIN = (0.0, 2.0)            # s from the walk command
 T_WALK = 2.0                # sim: the walk command at 2.0 s (grade.py's probes)
@@ -49,16 +59,21 @@ _HW = {}
 
 def load_hw():
     """The flight record in policy order; t = 0 at the first tick that carries the walk command."""
-    if "r" not in _HW:
-        sys.path.insert(0, os.path.join(GC.ROOT, "experiments", "policy", "rca"))
+    name = record_name()
+    if name not in _HW:
         import rec
-        r = rec.load(FREC)
-        i0 = int(np.argmax(np.abs(r["cmd"][:, 0]) > 0.01))
+        path, which = RECORDS[name]
+        r = rec.load(path)
+        mv = np.abs(r["cmd"][:, 0]) > 0.01
+        starts = [0] if mv[0] else []
+        starts += list(np.where(mv[1:] & ~mv[:-1])[0] + 1)
+        i0 = int(starts[which])
         r = dict(r)
         r["i0"] = i0
         r["trel"] = r["t"] - r["t"][i0]
-        _HW["r"] = r
-    return _HW["r"]
+        r["path"] = path
+        _HW[name] = r
+    return _HW[name]
 
 
 _FK = {}
@@ -113,6 +128,7 @@ def metrics(trel, q, gyro, quat, sole_z=None, clr=None, rate_series=None):
                knee_L=rng("L_knee"), knee_R=rng("R_knee"),
                ankle_roll_L=rng("L_ankle_roll"), ankle_roll_R=rng("R_ankle_roll"),
                yaw_end=float(yw[-1]), yaw_min=float(yw.min()), yaw_max=float(yw.max()),
+               yaw_04=float(np.interp(0.4, trel[w], yw)), yaw_07=float(np.interp(0.7, trel[w], yw)),
                gz_peak=float(gz[np.argmax(np.abs(gz))]), rate_peak=float(rate[w].max()),
                roll_L=float(-(roll[w] - r0).min()), roll_R=float((roll[w] - r0).max()),
                fk_lift_L=float(1e3 * max(0.0, -(dz[w] - dz0).min())), fk_lift_R=float(1e3 * max(0.0, (dz[w] - dz0).max())))
@@ -162,7 +178,7 @@ def fk_trace(t_lo=0.3, t_hi=1.5, every=2):
 def robot_row():
     r = load_hw()
     m = metrics(r["trel"], r["q"], r["gyro"], r["quat"])
-    m["src"] = os.path.relpath(FREC, GC.MAIN)
+    m["src"] = os.path.relpath(load_hw()["path"], GC.MAIN)
     return m
 
 
@@ -314,14 +330,49 @@ def goals_replay(job):
     return m
 
 
+JOINT_VARIANTS = {
+    # item 2 of round 2 (README): perturbations that might keep the R foot loaded on 11-09
+    "plant": {},
+    "CoM 10 mm toward R": dict(com_y=-0.010),
+    "CoM 20 mm toward R": dict(com_y=-0.020),
+    "CoM 30 mm toward R": dict(com_y=-0.030),
+    "torso x0.6, legs x1.2": dict(torso=0.6, legs=1.2),
+    "pelvis (hip rolls) 4 deg toward R": dict(hip_roll_off=4.0),
+    "pelvis (hip rolls) 8 deg toward R": dict(hip_roll_off=8.0),
+    "whole body (ankle rolls) 4 deg toward R": dict(ankle_roll_off=4.0),
+    "whole body (ankle rolls) 8 deg toward R": dict(ankle_roll_off=8.0),
+    "whole body (ankle rolls) 12 deg toward R": dict(ankle_roll_off=12.0),
+    "CoM 50 mm toward R": dict(com_y=-0.050),
+    # item 3: the series springs fitted to the 10-24 clamp (fit_series.py), as real sprung joints
+    "series spring, hip rolls 14.2 N m/rad": dict(ser_hip=14.2),
+    "series spring, ankle rolls 27.8 N m/rad": dict(ser_ankle=27.8),
+    "series spring, both 40.1 N m/rad": dict(ser_hip=40.1, ser_ankle=40.1),
+}
+
+
 def joints_replay(job):
-    """The measured joints imposed by joint equality constraints (replay_joints.py's build)."""
-    (mu,) = job
+    """The measured joints imposed by joint equality constraints (replay_joints.py's build).
+    job = (mu,) or (mu, variant): variant keys (all optional)
+      com_y            torso CoM lateral offset, m (+ = robot's left)
+      torso, legs      mass and inertia x of the torso / of every other body
+      hip_roll_off     deg added to BOTH hip-roll targets toward the robot's right: a constant
+                       pelvis roll toward R relative to both legs (the hip-roll axes are +x, so
+                       toward R is -offset in the joint frame)
+      ankle_roll_off   the same at both ankle rolls: the whole body above the feet leans toward R
+      ser_hip, ser_ankle  N m/rad: a passive sprung hinge in series with each hip roll / ankle
+                       roll on the output side (a second joint in the same body, same axis); the
+                       equality constraint holds the SERVO joint at the recorded encoder angle"""
+    mu = job[0]
+    var = dict(job[1]) if len(job) > 1 else {}
     import mujoco
     import rec
     hw = load_hw()
     i0 = hw["i0"]
     spec = mujoco.MjSpec.from_file(GC.XML)
+    for side in "LR":
+        for jn, key in (("hip_roll", "ser_hip"), ("ankle_roll", "ser_ankle")):
+            if var.get(key):
+                GC.add_series_joint(spec, f"{side}_{jn}", float(var[key]))
     for j in rec.POL:
         e = spec.add_equality()
         e.type = mujoco.mjtEq.mjEQ_JOINT
@@ -336,7 +387,28 @@ def joints_replay(job):
         m.actuator_gainprm[a, 0] = 0
         m.actuator_biasprm[a, :3] = 0
     m.dof_frictionloss[:] = 0
+    ser = [m.jnt_dofadr[j] for j in range(m.njnt) if m.joint(j).name.endswith("_ser")]
+    keep = {a: m.dof_damping[a] for a in ser}
     m.dof_damping[6:] = 0
+    for a, v in keep.items():
+        m.dof_damping[a] = v
+    tb = m.body("torso").id
+    if "torso" in var:
+        m.body_mass[tb] *= var["torso"]
+        m.body_inertia[tb] *= var["torso"]
+    if "legs" in var:
+        for b in range(1, m.nbody):
+            if b != tb:
+                m.body_mass[b] *= var["legs"]
+                m.body_inertia[b] *= var["legs"]
+    if "com_y" in var:
+        m.body_ipos[tb][1] += var["com_y"]
+    off = np.zeros(12)
+    for i, n in enumerate(rec.POL):
+        if n.endswith("hip_roll"):
+            off[i] = -math.radians(var.get("hip_roll_off", 0.0))
+        if n.endswith("ankle_roll"):
+            off[i] = -math.radians(var.get("ankle_roll_off", 0.0))
     nm = lambda g: mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
     pads = {s: [g for g in range(m.ngeom) if nm(g).startswith(f"{s}_pad_")] for s in "LR"}
     if mu is not None:
@@ -346,7 +418,7 @@ def joints_replay(job):
     jq = [m.jnt_qposadr[m.joint(j).id] for j in rec.POL]
     eqs = [m.equality("fix_" + j).id for j in rec.POL]
     ks = max(0, i0 - 50)
-    q0 = hw["q"][ks]
+    q0 = hw["q"][ks] + off
     for e, x in zip(eqs, q0):
         m.eq_data[e, 0] = x
     d.qpos[2] = 0.5
@@ -356,9 +428,11 @@ def joints_replay(job):
     d.qpos[2] -= z - 0.001
     for _ in range(int(1.0 / m.opt.timestep)):
         mujoco.mj_step(m, d)
-    t, qrec = hw["trel"], hw["q"]
+    t, qrec = hw["trel"], hw["q"] + off
     sole = (m.geom("L_sole").id, m.geom("R_sole").id)
-    T, Q, GY, QT, SZ, CL = [], [], [], [], [], []
+    foot = {s_: m.body(f"{s_}_foot").id for s_ in "LR"}
+    f6 = np.zeros(6)
+    T, Q, GY, QT, SZ, CL, FZ = [], [], [], [], [], [], []
     t0, t1 = t[ks], min(t[-1], WIN[1] + 1.0)
     nsub = int(round(DT / m.opt.timestep))
     for kk in range(int((t1 - t0) / DT)):
@@ -371,9 +445,40 @@ def joints_replay(job):
         Q.append(np.array(d.qpos[jq])); GY.append(np.array(d.qvel[3:6])); QT.append(np.array(d.qpos[3:7]))
         SZ.append((d.geom_xpos[sole[0]][2], d.geom_xpos[sole[1]][2]))
         CL.append(tuple(min(d.geom_xpos[g][2] - m.geom_size[g][0] for g in pads[s_]) for s_ in "LR"))
+        fz = {"L": 0.0, "R": 0.0}
+        for ci in range(d.ncon):
+            c = d.contact[ci]
+            for s_ in "LR":
+                if m.geom_bodyid[c.geom1] == foot[s_] or m.geom_bodyid[c.geom2] == foot[s_]:
+                    mujoco.mj_contactForce(m, d, ci, f6)
+                    fz[s_] += abs(f6[0])
+        FZ.append((fz["L"], fz["R"]))
     out = metrics(T, Q, GY, QT, sole_z=SZ, clr=CL)
-    out.update(plant="bare plant", schedule=f"joints mu {mu if mu is not None else 'xml'}")
+    T, FZ = np.array(T), np.array(FZ)
+    w = (T >= 0.4) & (T <= 0.7)
+    share = FZ[:, 1] / np.maximum(FZ.sum(1), 1e-9)
+    out.update(plant="bare plant", schedule=f"joints mu {mu if mu is not None else 'xml'}",
+               rload_min=float(share[w].min()), rload_mean=float(share[w].mean()), variant=var)
     return out
+
+
+def joint_variants(names=None, mu=0.5, workers=12):
+    """item 2: the 11-09 joints replay under each JOINT_VARIANTS perturbation -> [(name, metrics)]"""
+    names = names or list(JOINT_VARIANTS)
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        rs = list(ex.map(joints_replay, [(mu, JOINT_VARIANTS[n]) for n in names]))
+    return list(zip(names, rs))
+
+
+def variants_table(rows, robot):
+    L = ["| joints replay (mu 0.5) | R load share +0.4..+0.7 s, min / mean | lift L / R mm | yaw +0.7 s deg | yaw +2 s deg | gz peak rad/s | guard-rate peak rad/s |",
+         "|---|---|---|---|---|---|---|",
+         f"| robot | unknown | unknown (FK {robot['fk_lift_L']:.1f} / {robot['fk_lift_R']:.1f}) | {robot['yaw_07']:+.1f} | "
+         f"{robot['yaw_end']:+.1f} | {robot['gz_peak']:+.1f} | {robot['rate_peak']:.1f} |"]
+    for n, r in rows:
+        L.append(f"| {n} | {r['rload_min']:.2f} / {r['rload_mean']:.2f} | {r['lift_L']:.1f} / {r['lift_R']:.1f} | "
+                 f"{r['yaw_07']:+.1f} | {r['yaw_end']:+.1f} | {r['gz_peak']:+.1f} | {r['rate_peak']:.1f} |")
+    return "\n".join(L)
 
 
 KEYS = [("lift_L", "lift L mm"), ("lift_R", "lift R mm"), ("clear_L", "pad clear L mm"), ("clear_R", "pad clear R mm"),
@@ -381,7 +486,8 @@ KEYS = [("lift_L", "lift L mm"), ("lift_R", "lift R mm"), ("clear_L", "pad clear
         ("roll_L", "torso roll to L deg"), ("roll_R", "torso roll to R deg"),
         ("hip_roll_L", "hip roll L deg"), ("hip_roll_R", "hip roll R deg"),
         ("knee_L", "knee L deg"), ("knee_R", "knee R deg"),
-        ("yaw_end", "yaw +2 s deg"), ("yaw_min", "yaw min deg"), ("gz_peak", "gz peak rad/s"),
+        ("yaw_04", "yaw +0.4 s deg"), ("yaw_07", "yaw +0.7 s deg"),
+        ("yaw_end", "yaw +2 s deg"), ("yaw_min", "yaw min deg"), ("yaw_max", "yaw max deg"), ("gz_peak", "gz peak rad/s"),
         ("rate_peak", "guard rate peak rad/s")]
 
 
@@ -419,7 +525,7 @@ def table(rows):
             ft = f"{r['falls']}/{len(tr)} of {r['n']}" + (f" (first {min(t[1] for t in tr) - T_WALK:+.2f} s, {tr[0][0]})" if tr else "")
         elif "fell" in r:
             ft = "fell" if r["fell"] else "0"
-        elif name == "robot":
+        elif name == "robot" and record_name() == "1109":
             ft = "guard trip at +0.64 s (rate 3.02)"
         L.append(f"| {name} | " + " | ".join(cells) + f" | {ft} |")
     return "\n".join(L)
@@ -433,11 +539,21 @@ def main(argv=None):
     ap.add_argument("--seeds", type=int, default=4)
     ap.add_argument("--no-open", action="store_true", help="skip the open-loop rows")
     ap.add_argument("--fk-trace", action="store_true", help="print the robot's encoder+IMU sole kinematics through the swing and exit")
+    ap.add_argument("--joint-variants", action="store_true", help="round-2 item 2: the joints replay under JOINT_VARIANTS")
+    ap.add_argument("--record", default=None, help="flight record: " + ", ".join(RECORDS) + " (default 1109)")
     ap.add_argument("--json", default=None)
     ap.add_argument("--md", default=None)
     ap.add_argument("--workers", type=int, default=int(os.environ.get("WORKERS", "12")))
     a = ap.parse_args(argv)
+    if a.record:
+        os.environ["GATE_REC"] = a.record
     terms = GC.parse_terms(a.terms)
+    if a.joint_variants:
+        md = variants_table(joint_variants(workers=a.workers), robot_row())
+        print(md)
+        if a.md:
+            open(a.md, "w").write(md + "\n")
+        return None
     if a.fk_trace:
         print("| t s | lowest R pad - lowest L pad, mm | R - L sole centre, mm | L sole tilt deg | R sole tilt deg |")
         print("|---|---|---|---|---|")
@@ -459,7 +575,7 @@ def main(argv=None):
             r = f.result()
             rows.append((r["schedule"], r))
     md = table(rows)
-    hdr = (f"Check 2, the 2026-11-09 prec16 stride on the walking plant ({GC.XML_NAME})"
+    hdr = (f"Check 2, flight record {record_name()} ({os.path.basename(load_hw()['path'])}) on the walking plant ({GC.XML_NAME})"
            + (f", terms {terms}" if terms else "") + f"; metrics over {WIN[0]:g}..{WIN[1]:g} s from the walk command")
     md = hdr + "\n\n" + md
     for name, r in rows:
