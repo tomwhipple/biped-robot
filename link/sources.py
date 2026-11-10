@@ -133,6 +133,44 @@ def _march(t):
                 foot_dz=0.04 * abs(_m.sin(th)))
 
 
+# -- march in place at the trained gait clock -----------------------------------------
+# The trained march (env_mjx traj_on == 4, --march-mix) is the lift channel c4
+# alternating ON THE GAIT CLOCK -- c4 = -1 (left) while sin(phase) >= 0, +1 while
+# it is < 0 -- with c6 = dz * |sin(phase)|. A plain stand holds the clock at the
+# stand phase pi/2 (kClockStandCoast), and the clock runs from there the tick a
+# lift is commanded, so the script's own time reproduces the clock: phase(t) =
+# pi/2 + 2 pi f t. The march therefore starts half-way through a LEFT swing (pi/2
+# -> pi, a quarter cycle) and every later swing is a full half cycle, R first:
+# n full swings end at phase pi + n pi, on a zero crossing, and the stand follows.
+# The script is open loop: it assumes the firmware clock runs at `hz` (the
+# deployed obs::kGaitFreqHz; 0.75 for the slow-gait line) and starts when it
+# does, so a policy that has seen c4 move holds the same phase the command does.
+MARCH_HZ = 0.75      # the slow-gait line's trained clock (gait_freq_range 0.7,0.8 -> 0.75)
+MARCH_DZ = 0.02      # c6 peak, m (the link clamps c6 to FOOT_D_MAX = 5 cm); the recipes' --march-lift 0.08
+MARCH_T0 = 2.0       # s of stand before the march
+
+
+def march_swings_s(n, hz=MARCH_HZ):
+    """Duration of n full swings plus the half-way first one, s."""
+    return (0.25 + 0.5 * n) / hz
+
+
+def march_cmd(tm, hz=MARCH_HZ, dz=MARCH_DZ):
+    """The march command tm seconds after it started: (lift, foot_dz)."""
+    th = math.pi / 2 + 2 * math.pi * hz * tm
+    return (-1.0 if math.sin(th) >= 0 else 1.0), dz * abs(math.sin(th))
+
+
+def _march_n(n, hz=MARCH_HZ, dz=MARCH_DZ):
+    def script(t):
+        tm = t - MARCH_T0
+        if tm < 0.0 or tm >= march_swings_s(n, hz) - 1e-9:
+            return {}
+        lift, foot_dz = march_cmd(tm, hz, dz)
+        return dict(lift=lift, foot_dz=foot_dz)
+    return script
+
+
 EXT_KEYS = ("vy", "crouch", "lift", "foot_dx", "foot_dz")
 
 # Which referee scenario grades each script's skill. arm_script's hardware
@@ -152,6 +190,7 @@ SCRIPT_SCENARIO = {
     "crouch1": "squat_reps",
     "sidestep1": "sidestep_L",
     "march": "metronome",
+    "march5": "march_10s",
     "stand": "stand_10s",
 }
 
@@ -192,6 +231,7 @@ SCRIPTS = {
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,
     "march": _march,
+    "march5": _march_n(5),
     "walk": _walk,
     "dash_stop": _dash_stop,
     "line_1m": _line_1m,

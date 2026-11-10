@@ -565,6 +565,7 @@ class BimoWalkerEnv(gym.Env):
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
+        mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march (mirror of env_mjx)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -720,6 +721,9 @@ class BimoWalkerEnv(gym.Env):
         # correct one-foot contact pattern. Ordinary lifts command c6 = 0, so
         # the kernel degrades to "reach lift_height"; the march commands
         # c6 = march_dz, i.e. a target at the opposite knee's standing height.
+        march_lift: float = 0.0,       # m: the march's peak commanded swing-sole
+        # height (lift_height + c6); 0 = the opposite knee's standing height
+        # (mirror of env_mjx)
         march_hz: float = 0.0,         # COMMANDED march cadence in full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock,
         # which inherits its 1.25-1.75 Hz draw -> 0.29-0.40 s per lift; that
@@ -1035,6 +1039,7 @@ class BimoWalkerEnv(gym.Env):
         self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
+        self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
@@ -1463,6 +1468,13 @@ class BimoWalkerEnv(gym.Env):
             if self._i_aroll is None:
                 raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
             self._sway_k = mimic_sway_coefs(self.model, self._sg_roll)
+        self.mimic_march = float(mimic_march)
+        if self.mimic_march != 0.0:
+            if not 0.0 < self.mimic_march <= 0.08:
+                raise ValueError("mimic_march must be in (0, 0.08] m (the mimic_lift IK table)")
+            if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
+                raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
+                                 "(the reference follows the gait clock)")
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1496,7 +1508,8 @@ class BimoWalkerEnv(gym.Env):
             _knee_jid = self.model.joint(
                 self._act_names[self._legL["knee"]]).id
             self._knee_z0 = float(d0.xanchor[_knee_jid][2])
-            self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
+            self.march_clear = (self.march_lift if self.march_lift > 0.0
+                                else max(self._knee_z0 - self._sole_z0, 0.0))
             # commanded c6 offset that puts the swing-foot TARGET (which is
             # lift_height + c6 above the standing sole) at knee height
             self._march_dz = max(self.march_clear - self.lift_height, 0.0)
@@ -1895,7 +1908,7 @@ class BimoWalkerEnv(gym.Env):
             return cmd3 * self._nominal_h
         return self._nominal_h - self._crouch_drop(cmd3)
 
-    def _mimic_ref(self, cmd, phase, freq):
+    def _mimic_ref(self, cmd, phase, freq, march=None):
         """Numpy mirror of sim/mjx BimoMJXEnv._mimic_ref (parity-gated)."""
         f = max(float(freq), 0.5)
         d = self._default
@@ -1918,6 +1931,8 @@ class BimoWalkerEnv(gym.Env):
             # stance leg and the standing reference are unchanged
             g = 1.0 if self._cmd_is_moving(cmd) else 0.0
             u = np.sqrt(self.mimic_lift) * sw * g
+            if self.mimic_march != 0.0 and march:
+                u = np.sqrt(self.mimic_march) * sw
             ch, ck = self._lift_ch, self._lift_ck
             hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
             knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
@@ -1929,6 +1944,8 @@ class BimoWalkerEnv(gym.Env):
             # the stance foot by mimic_sway, leading the swing by the lead
             # phase (L swings on sin > 0, so the torso goes -y, toward R)
             g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            if self.mimic_march != 0.0 and march:
+                g = 1.0
             roll = roll + self._sway_k * (-self.mimic_sway * g
                                           * np.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
@@ -2896,11 +2913,15 @@ class BimoWalkerEnv(gym.Env):
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
         if self.w_mimic:
-            q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
+            on_march = self.mimic_march != 0.0 and self._traj_on == 4.0 and bool(lifted)
+            if self.mimic_march != 0.0:
+                q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq, march=on_march)
+            else:
+                q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
             dq = np.asarray(d.qpos[self._jqpos]) - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
-                mim_gate = float((not lifted) and self._recovered)
+                mim_gate = float(((not lifted) or on_march) and self._recovered)
             reward += (self.w_mimic * mim_gate
                        * float(np.exp(-np.sum(self._mimic_w * dq ** 2)
                                       / self.mimic_s2)))

@@ -121,3 +121,79 @@ def test_goal_seeker_turns_the_short_way_around():
                              FakePose(0.0, 0.0, math.radians(-170)))
     _, w, _, _ = src.poll(0.0)
     assert w == pytest.approx(math.radians(-20), abs=0.02)
+
+
+# -- march5: marching in place at the trained gait clock ------------------------------
+def _march_run(name="march5", dt=0.01, t_end=12.0):
+    src = sources.ScriptSource(name)
+    rows = []
+    for i in range(int(t_end / dt)):
+        t = i * dt
+        out = src.poll(t)
+        ext = out[3] if len(out) > 3 else {}
+        rows.append((t, out[0], out[1], ext.get("lift", 0.0), ext.get("foot_dz", 0.0)))
+    return rows
+
+
+def test_march5_is_five_full_swings_at_the_trained_cadence_then_the_stand():
+    rows = _march_run()
+    hz = sources.MARCH_HZ
+    t0, T = sources.MARCH_T0, sources.march_swings_s(5)
+    assert T == pytest.approx(2.75 / hz)                     # a quarter cycle + 5 half cycles
+    lift = [(t, c4) for t, _, _, c4, _ in rows if c4 != 0.0]
+    assert lift[0][0] == pytest.approx(t0, abs=0.011) and lift[-1][0] < t0 + T
+    assert all(c4 == 0.0 and dz == 0.0 for t, _, _, c4, dz in rows if t < t0 or t >= t0 + T)
+    # no velocity command anywhere: a march is in place
+    assert all(v == 0.0 and w == 0.0 for _, v, w, _, _ in rows)
+    # the swings: runs of one sign, left first (half-way through its swing), then R L R L R full ones
+    runs = []
+    for t, c4 in lift:
+        if not runs or runs[-1][0] != c4:
+            runs.append([c4, t, t])
+        runs[-1][2] = t
+    assert [r[0] for r in runs] == [-1.0, +1.0, -1.0, +1.0, -1.0, +1.0]
+    lens = [r[2] - r[1] for r in runs]
+    assert lens[0] == pytest.approx(0.25 / hz, abs=0.03)
+    assert lens[1:-1] == pytest.approx([0.5 / hz] * 4, abs=0.03)   # each full swing: a half cycle
+    assert lens[-1] == pytest.approx(0.5 / hz, abs=0.03)
+
+
+def test_march5_foot_command_follows_the_swing_envelope():
+    rows = _march_run()
+    dz = [r[4] for r in rows if r[3] != 0.0]
+    assert max(dz) == pytest.approx(sources.MARCH_DZ, abs=1e-4) and min(dz) >= 0.0
+    # c6 returns to ~0 where the lifted leg changes (the swing's own envelope)
+    prev = None
+    for t, _, _, c4, d in rows:
+        if prev is not None and c4 != 0.0 and c4 != prev and prev != 0.0:
+            assert d < 0.15 * sources.MARCH_DZ
+        prev = c4 if c4 != 0.0 else prev
+
+
+def test_march5_command_is_the_trained_command_at_the_same_clock_phase():
+    """The script's time maps onto the gait clock the way the env's does (the clock runs from the
+    stand phase pi/2 the tick a lift is commanded); at every phase the env's own march command
+    (env_mjx / walker_env traj_on == 4) equals the script's."""
+    sys.path[:0] = [os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), p)
+                    for p in ("sim", "sim/mjx")]
+    os.environ.setdefault("JAX_PLATFORMS", "cpu")
+    import numpy as np
+    import robot_plant
+    import walker_env as W
+    kw = robot_plant.robot_env_kwargs("bimo_biped_v6legs_meas_sole.xml")
+    kw.update(ext_cmd=True, gait_clock=True, march_mix=1.0, ext_mix=(0.0,) * 7, march_lift=0.08,
+              gait_freq_range=(0.75, 0.75), command_mode=True, domain_rand=False)
+    kw.pop("cmd_fixed", None)
+    e = W.BimoWalkerEnv(**kw)
+    e.reset(seed=4)
+    z = np.zeros(e.action_space.shape[0], dtype=np.float32)
+    checked = 0
+    for _ in range(120):
+        e.step(z)
+        if e._traj_on != 4.0 or e._cmd[4] == 0.0:
+            continue
+        tm = ((float(e._gait_phase) - math.pi / 2) / (2 * math.pi * 0.75)) % (1 / 0.75)
+        lift, dz = sources.march_cmd(tm, 0.75, e._march_dz)
+        assert e._cmd[4] == lift and e._cmd[6] == pytest.approx(dz, abs=1e-6)
+        checked += 1
+    assert checked > 80 and e._march_dz == pytest.approx(sources.MARCH_DZ)
