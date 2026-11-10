@@ -215,6 +215,11 @@ IMGUI_SRC = $(IMGUI)/imgui.cpp $(IMGUI)/imgui_draw.cpp \
 IMGUI_OBJ = $(patsubst $(IMGUI)/%.cpp,$(BUILD)/imgui/%.o,$(IMGUI_SRC)) \
             $(BUILD)/imgui/stb_impl.o
 
+# The fetch that makes imgui.cpp unpacks the rest too. Saying so lets a fresh
+# clone's first `make gui` find a rule for imgui_draw.o and the others; without
+# it make gives up before the fetch has run. Order-only, so it never rebuilds.
+$(filter-out $(IMGUI)/imgui.cpp,$(IMGUI_SRC)): | $(IMGUI)/imgui.cpp ;
+
 $(BUILD)/imgui/%.o: $(IMGUI)/%.cpp | $(IMGUI)/imgui.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
