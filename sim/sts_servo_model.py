@@ -111,6 +111,12 @@ def supply_current(tau, qd, w0, volts, model="motor"):
     raise ValueError(model)
 
 
+def _per_joint(v, n):
+    """a scalar or a per-actuator vector (possibly longer) -> n per-joint floats"""
+    v = np.asarray(v, dtype=float)
+    return np.full(n, float(v)) if v.ndim == 0 else np.array(v[:n], dtype=float)
+
+
 class STSProtection:
     """Per-servo overload (and optional overcurrent) protection on top of the
     walker_env "sts3215" envelope, applied at the 50 Hz control tick.
@@ -131,10 +137,17 @@ class STSProtection:
         kp, kd, stall, w0 = env._servo
         na = env._nq_act
         self.names = list(names)[:na]
-        self.stall0 = np.array(np.broadcast_to(np.asarray(stall, dtype=float), (na,)), dtype=float)
-        self.w0 = np.array(np.broadcast_to(np.asarray(w0, dtype=float), (na,)), dtype=float)
+        # what env._servo holds (a scalar or per-joint), as a per-joint array
+        self.base0 = _per_joint(stall, na)
+        # walker_env multiplies env._servo's stall / no-load speed by a static
+        # per-servo envelope profile (servo_types / --servo-envelope, e.g. the
+        # STS3250 hip rolls or the 2026-11-03 refit); all ones when the caller
+        # wrote per-joint arrays itself (the design-gate studies). The load is
+        # a fraction of the servo's EFFECTIVE maximum, so the profile is in it.
+        self.stall0 = self.base0 * _per_joint(getattr(env, "_stall_prof", 1.0), na)
+        self.w0 = _per_joint(w0, na) * _per_joint(getattr(env, "_w0_prof", 1.0), na)
         # env._servo may hold scalars; make stall a per-joint array we can edit in place
-        env._servo = np.array([kp, kd, self.stall0.copy(), w0], dtype=object)
+        env._servo = np.array([kp, kd, self.base0.copy(), w0], dtype=object)
         self.enforce, self.load, self.timer, self.release = enforce, load, timer, release
         self.overcurrent_a, self.volts = overcurrent_a, volts
         self.t = 0.0
@@ -191,7 +204,7 @@ class STSProtection:
                 self.tripped[i] = False
                 self.cont[i] = 0.0
                 if self.enforce:
-                    stall[i] = self.stall0[i]
+                    stall[i] = self.base0[i]
         self._last_goal = goal.copy()
         for i in range(na):
             if not self.tripped[i] and self.cont[i] >= PROTECT_TIME_S:
@@ -199,7 +212,7 @@ class STSProtection:
                 if self.trip_t[i] is None:
                     self.trip_t[i] = round(self.t, 2)
                 if self.enforce:
-                    stall[i] = PROTECT_FRAC * self.stall0[i]
+                    stall[i] = PROTECT_FRAC * self.base0[i]
             if (self.overcurrent_a is not None and self.oc_trip_t[i] is None
                     and self.oc_cont[i] >= OVERCURRENT_TIME_S):
                 self.oc_trip_t[i] = round(self.t, 2)
