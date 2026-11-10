@@ -3,6 +3,13 @@
 > Dated record for issues #83 and #6: accurate as of its date; the current
 > design is [DESIGN.md](../../DESIGN.md). Simulation only. Nothing here was
 > measured on a servo.
+>
+> Ported to `main` from branch `sims-overload-prone-current` on 2026-11-10
+> (#126). The re-run on the current get-up references and plant is
+> [getup-overload-2026-11-10.md](getup-overload-2026-11-10.md); several of
+> the conclusions below no longer hold there. The `current_budget_v6.txt` and
+> `getup-prone-2026-09-29.md` cited below stayed on that branch (superseded,
+> #126) and are not on `main`.
 
 The shoulder is the most heavily loaded servo in the scripted get-up. STS
 servos protect themselves: a servo whose load stays above a threshold for a
@@ -178,7 +185,7 @@ The recommended sequence's shoulder reaches 51–65 %, up to 1.77 N·m at μ 1.0
 2. **The 60 → 0 sequence has less margin on every line.** It spends 1.0 s
    above 80 % on the torque reading, and 1.90 s on the duty reading, 0.1 s from
    a trip. It is also the higher-current one
-   ([current_budget_v6.txt](current_budget_v6.txt)). It stays the second
+   (`current_budget_v6.txt`, branch only). It stays the second
    choice.
 3. **Slowing the tuck and the push** buys the most margin: the peak torque
    load drops to 66 % and the time above 80 % duty to 0.8 s, at a cost of 5 s.
@@ -186,11 +193,11 @@ The recommended sequence's shoulder reaches 51–65 %, up to 1.77 N·m at μ 1.0
    cumulative, or its threshold lower.
 4. **The walk never approaches the cutoff.** No servo in the Gate D walk
    passes 54 % of stall (70 % on the duty reading)
-   ([current_budget_v6.txt](current_budget_v6.txt)).
+   (`current_budget_v6.txt`, branch only).
 
 Every sequence here starts with the arms already folded up to 180°. From a
 real backward fall they start at the walk's idle pose. See
-[getup-prone-2026-09-29.md](getup-prone-2026-09-29.md) §2 for what that changes.
+`getup-prone-2026-09-29.md` §2 (branch only) for what that changes.
 
 ## 6. What the bench still owes (#83)
 

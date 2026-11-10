@@ -166,7 +166,7 @@ How to read the numbers:
 
 - **RMS** sizes copper and contacts. Per-port RMS stays under 0.4 A on both traces.
 - **The peak** sizes the fuse and the brown-out margin. Neither trace exceeds 3 A on any port, or 5 A on the whole bus. The FAQ's "not stalled simultaneously" is about peaks, and the scripted motions do not stall a servo.
-- The shoulder is an STS3215 in both designs; at 74–78 % of stall in the get-up (design record §14.2) it sits close to the servo's 2 A / 2 s overload protection (registers 34–36), and the in-sim 0.22 A per-joint RMS is consistent with being far from trip on the chosen script. **Watch on the bench.**
+- The shoulder is an STS3215 in both designs; at 79–83 % of stall in the current get-up references, torque-limited for 0.4–1.0 s of each push ([getup-overload-2026-11-10.md](design-v6/getup-overload-2026-11-10.md)), it sits close to the servo's overload protection (> 80 % for 2 s, registers 34–36) and briefly crosses the datasheet's 2 A over-current line, and the in-sim 0.22 A per-joint RMS is consistent with being far from trip on the chosen script. **Watch on the bench.**
 
 These figures are from the scripted motions only. A trained walking policy can
 load the bus differently — for scale, the same method on the 10-servo
