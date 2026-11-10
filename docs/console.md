@@ -111,9 +111,12 @@ with `--bench-telemetry` / `--cam-relay`.
   status) show `—` in Joints, Telemetry and Checks, never `0`.
 - **Sim**: start, stop and reset `sim/sil_twin.py`, its log, and
   twin-in-the-loop (off by default): every command frame sent to the robot is
-  also sent to the sim on its own ports. A run is listed when it has both
-  `sim/runs/<run>/config.json` and `sim/sil/weights/<run>.silw.json`; with
-  none, the tab says how to get one (`sim/runs/` is not in git).
+  also sent to the sim on its own ports. A run is listed when it has
+  `sim/sil/weights/<run>.silw.json` and a `config.json`:
+  `sim/runs/<run>/`'s, else the tracked `sim/sil/weights/<run>.config.json`.
+  The deployed run's config is tracked, so a clean clone lists it and runs
+  the weights compiled into the firmware; with no run at all, the tab says
+  how to get one (`sim/runs/` is not in git).
 - **Session**: the recording, the flight recorder's state, and one event log
   for the console and the robot.
 - **Setup**: the link (applied on the button; a relink while armed disarms

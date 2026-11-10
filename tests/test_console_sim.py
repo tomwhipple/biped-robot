@@ -170,6 +170,42 @@ def test_no_runs_says_how_to_get_one(tmp_path):
     assert "Weights are here" not in bare and "export_policy_weights" in bare
 
 
+def test_a_tracked_config_lists_the_run_without_a_run_dir(tmp_path):
+    """#236: sim/sil/weights/<run>.config.json stands in for sim/runs/<run>/'s
+    (a clean clone has no sim/runs/); the run directory's wins."""
+    repo = fake_repo(tmp_path, runs=())
+    w = repo / "sim" / "sil" / "weights"
+    (w / "tracked.silw.json").write_text("{}")
+    (w / "tracked.config.json").write_text(json.dumps({"xml_path": "a.xml"}))
+    (w / "config_only.config.json").write_text("{}")     # no sidecar: not a run
+    assert not (repo / "sim" / "runs").exists()
+    assert simproc.scan_runs(str(repo)) == ["tracked"]
+    assert simproc.run_plant(str(repo), "tracked") == "a.xml"
+    add_run(repo, "tracked")                             # its own dir wins
+    assert simproc.run_plant(str(repo), "tracked") == "bimo_biped_v5body.xml"
+    assert simproc.scan_runs(str(repo)) == ["tracked"]
+
+
+def test_a_clean_clone_lists_the_deployed_run(tmp_path):
+    """#236: the tracked files alone (git ls-files sim/sil/weights, no
+    sim/runs/) list exactly the deployed run, obs_spec.h's kRunName."""
+    import re
+    import shutil
+    try:
+        files = subprocess.run(["git", "-C", ROOT, "ls-files", "sim/sil/weights"],
+                               capture_output=True, text=True, check=True).stdout.split()
+    except (OSError, subprocess.CalledProcessError) as e:
+        pytest.skip(f"not a git checkout: {e}")
+    repo = fake_repo(tmp_path, runs=())
+    for f in files:
+        shutil.copyfile(os.path.join(ROOT, f), repo / f)
+    spec = open(os.path.join(ROOT, "firmware", "components", "obs", "include", "obs",
+                             "obs_spec.h")).read()
+    deployed = re.search(r'kRunName\s*=\s*"([^"]+)"', spec).group(1)
+    assert simproc.scan_runs(str(repo)) == [deployed]
+    assert simproc.run_plant(str(repo), deployed).endswith(".xml")
+
+
 def test_run_list_is_capped_like_the_cpp(tmp_path):
     repo = fake_repo(tmp_path, runs=[f"r{i:03d}" for i in range(simproc.MAX_RUNS + 5)])
     runs = simproc.scan_runs(str(repo))

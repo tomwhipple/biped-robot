@@ -520,8 +520,9 @@ console can be exercised on a laptop.
 - **`sim/sil_twin.py`**: the firmware's own control code (`libctrl_sil`:
   observation, gait clock, network, actuation) driving the CPU plant behind
   the real link, so a console drives the same control law the robot runs.
-  `--run-name` picks the policy (it needs `sim/runs/<run>/config.json` and
-  `sim/sil/weights/<run>.silw.json`), `--hang` welds the torso at stand
+  `--run-name` picks the policy (it needs `sim/sil/weights/<run>.silw.json`
+  and a config: `sim/runs/<run>/config.json`, else the tracked
+  `sim/sil/weights/<run>.config.json`, which the deployed run has), `--hang` welds the torso at stand
   height (the test-stand analogue), `--stream-port` serves the rendered view
   that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
   writes the fed observations in `obsdump` format, and `--plant`,

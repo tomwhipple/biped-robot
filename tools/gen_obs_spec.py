@@ -12,6 +12,14 @@ reads the deployed run's config.json and its MJCF, and writes:
 
   firmware/components/obs/include/obs/obs_spec.h   layout + joint table
   firmware/host/vectors/obs_vectors.h              real _obs() frames
+  sim/sil/weights/<run>.config.json                the run's config.json,
+                                                   verbatim (deployed set only;
+                                                   sim/sil/run_config.py)
+
+The tracked config lets a clean clone (no sim/runs/) run the deployed policy
+in the SIL twin with the weights compiled into the firmware (#236); the
+previously deployed run's copy is removed, so only the deployed run's is
+tracked.
 
 The golden frames come from walker_env._obs() itself (domain randomisation
 off, so the IMU misalignment is identity and the gyro bias zero), driven from
@@ -27,6 +35,7 @@ import argparse
 import inspect
 import json
 import os
+import shutil
 import sys
 
 import numpy as np
@@ -377,6 +386,20 @@ def main():
     print("profile   : %s" % (profile or "(deployed)"))
     print("wrote %s" % spec_out)
     print("wrote %s (%d cases)" % (vec_out, len(samples)))
+    if profile is None:
+        print("wrote %s" % write_tracked_config(run_dir, args.run))
+
+
+def write_tracked_config(run_dir, run):
+    """sim/sil/weights/<run>.config.json: the deployed run's config.json,
+    byte for byte, and no other run's (sim/sil/run_config.py)."""
+    wdir = os.path.join(ROOT, "sim", "sil", "weights")
+    out = os.path.join(wdir, run + ".config.json")
+    for f in os.listdir(wdir):
+        if f.endswith(".config.json") and f != os.path.basename(out):
+            os.remove(os.path.join(wdir, f))
+    shutil.copyfile(os.path.join(run_dir, "config.json"), out)
+    return out
 
 
 if __name__ == "__main__":

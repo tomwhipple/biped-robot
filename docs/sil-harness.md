@@ -154,7 +154,15 @@ carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
   `--no-golden`. Those files are committed and consumed by the firmware host
   tests, so only a deliberate re-point should overwrite them.
 - `.silw` blobs are gitignored and regenerated from the run's `params.pkl`;
-  sidecars, golden vectors and calibration files are committed.
+  sidecars, golden vectors and calibration files are committed, and so is
+  the deployed run's `config.json`, as `weights/<run>.config.json`
+  (`sim/sil/run_config.py`; the run directory's copy wins when present).
+- `eval_precision.sil_setup` (the twin's, and the `--sil` referee's) exports
+  only when the run's `params.pkl` is present. Without it, an existing
+  `.silw` is used as it is; without that either, the library's compiled-in
+  weights (`policy/weights.h`) when they are the run's. So a clean clone
+  runs the deployed policy with nothing exported and nothing in the tree
+  rewritten.
 
 ## Calibration file (for `sil_init`)
 
@@ -317,7 +325,8 @@ deployed one (`robot_legs_walk16_act_s128r24` on `bimo_biped_v6legs.xml`):
   pins all of that from committed files alone, so a deploy that forgets to
   re-export the goldens goes red on any clone.
 - The run's `config.json`, `params.pkl` and `.silw` are gitignored
-  (`sim/runs/`, `sim/sil/weights/*.silw`). Where they are absent, the tests
+  (`sim/runs/`, `sim/sil/weights/*.silw`); the deployed run's config is also
+  tracked beside its sidecar, and counts as present. Where they are absent, the tests
   that need them **skip and name what to fetch**; nothing fails for want of a
   local artifact.
 

@@ -523,8 +523,10 @@ void simViewUrl(const App& a, char* out, size_t cap, bool ours) {
 void startSim(App& a) {
     if (a.runs.n == 0) {
         snprintf(a.status, sizeof a.status,
-                 "no runnable sim runs under %s/sim/runs (each needs a "
-                 "config.json AND sim/sil/weights/<run>.silw.json)", a.repo);
+                 "no runnable sim runs in %s (each needs "
+                 "sim/sil/weights/<run>.silw.json AND a config.json: "
+                 "sim/runs/<run>/'s or sim/sil/weights/<run>.config.json)",
+                 a.repo);
         return;
     }
     // In mirror mode the robot owns the primary ports, so the sim gets its
@@ -1338,7 +1340,7 @@ void drawSim(App& a, double now_ms, float panel_w) {
                 ImGui::EndCombo();
             }
         } else {
-            ImGui::TextDisabled("no runs with SIL weights under %s/sim/runs",
+            ImGui::TextDisabled("no runs with SIL weights and a config in %s",
                                 a.repo);
         }
         ImGui::TextDisabled("the trained brain the sim will run "

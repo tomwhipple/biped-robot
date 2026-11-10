@@ -347,7 +347,15 @@ def sil_setup(run_name, run_dir, verbose=True, profile=None):
 
     (a) libctrl_sil missing        -> `make -C firmware/host sil`
     (b) <run>.silw missing/stale   -> tools/export_policy_weights.py --run <run>
+        no params.pkl to export    -> the .silw as it is; without one, the
+                                      weights compiled into the library when
+                                      they are this run's (a clean clone's
+                                      deployed run, #236): no export, nothing
+                                      in the tree is written
     (c) cal/cal_nominal.json missing -> harness.write_cal_files()
+
+    The run's config.json is <run_dir>'s, else the tracked copy
+    (sim/sil/run_config.py).
 
     Returns (harness_module, SilLib, info_dict).  Any failure is a SystemExit
     with the build/export output attached -- never a partially-run referee."""
@@ -377,10 +385,27 @@ def sil_setup(run_name, run_dir, verbose=True, profile=None):
     # (b) the exported weights ------------------------------------------
     weights = H.default_weights(run_name)
     params = os.path.join(run_dir, "params.pkl")
+    builtin = False
     if not os.path.exists(params):
-        raise SystemExit(f"[sil] {params} missing -- nothing to export")
-    stale = (not os.path.exists(weights)
-             or os.path.getmtime(weights) < os.path.getmtime(params))
+        # Nothing to export. A .silw already here is used as it is; without
+        # one, the library's compiled-in weights (policy/weights.h, exported
+        # from the same params.pkl as the tracked sidecar) when they are this
+        # run's -- the deployed run on a clean clone.
+        if not os.path.exists(weights):
+            compiled = H.builtin_weights_run(profile)
+            if compiled != run_name:
+                raise SystemExit(
+                    f"[sil] {params} missing -- nothing to export, no "
+                    f"{os.path.relpath(weights, ROOT)}, and the library's "
+                    f"compiled-in weights are {compiled!r}'s, not this run's")
+            builtin = True
+            if verbose:
+                print(f"[sil] no params.pkl or {os.path.basename(weights)}: "
+                      f"running the weights compiled into the library "
+                      f"(policy/weights.h, {compiled})")
+    stale = (not builtin and os.path.exists(params) and
+             (not os.path.exists(weights)
+              or os.path.getmtime(weights) < os.path.getmtime(params)))
     if stale:
         why = "missing" if not os.path.exists(weights) else "older than params.pkl"
         if verbose:
@@ -402,11 +427,14 @@ def sil_setup(run_name, run_dir, verbose=True, profile=None):
         H.write_cal_files()
 
     # the run's own clock, whichever header the library was compiled from
-    with open(os.path.join(run_dir, "config.json")) as f:
+    import run_config
+    with open(run_config.config_path(run_name, run_dir)) as f:
         gait_hz = deploy_gait_hz(json.load(f))
-    lib = H.SilLib(lib_path, weights, cal_path, gait_hz=gait_hz)
+    lib = H.SilLib(lib_path, "" if builtin else weights, cal_path,
+                   gait_hz=gait_hz)
     info = dict(lib=os.path.relpath(lib_path, ROOT),
-                weights=os.path.relpath(weights, ROOT),
+                weights=("policy/weights.h (compiled in)" if builtin
+                         else os.path.relpath(weights, ROOT)),
                 cal=os.path.relpath(cal_path, ROOT),
                 gait_hz=lib.gait_hz, spec=lib.spec_string(),
                 in_order=lib.in_order, out_order=lib.out_order,

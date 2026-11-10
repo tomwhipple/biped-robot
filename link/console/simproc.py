@@ -39,12 +39,27 @@ def script_for(repo: str) -> str:
     return os.path.join(repo, "sim", "sil_twin.py")
 
 
+def run_config(repo: str, run: str) -> str:
+    """A run's config.json: sim/runs/<run>/'s, else the copy tracked beside its
+    weights, sim/sil/weights/<run>.config.json (sim/sil/run_config.py; #236:
+    the deployed run's is tracked, so a clean clone can run it). The run
+    directory's path when neither exists."""
+    own = os.path.join(repo, "sim", "runs", run, "config.json")
+    if os.path.exists(own):
+        return own
+    tracked = os.path.join(repo, "sim", "sil", "weights", f"{run}.config.json")
+    return tracked if os.path.exists(tracked) else own
+
+
+SIDECAR = ".silw.json"
+
+
 def scan_runs(repo: str) -> list[str]:
-    """RunList::scan: the runs sil_twin can actually load -- a
-    sim/runs/<name>/config.json AND an exported sim/sil/weights/<name>.silw.json.
+    """RunList::scan: the runs sil_twin can actually load -- an exported
+    sim/sil/weights/<name>.silw.json AND a config.json (run_config).
     Anything else fails at startup with a traceback, a poor dropdown entry.
     Directory order up to MAX_RUNS, then sorted bytewise (strcmp), as the C++."""
-    d = os.path.join(repo, "sim", "runs")
+    d = os.path.join(repo, "sim", "sil", "weights")
     names = []
     try:
         it = os.scandir(d)
@@ -54,12 +69,12 @@ def scan_runs(repo: str) -> list[str]:
         for e in it:
             if len(names) >= MAX_RUNS:
                 break
-            if e.name.startswith("."):
+            if e.name.startswith(".") or not e.name.endswith(SIDECAR) \
+                    or len(e.name) == len(SIDECAR):
                 continue
-            cfg = os.path.join(d, e.name, "config.json")
-            weights = os.path.join(repo, "sim", "sil", "weights", f"{e.name}.silw.json")
-            if os.path.exists(cfg) and os.path.exists(weights):
-                names.append(e.name)
+            run = e.name[:-len(SIDECAR)]
+            if os.path.exists(run_config(repo, run)):
+                names.append(run)
     return sorted(names, key=lambda n: n.encode())
 
 
@@ -73,7 +88,8 @@ def no_runs_help(repo: str) -> str:
     except OSError:
         tracked = []
     lines = ["No runnable sim run in this clone. A run is listed when it has both "
-             "sim/runs/<run>/config.json and sim/sil/weights/<run>.silw.json; "
+             "sim/runs/<run>/config.json (or a tracked "
+             "sim/sil/weights/<run>.config.json) and sim/sil/weights/<run>.silw.json; "
              "sim/runs/ is not in git."]
     if tracked:
         lines.append("Weights are here for: " + ", ".join(tracked) + ". Their run "
@@ -89,7 +105,7 @@ def no_runs_help(repo: str) -> str:
 def run_plant(repo: str, run: str) -> str:
     """The plant a run trained on (its config.json xml_path), '' if unknown."""
     try:
-        with open(os.path.join(repo, "sim", "runs", run, "config.json")) as f:
+        with open(run_config(repo, run)) as f:
             return str(json.load(f).get("xml_path") or "")
     except (OSError, ValueError, AttributeError):
         return ""

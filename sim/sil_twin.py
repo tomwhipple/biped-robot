@@ -25,9 +25,10 @@ Flight records: --flight HOST:PORT (off by default) sends the stream the
 robot's flight recorder sends -- HELLO at 1 Hz, a TICK every control tick
 (goal written, nominal target and measured position per joint, IMU, the
 command the policy saw), events for arm/home edges, mode, link state,
-armed falls and operator stops -- encoded by tools/flightrec.py, to a console or to mira's
-collector (tools/flight_collector.py, UDP 4220). sim/sil_twin_wire.py builds
-the packets; docs/flight-recorder.md lists which fields the sim fills.
+armed falls and operator stops -- encoded by tools/flightrec.py, to a
+console or to mira's collector (tools/flight_collector.py, UDP 4220).
+sim/sil_twin_wire.py builds the packets; docs/flight-recorder.md lists which
+fields the sim fills.
 
     .venv/bin/python sim/sil_twin.py --hang --flight 127.0.0.1:4221
 
@@ -69,10 +70,14 @@ from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
 import sil_twin_wire as W                                   # noqa: E402
 import flightrec as FR                                      # noqa: E402  (W put tools/ on the path)
 
-# Needs BOTH a sim/runs/<name>/config.json and an exported
-# sim/sil/weights/<name>.silw.json (bimo_gui's SIM panel builds its dropdown
-# from that same pair), and the run must match the compiled-in spec: the
-# DEPLOYED run, obs_spec.h's kRunName -- any other run fails sil_check_spec.
+# Needs a config.json (sim/runs/<name>/'s, else the copy tracked as
+# sim/sil/weights/<name>.config.json: sim/sil/run_config.py) and the weight
+# sidecar sim/sil/weights/<name>.silw.json -- the console's Sim tab and
+# bimo_gui's SIM panel list exactly those runs -- and the run must match the
+# compiled-in spec: the DEPLOYED run, obs_spec.h's kRunName -- any other run
+# fails sil_check_spec. The weights are the run's .silw, exported from its
+# params.pkl when that is here; from a clean clone (no sim/runs/), the
+# deployed run runs the weights compiled into the firmware (sil_setup).
 def _deployed_run():
     spec_h = os.path.join(ROOT, "firmware", "components", "obs", "include",
                           "obs", "obs_spec.h")
@@ -285,8 +290,9 @@ def run(args):
     from eval_precision import (make_env, sil_check_spec,   # noqa: E402
                                 sil_profile_for, sil_setup)
 
+    import run_config                                        # noqa: E402
     run_dir = os.path.join(HERE, "runs", args.run_name)
-    with open(os.path.join(run_dir, "config.json")) as f:
+    with open(run_config.config_path(args.run_name, run_dir)) as f:
         cfg = json.load(f)
     xml = args.xml or (HANG_XML if args.hang else None) \
         or _local_xml(cfg.get("xml_path")) or None
