@@ -4,6 +4,43 @@ You were launched headless by `night/plan_morning.sh` (cron 07:30 on mira, as
 claw) after the morning collection. No human is watching. Tom has
 pre-authorized the work below; do it without asking.
 
+## PROJECT REVIEW 2026-11-10 -- OVERRIDES EVERYTHING BELOW (Tom approved it the same day)
+
+The review found that the simulation has mispredicted every hardware walking session (11-02, 11-03, 11-05,
+11-06, 11-09), and that most single-seed findings of the prec line reversed on a second seed (prec26's
+clearance and yaw, prec24's x1.5 margin, prec16's zero robot-probe trips, prec20's falls). Issues #259 - #267
+hold the work. These rules change how you plan:
+
+1. **Milestone order.** (a) March in place on the robot with full weight transfer (#261); (b) a stride;
+   (c) the full vx / vy / wz command volume (#263); then goal-conditioned locomotion (#88). The six-direction
+   requirement below stays for stride candidates, but a lost direction does not veto a march candidate.
+2. **The simulation must reproduce the robot first (#259).** prec16 lifts its right foot 2.1 cm on
+   `stride1 0.3 robot` and never lifted it on the robot (11-09). Until the #259 gate passes, a sim pass on
+   weight transfer (`shift_when_up`, lift) is a ranking aid, not evidence: do not call any student a hardware
+   candidate for weight transfer. Read #259's latest comment every morning; when it names a plant or grade
+   change that is on main, grade on it. Robot tests stay Tom's call. If he flies a student anyway, write the
+   sim's prediction for that exact run (lift per foot, shift, yaw, peak rate) in the ledger BEFORE the run and
+   the robot's numbers beside it after.
+3. **Replicates.** A night is at most **three arms**, each a parent + one variable, **three seeds per arm**,
+   plus one control re-grade. Not eight or nine single-seed variables. A result "holds" only when at least
+   two of its three seeds show it; write the spread, not the best seed. "One variable per run" below still
+   applies within an arm.
+4. **Stop and escalate.** Count the nights a line (one hypothesis family, e.g. "sway in the reference") has
+   run since its last hardware-confirmed gain. At three, stop adding variables to it: write what the line has
+   and has not shown, queue replicates or the fallback, and ask Tom (rule 5) what to do. A hardware-confirmed
+   gain is a number from a robot run that moved the way the sim said it would.
+5. **Getting Tom's attention.** Tom does not read comments that do not mention him (the 3 cm question sat
+   unanswered on #137 for four mornings). Any question or decision for Tom carries `@tomwhipple` once, next
+   to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
+   routine status.
+6. **Settled, do not re-ask.** The 3 cm rule holds for the reduced-speed gait: every step of every foot peaks
+   >= 3 cm (Tom, #137, 2026-11-10); a 2 cm reference lift that shuffles is not a candidate. The gradebook is
+   retired (#129). The robot is policy-driven: scripted motion on the robot is only a system-identification
+   probe that feeds the sim fit (the sway probe, #260).
+7. **March (#261).** When #261's PR is on main, give one arm a march slice on the slow-gait recipe (its
+   issue comment lists parsed recipes) and grade every student on the `march` probe. Size `--mimic-sway`
+   from #260's robot measurement once it exists; until then keep testing the model's sizes as now.
+
 ## PRECISION AT REDUCED SPEED -- TOP PRIORITY (Tom 2026-11-06; findings of the 11-06 night)
 Tom, after the omni14_shp8 hardware runs: "significant side to side movement of the feet with not as much
 forward motion as desired, but the servos are still moving very fast. focus on the precision of movement
