@@ -27,9 +27,10 @@ $(WCLI_VECTORS): $(PYDEPS_tools/gen_wcli_vectors.py)
 # The obs spec goes first: the exporter checks the run's widths against it and
 # writes the golden obs vectors from its layout; the weights header reads the
 # exported .silw.
-deploy: ## put RUN=name's policy into the firmware: weights, obs spec, vectors, SIL golden files (POLICY=<profile>: into that profile's set; QUANT=int8: an int8 profile)
+deploy: ## put RUN=name's policy into the firmware: weights, obs spec, command envelope, vectors, SIL golden files (POLICY=<profile>: into that profile's set; QUANT=int8: an int8 profile)
 	@test -n "$(RUN)" || { echo "name the run: make deploy RUN=<run under sim/runs>" >&2; exit 2; }
 	$(PY) tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	$(PY) tools/gen_envelope.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	$(PY) tools/export_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	$(PY) tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 

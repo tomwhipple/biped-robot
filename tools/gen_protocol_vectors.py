@@ -281,8 +281,6 @@ def main():
     w("    uint8_t wire[%d]; size_t wire_len;   // short-frame rule: defaults"
       % P.CMD_LEN_EXT)
     w("    float dec[7];   // decode: vx, wz, vy, crouch, lift, fdx, fdz")
-    w("    float clamped[5];  // clamp_ext_to_envelope(vy, crouch, lift,")
-    w("                       // fdx, fdz) of the DECODED frame")
     w("};")
     w("inline const CmdExtCase kCmdExt[] = {")
     for seq, vx, wz, flags, vy, crouch, lift, fdx, fdz in CMD_EXT_CASES:
@@ -291,15 +289,13 @@ def main():
         wire = P.encode_command(seq, vx, wz, flags, vy=vy, crouch=crouch,
                                 lift=lift, foot_dx=fdx, foot_dz=fdz)
         d = P.decode_command(wire)
-        cl = P.clamp_ext_to_envelope(d)
         pad = bytes(wire) + b"\x00" * (P.CMD_LEN_EXT - len(wire))
         w("    {%du, %s, %s, 0x%02X, %s, %s, %s, %s, %s," % (
             seq & 0xFFFFFFFF, fl(vx), fl(wz), flags & 0xFF, fl(vy),
             fl(crouch), fl(lift), fl(fdx), fl(fdz)))
         w("     %s, %d," % (carr(pad), len(wire)))
-        w("     {%s}," % ", ".join(fl(v) for v in (
+        w("     {%s}}," % ", ".join(fl(v) for v in (
             d.vx, d.wz, d.vy, d.crouch, d.lift, d.foot_dx, d.foot_dz)))
-        w("     {%s}}," % ", ".join(fl(v) for v in cl))
     w("};")
     w("inline constexpr size_t kNumCmdExt = "
       "sizeof kCmdExt / sizeof kCmdExt[0];")
@@ -455,18 +451,6 @@ def main():
           % (name[1:], name, name))
     w("")
 
-    # -- envelope ----------------------------------------------------------
-    w("struct ClampCase { float vx; float wz; float out_vx; float out_wz; };")
-    w("inline const ClampCase kClamp[] = {")
-    for vx, wz in [(0.0, 0.0), (0.01, 0.0), (0.1, 0.0), (0.29, 0.0),
-                   (0.3, 0.0), (0.0, 0.7), (9.0, 9.0), (-9.0, -9.0),
-                   (-0.29, 0.5), (-0.5, -1.5), (1.0, 1.0)]:
-        vx, wz = f32(vx), f32(wz)
-        ov, ow = P.clamp_to_envelope(vx, wz)
-        w("    {%s, %s, %s, %s}," % (fl(vx), fl(wz), fl(ov), fl(ow)))
-    w("};")
-    w("inline constexpr size_t kNumClamp = sizeof kClamp / sizeof kClamp[0];")
-    w("")
     w("}  // namespace protocol_vectors")
     w("")
 

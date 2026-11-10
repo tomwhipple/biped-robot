@@ -1710,7 +1710,7 @@ void drawSettings(App& a, double now_ms) {
 
     ImGui::SeparatorText("speeds  (--vx / --vy / --wz / --rate)");
     ImGui::SetNextItemWidth(300.0f);
-    ImGui::SliderFloat("vx  m/s", &a.o.speeds.vx, 0.0f, kVMax, "%.2f");
+    ImGui::SliderFloat("vx  m/s", &a.o.speeds.vx, 0.0f, kVFwdMax, "%.2f");
     ImGui::SetNextItemWidth(300.0f);
     ImGui::SliderFloat("vy  m/s (strafe)", &a.o.speeds.vy, 0.0f, kVyMax,
                        "%.2f");
@@ -1722,9 +1722,14 @@ void drawSettings(App& a, double now_ms) {
     // a way to make it stand by fiddling with a setting.
     ImGui::SliderScalar("send Hz", ImGuiDataType_Double, &a.o.rate_hz,
                         &kRateMin, &kRateMax, "%.0f");
-    ImGui::TextDisabled("the trained envelope caps these: v <= %.1f m/s, "
-                        "vy <= %.1f, w <= %.1f rad/s",
-                        static_cast<double>(kVMax), static_cast<double>(kVyMax),
+    ImGui::TextDisabled("the trained envelope (%s): vx %.2f..%.2f (back "
+                        "%.2f..%.2f) m/s, |vy| %.2f..%.2f, |wz| <= %.1f rad/s",
+                        kEnvelopeRun, static_cast<double>(kVFwdMin),
+                        static_cast<double>(kVFwdMax),
+                        static_cast<double>(kVBackMin),
+                        static_cast<double>(kVBackMax),
+                        static_cast<double>(kVyMin),
+                        static_cast<double>(kVyMax),
                         static_cast<double>(kWMax));
 
     ImGui::SeparatorText("telemetry relay  (--watch)");

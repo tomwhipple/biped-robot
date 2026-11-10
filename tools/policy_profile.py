@@ -4,7 +4,8 @@ The DEPLOYED policy's generated files live where they always have:
 
     firmware/components/obs/include/obs/obs_spec.h
     firmware/components/policy/include/policy/weights.h
-    firmware/host/vectors/{obs,policy}_vectors.h
+    firmware/components/linkproto/include/linkproto/cmd_envelope.h  (+ link/cmd_envelope.py)
+    firmware/host/vectors/{obs,policy,cmd_envelope}_vectors.h
     sim/sil/golden/*.json
 
 A named PROFILE is a second, complete set of the same generated files: a
@@ -13,7 +14,8 @@ policy flashed instead of the deployed one, on its own plant or the same one
 
     firmware/policies/<profile>/obs/obs_spec.h
     firmware/policies/<profile>/policy/weights.h
-    firmware/policies/<profile>/vectors/{obs,policy}_vectors.h
+    firmware/policies/<profile>/linkproto/cmd_envelope.{h,py}
+    firmware/policies/<profile>/vectors/{obs,policy,cmd_envelope}_vectors.h
     sim/sil/golden/<profile>/*.json
 
 A build selects one with BIMO_POLICY=<profile> (`make -C firmware/host
@@ -24,7 +26,7 @@ generated header carries a guard against the other kind of build (guard_lines
 below), so an include-path mistake is a compile error, never the wrong policy.
 
 The generators take --profile; python that reads a spec (sim/sil/harness.py)
-follows $BIMO_POLICY.
+or the command envelope (link/protocol.py) follows $BIMO_POLICY.
 """
 import os
 import re
@@ -57,7 +59,8 @@ def macro(profile):
 
 
 def files(profile=None):
-    """{spec_h, weights_h, obs_vectors_h, policy_vectors_h, golden_dir}."""
+    """{spec_h, weights_h, obs_vectors_h, policy_vectors_h, golden_dir,
+    envelope_h, envelope_py, envelope_vectors_h}."""
     profile = check(profile)
     if profile is None:
         return dict(
@@ -69,6 +72,11 @@ def files(profile=None):
                                        "obs_vectors.h"),
             policy_vectors_h=os.path.join(FIRMWARE, "host", "vectors",
                                           "policy_vectors.h"),
+            envelope_h=os.path.join(FIRMWARE, "components", "linkproto",
+                                    "include", "linkproto", "cmd_envelope.h"),
+            envelope_py=os.path.join(ROOT, "link", "cmd_envelope.py"),
+            envelope_vectors_h=os.path.join(FIRMWARE, "host", "vectors",
+                                            "cmd_envelope_vectors.h"),
             golden_dir=GOLDEN)
     d = os.path.join(POLICIES, profile)
     return dict(
@@ -76,6 +84,9 @@ def files(profile=None):
         weights_h=os.path.join(d, "policy", "weights.h"),
         obs_vectors_h=os.path.join(d, "vectors", "obs_vectors.h"),
         policy_vectors_h=os.path.join(d, "vectors", "policy_vectors.h"),
+        envelope_h=os.path.join(d, "linkproto", "cmd_envelope.h"),
+        envelope_py=os.path.join(d, "linkproto", "cmd_envelope.py"),
+        envelope_vectors_h=os.path.join(d, "vectors", "cmd_envelope_vectors.h"),
         golden_dir=os.path.join(GOLDEN, profile))
 
 

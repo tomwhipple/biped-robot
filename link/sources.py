@@ -15,8 +15,8 @@ default, and encode_command(..., **ext) picks the 14 B or 24 B frame. Adding a f
 """
 import math
 
-from protocol import (FLAG_ENABLE, FLAG_ESTOP, V_MAX, V_MIN_WALK, VY_MAX,
-                      W_MAX)
+from protocol import (FLAG_ENABLE, FLAG_ESTOP, V_BACK_MAX, V_BACK_MIN,
+                      V_FWD_MAX, V_FWD_MIN, VY_MAX, VY_MIN, W_MAX)
 
 # Sticks rest noisily around zero; below this the axis reads as "let go".
 STICK_DEADZONE = 0.15
@@ -38,22 +38,43 @@ class CommandSource:
 
 
 def stick_to_speed(axis: float) -> float:
-    """Map a [-1,1] stick axis onto the *trained* speed band.
+    """Map a [-1,1] stick axis (+ = forward) onto the *trained* speed band.
 
-    The naive `vx = axis * V_MAX` is wrong on this plant: walker_env draws
-    commands from stand (0,0) or a walk in [0.3, 1.0], so (0, 0.3) is a hole
-    in the training distribution. A stick at 20 % would ask for 0.2 m/s --
-    a speed the policy has never once been rewarded for tracking, and the
-    behavior there is undefined rather than merely slow.
+    The naive `vx = axis * V_FWD_MAX` is wrong on this plant: the policy was
+    trained on a stand (0,0) or a walk inside a band -- forward
+    [V_FWD_MIN, V_FWD_MAX], backward [-V_BACK_MAX, -V_BACK_MIN]
+    (protocol.py, generated from the deployed run) -- so the hole under a
+    band's minimum is not a slow walk. A stick at 20 % would ask for a speed
+    the policy has never once been rewarded for tracking, and the behavior
+    there is undefined rather than merely slow.
 
     So: dead zone snaps to a stand, and everything above it is remapped onto
-    [V_MIN_WALK, V_MAX] -- the stick's full travel buys real, trained speeds.
+    the band of the stick's direction -- the stick's full travel buys real,
+    trained speeds, and full deflection is the trained maximum. A direction
+    whose band was never trained (V_BACK_MAX == 0) stays a stand.
     """
+    lo, hi = (V_FWD_MIN, V_FWD_MAX) if axis > 0.0 else (V_BACK_MIN, V_BACK_MAX)
+    return _stick_to_band(axis, lo, hi)
+
+
+def stick_to_lateral(axis: float) -> float:
+    """Map a [-1,1] stick axis onto the trained sidestep band, sign kept.
+
+    Same reasoning as stick_to_speed: |vy| under VY_MIN is a hole the robot
+    snaps to zero, so a light push past the dead zone must already ask for
+    VY_MIN, and full deflection is VY_MAX. No sidestep band trained
+    (VY_MAX == 0): a stand.
+    """
+    return _stick_to_band(axis, VY_MIN, VY_MAX)
+
+
+def _stick_to_band(axis: float, lo: float, hi: float) -> float:
+    """Dead zone -> 0; past it, the travel maps linearly onto [lo, hi]."""
     mag = abs(axis)
-    if mag < STICK_DEADZONE:
+    if mag < STICK_DEADZONE or hi <= 0.0:
         return 0.0
     frac = (mag - STICK_DEADZONE) / (1.0 - STICK_DEADZONE)
-    return math.copysign(V_MIN_WALK + frac * (V_MAX - V_MIN_WALK), axis)
+    return math.copysign(lo + frac * (hi - lo), axis)
 
 
 # -- scripted --------------------------------------------------------------
@@ -68,7 +89,7 @@ def _walk(t):
 def _dash_stop(t):
     # eval_commands.scen_dash_stop keyed on x >= 2 m; we have no odometry off
     # the robot, so the hardware twin keys on time instead.
-    return (0.8, 0.0) if t < 4.0 else (0.0, 0.0)
+    return (min(0.8, V_FWD_MAX), 0.0) if t < 4.0 else (0.0, 0.0)   # 0.8 = the referee's dash
 
 
 def _line_1m(t):
@@ -306,10 +327,10 @@ class GamepadSource(CommandSource):
         # Yaw has no training hole -- any |wz| <= 1.0 is in-distribution -- so
         # it gets a plain dead zone and a linear map, unlike stick_to_speed.
         wz = 0.0 if abs(yaw) < STICK_DEADZONE else -yaw * W_MAX
-        # Lateral: same treatment as yaw, scaled to the lateral limit. Left
-        # is +vy (as is left for +wz), so the sign flips like yaw's.
-        lat = self._js.get_axis(self.AX_LAT)
-        vy = 0.0 if abs(lat) < STICK_DEADZONE else -lat * VY_MAX
+        # Lateral: mapped onto the trained sidestep band like the forward axis
+        # (the robot snaps |vy| < VY_MIN to a stand). Left is +vy (as is left
+        # for +wz), so the sign flips like yaw's.
+        vy = stick_to_lateral(-self._js.get_axis(self.AX_LAT))
         return vx, wz, FLAG_ENABLE, ({"vy": vy} if vy else {})
 
     def close(self):
@@ -332,7 +353,7 @@ class GoalSource(CommandSource):
     controller for a learned policy and nothing else in the stack moves.
 
     **Aim at the middle of the trained distribution, not its edge.** The
-    obvious controller (high yaw gain, turn-to-face, then sprint at V_MAX)
+    obvious controller (high yaw gain, turn-to-face, then sprint at V_FWD_MAX)
     falls over, and measurably so: it asks for pivots at wz=1.0, which is the
     exact upper bound of walker_env's cmd_w_range and a regime eval_commands
     only ever validates at +-0.5. Meanwhile walking-while-turning is the
@@ -359,7 +380,7 @@ class GoalSource(CommandSource):
         self._tol = tol
         self._k_yaw = k_yaw
         self._face_first = face_first_rad
-        self._cruise = cruise
+        self._cruise = min(cruise, V_FWD_MAX)   # the trained maximum, if lower
         self.name = f"goal:({goal[0]:.1f},{goal[1]:.1f})"
 
     def poll(self, t):
@@ -375,9 +396,9 @@ class GoalSource(CommandSource):
             # Goal is behind us: pivot. Walking a wide arc backwards wastes
             # battery and floor, and this is the one case worth the risk.
             return 0.0, wz, FLAG_ENABLE, {}
-        # Ease off near the goal, but never into the untrained (0, 0.3) band --
+        # Ease off near the goal, but never into the untrained (0, V_FWD_MIN) band --
         # clamp_to_envelope would snap that to a stand anyway: stop honestly.
-        v = self._cruise if dist > 1.0 else max(V_MIN_WALK,
+        v = self._cruise if dist > 1.0 else max(V_FWD_MIN,
                                                 self._cruise * dist)
         return v, wz, FLAG_ENABLE, {}
 

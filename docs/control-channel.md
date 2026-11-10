@@ -366,22 +366,47 @@ Checking it:
 
 ## The training envelope is part of the protocol
 
-Training draws a stand or a walk with |vx| in **[0.3, 1.0] m/s** and
-|wz| ≤ 1.0 rad/s. The band (0, 0.3) was never trained: it is a hole in the
-distribution, not a slow walk. So `clamp_to_envelope()` snaps it to a stand,
+The policy was trained on a stand, or a walk inside a band per direction,
+and nothing else. The bands come from the deployed run's `config.json` and
+the env's defaults (`tools/gen_envelope.py`, [training.md §4](training.md)),
+and are **generated**, never typed: `firmware/components/linkproto/include/linkproto/cmd_envelope.h`
+(`kVFwdMin`, `kVFwdMax`, `kVBackMin`, `kVBackMax`, `kVyMin`, `kVyMax`, `kWMax`,
+`kCrouchMin`) and its Python twin `link/cmd_envelope.py`, which
+`protocol.py` reads, one set per policy profile (`make deploy RUN=...
+[POLICY=<profile>]`). The profile `v6legs`, `v6legs256` and the deployed set
+all carry the `walk16_act` students' envelope:
+
+| channel | trained band | from |
+|---|---|---|
+| forward `vx` | 0.05 – 0.7 m/s | `cmd_v_range` (config.json) |
+| backward `vx` | −0.4 – −0.15 m/s | `cmd_back_range` (env default; not in config.json) |
+| lateral `vy` | ±(0.1 – 0.25) m/s | `cmd_vy_range` (env default) and the 0.1 floor of the sidestep draw |
+| turn `wz` | ≤ 1.0 rad/s | `cmd_w_range` (config.json) |
+| crouch | 1.0 only | `cmd_crouch_range` (config.json): no crouch was trained |
+
+The band under a minimum — (0, `kVFwdMin`) forward, (0, `kVBackMin`)
+backward, (0, `kVyMin`) sideways — is a hole in the distribution, not a slow
+walk. So `clamp_to_envelope()` / `clamp_ext_to_envelope()` snap it to a stand,
 **robot-side**, because the robot is what eats a bad command and not every
-future sender is ours. Turn-in-place (`vx = 0, wz ≠ 0`) is trained, so the
-snap keeps `wz`. The extra channels are clamped to their training draws too
-(|vy| ≤ 0.3, crouch 0.6–1.0, lift ±1, foot offsets ±0.05 m).
-`sources.stick_to_speed()` maps stick travel onto [0.3, 1.0] for the same
-reason. `V_MIN_WALK`, `V_MAX`, `W_MAX` and the extra-channel limits in
-`protocol.py` (and their `linkproto` copies) must track the training config
-of the deployed policy.
+future sender is ours; a speed above a band's maximum is clamped to it, and
+backward walks have a band of their own, not the forward one. A direction the
+run never trained (a band generated as 0–0) is a stand. Turn-in-place
+(`vx = 0, wz ≠ 0`) is trained, so the snap keeps `wz`. Lift (±1) and the foot
+offsets (±0.05 m) are scripted rather than drawn and are fixed in
+`protocol.py`. `sources.stick_to_speed()` and `stick_to_lateral()` (the gamepad's forward
+and left-stick axes) map stick travel past the dead zone onto the band of
+their direction (a light push is the band's minimum, full deflection its
+maximum) for the same reason.
+The host test pins the generated header against the bands derived from the
+run, and the clamp on both sides of every band against the Python reference
+(`cmd_envelope_vectors.h`); `tests/test_cmd_envelope.py` pins the generated
+files against each other and, where the run's gitignored `config.json` is on
+the machine, against it.
 
 **Legal is not reliable.** Commanding the edge of the envelope (pivots at
-`wz = 1.0`, sprints at 1.0 m/s) measurably falls; walking while turning is
+`wz = 1.0`, sprints at the top of the speed band) measurably falls; walking while turning is
 the best-trained regime. Aim at the middle: the goal source cruises at
-0.6 m/s, caps yaw at 0.8, arcs toward the goal and pivots only when the goal
+0.6 m/s (or the band's maximum, if lower), caps yaw at 0.8, arcs toward the goal and pivots only when the goal
 is behind it.
 
 ## Network
@@ -560,8 +585,9 @@ bytes:
 1. `crc16Ccitt`, `encode/decodeCommand`, `encode/decodeTelemetry`: ports,
    checked against `0x29B1` and the golden vectors.
 2. `Watchdog`: a port with no I/O; it takes `now_ms`.
-3. `clampToEnvelope` / `clampExtToEnvelope`: the limits must match
-   `protocol.py` and the deployed policy's training config.
+3. `clampToEnvelope` / `clampExtToEnvelope`: the limits are the generated
+   `cmd_envelope.h` (the deployed policy's training config), checked against
+   `cmd_envelope_vectors.h`.
 4. The loop: receive → decode → `ArmLatch` / `HomeLatch` →
    `Watchdog.accept()` → `state()` → `commandExt()` → policy → servo bus at
    50 Hz. `link/protocol.py:Supervisor` is that composition in Python, used

@@ -16,7 +16,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "link"))
 
 import sources                                                   # noqa: E402
-from protocol import (FLAG_ENABLE, V_MAX, V_MIN_WALK,           # noqa: E402
+from protocol import (FLAG_ENABLE, V_BACK_MAX, V_BACK_MIN,       # noqa: E402
+                      V_FWD_MAX, V_FWD_MIN, VY_MAX, VY_MIN, CROUCH_MIN,
                       clamp_to_envelope)
 
 
@@ -24,19 +25,62 @@ from protocol import (FLAG_ENABLE, V_MAX, V_MIN_WALK,           # noqa: E402
 def test_stick_never_emits_an_untrained_speed():
     for i in range(1001):
         v = sources.stick_to_speed(-1.0 + i * 0.002)
-        assert v == 0.0 or V_MIN_WALK - 1e-9 <= abs(v) <= V_MAX + 1e-9
+        if v == 0.0:
+            continue
+        lo, hi = (V_FWD_MIN, V_FWD_MAX) if v > 0 else (V_BACK_MIN, V_BACK_MAX)
+        assert lo - 1e-9 <= abs(v) <= hi + 1e-9
+        # ... and the robot leaves it alone
+        assert clamp_to_envelope(v, 0.0)[0] == pytest.approx(v)
 
 
 def test_stick_deadzone_and_full_travel():
     assert sources.stick_to_speed(0.05) == 0.0
-    assert sources.stick_to_speed(1.0) == pytest.approx(V_MAX)
-    assert sources.stick_to_speed(-1.0) == pytest.approx(-V_MAX)
-    assert sources.stick_to_speed(0.16) == pytest.approx(V_MIN_WALK, abs=0.02)
+    assert sources.stick_to_speed(1.0) == pytest.approx(V_FWD_MAX)
+    assert sources.stick_to_speed(0.16) == pytest.approx(V_FWD_MIN, abs=0.02)
+    if V_BACK_MAX > 0:   # backward travel maps onto the backward band
+        assert sources.stick_to_speed(-1.0) == pytest.approx(-V_BACK_MAX)
+        assert sources.stick_to_speed(-0.16) == pytest.approx(-V_BACK_MIN,
+                                                              abs=0.02)
+    else:
+        assert sources.stick_to_speed(-1.0) == 0.0
+
+
+def test_lateral_stick_maps_onto_the_sidestep_band():
+    assert sources.stick_to_lateral(0.05) == 0.0
+    assert sources.stick_to_lateral(1.0) == pytest.approx(VY_MAX)
+    assert sources.stick_to_lateral(-1.0) == pytest.approx(-VY_MAX)
+    assert sources.stick_to_lateral(0.16) == pytest.approx(VY_MIN, abs=0.01)
+    assert sources.stick_to_lateral(-0.16) == pytest.approx(-VY_MIN, abs=0.01)
+
+
+def test_stick_maps_onto_a_given_band(monkeypatch):
+    """The mapping follows the generated band, whatever it is: a different
+    envelope (a prec-style 0.05-0.24 forward, -0.4..-0.15 backward) and a run
+    that never trained backward walks."""
+    for fwd, back in (((0.05, 0.24), (0.15, 0.4)), ((0.3, 1.0), (0.0, 0.0))):
+        monkeypatch.setattr(sources, "V_FWD_MIN", fwd[0])
+        monkeypatch.setattr(sources, "V_FWD_MAX", fwd[1])
+        monkeypatch.setattr(sources, "V_BACK_MIN", back[0])
+        monkeypatch.setattr(sources, "V_BACK_MAX", back[1])
+        assert sources.stick_to_speed(1.0) == pytest.approx(fwd[1])
+        assert sources.stick_to_speed(0.1) == 0.0
+        assert sources.stick_to_speed(-1.0) == pytest.approx(-back[1])
+        monkeypatch.setattr(sources, "VY_MIN", 0.1)
+        monkeypatch.setattr(sources, "VY_MAX", 0.25)
+        assert sources.stick_to_lateral(-1.0) == pytest.approx(-0.25)
+        if back[1] > 0:
+            assert sources.stick_to_speed(-0.16) == pytest.approx(-back[0],
+                                                                  abs=0.02)
 
 
 # -- scripts ---------------------------------------------------------------
 @pytest.mark.parametrize("name", sorted(sources.SCRIPTS))
 def test_every_script_stays_in_the_trained_envelope(name):
+    if name == "crouch1" and CROUCH_MIN >= 1.0:
+        pytest.skip("the deployed run was trained at crouch 1 only "
+                    "(cmd_crouch_range 1,1): the robot clamps this script's "
+                    "crouch to 1.0, so it is a no-op until a crouch-trained "
+                    "run is deployed")
     src = sources.ScriptSource(name)
     for i in range(400):                       # 20 s at 20 Hz
         out = src.poll(i * 0.05)
@@ -79,7 +123,7 @@ class FakePose:
 
 def test_goal_seeker_stays_inside_the_trained_envelope_everywhere():
     """The regression that actually bit: the first cut used k_yaw=1.5 and
-    sprinted at V_MAX, so it commanded pivots at wz=1.0 -- the exact edge of
+    sprinted at V_FWD_MAX, so it commanded pivots at wz=1.0 -- the exact edge of
     cmd_w_range -- and the robot fell over repeatedly instead of arriving.
     """
     pose = FakePose()
@@ -91,7 +135,7 @@ def test_goal_seeker_stays_inside_the_trained_envelope_everywhere():
                 src.goal = (gx, gy)
                 v, w, _, _ = src.poll(0.0)
                 assert abs(w) <= sources.W_GOAL_MAX + 1e-9
-                assert v == 0.0 or V_MIN_WALK - 1e-9 <= v <= sources.V_CRUISE
+                assert v == 0.0 or V_FWD_MIN - 1e-9 <= v <= sources.V_CRUISE
                 assert clamp_to_envelope(v, w) == (v, w)
 
 

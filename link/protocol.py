@@ -18,6 +18,9 @@ This module is pure -- no sockets, no clock. The robot-side half of it
 link/link_twin.py runs that exact code on a laptop, so the protocol is
 exercised end to end before any hardware is involved.
 """
+import importlib.util
+import os
+import re
 import struct
 from enum import Enum
 from typing import NamedTuple
@@ -139,18 +142,56 @@ RELAX_MS = 5000.0          # ... and for THIS long -> torque off entirely
 SEQ_RESYNC_GAP = 1000
 
 # -- trained command envelope ----------------------------------------------
-# These MUST track walker_env's cmd_v_range / cmd_w_range. The policy has
-# only ever seen a stand (0,0) or a walk in [V_MIN_WALK, V_MAX]: the band
-# (0, V_MIN_WALK) is a hole in the training distribution, so a lightly-pushed
-# stick asking for 0.15 m/s is an out-of-distribution query, not a slow walk.
+# The envelope is the deployed policy's, GENERATED from its run's config.json
+# by tools/gen_envelope.py (`make deploy RUN=...`) into link/cmd_envelope.py
+# and linkproto/cmd_envelope.h; never edited here. $BIMO_POLICY=<profile>
+# selects that profile's twin (firmware/policies/<profile>/linkproto/), as
+# for sim/sil/harness.py. The policy has only ever seen a stand (0,0), a walk
+# with vx in [V_FWD_MIN, V_FWD_MAX] or [-V_BACK_MAX, -V_BACK_MIN], a sidestep
+# with |vy| in [VY_MIN, VY_MAX], and turns |wz| <= W_MAX; a speed in the hole
+# under a band's minimum is an out-of-distribution query, not a slow walk.
 # clamp_to_envelope() closes that hole by snapping; see also sources.py.
-V_MIN_WALK = 0.3           # walker_env cmd_v_range[0]
-V_MAX = 1.0                # walker_env cmd_v_range[1]
-# extended-channel envelope, from the walker_env training draws:
-VY_MAX = 0.3               # lateral sway amplitude the sway scenarios use
-CROUCH_MIN = 0.6           # crouch_range[0] -- also the battguard ramp floor
+class Envelope(NamedTuple):
+    """Magnitudes, >= 0. A band that was never trained is (0, 0)."""
+    v_fwd_min: float
+    v_fwd_max: float
+    v_back_min: float
+    v_back_max: float
+    vy_min: float
+    vy_max: float
+    w_max: float
+    crouch_min: float
+
+
+def load_envelope(mod) -> "Envelope":
+    """An Envelope from a generated cmd_envelope module."""
+    return Envelope(*(getattr(mod, f.upper()) for f in Envelope._fields))
+
+
+def _import_envelope():
+    profile = os.environ.get("BIMO_POLICY") or None
+    if profile is None:
+        import cmd_envelope
+        return cmd_envelope
+    if not re.fullmatch(r"[a-z0-9_]+", profile):
+        raise ValueError("BIMO_POLICY %r: lower-case letters, digits, _" % profile)
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
+        __file__))), "firmware", "policies", profile, "linkproto",
+        "cmd_envelope.py")
+    spec = importlib.util.spec_from_file_location("cmd_envelope", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+ENVELOPE = load_envelope(_import_envelope())
+V_FWD_MIN, V_FWD_MAX = ENVELOPE.v_fwd_min, ENVELOPE.v_fwd_max
+V_BACK_MIN, V_BACK_MAX = ENVELOPE.v_back_min, ENVELOPE.v_back_max
+VY_MIN, VY_MAX = ENVELOPE.vy_min, ENVELOPE.vy_max
+W_MAX = ENVELOPE.w_max
+CROUCH_MIN = ENVELOPE.crouch_min
+# not from a run's config: the swing-foot offsets are scripted, not drawn
 FOOT_D_MAX = 0.05          # traj_radius hi: air-circle/march foot offsets, m
-W_MAX = 1.0                # walker_env cmd_w_range
 
 
 class ProtocolError(ValueError):
@@ -463,26 +504,36 @@ def _milli_u16(x: float) -> int:
     return max(0, min(65535, int(round(x * 1000.0))))
 
 
-def clamp_to_envelope(vx: float, wz: float) -> tuple:
+def _clamp_band(x: float, lo: float, hi: float) -> float:
+    """x in [lo, hi] (a magnitude band), below lo snapped to 0."""
+    return 0.0 if x < lo else min(x, hi)
+
+
+def clamp_to_envelope(vx: float, wz: float, env: "Envelope" = None) -> tuple:
     """Snap a raw command into the region the policy was actually trained on.
 
     Enforced robot-side (not just at the source) because the robot is the one
     that eats a bad command, and we do not control every future sender.
     """
-    wz = max(-W_MAX, min(W_MAX, wz))
-    if abs(vx) < V_MIN_WALK:
-        # The untrained band. Snap to a stand rather than interpolate into it;
-        # a turn-in-place (vx=0, wz!=0) IS trained, so wz survives.
-        return 0.0, wz
-    return max(-V_MAX, min(V_MAX, vx)), wz
+    env = ENVELOPE if env is None else env
+    wz = max(-env.w_max, min(env.w_max, wz))
+    # The untrained band under a minimum: snap to a stand rather than
+    # interpolate into it; a turn-in-place (vx=0, wz!=0) IS trained, so wz
+    # survives. Backward walks have a band of their own.
+    if vx >= 0.0:
+        return _clamp_band(vx, env.v_fwd_min, env.v_fwd_max), wz
+    back = _clamp_band(-vx, env.v_back_min, env.v_back_max)
+    return (-back if back else 0.0), wz
 
 
-def clamp_ext_to_envelope(pkt: "Command") -> tuple:
+def clamp_ext_to_envelope(pkt: "Command", env: "Envelope" = None) -> tuple:
     """The extended channels, snapped into their trained draws.
 
     Returns (vy, crouch, lift, foot_dx, foot_dz)."""
-    return (max(-VY_MAX, min(VY_MAX, pkt.vy)),
-            max(CROUCH_MIN, min(1.0, pkt.crouch)),
+    env = ENVELOPE if env is None else env
+    vy = _clamp_band(abs(pkt.vy), env.vy_min, env.vy_max)
+    return (-vy if pkt.vy < 0.0 and vy else vy,
+            max(env.crouch_min, min(1.0, pkt.crouch)),
             max(-1.0, min(1.0, pkt.lift)),
             max(-FOOT_D_MAX, min(FOOT_D_MAX, pkt.foot_dx)),
             max(-FOOT_D_MAX, min(FOOT_D_MAX, pkt.foot_dz)))

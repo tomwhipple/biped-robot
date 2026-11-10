@@ -119,14 +119,16 @@ make -C firmware/host tui       # build/bimo_tui
 make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + stb into third_party/)
 make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
 make -C firmware/host build/wcli_twin   # the Wi-Fi CLI's robot half on a localhost socket (tests/test_wcli.py)
-make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h (+ vectors) from one run
+make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h + cmd_envelope.h (+ vectors) from one run
 make -C firmware/host test POLICY=v6legs   # one policy profile's build (`test` alone runs every profile too)
 make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs   # into policies/v6legs/
 ```
 
-`obs_spec.h`, `weights.h`, the files in `host/vectors/` and everything under
+`obs_spec.h`, `weights.h`, `linkproto/cmd_envelope.h` (the command envelope
+the robot enforces; `link/cmd_envelope.py` is its Python twin), the files in
+`host/vectors/` and everything under
 `policies/` are generated (AGENTS.md lists the generators); never hand-edit
-them. The two deployed
+them. The deployed
 headers change only together, and only because somebody named the run to
 deploy.
 
@@ -163,7 +165,8 @@ firmware/
   components/
     scsbus/             Feetech SCS/STS protocol: codec, transactions, registers;
                         the guarded gain write and the gain check (gains.h)
-    linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux
+    linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux;
+                        cmd_envelope.h (generated): the trained command envelope
     obs/                obs assembler, history, gait clock, actuation maps, shaper;
                         bus_map.h (the 17-servo bus); obs_spec.h (generated)
     policy/             static MLP forward pass; weights.h (generated); q8.h/.cpp and
@@ -182,6 +185,8 @@ tools/
   gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
   gen_wcli_vectors.py       link/wcliproto.py -> host/vectors/wcli_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
+  gen_envelope.py           run config.json (+ env defaults) -> linkproto/cmd_envelope.h,
+                            link/cmd_envelope.py + cmd_envelope_vectors.h
   gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h (--quant int8:
                             GPTQ-rounded int8, policy_q8.py)
   policy_q8.py              numpy mirror of the int8 forward pass; offline GPTQ rounding
