@@ -136,9 +136,14 @@ def run(opts) -> int:
         last_note = ""
         buf = b""
         fd = sys.stdin.fileno()
+        ticked = False
         while not c.quit:
             now = core.now_ms()
-            while select.select([fd], [], [], 0)[0]:
+            # Commands wait for the first frame: the robot's ArmLatch takes a
+            # sender's first frame as its level, not an edge, so an `arm`
+            # typed during start-up (--drive's wait for a beacon) must not
+            # ride on it -- the adopted level goes out first.
+            while ticked and select.select([fd], [], [], 0)[0]:
                 chunk = os.read(fd, 4096)
                 if not chunk:
                     c.quit = True             # EOF: leave, disarming
@@ -150,6 +155,7 @@ def run(opts) -> int:
             if c.quit:
                 break
             st = c.tick(now)
+            ticked = True
             if c.core.note != last_note:
                 last_note = c.core.note
                 if last_note:
