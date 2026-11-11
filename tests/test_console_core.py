@@ -175,36 +175,86 @@ def test_reset_is_refused_while_a_stop_goes_out(robot, tmp_path):
     c.shutdown()
 
 
+class _Lines:
+    """A child's stdout, line by line, read on a thread so a test can wait for
+    a line (readiness, an outcome) instead of sleeping a guessed time."""
+
+    def __init__(self, proc):
+        import threading
+        self.proc, self.lines = proc, []
+        self._cv = threading.Condition()
+        self._t = threading.Thread(target=self._read, daemon=True)
+        self._t.start()
+
+    def _read(self):
+        for ln in self.proc.stdout:
+            with self._cv:
+                self.lines.append(ln.rstrip("\n"))
+                self._cv.notify_all()
+        with self._cv:
+            self.lines.append(None)       # EOF
+            self._cv.notify_all()
+
+    def wait(self, pred, timeout):
+        """The first line matching `pred` (within `timeout` s), else None."""
+        end = time.monotonic() + timeout
+        seen = 0
+        with self._cv:
+            while True:
+                for ln in self.lines[seen:]:
+                    if ln is not None and pred(ln):
+                        return ln
+                seen = len(self.lines)
+                left = end - time.monotonic()
+                if left <= 0 or (self.lines and self.lines[-1] is None):
+                    return None
+                self._cv.wait(left)
+
+    def text(self, join_timeout=5.0):
+        self._t.join(join_timeout)
+        return "\n".join(ln for ln in self.lines if ln is not None)
+
+
 def test_sigterm_leaves_a_headless_driver_disarmed(tmp_path):
     """A console killed politely (SIGTERM, Ctrl-C) leaves through `quit`:
     the robot is benched, not left standing with nobody driving."""
     import signal
     import subprocess
-    port = 4700 + (os.getpid() % 100) * 2
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     twin = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "link_twin.py"),
                              "--port", str(port), "--tlm-port", str(port + 1),
                              "--duration", "15"],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    time.sleep(0.4)
-    con = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
-                            "--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
-                            str(port + 1), "--drive", "--headless", "--no-record",
-                            "--sessions", str(tmp_path), "--keymap",
-                            str(tmp_path / "keys.conf")],
-                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True)
+    tw = _Lines(twin)
+    con = None
     try:
-        time.sleep(1.0)
+        assert tw.wait(lambda ln: "link_twin: listening" in ln, 5.0), tw.text(0)
+        con = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
+                                "--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                                str(port + 1), "--drive", "--headless", "--no-record",
+                                "--sessions", str(tmp_path), "--keymap",
+                                str(tmp_path / "keys.conf")],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True)
+        co = _Lines(con)
+        assert co.wait(lambda ln: "bimo_console --headless ->" in ln, 10.0), co.text(0)
         con.stdin.write("arm\n")
         con.stdin.flush()
-        time.sleep(1.5)
+        state = lambda ln: " vx " in ln and "torque" in ln      # noqa: E731
+        assert tw.wait(lambda ln: state(ln) and " live " in ln, 5.0), tw.text(0)
         con.send_signal(signal.SIGTERM)
-        out = con.communicate(timeout=10)[0]
+        con.wait(timeout=10)
+        # The disarm is in flight when the console exits: let the twin say so.
+        tw.wait(lambda ln: state(ln) and " bench " in ln and "torque off" in ln, 2.0)
     finally:
+        if con is not None and con.poll() is None:
+            con.kill()
         twin.terminate()
-        log = twin.communicate(timeout=5)[0]
+        twin.wait(timeout=5)
+    out, log = co.text(), tw.text()
     assert con.returncode == 0, out
     assert "sent disarm" in out, out
-    states = [ln for ln in log.splitlines() if " vx " in ln and "torque" in ln]
+    states = [ln for ln in log.splitlines() if state(ln)]
     assert any(" live " in ln for ln in states), log
     assert " bench " in states[-1] and "torque off" in states[-1], log
