@@ -9,6 +9,14 @@ manual: provisioning, what is refused over Wi-Fi, the threat model.
   wcli.py ping                       one command, print the reply, exit
   wcli.py 'pose ... s1500 BL' --linger 5     ... and keep printing async
                                      output (balance/pose verdicts) for 5 s
+  wcli.py home --wait 'home readback' --timeout 20
+                                     ... and keep reading until an output
+                                     line matches the regex (re.search), then
+                                     exit 0; no match in --timeout s: exit 4.
+                                     `home` replies as soon as the move
+                                     starts; its readback line comes ~8 s
+                                     later, and a command sent before that
+                                     interrupts the play take-up.
   wcli.py                            interactive: a line per command (stdin
   some_script | wcli.py              may be a pipe); async output as it comes
   wcli.py --keygen                   make ~/.config/bimo/wcli.key and print
@@ -28,7 +36,9 @@ tools/wcli_bridge.py is the drop-in replacement for the tether FIFO bridge.
 import argparse
 import os
 import queue
+import re
 import sys
+import time
 import threading
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
@@ -87,6 +97,11 @@ def main(argv=None) -> int:
     p.add_argument("--linger", type=float, default=0.0,
                    help="one-command mode: keep printing async output this "
                         "many seconds after the reply")
+    p.add_argument("--wait", metavar="REGEX",
+                   help="one-command mode: after the reply keep reading async "
+                        "output until a line matches REGEX; exit 4 if none "
+                        "does within --timeout seconds (the wait's own limit, "
+                        "default 30)")
     p.add_argument("--keygen", action="store_true")
     p.add_argument("--fingerprint", action="store_true")
     p.add_argument("command", nargs="*", help="one CLI line (quote it, or "
@@ -104,7 +119,27 @@ def main(argv=None) -> int:
         print(W.key_fingerprint(key))
         return 0
 
+    wait_re = None
+    if a.wait is not None:
+        if not a.command:
+            print("wcli: --wait needs a command to wait after", file=sys.stderr)
+            return 1
+        try:
+            wait_re = re.compile(a.wait)
+        except re.error as e:
+            print(f"wcli: bad --wait regex: {e}", file=sys.stderr)
+            return 1
+    seen = {"hit": False, "partial": ""}
+
+    def scan(text):
+        # Match per complete line, whatever the chunking of the datagrams.
+        buf = seen["partial"] + text.replace("\r\n", "\n").replace("\r", "")
+        *lines, seen["partial"] = buf.split("\n")
+        if wait_re and any(wait_re.search(ln) for ln in lines):
+            seen["hit"] = True
+
     def out(text):
+        scan(text)
         sys.stdout.write(text.replace("\r\n", "\n").replace("\r", ""))
         sys.stdout.flush()
 
@@ -127,9 +162,24 @@ def main(argv=None) -> int:
             return 4
         if r.status in NOTE:
             note(NOTE[r.status])
+        code = EXIT[r.status]
+        if wait_re is not None and code == 0:
+            end = time.monotonic() + a.timeout
+            try:
+                while not seen["hit"] and time.monotonic() < end:
+                    cli.idle(min(0.1, max(0.0, end - time.monotonic())))
+                    if seen["partial"] and wait_re.search(seen["partial"]):
+                        seen["hit"] = True      # unterminated last line
+            except W.LinkDown as e:
+                print(f"wcli: {e}", file=sys.stderr)
+                return 4
+            if not seen["hit"]:
+                note(f"WAIT TIMEOUT: no output line matched {a.wait!r} "
+                     f"within {a.timeout:g} s")
+                code = 4
         if a.linger > 0:
             cli.idle(a.linger)
-        return EXIT[r.status]
+        return code
 
     # Interactive / pipe: stdin on a thread, the network on this one, so async
     # output (a balance abort, a pose finishing) prints while you type.
