@@ -495,14 +495,21 @@ class Window(QtWidgets.QMainWindow):
         self._closed = True
         self.link_timer.stop()
         self.ui_timer.stop()
-        if self.pad is not None:
-            self.pad.close()
-        if hasattr(self.view, "close_streams"):
-            self.view.close_streams()
-        if self.flight is not None:
-            self.flight.close()
-        self.ctl.shutdown()
-        super().closeEvent(ev)
+        # The disarm first: nothing a gamepad, a stream or the flight store
+        # does on its way out may stand between the robot and its last frames.
+        try:
+            self.ctl.shutdown()
+        finally:
+            for name, fn in (("gamepad", getattr(self.pad, "close", None)),
+                             ("3D view", getattr(self.view, "close_streams", None)),
+                             ("flight records", getattr(self.flight, "close", None))):
+                if fn is None:
+                    continue
+                try:
+                    fn()
+                except Exception as e:  # noqa: BLE001 -- closing; say it, carry on
+                    print(f"close {name}: {e}", file=sys.stderr, flush=True)
+            super().closeEvent(ev)
 
 
 def run(opts) -> int:

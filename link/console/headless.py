@@ -127,43 +127,49 @@ def run(opts) -> int:
     else:
         print(f"bimo_console --headless -> {opts.host}:{opts.cmd_port} "
               f"(telemetry :{opts.tlm_port})", flush=True)
-    period = 1000.0 / opts.rate
-    t0 = core.now_ms()
-    nxt = next_status = t0
-    last_note = ""
-    buf = b""
-    fd = sys.stdin.fileno()
-    while not c.quit:
-        now = core.now_ms()
-        while select.select([fd], [], [], 0)[0]:
-            chunk = os.read(fd, 4096)
-            if not chunk:
-                c.quit = True             # EOF: leave, disarming
+    # Whatever ends the loop -- quit, EOF, a signal, an exception -- leaves
+    # through shutdown(): the driver's disarm frames go out first.
+    try:
+        period = 1000.0 / opts.rate
+        t0 = core.now_ms()
+        nxt = next_status = t0
+        last_note = ""
+        buf = b""
+        fd = sys.stdin.fileno()
+        while not c.quit:
+            now = core.now_ms()
+            while select.select([fd], [], [], 0)[0]:
+                chunk = os.read(fd, 4096)
+                if not chunk:
+                    c.quit = True             # EOF: leave, disarming
+                    break
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    command(c, line.decode(errors="replace"))
+            if c.quit:
                 break
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                command(c, line.decode(errors="replace"))
-        if c.quit:
-            break
-        st = c.tick(now)
-        if c.core.note != last_note:
-            last_note = c.core.note
-            if last_note:
-                print(f"note: {last_note}", flush=True)
-        if now >= next_status:
-            print(status_line(c, st, now, t0), flush=True)
-            next_status = now + 500.0
-        if opts.quit_after and now - t0 >= opts.quit_after * 1000.0:
-            c.quit = True
-        nxt += period
-        sleep = nxt - core.now_ms()
-        if sleep > 0:
-            time.sleep(sleep / 1000.0)
-        else:
-            nxt = core.now_ms()
-    if b is not None:
-        b.close()
-    c.shutdown()
-    log.close()
+            st = c.tick(now)
+            if c.core.note != last_note:
+                last_note = c.core.note
+                if last_note:
+                    print(f"note: {last_note}", flush=True)
+            if now >= next_status:
+                print(status_line(c, st, now, t0), flush=True)
+                next_status = now + 500.0
+            if opts.quit_after and now - t0 >= opts.quit_after * 1000.0:
+                c.quit = True
+            nxt += period
+            sleep = nxt - core.now_ms()
+            if sleep > 0:
+                time.sleep(sleep / 1000.0)
+            else:
+                nxt = core.now_ms()
+    finally:
+        try:
+            c.shutdown()
+        finally:
+            if b is not None:
+                b.close()
+            log.close()
     return 0

@@ -429,3 +429,35 @@ def test_sigterm_leaves_a_headless_driver_disarmed(tmp_path):
     states = [ln for ln in log.splitlines() if " vx " in ln and "torque" in ln]
     assert any(" live " in ln for ln in states), log
     assert " bench " in states[-1] and "torque off" in states[-1], log
+
+
+def test_headless_leaves_through_shutdown_even_on_an_exception(robot, tmp_path, monkeypatch):
+    """Whatever ends the headless loop, the driver's disarm frames go out."""
+    from console import headless
+    calls = []
+
+    class Boom(Controller):
+        def tick(self, now=None):
+            st = super().tick(now)
+            if st.armed:
+                raise RuntimeError("boom")
+            return st
+
+        def shutdown(self):
+            calls.append("shutdown")
+            super().shutdown()
+
+    monkeypatch.setattr(headless, "Controller", Boom)
+    monkeypatch.setattr(headless.signal, "signal", lambda *a: None)   # keep pytest's
+    r, w = os.pipe()
+    os.write(w, b"arm\n")
+    monkeypatch.setattr(sys, "stdin", os.fdopen(r))
+    o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(robot.getsockname()[1]),
+                       "--tlm-port", "0", "--no-record", "--sessions", str(tmp_path),
+                       "--keymap", str(tmp_path / "keys.conf"), "--drive", "--headless"])
+    with pytest.raises(RuntimeError, match="boom"):
+        headless.run(o)
+    os.close(w)
+    assert calls == ["shutdown"]
+    got = frames(robot)
+    assert len(got) >= 10 and all(not f.arm for f in got[-10:])
