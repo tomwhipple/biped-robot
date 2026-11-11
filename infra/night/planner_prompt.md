@@ -43,6 +43,35 @@ hold the work. These rules change how you plan:
    issue comment lists parsed recipes) and grade every student on the `march` probe. Size `--mimic-sway`
    from #260's robot measurement once it exists; until then keep testing the model's sizes as now.
 
+### Hardware session 2026-11-11 (record: experiments/policy/weight-transfer-gate/README.md Round 5; #288, PR #290) -- supersedes the 11-10 roll-spring item below
+
+- **The robot walks with the host-side stepper, not a policy.** `experiments/stepper/` on branch `hw/stepper` is quasi-static and
+  closes the loop on the IMU: shift over the stance foot, raise the other foot a few mm at a time, move it, lower it. It has taken 9
+  forward steps holding the board's centre line with front-camera feedback. A step takes ~14 s.
+- **The stance hip must trim against the sag, and the foot clears only beyond the trim.** Shorten one leg and the pelvis sags after
+  that foot. The stance hip roll has to be trimmed: ~11 deg on L stance (R foot up), 2-3 deg on R stance. With the trim the body comes
+  level and the foot clears. The R foot needs ~20-25 mm commanded and the L foot ~12-17 mm. Pelvis shift: ~1.26-1.32 x the model's
+  62 mm on L stance, ~1.05-1.1 x on R.
+- **Both feet land ~25 mm to the robot's right of the IK aim**, on either stance (front-camera track of 4 runs).
+- **The roll chain is per-side PLAY beyond the encoders, not a spring.** `stepper_replay.py` replays the robot's written goals in the
+  plant. Fit to the shift / play sweeps, it gives L hip 6, R hip 8, L ankle 3, R ankle 0 deg peak to peak (hip upper end not pinned).
+  The training flag is `--roll-play-deg L_hip=4:10,R_hip=6:10,L_ankle=2:3,R_ankle=0:2` with no `--roll-lash-deg`, on main.
+  - Held-out walks, roll RMS: grade 4.4 deg, the 4/5 play 4.2, the per-side play 2.5.
+  - The roll spring (`--roll-series-k`) gets the single-support trim response too soft, so new arms use the play and not the spring.
+  - The play does NOT explain three things: the level body on L stance under ~11 deg of trim (still ~4.6 deg off); the
+    double-support lean (the robot rolls 0.03-0.05 deg per mm of pelvis shift, away from the shift; every plant at most 0.02); and 2
+    of the robot's 3 falls.
+- **Any plant change is checked with the stepper replay**
+  (`experiments/policy/weight-transfer-gate/stepper_replay.py run --ref crouch --plants ...`); its tables are in the gate README.
+- **Grade tonight's arms on the refitted plant**: grade.py as is AND with
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on. Judge a march by
+  whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
+- **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
+  4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2
+  + mimic-march 0.05, swing-height 0.035) and P4 prec71_mir_pp (P1 + mirror loss).
+- **The owner's direction:** hardware iteration leads and training follows it. Results by 08:00. Fall recovery lives in firmware:
+  the pick-up autohome fires at 25 deg, 1 rad/s, 1 s (PR #287).
+
 ### Hardware session 2026-11-10 (record: experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md; #271, #277, #259)
 
 What the robot showed, and what follows for your plans:
