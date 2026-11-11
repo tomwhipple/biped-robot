@@ -113,19 +113,21 @@ class DriveTab(QtWidgets.QWidget):
         self.c_vbat = self.p_vbat.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_tilt = self.p_tilt.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_vx = self.p_vx.plot(pen=pg.mkPen(CYAN, width=1.8, style=QtCore.Qt.PenStyle.DashLine))
-        self.c_vx_est = self.p_vx.plot(pen=pg.mkPen(BRIGHT, width=1.4))
         charts = QtWidgets.QGridLayout()
         charts.setVerticalSpacing(2)
         self.v_vbat, self.v_tilt, self.v_vx = (lab("", BRIGHT, 14, True, True) for _ in range(3))
         for i, (name, val, plot) in enumerate((("vbat", self.v_vbat, self.p_vbat),
                                                ("tilt°", self.v_tilt, self.p_tilt),
-                                               ("vx", self.v_vx, self.p_vx))):
+                                               ("vx sent", self.v_vx, self.p_vx))):
             charts.addWidget(lab(name, DIM, mono=True), i, 0)
             charts.addWidget(plot, i, 1)
             charts.addWidget(val, i, 2)
+        # The robot does not estimate its speed: the beacon's vx_est is always
+        # 0 (firmware/README.md), so the vx chart is what was sent.
         caption = lab("host receive time, last 30 s · tilt from the up vector; dashed "
                       "amber = the 10° abort line (first-policy-stand §5) · vx: dashed "
-                      "cyan = sent (driver only), white = the robot's estimate", DIM, 11)
+                      "cyan = sent (driver only); the robot's speed is not estimated "
+                      "(vx_est is 0)", DIM, 11)
         caption.setWordWrap(True)
         charts.addWidget(caption, 3, 1)
         charts.setColumnStretch(1, 1)
@@ -187,13 +189,13 @@ class DriveTab(QtWidgets.QWidget):
             tilt = h.column("tilt")[m]
             self.c_tilt.setData(t, tilt)
             self.v_tilt.setText(f"{tilt[-1]:4.1f}°" if len(tilt) else "")
-            vx_est = h.column("vx_est")[m]
-            self.c_vx_est.setData(t, vx_est)
             if st.readonly:
                 self.c_vx.setData([], [])
+                self.v_vx.setText("  —  ")
             else:
-                self.c_vx.setData(t, h.column("vx_cmd")[m])
-            self.v_vx.setText(f"{vx_est[-1]:+.2f}" if len(vx_est) else "")
+                vx = h.column("vx_cmd")[m]
+                self.c_vx.setData(t, vx)
+                self.v_vx.setText(f"{vx[-1]:+.2f} m/s" if len(vx) else "")
 
 
 class History:
