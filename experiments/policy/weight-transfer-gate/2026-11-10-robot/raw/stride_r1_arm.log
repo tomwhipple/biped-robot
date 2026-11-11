@@ -1,0 +1,31 @@
+== host clock utc=1794356975.095 (2026-11-11T00:29:35Z) ntp=synced
+== pre-arm: ARM=0 frames (establish latch level) (0.5 s)
+t=  0.11 cmd vx=+0.00 wz=+0.00 flags=0x00  tlm: none yet
+t=  0.16 utc=1794356975.146 robot=1794356975.072 cmd vx=+0.00 wz=+0.00 flags=0x00 | bench vbat= 0.0V up_z=+0.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=66  <-- state change
+        robot says: disarmed -- servos reset to the standing pose (hips rolled out/back for play) and torque RELEASED; arm to walk
+== settle: ARM stand frames (3 s)
+t=  0.71 utc=1794356975.696 robot=1794356975.620 cmd vx=+0.00 wz=+0.00 flags=0x04 | bench vbat= 0.0V up_z=+0.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=66
+t=  1.01 utc=1794356975.996 robot=1794356975.921 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14079948  <-- state change
+t=  1.51 utc=1794356976.496 robot=1794356976.421 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14079958
+t=  2.06 utc=1794356977.046 robot=1794356976.875 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14079967
+t=  2.61 utc=1794356977.596 robot=1794356977.474 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14079979
+t=  3.11 utc=1794356978.096 robot=1794356978.019 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14079990
+== script stride1_02s (5 s)
+t=  3.66 utc=1794356978.646 robot=1794356978.520 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080000
+t=  4.16 utc=1794356979.146 robot=1794356979.022 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080010
+t=  4.71 utc=1794356979.696 robot=1794356979.620 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080022
+t=  5.21 utc=1794356980.196 robot=1794356980.120 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080032
+t=  5.71 utc=1794356980.696 robot=1794356980.620 cmd vx=+0.20 wz=+0.00 flags=0x05 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080042
+t=  6.26 utc=1794356981.246 robot=1794356981.073 cmd vx=+0.20 wz=+0.00 flags=0x05 | live  vbat=11.3V up_z=+0.98 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080051
+t=  6.76 utc=1794356981.746 robot=1794356981.619 cmd vx=+0.20 wz=+0.00 flags=0x05 | live  vbat=11.3V up_z=+0.99 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080062
+t=  7.26 utc=1794356982.246 robot=1794356982.119 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.3V up_z=+0.99 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080072
+t=  7.81 utc=1794356982.796 robot=1794356982.720 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080084
+t=  8.31 utc=1794356983.296 robot=1794356983.219 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080094
+== tail: ARM stand frames (0.5 s)
+t=  8.81 utc=1794356983.796 robot=1794356983.721 cmd vx=+0.00 wz=+0.00 flags=0x04 | live  vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=14080104
+== disarm: ARM=0 frames (1 s)
+t=  9.21 utc=1794356984.196 robot=1794356984.120 cmd vx=+0.00 wz=+0.00 flags=0x00 | bench vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=18  <-- state change
+        robot says: disarmed on request -- press arm to run
+t=  9.71 utc=1794356984.696 robot=1794356984.619 cmd vx=+0.00 wz=+0.00 flags=0x00 | bench vbat=11.4V up_z=+1.00 vx_est=+0.00 wz_est=+0.00 err=0x00 late=0% echo=18
+== done: 200 frames sent, 99 telemetry received; states: [(0.16, 'bench'), (1.01, 'live'), (9.21, 'bench')]
+== benched: disarmed on request -- press arm to run

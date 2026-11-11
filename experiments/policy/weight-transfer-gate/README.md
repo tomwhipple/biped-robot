@@ -307,3 +307,13 @@ passed check 1 or 2, so this changes which plant grade.py ranks on only if the p
   pose (grade.py's), not the robot's 5 s of armed stand.
 - `grade.py`'s weight-transfer ranking still runs on the `grade` plant. Neither plant passed, so
   the "done when" clause about ranking on the plant that passed is not met.
+
+## Robot measurements, 2026-11-10 (#271)
+
+A hardware session measured what the list above asked for:
+[2026-11-10-robot/README.md](2026-11-10-robot/README.md). The robot weighs 1621 g with its pack and stands
+laterally even; with both feet down its foot load follows the commanded shift linearly (close to `grade`, not
+to `train`); an exact repeat of the 11-09 stride shows the right foot leaving the floor tilted from +0.42 s,
+with the torso tipping 14 deg before the yaw spike; and the clamp test now gives 9.4 deg of torso tilt at a
+30 mm lift on both sides (10-24: 5.0 to 5.2), about 7 deg of it beyond the encoders. The plants give 2.3 deg
+(`grade`) and 4.2 to 5.0 deg (`train`) on that test. Still unmeasured: the mass split and a foot height in mm.
