@@ -40,6 +40,14 @@ until the firmware has homed the robot (picked up: within 25 deg of upright, |gy
 Every guard_every steps the eight load-bearing servos are read (`servos` rows); a servo over temp_max_c or a bus
 under volt_min ends the run cleanly. The log's `start` and `lift` rows carry utc (wall clock).
 
+    stepper.py walk --dx 0 --dyaw 7.5   turn on the spot: 7.5 deg per step pair to the robot's left (- = right); the soles
+                                        are placed turned by their share (dyaw/2), the pelvis heading follows in the next
+                                        shift, the IMU heading (fused yaw less drift) corrects the next swing by yaw_gain
+                                        of its error; --board ends a run whose heading passes yaw_board_max (25 deg),
+                                        the lateral loop being in board coordinates and the board no longer square
+The link: a dropped command is retried after a reconnect (link_retries); if the stand-down cannot be sent even on
+a fresh connection the run says the robot is left with torque on in its last pose.
+
 With --board the look is the median of 3 camera frames (low-confidence ones dropped), on ONE scale for the
 run: the board is board_w_mm (450) wide and a sole's position is its fraction across it. The first look fixes
 each sole's lateral target on the board (the starting stance about the starting line; --board-centre steers
@@ -79,7 +87,7 @@ DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
     k_step=0.1, k_min=0.8, k_max=1.4, k_floor=1.0,
-    shift_step=0.02,      # the pelvis crosses in moves of this size, IMU read between, m
+    shift_step=0.03,      # the pelvis crosses in moves of this size, IMU read between, m
     shift_out_lim=2.5,    # shifting over a stance foot: a lean TOWARD it this far (deg, from the start of the shift) = tipping out
     shift_back_mm=20.0,   # ... then the pelvis steps back toward the middle by this much, mm, and k_shift of that side drops a step
     shift_lean_lim=8.0,   # a lean past this (deg) during a shift ends the run
@@ -99,6 +107,13 @@ DEFAULTS = dict(
     fall_deg=35.0,
     t_crouch=2.5, t_shift=2.5, t_inc=0.35, t_swing=1.0, t_lower=0.3,
     lower_step=0.01, settle_s=0.4,
+    t_verdict=0.3,        # a foot-up verdict waits at least this long after the last move, s (not scaled by --pace)
+    pose_margin=0.06,     # wait this long after a pose's own time before the next command, s
+    link_retries=3,       # a dropped link: reconnect and resend this many times
+    yaw_gain=0.5,         # share of the heading error (commanded - measured, deg) added to the next swing's yaw
+    yaw_dead=0.5,         # ... below this error (deg) nothing is added
+    yaw_step_max=8.0,     # most one swing foot is turned, deg
+    yaw_board_max=25.0,   # --board: the run ends if the heading passes this, deg (the lateral loop assumes a square board)
     t_bal=0.25,           # the balance move in the air, s
     t_min=0.25,           # shortest monitored pelvis move / fast lower, s
     t_sweep=0.25,         # one step of a data sweep, s
@@ -154,8 +169,8 @@ class Abort(RuntimeError):
 
 class Run:
     def __init__(self, name, robot, kin, prm, video=False, quiet=False, board=False, log_dir=None):
-        from robot_io import Fallen
-        self.Fallen = Fallen
+        from robot_io import Fallen, LinkDown
+        self.Fallen, self.LinkDown = Fallen, LinkDown
         self.r, self.k, self.p, self.quiet = robot, kin, prm, quiet
         d = log_dir or os.path.join("/home/claw/code/robot", "hw_sessions", time.strftime("%Y-%m-%d"), "stepper")   # the main checkout
         os.makedirs(d, exist_ok=True)
@@ -177,6 +192,18 @@ class Run:
         self.ref = None                                               # after the last shift
         self.tilt_s = 0.0                                             # its lean toward the swing foot then
         self.fell = False
+        self.psi_ref = 0.0                    # rad: the frame the bookkeeping below is in (body-aligned, + = CCW)
+        self.psi_p = 0.0                      # rad: the pelvis heading now
+        self.yawf = {"L": 0.0, "R": 0.0}      # rad: the soles' world yaws (relative to that same zero)
+        self.corr = {"L": 0.0, "R": 0.0}      # deg of each sole's yaw that are heading corrections, not the commanded turn
+        self.corr_p = 0.0                     # ... and of the pelvis heading
+        self.yaw_hist = []                    # (t, fused yaw deg) of recent IMU reads
+        self.last_imu = None
+        self.dyaw = 0.0                       # deg per step pair asked for by walk/shuttle
+        self.look_after = False               # take the board look right after a landing (in place of a settle wait)
+        self.cached_look = None
+        self.has_cached = False
+        self.last_tag = None
         self.video = []
         self.board = board
         self.latest = self.base + "_latest.jpg"                       # the newest front-camera frame (board mode)
@@ -202,6 +229,8 @@ class Run:
                 self.video.append(subprocess.Popen(["tools/sony_record.sh", self.base + "_sony", str(video), "sony"],
                                                    cwd="/home/claw/code/robot", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             time.sleep(2.5)
+        if hasattr(robot, "on_link"):
+            robot.on_link = self.link_event
         self.log("start", prm=prm, cal=robot.cal, off=self.off, utc=time.time(), pace=prm.get("pace", 1.0))
 
     # -- records ----------------------------------------------------------
@@ -227,32 +256,69 @@ class Run:
         try:
             q = self.k.pose(shift=self.pel[1], fwd=self.pel[0], footL=self.cmd("L"), footR=self.cmd("R"),
                             drop=self.p["drop"], hike={k: math.radians(v) for k, v in self.hike.items()},
-                            ankle={k: math.radians(v) for k, v in self.ankle.items()})
+                            ankle={k: math.radians(v) for k, v in self.ankle.items()},
+                            ref=self.psi_ref, heading=self.psi_p, yawL=self.yawf["L"], yawR=self.yawf["R"])
         except ValueError as e:
             raise Abort(f"{tag}: {e}")
-        self.r.pose(q, ms)
+        self.last_tag = tag
+        self.r.pose(q, ms, margin=self.p["pose_margin"])
         self.log("pose", tag=tag, ms=ms, pel=list(self.pel), hike=dict(self.hike), feet=json.loads(json.dumps(self.feet)))
 
     def read(self, tag=""):
-        """Two IMU reads. One wild sample between two that agree is a torn read; a large angle that is
-        still there on the next read is a fall."""
+        """One IMU read. A read that jumps from the last accepted one (or is large) may be torn: only then a
+        second (and third) is taken, as before: one wild sample between two that agree is a torn read, a large
+        angle that is still there on the next read is a fall."""
         lim = self.p["fall_deg"]
-        a = self.r.imu(); b = self.r.imu()
-        for _ in range(2):
-            if abs(b["roll"] - a["roll"]) < 12 and abs(b["pitch"] - a["pitch"]) < 12:
-                break
-            self.log("imu_jump", a=[a["roll"], a["pitch"]], b=[b["roll"], b["pitch"]])
-            a = b; b = self.r.imu()
+        b = self.r.imu()
+        last = self.last_imu
+        if (last is None or abs(b["roll"] - last["roll"]) >= 12 or abs(b["pitch"] - last["pitch"]) >= 12
+                or abs(b["roll"]) > 0.5 * lim or abs(b["pitch"]) > 0.5 * lim):
+            a = b
+            b = self.r.imu()
+            for _ in range(2):
+                if abs(b["roll"] - a["roll"]) < 12 and abs(b["pitch"] - a["pitch"]) < 12:
+                    break
+                self.log("imu_jump", a=[a["roll"], a["pitch"]], b=[b["roll"], b["pitch"]])
+                a = b; b = self.r.imu()
         if abs(b["roll"]) > lim or abs(b["pitch"]) > lim:
             c = self.r.imu()
             self.log("imu_big", b=[b["roll"], b["pitch"]], c=[c["roll"], c["pitch"]])
             if abs(c["roll"]) > lim or abs(c["pitch"]) > lim or self.r.fallen():
                 raise self.Fallen(f"IMU roll {c['roll']:+.0f} pitch {c['pitch']:+.0f} at {tag!r}")
-            a, b = b, c
+            b = c
+        self.last_imu = b
         b["rate"] = math.degrees(math.hypot(b["gyro"][0], b["gyro"][1]))      # horizontal gyro, deg/s
+        if b.get("yaw") is not None:
+            self.yaw_hist = (self.yaw_hist + [(b["t"], b["yaw"])])[-80:]
         self.log("imu", tag=tag, roll=round(b["roll"], 2), pitch=round(b["pitch"], 2), rate=round(b["rate"], 1),
                  gyro=[round(x, 3) for x in b["gyro"]])
         return b
+
+    # -- heading ------------------------------------------------------------
+    def heading_now(self):
+        """The measured heading (deg, + = CCW, zero at the start), from the latest read; None if the robot has no
+        heading (no quaternion) or it has not been started."""
+        if not self.yaw_hist or not hasattr(self.r, "heading"):
+            return None
+        t, y = self.yaw_hist[-1]
+        return self.r.heading(y, t)
+
+    def heading_calibrate(self, n=32):
+        """Standing still at the start (n reads, about 3 s): the heading is zero here and the yaw drift is the
+        slope of the fused yaw over the window."""
+        if not hasattr(self.r, "heading_start"):
+            return
+        self.yaw_hist = []
+        for _ in range(n):
+            self.read("heading still")
+        if len(self.yaw_hist) >= 4:
+            self.r.heading_start(list(self.yaw_hist))
+            self.log("heading_start", rate=round(self.r.yaw_rate, 3), n=len(self.yaw_hist))
+            self.say(f"  heading zeroed, yaw drift {self.r.yaw_rate:+.2f} deg/s")
+
+    def link_event(self, d):
+        self.log("link", **{("what" if k == "ev" else k): v for k, v in d.items()})
+        print(f"-- link: {d}", flush=True)
 
     def settle(self, tag, tmax=2.5):
         t = time.monotonic()
@@ -278,6 +344,7 @@ class Run:
         time.sleep(self.p["settle_s"])
         s = self.ref0 = self.settle("crouch")
         self.say(f"crouch  roll {s['roll']:+.2f} pitch {s['pitch']:+.2f}  (the level reference)")
+        self.heading_calibrate()
         return s
 
     def stance_pel(self, stance):
@@ -287,7 +354,7 @@ class Run:
         fwd = P["fwd_w"] * self.feet[stance][0] + (1 - P["fwd_w"]) * self.feet[swing][0] + ox
         return [fwd, self.fy(stance) + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
 
-    def move_pel(self, to, tag, guard=None):
+    def move_pel(self, to, tag, guard=None, heading_to=None):
         """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down.
         guard=(stance, roll0): a shift over `stance`; with both feet down the body normally leans AWAY from the
         side the pelvis goes to, so a lean toward it (roll relative to roll0) past shift_out_lim is the stance
@@ -295,6 +362,7 @@ class Run:
         and the move ends there (self.shift_tipped)."""
         P = self.p
         a, k0 = list(self.pel), dict(self.hike)
+        h0 = self.psi_p
         dist = math.hypot(to[0] - a[0], to[1] - a[1])
         n = max(1, math.ceil(dist / P["shift_step"]), math.ceil(max(k0.values()) / 3.0))
         ms = int(1e3 * max(P["t_min"], P["t_shift"] * (dist / n) / 0.08))
@@ -303,6 +371,8 @@ class Run:
             u = i / n
             self.pel = [a[0] + u * (to[0] - a[0]), a[1] + u * (to[1] - a[1])]
             self.hike = {k: v * (1 - u) for k, v in k0.items()}
+            if heading_to is not None:
+                self.psi_p = h0 + u * (heading_to - h0)               # the pelvis turns with the shift
             self.go(ms, f"{tag} {i}/{n}")
             s = self.read(tag)
             dr, dp = self.lean(s)
@@ -315,6 +385,16 @@ class Run:
                 self.say(f"  leaning in {tag}: roll {dr:+.1f} pitch {dp:+.1f} at shift {1e3 * self.pel[1]:+.0f} mm")
                 raise Abort(f"lean {dr:+.1f}/{dp:+.1f} deg during {tag}")
         return s
+
+    def rebase(self, d):
+        """The body-aligned frame turns by d (rad): the feet and the pelvis keep their places in the world, so their
+        coordinates in it rotate by -d. A change of coordinates: no pose changes (the world position is
+        R(psi_ref) * coordinates; the pelvis heading psi_p is not touched)."""
+        c, s_ = math.cos(d), math.sin(d)
+        for v in (self.feet["L"], self.feet["R"], self.pel):
+            v[0], v[1] = c * v[0] + s_ * v[1], -s_ * v[0] + c * v[1]
+        self.psi_ref += d
+        self.log("rebase", d_deg=round(math.degrees(d), 2), psi_ref=round(math.degrees(self.psi_ref), 2))
 
     def shift_back(self, stance, toward):
         """The shift over `stance` is tipping outward: one quick move back toward the middle, k_shift down a step."""
@@ -332,10 +412,15 @@ class Run:
         self.say(f"  shift over {stance} tipping out ({toward:+.1f} deg toward it): back to {1e3 * self.pel[1]:+.0f} mm, k now x{P['k_shift'][stance]:.2f}")
 
     def shift_over(self, stance):
+        d = self.yawf[stance] - self.psi_ref
+        if abs(d) > 1e-9:
+            self.rebase(d)                                   # the new frame: the one this stance foot's yaw defines
         to = self.stance_pel(stance)
         roll0 = self.lean(self.read(f"shift {stance} start"))[0]
         self.shift_tipped = False
-        self.move_pel(to, f"shift {stance}", guard=(stance, roll0))
+        self.move_pel(to, f"shift {stance}", guard=(stance, roll0), heading_to=self.yawf[stance])
+        self.psi_p = self.yawf[stance]
+        self.corr_p = self.corr[stance]
         time.sleep(self.p["settle_s"])
         s = self.ref = self.settle(f"over {stance}")
         dr, dp = self.lean(s)
@@ -379,6 +464,8 @@ class Run:
             if clr.p >= P["p_clear"]:
                 self.hike[stance] = hike
                 self.go(int(1e3 * P["t_inc"]), f"level {swing}")
+                time.sleep(P["t_verdict"])                          # the verdict is read on a body that has stopped moving
+                self.settle(f"verdict {swing}", tmax=1.0)
                 self.k_off = abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])    # the shift at lift-off
                 self.n_push0 = self.n_push
                 return self.balance(swing, P["t_confirm"]), h     # up for a moment is not up: it must stay
@@ -440,8 +527,7 @@ class Run:
             self.feet[swing][2] = h0 * (1 - i / n)
             self.go(int(1e3 * (P["t_min"] if fast else P["t_lower"])), f"lower {swing} {1e3 * self.feet[swing][2]:.0f}")
             self.read(f"lower {swing}")
-        time.sleep(P["settle_s"])
-        s = self.settle(f"down {swing}")
+        s = self.last_imu                                    # the last lowering read: nothing needs a settle here
         dr, dp = self.lean(s)
         self.say(f"  down {swing}  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
@@ -458,7 +544,7 @@ class Run:
         P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], new)), 3)
         return P["k_shift"][stance]
 
-    def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None):
+    def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None, yaw_to=None, corr_to=None):
         """One self-correcting lift of `swing` (and, while it is up, a forward move of dx m and, if y_to is
         not None, a move to the absolute lateral offset y_to m: +y = the robot's left). air: a callable run once
         with the foot up and judged up; it returns "up" or a tipping verdict (then the foot goes down and the
@@ -474,7 +560,11 @@ class Run:
                 dy = 0.0 if y_to is None else y_to - self.fy(swing)
                 if y_to is not None:
                     self.feet[swing][1] = y_to
-                if dx or abs(dy) > 1e-9:
+                dyaw = 0.0 if yaw_to is None else yaw_to - self.yawf[swing]
+                if yaw_to is not None:
+                    self.yawf[swing] = yaw_to
+                    self.corr[swing] = corr_to if corr_to is not None else self.corr[swing]
+                if dx or abs(dy) > 1e-9 or abs(dyaw) > 1e-9:
                     self.feet[swing][0] += dx
                     self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
                 how = self.balance(swing, hold)
@@ -492,6 +582,8 @@ class Run:
                 P["hike"][stance] = round((1 - a) * P["hike"][stance] + a * hike, 2)
                 self.learn_k(stance, k, pushed=self.n_push > getattr(self, "n_push0", 0))
                 self.lower_foot(swing)
+                if self.look_after:                                  # the board look in the time a settle would have taken
+                    self.cached_look, self.has_cached = self.look(f"after {swing}"), True
                 return how, h
             # not up: put it down and correct the shift for this stance side
             self.lower_foot(swing, fast=(how == "tipping_out"))
@@ -723,8 +815,29 @@ class Run:
                 return "stop", None
         self.n_steps += 1
         self.fresh = False
+        # heading: the pelvis was commanded to psi_p; the IMU says where it is. The swing foot's yaw is this step's
+        # share of the turn plus yaw_gain of the difference (a slip is taken out step by step, a drift never builds)
+        share = self.dyaw / 2.0
+        h = None
+        if hasattr(self.r, "heading") and self.yaw_hist:
+            self.read("heading")
+            h = self.heading_now()
+        yaw_step = share
+        if h is not None:
+            err = math.degrees(self.psi_p) - self.corr_p - h          # the commanded turn so far less what is measured
+            if abs(err) > P["yaw_dead"]:
+                yaw_step += P["yaw_gain"] * err
+            self.log("heading", deg=round(h, 2), cmd=round(math.degrees(self.psi_p), 2), err=round(err, 2), yaw_step=round(yaw_step, 2))
+            if board and abs(h) > P["yaw_board_max"]:
+                self.halt(f"the heading is {h:+.0f} deg: the board loop assumes the robot square to the board", "board_stop")
+                return "stop", None
+        yaw_step = max(-P["yaw_step_max"], min(P["yaw_step_max"], yaw_step))
+        corr_step = yaw_step - share
         if board:
-            m = self.look(f"step {self.n_steps - 1}")
+            if self.has_cached:                                  # taken right after the last landing
+                m, self.has_cached, self.cached_look = self.cached_look, False, None
+            else:
+                m = self.look(f"step {self.n_steps - 1}")
             self.misses = 0 if m else self.misses + 1
             if m is None:
                 if self.misses >= 2:
@@ -750,12 +863,13 @@ class Run:
                 if (d > 0 and side == "L") or (d < 0 and side == "R"):
                     step_out += d
             y_to = self.place(side, self.feet[stance][1] + step_out + self.p["comp"][side], dx)
-        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to)
+        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to, yaw_to=self.yawf[stance] + math.radians(yaw_step),
+                                      corr_to=self.corr[stance] + corr_step)
         if res[1] == "gave_up" or res[1] != "up":
             self.t_land[side] = None                                 # it did not land anew
         return ("gave_up" if res[1] == "gave_up" else "ok"), res
 
-    def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
+    def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False, dyaw=0.0):
         """The step loop of `walk` and `march`. Returns the list of (side, how, h). dx < 0 walks backward.
         dy: sidestep m per pair (+ left). board: look before every step, learn where the last foot really
         landed, stop at the edge, steer toward the middle. The swing foot is aimed at the stance foot's
@@ -764,6 +878,7 @@ class Run:
         separation instead. self.stop_why says why a run ended early."""
         out = self.out = []                              # kept for the caller if a fall cuts the loop short
         self.stop_why, self.misses = None, 0
+        self.dyaw, self.look_after, self.cached_look, self.has_cached = dyaw, board, None, False
         for i in range(steps):
             st, res = self._step(side, 0.0 if march else dx * (1 if i == 0 else 2), dy,
                                  hold if march else 0.2, march, board, forward=dx >= 0)
@@ -777,7 +892,7 @@ class Run:
             side = "R" if side == "L" else "L"
         return out
 
-    def shuttle(self, side="L", steps=4, cycles=1, dx=0.02, dy=0.0, hold=0.2, board=False, dx_list=None):
+    def shuttle(self, side="L", steps=4, cycles=1, dx=0.02, dy=0.0, hold=0.2, board=False, dx_list=None, dyaw=0.0):
         """`steps` steps forward, then back the way it came, `cycles` times, in one run. A leg's first and last
         steps are half strides (dx, the others 2 dx), so the feet end level; the return leg undoes the forward
         steps in reverse order, so the feet end where they began (in belief). dx_list: cycle k uses
@@ -785,10 +900,12 @@ class Run:
         a split stance); an edge or a servo ends the run."""
         out = self.out = []
         self.stop_why, self.misses = None, 0
+        self.dyaw, self.look_after, self.cached_look, self.has_cached = dyaw, board, None, False
         side0 = side
         for c in range(cycles):
             d = dx_list[c % len(dx_list)] if dx_list else dx
             side, hist = side0, []
+            self.dyaw = dyaw
             for i in range(steps):
                 x0 = self.feet[side][0]
                 st, res = self._step(side, d * (1 if i in (0, steps - 1) else 2), dy, 0.2, False, board, forward=d >= 0)
@@ -802,6 +919,7 @@ class Run:
                 out.append(res)
                 hist.append((side, x0))
                 side = "R" if side == "L" else "L"
+            self.dyaw = -dyaw                                    # back the way it came: the turn is undone too
             for sd, x0 in reversed(hist):
                 st, res = self._step(sd, x0 - self.feet[sd][0], dy, 0.2, False, board, forward=d < 0)
                 if st == "ahead":                        # backward legs of a negative dx walk forward
@@ -897,25 +1015,50 @@ class Run:
 
     def centre(self):
         mid = [0.5 * (self.feet["L"][0] + self.feet["R"][0]), 0.5 * (self.fy("L") + self.fy("R"))]
-        return self.move_pel(mid, "centre")
+        h = 0.5 * (self.yawf["L"] + self.yawf["R"])                  # square to the soles: their mean yaw
+        s = self.move_pel(mid, "centre", heading_to=h)
+        self.psi_p = h
+        return s
 
-    def finish(self, save=True):
-        try:
-            if not self.fell:
+    def stand_down(self):
+        """Centre, stand the robot up and let go. A dropped link is retried by the robot (Robot.cmd); if it still
+        fails, once more on a fresh connection; if even that fails, say plainly what state the robot is in."""
+        for attempt in range(2):
+            try:
+                if attempt:
+                    self.r.fresh()
+                    self.log("link", what="fresh_connection", attempt=attempt)
                 try:
                     self.feet["L"][2] = self.feet["R"][2] = 0.0
                     self.centre()
-                    split = max(abs(self.feet["L"][0] - self.feet["R"][0]), abs(self.fy("L") - self.fy("R"))) > 1e-3   # straight legs cannot span a stride or a width change
+                    turned = any(abs(v) > 1e-9 for v in (self.psi_p, self.yawf["L"], self.yawf["R"]))
+                    split = turned or max(abs(self.feet["L"][0] - self.feet["R"][0]), abs(self.fy("L") - self.fy("R"))) > 1e-3   # straight legs cannot span a stride, a width change or a turn
                     self.r.pose(self.k.pose(straight=not split, drop=0.008 if split else None, fwd=self.pel[0], shift=self.pel[1],
                                             footL=(self.feet["L"][0], self.fy("L"), 0),
-                                            footR=(self.feet["R"][0], self.fy("R"), 0)), 2500)
+                                            footR=(self.feet["R"][0], self.fy("R"), 0),
+                                            ref=self.psi_ref, heading=self.psi_p, yawL=self.yawf["L"], yawR=self.yawf["R"]), 2500)
                     time.sleep(0.5)
-                except self.Fallen as e:
-                    self.fallen(e)
                 except Abort as e:
                     self.log("error", err=repr(e)); print("!! ", repr(e), flush=True)
                 if not self.fell:
                     self.r.release()
+                return True
+            except self.Fallen as e:
+                self.fallen(e)
+                return False
+            except self.LinkDown as e:
+                self.log("link", what="stand_down_failed", attempt=attempt, err=str(e))
+                print(f"!! link down while standing the robot down (attempt {attempt + 1}/2): {e}", flush=True)
+        msg = (f"the robot could not be reached to stand it down. It was last commanded to {self.last_tag!r}; "
+               f"torque is still ON in that pose and nothing was released: home or release it by hand")
+        self.log("link", what="left_torqued", tag=self.last_tag)
+        print(f"!! LINK DOWN: {msg}", flush=True)
+        return False
+
+    def finish(self, save=True):
+        try:
+            if not self.fell:
+                self.stand_down()
         finally:
             self.log("end", feet=json.loads(json.dumps(self.feet)), **{k: self.p[k] for k in LEARNED})
             if save:
@@ -956,6 +1099,7 @@ def main(argv=None, make_robot=None, log_dir=None):
     ap.add_argument("--cycles", type=int, default=1, help="shuttle: forward-and-back cycles")
     ap.add_argument("--dx-list", default="", metavar="A,B,C", help="shuttle: cycle k uses the k-th dx (wraps)")
     ap.add_argument("--pace", type=float, default=1.0, help="every phase time x this (not the first stand-up)")
+    ap.add_argument("--dyaw", type=float, default=0.0, help="walk/shuttle: turn per step pair, deg (+ = to the robot's left, counter-clockwise)")
     ap.add_argument("--dy", type=float, default=0.0, help="walk: sidestep per step pair, m (+ = the robot's left)")
     ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
@@ -985,7 +1129,7 @@ def main(argv=None, make_robot=None, log_dir=None):
     from kin import Kin
     from robot_io import Fallen, Robot
     kin = Kin(prm["drop"])
-    rob = make_robot(kin) if make_robot else Robot(a.host)
+    rob = make_robot(kin) if make_robot else Robot(a.host, link_retries=int(prm["link_retries"]))
     if rob.fallen():
         print("the firmware says FALLEN: pick the robot up and let it home first"); rob.close(); return 2
     run = Run(a.what, rob, kin, prm, video=a.video, board=a.board, log_dir=log_dir)
@@ -1000,9 +1144,9 @@ def main(argv=None, make_robot=None, log_dir=None):
             out.append(("both", run.shiftsweep()))
         elif a.what == "shuttle":
             out = run.shuttle(a.side, a.steps, a.cycles, a.dx, a.dy, hold=a.hold, board=a.board,
-                              dx_list=[float(x) for x in a.dx_list.split(",")] if a.dx_list else None)
+                              dx_list=[float(x) for x in a.dx_list.split(",")] if a.dx_list else None, dyaw=a.dyaw)
         else:
-            out = run.walk(a.side, a.steps, a.dx, a.dy, hold=a.hold, board=a.board, march=a.what == "march")
+            out = run.walk(a.side, a.steps, a.dx, a.dy, hold=a.hold, board=a.board, march=a.what == "march", dyaw=a.dyaw)
     except Fallen as e:
         run.fallen(e)
     except Exception as e:                                           # any other fault: say it, then stand and let go
