@@ -35,6 +35,7 @@ Per run and plant (results/stepper_replay/<tag>.csv and .md, printed; one PNG pe
   roll_rms_up, up_share  the roll RMS over the part of the window where both are upright (robot |roll|,
                          |pitch| and the sim's tilt under 20 deg), and that part's share
   air_droll_stL / _stR   the mean roll error (sim - robot) at the `air` rows, by STANCE side
+  nool_droll_stL / _stR  the same at the `nool` rows (each lift increment), by STANCE side
   enc_rms(_roll)         joint encoders sim - robot (the sim's encoder: walker_env obs q, which reads
                          the servo shaft under roll play), deg: mean over the 12 (the 4 rolls) of the
                          per-joint RMS
@@ -49,6 +50,8 @@ Per run and plant (results/stepper_replay/<tag>.csv and .md, printed; one PNG pe
   feet_cmd / feet_sim    walks: each foot's commanded displacement (the stepper's belief at its `end`;
                          none of these runs had a landing compensation in force) against the sim sole's
                          world displacement from the crouch, mm (x fwd, y left)
+  steps (walks, march)   per step: the swing foot's commanded move against the sim sole's, and the
+                         stance sole's slide meanwhile, mm (step_landings)
 """
 from __future__ import annotations
 
@@ -307,10 +310,17 @@ def simulate(job):
 # --------------------------------------------------------------------------------------------
 # scoring
 # --------------------------------------------------------------------------------------------
-def score(s, r=None):
+def score(s, r=None, ref=None):
+    """ref: "stand" (offsets over the 0.5 s before the first pose; the window from there) or "crouch"
+    (offsets over the 0.5 s before the first shift pose, the stepper's own level reference; the
+    window from there: the crouch's own lean is left out). Default: $SR_REF or "stand"."""
     r = r or robot(s["stamp"])
+    ref = ref or os.environ.get("SR_REF", "stand")
     T = s["T"]
     t1, t2 = s["t1"], s["t2"]
+    if ref == "crouch":
+        poses = [t for t, c in r["cmds"] if c.startswith("pose ")]
+        t1 = poses[2]                     # stand, crouch, then the first shift
     rr, pr = rp_robot(r)
     pre_r = (r["t"] >= t1 - PRE_S) & (r["t"] < t1)
     pre_s = (T >= t1 - PRE_S) & (T < t1)
@@ -332,11 +342,15 @@ def score(s, r=None):
     air = [(x["t"], x["swing"]) for x in log if x["ev"] == "air" and t1 <= x["t"] <= t2]
     side = {"L": 0, "R": 1}
     ca = np.array([1e3 * float(np.interp(ta, T, s["clr"][:, side[sw]])) for ta, sw in air]) if air else np.array([])
-    # the roll error while a foot was judged up, per STANCE side (the hip trim's side)
+    # the roll error while a foot was judged up (`air` rows), and at every lift increment (`nool`
+    # rows: the foot raised, the stance hip trimmed), per STANCE side (the hip trim's side)
+    nool = [(x["t"], x["swing"]) for x in log if x["ev"] == "nool" and t1 <= x["t"] <= t2]
     for st, sw in (("L", "R"), ("R", "L")):
         ta = [x for x, w_ in air if w_ == sw]
-        out_air = float(np.mean(np.interp(ta, T, er))) if ta else None
-        s.setdefault("_air_err", {})[st] = out_air
+        s.setdefault("_air_err", {})[st] = float(np.mean(np.interp(ta, T, er))) if ta else None
+        tn = [x for x, w_ in nool if w_ == sw]
+        s.setdefault("_nool_err", {})[st] = float(np.mean(np.interp(tn, T, er))) if tn else None
+        s.setdefault("_nool_n", {})[st] = len(tn)
     ups = [(x["t"], x["swing"]) for x in log if x["ev"] == "lift" and x["how"] == "up" and x["t"] <= t2]
     ups_sim = [bool(np.interp(ta, T, s["clr"][:, side[sw]]) > CLEAR_M) for ta, sw in ups]
     # sim fall
@@ -357,6 +371,8 @@ def score(s, r=None):
                enc_rms=float(np.nanmean(jr)), enc_rms_roll=float(np.nanmean(jr[rolls])),
                enc_worst=s["pol"][int(np.nanargmax(jr))], enc_worst_rms=float(np.nanmax(jr)),
                air_droll_stL=s["_air_err"]["L"], air_droll_stR=s["_air_err"]["R"],
+               nool_droll_stL=s["_nool_err"]["L"], nool_droll_stR=s["_nool_err"]["R"],
+               nool_n_stL=s["_nool_n"]["L"], nool_n_stR=s["_nool_n"]["R"],
                air_n=len(air), air_clear=(float(np.mean(ca > 1e3 * CLEAR_M)) if len(ca) else None),
                air_clr_med=(float(np.median(ca)) if len(ca) else None),
                air_clr_min=(float(np.min(ca)) if len(ca) else None),
@@ -380,6 +396,51 @@ def score(s, r=None):
     trace = dict(T=T, w=w, er=er, ep=ep, rr=rr_i, pr=pr_i, rs=s["roll"] - off_s[0], ps=s["pitch"] - off_s[1],
                  clr=s["clr"], air=air, qs=s["Q"], qr=qi)
     return out, trace
+
+
+def step_landings(s, r=None):
+    """Per step (a foot raised, moved, put down): the commanded move of that foot (the stepper's pose
+    rows: its believed foot offsets) against the sim sole's world move over the same span, and how
+    far the stance sole slid meanwhile, mm. The span runs from the last pose before the foot leaves
+    to 0.5 s after the first pose that has it back at z = 0."""
+    r = r or robot(s["stamp"])
+    T, xy = s["T"], s["sxy"]
+    poses = [x for x in r["log"] if x["ev"] == "pose" and "feet" in x and x["t"] <= s["t2"]]
+    col = {"L": (0, 1), "R": (2, 3)}
+    out, i = [], 1
+    while i < len(poses):
+        for sw in "LR":
+            if poses[i]["feet"][sw][2] > 0 and poses[i - 1]["feet"][sw][2] == 0:
+                j = i
+                while j < len(poses) and poses[j]["feet"][sw][2] > 0:
+                    j += 1
+                if j >= len(poses):
+                    break
+                st = "R" if sw == "L" else "L"
+                ta, tb = poses[i - 1]["t"], min(poses[j]["t"] + 0.5, T[-1])
+                ka, kb = int(np.searchsorted(T, ta)), int(np.searchsorted(T, tb)) - 1
+                d = 1e3 * (xy[kb] - xy[ka])
+                c0, c1 = poses[i - 1]["feet"][sw], poses[j]["feet"][sw]
+                out.append(dict(run=s["stamp"], plant=s["plant"], swing=sw, t=round(ta, 1),
+                                cmd_dx=1e3 * (c1[0] - c0[0]), cmd_dy=1e3 * (c1[1] - c0[1]),
+                                sim_dx=float(d[col[sw][0]]), sim_dy=float(d[col[sw][1]]),
+                                stance_dx=float(d[col[st][0]]), stance_dy=float(d[col[st][1]])))
+                i = j
+                break
+        i += 1
+    return out
+
+
+def steps_md(steps):
+    if not steps:
+        return ""
+    lines = ["| run | plant | t | swing | cmd dx / dy | sim dx / dy | sim - cmd y | stance slid x / y |",
+             "|---|---|---|---|---|---|---|---|"]
+    for x in steps:
+        lines.append(f"| {x['run']} | {x['plant']} | {x['t']:.0f} | {x['swing']} | {x['cmd_dx']:.0f} / {x['cmd_dy']:.0f} | "
+                     f"{x['sim_dx']:.0f} / {x['sim_dy']:.0f} | {x['sim_dy'] - x['cmd_dy']:+.0f} | "
+                     f"{x['stance_dx']:.0f} / {x['stance_dy']:.0f} |")
+    return "\n".join(lines)
 
 
 COLS = [("run", "run", "s"), ("plant", "plant", "s"), ("dur", "s", ".0f"),
@@ -484,6 +545,8 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT)
     ap.add_argument("--tag", default="baseline")
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--ref", choices=("stand", "crouch"), default="stand",
+                    help="the level reference and window start (score's doc)")
     ap.add_argument("--no-plot", action="store_true")
     ap.add_argument("--plots", default=PLOTS, help="where the per-run PNGs go (gitignored build/ by default)")
     a = ap.parse_args(argv)
@@ -500,9 +563,10 @@ def main(argv=None):
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         res = list(ex.map(simulate, jobs))
     os.makedirs(a.out, exist_ok=True)
-    rows, traces = [], {}
+    rows, traces, steps = [], {}, []
     for s in res:
-        o, tr = score(s)
+        steps += step_landings(s)
+        o, tr = score(s, ref=a.ref)
         rows.append(o)
         traces.setdefault(s["stamp"], {})[s["plant"]] = tr
     keys = sorted({k for r in rows for k in r}, key=lambda k: ([c[0] for c in COLS] + sorted({k for r in rows for k in r})).index(k))
@@ -514,12 +578,15 @@ def main(argv=None):
     md = table_md(rows)
     fm = feet_md(rows)
     sm = summary_md(rows, {"lifts": [x for x in runs if "lift" in x], "march + walks": [x for x in runs if "lift" not in x]})
-    open(os.path.join(a.out, f"{a.tag}.md"), "w").write(sm + "\n\n" + md + "\n\n" + fm + "\n")
+    stp = steps_md([x for x in steps if "walk" in x["run"] or "march" in x["run"]])
+    open(os.path.join(a.out, f"{a.tag}.md"), "w").write(sm + "\n\n" + md + "\n\n" + fm + "\n\n" + stp + "\n")
     print(sm)
     print()
     print(md)
     print()
     print(fm)
+    print()
+    print(stp)
     if not a.no_plot:
         os.makedirs(a.plots, exist_ok=True)
         for st, tr in traces.items():
