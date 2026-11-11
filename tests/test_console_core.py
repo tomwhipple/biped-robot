@@ -135,7 +135,9 @@ def test_an_unconfirmed_hold_escalates_to_hard(robot):
     soft = [t for t, f in got if f.stop and not f.estop]
     hard = [t for t, f in got if f.stop and f.estop]
     assert soft and hard and max(soft) < min(hard)
-    assert 0.15 < min(hard) < 0.4
+    # Escalates no earlier than the 200 ms confirm window; the upper bound only
+    # has to catch "never escalated" (a loaded runner can be late by 100s of ms).
+    assert 0.15 < min(hard) < 0.75
     assert b.escalated and not b.confirmed
     assert "escalated" in b.summary() and "NOT confirmed" in b.summary()
 

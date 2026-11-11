@@ -310,14 +310,20 @@ def test_hello_and_last_tick_are_the_decoded_packets(store, monkeypatch):
     assert store.latest() is not None                                # still drawn, with its age
 
 
-def test_rate_counts_ticks_per_second(store):
+def test_rate_counts_ticks_per_second(store, monkeypatch):
+    # The store's clock is injected: a real sleep(0.02) loop measured the
+    # scheduler as much as the store, and a loaded runner fell out of 25-60 Hz.
+    clock = [1000.0]
+    monkeypatch.setattr(flight.time, "monotonic", lambda: clock[0])
     goal = {b: 0.0 for b in LEG_BUS}
     for s in range(1, 31):
         store.tx.sendto(tick(s, s * 20_000, goal), ("127.0.0.1", store.ports[0]))
-        store.poll(0.0)
-        time.sleep(0.02)
-    store.poll(0.0)
-    assert 25.0 < store.stats()["rate_hz"] < 60.0
+        end = time.perf_counter() + 2.0
+        while not store.poll(0.0) and time.perf_counter() < end:
+            time.sleep(0.001)
+        clock[0] += 0.02
+    assert store.stats()["ticks"] == 30
+    assert store.stats()["rate_hz"] == pytest.approx(50.0)
 
 
 def test_events_carry_kind_text_and_utc(store):
