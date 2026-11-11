@@ -262,7 +262,8 @@ class Slider(QtWidgets.QWidget):
 
     def set(self, v: float) -> None:
         self.s.blockSignals(True)
-        self.s.setValue(round((v - self.lo) / (self.hi - self.lo) * self.steps))
+        span = self.hi - self.lo     # 0 for a channel the run never varied
+        self.s.setValue(round((v - self.lo) / span * self.steps) if span else 0)
         self.s.blockSignals(False)
         self.v.setText(self.fmt.format(v))
 

@@ -108,6 +108,7 @@ Around the PD loop:
 | bus latency | the first sub-steps of each tick still serve the previous target; 0–8 ms per episode, ±1 ms jitter per tick | `latency_ms`, `latency_ms_max`, `latency_jitter_ms` |
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
 | roll play | an EXTRA deadzone on the four roll joints (hip roll, ankle roll) only, on top of the backlash: the play downstream of the encoders. Calibrated on the legs-only body so a 30 mm one-foot lift tilts the torso ~5° with the stance encoders moving ~1° (`sim/roll_compliance.py`, [roll-compliance-2026-10-24](design-v6/roll-compliance-2026-10-24.md)); total roll deadzone ≈ 2.6°. 1.0–2.6° extra per episode in the legs-only runs, MJX and CPU | `--roll-lash-deg lo,hi` (`roll_lash_deg`, `roll_lash_deg_max`) |
+| roll series spring | a spring in series with the hip-roll and ankle-roll servos, beyond the encoder: the compliance the 2026-11-10 clamp test measured (30 mm one-foot lift, stance foot clamped: torso 9.4°, stance roll encoders 1.5° ankle / 0.4–0.7° hip; [the record](../experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md), #277). Quasi-static, massless shaft: the link sees the roll PD in series with k (kp, kd × 1/(1 + kp/k)), and every encoder reading (the q and q̇ observations, the `--dq-obs-window` history, the `--fw-goal-speed` feedback) is the servo shaft, link + τ/k. k drawn per episode per role, uniform in k, L and R sharing it; one value = fixed; a role left out is rigid. The weight-transfer gate's Round 3 clamp fit (hip 11.0, ankle 17.75 N m/rad, no roll play) gives 9.2–9.3° on the training plant's clamp test (`tests/test_roll_series.py`); the rigid plant gives 2.8° (no play) to 4.2° (1.25°). The same springs over-unload the stance foot on the both-feet-down foot-load ladder (Round 3), so the recipes draw `hip=10:25,ankle=16:40` (the fit at the soft end, about 2.3× stiffer at the other): with `--roll-lash-deg 0.5,2.0` the clamp tilt spans 6.2–12.7° (L lifted), 7.5–9.2° at the range's centre. Off by default. MJX and CPU; config.json records it, so the referee and `grade.py` grade a run on its own spring | `--roll-series-k hip=LO:HI,ankle=LO:HI` (`roll_series_k`, N m/rad) |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
 | dead time | the servo serves the target from 0–N control ticks ago | `--act-delay-max N` |
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
@@ -222,7 +223,7 @@ Seven channels (`ext_cmd`, set by `--precision`), redrawn every 2.5–4.5 s
 
 | ch | meaning | training draw |
 |---|---|---|
-| c0 `vx` | forward speed, m/s | forward walks U(0.3, 1.0) (`--cmd-v-range`); backward walks U(−0.4, −0.15) |
+| c0 `vx` | forward speed, m/s | forward walks U(`--cmd-v-range`) (default 0.3–1.0; the `walk16_act` and `prec` runs 0.05–0.7 and 0.05–0.24); backward walks U(−0.4, −0.15) |
 | c1 `vy` | sidestep, m/s | ±U(0.1, 0.25) |
 | c2 `wz` | yaw rate, rad/s | U(−1, 1) on 60 % of forward walks; pivots ±U(0.3, 1.0) |
 | c3 `crouch` | torso height × nominal | crouch draws U(0.6, 0.9); otherwise 1, or the `--cmd-crouch-range` draw |
@@ -242,7 +243,7 @@ changes the observation contract or the firmware:
 | one-leg balance | c4 = ±1 |
 | air circles | c4 = ±1, c5/c6 on a circle (radius 2–5 cm, period 1.5–3.5 s) |
 | march in place | c4 alternating, c6 bobbing the swing foot |
-| knee-high march | c4 alternating on the clock (or at `--march-hz`), c6 raising the swing sole to the opposite knee's height (`--march-mix`) |
+| knee-high march | c4 alternating on the gait clock (or at `--march-hz`), c6 raising the swing-sole target to the opposite knee's height, 18 cm on the legs plant (`--march-mix`); `--march-lift L` sets the peak target (m) instead, `0.08` = c6 up to 2 cm. The link clamps c6 to 5 cm, so the knee-high target itself cannot be sent. On the gait clock (`--march-hz` 0) the half period is the clock's, 0.67 s per lift at 0.75 Hz; the plain march above runs on a per-episode clock (1.5–3.5 s per cycle), not the gait clock |
 | hip sway | c1 oscillating at 0.12 m/s amplitude, feet planted |
 
 `--family` restricts the mix to a specialist, and the referee then scores the
@@ -260,9 +261,23 @@ run only on that family's scenarios (§8):
 **On the robot** the console sends the command over the UDP link. When the
 link goes stale the command decays to the stand `(0, 0)` — a trained command
 the policy practises constantly, not a bolted-on pose — and after 5 s of
-silence the servos release. The robot also snaps commands outside the trained
-envelope to a stand, so `V_MIN_WALK` / `V_MAX` in the link protocol must follow
-`--cmd-v-range` ([control-channel.md](control-channel.md)).
+silence the servos release. The robot also snaps commands inside the untrained
+holes to a stand and clamps the rest to the trained bands. Those bands are
+generated from the run at deploy time (`tools/gen_envelope.py`, run by `make
+deploy`), from these settings:
+
+| band | draw | read from |
+|---|---|---|
+| forward `vx` | `--cmd-v-range` | `config.json` `cmd_v_range` |
+| backward `vx` | `cmd_back_range` (−0.4, −0.15), when `walk_submix[0] > 0` | env default: `train_mjx.py` has no flag and `config.json` does not record it, so the generator reads `BimoWalkerEnv`'s default |
+| lateral `\|vy\|` | U(0.1, `cmd_vy_range` 0.25), when `walk_submix[1] > 0` | `cmd_vy_range` likewise an env default; the 0.1 floor is a literal in both envs |
+| turn `\|wz\|` | `cmd_w_range` | `config.json` |
+| crouch | `--cmd-crouch-range`, plus `crouch_range` (0.6, 0.9) when `ext_mix` has a crouch slice | `config.json`; `crouch_range` env default |
+
+A band whose fraction of the mix is 0 (or a run without `ext_cmd`) is
+generated absent, and a run with the `ext_mix` sway slice has no lateral hole.
+Where a value is not in `config.json` the generated file says `default`.
+See [control-channel.md](control-channel.md) for the clamp.
 
 ---
 
@@ -305,7 +320,8 @@ flag:
 | costs | `w_energy` 0.002, `w_action_rate` 0.15, `w_power` 0.008, `w_pitch_rate` 0.1 (torso roll + pitch rate), `w_lateral` 0.5 (vy error) |
 | skills | `w_lift` 1 (correct one-foot contact with clearance), `w_track_foot` 1 (swing-foot target, σ 6 cm), `w_foot_cross` 0.5 (soles closer than sole width + 5 mm); optional `w_knee_high`, `w_com_stance`, `w_foot_under` |
 | gait shaping (moving commands; slip always) | `w_feet_air` 5 (air time toward 0.3 s), `w_single_support` 0.3 (single support while moving, double while standing), `w_feet_phase` 1 (swing height follows the clock, 6 cm peak), `w_feet_slip` 0.25, `w_symmetry` 1 (swing-duration mismatch at touchdown); optional `w_contact_sched` (stance/swing timing) |
-| per-step clearance (any command) | optional `w_low_swing` (`--w-low-swing`): on the touchdown of a swing of ≥ 3 ticks, w × its sole peak's shortfall below 3 cm, the `walk_steps` rule; it also grades the start and stop steps the moving-gated gait shaping never sees |
+| per-step clearance (any command) | optional `w_low_swing` (`--w-low-swing`): on the touchdown of a swing of ≥ 3 ticks, w × its sole peak's shortfall below `--low-swing-clear` (default 3 cm, the `walk_steps` rule; the referee always grades 3 cm), as a fraction of it; it also grades the start and stop steps the moving-gated gait shaping never sees |
+| walking weight transfer (moving commands, MJX only) | optional `w_walk_shift` (`--w-walk-shift`): per leg, its `_mimic_ref` swing activity (`max(±sin φ, 0)`) × `exp(−(d/σ)²)` × `clip(clear/--low-swing-clear, 0, 1)`, d = horizontal distance from the CoM's ground projection to the other (stance) sole, σ = `--walk-shift-sigma` (1.5 cm), clear = the swinging sole's height. The clearance gate keeps a lean with both feet down from paying. With the gait clock on, `eval/episode_walk_swing_w`, `walk_swing_clear` and `walk_shift_err` report the swing activity and the swing-weighted clearance and CoM distance (m) of walking ticks, at any weight; a ratio to `walk_swing_w` is the swing-weighted mean |
 | regularization | `w_orientation` 1 (up_x² + up_y²), `w_ang_vel_xy` 0.15, `w_pose` 0.3 (every policy joint toward home, plain stand/walk only), `w_dof_limits` 1 (past 90 % of the policy range) |
 | imitation | `w_mimic` 1.5 in the `loco` family |
 | stand, crouch | optional: `w_still`, `w_stand_home`, `w_stand_com`, `w_stand_knee`; `w_crouch_pull`, `w_crouch_track`, `--crouch-pose-ref`, `--crouch-deep-ref`, `--crouch-rsi-mix` |
@@ -339,6 +355,45 @@ full step with it. It pays
 weighted by `--mimic-knee-w`.
 It supplies backward and sideways walking, which shaping alone did not
 produce, and it carries the swing timing.
+
+`--mimic-sway M` (metres) puts the weight transfer into the reference. While a
+moving command is active the torso moves toward the stance foot by M, with the
+hip rolls; the ankle rolls cancel them so the soles stay level, and the sway
+leads the swing clock by `--mimic-sway-lead` (0.785 rad). The rad/m is solved
+on the plant's kinematics (`mimic_sway_coefs`, −3.05 rad/m on the measured-sole
+plant). Without it the reference holds the rolls at the standing pose and
+`w_mimic` pays against any lateral shift.
+
+A march is a lifted command, and a lifted command gates `w_mimic` off (and
+`w_pose`, `w_feet_phase`, `w_walk_shift`, which are gated on a moving, unlifted
+command). A march therefore has no reference unless `--mimic-march M` turns it
+on: during a gait-clock march (`--march-mix`, traj mode 4, c4 alternating) the
+reference lifts the swing sole M metres on the clock (the `--mimic-lift` IK
+table, M ≤ 0.08) and applies `--mimic-sway`, with no stride; a one-leg balance
+or an air circle stays off. It needs `--mimic-lift`, the gait clock and no
+`--march-hz`. What pays for a march otherwise: `w_lift` (the swing foot ≥
+`lift_clear` 3 cm with the stance foot down), `w_track_foot` (the swing-sole
+target kernel, σ 6 cm), `w_single_support`, `w_knee_high` (the clearance as a
+fraction of the commanded swing height) and `w_com_stance` (the CoM over the
+stance sole, σ 4 cm, gated by the swing clearance): the only one of them that
+pays for lateral weight transfer, and zero in the `loco` family unless set.
+`tests/test_mimic_march.py` pins the reference, the gate, the defaults and the
+CPU/MJX agreement; parity block R13b runs the step.
+A warm start from a run that drew no march needs `--init-norm-march`: that run's
+observation normaliser holds std 1e-6 on the lift and foot-dz slots (the channels
+never moved), so a march reads as ~1e6 σ. The flag re-seats those slots to the
+march draw (`reseat_march_norm`; c6 stays frozen when the march asks no c6,
+`--march-lift 0.06`). On the robot the same frozen slots make `policy::pinFrozen`
+ignore a march command, so a student that never saw one stands.
+
+The robot's own march is `link/sources.py march5`: five full swings (after a
+quarter-cycle first one) at the trained clock, then the stand. The clock holds
+at the stand phase π/2 and runs from there the tick a lift is commanded, so the
+script's time is the clock's phase. `grade.py`'s `march5` probe grades it:
+per-foot peak lift on every step (the bar is 3 cm), the CoM's shift toward the
+stance foot while each foot is up (the bar is 0.6), drift, yaw, falls and guard
+trips, with the channels a run never saw move pinned to their trained value as
+the firmware does.
 
 `--w-mirror-loss` adds an auxiliary PPO loss (not a reward) on
 `|π(mirror(obs)) − mirror(π(obs))|`, with the signed left/right permutations
@@ -442,6 +497,7 @@ freeze them.
 | `--yaw-kick-range lo,hi`, `--yaw-kick-prob p` | body yaw rate kicks, either way, while a move is commanded | a stand-in for the robot's step yaw, which the sim under-reads (`experiments/policy/yaw-gap/README.md`) |
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
 | `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
+| `--roll-series-k hip=lo:hi,ankle=lo:hi` | spring in series with the roll servos beyond the encoder, N m/rad | the stance leg's 2026-11-10 clamp compliance (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |
 
 `--discovery` strips DR, payload, latency, backlash and pushes: a clean-physics
@@ -779,6 +835,9 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
      limits, home pose, clock settings, and the action-index → bus-ID
      permutation `kServoId` (from `ID_BY_ROLE` in the generator — a genuine
      permutation), plus `obs_vectors.h` from `walker_env._obs`.
+   - `tools/gen_envelope.py --run` → `linkproto/cmd_envelope.h`, its Python
+     twin `link/cmd_envelope.py` and `cmd_envelope_vectors.h`: the command
+     envelope the robot enforces (§4).
    - `tools/gen_policy_weights.py --run` → `weights.h`, plus `policy_vectors.h`
      computed in numpy under the brax semantics the firmware reproduces:
      normalize, swish hidden layers, a linear `2·act_dim` head, `tanh` of its
@@ -808,7 +867,7 @@ scorecards and reels are on the results page.
 The firmware compiles in exactly one policy, chosen at build time. The
 deployed one's generated files are the ones above; a **policy profile** is a
 complete second set for another plant (`tools/policy_profile.py`):
-`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, vectors/*.h}`
+`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h}`
 and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
 
 | | deployed | profile `v6legs` |
@@ -820,7 +879,8 @@ and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
 
 The profile's directory goes first on the include path, and every generated
 header carries an `#error` guard against the other kind of build, so an
-include-order mistake cannot compile the wrong policy. Nothing outside the
+include-order mistake cannot compile the wrong policy. `link/protocol.py`
+reads the profile's `cmd_envelope.py` when `$BIMO_POLICY` names it. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 
@@ -983,13 +1043,14 @@ the obs-spec generator rebuild the same robot:
 | piece | what remains |
 |---|---|
 | measured plant | the masses weighed (#82) replacing the CAD inertials |
-| free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. Still open: the play per joint (one lumped value for the four roll joints), and the shaft/link split in the observation (the sim's encoders read the link) |
+| free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. The compliance beyond the encoders is `--roll-series-k` (a spring, the encoders reading the shaft). Still open: the play per joint (one lumped value for the four roll joints), and the play's own shaft/link split in the observation (with the roll deadzone the sim's encoders read the link) |
 | referee thresholds | the absolute thresholds (distances, drifts, the torque-off stand's unmeasured passive friction) are the prototype's; re-derive them for the taller, heavier robot. The plant-measured targets (nominal height, knee height, crouch depth) already follow the plant; the crouch-depth limit (`crouch_theta_max_deg` 39°) and the rise and fallen-start poses are the prototype's numbers |
 | the robot's bench envelope | `main/mech_envelope.h` `kMech*V6Legs`: the v6 legs plant's policy range, not the stops measured on the robot ([servo-map.md](servo-map.md) §3.3). Its ankle-pitch ctrlrange (±45°) is wider than the plant's own joint stops (±40°) |
 
 **When.** The design is validated in stages (DESIGN.md, "Validation method"):
 kinematics, actuator margins and contact realism first, then the scripted
-open-loop walk in the plant and on the bench (#82, open). Policies (Gate E)
+open-loop walk in the plant, with system-identification probes on the robot
+feeding the plant fit (#82, open). Policies (Gate E)
 train on the plants with the measured stiffness, play and joint stops in them;
-a legs policy holds the built legs standing, and walking on the floor is the
-next hardware gate.
+a legs policy holds the built legs standing, and walking on the floor, beginning
+with marching in place (#261), is the next hardware gate.

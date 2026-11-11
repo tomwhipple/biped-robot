@@ -266,17 +266,29 @@ Referee scores are gates, not proof.
 
 - Every stage has a sim gate and a hardware gate, and nothing advances on a feeling.
 - Record every arm: camera, and the beacon CSV (`tools/record_attempt.sh`).
+  It records `/dev/video0` at 1280x720 MJPEG (`CAM_DEVICES`, `SIZE=1920x1080`,
+  `SONY=1` for the A7 III) and wraps `link/arm_script.py`, whose arguments it
+  passes through.
+- After every battery power-up, before arming: `tools/robot_prep.sh --run
+  <run>` sets and verifies `standclock` and `shape` from the deployed run's
+  `config.json` (neither survives a reboot); `arm_script.py --check-prep <run>`
+  refuses to arm when they differ.
+- A scripted run is `link/arm_script.py --phase script --script <name>
+  --settle S --duration D --tail T`: it ends with the RESET SERVOS edge and
+  waits for the home read-back, so the robot is homed and released when the
+  command returns (exit 0). Exit 2 means a guard or a failed home; torque has
+  been released by `ESTOP`, and the robot needs a hand.
 - Change one variable per run.
 - Before blaming a sensor, run the same input through the twin.
 
-**Before any policy.**
+**Before a policy is trusted.**
 
 1. Weigh every part.
 2. Confirm roll-joint play is within bounds (§3).
 3. Put the measured stiffness, play and masses into the plant.
 4. Re-run the gates: `sim/gate_no3250.py walk | sweep | arms | getup`.
-5. Then run the floor sequence **over the tether, one motion per go**: stand → crouch → shift → one-foot → step in place → six steps.
-   - The motions are the `sim/static_gait.py` keyframes, streamed through the firmware's `pose` path.
+5. Then run the floor work **over the tether, one motion per go**: stand → crouch → shift → one-foot.
+   - These are system-identification probes, scripted `pose` streams (the one-leg lifts, the sway probe #260); a step in place and a stride are policy milestones (#261), not scripted gaits.
    - Record each step as a margin, clearance and slip number, against the sim's.
 6. Then the scripted get-up.
 7. Measure the bus current here ([wiring.md](wiring.md#current-the-open-constraint)).

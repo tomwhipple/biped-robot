@@ -2639,3 +2639,124 @@ under it.
 
 **Fallback:** back to the prec16 recipe (x1.5 held on 2 of 2 seeds), warm-starting from prec16. The prec24 recipe is saved as
 `fallback.job.prec24-20261109`.
+
+### Night of 2026-11-09 (evaluated 2026-11-10)
+
+**Weight transfer, night 1.** Stride only; get-up stays parked. Tom has not commented on #137 since 11-04, so the
+3 cm question is still open.
+
+**Hardware 11-09 (interactive session, `hw_sessions/2026-11-09/`).** prec16_f075_js20 on the robot (`deploy/prec16-f075`,
+`stride1_02s`). Its joints were much slower than omni14's: mean knee 115/121 deg/s (omni14 171/131). But **the right foot never
+left the floor**. The R knee bent 45 deg and the hip 39 deg, while the hip roll moved only 4–8 deg. There was no lateral
+weight shift, so the loaded bending leg yawed the body (−7.2 rad/s, ending 46 deg right) and the rate guard tripped
+(3.02). **prec16 is no longer the deploy candidate.** The interactive session put the walk-shift reward (branch
+`train/walk-shift`) at the head of the queue (prec42–45). It also set the new bar: both feet lift ≥ 2 cm, and the CoM sits
+≥ ~0.6 of the way toward the stance foot while the other foot is up (`shift_when_up`, from the job-tmp `grade_recover.py`).
+
+**The runner** ran 22:00–05:17 on main (`28536e6` → `f8516de`) and `train/walk-shift` (`4ae688f`). Every job logged
+"origin tip, verified", and the collect log has no STALE REFEREE. It ran the left-over prec32 distil and the prec33 pair, the
+four walk-shift pairs (prec42–45), the prec34–37 pairs and the prec38 teacher. The prec38 distil and the prec39–41 pairs
+did not start before 05:00, so they stay queued for tonight. **No fixer sessions:** `fixer.log` has nothing after 11-09
+02:22. There was no OOM, so there is still no evidence for or against `fix/warp-mempool-hold`, and the `--num-evals 12`
+stopgap stays unexplained (nothing warm-starts from prec28).
+
+**Merged / branched:** `train/walk-shift` (4ae688f, opt-in `--w-walk-shift` / `--low-swing-clear`, tests green) and this
+morning's `train/mimic-sway` (opt-in `--mimic-sway`, below) are merged to main together (PR linked on #137), so tomorrow's
+referee and grade.py on main know both. The other open PRs (#254, #229, #206, #71) are firmware, console and CAD work.
+`fix/warp-mempool-hold` stays an unmerged branch (no evidence).
+
+**Students** (grade.py on main through `grade_recover.py`, measured sole, 8 seeds, SHAPE_HZ=8; falls/trips;
+`/tmp/plan1110/gradeA.{md,json}`, summary `summ.py`). The control re-grade reproduces: prec16 x1.5 is 0/0, and prec26's row
+matches 11-09's exactly (x1.5 6/6; directions +0.91 −0.95 +0.44 −0.52 +102 −101). Every student WALKS. Every student fails
+x2 8/8, and every student is 0/0 on push 0.4, on all the robot probes and on walk 0.3 → stop.
+
+| student | variable vs parent | x1.5 | stride1 refit 0.6 / 0.4 / 0.3 falls | directions fwd back sideL sideR turnL turnR (falls) | verdict |
+|---|---|---|---|---|---|
+| prec42_ws1 | walk-shift 1 + low-swing 10 @ 2 cm (prec16) | **2/2** | 0 / 0 / 0 | +0.81 **−0.27** +0.49 −0.48 +123 −99 | not held |
+| prec43_ws2 | walk-shift 2 + low-swing 10 @ 2 cm (prec16) | 0/0 | 0 / 0 / 0 | +0.87 −0.82 +0.36 −0.46 +115 −121 | best shift of the line, far from the bar |
+| prec44_sh35_ws1 | walk-shift 1 + low-swing 10 (prec26) | 0/0 | 0 / 0 / 0 | +0.90 −0.91 +0.40 −0.50 +124 −116 | shift not held |
+| prec45_ws1_only | walk-shift 1 alone (prec16) | **1/1** | 0 / 0 / 0 | +0.92 −0.90 +0.48 −0.43 +105 −129 | not held |
+| prec34_sh35_lg | loop-gain 1.0–1.6 (prec26) | **0/0** (was 6/6) | 0 / 0 / 0 | +0.73 −0.71 +0.33 −0.26 **+52** −94 | margin repaired, clearance and turning lost |
+| prec35_lg | loop-gain 1.0–1.6 (prec16, control) | 0/0 | 0 / 0 / 0 | +0.70 −0.64 +0.38 **−0.20 +62 −77** | not held: x2 not better, directions slower |
+| prec36_sh35_s1 | seed 15 (prec26 recipe) | 0/0 | 0 / 0 / 0 | +0.67 −1.01 **(2)** +0.38 −0.49 +110 −111 | prec26 not replicated |
+| **prec37_sh35_s2t** | s2 0.0008 (prec26) | **0/0** | 0 / 0 / 0 | +0.91 −0.96 +0.42 −0.49 +119 −116 | best lift, margin kept |
+| prec32_crouch_s2t | s2 0.0008 (prec24) | 0/0 | **3** / 0 / 0 | +0.83 −0.94 **(2)** +0.60 −0.46 +101 −104 | not held |
+| prec33_mirror_s1 | seed 15 (prec20 recipe) | 0/0 | 0 / 0 / 0 | +0.97 −0.90 +0.46 −0.49 +135 −121 | held: symmetry replicates |
+
+**Weight transfer** (the new bar). `stride1 0.3 robot` is the probe closest to the 11-09 hardware run, and `steps5 0.3 robot`
+is five steps. Lift is the mean peak per foot (cm, worst seed in brackets). Shift is `shift_when_up` L-up / R-up: the CoM
+fraction toward the stance foot, −1 = over the R foot, +1 = over the L foot, and the bar is |shift| ≥ 0.6 on both sides.
+
+| student | stride1 robot lift L / R | stride1 robot shift | steps5 robot shift | knee mean L/R (stride1) | time > 180 | knee range L/R (steps5) |
+|---|---|---|---|---|---|---|
+| prec16 (control) | 3.1 / 2.1 (1.9) | −0.21 / +0.16 | −0.39 / +0.50 | 73 / 62 | 0.42 | 67 / 48 |
+| prec42_ws1 | 2.9 / 1.6 (1.5) | −0.30 / +0.27 | −0.49 / +0.49 | 75 / 49 | 0.34 | |
+| prec43_ws2 | 3.4 / 2.3 (2.1) | **−0.35** / +0.24 | −0.53 / **+0.71** | 72 / 59 | 0.36 | |
+| prec44_sh35_ws1 | 3.7 / 1.8 (1.7) | −0.38 / +0.23 | −0.52 / +0.63 | 86 / 52 | 0.38 | |
+| prec45_ws1_only | 2.8 / 2.0 (2.0) | −0.33 / +0.26 | −0.52 / +0.51 | 72 / 56 | 0.29 | |
+| prec34_sh35_lg | 2.7 / 1.5 (1.4) | −0.30 / +0.13 | −0.41 / +0.21 | 62 / 44 | **0.21** | 45 / 41 |
+| prec35_lg | 3.0 / 1.3 (1.2) | −0.33 / +0.12 | −0.39 / +0.35 | 70 / 60 | 0.33 | 62 / 42 |
+| prec36_sh35_s1 | 3.8 / 2.4 (2.3) | −0.29 / +0.28 | −0.41 / +0.54 | 83 / 51 | 0.39 | |
+| **prec37_sh35_s2t** | **4.4 / 3.0 (2.8)** | −0.30 / +0.29 | −0.44 / +0.60 | 58 / 76 | 0.30 | 60 / 51 |
+| prec32_crouch_s2t | 3.0 / 2.1 (1.9) | −0.28 / +0.23 | −0.42 / +0.72 | 72 / 60 | 0.36 | |
+| prec33_mirror_s1 | 2.9 / 1.8 (1.6) | −0.27 / +0.19 | −0.44 / +0.49 | 56 / 71 | 0.29 | **56 / 51** |
+
+**Hypotheses:**
+- **Walk-shift (prec42–45): not held.** The best result is prec43 (walk-shift 2): stride1 shift 0.35/0.24 against the bar's 0.6.
+  The training metric shows why. The swing-weighted CoM-to-stance-sole distance (`walk_shift_err / walk_swing_w`) went only
+  7.0 → 6.7 cm over 300M steps in all four runs. At d ≈ 6.7 cm a σ = 3 cm kernel pays exp(−5) ≈ 0.007, so it has no gradient.
+  And **the imitation reference is against it.** `_mimic_ref` sets the hip and ankle rolls to the standing pose for any forward
+  command (roll = default + B·xn, and B is the lateral command), and `w_mimic` 1.5 pays exp(−Σdq²/0.72). A 6 deg sway (hip and ankle
+  rolls, both legs) costs ~6 % of that term, ≈ 0.09 a tick, about 20× the ≈ 0.005 a tick the walk-shift kernel pays. The reference is the problem, not the RL.
+- **Loop-gain DR (prec34, prec35): margin yes, gait no.** It repaired prec26's x1.5 (6/6 → 0/0), but turning and side R
+  slowed on both runs (prec35 turn +62/−77 against prec16's +114/−106), prec34's card clearance fell 1.6 → 0.9 cm, and x2
+  did not improve. It is a margin tool that costs directions, so it stays off the recipes until the weight transfer is solved.
+- **prec26 replicate (prec36): its clearance and yaw were the draw.** Card median 1.4 (prec26 1.6), steps5 yaw +41 (prec26
+  +9), and 2/8 back falls. Its x1.5 0/0 says prec26's x1.5 loss was also the draw.
+- **Stacking s2 0.0008 on prec26 (prec37): partly held.** The card median is 1.6 (target 2.0), but it has the best lift on the
+  robot probe (4.4/3.0 cm, worst seed 2.8), x1.5 0/0, 0 falls, yaw −2 and the slowest knees. On every criterion before
+  11-09 it is the best student, but its shift (0.30/0.29) fails the new bar.
+- **prec33 (prec20 recipe, seed 15): held.** Knee range 56/51 (prec20 57/54) replicates the mirror symmetry. It has 0
+  stride1 falls and fwd yaw −11, so prec20's falls and yaw were the draw.
+- prec32 (crouch + s2t): 3/8 stride1 0.6 falls and 2/8 back falls. **Not held.** prec38's student trains tonight.
+
+**Distil gap** (card seed-passes, teacher → student): prec32 24 → 26, prec33 30 → 36, prec34 19 → 27, prec35 19 → 22,
+prec36 27 → 31, prec37 26 → 27, prec42 24 → 26, prec43 24 → 28, prec44 25 → 26, prec45 28 → 36. The median is +3.5;
+distillation is not the limit.
+
+**Ranking (deploy view):** nothing meets the weight-transfer bar, so **no robot candidate**. prec16 failed on the robot.
+By the old criteria, prec37 is first (lift, margin, yaw, speed). prec43 has the most shift with its margin kept.
+
+**Change of plan: the weight shift goes into the reference.** New opt-in `--mimic-sway M` and `--mimic-sway-lead RAD` (branch
+`train/mimic-sway` = `train/walk-shift` + one commit, `tests/test_mimic_sway.py`). While a moving command is active, the
+reference moves the torso M metres toward the stance foot. It does this with the hip rolls, the ankle rolls cancel them so the
+soles stay level, and the sway leads the swing clock by 0.785 rad by default. The rad/m comes from MuJoCo kinematics
+(`walker_env.mimic_sway_coefs`, −3.05 rad/m on the meas-sole plant, so 0.035 m is 6.0 deg and 0.05 m is 8.7 deg), and the CPU
+and MJX references agree to < 1e-4. The size comes from the plant: the feet are ±6.05 cm apart, the CoM is 0.255 m high
+(ω0 = 6.3 rad/s), and the gait is 0.75 Hz (4.7 rad/s). Putting the ZMP on the stance foot centre then needs ~3.9 cm of CoM
+sway, so tonight tests 0.035 and 0.05.
+
+**Tonight** (the prec38 distil first, then 6 sway pairs on `train/mimic-sway`, then the 3 left-over 11-09 pairs on main,
+renamed `1110220011-16` so that they run last. 300M warm starts, ~44 min a pair, last start ~04:00):
+
+| # | run | parent | variable | hypothesis |
+|---|---|---|---|---|
+| 1 | prec46_sw35 | prec16 | `--mimic-sway 0.035` | stride1 robot shift 0.21/0.16 → ≥ 0.5 both sides, R lift ≥ 2 cm, x1.5 and directions kept |
+| 2 | prec47_sw50 | prec16 | `--mimic-sway 0.05` | a bigger sway reaches ≥ 0.6; risk: side/turn or x1.5 |
+| 3 | prec48_s2t_sw35 | prec37 | `--mimic-sway 0.035` | prec37's lift (≥ 2.8 cm both feet) kept, with the shift |
+| 4 | prec49_ws2_sw35 | prec43 | `--mimic-sway 0.035` | with the reference swaying, walk-shift's 3 cm kernel gets gradient: ≥ 0.6 |
+| 5 | prec50_sw35_s1 | prec16 | seed 15 (prec46 recipe) | prec46 replicates |
+| 6 | prec51_sw35_lead0 | prec16 | `--mimic-sway-lead 0` (prec46 recipe) | lead 0.785 beats 0: with no lead the CoM is between the feet at liftoff |
+| 7–9 | prec39_sh45, prec40_crouch_lg, prec41_js30_lg | (11-09 plan) | swing height 0.045; loop-gain on prec29 / prec31 | as planned 11-09; they come after the weight transfer |
+
+Tomorrow: grade every student with `grade_recover.py` and rank by the weight-transfer bar first. That means stride1 0.3
+robot and steps5 0.3 robot: both feet ≥ 2 cm and |shift| ≥ 0.6 on both sides, with 0-fall directions and x1.5. Clearance,
+speed and yaw come after that. If the sway works, the next step is a hardware candidate for Tom, plus the walk-shift kernel
+at a wider σ (6 cm) to sharpen it.
+
+**Fallback:** the prec46 recipe (prec16 + `--mimic-sway 0.035`, warm start prec16). The previous prec16 fallback is saved as
+`fallback.job.prec16-20261110`.
+
+(A slip this morning: for about a minute at ~08:20 I switched the shared `~/code/robot` checkout to a branch off
+`train/walk-shift`, then switched it straight back to main. The grade's worker pool had already started on main. The prec16
+and prec26 control rows reproduce 11-09 exactly.)

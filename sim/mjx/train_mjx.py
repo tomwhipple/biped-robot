@@ -220,6 +220,47 @@ def reseat_crouch_norm(restore, env, lo, hi):
     return (norm,) + tuple(restore[1:]), idx
 
 
+def march_obs_slots(env, chan):
+    """Observation indices of command channel `chan` (4 = lift, 6 = foot dz) in every stacked frame."""
+    if not getattr(env, "ext_cmd", False):
+        raise ValueError("--init-norm-march needs an ext_cmd (7-channel command) env")
+    off = int(env.obs_frame) - 7 + chan
+    return [k * int(env.obs_frame) + off for k in range(int(env.obs_hist_len))]
+
+
+def reseat_march_norm(restore, env):
+    """restore = (normalizer RunningStatisticsState, policy, value): re-seat the lift (c4) and
+    foot-dz (c6) command slots to this env's march draw, with summed_variance consistent with the
+    stored count so the running update continues from there. A run that drew no march has std 1e-6
+    there (the channels never moved), so c4 = +-1 reads as ~1e6 sigma. Mean and std come from the
+    draw: a knee-high march (march_mix of the time) holds c4 = +-1, equally often, and
+    c6 = dz |sin| with dz = env._march_dz. c6 stays frozen when dz is 0."""
+    import numpy as _np
+    norm = restore[0]
+    if not env.march_mix > 0.0:
+        raise ValueError("--init-norm-march needs --march-mix > 0")
+    p = float(env.march_mix)                                  # the share of the time in a march
+    dz = float(env._march_dz)
+    rows = {4: (0.0, _np.sqrt(p))}
+    e1 = p * dz * 2.0 / _np.pi                                # E[c6]
+    e2 = p * dz * dz * 0.5                                    # E[c6^2]
+    if dz > 0.0:
+        rows[6] = (e1, _np.sqrt(max(e2 - e1 * e1, 0.0)))
+    mean = _np.array(norm.mean, dtype=_np.float32).copy()
+    std = _np.array(norm.std, dtype=_np.float32).copy()
+    sv = _np.array(norm.summed_variance, dtype=_np.float32).copy()
+    cnt = norm.count
+    n = float(int(cnt.hi) * 2 ** 32 + int(cnt.lo)) if hasattr(cnt, "hi") else float(cnt)
+    idx = []
+    for chan, (mu, sd) in rows.items():
+        sd = max(float(sd), 1e-3)                             # well above kFrozenStdMax (1e-5)
+        for i in march_obs_slots(env, chan):
+            mean[i], std[i], sv[i] = mu, sd, sd ** 2 * n
+            idx.append(i)
+    norm = norm.replace(mean=jp.asarray(mean), std=jp.asarray(std), summed_variance=jp.asarray(sv))
+    return (norm,) + tuple(restore[1:]), idx
+
+
 def make_parser():
     """The CLI, shared with sim/mac_train.py (the CPU-physics + MPS trainer):
     one set of flags means one env config, whichever trainer runs it."""
@@ -293,6 +334,20 @@ def make_parser():
                    help="imitation reference: the swing sole rises this high (m, IK "
                         "from the home pose) at any walking speed; 0 = the knee-bend "
                         "reference, which lifts the robot's foot only 0-2 cm")
+    p.add_argument("--mimic-sway", type=float, default=0.0, metavar="M",
+                   help="imitation reference: while walking, the torso shifts this far "
+                        "(m) toward the stance foot (hip + ankle roll, sole level; "
+                        "walker_env.mimic_sway_coefs). 0 = none: the reference holds the "
+                        "rolls at the standing pose, which pays AGAINST weight transfer "
+                        "(the 2026-11-09 robot never unloaded its R foot)")
+    p.add_argument("--mimic-sway-lead", type=float, default=None, metavar="RAD",
+                   help="--mimic-sway's phase lead over the swing clock (default 0.785)")
+    p.add_argument("--mimic-march", type=float, default=0.0, metavar="M",
+                   help="imitation reference during a gait-clock march (--march-mix): the "
+                        "swing sole rises this high (m, IK, <= 0.08) on the gait clock "
+                        "with --mimic-sway's lateral shift and no stride. 0 = the "
+                        "reference is off during a march (a lifted command gates "
+                        "w_mimic). Needs --mimic-lift, the gait clock, no --march-hz")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -476,6 +531,12 @@ def make_parser():
                         "clearance) at zero net translation. Expressed "
                         "through the existing 7 command channels; pair with "
                         "--w-knee-high to pay for the clearance")
+    p.add_argument("--march-lift", type=float, default=None, metavar="M",
+                   help="the march's peak commanded swing-sole height (m, lift_height + c6): "
+                        "default = the opposite knee's standing height, 18 cm on the legs "
+                        "plant, which the link cannot send (c6 <= 5 cm). A value such as "
+                        "0.06 (c6 stays 0) or 0.08 (c6 up to 2 cm) is a march the robot can "
+                        "be commanded at a slow clock")
     p.add_argument("--w-mirror-loss", type=float, default=None,
                    help="mirror-symmetry auxiliary loss weight: penalize "
                         "|policy(mirror(obs)) - mirror(policy(obs))| on the "
@@ -606,6 +667,18 @@ def make_parser():
                         ">= 3 cm on every step): on touchdown of a >= 3-tick "
                         "swing, w x (3 cm - sole peak) / 3 cm, under ANY command "
                         "(the start and stop steps included); 0 = off")
+    p.add_argument("--low-swing-clear", type=float, default=None, metavar="M",
+                   help="the clearance target of --w-low-swing, and the clearance gate of "
+                        "--w-walk-shift, in m (default 0.03, the referee's walk_steps rule; "
+                        "lower it with a low --mimic-lift, which the fixed 3 cm fought)")
+    p.add_argument("--w-walk-shift", type=float, default=None,
+                   help="walking weight-transfer reward (default 0 = off; needs the gait "
+                        "clock): under a moving command, per leg, its _mimic_ref swing "
+                        "activity x exp(-(d/--walk-shift-sigma)^2) x clip(clearance / "
+                        "--low-swing-clear, 0, 1), d = horizontal CoM to the stance sole; "
+                        "see env_mjx")
+    p.add_argument("--walk-shift-sigma", type=float, default=None, metavar="M",
+                   help="--w-walk-shift's CoM kernel width, m (default 0.015)")
     p.add_argument("--swing-height", type=float, default=None,
                    help="swing-foot peak height target for w_feet_phase (m; preset 0.06)")
     p.add_argument("--w-feet-phase", type=float, default=None,
@@ -648,6 +721,13 @@ def make_parser():
                         "--cmd-crouch-range (mean = midpoint, std = the uniform draw's). A run "
                         "trained with the channel frozen at 1.0 has std 1e-6 there, so any other "
                         "crouch reads as ~1e5 sigma (2026-11-05, knee-bend walking)")
+    p.add_argument("--init-norm-march", action="store_true",
+                   help="with --init-from and --march-mix: re-seat the restored observation "
+                        "normalizer's lift (c4) and foot-dz (c6) command slots (every stacked "
+                        "frame) to this run's march draw. A run that drew no march has std 1e-6 "
+                        "there, so a march reads as ~1e6 sigma and wrecks the warm start (the "
+                        "crouch problem, --init-norm-crouch). c6 stays frozen when the march "
+                        "asks no c6 (--march-lift 0.06)")
     p.add_argument("--cmd-crouch-range", default="1,1",
                    help="per-episode crouch-command draw, lo,hi (SIL finding "
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
@@ -671,6 +751,14 @@ def make_parser():
                         "roll joints (hip_roll, ankle_roll) only: the play "
                         "downstream of the encoders (hw 2026-10-24; "
                         "docs/design-v6/roll-compliance-2026-10-24.md)")
+    p.add_argument("--roll-series-k", default=None,
+                   help="a spring in series with the hip / ankle roll servos BEYOND the "
+                        "encoder, N m/rad: 'hip=LO:HI,ankle=LO:HI', k drawn per episode "
+                        "per role (one value = fixed; a role left out is rigid). The "
+                        "encoders (q, dq obs) read the servo shaft, the link yields tau/k "
+                        "more (hw 2026-11-10 clamp: 9.4 deg tilt, encoders 1.5 / 0.5 deg; "
+                        "experiments/policy/weight-transfer-gate Round 3). config.json "
+                        "records it; the referee and grade.py inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,
                    help="torso mass/inertia DR +-fraction (replaces the generic "
                         "--mass-range draw for the torso body)")
@@ -919,6 +1007,12 @@ def build_env_kw(args):
         env_kw["warp_envs"] = int(args.envs)
     if args.mimic_lift > 0.0:
         env_kw["mimic_lift"] = args.mimic_lift
+    if getattr(args, "mimic_sway", 0.0):
+        env_kw["mimic_sway"] = args.mimic_sway
+    if getattr(args, "mimic_sway_lead", None) is not None:
+        env_kw["mimic_sway_lead"] = args.mimic_sway_lead
+    if getattr(args, "mimic_march", 0.0):
+        env_kw["mimic_march"] = args.mimic_march
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
@@ -990,6 +1084,11 @@ def build_env_kw(args):
     if args.roll_lash_deg is not None:
         lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
         env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
+    if getattr(args, "roll_series_k", None):
+        from walker_env import parse_roll_series_k   # jax-free, shared with both envs
+        rs = parse_roll_series_k(args.roll_series_k)
+        if rs is not None:
+            env_kw["roll_series_k"] = {k: list(v) for k, v in rs.items()}
     if args.torso_mass_range is not None:
         env_kw["torso_mass_range"] = args.torso_mass_range
     if args.torso_com_y is not None:
@@ -1060,6 +1159,12 @@ def build_env_kw(args):
         env_kw["w_symmetry"] = args.w_symmetry
     if args.w_low_swing:
         env_kw["w_low_swing"] = args.w_low_swing
+    if getattr(args, "low_swing_clear", None) is not None:
+        env_kw["low_swing_clear"] = args.low_swing_clear
+    if getattr(args, "w_walk_shift", None) is not None:
+        env_kw["w_walk_shift"] = args.w_walk_shift
+    if getattr(args, "walk_shift_sigma", None) is not None:
+        env_kw["walk_shift_sigma"] = args.walk_shift_sigma
     if args.w_power is not None:
         env_kw["w_power"] = args.w_power
     if args.w_heading is not None:
@@ -1104,6 +1209,8 @@ def build_env_kw(args):
     # its env from.
     if args.march_mix is not None:
         env_kw["march_mix"] = args.march_mix
+    if getattr(args, "march_lift", None) is not None:
+        env_kw["march_lift"] = args.march_lift
     if args.w_still is not None:
         env_kw["w_still"] = args.w_still
     if args.w_stand_com is not None:
@@ -1309,6 +1416,9 @@ def main():
             lo, hi = (float(x) for x in str(args.cmd_crouch_range).split(","))
             restore, idx = reseat_crouch_norm(restore, env, lo, hi)
             print(f"re-seated the crouch normalizer slots {idx} to mean {(lo + hi) / 2:.3f}")
+        if getattr(args, "init_norm_march", False):
+            restore, idx = reseat_march_norm(restore, env)
+            print(f"re-seated the march (lift, foot-dz) normalizer slots {idx}")
 
     train_fn = functools.partial(
         ppo.train,

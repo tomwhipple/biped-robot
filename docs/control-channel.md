@@ -341,8 +341,12 @@ be joined by subtraction.
   values beside it.
 - **Every video frame carries its capture time.** `tools/cam_record.sh`
   burns UTC into the picture to the millisecond and writes a `.pts` sidecar
-  of one epoch-ms per frame; `tools/record_attempt.sh` records both cameras
-  and whether the host clock was NTP-synced.
+  of one epoch-ms per frame; `tools/record_attempt.sh` records the cameras
+  (`CAM_DEVICES`, default `/dev/video0`; `SONY=1` adds the A7 III through
+  `tools/sony_record.sh`) and whether the host clock was NTP-synced. Webcam
+  clips are 1280x720 MJPEG at 30 fps unless `SIZE`, `FPS` or `INPUT_FORMAT`
+  say otherwise (the EMEET C960 does `SIZE=1920x1080`), and the recorder
+  prints the size the driver actually gave.
 - **Every log line carries both clocks.** `link/recorder.cpp` (`bimo_gui`'s
   JSONL in `hw_sessions/`) writes `utc` (host) on every record, `robot_utc`
   (from `t_us`, `null` when 0) and the joints on every beacon, and
@@ -366,22 +370,47 @@ Checking it:
 
 ## The training envelope is part of the protocol
 
-Training draws a stand or a walk with |vx| in **[0.3, 1.0] m/s** and
-|wz| ≤ 1.0 rad/s. The band (0, 0.3) was never trained: it is a hole in the
-distribution, not a slow walk. So `clamp_to_envelope()` snaps it to a stand,
+The policy was trained on a stand, or a walk inside a band per direction,
+and nothing else. The bands come from the deployed run's `config.json` and
+the env's defaults (`tools/gen_envelope.py`, [training.md §4](training.md)),
+and are **generated**, never typed: `firmware/components/linkproto/include/linkproto/cmd_envelope.h`
+(`kVFwdMin`, `kVFwdMax`, `kVBackMin`, `kVBackMax`, `kVyMin`, `kVyMax`, `kWMax`,
+`kCrouchMin`) and its Python twin `link/cmd_envelope.py`, which
+`protocol.py` reads, one set per policy profile (`make deploy RUN=...
+[POLICY=<profile>]`). The profile `v6legs`, `v6legs256` and the deployed set
+all carry the `walk16_act` students' envelope:
+
+| channel | trained band | from |
+|---|---|---|
+| forward `vx` | 0.05 – 0.7 m/s | `cmd_v_range` (config.json) |
+| backward `vx` | −0.4 – −0.15 m/s | `cmd_back_range` (env default; not in config.json) |
+| lateral `vy` | ±(0.1 – 0.25) m/s | `cmd_vy_range` (env default) and the 0.1 floor of the sidestep draw |
+| turn `wz` | ≤ 1.0 rad/s | `cmd_w_range` (config.json) |
+| crouch | 1.0 only | `cmd_crouch_range` (config.json): no crouch was trained |
+
+The band under a minimum — (0, `kVFwdMin`) forward, (0, `kVBackMin`)
+backward, (0, `kVyMin`) sideways — is a hole in the distribution, not a slow
+walk. So `clamp_to_envelope()` / `clamp_ext_to_envelope()` snap it to a stand,
 **robot-side**, because the robot is what eats a bad command and not every
-future sender is ours. Turn-in-place (`vx = 0, wz ≠ 0`) is trained, so the
-snap keeps `wz`. The extra channels are clamped to their training draws too
-(|vy| ≤ 0.3, crouch 0.6–1.0, lift ±1, foot offsets ±0.05 m).
-`sources.stick_to_speed()` maps stick travel onto [0.3, 1.0] for the same
-reason. `V_MIN_WALK`, `V_MAX`, `W_MAX` and the extra-channel limits in
-`protocol.py` (and their `linkproto` copies) must track the training config
-of the deployed policy.
+future sender is ours; a speed above a band's maximum is clamped to it, and
+backward walks have a band of their own, not the forward one. A direction the
+run never trained (a band generated as 0–0) is a stand. Turn-in-place
+(`vx = 0, wz ≠ 0`) is trained, so the snap keeps `wz`. Lift (±1) and the foot
+offsets (±0.05 m) are scripted rather than drawn and are fixed in
+`protocol.py`. `sources.stick_to_speed()` and `stick_to_lateral()` (the gamepad's forward
+and left-stick axes) map stick travel past the dead zone onto the band of
+their direction (a light push is the band's minimum, full deflection its
+maximum) for the same reason.
+The host test pins the generated header against the bands derived from the
+run, and the clamp on both sides of every band against the Python reference
+(`cmd_envelope_vectors.h`); `tests/test_cmd_envelope.py` pins the generated
+files against each other and, where the run's gitignored `config.json` is on
+the machine, against it.
 
 **Legal is not reliable.** Commanding the edge of the envelope (pivots at
-`wz = 1.0`, sprints at 1.0 m/s) measurably falls; walking while turning is
+`wz = 1.0`, sprints at the top of the speed band) measurably falls; walking while turning is
 the best-trained regime. Aim at the middle: the goal source cruises at
-0.6 m/s, caps yaw at 0.8, arcs toward the goal and pivots only when the goal
+0.6 m/s (or the band's maximum, if lower), caps yaw at 0.8, arcs toward the goal and pivots only when the goal
 is behind it.
 
 ## Network
@@ -496,13 +525,36 @@ new commander is a class in `link/sources.py` or a front end on
   (`stand`, `walk`, `dash_stop`, `line_1m`, `turn`, `pivot`, `square`,
   `march`, `stride1`, `sidestep1`, `crouch1`, `rom_feet`); `--source
   gamepad` reads sticks through pygame with a **held** dead-man (right
-  shoulder; letting go must stop the robot) and B/circle as E-stop.
+  shoulder; letting go must stop the robot) and B/circle as E-stop. Sticks
+  (SDL2 Xbox/PS layout): left Y is vx through `stick_to_speed` (up =
+  forward), left X is vy through `stick_to_lateral` (left = +vy), right X is
+  wz (left = +wz); all three share one dead zone (0.15), and wz is a linear
+  map to `W_MAX`.
+  Every source's `poll(t)` returns `(vx, wz, flags, ext)`; `ext` is a dict of
+  the extended channels (`vy`, `crouch`, `lift`, `foot_dx`, `foot_dz`; a key
+  left out rides at its default), which `commander.py` passes to
+  `encode_command`: a 14 B frame while every extra is at its default, the
+  24 B frame otherwise. Scripts that return a dict (`sidestep1`, `crouch1`,
+  `march`, `rom_feet`) and the gamepad's vy go out through that one path.
   `--source goal --goal X Y` is a goal-seeker that needs a world (x, y, yaw)
   feed as 12-byte datagrams on UDP 4212 (`sources.PoseFeed`); the robot has
   no odometry to provide one and neither twin publishes one.
 - **`link/arm_script.py`**: arms over the radio, runs a `sources.py` script
-  with `ARM` held, then disarms. It E-stops, disarms and exits 2 on
-  `FALLEN`, a servo fault or `up_z` < 0.5 for 0.3 s.
+  with `ARM` held, and ends the run with the RESET SERVOS edge: `ARM|HOME`
+  sent while still armed, then `ARM`-off frames until the robot's `diag` says
+  `DISARMED_HOME` (the firmware slews home, rolls the hips out and back,
+  reads every joint back and releases torque itself, about 8 s;
+  `HOME_PENDING` until then). `HOME_NOT_REACHED`, any other home verdict, no
+  telemetry or no verdict within `--home-wait` seconds (default 16) sends
+  `ESTOP` as the release and exits 2. A bare `ARM`-off disarm is not an
+  ending: it releases torque where the robot stands, and a stride run that
+  ended that way toppled 1.2 s later. `--stay-armed` skips the ending.
+  `FALLEN`, a servo fault or `up_z` < 0.5 for 0.3 s instead sends `ESTOP`,
+  disarms, homes after a 3 s hold for the spotter, and exits 2.
+  `--check-prep <run>` first reads `standclock` and `shape` back over the
+  Wi-Fi CLI (`tools/robot_prep.sh --check`) and refuses to send a frame when
+  they differ from the run's `config.json`. `link/osc_probe.py` and
+  `link/crouch_probe.py` end the same way (`Driver.home_and_release`).
 
 ## Simulated robots behind the link
 
@@ -568,8 +620,9 @@ bytes:
 1. `crc16Ccitt`, `encode/decodeCommand`, `encode/decodeTelemetry`: ports,
    checked against `0x29B1` and the golden vectors.
 2. `Watchdog`: a port with no I/O; it takes `now_ms`.
-3. `clampToEnvelope` / `clampExtToEnvelope`: the limits must match
-   `protocol.py` and the deployed policy's training config.
+3. `clampToEnvelope` / `clampExtToEnvelope`: the limits are the generated
+   `cmd_envelope.h` (the deployed policy's training config), checked against
+   `cmd_envelope_vectors.h`.
 4. The loop: receive → decode → `ArmLatch` / `HomeLatch` →
    `Watchdog.accept()` → `state()` → `commandExt()` → policy → servo bus at
    50 Hz. `link/protocol.py:Supervisor` is that composition in Python, used

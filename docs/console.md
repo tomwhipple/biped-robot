@@ -99,7 +99,9 @@ with `--bench-telemetry` / `--cam-relay`.
   nothing.
 - **Drive**: hold-to-move buttons, what was sent beside what the policy saw
   (the flight record's command), the extended channels, speeds and send rate,
-  30 s of pack, tilt and vx.
+  30 s of pack, tilt and vx. The sliders span the deployed run's generated
+  command envelope (`link/cmd_envelope.py`); a channel the run never varied
+  (crouch, on a run trained at 1 only) is shown and disabled.
 - **Joints** (`tab_joints.py`): goal vs measured for every bus joint on the
   robot's clock, error RMS and load, a faulted servo boxed red ("reading
   held"), the sim twin as an amber trace; click a joint to highlight it in 3D.
@@ -128,7 +130,8 @@ with `--bench-telemetry` / `--cam-relay`.
 
 `gamepad.py`, through SDL's GameController API (pygame), mapped by position:
 the right shoulder (RB) is a held dead-man, east (B) is E-STOP in every role,
-the left stick is vx (the trained band) and vy, the right stick x is wz; the
+the left stick is vx and vy (each through the trained band of its direction,
+`sources.stick_to_speed` / `stick_to_lateral`), the right stick x is wz; the
 pad cannot arm or reset the servos. Losing the pad releases everything. **It
 drives the sim only** (a loopback host) until the Bluetooth disconnect and
 silence latencies are measured on the pad

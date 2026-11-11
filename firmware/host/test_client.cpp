@@ -975,10 +975,12 @@ void test_c_boundary_drives_and_watches_like_the_core() {
     BimoConsole* d = bimo_new();
     CHECK(bimo_open(d, "127.0.0.1", port, 0));
     bimo_toggle_arm(d, 0.0);
-    bimo_set_ext(d, 0.8f, 0.0f, 0.0f, 0.0f);
+    // A foot offset, not a crouch: bimo_set_ext clamps into the generated
+    // envelope, and a run trained at crouch 1 only holds crouch at 1.
+    bimo_set_ext(d, 1.0f, 0.0f, 0.03f, 0.0f);
     bimo_tick(d, 10.0);
     CHECK_EQ(drainCommands(robot, &cmd), 1);
-    CHECK_NEAR(cmd.crouch, 0.8, 1e-3);
+    CHECK_NEAR(cmd.foot_dx, 0.03, 1e-3);
     bimo_status(d, 10.0, &st);
     CHECK_EQ(st.last_len, linkproto::kCmdLenExt);
     bimo_leave_disarmed(d, 3, 0);

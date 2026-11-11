@@ -54,8 +54,21 @@ listens on UDP 4213 at its DHCP address (192.168.2.90 on the bench network).
 .venv/bin/python tools/wcli.py ping                # one command, its reply, exit
 .venv/bin/python tools/wcli.py 'pose ... s1500 BL' --linger 5
                                                    # ... and 5 s of async output
+.venv/bin/python tools/wcli.py home --wait 'home readback' --timeout 20
+                                                   # ... until that line arrives
 .venv/bin/python tools/wcli.py                     # interactive (or a pipe)
 ```
+
+`--wait REGEX` (one-command mode) keeps reading the robot's async output after
+the reply until a line matches (`re.search`, per line), then exits 0; if none
+does within `--timeout` seconds (default 30, here the wait's own limit) it
+exits 4. A command that failed, was refused or was not run is reported as
+such without waiting. `home` replies as soon as the move starts and prints
+`home readback: ...` about 8 s later; a command sent in between interrupts the
+play take-up, so wait for the line (or use `--linger 14`) before the next one.
+
+`tools/robot_prep.sh --run <run>` is the per-boot use of this tool: it sets
+and reads back `standclock` and `shape` from a run's `config.json`.
 
 `--host` (default `$BIMO_HOST` or 192.168.2.90), `--key-file` (default
 `$BIMO_WCLI_KEY` or `~/.config/bimo/wcli.key`). Exit status: 0 executed, 2

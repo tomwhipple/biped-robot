@@ -237,6 +237,41 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     return np.array(ch), np.array(ck)
 
 
+def mimic_sway_coefs(model, sg_roll):
+    """Calibration for the imitation reference's lateral weight shift
+    (mimic_sway): per leg (L, R), the hip-roll offset from the home pose
+    (qpos0), per metre, that moves the torso +y (toward the LEFT foot)
+    relative to that leg's sole, with the ankle roll cancelling the hip roll
+    exactly as the reference does (the sole stays parallel to the torso).
+    Finite difference on MuJoCo kinematics, torso fixed: the sign comes from
+    the model, not from axis conventions. sg_roll: the env's (hip roll,
+    ankle roll) x-axis signs. Returns a (2,) array, rad/m. Jax-free; both
+    envs call it on their own model so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    out = []
+    for li, side in enumerate("LR"):
+        ar = model.jnt_qposadr[model.joint(f"{side}_hip_roll").id]
+        aa = model.jnt_qposadr[model.joint(f"{side}_ankle_roll").id]
+        s_hr, s_ar = (float(np.ravel(np.asarray(v))[li]) for v in sg_roll)
+        sole = model.geom(f"{side}_sole").id
+
+        def y(x):
+            d.qpos[:] = q0
+            d.qpos[ar] += x
+            d.qpos[aa] -= s_hr * x / s_ar
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            return float((R.T @ (d.geom_xpos[sole] - d.xpos[torso]))[1])
+        dy = (y(1e-4) - y(-1e-4)) / 2e-4       # sole y in the torso frame, per rad
+        if abs(dy) < 0.05:
+            raise ValueError(f"mimic_sway: {side} hip roll barely moves the sole ({dy:.3f} m/rad)")
+        out.append(-1.0 / dy)                  # torso +y vs the sole = sole -y vs the torso
+    return np.array(out)
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -261,6 +296,46 @@ def parse_dq_obs_window(spec):
     if not 1 <= lo <= hi <= DQ_OBS_WINDOW_MAX:
         raise ValueError(f"dq_obs_window {spec}: need 1 <= lo <= hi <= {DQ_OBS_WINDOW_MAX}")
     return (lo, hi)
+
+
+ROLL_SERIES_ROLES = ("hip", "ankle")
+
+
+def parse_roll_series_k(spec):
+    """roll_series_k -> {"hip": (lo, hi), "ankle": (lo, hi)} N m/rad (a role left out is
+    rigid), or None when off. Accepts None / "" / {}, the CLI string "hip=LO:HI,ankle=LO:HI"
+    (a single value = no DR) or the dict config.json stores ({"hip": [lo, hi], ...} or
+    numbers). Shared by env_mjx and the CPU env so both read a config.json the same way."""
+    if spec is None or spec == "" or spec == {}:
+        return None
+    if isinstance(spec, str):
+        d = {}
+        for tok in spec.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            k, eq, v = tok.partition("=")
+            if not eq:
+                raise ValueError(f"roll_series_k {spec!r}: want hip=LO:HI,ankle=LO:HI")
+            d[k.strip()] = [float(x) for x in v.split(":")]
+        spec = d
+    out = {}
+    for k, v in dict(spec).items():
+        if k not in ROLL_SERIES_ROLES:
+            raise ValueError(f"roll_series_k: role {k!r} not in {ROLL_SERIES_ROLES}")
+        v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
+        if len(v) == 1:
+            v = v * 2
+        if len(v) != 2 or not (0.0 < v[0] <= v[1] < float("inf")):
+            raise ValueError(f"roll_series_k {k}={v}: need 0 < lo <= hi (N m/rad)")
+        out[k] = (v[0], v[1])
+    return out or None
+
+
+def roll_series_roles(servo_names):
+    """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise."""
+    return np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
+                     for n in servo_names], dtype=np.int64)
 
 
 def apply_floor_contacts(model, floor_contacts):
@@ -474,11 +549,14 @@ LOW_SWING_CLEAR = 0.03    # m: every step's sole peak (the referee's SWING_CLEAR
 LOW_SWING_MIN_TICKS = 3   # a shorter swing is contact chatter, not a step (the referee's SWING_MIN_TICKS)
 
 
-def low_swing_shortfall(peak, xp):
-    """Fraction of LOW_SWING_CLEAR a completed swing's sole peak fell short by:
-    0 at or above 3 cm, 1 for a foot that left the floor without rising.
-    xp = jax.numpy or numpy, so both envs share the exact formula."""
-    return xp.clip((LOW_SWING_CLEAR - peak) / LOW_SWING_CLEAR, 0.0, 1.0)
+def low_swing_shortfall(peak, xp, clear=LOW_SWING_CLEAR):
+    """Fraction of `clear` (default LOW_SWING_CLEAR, the referee's 3 cm) a
+    completed swing's sole peak fell short by: 0 at or above it, 1 for a foot
+    that left the floor without rising. A lower `clear` (--low-swing-clear)
+    lets the penalty run with a low imitation lift (a 2 cm --mimic-lift fought
+    the fixed 3 cm). xp = jax.numpy or numpy, so both envs share the exact
+    formula."""
+    return xp.clip((clear - peak) / clear, 0.0, 1.0)
 
 class BimoWalkerEnv(gym.Env):
     metadata = {"render_modes": ["rgb_array"], "render_fps": 50}
@@ -525,6 +603,9 @@ class BimoWalkerEnv(gym.Env):
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
+        mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
+        mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march (mirror of env_mjx)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -601,6 +682,10 @@ class BimoWalkerEnv(gym.Env):
         # the stance encoders move ~1 deg). Mirror of env_mjx roll_lash_deg.
         roll_lash_deg_max: float | None = None,  # per-episode draw
         # uniform(roll_lash_deg, max)
+        roll_series_k=None,            # a spring (N m/rad) in series with the hip /
+        # ankle roll servos, BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)}
+        # or "hip=LO:HI,ankle=LO:HI", per-episode draw per role (parse_roll_series_k).
+        # None = rigid (bit-exact). Mirror of env_mjx roll_series_k.
         torso_mass_range: float | None = None,   # per-episode torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of the generic mass_range for the torso body
         torso_com_y: float = 0.0,      # per-episode lateral torso CoM offset
@@ -680,6 +765,9 @@ class BimoWalkerEnv(gym.Env):
         # correct one-foot contact pattern. Ordinary lifts command c6 = 0, so
         # the kernel degrades to "reach lift_height"; the march commands
         # c6 = march_dz, i.e. a target at the opposite knee's standing height.
+        march_lift: float = 0.0,       # m: the march's peak commanded swing-sole
+        # height (lift_height + c6); 0 = the opposite knee's standing height
+        # (mirror of env_mjx)
         march_hz: float = 0.0,         # COMMANDED march cadence in full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock,
         # which inherits its 1.25-1.75 Hz draw -> 0.29-0.40 s per lift; that
@@ -744,6 +832,8 @@ class BimoWalkerEnv(gym.Env):
         # |this swing duration - other foot's last swing| (mirrors sim/mjx)
         w_low_swing: float = 0.0,      # per-step clearance penalty on touchdown
         # (mirrors sim/mjx; low_swing_shortfall above)
+        low_swing_clear: float = LOW_SWING_CLEAR,  # m: w_low_swing's clearance
+        # target (mirrors sim/mjx; the referee keeps its own SWING_CLEAR)
         w_foot_under: float = 0.0,     # mirrors sim/mjx w_foot_under
         w_up_vel: float = 0.0,         # mirrors sim/mjx w_up_vel (getup_v5)
         w_com_stance: float = 0.0,     # while lifted: CoM-over-stance-foot
@@ -934,6 +1024,7 @@ class BimoWalkerEnv(gym.Env):
         self.roll_lash_deg = float(roll_lash_deg)
         self.roll_lash_deg_max = roll_lash_deg_max
         self._roll_lash_rad = float(np.deg2rad(roll_lash_deg))
+        self.roll_series_k = parse_roll_series_k(roll_series_k)
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.zero_offset_deg = float(zero_offset_deg)
@@ -993,6 +1084,7 @@ class BimoWalkerEnv(gym.Env):
         self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
+        self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
@@ -1031,6 +1123,9 @@ class BimoWalkerEnv(gym.Env):
         self._obs_hist = []
         self.w_symmetry = w_symmetry
         self.w_low_swing = w_low_swing
+        self.low_swing_clear = float(low_swing_clear)
+        if self.low_swing_clear <= 0.0:
+            raise ValueError("low_swing_clear must be > 0")
         self._swing_peak = np.zeros(2)   # per-foot sole peak (m) of the swing in progress
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -1175,6 +1270,14 @@ class BimoWalkerEnv(gym.Env):
         self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
         self._roll_mask = np.array([n[2:] in ("hip_roll", "ankle_roll")
                                     for n in self._servo_names], dtype=np.float64)
+        # roll series spring (roll_series_k): per-servo compliance 1/k (0 = rigid), drawn at
+        # reset; the shaft-link deflection tau/k the encoders add. None when off.
+        self._ser_role = roll_series_roles(self._servo_names)
+        self._ser_c = self._ser_defl = self._ser_dq = None
+        if self.roll_series_k is not None:
+            self._ser_c = np.zeros(len(self._servo_names))
+            self._ser_defl = np.zeros(len(self._servo_names))
+            self._ser_dq = np.zeros(len(self._servo_names))
         self.held_joints = ({} if not held_joints else
                             {str(k): float(v) for k, v in held_joints.items()})
         _bad = [k for k in self.held_joints if k not in self._sname2i]
@@ -1295,6 +1398,8 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
         self._servo_tau = np.zeros(self._n_servo)
+        if self.roll_series_k is not None and self._servo is None:
+            raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -1412,6 +1517,19 @@ class BimoWalkerEnv(gym.Env):
         if self.mimic_lift > 0.0:
             self._lift_ch, self._lift_ck = mimic_lift_coefs(
                 self.model, self._sg_pitch if self.mimic_sole_level else None)
+        self.mimic_sway = float(mimic_sway)
+        self.mimic_sway_lead = float(mimic_sway_lead)
+        if self.mimic_sway != 0.0:
+            if self._i_aroll is None:
+                raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
+            self._sway_k = mimic_sway_coefs(self.model, self._sg_roll)
+        self.mimic_march = float(mimic_march)
+        if self.mimic_march != 0.0:
+            if not 0.0 < self.mimic_march <= 0.08:
+                raise ValueError("mimic_march must be in (0, 0.08] m (the mimic_lift IK table)")
+            if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
+                raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
+                                 "(the reference follows the gait clock)")
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -1445,7 +1563,8 @@ class BimoWalkerEnv(gym.Env):
             _knee_jid = self.model.joint(
                 self._act_names[self._legL["knee"]]).id
             self._knee_z0 = float(d0.xanchor[_knee_jid][2])
-            self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
+            self.march_clear = (self.march_lift if self.march_lift > 0.0
+                                else max(self._knee_z0 - self._sole_z0, 0.0))
             # commanded c6 offset that puts the swing-foot TARGET (which is
             # lift_height + c6 above the standing sole) at knee height
             self._march_dz = max(self.march_clear - self.lift_height, 0.0)
@@ -1544,7 +1663,10 @@ class BimoWalkerEnv(gym.Env):
         self._dq_qhist = None          # newest first; seeded in reset()
 
     def _dq_q(self):
-        return np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+        q = np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+        if self._ser_c is not None:
+            q = q + self._p(self._ser_defl)      # the encoder reads the shaft
+        return q
 
     def _dq_qhist_seed(self):
         """The history at rest at the current pose (env_mjx _dq_qhist0)."""
@@ -1734,10 +1856,15 @@ class BimoWalkerEnv(gym.Env):
         else:
             phase = 2 * np.pi * (self._step_i / self.max_steps)
         q_j = d.qpos[self._jqpos]
+        if self._ser_c is not None:
+            # roll series spring: the encoder reads the servo shaft, link + tau/k
+            q_j = q_j + self._p(self._ser_defl)
         if self._zero_off is not None:
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
+        if self._ser_c is not None:
+            dq_j = dq_j + self._p(self._ser_dq)
         if self.dq_obs_window is not None and self._dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last _dq_win ticks
             # (the history is advanced in reset()/step(); this stays a pure read)
@@ -1844,7 +1971,7 @@ class BimoWalkerEnv(gym.Env):
             return cmd3 * self._nominal_h
         return self._nominal_h - self._crouch_drop(cmd3)
 
-    def _mimic_ref(self, cmd, phase, freq):
+    def _mimic_ref(self, cmd, phase, freq, march=None):
         """Numpy mirror of sim/mjx BimoMJXEnv._mimic_ref (parity-gated)."""
         f = max(float(freq), 0.5)
         d = self._default
@@ -1867,12 +1994,23 @@ class BimoWalkerEnv(gym.Env):
             # stance leg and the standing reference are unchanged
             g = 1.0 if self._cmd_is_moving(cmd) else 0.0
             u = np.sqrt(self.mimic_lift) * sw * g
+            if self.mimic_march != 0.0 and march:
+                u = np.sqrt(self.mimic_march) * sw
             ch, ck = self._lift_ch, self._lift_ck
             hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
             knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_sway != 0.0:
+            # lateral weight shift (mirror of env_mjx): the torso moves toward
+            # the stance foot by mimic_sway, leading the swing by the lead
+            # phase (L swings on sin > 0, so the torso goes -y, toward R)
+            g = 1.0 if self._cmd_is_moving(cmd) else 0.0
+            if self.mimic_march != 0.0 and march:
+                g = 1.0
+            roll = roll + self._sway_k * (-self.mimic_sway * g
+                                          * np.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain
             s_h, s_k, s_a = self._sg_pitch
@@ -2283,6 +2421,17 @@ class BimoWalkerEnv(gym.Env):
             lo, hi = self.dq_obs_window
             # drawn last, so every other draw keeps its stream
             self._dq_win = lo if lo == hi else int(self.np_random.integers(lo, hi + 1))
+        if self._ser_c is not None:
+            # roll series spring: k per role (L and R share it), uniform in k; a fixed k
+            # draws nothing. After every other draw, so they keep their streams.
+            c = np.zeros(len(ROLL_SERIES_ROLES))
+            for r, role in enumerate(ROLL_SERIES_ROLES):
+                if role in self.roll_series_k:
+                    lo, hi = self.roll_series_k[role]
+                    c[r] = 1.0 / (lo if lo == hi else float(self.np_random.uniform(lo, hi)))
+            self._ser_c = np.where(self._ser_role >= 0, c[np.maximum(self._ser_role, 0)], 0.0)
+            self._ser_defl = np.zeros(self._n_servo)
+            self._ser_dq = np.zeros(self._n_servo)
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -2394,6 +2543,12 @@ class BimoWalkerEnv(gym.Env):
                 # parity; the profile is all ones unless configured)
                 kp = kp * self._kp_prof
                 kd = kd * self._kd_prof
+                if self._ser_c is not None:
+                    # roll series spring, quasi-static (massless shaft): the link sees
+                    # the servo PD in series with k, gains x k/(kp+k) = 1/(1+kp/k)
+                    x_ser = 1.0 / (1.0 + kp * self._ser_c)
+                    kp = kp * x_ser
+                    kd = kd * x_ser
                 stall = stall * self._stall_prof
                 w0 = w0 * self._w0_prof
                 q = self.data.qpos[self._sqpos]
@@ -2433,6 +2588,12 @@ class BimoWalkerEnv(gym.Env):
                 self.data.ctrl[:] = cur
             mujoco.mj_step(self.model, self.data)
         self._last_target = target
+        if self._ser_c is not None:
+            # the servo shaft leads the link by the spring's deflection tau/k: what the
+            # encoders read (q obs, the dq history) is link + defl
+            defl = self._servo_tau * self._ser_c
+            self._ser_dq = (defl - self._ser_defl) / self.control_dt
+            self._ser_defl = defl
         x_after = float(self.data.qpos[0])
 
         d = self.data
@@ -2689,7 +2850,8 @@ class BimoWalkerEnv(gym.Env):
                             and self._air_time[f]
                             >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt):
                         reward -= self.w_low_swing * float(
-                            low_swing_shortfall(self._swing_peak[f], np))
+                            low_swing_shortfall(self._swing_peak[f], np,
+                                                self.low_swing_clear))
                     self._last_air[f] = self._air_time[f]
                 self._air_time[f] = 0.0
                 self._swing_peak[f] = 0.0
@@ -2837,11 +2999,15 @@ class BimoWalkerEnv(gym.Env):
                    + np.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * float(np.sum(out))
         if self.w_mimic:
-            q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
+            on_march = self.mimic_march != 0.0 and self._traj_on == 4.0 and bool(lifted)
+            if self.mimic_march != 0.0:
+                q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq, march=on_march)
+            else:
+                q_ref = self._mimic_ref(self._cmd, self._gait_phase, freq)
             dq = np.asarray(d.qpos[self._jqpos]) - q_ref
             mim_gate = 1.0
             if self.ext_cmd:
-                mim_gate = float((not lifted) and self._recovered)
+                mim_gate = float(((not lifted) or on_march) and self._recovered)
             reward += (self.w_mimic * mim_gate
                        * float(np.exp(-np.sum(self._mimic_w * dq ** 2)
                                       / self.mimic_s2)))

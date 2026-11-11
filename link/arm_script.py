@@ -13,7 +13,15 @@ supervised sequence in phases:
            parks the robot (STAND -> RELAX, torque off) on its own.
   script   ARM stand frames for --settle s (re-engages torque from RELAX),
            the named link/sources.py script, --tail s of stand, then --
-           unless --stay-armed -- 1 s of ARM-off frames = disarm (BENCH).
+           unless --stay-armed -- the RESET SERVOS edge (ARM|FLAG_HOME, still
+           armed): torque stays on while the firmware slews home, reads the
+           joints back and only then releases.  The run waits for that
+           read-back (HOME_PENDING -> DISARMED_HOME); a HOME_NOT_REACHED, any
+           other verdict, or no telemetry within ~16 s sends the ESTOP release
+           and exits 2.  A bare ARM-off disarm releases torque wherever the
+           robot stands and it toppled 1.2 s later on 2026-11-10 (#276), so
+           it is no longer an ending of this tool (--phase disarm remains for
+           a robot that is benched or resting on something).
   disarm   1 s of ARM-off frames.
 
 Guard: a robot-latched FALLEN, servo fault bits, or up_z < 0.5 (held 0.3 s)
@@ -238,7 +246,7 @@ class Driver:
         self.run_for(3.0, lambda t: (0.0, 0.0, 0), "hold (spotter rights the robot)")
         self.home_and_release(FLAG_HOME, "RESET SERVOS after guard")
 
-    def home_and_release(self, edge_flags, label="RESET SERVOS"):
+    def home_and_release(self, edge_flags, label="RESET SERVOS", wait_s=16):
         """The zeroing: a FLAG_HOME edge, then wait for the firmware's HOME
         verdict (since 2026-09-13 the routine slews, rolls each hip out and
         back to take up play, reads back and RELEASES torque itself -- ~8 s),
@@ -247,7 +255,7 @@ class Driver:
         torque is off). Returns the verdict."""
         self.run_for(0.4, lambda t: (0.0, 0.0, edge_flags), f"{label}: FLAG_HOME edge")
         r = None
-        for _ in range(16):
+        for _ in range(max(1, int(wait_s))):
             self.run_for(1.0, lambda t: (0.0, 0.0, 0), "home: slew + hip wiggle + readback")
             r = diag_arm_result(self.tlm.diag) if self.tlm is not None else None
             if r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NOT_REACHED,
@@ -287,6 +295,21 @@ def phase_arm(d, a):
     return v
 
 
+HOME_FAILED = "home not confirmed"
+
+
+def end_with_home(d, label="end: RESET SERVOS (still armed)", wait_s=16):
+    """The end of every armed run: the FLAG_HOME edge sent while still armed,
+    then the wait for the robot's read-back (Driver.home_and_release, which
+    also sends the ESTOP release when the reset is not clean).  Returns None
+    when the robot reports DISARMED_HOME, else a HOME_FAILED verdict that the
+    caller must NOT hand to Driver.emergency (the release has been sent)."""
+    r = d.home_and_release(FLAG_ARM | FLAG_HOME, label, wait_s=wait_s)
+    if r is ArmResult.DISARMED_HOME:
+        return None
+    return f"{HOME_FAILED} ({r}); torque released by ESTOP"
+
+
 def phase_script(d, a):
     fn = SCRIPTS[a.script]
     # Same preamble as phase_arm: a fresh ArmLatch has no level until it sees
@@ -318,7 +341,7 @@ def phase_script(d, a):
     if v:
         return v
     if not a.stay_armed:
-        return d.run_for(1.0, arm_off, "disarm: ARM=0 frames")
+        return end_with_home(d, wait_s=a.home_wait)
     return None
 
 
@@ -338,18 +361,35 @@ def main():
                    help="arm: seconds of ARM stand; script: script length")
     p.add_argument("--settle", type=float, default=1.5)
     p.add_argument("--tail", type=float, default=2.0)
-    p.add_argument("--stay-armed", action="store_true")
+    p.add_argument("--home-wait", type=float, default=16,
+                   help="script: seconds to wait for the home read-back before the ESTOP release (default 16; the routine takes ~8 s)")
+    p.add_argument("--check-prep", metavar="RUN",
+                   help="before sending any frame, run tools/robot_prep.sh --check "
+                        "--run RUN --host HOST (the robot's `standclock` and "
+                        "`shape` read back over the Wi-Fi CLI against RUN's "
+                        "config.json); exit 2 without arming on a mismatch")
+    p.add_argument("--stay-armed", action="store_true",
+                   help="script: skip the closing RESET SERVOS and leave the robot armed")
     p.add_argument("--watch", metavar="HOST[:PORT]",
                    help="forward every beacon to a `bimo_gui --readonly` watcher (HOST[:PORT]); the robot beacons only to whoever commanded it last, so a second console cannot listen in")
     a = p.parse_args()
 
+    if a.check_prep and a.phase != "disarm":
+        r = subprocess.run([str(Path(__file__).resolve().parent.parent / "tools" / "robot_prep.sh"),
+                            "--run", a.check_prep, "--host", a.host, "--check"])
+        if r.returncode:
+            print(f"!! robot_prep --check {a.check_prep} failed (exit {r.returncode}): "
+                  f"not arming -- run tools/robot_prep.sh --run {a.check_prep}", flush=True)
+            sys.exit(2)
     d = Driver(a.host, cmd_port=a.port, tlm_port=a.tlm_port, watch=a.watch)
     print(Driver.host_clock_line(), flush=True)
     try:
         verdict = {"arm": phase_arm, "script": phase_script,
                    "disarm": phase_disarm}[a.phase](d, a)
-        if verdict:
+        if verdict and not verdict.startswith(HOME_FAILED):
             d.emergency(verdict)
+        elif verdict:
+            print(f"!! {verdict}", flush=True)
     except KeyboardInterrupt:
         d.emergency("operator ctrl-C")
         verdict = "interrupted"

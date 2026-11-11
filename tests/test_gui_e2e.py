@@ -22,8 +22,8 @@ there:
 
   * a RELEASE stands on the very next frame. bimo_tui has no key-up event and
     fakes a dead-man with --hold-ms; this one is exact.
-  * a slider reaches the wire as a 24 B extended frame with the crouch the
-    operator asked for -- a channel no keyboard console can command.
+  * a slider reaches the wire as a 24 B extended frame with the foot offset
+    the operator asked for -- a channel no keyboard console can command.
 
 Ports are offset so it never collides with a console pointed at the robot.
 """
@@ -193,10 +193,12 @@ def test_arm_press_release_estop_quit(console):
 
 
 def test_a_slider_reaches_the_wire_as_an_extended_frame(console):
-    """crouch is a channel no keyboard console can command at all."""
+    """foot_dx is a channel no keyboard console can command at all. (Not
+    crouch: the deployed envelope is generated from a run trained at crouch 1
+    only, so the robot-side clamp holds it at 1.0.)"""
     out, log, rc = _run(console, [
         (1.0, "arm"),
-        (1.2, "set crouch 0.80"),
+        (1.2, "set foot_dx 0.03"),
         (0.8, "press strafe_left"),
         (0.6, "release strafe_left"),
         (0.4, "reset_ext"),
@@ -206,7 +208,7 @@ def test_a_slider_reaches_the_wire_as_an_extended_frame(console):
 
     ext = _ext_lines(log)
     assert ext, "the twin never saw an extended frame\n" + log
-    assert any("crouch 0.80" in ln for ln in ext), log
+    assert any("fdx +0.030" in ln for ln in ext), log
     # Strafe is vy, which only exists in the 24 B frame.
     assert any("vy +0.20" in ln for ln in ext), log
     # ... and resetting goes back to the short frame, so the extended trace

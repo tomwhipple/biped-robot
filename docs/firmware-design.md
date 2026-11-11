@@ -231,7 +231,7 @@ graph LR
 | module | what it is | on the host |
 |---|---|---|
 | `components/scsbus/` | Feetech SCS/STS protocol: packet codec and transactions (PING, READ/WRITE, REG WRITE + ACTION, RESET, SYNC READ, SYNC WRITE, torque enable incl. broadcast, EEPROM lock, ID change, set-middle, error-flag decode). The golden packets are the worked examples in Feetech's own protocol manual | tested against a scripted fake port |
-| `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps, the bench diagnostic, the UART demux | golden vectors from the Python reference |
+| `components/linkproto/` | byte-exact port of `link/protocol.py`: frames, CRC, `Watchdog`, `ArmLatch`, `HomeLatch`, envelope clamps (the generated `cmd_envelope.h`), the bench diagnostic, the UART demux | golden vectors from the Python reference |
 | `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, `MotionLimiter`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
@@ -273,7 +273,7 @@ q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin
   0.05 and |lift| < 0.5). Both flags come from the run, as in training.
 - **cmd**: vx, vy, wz, crouch, lift, foot_dx, foot_dz (defaults 0, 0, 0, 1,
   0, 0, 0), from the watchdog: the operator's command only while `LIVE`,
-  clamped to the trained envelope. Crouch is the lower of the link's value
+  clamped to the trained envelope (generated from the run: forward, backward and lateral bands, turn limit, crouch floor). Crouch is the lower of the link's value
   and the pack guard's landing ramp; the travel channels are zeroed while the
   guard is latched.
 - The history ring is refilled with the first frame after every arm (as

@@ -48,7 +48,7 @@ constexpr double kTlmLostMs = 1000.0;
 constexpr int kHomeFrames = 8;
 
 constexpr double kDefaultVx = 0.4;    // eval_precision line_1m's speed
-constexpr double kDefaultVy = 0.2;    // inside kVyMax (0.3), the sway draw
+constexpr double kDefaultVy = 0.2;    // inside the sidestep band of the runs on main (cmd_envelope.h)
 constexpr double kDefaultWz = 0.5;    // eval_commands validates +-0.5
 
 double nowMs();

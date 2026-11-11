@@ -1,0 +1,171 @@
+== SEARCH for the get-up with the most margin to the STS overload cutoff; r5_asdrawn_rom120, Plan B (3215_p4rk), self_collide on, six conditions per candidate; CEM, 4 restarts x 25 iterations x 24; score = 10 x (conditions standing) - (worst total time above 80 % duty) - 0.5 x (worst continuous) - 3 x (worst peak torque load above 60 %) - 0.02 x (sequence seconds); workers 12
+== baseline (recommended sh 90->0 / el -90->0): 6/6  score +55.89  duty>80%: total 2.34 s, longest 1.48 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 25.3 s
+   restart 0 iter  0: best 6/6  score +56.31  duty>80%: total 2.30 s, longest 1.34 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 46 % of stall  T 27.1 s
+   restart 0 iter  1: best 6/6  score +56.31  duty>80%: total 2.30 s, longest 1.34 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 46 % of stall  T 27.1 s
+   restart 0 iter  2: best 6/6  score +56.72  duty>80%: total 1.76 s, longest 1.32 s  peak torque load 71 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 26.0 s
+   restart 0 iter  3: best 6/6  score +56.72  duty>80%: total 1.76 s, longest 1.32 s  peak torque load 71 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 26.0 s
+   restart 0 iter  4: best 6/6  score +56.98  duty>80%: total 1.42 s, longest 1.28 s  peak torque load 72 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.6 s
+   restart 0 iter  5: best 6/6  score +56.98  duty>80%: total 1.42 s, longest 1.28 s  peak torque load 72 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.6 s
+   restart 0 iter  6: best 6/6  score +57.17  duty>80%: total 1.34 s, longest 1.34 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 28.7 s
+   restart 0 iter  7: best 6/6  score +57.17  duty>80%: total 1.34 s, longest 1.34 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 28.7 s
+   restart 0 iter  8: best 6/6  score +57.17  duty>80%: total 1.34 s, longest 1.34 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 28.7 s
+   restart 0 iter  9: best 6/6  score +57.23  duty>80%: total 1.30 s, longest 1.30 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 47 % of stall  T 31.1 s
+   restart 0 iter 10: best 6/6  score +57.23  duty>80%: total 1.30 s, longest 1.30 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 47 % of stall  T 31.1 s
+   restart 0 iter 11: best 6/6  score +57.28  duty>80%: total 1.28 s, longest 1.28 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.9 s
+   restart 0 iter 12: best 6/6  score +57.28  duty>80%: total 1.28 s, longest 1.28 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.9 s
+   restart 0 iter 13: best 6/6  score +57.29  duty>80%: total 1.24 s, longest 1.24 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 29.6 s
+   restart 0 iter 14: best 6/6  score +57.29  duty>80%: total 1.24 s, longest 1.24 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 29.6 s
+   restart 0 iter 15: best 6/6  score +57.29  duty>80%: total 1.24 s, longest 1.24 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 29.6 s
+   restart 0 iter 16: best 6/6  score +57.33  duty>80%: total 1.26 s, longest 1.26 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 30.3 s
+   restart 0 iter 17: best 6/6  score +57.38  duty>80%: total 1.22 s, longest 1.20 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 29.0 s
+   restart 0 iter 18: best 6/6  score +57.38  duty>80%: total 1.22 s, longest 1.20 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 29.0 s
+   restart 0 iter 19: best 6/6  score +57.53  duty>80%: total 1.08 s, longest 1.06 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 46 % of stall  T 31.2 s
+   restart 0 iter 20: best 6/6  score +57.53  duty>80%: total 1.08 s, longest 1.06 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 46 % of stall  T 31.2 s
+   restart 0 iter 21: best 6/6  score +57.53  duty>80%: total 1.06 s, longest 1.06 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 47 % of stall  T 30.1 s
+   restart 0 iter 22: best 6/6  score +57.68  duty>80%: total 1.02 s, longest 1.02 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 31.0 s
+   restart 0 iter 23: best 6/6  score +57.68  duty>80%: total 1.02 s, longest 1.02 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 31.0 s
+   restart 0 iter 24: best 6/6  score +57.75  duty>80%: total 0.98 s, longest 0.98 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 29.3 s
+-- restart 0 BEST: 6/6  score +57.75  duty>80%: total 0.98 s, longest 0.98 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 29.3 s
+   params {"s0": 88.78, "e0": -100.0, "s1": 4.77, "e1": 6.66, "a_push": -23.3, "t_sit": 1.61, "t_tuck": 2.54, "t_push": 3.6, "h_push": 1.87, "h_crouch": 0.96, "t_rise": 1.96, "s_rest": 8.62}
+   restart 1 iter  0: best 6/6  score +55.07  duty>80%: total 2.64 s, longest 1.28 s  peak torque load 96 % (>80 % longest 0.92 s)  shoulder at nominal 63 % of stall  T 28.6 s
+   restart 1 iter  1: best 6/6  score +55.07  duty>80%: total 2.64 s, longest 1.28 s  peak torque load 96 % (>80 % longest 0.92 s)  shoulder at nominal 63 % of stall  T 28.6 s
+   restart 1 iter  2: best 6/6  score +55.65  duty>80%: total 2.06 s, longest 1.22 s  peak torque load 95 % (>80 % longest 1.02 s)  shoulder at nominal 62 % of stall  T 32.3 s
+   restart 1 iter  3: best 6/6  score +55.65  duty>80%: total 2.06 s, longest 1.22 s  peak torque load 95 % (>80 % longest 1.02 s)  shoulder at nominal 62 % of stall  T 32.3 s
+   restart 1 iter  4: best 6/6  score +55.65  duty>80%: total 2.06 s, longest 1.22 s  peak torque load 95 % (>80 % longest 1.02 s)  shoulder at nominal 62 % of stall  T 32.3 s
+   restart 1 iter  5: best 6/6  score +56.19  duty>80%: total 1.72 s, longest 1.08 s  peak torque load 92 % (>80 % longest 0.74 s)  shoulder at nominal 61 % of stall  T 29.8 s
+   restart 1 iter  6: best 6/6  score +56.19  duty>80%: total 1.72 s, longest 1.08 s  peak torque load 92 % (>80 % longest 0.74 s)  shoulder at nominal 61 % of stall  T 29.8 s
+   restart 1 iter  7: best 6/6  score +56.93  duty>80%: total 1.18 s, longest 0.98 s  peak torque load 86 % (>80 % longest 0.30 s)  shoulder at nominal 57 % of stall  T 31.5 s
+   restart 1 iter  8: best 6/6  score +57.04  duty>80%: total 1.32 s, longest 0.90 s  peak torque load 79 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 30.8 s
+   restart 1 iter  9: best 6/6  score +57.82  duty>80%: total 0.86 s, longest 0.78 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 32.6 s
+   restart 1 iter 10: best 6/6  score +57.82  duty>80%: total 0.86 s, longest 0.78 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 32.6 s
+   restart 1 iter 11: best 6/6  score +57.92  duty>80%: total 0.78 s, longest 0.78 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 31.6 s
+   restart 1 iter 12: best 6/6  score +57.92  duty>80%: total 0.78 s, longest 0.78 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 31.6 s
+   restart 1 iter 13: best 6/6  score +57.92  duty>80%: total 0.78 s, longest 0.78 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 31.6 s
+   restart 1 iter 14: best 6/6  score +57.95  duty>80%: total 0.86 s, longest 0.74 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 30.8 s
+   restart 1 iter 15: best 6/6  score +57.95  duty>80%: total 0.86 s, longest 0.74 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 30.8 s
+   restart 1 iter 16: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 17: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 18: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 19: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 20: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 21: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.4 s
+   restart 1 iter 22: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.4 s
+   restart 1 iter 23: best 6/6  score +58.04  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.4 s
+   restart 1 iter 24: best 6/6  score +58.05  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 30.0 s
+-- restart 1 BEST: 6/6  score +58.05  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 30.0 s
+   params {"s0": 91.87, "e0": -98.48, "s1": 3.22, "e1": 8.22, "a_push": -26.38, "t_sit": 1.84, "t_tuck": 3.67, "t_push": 4.28, "h_push": 0.79, "h_crouch": 1.35, "t_rise": 1.74, "s_rest": 5.41}
+   restart 2 iter  0: best 6/6  score +54.66  duty>80%: total 2.68 s, longest 1.90 s  peak torque load 99 % (>80 % longest 1.16 s)  shoulder at nominal 64 % of stall  T 27.1 s
+   restart 2 iter  1: best 6/6  score +55.65  duty>80%: total 2.28 s, longest 1.30 s  peak torque load 87 % (>80 % longest 0.24 s)  shoulder at nominal 60 % of stall  T 30.0 s
+   restart 2 iter  2: best 6/6  score +56.17  duty>80%: total 1.66 s, longest 1.66 s  peak torque load 86 % (>80 % longest 0.24 s)  shoulder at nominal 58 % of stall  T 28.1 s
+   restart 2 iter  3: best 6/6  score +56.45  duty>80%: total 1.54 s, longest 1.54 s  peak torque load 81 % (>80 % longest 0.08 s)  shoulder at nominal 57 % of stall  T 30.6 s
+   restart 2 iter  4: best 6/6  score +56.45  duty>80%: total 1.54 s, longest 1.54 s  peak torque load 81 % (>80 % longest 0.08 s)  shoulder at nominal 57 % of stall  T 30.6 s
+   restart 2 iter  5: best 6/6  score +56.63  duty>80%: total 1.64 s, longest 1.44 s  peak torque load 75 % (>80 % longest 0.00 s)  shoulder at nominal 52 % of stall  T 27.8 s
+   restart 2 iter  6: best 6/6  score +56.63  duty>80%: total 1.64 s, longest 1.44 s  peak torque load 75 % (>80 % longest 0.00 s)  shoulder at nominal 52 % of stall  T 27.8 s
+   restart 2 iter  7: best 6/6  score +56.84  duty>80%: total 1.40 s, longest 1.40 s  peak torque load 76 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 28.6 s
+   restart 2 iter  8: best 6/6  score +56.84  duty>80%: total 1.40 s, longest 1.40 s  peak torque load 76 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 28.6 s
+   restart 2 iter  9: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 1.36 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 28.7 s
+   restart 2 iter 10: best 6/6  score +56.94  duty>80%: total 1.64 s, longest 1.24 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.7 s
+   restart 2 iter 11: best 6/6  score +56.94  duty>80%: total 1.64 s, longest 1.24 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 30.7 s
+   restart 2 iter 12: best 6/6  score +57.06  duty>80%: total 1.48 s, longest 1.30 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 53 % of stall  T 28.9 s
+   restart 2 iter 13: best 6/6  score +57.25  duty>80%: total 1.34 s, longest 1.22 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 27.4 s
+   restart 2 iter 14: best 6/6  score +57.35  duty>80%: total 1.20 s, longest 1.18 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 31.5 s
+   restart 2 iter 15: best 6/6  score +57.35  duty>80%: total 1.20 s, longest 1.18 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 31.5 s
+   restart 2 iter 16: best 6/6  score +57.45  duty>80%: total 1.12 s, longest 1.12 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 30.8 s
+   restart 2 iter 17: best 6/6  score +57.45  duty>80%: total 1.12 s, longest 1.12 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 30.8 s
+   restart 2 iter 18: best 6/6  score +57.45  duty>80%: total 1.12 s, longest 1.12 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 30.8 s
+   restart 2 iter 19: best 6/6  score +57.45  duty>80%: total 1.12 s, longest 1.12 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 30.8 s
+   restart 2 iter 20: best 6/6  score +57.52  duty>80%: total 1.02 s, longest 1.02 s  peak torque load 72 % (>80 % longest 0.00 s)  shoulder at nominal 49 % of stall  T 29.4 s
+   restart 2 iter 21: best 6/6  score +57.61  duty>80%: total 1.02 s, longest 1.02 s  peak torque load 69 % (>80 % longest 0.00 s)  shoulder at nominal 46 % of stall  T 29.6 s
+   restart 2 iter 22: best 6/6  score +57.64  duty>80%: total 0.98 s, longest 0.98 s  peak torque load 70 % (>80 % longest 0.00 s)  shoulder at nominal 55 % of stall  T 30.1 s
+   restart 2 iter 23: best 6/6  score +57.67  duty>80%: total 1.00 s, longest 1.00 s  peak torque load 68 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 29.7 s
+   restart 2 iter 24: best 6/6  score +57.69  duty>80%: total 1.00 s, longest 1.00 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 29.4 s
+-- restart 2 BEST: 6/6  score +57.69  duty>80%: total 1.00 s, longest 1.00 s  peak torque load 67 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 29.4 s
+   params {"s0": 94.17, "e0": -100.0, "s1": 21.84, "e1": -1.16, "a_push": -25.45, "t_sit": 2.82, "t_tuck": 2.41, "t_push": 2.36, "h_push": 0.8, "h_crouch": 2.58, "t_rise": 1.87, "s_rest": 3.39}
+   restart 3 iter  0: best 0/6  score -2.92  duty>80%: total 1.26 s, longest 0.96 s  peak torque load 84 % (>80 % longest 0.04 s)  shoulder at nominal 53 % of stall  T 23.5 s
+   restart 3 iter  1: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  2: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  3: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  4: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  5: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  6: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  7: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  8: best 6/6  score +55.89  duty>80%: total 2.08 s, longest 1.36 s  peak torque load 88 % (>80 % longest 0.38 s)  shoulder at nominal 57 % of stall  T 26.1 s
+   restart 3 iter  9: best 6/6  score +55.93  duty>80%: total 2.08 s, longest 1.20 s  peak torque load 88 % (>80 % longest 0.34 s)  shoulder at nominal 57 % of stall  T 28.4 s
+   restart 3 iter 10: best 6/6  score +55.97  duty>80%: total 2.02 s, longest 1.32 s  peak torque load 85 % (>80 % longest 0.24 s)  shoulder at nominal 56 % of stall  T 30.3 s
+   restart 3 iter 11: best 6/6  score +56.49  duty>80%: total 1.54 s, longest 1.34 s  peak torque load 85 % (>80 % longest 0.26 s)  shoulder at nominal 57 % of stall  T 27.8 s
+   restart 3 iter 12: best 6/6  score +56.54  duty>80%: total 1.42 s, longest 1.36 s  peak torque load 87 % (>80 % longest 0.34 s)  shoulder at nominal 58 % of stall  T 26.9 s
+   restart 3 iter 13: best 6/6  score +56.55  duty>80%: total 1.76 s, longest 0.90 s  peak torque load 82 % (>80 % longest 0.14 s)  shoulder at nominal 53 % of stall  T 28.9 s
+   restart 3 iter 14: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 0.94 s  peak torque load 84 % (>80 % longest 0.22 s)  shoulder at nominal 54 % of stall  T 29.8 s
+   restart 3 iter 15: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 0.94 s  peak torque load 84 % (>80 % longest 0.22 s)  shoulder at nominal 54 % of stall  T 29.8 s
+   restart 3 iter 16: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 0.94 s  peak torque load 84 % (>80 % longest 0.22 s)  shoulder at nominal 54 % of stall  T 29.8 s
+   restart 3 iter 17: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 0.94 s  peak torque load 84 % (>80 % longest 0.22 s)  shoulder at nominal 54 % of stall  T 29.8 s
+   restart 3 iter 18: best 6/6  score +56.86  duty>80%: total 1.36 s, longest 0.94 s  peak torque load 84 % (>80 % longest 0.22 s)  shoulder at nominal 54 % of stall  T 29.8 s
+   restart 3 iter 19: best 6/6  score +57.15  duty>80%: total 1.14 s, longest 0.96 s  peak torque load 83 % (>80 % longest 0.14 s)  shoulder at nominal 54 % of stall  T 27.6 s
+   restart 3 iter 20: best 6/6  score +57.15  duty>80%: total 1.14 s, longest 0.96 s  peak torque load 83 % (>80 % longest 0.14 s)  shoulder at nominal 54 % of stall  T 27.6 s
+   restart 3 iter 21: best 6/6  score +57.42  duty>80%: total 0.98 s, longest 0.84 s  peak torque load 81 % (>80 % longest 0.04 s)  shoulder at nominal 52 % of stall  T 27.9 s
+   restart 3 iter 22: best 6/6  score +57.48  duty>80%: total 0.92 s, longest 0.88 s  peak torque load 80 % (>80 % longest 0.00 s)  shoulder at nominal 52 % of stall  T 28.0 s
+   restart 3 iter 23: best 6/6  score +57.48  duty>80%: total 0.92 s, longest 0.84 s  peak torque load 81 % (>80 % longest 0.04 s)  shoulder at nominal 52 % of stall  T 28.0 s
+   restart 3 iter 24: best 6/6  score +57.57  duty>80%: total 0.92 s, longest 0.84 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 28.0 s
+-- restart 3 BEST: 6/6  score +57.57  duty>80%: total 0.92 s, longest 0.84 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 54 % of stall  T 28.0 s
+   params {"s0": 72.06, "e0": -83.4, "s1": 13.84, "e1": 1.44, "a_push": -27.3, "t_sit": 1.91, "t_tuck": 3.82, "t_push": 1.91, "h_push": 0.73, "h_crouch": 1.99, "t_rise": 1.62, "s_rest": 3.57}
+
+== OVERALL BEST: 6/6  score +58.05  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 30.0 s
+   params {"s0": 91.87, "e0": -98.48, "s1": 3.22, "e1": 8.22, "a_push": -26.38, "t_sit": 1.84, "t_tuck": 3.67, "t_push": 4.28, "h_push": 0.79, "h_crouch": 1.35, "t_rise": 1.74, "s_rest": 5.41}
+== VERIFY the recommended sequence: s0 90.0 e0 -90.0 s1 0.0 e1 0.0 a_push -25.0 t_sit 1.5 t_tuck 1.5 t_push 2.0 h_push 1.0 h_crouch 2.0 t_rise 1.5 s_rest 60.0
+-- pace x1, cutoff enforced on the duty reading: 6/6  score +55.89  duty>80%: total 2.34 s, longest 1.48 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 25.3 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.64 s (L_shoulder) longest 0.58 s;  torque load peak 51 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.64 s (L_shoulder) longest 0.58 s;  torque load peak 51 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.44 s (L_knee) longest 0.44 s;  torque load peak 48 % (L_hip_pitch) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.84 s (L_shoulder) longest 0.68 s;  torque load peak 65 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 1.24 s (L_shoulder) longest 1.02 s;  torque load peak 66 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 2.34 s (L_shoulder) longest 1.48 s;  torque load peak 78 % (L_shoulder) >80% longest 0.00 s;  trips none
+-- pace x1, cutoff enforced on the torque reading: 6/6  score +55.89  duty>80%: total 2.34 s, longest 1.48 s  peak torque load 78 % (>80 % longest 0.00 s)  shoulder at nominal 51 % of stall  T 25.3 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.64 s (L_shoulder) longest 0.58 s;  torque load peak 51 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.64 s (L_shoulder) longest 0.58 s;  torque load peak 51 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.44 s (L_knee) longest 0.44 s;  torque load peak 48 % (L_hip_pitch) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.84 s (L_shoulder) longest 0.68 s;  torque load peak 65 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 1.24 s (L_shoulder) longest 1.02 s;  torque load peak 66 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 2.34 s (L_shoulder) longest 1.48 s;  torque load peak 78 % (L_shoulder) >80% longest 0.00 s;  trips none
+-- pace x3, cutoff enforced on the duty reading: 6/6  score +58.60  duty>80%: total 0.34 s, longest 0.24 s  peak torque load 75 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 25.3 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 48 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 48 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 35 % (R_hip_pitch) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 58 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.02 s (L_shoulder) longest 0.02 s;  torque load peak 60 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.34 s (L_knee) longest 0.24 s;  torque load peak 75 % (L_shoulder) >80% longest 0.00 s;  trips none
+-- pace x3, cutoff enforced on the torque reading: 6/6  score +58.60  duty>80%: total 0.34 s, longest 0.24 s  peak torque load 75 % (>80 % longest 0.00 s)  shoulder at nominal 48 % of stall  T 25.3 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 48 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 48 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 35 % (R_hip_pitch) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 58 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.02 s (L_shoulder) longest 0.02 s;  torque load peak 60 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.34 s (L_knee) longest 0.24 s;  torque load peak 75 % (L_shoulder) >80% longest 0.00 s;  trips none
+== VERIFY the search's best: s0 91.9 e0 -98.5 s1 3.2 e1 8.2 a_push -26.4 t_sit 1.8 t_tuck 3.7 t_push 4.3 h_push 0.8 h_crouch 1.4 t_rise 1.7 s_rest 5.4
+-- pace x1, cutoff enforced on the duty reading: 6/6  score +58.05  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 30.0 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.36 s (L_elbow) longest 0.36 s;  torque load peak 50 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.36 s (L_elbow) longest 0.36 s;  torque load peak 50 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.30 s (L_shoulder) longest 0.30 s;  torque load peak 56 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.42 s (L_elbow) longest 0.42 s;  torque load peak 52 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.58 s (L_elbow) longest 0.58 s;  torque load peak 59 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.80 s (L_elbow) longest 0.76 s;  torque load peak 66 % (R_hip_pitch) >80% longest 0.00 s;  trips none
+-- pace x1, cutoff enforced on the torque reading: 6/6  score +58.05  duty>80%: total 0.80 s, longest 0.76 s  peak torque load 66 % (>80 % longest 0.00 s)  shoulder at nominal 50 % of stall  T 30.0 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.36 s (L_elbow) longest 0.36 s;  torque load peak 50 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.36 s (L_elbow) longest 0.36 s;  torque load peak 50 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.30 s (L_shoulder) longest 0.30 s;  torque load peak 56 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.42 s (L_elbow) longest 0.42 s;  torque load peak 52 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.58 s (L_elbow) longest 0.58 s;  torque load peak 59 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.80 s (L_elbow) longest 0.76 s;  torque load peak 66 % (R_hip_pitch) >80% longest 0.00 s;  trips none
+-- pace x3, cutoff enforced on the duty reading: 6/6  score +59.10  duty>80%: total 0.20 s, longest 0.20 s  peak torque load 57 % (>80 % longest 0.00 s)  shoulder at nominal 37 % of stall  T 30.0 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 37 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 37 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 35 % (L_elbow) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 40 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 46 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.20 s (L_shoulder) longest 0.20 s;  torque load peak 57 % (L_shoulder) >80% longest 0.00 s;  trips none
+-- pace x3, cutoff enforced on the torque reading: 6/6  score +59.10  duty>80%: total 0.20 s, longest 0.20 s  peak torque load 57 % (>80 % longest 0.00 s)  shoulder at nominal 37 % of stall  T 30.0 s
+   play 3 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 37 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 5 mu 0.7 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 37 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.3 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 35 % (L_elbow) >80% longest 0.00 s;  trips none
+   play 3 mu 1.0 servo 1.00: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 40 % (R_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.80: STANDING z 0.387  duty>80% total 0.00 s (L_hip_yaw) longest 0.00 s;  torque load peak 46 % (L_shoulder) >80% longest 0.00 s;  trips none
+   play 3 mu 0.7 servo 0.65: STANDING z 0.387  duty>80% total 0.20 s (L_shoulder) longest 0.20 s;  torque load peak 57 % (L_shoulder) >80% longest 0.00 s;  trips none

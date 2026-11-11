@@ -5,7 +5,7 @@
 #   e.g. tools/cam_record.sh /dev/video0 hw_sessions/2026-09-02/step2_cam0 30 cam0
 #
 # Writes TWO files:
-#   <out_base>.mp4   640x480 H.264, timestamps starting at 0 so every player
+#   <out_base>.mp4   $SIZE H.264 (default 1280x720), timestamps starting at 0 so every player
 #                    works, with "<label> 2026-09-02T22:27:55.605Z" drawn in
 #                    the top-left corner of EVERY frame -- the frame carries
 #                    its own time wherever it ends up (a filmstrip, a Slack
@@ -35,6 +35,16 @@
 # so the burn-in and the sidecar can be checked by arithmetic:
 #   tools/cam_record.sh lavfi:1788390475.605401 /tmp/synth 1 cam0
 #
+# SIZE / FPS / INPUT_FORMAT. Default 1280x720 at 30 fps, MJPEG from the camera:
+# big enough to measure a foot (the 640x480 default of 2026-11-10 timed the
+# stride clip but could not measure it, #276) and compressed on the wire so
+# two webcams, the A7 III and the servo tether can share one USB 2 hub. The
+# EMEET C960 does 1920x1080 MJPEG: SIZE=1920x1080. INPUT_FORMAT= (empty) asks
+# for the driver's default (raw YUYV, which tops out at low frame rates at
+# these sizes). When the run ends the size the file actually has -- what the
+# driver negotiated, since nothing here rescales -- is printed from ffprobe;
+# a driver that quietly changed the request shows up there.
+#
 # NOTE a v4l2 device serves one reader: stop tools/cam_live.py first, or this
 # fails with "Device or resource busy".
 set -uo pipefail
@@ -42,12 +52,12 @@ DEV=${1:?usage: cam_record.sh <device> <out_base> <seconds> [label]}
 OUT=${2:?out_base}
 SECS=${3:?seconds}
 LABEL=${4:-$(basename "$OUT")}
-SIZE=${SIZE:-640x480}
+SIZE=${SIZE:-1280x720}
 FPS=${FPS:-30}
-# INPUT_FORMAT=mjpeg: the camera compresses, so two webcams, the A7 III and the
+# INPUT_FORMAT=mjpeg (the default): the camera compresses, so two webcams, the A7 III and the
 # servo tether can share one USB 2 hub (raw YUYV from two webcams wedged the
 # A7 III and starved the tether, 2026-10-23).
-INPUT_FORMAT=${INPUT_FORMAT:-}
+INPUT_FORMAT=${INPUT_FORMAT-mjpeg}
 
 # Fontconfig can find a monospace face on its own, but naming the file makes
 # the burn-in identical on every host that has the package.
@@ -82,7 +92,14 @@ fi
 # kernel's instants; the 1 us timebase keeps their resolution. Both checked
 # with the lavfi self-test: 605, 639, 672 ms for frames stamped 605.4,
 # 638.7, 672.1.
-exec ffmpeg -loglevel error -y "${INPUT[@]}" -copyts -vsync passthrough \
+echo "cam_record: $DEV requested ${SIZE}@${FPS} ${INPUT_FORMAT:-driver-default}" >&2
+ffmpeg -loglevel error -y "${INPUT[@]}" -copyts -vsync passthrough \
   -filter_complex "[0:v]${PRE}${DT},split[a][b];[a]setpts=PTS-STARTPTS[mp4]" \
   -map "[mp4]" -c:v libx264 -preset veryfast -pix_fmt yuv420p "$OUT.mp4" \
   -map "[b]" -c:v rawvideo -enc_time_base 1/1000000 -f mkvtimestamp_v2 "$OUT.pts"
+EC=$?
+# What the file really holds. Empty probe = nothing was written.
+GOT=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=width,height,codec_name -of csv=p=0 "$OUT.mp4" 2>/dev/null)
+echo "cam_record: $OUT.mp4 negotiated ${GOT:-NOTHING WRITTEN} (codec,width,height of the mp4; requested $SIZE)" >&2
+exit "$EC"

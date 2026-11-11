@@ -332,6 +332,10 @@ class State(NamedTuple):
     dq_qhist: jax.Array       # (hi+1, n_act) policy-joint q at the last obs ticks,
                               # row 0 = now (dq_obs_window); (0, n_act) when off
     dq_win: jax.Array         # ()  int32 per-episode dq obs window, ticks (0 = off)
+    ser_c: jax.Array          # (n_servo,) per-episode roll series compliance 1/k, rad/(N m)
+                              # (0 = rigid); (0,) when roll_series_k is off
+    ser_defl: jax.Array       # (n_servo,) the series spring's deflection tau/k at the end
+                              # of the last step (shaft - link); (0,) when off
 
 
 def _quat_yaw(q):
@@ -666,6 +670,9 @@ class BimoMJXEnv:
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
+        mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
+        mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
+        mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -693,6 +700,10 @@ class BimoMJXEnv:
         # the four roll joints (hip_roll, ankle_roll) on top of backlash_deg: the
         # play downstream of the encoders (hw 2026-10-24; walker_env mirror)
         roll_lash_deg_max: float | None = None,  # per-episode draw uniform(lo, max)
+        roll_series_k=None,   # a spring (N m/rad) in series with the hip / ankle roll
+        # servos BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)} or
+        # "hip=LO:HI,ankle=LO:HI", per-episode draw per role; None = rigid
+        # (walker_env.parse_roll_series_k; walker_env mirror)
         torso_mass_range: float | None = None,   # batch-level torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
         torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
@@ -811,6 +822,12 @@ class BimoMJXEnv:
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
         # Gaussian: a 10 cm target must still pay gradient from a 2 cm lift.
+        march_lift: float = 0.0,      # m: the march's peak commanded swing-sole
+        # height (lift_height + c6). 0 (default) = the opposite knee's standing
+        # height (march_clear, 18 cm on the legs plant); a positive value
+        # replaces it, so the march asks for a lift the robot can take at a
+        # slow clock and the link can send (c6 <= link FOOT_D_MAX, 5 cm).
+        # c6 peaks at max(march_lift - lift_height, 0).
         march_hz: float = 0.0,        # COMMANDED march cadence, full L/R
         # cycles per second. 0.0 (default) = alternate on the gait clock and
         # inherit its draw (at 1.25-1.75 Hz, 0.29-0.40 s per lift -- a sprinter's
@@ -943,6 +960,18 @@ class BimoMJXEnv:
                                     # below 3 cm (walker_env.low_swing_shortfall),
                                     # under any command (Tom 2026-10-24: every
                                     # foot >= 3 cm on every step)
+        low_swing_clear: float = 0.03,  # m: w_low_swing's clearance target (default =
+        # walker_env.LOW_SWING_CLEAR, the referee's SWING_CLEAR); lower it with a low
+        # --mimic-lift, which the fixed 3 cm fought. Also w_walk_shift's clearance gate.
+        w_walk_shift: float = 0.0,  # WALKING weight transfer (2026-11-09 hardware: a 2 cm-lift
+        # policy bent the swing knee 45 deg but never unloaded the foot -- hip roll moved
+        # 4-8 deg, the CoM stayed between the feet, the loaded bending leg yawed the body
+        # 46 deg). Under a moving command, per leg: its _mimic_ref swing activity sw x
+        # exp(-(d/walk_shift_sigma)^2) x clip(clear/low_swing_clear, 0, 1), d = horizontal
+        # CoM to the OTHER (stance) sole, clear = the swinging sole's height. The clearance
+        # gate is what makes it pay for a step: an ungated CoM kernel was farmed by leaning
+        # with both feet down (skills_v2, see w_com_stance).
+        walk_shift_sigma: float = 0.015,  # m: w_walk_shift's CoM kernel width
         w_symmetry: float = 0.0,    # gait-symmetry penalty: on touchdown,
         # |this swing duration - the OTHER foot's last swing| (user
         # 2026-07-19: "work on the symmetry of motion in walking gaits";
@@ -1273,6 +1302,23 @@ class BimoMJXEnv:
             from walker_env import mimic_lift_coefs      # jax-free, shared with the CPU env
             ch, ck = mimic_lift_coefs(m, self._sg_pitch if self.mimic_sole_level else None)
             self._lift_ch, self._lift_ck = jp.asarray(ch), jp.asarray(ck)
+        self.mimic_sway = float(mimic_sway)
+        self.mimic_sway_lead = float(mimic_sway_lead)
+        if self.mimic_sway != 0.0:
+            if self._i_aroll is None:
+                raise ValueError("mimic_sway needs ankle-roll joints (the sole stays level)")
+            from walker_env import mimic_sway_coefs      # jax-free, shared with the CPU env
+            self._sway_k = jp.asarray(mimic_sway_coefs(m, self._sg_roll))
+        self.mimic_march = float(mimic_march)
+        if self.mimic_march != 0.0:
+            # the march reference is the walking reference's lift and sway on
+            # the gait clock (no stride), so it needs the IK lift table, the
+            # gait clock, and the march on that clock (not a pinned cadence)
+            if not 0.0 < self.mimic_march <= 0.08:
+                raise ValueError("mimic_march must be in (0, 0.08] m (the mimic_lift IK table)")
+            if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
+                raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
+                                 "(the reference follows the gait clock)")
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -1410,6 +1456,18 @@ class BimoMJXEnv:
         self._roll_mask = jp.asarray(np.array(
             [n[2:] in ("hip_roll", "ankle_roll") for n in self._servo_names],
             dtype=np.float32))
+        from walker_env import parse_roll_series_k, roll_series_roles, ROLL_SERIES_ROLES
+        self.roll_series_k = parse_roll_series_k(roll_series_k)
+        self._ser_on = self.roll_series_k is not None
+        if self._ser_on:
+            # per role (hip, ankle) k bounds; a role left out is rigid (compliance 0)
+            rk = [self.roll_series_k.get(r) for r in ROLL_SERIES_ROLES]
+            self._ser_klo = jp.asarray([k[0] if k else 1.0 for k in rk], dtype=jp.float32)
+            self._ser_khi = jp.asarray([k[1] if k else 1.0 for k in rk], dtype=jp.float32)
+            self._ser_rmask = jp.asarray([1.0 if k else 0.0 for k in rk], dtype=jp.float32)
+            role = roll_series_roles(self._servo_names)
+            self._ser_role = jp.asarray(np.maximum(role, 0), dtype=jp.int32)
+            self._ser_smask = jp.asarray((role >= 0).astype(np.float32))
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.floor_contact_range = (None if floor_contact_range is None else
@@ -1484,6 +1542,7 @@ class BimoMJXEnv:
         self.foot_cross_sep = float(foot_cross_sep)
         self.sway_vy = sway_vy
         self.march_mix = float(march_mix)
+        self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
@@ -1558,6 +1617,13 @@ class BimoMJXEnv:
             raise ValueError("w_mimic requires gait_clock")
         self.w_symmetry = w_symmetry
         self.w_low_swing = w_low_swing
+        self.low_swing_clear = float(low_swing_clear)
+        if self.low_swing_clear <= 0.0:
+            raise ValueError("low_swing_clear must be > 0")
+        self.w_walk_shift = float(w_walk_shift)
+        self.walk_shift_sigma = float(walk_shift_sigma)
+        if self.w_walk_shift and not gait_clock:
+            raise ValueError("w_walk_shift requires gait_clock")
         self.lift_clear = lift_clear
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
@@ -1679,7 +1745,8 @@ class BimoMJXEnv:
         # Mirrored in sim/walker_env.py.
         _knee_jid = m.joint(self._act_names[self._legL["knee"]]).id
         self._knee_z0 = float(d0.xanchor[_knee_jid][2])
-        self.march_clear = max(self._knee_z0 - self._sole_z0, 0.0)
+        self.march_clear = (self.march_lift if self.march_lift > 0.0
+                            else max(self._knee_z0 - self._sole_z0, 0.0))
         # commanded c6 that puts the swing-foot TARGET at knee height
         self._march_dz = max(self.march_clear - self.lift_height, 0.0)
         # Fixed-cadence march clock (march_hz > 0) in WHOLE control steps.
@@ -1700,7 +1767,9 @@ class BimoMJXEnv:
             ("squeeze",) if w_squeeze else ()) + (
             ("height_err", "foot_err", "foot_clear", "foot_sep", "lift_ok",
              "vy_body", "recovered", "com_stance", "head_err")
-            if ext_cmd else ())
+            if ext_cmd else ()) + (
+            ("walk_swing_w", "walk_swing_clear", "walk_shift_err")
+            if gait_clock else ())
 
     # -- pieces ---------------------------------------------------------------
     def _p(self, x):
@@ -1943,13 +2012,16 @@ class BimoMJXEnv:
             return cmd3 * self._nominal_h
         return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - self._crouch_drop(cmd3))
 
-    def _mimic_ref(self, cmd, phase, freq):
+    def _mimic_ref(self, cmd, phase, freq, march=None):
         """Joint-space procedural gait reference (plan-v2 Phase B).
         Stride amplitude ~ KX*v_leg/f (foot excursion ~0.18 m leg * A matches
         v/(4f) per half-cycle at KX=1.4); turning = differential stride via
         v_leg = vx -/+ hip_half_sep*wz; sidestep = lateral roll oscillation;
         knee bends 0.55 rad during its swing half; ankle keeps the sole
         level. At zero command the reference equals the standing pose.
+        march (traced bool, only with mimic_march): the command is a gait-clock
+        march -- the swing lift is mimic_march and mimic_sway acts, with the
+        stride terms at zero (the march command has vx = vy = wz = 0).
         Mirrored EXACTLY in walker_env.py (parity-gated)."""
         f = jp.maximum(freq, 0.5)
         d = self._default
@@ -1969,12 +2041,26 @@ class BimoMJXEnv:
             # swing lift by IK (walker_env.mimic_lift_coefs), mirror of the CPU env
             g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
             u = float(np.sqrt(self.mimic_lift)) * sw * g
+            if self.mimic_march != 0.0 and march is not None:
+                u = jp.where(march, float(np.sqrt(self.mimic_march)) * sw, u)
             ch, ck = self._lift_ch, self._lift_ck
             hipP = hipP + u * (ch[:, 0] + u * (ch[:, 1] + u * ch[:, 2]))
             knee = kn0 + u * (ck[:, 0] + u * (ck[:, 1] + u * ck[:, 2]))
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_sway != 0.0:
+            # lateral weight shift (2026-11-09 hardware: hip roll moved 4-8 deg,
+            # the R foot never unloaded; this reference held the rolls at the
+            # standing pose while walking forward, so w_mimic paid AGAINST any
+            # shift). The torso moves toward the stance foot by mimic_sway (m),
+            # leading the swing by mimic_sway_lead; L swings on sin > 0, so the
+            # torso goes -y, toward R. The ankle roll below keeps the sole level.
+            g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
+            if self.mimic_march != 0.0 and march is not None:
+                g = jp.where(march, 1.0, g)
+            roll = roll + self._sway_k * (-self.mimic_sway * g
+                                          * jp.sin(phase + self.mimic_sway_lead))
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain;
             # the ankle cancels the hip and knee (the knee axis is -y)
@@ -2114,7 +2200,8 @@ class BimoMJXEnv:
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
              rng: jax.Array, gait_phase=None, model=None,
              zero_off=None, gyro_hist=None, gyro_delay=None,
-             gyro_gain=None, dq_qhist=None, dq_win=None) -> jax.Array:
+             gyro_gain=None, dq_qhist=None, dq_win=None,
+             ser_defl=None, ser_dq=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         if self.tilt_max_deg > 0.0:
             # what an accelerometer reads: torso up against GRAVITY, not
@@ -2143,11 +2230,16 @@ class BimoMJXEnv:
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
         q_j = self._p(data.qpos[self._jq0:self._jq1])
+        if ser_defl is not None:
+            # roll series spring: the encoder reads the servo shaft, link + tau/k
+            q_j = q_j + self._p(ser_defl)
         if zero_off is not None:
             # calibration-error DR: the encoder's zero sits zero_off away from
             # the policy's frame, so the reported angle is physical - offset
             q_j = q_j - self._p(zero_off)
         dq_j = self._p(data.qvel[self._jv0:self._jv1])
+        if ser_dq is not None:
+            dq_j = dq_j + self._p(ser_dq)
         if self.dq_obs_window is not None and dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last dq_win ticks
             # (row 0 of the history is this tick's q)
@@ -2279,6 +2371,19 @@ class BimoMJXEnv:
     def _gyro_hist0(data):
         return jp.tile(data.qvel[3:6][None, :], (3, 1))
 
+    def _draw_ser(self, rng: jax.Array):
+        """Per-episode roll series compliance 1/k (k uniform per role, L and R share it;
+        fold_in 6262 so the other draws keep their streams) and a zero deflection.
+        (0,) arrays when the feature is off."""
+        if not self._ser_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        u = jax.random.uniform(jax.random.fold_in(rng, 6262), (len(self._ser_klo),))
+        k = self._ser_klo + u * (self._ser_khi - self._ser_klo)
+        c_role = self._ser_rmask / k
+        c = (c_role[self._ser_role] * self._ser_smask).astype(jp.float32)
+        return c, jp.zeros((self._n_servo,), dtype=jp.float32)
+
     def _draw_dq_win(self, rng: jax.Array):
         """Per-episode dq obs window, ticks (fold_in 5858: the other draws keep
         their streams; a fixed window or the feature off consumes no RNG)."""
@@ -2290,20 +2395,24 @@ class BimoMJXEnv:
         return jax.random.randint(jax.random.fold_in(rng, 5858), (), lo, hi + 1,
                                   dtype=jp.int32)
 
-    def _dq_q(self, data):
-        """The policy joints' physical q (the dq obs history's row)."""
-        return self._p(data.qpos[self._jq0:self._jq1])
+    def _dq_q(self, data, ser_defl=None):
+        """The policy joints' physical q (the dq obs history's row); with a roll series
+        spring, the servo shaft's (link + ser_defl), which is what the encoder reads."""
+        q = data.qpos[self._jq0:self._jq1]
+        if ser_defl is not None:
+            q = q + ser_defl
+        return self._p(q)
 
-    def _dq_qhist0(self, data):
+    def _dq_qhist0(self, data, ser_defl=None):
         """A history at rest at the episode's start pose: the first ticks read dq 0."""
         if self.dq_obs_window is None:
             return jp.zeros((0, self._nq_act), dtype=jp.float32)
-        return jp.tile(self._dq_q(data)[None, :], (self._dq_hist_len, 1))
+        return jp.tile(self._dq_q(data, ser_defl)[None, :], (self._dq_hist_len, 1))
 
-    def _dq_qhist_push(self, data, hist):
+    def _dq_qhist_push(self, data, hist, ser_defl=None):
         if self.dq_obs_window is None:
             return hist
-        return jp.concatenate([self._dq_q(data)[None, :], hist[:-1]], axis=0)
+        return jp.concatenate([self._dq_q(data, ser_defl)[None, :], hist[:-1]], axis=0)
 
     def _draw_act_delay(self, rng: jax.Array):
         """Per-episode servo dead time in control ticks (fold_in 4473 so the
@@ -2561,6 +2670,7 @@ class BimoMJXEnv:
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(data)
         dq_win = self._draw_dq_win(r_ep)
+        ser_c, ser_defl = self._draw_ser(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2677,7 +2787,8 @@ class BimoMJXEnv:
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
                      gyro_gain=gyro_gain, metrics=metrics,
-                     dq_qhist=dq_qhist, dq_win=dq_win)
+                     dq_qhist=dq_qhist, dq_win=dq_win,
+                     ser_c=ser_c, ser_defl=ser_defl)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2690,6 +2801,7 @@ class BimoMJXEnv:
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(first.data)
         dq_win = self._draw_dq_win(r_ep)
+        ser_c, ser_defl = self._draw_ser(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -2765,6 +2877,7 @@ class BimoMJXEnv:
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             dq_qhist=dq_qhist, dq_win=dq_win,
+            ser_c=ser_c, ser_defl=ser_defl,
             metrics=metrics)
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
@@ -2927,12 +3040,20 @@ class BimoMJXEnv:
                              state.servo[1] * self._kd_prof,
                              state.servo[2] * self._stall_prof,
                              state.servo[3] * self._w0_prof)
+        if self._ser_on:
+            # roll series spring, quasi-static (massless shaft): the link sees the
+            # servo PD in series with k, gains x k/(kp+k) = 1/(1+kp/k)
+            x_ser = 1.0 / (1.0 + kp * state.ser_c)
+            kp = kp * x_ser
+            kd = kd * x_ser
         lash = state.lash
         last_target = state.last_target
         if self.fw_goal_speed:
             # obs::goalSpeedSteps from the written goal and the PRESENT position (the
             # firmware's last feedback = the joint at the start of this tick), in rad/s
             q_now = state.data.qpos[self._jq0:self._jq1]
+            if self._ser_on:
+                q_now = q_now + state.ser_defl      # the feedback is the shaft's
             gap = jp.abs(goal_written + state.zero_off - q_now)
             v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
                              _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
@@ -2971,6 +3092,13 @@ class BimoMJXEnv:
         (data, tau), _ = jax.lax.scan(
             substep, (data, jp.zeros(self._n_servo)),
             jp.arange(self.n_substeps))
+        if self._ser_on:
+            # the servo shaft leads the link by the spring's deflection tau/k: what the
+            # encoders read (q obs, the dq history, the next tick's feedback)
+            ser_defl = (tau * state.ser_c).astype(jp.float32)
+            ser_dq = (ser_defl - state.ser_defl) / self.control_dt
+        else:
+            ser_defl, ser_dq = None, None
 
         up_z = data.sensordata[self._up_adr + 2]
         if self.tilt_max_deg > 0.0:
@@ -3274,6 +3402,38 @@ class BimoMJXEnv:
                 gait_phase = jp.where(plain_stand,
                                       jp.where(arrive, tgt_ph, gait_phase),
                                       gait_phase)
+        if self.gait_clock:
+            # walking weight transfer (w_walk_shift; 2026-11-09 hardware: a swing knee
+            # bent 45 deg under load, the foot never left the floor). Per leg, the
+            # reference swing activity sw (EXACTLY _mimic_ref's: L swings on sin > 0, R on
+            # sin < 0) weights a kernel on the CoM's ground projection over the OTHER,
+            # stance, sole, gated by the swinging sole's clearance -- leaning with both
+            # feet down pays nothing (the skills_v2 lesson behind w_com_stance's gate).
+            # The diagnostics are reported whenever the clock runs, weight 0 included.
+            ws_s = jp.sin(gait_phase)
+            ws_sw = jp.stack([jp.clip(ws_s, 0.0, None), jp.clip(-ws_s, 0.0, None)])
+            ws_soles = jp.stack([data.geom_xpos[self._sole_gids[0]],
+                                 data.geom_xpos[self._sole_gids[1]]])
+            ws_clear = (ws_soles[:, 2]
+                        - jp.stack([self._gz(ws_soles[0, 0], ws_soles[0, 1]),
+                                    self._gz(ws_soles[1, 0], ws_soles[1, 1])])
+                        - self._sole_z0)
+            ws_stance = ws_soles[::-1]                 # leg i's stance foot is the other one
+            ws_com = data.subtree_com[self._torso_bid]
+            if self.tilt_max_deg > 0.0:
+                ws_cxy = jp.stack([_grav_proj_xy(m, ws_com, ws_stance[0, 2]),
+                                   _grav_proj_xy(m, ws_com, ws_stance[1, 2])])
+            else:
+                ws_cxy = jp.stack([ws_com[:2], ws_com[:2]])
+            ws_d = jp.sqrt(jp.sum((ws_cxy - ws_stance[:, :2]) ** 2, axis=-1) + 1e-12)
+            ws_gate = (cmd_moving_raw & (state.recovered > 0.5)).astype(jp.float32)
+            walk_swing_w = ws_gate * jp.sum(ws_sw)
+            walk_swing_clear = ws_gate * jp.sum(ws_sw * ws_clear)
+            walk_shift_err = ws_gate * jp.sum(ws_sw * ws_d)
+            if self.w_walk_shift:
+                reward += self.w_walk_shift * ws_gate * jp.sum(
+                    ws_sw * jp.exp(-((ws_d / self.walk_shift_sigma) ** 2))
+                    * jp.clip(ws_clear / self.low_swing_clear, 0.0, 1.0))
         if self.w_feet_phase:
             # periodic swing-height targets: feet half a cycle apart
             # (left swings on sin(phase) > 0, right on the opposite half)
@@ -3323,12 +3483,25 @@ class BimoMJXEnv:
                    + jp.maximum(q - self._soft_hi, 0.0))
             reward -= self.w_dof_limits * jp.sum(out)
         if self.w_mimic:
-            q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
+            if self.mimic_march != 0.0:
+                # a gait-clock march (mode 4) is a lifted command, which gates
+                # the reference off; mimic_march turns it back on for the march
+                # only (one-leg balance and circles stay off). The draw's first
+                # tick still carries c4 = 0 (the alternation starts the next
+                # tick): that tick keeps the stand reference.
+                mimic_on_march = (state.traj_on == 4.0) & lifted
+                q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq,
+                                        march=mimic_on_march)
+            else:
+                mimic_on_march = None
+                q_ref = self._mimic_ref(state.cmd, gait_phase, clock_freq)
             dq = self._p(data.qpos[self._jq0:self._jq1]) - q_ref
             mim_gate = 1.0
             mim_w = self._mimic_w
             if self.ext_cmd:
                 mg = (~lifted) & (state.recovered > 0.5)
+                if mimic_on_march is not None:
+                    mg = (~lifted | mimic_on_march) & (state.recovered > 0.5)
                 if self.mimic_crouch_gate:
                     mg = mg & (state.cmd[3] >= 0.97)
                 if self.mimic_crouch_gate_knee:
@@ -3400,7 +3573,8 @@ class BimoMJXEnv:
             step_done = landed & (state.air_time
                                   >= (LOW_SWING_MIN_TICKS - 0.5) * self.control_dt)
             reward -= jp.where(state.recovered > 0.5, self.w_low_swing * jp.sum(
-                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp), 0.0)), 0.0)
+                jp.where(step_done, _wenv_low_swing(state.swing_peak, jp,
+                                                    self.low_swing_clear), 0.0)), 0.0)
         swing_peak = jp.where(con, 0.0, jp.maximum(state.swing_peak, z_soles))
         last_air = jp.where(landed, state.air_time, state.last_air)
         air_time = jp.where(con, 0.0, state.air_time + self.control_dt)
@@ -3653,12 +3827,12 @@ class BimoMJXEnv:
                                   state.rise_t0, step_i)
         gyro_hist = jp.concatenate([data.qvel[3:6][None, :],
                                     state.gyro_hist[:-1]], axis=0)
-        dq_qhist = self._dq_qhist_push(data, state.dq_qhist)
+        dq_qhist = self._dq_qhist_push(data, state.dq_qhist, ser_defl)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
                           gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                           gyro_gain=state.gyro_gain, dq_qhist=dq_qhist,
-                          dq_win=state.dq_win)
+                          dq_win=state.dq_win, ser_defl=ser_defl, ser_dq=ser_dq)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
@@ -3686,6 +3860,13 @@ class BimoMJXEnv:
                 recovered=recovered,
                 com_stance=lifted.astype(jp.float32) * com_off,
                 head_err=jp.abs(head_err))
+        if self.gait_clock:
+            # walking (moving command): sum over legs of the swing activity sw, and
+            # the sw-weighted swing-sole clearance and CoM-to-stance-sole distance (m);
+            # episode sum of either over walk_swing_w's = its swing-weighted mean
+            metrics.update(walk_swing_w=walk_swing_w,
+                           walk_swing_clear=walk_swing_clear,
+                           walk_shift_err=walk_shift_err)
         return State(data=data, obs=obs, reward=reward,
                      done=done_flag, rng=rng,
                      prev_action=action.astype(jp.float32),
@@ -3711,7 +3892,8 @@ class BimoMJXEnv:
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics,
-                     dq_qhist=dq_qhist, dq_win=state.dq_win)
+                     dq_qhist=dq_qhist, dq_win=state.dq_win, ser_c=state.ser_c,
+                     ser_defl=state.ser_defl if ser_defl is None else ser_defl)
 
 
 

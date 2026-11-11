@@ -67,7 +67,7 @@ MOV_FPS = 20          # referee reel playback rate (see reel_index.json)
 _ENV_PARAMS = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
 CROUCH_H_TARGET = None   # set in main() from the run's env (crouch_pose_ref)
 
-# gradebook trace capture (design §3): set by --trace in main(); a dict so
+# referee trace capture: set by --trace in main(); a dict so
 # run_one reads the active (dir, scenario name) without new plumbing args.
 # None/absent "dir" = capture off (default; the rollout is untouched).
 _trace_dir = {"dir": None, "scenario": ""}
@@ -2313,16 +2313,16 @@ def run_one(env, act, factory, seed, record, N, mass):
     shared = drv.shared_metrics(mass)
     res = evaluate(drv.rows, ev, drv.fell, N, shared)
     res.update(fell=drv.fell, shared=shared, frames=drv.frames)
-    # ---- gradebook trace capture (design §3) -----------------------------
+    # ---- trace capture ----------------------------------------------------
     # Additive & read-only: the rollout, evaluate() inputs, and the
     # scorecard pipeline are untouched. Enabled per `--trace <dir>` in main.
     traces_dir = _trace_dir.get("dir")
     if traces_dir:
-        from gradebook import trace as gb_trace
+        import referee_trace
         name = _trace_dir.get("scenario", "")
         events = {k: v for k, v in ev.items() if not k.startswith("_")}
         path = os.path.join(traces_dir, f"{name}_s{seed}.npz")
-        gb_trace.save(path, scenario=name, seed=seed, dt=drv.dt,
+        referee_trace.save(path, scenario=name, seed=seed, dt=drv.dt,
                       # BimoWalkerEnv does not retain the `episode_seconds`
                       # ctor arg; the runtime episode length is
                       # max_steps * control_dt (walker_env.py:1134).
@@ -2360,11 +2360,11 @@ def main():
                         "scorecard_lag.{md,json} -- the lag-less columns "
                         "stay untouched for historical comparability")
     p.add_argument("--trace", metavar="DIR", default=None,
-                   help="gradebook trace capture (design §3): write one "
+                   help="trace capture: write one "
                         "traces/<scenario>_s<seed>.npz per episode under DIR "
                         "(run-relative or absolute). ADDITIVE — the rollout "
                         "and scorecard numbers are unchanged; parity is the "
-                        "gate (tests/test_gradebook.py).")
+                        "gate (tests/test_referee_trace.py).")
     p.add_argument("--joint-frictionloss", type=float, default=None,
                    help="grade on this joint Coulomb friction (N*m) instead "
                         "of the run's own (config.json joint_frictionloss): "
@@ -2426,7 +2426,7 @@ def main():
         _trace_dir["dir"] = tdir
         _trace_dir["scenario"] = ""
         os.makedirs(tdir, exist_ok=True)
-        print(f"gradebook trace capture -> {tdir}")
+        print(f"trace capture -> {tdir}")
     global TRACE_RUN_ROOT
     TRACE_RUN_ROOT = run_dir if args.trace else None
     with open(os.path.join(run_dir, "config.json")) as f:

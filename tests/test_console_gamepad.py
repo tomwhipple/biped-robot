@@ -165,8 +165,8 @@ def test_signs_map_to_the_held_axes():
     held = tick(g, ctl, clock)
     assert held == [False, True, True, False, False, True]
     vx, vy, wz = ctl.speeds
-    assert vx == pytest.approx(sources.stick_to_speed(0.9))
-    assert vy == pytest.approx(gamepad.stick_frac(0.7, gamepad.DEAD_ZONE) * protocol.VY_MAX)
+    assert vx == pytest.approx(-sources.stick_to_speed(-0.9))     # the backward band
+    assert vy == pytest.approx(sources.stick_to_lateral(0.7))
     assert wz == pytest.approx(gamepad.stick_frac(0.6, gamepad.DEAD_ZONE) * protocol.W_MAX)
     pad.axes.update(lefty=0.05, leftx=0.0, rightx=-0.1)    # inside the dead zone: stand
     assert tick(g, ctl, clock) == [False] * 6               # still the pad's: keys ignored
@@ -259,17 +259,37 @@ def test_estop_while_driving_stops_and_latches():
     assert tick(g, ctl, clock)[FWD]
 
 
-def test_vx_goes_through_the_trained_band():
+def test_vx_goes_through_the_trained_band_of_its_direction():
     for a in (-1.0, -0.6, -0.16, -0.1, 0.0, 0.1, 0.15, 0.3, 0.5, 0.99, 1.0):
         assert gamepad.vx_from_stick(a, sources.STICK_DEADZONE) == pytest.approx(
             sources.stick_to_speed(a))
     for dz in (0.08, 0.25):
         for i in range(-100, 101):
-            v = abs(gamepad.vx_from_stick(i / 100.0, dz))
-            assert v == 0.0 or protocol.V_MIN_WALK - 1e-9 <= v <= protocol.V_MAX + 1e-9
-        assert gamepad.vx_from_stick(dz, dz) == pytest.approx(protocol.V_MIN_WALK)
+            v = gamepad.vx_from_stick(i / 100.0, dz)
+            if v > 0.0:
+                assert protocol.V_FWD_MIN - 1e-9 <= v <= protocol.V_FWD_MAX + 1e-9
+            elif v < 0.0:
+                assert protocol.V_BACK_MIN - 1e-9 <= -v <= protocol.V_BACK_MAX + 1e-9
+            # the robot's own clamp leaves every stick speed as it is
+            assert protocol.clamp_to_envelope(v, 0.0)[0] == pytest.approx(v)
+        assert gamepad.vx_from_stick(dz, dz) == pytest.approx(protocol.V_FWD_MIN)
+        assert gamepad.vx_from_stick(-dz, dz) == pytest.approx(-protocol.V_BACK_MIN)
         assert gamepad.vx_from_stick(dz - 0.01, dz) == 0.0
-        assert gamepad.vx_from_stick(-1.0, dz) == pytest.approx(-protocol.V_MAX)
+        assert gamepad.vx_from_stick(1.0, dz) == pytest.approx(protocol.V_FWD_MAX)
+        assert gamepad.vx_from_stick(-1.0, dz) == pytest.approx(-protocol.V_BACK_MAX)
+
+
+def test_vy_goes_through_the_trained_sidestep_band():
+    for a in (-1.0, -0.6, -0.16, -0.1, 0.0, 0.1, 0.15, 0.3, 0.5, 0.99, 1.0):
+        assert gamepad.vy_from_stick(a, sources.STICK_DEADZONE) == pytest.approx(
+            sources.stick_to_lateral(a))
+    for dz in (0.08, 0.25):
+        for i in range(-100, 101):
+            v = gamepad.vy_from_stick(i / 100.0, dz)
+            assert v == 0.0 or protocol.VY_MIN - 1e-9 <= abs(v) <= protocol.VY_MAX + 1e-9
+        assert gamepad.vy_from_stick(dz, dz) == pytest.approx(protocol.VY_MIN)
+        assert gamepad.vy_from_stick(dz - 0.01, dz) == 0.0
+        assert gamepad.vy_from_stick(-1.0, dz) == pytest.approx(-protocol.VY_MAX)
 
 
 def test_speed_restore_follows_the_sliders():
@@ -416,7 +436,7 @@ def test_the_pad_drives_the_twin_and_releases(qapp, twin, tmp_path, monkeypatch)
         sdl.input(pad)
         pump(qapp, 0.3)
         assert w.drive_source().startswith("gamepad")
-        assert ctl.st.held[FWD] and ctl.st.vx == pytest.approx(protocol.V_MAX, abs=1e-3)
+        assert ctl.st.held[FWD] and ctl.st.vx == pytest.approx(protocol.V_FWD_MAX, abs=1e-3)
         w.select_tab("Drive")
         pump(qapp, 0.3)
         if shots:

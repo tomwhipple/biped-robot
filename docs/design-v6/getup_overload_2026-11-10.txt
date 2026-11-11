@@ -1,0 +1,297 @@
+== The STS overload cutoff on the current get-up references (getup_ref_overload.py, 2026-11-10)
+plant bimo_biped_v6ar_meas.xml; servos STS3250 hip rolls, STS3215 elsewhere; kp as built {'hip_yaw': 2.8, 'hip_roll': 4.0, 'hip_pitch': 2.8, 'knee': 2.8, 'ankle': 2.8, 'ankle_roll': 2.8}; arms 1x. Cutoff (memory table V3.7 defaults): load > 80 % for 2.0 s -> 20 %; over-current 2.0 A for 2 s (STS3215 motor-current model, not meaningful for the STS3250).
+Measuring runs (cutoff not enforced); any run whose longest continuous stretch above 80 % reaches 2.0 s is re-run enforced on that reading.
+
+######## envelope 11.1V: 11.1 V, ratios to the STS3215 {'hip_roll': (1.6666666666666667, 1.6752970297029703)}
+
+-- prone_ikc (getup_ref_v6ar_prone_ikc.npz), pace x1: stands 10/10 open loop
+   nominal                            STANDS (up at 33.0 s, up +1.00)  shoulder peak  79 % (2.14 N*m), >80 % 0.00 s / 0.98 s duty  longest >80 %: torque R_hip_pitch 0.22 s, duty L_knee 1.22 s
+   joint friction 0.05                STANDS (up at 32.9 s, up +1.00)  shoulder peak  76 % (2.05 N*m), >80 % 0.00 s / 0.82 s duty  longest >80 %: torque R_hip_pitch 0.20 s, duty L_knee 0.94 s
+   joint friction 0.5                 STANDS (up at 33.1 s, up +1.00)  shoulder peak  82 % (2.23 N*m), >80 % 0.02 s / 1.04 s duty  longest >80 %: torque R_hip_pitch 0.24 s, duty L_knee 1.38 s
+   mu 0.45 (the measured sole)        STANDS (up at 33.0 s, up +1.00)  shoulder peak  74 % (2.02 N*m), >80 % 0.00 s / 0.98 s duty  longest >80 %: torque R_hip_pitch 0.22 s, duty L_knee 1.04 s
+   mu 1.0                             STANDS (up at 33.0 s, up +1.00)  shoulder peak  82 % (2.23 N*m), >80 % 0.02 s / 0.98 s duty  longest >80 %: torque R_hip_pitch 0.22 s, duty L_knee 1.42 s
+   play 1                             STANDS (up at 33.0 s, up +1.00)  shoulder peak  78 % (2.12 N*m), >80 % 0.00 s / 0.98 s duty  longest >80 %: torque R_hip_pitch 0.22 s, duty L_knee 1.20 s
+   servos 85 %                        STANDS (up at 33.0 s, up +1.00)  shoulder peak  82 % (1.89 N*m), >80 % 0.02 s / 1.02 s duty  longest >80 %: torque R_knee 0.24 s, duty L_knee 1.50 s
+   mass 110 %                         STANDS (up at 33.0 s, up +1.00)  shoulder peak  82 % (2.22 N*m), >80 % 0.02 s / 0.98 s duty  longest >80 %: torque R_hip_pitch 0.22 s, duty L_knee 1.30 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 33.0 s, up +1.00)  shoulder peak  92 % (2.13 N*m), >80 % 1.52 s / 1.70 s duty  longest >80 %: torque L_shoulder 1.52 s, duty L_knee 2.06 s
+   servos 65 % (09-29's weakest)      STANDS (up at 33.0 s, up +1.00)  shoulder peak  94 % (1.67 N*m), >80 % 1.40 s / 1.50 s duty  longest >80 %: torque R_hip_pitch 1.48 s, duty R_hip_pitch 2.64 s
+   SHOULDER at full strength (7 conditions): peak load 74-82 % of stall, max 2.23 N*m; longest >80 %: torque 0.02 s, duty 1.04 s (timer 2.0 s); peak motor current 2.13 A, longest >2 A 0.02 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw           97%     2.64        0.44s      0.44s   2.48A       0.08s
+   hip_roll          99%     3.86        1.06s      1.06s   2.50A       1.12s
+   hip_pitch         99%     2.65        1.48s      2.10s   2.49A       0.68s
+   knee              99%     2.33        0.70s      0.70s   2.22A       0.20s
+   ankle             69%     1.33        0.00s      0.00s   1.28A       0.00s
+   ankle_roll        27%     0.62        0.00s      0.00s   0.64A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          94%     2.23        1.52s      3.20s   2.13A       0.04s
+   elbow             76%     1.68        0.00s      0.00s   1.62A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw          105%     2.64        0.66s      0.90s   2.48A       0.08s
+   hip_roll         100%     3.86        1.06s      1.08s   2.50A       1.12s
+   hip_pitch        106%     2.65        2.64s      4.66s   2.49A       0.68s
+   knee             106%     2.33        2.36s      3.80s   2.22A       0.20s
+   ankle             83%     1.33        0.12s      0.12s   1.28A       0.00s
+   ankle_roll        25%     0.62        0.00s      0.00s   0.64A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         107%     2.23        1.70s      5.86s   2.13A       0.04s
+   elbow            104%     1.68        0.30s      0.30s   1.62A       0.00s
+   cutoff ENFORCED where a timer reached 2.0 s:
+     servos 85 %, mass 110 %, mu 1.0    [duty] no      trips: L_knee @ 21.5 s, L_shoulder @ 23.9 s, R_knee @ 21.5 s, R_shoulder @ 23.9 s
+     servos 65 % (09-29's weakest)      [duty] no      trips: R_hip_pitch @ 7.3 s, R_hip_yaw @ 20.1 s, R_shoulder @ 19.6 s
+
+-- prone_ikc (getup_ref_v6ar_prone_ikc.npz), pace x3: stands 10/10 open loop
+   nominal                            STANDS (up at 98.2 s, up +1.00)  shoulder peak  61 % (1.66 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque R_hip_pitch 0.50 s, duty R_knee 0.88 s
+   joint friction 0.05                STANDS (up at 98.0 s, up +1.00)  shoulder peak  70 % (1.90 N*m), >80 % 0.00 s / 0.06 s duty  longest >80 %: torque R_hip_pitch 0.42 s, duty R_knee 0.56 s
+   joint friction 0.5                 STANDS (up at 98.3 s, up +1.00)  shoulder peak  65 % (1.77 N*m), >80 % 0.00 s / 0.22 s duty  longest >80 %: torque R_hip_pitch 0.58 s, duty R_knee 1.10 s
+   mu 0.45 (the measured sole)        STANDS (up at 98.2 s, up +1.00)  shoulder peak  57 % (1.55 N*m), >80 % 0.00 s / 0.14 s duty  longest >80 %: torque R_hip_pitch 0.50 s, duty R_knee 0.76 s
+   mu 1.0                             STANDS (up at 98.3 s, up +1.00)  shoulder peak  72 % (1.96 N*m), >80 % 0.00 s / 0.22 s duty  longest >80 %: torque R_hip_pitch 0.52 s, duty R_knee 1.00 s
+   play 1                             STANDS (up at 98.2 s, up +1.00)  shoulder peak  62 % (1.68 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque R_hip_pitch 0.54 s, duty R_knee 0.88 s
+   servos 85 %                        STANDS (up at 98.2 s, up +1.00)  shoulder peak  72 % (1.67 N*m), >80 % 0.00 s / 0.24 s duty  longest >80 %: torque R_hip_pitch 0.58 s, duty R_knee 1.20 s
+   mass 110 %                         STANDS (up at 98.2 s, up +1.00)  shoulder peak  67 % (1.82 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque R_hip_pitch 0.52 s, duty R_knee 1.00 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 98.3 s, up +1.00)  shoulder peak  98 % (2.27 N*m), >80 % 1.70 s / 1.68 s duty  longest >80 %: torque L_shoulder 1.70 s, duty L_knee 1.78 s
+   servos 65 % (09-29's weakest)      STANDS (up at 98.2 s, up +1.00)  shoulder peak  94 % (1.65 N*m), >80 % 2.02 s / 2.06 s duty  longest >80 %: torque R_hip_pitch 2.04 s, duty L_knee 2.46 s
+   SHOULDER at full strength (7 conditions): peak load 57-72 % of stall, max 1.96 N*m; longest >80 %: torque 0.00 s, duty 0.22 s (timer 2.0 s); peak motor current 1.85 A, longest >2 A 0.00 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw           99%     1.94        2.00s      2.00s   1.83A       0.00s
+   hip_roll         100%     3.41        1.16s      1.16s   2.50A       3.24s
+   hip_pitch        100%     2.70        2.04s      5.18s   2.50A       0.60s
+   knee              99%     2.29        0.98s      2.14s   2.17A       0.20s
+   ankle             58%     1.14        0.00s      0.00s   1.09A       0.00s
+   ankle_roll        23%     0.46        0.00s      0.00s   0.46A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          98%     2.27        2.02s      2.62s   2.14A       0.94s
+   elbow             62%     1.29        0.00s      0.00s   1.25A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw          101%     1.94        2.02s      2.02s   1.83A       0.00s
+   hip_roll         101%     3.41        1.16s      1.16s   2.50A       3.24s
+   hip_pitch        105%     2.70        2.06s      6.12s   2.50A       0.60s
+   knee             105%     2.29        2.46s      4.12s   2.17A       0.20s
+   ankle             62%     1.14        0.00s      0.00s   1.09A       0.00s
+   ankle_roll        25%     0.46        0.00s      0.00s   0.46A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         106%     2.27        2.06s      4.78s   2.14A       0.94s
+   elbow             77%     1.29        0.00s      0.00s   1.25A       0.00s
+   cutoff ENFORCED where a timer reached 2.0 s:
+     servos 65 % (09-29's weakest)      [torque] no      trips: L_hip_yaw @ 30.8 s, L_shoulder @ 60.6 s, R_shoulder @ 60.6 s
+     servos 65 % (09-29's weakest)      [duty] no      trips: L_hip_yaw @ 30.8 s, L_knee @ 60.4 s, L_shoulder @ 60.6 s, R_knee @ 60.4 s, R_shoulder @ 67.2 s
+
+-- supine_ik (getup_ref_v6ar_ik.npz), pace x1: stands 10/10 open loop
+   nominal                            STANDS (up at 21.8 s, up +1.00)  shoulder peak  79 % (2.15 N*m), >80 % 0.00 s / 0.72 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_knee 1.22 s
+   joint friction 0.05                STANDS (up at 21.6 s, up +1.00)  shoulder peak  74 % (2.01 N*m), >80 % 0.00 s / 0.46 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_knee 0.94 s
+   joint friction 0.5                 STANDS (up at 21.8 s, up +1.00)  shoulder peak  83 % (2.25 N*m), >80 % 0.02 s / 0.78 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_knee 1.40 s
+   mu 0.45 (the measured sole)        STANDS (up at 21.8 s, up +1.00)  shoulder peak  74 % (2.02 N*m), >80 % 0.00 s / 0.70 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_knee 1.06 s
+   mu 1.0                             STANDS (up at 21.8 s, up +1.00)  shoulder peak  82 % (2.23 N*m), >80 % 0.02 s / 0.78 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_knee 1.46 s
+   play 1                             STANDS (up at 21.8 s, up +1.00)  shoulder peak  79 % (2.15 N*m), >80 % 0.00 s / 0.72 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_knee 1.22 s
+   servos 85 %                        STANDS (up at 21.8 s, up +1.00)  shoulder peak  83 % (1.92 N*m), >80 % 0.02 s / 0.82 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_knee 1.54 s
+   mass 110 %                         STANDS (up at 21.8 s, up +1.00)  shoulder peak  82 % (2.24 N*m), >80 % 0.02 s / 0.60 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_knee 1.32 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 21.8 s, up +1.00)  shoulder peak  97 % (2.25 N*m), >80 % 1.78 s / 1.82 s duty  longest >80 %: torque L_shoulder 1.78 s, duty L_knee 2.22 s
+   servos 65 % (09-29's weakest)      STANDS (up at 21.8 s, up +1.00)  shoulder peak  99 % (1.75 N*m), >80 % 2.36 s / 4.26 s duty  longest >80 %: torque L_shoulder 2.36 s, duty L_shoulder 4.26 s
+   SHOULDER at full strength (7 conditions): peak load 74-83 % of stall, max 2.25 N*m; longest >80 %: torque 0.02 s, duty 0.78 s (timer 2.0 s); peak motor current 2.14 A, longest >2 A 0.02 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw            4%     0.08        0.00s      0.00s   0.11A       0.00s
+   hip_roll           1%     0.05        0.00s      0.00s   0.07A       0.00s
+   hip_pitch         87%     1.99        0.04s      0.04s   1.91A       0.00s
+   knee              85%     1.92        0.30s      1.42s   1.86A       0.00s
+   ankle             57%     1.17        0.00s      0.00s   1.13A       0.00s
+   ankle_roll         5%     0.15        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          99%     2.25        2.36s      4.16s   2.14A       0.70s
+   elbow             76%     1.68        0.00s      0.00s   1.62A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw            3%     0.08        0.00s      0.00s   0.11A       0.00s
+   hip_roll           2%     0.05        0.00s      0.00s   0.07A       0.00s
+   hip_pitch        102%     1.99        0.60s      0.68s   1.91A       0.00s
+   knee             106%     1.92        2.76s      3.10s   1.86A       0.00s
+   ankle             66%     1.17        0.00s      0.00s   1.13A       0.00s
+   ankle_roll         6%     0.15        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         108%     2.25        4.26s      5.30s   2.14A       0.70s
+   elbow            105%     1.68        0.30s      0.30s   1.62A       0.00s
+   cutoff ENFORCED where a timer reached 2.0 s:
+     servos 85 %, mass 110 %, mu 1.0    [duty] no      trips: L_knee @ 10.3 s, L_shoulder @ 10.8 s, R_knee @ 10.3 s, R_shoulder @ 10.8 s
+     servos 65 % (09-29's weakest)      [torque] no      trips: L_shoulder @ 10.6 s, R_shoulder @ 10.6 s
+     servos 65 % (09-29's weakest)      [duty] no      trips: L_knee @ 10.2 s, L_shoulder @ 10.7 s, R_knee @ 10.2 s, R_shoulder @ 10.7 s
+
+-- supine_ik (getup_ref_v6ar_ik.npz), pace x3: stands 10/10 open loop
+   nominal                            STANDS (up at 64.5 s, up +1.00)  shoulder peak  62 % (1.70 N*m), >80 % 0.00 s / 0.20 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.20 s
+   joint friction 0.05                STANDS (up at 64.3 s, up +1.00)  shoulder peak  70 % (1.91 N*m), >80 % 0.00 s / 0.06 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.06 s
+   joint friction 0.5                 STANDS (up at 64.5 s, up +1.00)  shoulder peak  65 % (1.77 N*m), >80 % 0.00 s / 0.22 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.22 s
+   mu 0.45 (the measured sole)        STANDS (up at 64.5 s, up +1.00)  shoulder peak  58 % (1.57 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.18 s
+   mu 1.0                             STANDS (up at 64.5 s, up +1.00)  shoulder peak  76 % (2.06 N*m), >80 % 0.00 s / 0.22 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_knee 0.64 s
+   play 1                             STANDS (up at 64.5 s, up +1.00)  shoulder peak  61 % (1.67 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.18 s
+   servos 85 %                        STANDS (up at 64.5 s, up +1.00)  shoulder peak  72 % (1.67 N*m), >80 % 0.00 s / 0.24 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_knee 0.32 s
+   mass 110 %                         STANDS (up at 64.5 s, up +1.00)  shoulder peak  68 % (1.86 N*m), >80 % 0.00 s / 0.20 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.20 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 64.5 s, up +1.00)  shoulder peak  96 % (2.23 N*m), >80 % 1.96 s / 1.98 s duty  longest >80 %: torque L_shoulder 1.96 s, duty L_shoulder 1.98 s
+   servos 65 % (09-29's weakest)      STANDS (up at 64.5 s, up +1.00)  shoulder peak  97 % (1.71 N*m), >80 % 1.96 s / 1.96 s duty  longest >80 %: torque L_shoulder 1.96 s, duty L_knee 2.50 s
+   SHOULDER at full strength (7 conditions): peak load 58-76 % of stall, max 2.06 N*m; longest >80 %: torque 0.00 s, duty 0.22 s (timer 2.0 s); peak motor current 1.94 A, longest >2 A 0.00 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw            5%     0.11        0.00s      0.00s   0.13A       0.00s
+   hip_roll           3%     0.12        0.00s      0.00s   0.15A       0.00s
+   hip_pitch         69%     1.38        0.00s      0.00s   1.32A       0.00s
+   knee              85%     1.87        0.40s      1.04s   1.80A       0.00s
+   ankle             55%     1.11        0.00s      0.00s   1.07A       0.00s
+   ankle_roll         8%     0.16        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          97%     2.23        1.96s      2.06s   2.09A       0.64s
+   elbow             62%     1.29        0.00s      0.00s   1.24A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw            5%     0.11        0.00s      0.00s   0.13A       0.00s
+   hip_roll           3%     0.12        0.00s      0.00s   0.15A       0.00s
+   hip_pitch         84%     1.38        0.04s      0.04s   1.32A       0.00s
+   knee             105%     1.87        2.50s      2.76s   1.80A       0.00s
+   ankle             58%     1.11        0.00s      0.00s   1.07A       0.00s
+   ankle_roll         8%     0.16        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         106%     2.23        1.98s      3.80s   2.09A       0.64s
+   elbow             78%     1.29        0.00s      0.00s   1.24A       0.00s
+   cutoff ENFORCED where a timer reached 2.0 s:
+     servos 65 % (09-29's weakest)      [duty] no      trips: L_knee @ 26.6 s, L_shoulder @ 34.1 s, R_knee @ 26.6 s, R_shoulder @ 34.1 s
+
+######## envelope 12V-refit: 12.0 V, ratios to the STS3215 {'hip_roll': (1.6666666666666667, 1.6752970297029703), 'hip_pitch': (2.0, 1.325), 'knee': (2.0, 1.281)}
+
+-- prone_ikc (getup_ref_v6ar_prone_ikc.npz), pace x1: stands 10/10 open loop
+   nominal                            STANDS (up at 33.0 s, up +1.00)  shoulder peak  80 % (2.36 N*m), >80 % 0.02 s / 0.88 s duty  longest >80 %: torque L_hip_roll 0.02 s, duty L_shoulder 0.88 s
+   joint friction 0.05                STANDS (up at 32.9 s, up +1.00)  shoulder peak  72 % (2.12 N*m), >80 % 0.00 s / 0.74 s duty  longest >80 %: torque L_hip_roll 0.02 s, duty L_shoulder 0.74 s
+   joint friction 0.5                 STANDS (up at 33.1 s, up +1.00)  shoulder peak  83 % (2.43 N*m), >80 % 0.02 s / 0.94 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.94 s
+   mu 0.45 (the measured sole)        STANDS (up at 33.0 s, up +1.00)  shoulder peak  76 % (2.24 N*m), >80 % 0.00 s / 0.88 s duty  longest >80 %: torque L_hip_roll 0.02 s, duty L_shoulder 0.88 s
+   mu 1.0                             STANDS (up at 33.0 s, up +1.00)  shoulder peak  83 % (2.43 N*m), >80 % 0.02 s / 0.88 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.88 s
+   play 1                             STANDS (up at 33.0 s, up +1.00)  shoulder peak  77 % (2.27 N*m), >80 % 0.00 s / 0.88 s duty  longest >80 %: torque L_hip_roll 0.02 s, duty L_shoulder 0.88 s
+   servos 85 %                        STANDS (up at 33.0 s, up +1.00)  shoulder peak  82 % (2.06 N*m), >80 % 0.02 s / 0.92 s duty  longest >80 %: torque L_hip_roll 0.04 s, duty L_shoulder 0.92 s
+   mass 110 %                         STANDS (up at 33.0 s, up +1.00)  shoulder peak  83 % (2.45 N*m), >80 % 0.02 s / 0.88 s duty  longest >80 %: torque L_hip_roll 0.02 s, duty L_shoulder 0.88 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 33.0 s, up +1.00)  shoulder peak  96 % (2.39 N*m), >80 % 0.70 s / 1.18 s duty  longest >80 %: torque L_shoulder 0.70 s, duty L_shoulder 1.18 s
+   servos 65 % (09-29's weakest)      STANDS (up at 33.0 s, up +1.00)  shoulder peak  99 % (1.90 N*m), >80 % 0.68 s / 1.26 s duty  longest >80 %: torque L_shoulder 0.68 s, duty L_shoulder 1.26 s
+   SHOULDER at full strength (7 conditions): peak load 72-83 % of stall, max 2.45 N*m; longest >80 %: torque 0.02 s, duty 0.94 s (timer 2.0 s); peak motor current 2.33 A, longest >2 A 0.06 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw           98%     2.41        0.62s      0.66s   2.26A       0.02s
+   hip_roll          93%     4.41        0.42s      0.52s   2.70A       0.98s
+   hip_pitch         88%     4.20        0.18s      0.18s   2.70A       0.32s
+   knee              73%     3.41        0.00s      0.00s   2.70A       0.38s
+   ankle             55%     1.42        0.00s      0.00s   1.36A       0.00s
+   ankle_roll        32%     0.93        0.00s      0.00s   0.93A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          99%     2.45        0.70s      1.40s   2.33A       0.60s
+   elbow             74%     1.71        0.00s      0.00s   1.64A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw          103%     2.41        0.74s      0.88s   2.26A       0.02s
+   hip_roll         103%     4.41        0.54s      0.54s   2.70A       0.98s
+   hip_pitch        103%     4.20        0.32s      0.50s   2.70A       0.32s
+   knee             105%     3.41        0.56s      0.98s   2.70A       0.38s
+   ankle             74%     1.42        0.00s      0.00s   1.36A       0.00s
+   ankle_roll        40%     0.93        0.00s      0.00s   0.93A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         106%     2.45        1.26s      4.16s   2.33A       0.60s
+   elbow            105%     1.71        0.24s      0.24s   1.64A       0.00s
+
+-- prone_ikc (getup_ref_v6ar_prone_ikc.npz), pace x3: stands 10/10 open loop
+   nominal                            STANDS (up at 98.2 s, up +1.00)  shoulder peak  57 % (1.67 N*m), >80 % 0.00 s / 0.10 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.10 s
+   joint friction 0.05                STANDS (up at 98.0 s, up +1.00)  shoulder peak  66 % (1.93 N*m), >80 % 0.00 s / 0.02 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.02 s
+   joint friction 0.5                 STANDS (up at 98.3 s, up +1.00)  shoulder peak  59 % (1.75 N*m), >80 % 0.00 s / 0.16 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.16 s
+   mu 0.45 (the measured sole)        STANDS (up at 98.2 s, up +1.00)  shoulder peak  53 % (1.56 N*m), >80 % 0.00 s / 0.10 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.10 s
+   mu 1.0                             STANDS (up at 98.3 s, up +1.00)  shoulder peak  63 % (1.86 N*m), >80 % 0.00 s / 0.16 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.16 s
+   play 1                             STANDS (up at 98.2 s, up +1.00)  shoulder peak  58 % (1.70 N*m), >80 % 0.00 s / 0.10 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.10 s
+   servos 85 %                        STANDS (up at 98.2 s, up +1.00)  shoulder peak  67 % (1.68 N*m), >80 % 0.00 s / 0.16 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.16 s
+   mass 110 %                         STANDS (up at 98.2 s, up +1.00)  shoulder peak  62 % (1.84 N*m), >80 % 0.00 s / 0.14 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.14 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 98.3 s, up +1.00)  shoulder peak  82 % (2.04 N*m), >80 % 0.24 s / 0.26 s duty  longest >80 %: torque L_shoulder 0.24 s, duty L_hip_roll 0.28 s
+   servos 65 % (09-29's weakest)      STANDS (up at 98.2 s, up +1.00)  shoulder peak  88 % (1.68 N*m), >80 % 0.30 s / 0.36 s duty  longest >80 %: torque L_hip_yaw 1.02 s, duty R_hip_yaw 1.72 s
+   SHOULDER at full strength (7 conditions): peak load 53-66 % of stall, max 1.93 N*m; longest >80 %: torque 0.00 s, duty 0.16 s (timer 2.0 s); peak motor current 1.82 A, longest >2 A 0.00 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw           92%     1.95        1.02s      1.64s   1.84A       0.00s
+   hip_roll          99%     3.45        0.88s      0.90s   2.70A       3.22s
+   hip_pitch         79%     3.59        0.00s      0.00s   2.70A       0.54s
+   knee              55%     2.31        0.00s      0.00s   2.19A       0.30s
+   ankle             53%     1.15        0.00s      0.00s   1.10A       0.00s
+   ankle_roll        16%     0.47        0.00s      0.00s   0.48A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          88%     2.04        0.30s      0.46s   1.92A       0.00s
+   elbow             56%     1.24        0.00s      0.00s   1.20A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw           92%     1.95        1.72s      1.88s   1.84A       0.00s
+   hip_roll         100%     3.45        0.88s      0.92s   2.70A       3.22s
+   hip_pitch         87%     3.59        0.34s      0.34s   2.70A       0.54s
+   knee              80%     2.31        0.00s      0.00s   2.19A       0.30s
+   ankle             59%     1.15        0.00s      0.00s   1.10A       0.00s
+   ankle_roll        27%     0.47        0.00s      0.00s   0.48A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         105%     2.04        0.36s      0.80s   1.92A       0.00s
+   elbow             74%     1.24        0.00s      0.00s   1.20A       0.00s
+
+-- supine_ik (getup_ref_v6ar_ik.npz), pace x1: stands 10/10 open loop
+   nominal                            STANDS (up at 21.8 s, up +1.00)  shoulder peak  81 % (2.38 N*m), >80 % 0.02 s / 0.48 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.48 s
+   joint friction 0.05                STANDS (up at 21.6 s, up +1.00)  shoulder peak  71 % (2.10 N*m), >80 % 0.00 s / 0.42 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.42 s
+   joint friction 0.5                 STANDS (up at 21.8 s, up +1.00)  shoulder peak  84 % (2.46 N*m), >80 % 0.02 s / 0.52 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.52 s
+   mu 0.45 (the measured sole)        STANDS (up at 21.8 s, up +1.00)  shoulder peak  76 % (2.24 N*m), >80 % 0.00 s / 0.46 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.46 s
+   mu 1.0                             STANDS (up at 21.8 s, up +1.00)  shoulder peak  84 % (2.46 N*m), >80 % 0.02 s / 0.62 s duty  longest >80 %: torque L_shoulder 0.02 s, duty R_shoulder 0.62 s
+   play 1                             STANDS (up at 21.8 s, up +1.00)  shoulder peak  81 % (2.38 N*m), >80 % 0.02 s / 0.48 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.48 s
+   servos 85 %                        STANDS (up at 21.8 s, up +1.00)  shoulder peak  83 % (2.07 N*m), >80 % 0.02 s / 0.70 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.70 s
+   mass 110 %                         STANDS (up at 21.8 s, up +1.00)  shoulder peak  84 % (2.46 N*m), >80 % 0.02 s / 0.50 s duty  longest >80 %: torque L_shoulder 0.02 s, duty L_shoulder 0.50 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 21.8 s, up +1.00)  shoulder peak  98 % (2.44 N*m), >80 % 0.80 s / 1.22 s duty  longest >80 %: torque L_shoulder 0.80 s, duty L_shoulder 1.22 s
+   servos 65 % (09-29's weakest)      STANDS (up at 21.8 s, up +1.00)  shoulder peak  95 % (1.81 N*m), >80 % 0.70 s / 1.28 s duty  longest >80 %: torque R_shoulder 0.70 s, duty L_shoulder 1.28 s
+   SHOULDER at full strength (7 conditions): peak load 71-84 % of stall, max 2.46 N*m; longest >80 %: torque 0.02 s, duty 0.62 s (timer 2.0 s); peak motor current 2.34 A, longest >2 A 0.44 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw            2%     0.05        0.00s      0.00s   0.08A       0.00s
+   hip_roll           1%     0.05        0.00s      0.00s   0.08A       0.00s
+   hip_pitch         42%     1.81        0.00s      0.00s   1.74A       0.00s
+   knee              44%     2.03        0.00s      0.00s   1.98A       0.00s
+   ankle             53%     1.17        0.00s      0.00s   1.12A       0.00s
+   ankle_roll         5%     0.14        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          98%     2.46        0.80s      1.40s   2.34A       0.64s
+   elbow             74%     1.71        0.00s      0.00s   1.65A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw            1%     0.05        0.00s      0.00s   0.08A       0.00s
+   hip_roll           1%     0.05        0.00s      0.00s   0.08A       0.00s
+   hip_pitch         74%     1.81        0.00s      0.00s   1.74A       0.00s
+   knee              97%     2.03        0.44s      0.44s   1.98A       0.00s
+   ankle             61%     1.17        0.00s      0.00s   1.12A       0.00s
+   ankle_roll         6%     0.14        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         106%     2.46        1.28s      2.84s   2.34A       0.64s
+   elbow            104%     1.71        0.24s      0.24s   1.65A       0.00s
+
+-- supine_ik (getup_ref_v6ar_ik.npz), pace x3: stands 10/10 open loop
+   nominal                            STANDS (up at 64.5 s, up +1.00)  shoulder peak  57 % (1.67 N*m), >80 % 0.00 s / 0.14 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.14 s
+   joint friction 0.05                STANDS (up at 64.3 s, up +1.00)  shoulder peak  65 % (1.91 N*m), >80 % 0.00 s / 0.02 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.02 s
+   joint friction 0.5                 STANDS (up at 64.5 s, up +1.00)  shoulder peak  60 % (1.77 N*m), >80 % 0.00 s / 0.20 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty R_shoulder 0.20 s
+   mu 0.45 (the measured sole)        STANDS (up at 64.5 s, up +1.00)  shoulder peak  53 % (1.56 N*m), >80 % 0.00 s / 0.10 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.10 s
+   mu 1.0                             STANDS (up at 64.5 s, up +1.00)  shoulder peak  70 % (2.06 N*m), >80 % 0.00 s / 0.18 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.18 s
+   play 1                             STANDS (up at 64.5 s, up +1.00)  shoulder peak  58 % (1.70 N*m), >80 % 0.00 s / 0.14 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.14 s
+   servos 85 %                        STANDS (up at 64.5 s, up +1.00)  shoulder peak  68 % (1.70 N*m), >80 % 0.00 s / 0.20 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.20 s
+   mass 110 %                         STANDS (up at 64.5 s, up +1.00)  shoulder peak  63 % (1.86 N*m), >80 % 0.00 s / 0.16 s duty  longest >80 %: torque L_hip_yaw 0.00 s, duty L_shoulder 0.16 s
+   servos 85 %, mass 110 %, mu 1.0    STANDS (up at 64.5 s, up +1.00)  shoulder peak  90 % (2.25 N*m), >80 % 1.58 s / 1.60 s duty  longest >80 %: torque L_shoulder 1.58 s, duty L_shoulder 1.60 s
+   servos 65 % (09-29's weakest)      STANDS (up at 64.5 s, up +1.00)  shoulder peak  87 % (1.67 N*m), >80 % 1.34 s / 1.32 s duty  longest >80 %: torque L_shoulder 1.34 s, duty L_shoulder 1.32 s
+   SHOULDER at full strength (7 conditions): peak load 53-70 % of stall, max 2.06 N*m; longest >80 %: torque 0.00 s, duty 0.20 s (timer 2.0 s); peak motor current 1.94 A, longest >2 A 0.00 s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [torque]
+   hip_yaw            4%     0.10        0.00s      0.00s   0.12A       0.00s
+   hip_roll           4%     0.12        0.00s      0.00s   0.15A       0.00s
+   hip_pitch         32%     1.37        0.00s      0.00s   1.31A       0.00s
+   knee              37%     1.83        0.00s      0.00s   1.75A       0.00s
+   ankle             51%     1.11        0.00s      0.00s   1.07A       0.00s
+   ankle_roll         7%     0.16        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder          90%     2.25        1.58s      1.58s   2.12A       0.80s
+   elbow             58%     1.31        0.00s      0.00s   1.25A       0.00s
+   role        peak load peak N*m longest >80% total >80%  peak I longest >2A   [duty]
+   hip_yaw            4%     0.10        0.00s      0.00s   0.12A       0.00s
+   hip_roll           4%     0.12        0.00s      0.00s   0.15A       0.00s
+   hip_pitch         43%     1.37        0.00s      0.00s   1.31A       0.00s
+   knee              56%     1.83        0.00s      0.00s   1.75A       0.00s
+   ankle             54%     1.11        0.00s      0.00s   1.07A       0.00s
+   ankle_roll         7%     0.16        0.00s      0.00s   0.17A       0.00s
+   neck_yaw           0%     0.00        0.00s      0.00s   0.03A       0.00s
+   shoulder         106%     2.25        1.60s      2.16s   2.12A       0.80s
+   elbow             73%     1.31        0.00s      0.00s   1.25A       0.00s
+
+-- margin in servo strength: prone_ikc, nominal condition, pace x1, every servo's stall x scale (no-load speed unchanged); the cutoff measured, then enforced on each reading
+   11.1V     servos 1.00: no cutoff STANDS (shoulder 79 %; longest >80 % torque R_hip_pitch 0.22 s, duty L_knee 1.22 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   11.1V     servos 0.85: no cutoff STANDS (shoulder 82 %; longest >80 % torque R_knee 0.24 s, duty L_knee 1.50 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   11.1V     servos 0.75: no cutoff STANDS (shoulder 85 %; longest >80 % torque L_hip_pitch 0.72 s, duty L_knee 1.84 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   11.1V     servos 0.65: no cutoff STANDS (shoulder 94 %; longest >80 % torque R_hip_pitch 1.48 s, duty R_hip_pitch 2.64 s) | enforced torque STANDS (no trip) | enforced duty no     (R_hip_pitch @ 7.3 s, R_hip_yaw @ 20.1 s, R_shoulder @ 19.6 s)
+   11.1V     servos 0.55: no cutoff no     (shoulder 100 %; longest >80 % torque L_shoulder 8.04 s, duty L_shoulder 8.02 s) | enforced torque no     (L_shoulder @ 26.3 s, R_hip_pitch @ 7.9 s, R_hip_yaw @ 20.2 s, R_shoulder @ 19.8 s) | enforced duty no     (L_hip_pitch @ 9.0 s, R_hip_pitch @ 7.3 s, R_knee @ 9.1 s)
+   11.1V     servos 0.45: no cutoff no     (shoulder 100 %; longest >80 % torque L_hip_pitch 5.68 s, duty R_hip_pitch 6.86 s) | enforced torque no     (L_hip_pitch @ 15.6 s, R_hip_pitch @ 7.8 s, R_hip_roll @ 11.0 s, R_knee @ 9.4 s) | enforced duty no     (L_hip_pitch @ 9.0 s, L_shoulder @ 9.4 s, R_hip_pitch @ 7.2 s, R_knee @ 9.1 s)
+   12V-refit servos 1.00: no cutoff STANDS (shoulder 80 %; longest >80 % torque L_hip_roll 0.02 s, duty L_shoulder 0.88 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   12V-refit servos 0.85: no cutoff STANDS (shoulder 82 %; longest >80 % torque L_hip_roll 0.04 s, duty L_shoulder 0.92 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   12V-refit servos 0.75: no cutoff STANDS (shoulder 85 %; longest >80 % torque L_shoulder 0.10 s, duty R_shoulder 0.98 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   12V-refit servos 0.65: no cutoff STANDS (shoulder 99 %; longest >80 % torque L_shoulder 0.68 s, duty L_shoulder 1.26 s) | enforced torque STANDS (no trip) | enforced duty STANDS (no trip)
+   12V-refit servos 0.55: no cutoff STANDS (shoulder 100 %; longest >80 % torque L_shoulder 2.56 s, duty L_shoulder 2.62 s) | enforced torque no     (L_shoulder @ 23.7 s, R_shoulder @ 23.7 s) | enforced duty no     (L_shoulder @ 23.6 s, R_shoulder @ 23.7 s)
+   12V-refit servos 0.45: no cutoff no     (shoulder 100 %; longest >80 % torque L_shoulder 7.56 s, duty R_shoulder 7.52 s) | enforced torque no     (L_shoulder @ 22.4 s, R_shoulder @ 22.5 s) | enforced duty no     (L_shoulder @ 22.5 s, R_shoulder @ 22.5 s)

@@ -1,0 +1,1244 @@
+{
+ "plants": [
+  "oneleg:fit",
+  "train",
+  "train:lash0.5",
+  "train:lash2.0",
+  "grade"
+ ],
+ "terms": {},
+ "results": {
+  "oneleg:fit": {
+   "floorR2": {
+    "l10": {
+     "hw_polled_peak": -2.73,
+     "hw_settled": -0.09,
+     "hw_u_end": -7.87,
+     "sim_polled_peak": -1.7298927772986459,
+     "sim_peak": -1.730455040244324,
+     "sim_settled": -0.09722424042540695,
+     "sim_u_end": -4.535099046914463,
+     "sim_clear_max_mm": 0.0013030563132320969,
+     "sim_clear_hold_med_mm": -0.23157385743387357,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.30118512679710385,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "no (Tom: did NOT clear at 10 mm)",
+     "hw_notes_peak": -2.7
+    },
+    "l30": {
+     "hw_polled_peak": -5.21,
+     "hw_settled": -0.17,
+     "hw_u_end": -9.03,
+     "sim_polled_peak": -2.4105838456817543,
+     "sim_peak": -2.445073783260986,
+     "sim_settled": -0.3982577970209211,
+     "sim_u_end": -6.985492954648775,
+     "sim_clear_max_mm": 17.781909896611843,
+     "sim_clear_hold_med_mm": 17.180738223015105,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.30118512679710385,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes (frame: lifted foot visibly higher)",
+     "hw_notes_peak": -5.2
+    }
+   },
+   "clrR": {
+    "l10": {
+     "hw_polled_peak": -1.25,
+     "hw_settled": -0.52,
+     "hw_u_end": -3.44,
+     "sim_polled_peak": -1.3524491225560291,
+     "sim_peak": -1.3775776722925266,
+     "sim_settled": -0.4571660685312309,
+     "sim_u_end": -3.750762209790667,
+     "sim_clear_max_mm": -0.0002517629483925546,
+     "sim_clear_hold_med_mm": -0.20932242842036045,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.29382626490302366,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (NOTES' YES is the 30 mm hold)",
+     "hw_notes_peak": -1.25
+    },
+    "l30": {
+     "hw_polled_peak": -3.17,
+     "hw_settled": -0.31,
+     "hw_u_end": -8.27,
+     "sim_polled_peak": -1.5452802126256544,
+     "sim_peak": -1.5703399439224122,
+     "sim_settled": -0.6072347714088879,
+     "sim_u_end": -6.08478137773289,
+     "sim_clear_max_mm": 18.069905414360097,
+     "sim_clear_hold_med_mm": 15.694608356789319,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.29382626490302366,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, ~1-2 cm (pixel est.)",
+     "hw_notes_peak": -3.17
+    }
+   },
+   "clrL": {
+    "l10": {
+     "hw_polled_peak": 1.27,
+     "hw_settled": 0.35,
+     "hw_u_end": 3.54,
+     "sim_polled_peak": 2.081399546869582,
+     "sim_peak": 2.0856033761675365,
+     "sim_settled": 0.27791624100850265,
+     "sim_u_end": 5.292101677716013,
+     "sim_clear_max_mm": -0.021165535882783533,
+     "sim_clear_hold_med_mm": -0.15257809476752587,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.31433761670337546,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (as R)",
+     "hw_notes_peak": 1.27
+    },
+    "l30": {
+     "hw_polled_peak": 4.05,
+     "hw_settled": -0.07,
+     "hw_u_end": 7.42,
+     "sim_polled_peak": 4.53556230434546,
+     "sim_peak": 4.57486972759393,
+     "sim_settled": -12.207377717491054,
+     "sim_u_end": 0.0,
+     "sim_clear_max_mm": 108.32560580593046,
+     "sim_clear_hold_med_mm": 15.123277818736236,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.31433761670337546,
+     "sim_aborted": true,
+     "sim_fell": true,
+     "hw_clear": "yes, clear gap",
+     "hw_notes_peak": 4.05
+    }
+   },
+   "latR": [
+    {
+     "x": 0.5,
+     "hw": -1.9100000000000001,
+     "sim": -2.3912048724333603,
+     "sim_clear_max_mm": -0.12076640219239615,
+     "sim_swing_load": 0.21865365641817475,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": -1.8499999999999996,
+     "sim": -2.2001313634847555,
+     "sim_clear_max_mm": -0.0685067907951831,
+     "sim_swing_load": 0.2230702657927103,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": -1.69,
+     "sim": -1.9349043481576387,
+     "sim_clear_max_mm": -0.07276180098623411,
+     "sim_swing_load": 0.24607228787362292,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": -1.6699999999999995,
+     "sim": -1.6340981435287523,
+     "sim_clear_max_mm": -0.022329688940545857,
+     "sim_swing_load": 0.24179895633388862,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": -1.4499999999999997,
+     "sim": -1.527746167061287,
+     "sim_clear_max_mm": -0.028476472291962852,
+     "sim_swing_load": 0.23196904538032467,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": -1.2999999999999998,
+     "sim": -1.5455580840054495,
+     "sim_clear_max_mm": -0.06547520875756652,
+     "sim_swing_load": 0.2141734437118069,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": -1.42,
+     "sim": -1.5698233883938324,
+     "sim_clear_max_mm": -0.09873248590018449,
+     "sim_swing_load": 0.1869173614802071,
+     "sim_fell": false
+    }
+   ],
+   "latL": [
+    {
+     "x": 0.5,
+     "hw": 1.9,
+     "sim": 2.4373018298846048,
+     "sim_clear_max_mm": -0.13995902032731736,
+     "sim_swing_load": 0.48091644113203014,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": 1.7500000000000002,
+     "sim": 2.3981822925921743,
+     "sim_clear_max_mm": -0.1302374075816291,
+     "sim_swing_load": 0.42708375726014264,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": 1.62,
+     "sim": 2.361712463819139,
+     "sim_clear_max_mm": -0.11961253888908163,
+     "sim_swing_load": 0.38608555913822995,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": 1.56,
+     "sim": 2.0203584321064008,
+     "sim_clear_max_mm": -0.14367739437856716,
+     "sim_swing_load": 0.3419845025705614,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": 1.5299999999999998,
+     "sim": 1.9884511338510549,
+     "sim_clear_max_mm": -0.13371130240099216,
+     "sim_swing_load": 0.29764044254790833,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": 1.3499999999999999,
+     "sim": 2.015914762397038,
+     "sim_clear_max_mm": -0.13200327527408945,
+     "sim_swing_load": 0.2610552410631984,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": 1.34,
+     "sim": 2.0390275181226123,
+     "sim_clear_max_mm": -0.11186671579019747,
+     "sim_swing_load": 0.22085754220821993,
+     "sim_fell": false
+    }
+   ]
+  },
+  "train": {
+   "floorR2": {
+    "l10": {
+     "hw_polled_peak": -2.73,
+     "hw_settled": -0.09,
+     "hw_u_end": -7.87,
+     "sim_polled_peak": -1.230259750890553,
+     "sim_peak": -1.2624311202551468,
+     "sim_settled": -0.3086494249441745,
+     "sim_u_end": -5.137262917698614,
+     "sim_clear_max_mm": 0.0688420694111595,
+     "sim_clear_hold_med_mm": -0.0072998431158433075,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "no (Tom: did NOT clear at 10 mm)",
+     "hw_notes_peak": -2.7
+    },
+    "l30": {
+     "hw_polled_peak": -5.21,
+     "hw_settled": -0.17,
+     "hw_u_end": -9.03,
+     "sim_polled_peak": -1.2401794378907092,
+     "sim_peak": -1.2533223461094753,
+     "sim_settled": -0.4121777698639726,
+     "sim_u_end": -5.900171594675398,
+     "sim_clear_max_mm": 20.368782508969904,
+     "sim_clear_hold_med_mm": 17.957752504968877,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes (frame: lifted foot visibly higher)",
+     "hw_notes_peak": -5.2
+    }
+   },
+   "clrR": {
+    "l10": {
+     "hw_polled_peak": -1.25,
+     "hw_settled": -0.52,
+     "hw_u_end": -3.44,
+     "sim_polled_peak": -1.3946991624763354,
+     "sim_peak": -1.4015616323485902,
+     "sim_settled": -0.6490139962961055,
+     "sim_u_end": -3.906528546128844,
+     "sim_clear_max_mm": 0.020744626115970326,
+     "sim_clear_hold_med_mm": -0.004797289994308042,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (NOTES' YES is the 30 mm hold)",
+     "hw_notes_peak": -1.25
+    },
+    "l30": {
+     "hw_polled_peak": -3.17,
+     "hw_settled": -0.31,
+     "hw_u_end": -8.27,
+     "sim_polled_peak": -1.6563880822588477,
+     "sim_peak": -1.665985498019857,
+     "sim_settled": -0.6653890077271981,
+     "sim_u_end": -6.34793401831287,
+     "sim_clear_max_mm": 19.935985674502845,
+     "sim_clear_hold_med_mm": 16.964248814463037,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, ~1-2 cm (pixel est.)",
+     "hw_notes_peak": -3.17
+    }
+   },
+   "clrL": {
+    "l10": {
+     "hw_polled_peak": 1.27,
+     "hw_settled": 0.35,
+     "hw_u_end": 3.54,
+     "sim_polled_peak": 1.3885222774271406,
+     "sim_peak": 1.3983868470587661,
+     "sim_settled": 0.6424411777399783,
+     "sim_u_end": 3.9055207555094418,
+     "sim_clear_max_mm": 0.04747631493517892,
+     "sim_clear_hold_med_mm": -0.0047127890967562855,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (as R)",
+     "hw_notes_peak": 1.27
+    },
+    "l30": {
+     "hw_polled_peak": 4.05,
+     "hw_settled": -0.07,
+     "hw_u_end": 7.42,
+     "sim_polled_peak": 1.4427009766462566,
+     "sim_peak": 1.4496452931148232,
+     "sim_settled": 0.5299200302360546,
+     "sim_u_end": 5.639328983292463,
+     "sim_clear_max_mm": 20.23253925448105,
+     "sim_clear_hold_med_mm": 16.804921554726533,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, clear gap",
+     "hw_notes_peak": 4.05
+    }
+   },
+   "latR": [
+    {
+     "x": 0.5,
+     "hw": -1.9100000000000001,
+     "sim": -2.3828294499599805,
+     "sim_clear_max_mm": -0.0005153319828895067,
+     "sim_swing_load": 0.36084665729979293,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": -1.8499999999999996,
+     "sim": -1.5896222626914154,
+     "sim_clear_max_mm": 0.0007602184529846914,
+     "sim_swing_load": 0.2855090362211366,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": -1.69,
+     "sim": -1.5868854883292915,
+     "sim_clear_max_mm": 0.0019347469590929797,
+     "sim_swing_load": 0.36189235111197965,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": -1.6699999999999995,
+     "sim": -1.57932473447342,
+     "sim_clear_max_mm": 0.0009829034532142164,
+     "sim_swing_load": 0.34263990347300444,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": -1.4499999999999997,
+     "sim": -1.5528869445147793,
+     "sim_clear_max_mm": 0.0007555145886397815,
+     "sim_swing_load": 0.3170092781051145,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": -1.2999999999999998,
+     "sim": -1.5375310910937383,
+     "sim_clear_max_mm": 0.0005123981589886736,
+     "sim_swing_load": 0.2907380674778897,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": -1.42,
+     "sim": -1.614747825968002,
+     "sim_clear_max_mm": -0.0005126073360861919,
+     "sim_swing_load": 0.2671780378523222,
+     "sim_fell": false
+    }
+   ],
+   "latL": [
+    {
+     "x": 0.5,
+     "hw": 1.9,
+     "sim": 2.373657297553899,
+     "sim_clear_max_mm": -0.00044409008373522824,
+     "sim_swing_load": 0.3567551581145666,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": 1.7500000000000002,
+     "sim": 1.5973909394830712,
+     "sim_clear_max_mm": 0.0013641447841770613,
+     "sim_swing_load": 0.2888148173638892,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": 1.62,
+     "sim": 1.5985164438794337,
+     "sim_clear_max_mm": 0.0005188079879236626,
+     "sim_swing_load": 0.3607637845479311,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": 1.56,
+     "sim": 1.5813843741522327,
+     "sim_clear_max_mm": 0.0004698998922530659,
+     "sim_swing_load": 0.3404164824465146,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": 1.5299999999999998,
+     "sim": 1.5582499973052562,
+     "sim_clear_max_mm": 0.0006332313102078505,
+     "sim_swing_load": 0.3139923379912261,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": 1.3499999999999999,
+     "sim": 1.5452095206921987,
+     "sim_clear_max_mm": 0.0006681954310546953,
+     "sim_swing_load": 0.2857202945647748,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": 1.34,
+     "sim": 1.611243666826406,
+     "sim_clear_max_mm": -0.00023968074713571347,
+     "sim_swing_load": 0.26283984541426975,
+     "sim_fell": false
+    }
+   ],
+   "clamp": {
+    "R": {
+     "tilt": 4.166188220294298,
+     "enc_ankle": 1.5074254309740422,
+     "enc_hip": 0.8158713188977469,
+     "lift_mm": 23.922856905773976
+    },
+    "L": {
+     "tilt": 4.199407717673164,
+     "enc_ankle": 1.5292821134805599,
+     "enc_hip": 0.8140395024030251,
+     "lift_mm": 23.949501332119112
+    }
+   }
+  },
+  "train:lash0.5": {
+   "floorR2": {
+    "l10": {
+     "hw_polled_peak": -2.73,
+     "hw_settled": -0.09,
+     "hw_u_end": -7.87,
+     "sim_polled_peak": -1.7434523755732583,
+     "sim_peak": -1.7863006744343972,
+     "sim_settled": -0.29827392489022714,
+     "sim_u_end": -5.78034201601645,
+     "sim_clear_max_mm": 0.2064804632386395,
+     "sim_clear_hold_med_mm": -0.006031591310132894,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "no (Tom: did NOT clear at 10 mm)",
+     "hw_notes_peak": -2.7
+    },
+    "l30": {
+     "hw_polled_peak": -5.21,
+     "hw_settled": -0.17,
+     "hw_u_end": -9.03,
+     "sim_polled_peak": -1.8682761575010827,
+     "sim_peak": -1.8941816959970499,
+     "sim_settled": -0.33554125560133247,
+     "sim_u_end": -6.507696192997969,
+     "sim_clear_max_mm": 19.796081755671967,
+     "sim_clear_hold_med_mm": 18.432982507517178,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes (frame: lifted foot visibly higher)",
+     "hw_notes_peak": -5.2
+    }
+   },
+   "clrR": {
+    "l10": {
+     "hw_polled_peak": -1.25,
+     "hw_settled": -0.52,
+     "hw_u_end": -3.44,
+     "sim_polled_peak": -1.193352201859164,
+     "sim_peak": -1.2115604813255534,
+     "sim_settled": -0.7006208753031185,
+     "sim_u_end": -3.7573437211362215,
+     "sim_clear_max_mm": 1.43125420752484,
+     "sim_clear_hold_med_mm": -0.0003150256955549227,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (NOTES' YES is the 30 mm hold)",
+     "hw_notes_peak": -1.25
+    },
+    "l30": {
+     "hw_polled_peak": -3.17,
+     "hw_settled": -0.31,
+     "hw_u_end": -8.27,
+     "sim_polled_peak": -1.25872090641706,
+     "sim_peak": -1.2618511009871207,
+     "sim_settled": -0.7404470468277661,
+     "sim_u_end": -5.362525582714576,
+     "sim_clear_max_mm": 21.928377232692082,
+     "sim_clear_hold_med_mm": 18.334110818138956,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, ~1-2 cm (pixel est.)",
+     "hw_notes_peak": -3.17
+    }
+   },
+   "clrL": {
+    "l10": {
+     "hw_polled_peak": 1.27,
+     "hw_settled": 0.35,
+     "hw_u_end": 3.54,
+     "sim_polled_peak": 1.1696238958437148,
+     "sim_peak": 1.18936759037904,
+     "sim_settled": 0.7083346410855226,
+     "sim_u_end": 3.7361502284435733,
+     "sim_clear_max_mm": 1.5434416550992236,
+     "sim_clear_hold_med_mm": -0.00025347254378488976,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (as R)",
+     "hw_notes_peak": 1.27
+    },
+    "l30": {
+     "hw_polled_peak": 4.05,
+     "hw_settled": -0.07,
+     "hw_u_end": 7.42,
+     "sim_polled_peak": 1.1458853319045632,
+     "sim_peak": 1.1558673674758058,
+     "sim_settled": 0.68136951612851,
+     "sim_u_end": 4.957384202327169,
+     "sim_clear_max_mm": 22.150441733810887,
+     "sim_clear_hold_med_mm": 18.921354211565266,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, clear gap",
+     "hw_notes_peak": 4.05
+    }
+   },
+   "latR": [
+    {
+     "x": 0.5,
+     "hw": -1.9100000000000001,
+     "sim": -1.98603428628922,
+     "sim_clear_max_mm": 0.0008654931352011438,
+     "sim_swing_load": 0.35033401053577246,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": -1.8499999999999996,
+     "sim": -1.7547308850848418,
+     "sim_clear_max_mm": 0.0016997016996115819,
+     "sim_swing_load": 0.36118373609076687,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": -1.69,
+     "sim": -1.3948646376269473,
+     "sim_clear_max_mm": 0.0022826238594867918,
+     "sim_swing_load": 0.3491723094504636,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": -1.6699999999999995,
+     "sim": -1.479928866413406,
+     "sim_clear_max_mm": 0.0019396647461143376,
+     "sim_swing_load": 0.353686247534542,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": -1.4499999999999997,
+     "sim": -1.4454262642680038,
+     "sim_clear_max_mm": 0.0030238267336646016,
+     "sim_swing_load": 0.34478637948816493,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": -1.2999999999999998,
+     "sim": -1.389927623417317,
+     "sim_clear_max_mm": 0.0014922342286517384,
+     "sim_swing_load": 0.33373876998858926,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": -1.42,
+     "sim": -1.4295639116884644,
+     "sim_clear_max_mm": 0.0016082986686134434,
+     "sim_swing_load": 0.30811371838180013,
+     "sim_fell": false
+    }
+   ],
+   "latL": [
+    {
+     "x": 0.5,
+     "hw": 1.9,
+     "sim": 1.9718826421039017,
+     "sim_clear_max_mm": 0.0006701761019771088,
+     "sim_swing_load": 0.3483512536258008,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": 1.7500000000000002,
+     "sim": 1.7657535522308776,
+     "sim_clear_max_mm": 0.0011359099004208326,
+     "sim_swing_load": 0.3617802818854621,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": 1.62,
+     "sim": 1.3982217505391867,
+     "sim_clear_max_mm": 0.001898781259880751,
+     "sim_swing_load": 0.3476489644270245,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": 1.56,
+     "sim": 1.4739412433440513,
+     "sim_clear_max_mm": 0.0015596886693758014,
+     "sim_swing_load": 0.35211382810683983,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": 1.5299999999999998,
+     "sim": 1.4341846133103977,
+     "sim_clear_max_mm": 0.0025540209579932513,
+     "sim_swing_load": 0.3429006692071029,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": 1.3499999999999999,
+     "sim": 1.386272752961832,
+     "sim_clear_max_mm": 0.001116277323719335,
+     "sim_swing_load": 0.32898464429897606,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": 1.34,
+     "sim": 1.4310615814821417,
+     "sim_clear_max_mm": 0.0029839896446065203,
+     "sim_swing_load": 0.3006047222025064,
+     "sim_fell": false
+    }
+   ],
+   "clamp": {
+    "R": {
+     "tilt": 3.344226994160136,
+     "enc_ankle": 1.4568135496251793,
+     "enc_hip": 0.8223360621371882,
+     "lift_mm": 25.01211360516439
+    },
+    "L": {
+     "tilt": 3.380118887836769,
+     "enc_ankle": 1.4799785941578465,
+     "enc_hip": 0.8212394774459474,
+     "lift_mm": 25.008748133998083
+    }
+   }
+  },
+  "train:lash2.0": {
+   "floorR2": {
+    "l10": {
+     "hw_polled_peak": -2.73,
+     "hw_settled": -0.09,
+     "hw_u_end": -7.87,
+     "sim_polled_peak": -1.168021908349404,
+     "sim_peak": -1.2041132563301136,
+     "sim_settled": -0.29936701860410136,
+     "sim_u_end": -4.590247604240935,
+     "sim_clear_max_mm": 0.06396233452428315,
+     "sim_clear_hold_med_mm": -0.007795347058497069,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "no (Tom: did NOT clear at 10 mm)",
+     "hw_notes_peak": -2.7
+    },
+    "l30": {
+     "hw_polled_peak": -5.21,
+     "hw_settled": -0.17,
+     "hw_u_end": -9.03,
+     "sim_polled_peak": -1.1627940407398483,
+     "sim_peak": -1.1840401747628901,
+     "sim_settled": -0.40729803179176943,
+     "sim_u_end": -5.548421364720927,
+     "sim_clear_max_mm": 19.097777940016226,
+     "sim_clear_hold_med_mm": 17.50715206476059,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.0287991263441768,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes (frame: lifted foot visibly higher)",
+     "hw_notes_peak": -5.2
+    }
+   },
+   "clrR": {
+    "l10": {
+     "hw_polled_peak": -1.25,
+     "hw_settled": -0.52,
+     "hw_u_end": -3.44,
+     "sim_polled_peak": -1.445043358954448,
+     "sim_peak": -1.4565108396238,
+     "sim_settled": -0.6436880406424159,
+     "sim_u_end": -4.222504410130806,
+     "sim_clear_max_mm": 0.00253284469557951,
+     "sim_clear_hold_med_mm": -0.007501119048381431,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (NOTES' YES is the 30 mm hold)",
+     "hw_notes_peak": -1.25
+    },
+    "l30": {
+     "hw_polled_peak": -3.17,
+     "hw_settled": -0.31,
+     "hw_u_end": -8.27,
+     "sim_polled_peak": -2.2298478846792045,
+     "sim_peak": -2.2470410346436327,
+     "sim_settled": -0.6449941089130817,
+     "sim_u_end": -7.790553788432621,
+     "sim_clear_max_mm": 17.510065333990376,
+     "sim_clear_hold_med_mm": 16.379043360268565,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.02885632783430122,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, ~1-2 cm (pixel est.)",
+     "hw_notes_peak": -3.17
+    }
+   },
+   "clrL": {
+    "l10": {
+     "hw_polled_peak": 1.27,
+     "hw_settled": 0.35,
+     "hw_u_end": 3.54,
+     "sim_polled_peak": 1.4364019834089699,
+     "sim_peak": 1.4454799586523583,
+     "sim_settled": 0.6566998193750893,
+     "sim_u_end": 4.234380398421467,
+     "sim_clear_max_mm": 0.00178492856068007,
+     "sim_clear_hold_med_mm": -0.0077550894308818855,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (as R)",
+     "hw_notes_peak": 1.27
+    },
+    "l30": {
+     "hw_polled_peak": 4.05,
+     "hw_settled": -0.07,
+     "hw_u_end": 7.42,
+     "sim_polled_peak": 2.0498873028324947,
+     "sim_peak": 2.050397342665141,
+     "sim_settled": 0.739415427990781,
+     "sim_u_end": 7.400808659870282,
+     "sim_clear_max_mm": 17.899938549252653,
+     "sim_clear_hold_med_mm": 16.578882299711104,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.029329531777367614,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, clear gap",
+     "hw_notes_peak": 4.05
+    }
+   },
+   "latR": [
+    {
+     "x": 0.5,
+     "hw": -1.9100000000000001,
+     "sim": -2.5953454731506054,
+     "sim_clear_max_mm": -0.0011880661214174262,
+     "sim_swing_load": 0.37168079463797415,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": -1.8499999999999996,
+     "sim": -1.5378377600715765,
+     "sim_clear_max_mm": 0.0017340440857773268,
+     "sim_swing_load": 0.2774414522746456,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": -1.69,
+     "sim": -1.7926315526218226,
+     "sim_clear_max_mm": 3.5674081566398896e-05,
+     "sim_swing_load": 0.360189555666675,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": -1.6699999999999995,
+     "sim": -1.7723183906775861,
+     "sim_clear_max_mm": 0.00027316886387542677,
+     "sim_swing_load": 0.3316924099553247,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": -1.4499999999999997,
+     "sim": -1.739682039568076,
+     "sim_clear_max_mm": -0.00017218763214994076,
+     "sim_swing_load": 0.28716781780888423,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": -1.2999999999999998,
+     "sim": -1.7998926205055403,
+     "sim_clear_max_mm": -0.0004391205390497435,
+     "sim_swing_load": 0.24521527979346733,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": -1.42,
+     "sim": -1.8105644087371406,
+     "sim_clear_max_mm": -0.0097768019458001,
+     "sim_swing_load": 0.21696783011165657,
+     "sim_fell": false
+    }
+   ],
+   "latL": [
+    {
+     "x": 0.5,
+     "hw": 1.9,
+     "sim": 2.615927686222333,
+     "sim_clear_max_mm": -0.0010755088646523595,
+     "sim_swing_load": 0.3675725281501635,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": 1.7500000000000002,
+     "sim": 1.544782503134507,
+     "sim_clear_max_mm": 0.0004099746287898262,
+     "sim_swing_load": 0.273456361054317,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": 1.62,
+     "sim": 1.7987275593656167,
+     "sim_clear_max_mm": 0.0011919774343107856,
+     "sim_swing_load": 0.3590212114664689,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": 1.56,
+     "sim": 1.772608057934232,
+     "sim_clear_max_mm": 0.0006162227966328634,
+     "sim_swing_load": 0.32281900649745005,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": 1.5299999999999998,
+     "sim": 1.7055476032014862,
+     "sim_clear_max_mm": 0.001020831888880712,
+     "sim_swing_load": 0.28059411477377666,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": 1.3499999999999999,
+     "sim": 1.7832825347230643,
+     "sim_clear_max_mm": -0.00010300596810317725,
+     "sim_swing_load": 0.24556902413636136,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": 1.34,
+     "sim": 1.801553520407776,
+     "sim_clear_max_mm": -0.008015067705248631,
+     "sim_swing_load": 0.21414641540476367,
+     "sim_fell": false
+    }
+   ],
+   "clamp": {
+    "R": {
+     "tilt": 4.988876063950393,
+     "enc_ankle": 1.5583739355837976,
+     "enc_hip": 0.8096164591608693,
+     "lift_mm": 22.848919846515017
+    },
+    "L": {
+     "tilt": 5.020846710631742,
+     "enc_ankle": 1.5796004087201665,
+     "enc_hip": 0.8074257847710467,
+     "lift_mm": 22.899757331386486
+    }
+   }
+  },
+  "grade": {
+   "floorR2": {
+    "l10": {
+     "hw_polled_peak": -2.73,
+     "hw_settled": -0.09,
+     "hw_u_end": -7.87,
+     "sim_polled_peak": -1.5239275482562407,
+     "sim_peak": -1.5582799467228137,
+     "sim_settled": -0.2523101239318907,
+     "sim_u_end": -6.158168291320737,
+     "sim_clear_max_mm": 1.3308783745227077,
+     "sim_clear_hold_med_mm": -0.033186147691989,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.11792842374492694,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "no (Tom: did NOT clear at 10 mm)",
+     "hw_notes_peak": -2.7
+    },
+    "l30": {
+     "hw_polled_peak": -5.21,
+     "hw_settled": -0.17,
+     "hw_u_end": -9.03,
+     "sim_polled_peak": -1.5392006377068752,
+     "sim_peak": -1.580574109467946,
+     "sim_settled": -0.5146182952550779,
+     "sim_u_end": -7.197609322950934,
+     "sim_clear_max_mm": 21.062283197642092,
+     "sim_clear_hold_med_mm": 18.07082086421362,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.11792842374492694,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes (frame: lifted foot visibly higher)",
+     "hw_notes_peak": -5.2
+    }
+   },
+   "clrR": {
+    "l10": {
+     "hw_polled_peak": -1.25,
+     "hw_settled": -0.52,
+     "hw_u_end": -3.44,
+     "sim_polled_peak": -1.3321407275037764,
+     "sim_peak": -1.365617742352414,
+     "sim_settled": -0.7064405652758611,
+     "sim_u_end": -4.262003807411345,
+     "sim_clear_max_mm": 1.4492543647150737,
+     "sim_clear_hold_med_mm": -0.006199900963324047,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.11230652958568471,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (NOTES' YES is the 30 mm hold)",
+     "hw_notes_peak": -1.25
+    },
+    "l30": {
+     "hw_polled_peak": -3.17,
+     "hw_settled": -0.31,
+     "hw_u_end": -8.27,
+     "sim_polled_peak": -1.391527975212514,
+     "sim_peak": -1.4000245957914808,
+     "sim_settled": -0.8027096709789391,
+     "sim_u_end": -6.071476562707627,
+     "sim_clear_max_mm": 21.333866078484288,
+     "sim_clear_hold_med_mm": 17.78028822278017,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.11230652958568471,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, ~1-2 cm (pixel est.)",
+     "hw_notes_peak": -3.17
+    }
+   },
+   "clrL": {
+    "l10": {
+     "hw_polled_peak": 1.27,
+     "hw_settled": 0.35,
+     "hw_u_end": 3.54,
+     "sim_polled_peak": 1.8222998375778614,
+     "sim_peak": 1.832881429988441,
+     "sim_settled": 0.596842601748739,
+     "sim_u_end": 4.9909751535659135,
+     "sim_clear_max_mm": 0.00014460122258874025,
+     "sim_clear_hold_med_mm": -0.03855407717077205,
+     "sim_clear_hold_frac5": 0.0,
+     "sim_clear_base_mm": -0.05800179406191541,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "not stated (as R)",
+     "hw_notes_peak": 1.27
+    },
+    "l30": {
+     "hw_polled_peak": 4.05,
+     "hw_settled": -0.07,
+     "hw_u_end": 7.42,
+     "sim_polled_peak": 2.6049506722291147,
+     "sim_peak": 2.716799408057361,
+     "sim_settled": 0.3983809670437883,
+     "sim_u_end": 8.57450416024795,
+     "sim_clear_max_mm": 15.436283261967759,
+     "sim_clear_hold_med_mm": 14.499259821015333,
+     "sim_clear_hold_frac5": 1.0,
+     "sim_clear_base_mm": -0.05800179406191541,
+     "sim_aborted": false,
+     "sim_fell": false,
+     "hw_clear": "yes, clear gap",
+     "hw_notes_peak": 4.05
+    }
+   },
+   "latR": [
+    {
+     "x": 0.5,
+     "hw": -1.9100000000000001,
+     "sim": -1.6639686634296724,
+     "sim_clear_max_mm": -0.00011701097486858242,
+     "sim_swing_load": 0.30478997273078007,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": -1.8499999999999996,
+     "sim": -1.5496093870673695,
+     "sim_clear_max_mm": 0.0006946551927627595,
+     "sim_swing_load": 0.26846219449666586,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": -1.69,
+     "sim": -1.4288038533988243,
+     "sim_clear_max_mm": 0.0002424813125940714,
+     "sim_swing_load": 0.2366727082245284,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": -1.6699999999999995,
+     "sim": -1.4273830857223837,
+     "sim_clear_max_mm": 0.0010728301415912841,
+     "sim_swing_load": 0.22496033118320208,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": -1.4499999999999997,
+     "sim": -1.3962091166840274,
+     "sim_clear_max_mm": 0.0011071555916951012,
+     "sim_swing_load": 0.2130079696082133,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": -1.2999999999999998,
+     "sim": -1.3570841315428441,
+     "sim_clear_max_mm": 0.0007772241653906595,
+     "sim_swing_load": 0.2005650698374558,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": -1.42,
+     "sim": -1.3552137763948084,
+     "sim_clear_max_mm": 0.0018580339372241059,
+     "sim_swing_load": 0.18970738837009757,
+     "sim_fell": false
+    }
+   ],
+   "latL": [
+    {
+     "x": 0.5,
+     "hw": 1.9,
+     "sim": 1.6882732614902842,
+     "sim_clear_max_mm": -0.032492010137324424,
+     "sim_swing_load": 0.4730419089784605,
+     "sim_fell": false
+    },
+    {
+     "x": 0.75,
+     "hw": 1.7500000000000002,
+     "sim": 1.6173508022721612,
+     "sim_clear_max_mm": -0.029639183959702213,
+     "sim_swing_load": 0.4043129934709806,
+     "sim_fell": false
+    },
+    {
+     "x": 1.0,
+     "hw": 1.62,
+     "sim": 1.5573203654483116,
+     "sim_clear_max_mm": -0.027622037869348866,
+     "sim_swing_load": 0.33383900486506674,
+     "sim_fell": false
+    },
+    {
+     "x": 1.1,
+     "hw": 1.56,
+     "sim": 1.5491505328040391,
+     "sim_clear_max_mm": -0.02595248893179792,
+     "sim_swing_load": 0.30201724038328454,
+     "sim_fell": false
+    },
+    {
+     "x": 1.2,
+     "hw": 1.5299999999999998,
+     "sim": 1.5640223377734612,
+     "sim_clear_max_mm": -0.024298294614105535,
+     "sim_swing_load": 0.2729894776259285,
+     "sim_fell": false
+    },
+    {
+     "x": 1.3,
+     "hw": 1.3499999999999999,
+     "sim": 1.5256363324622964,
+     "sim_clear_max_mm": -0.023021559774274482,
+     "sim_swing_load": 0.2438228303146472,
+     "sim_fell": false
+    },
+    {
+     "x": 1.4,
+     "hw": 1.34,
+     "sim": 1.5680231733605776,
+     "sim_clear_max_mm": -0.020037006854457633,
+     "sim_swing_load": 0.2156797515639362,
+     "sim_fell": false
+    }
+   ],
+   "clamp": {
+    "R": {
+     "tilt": 2.3344029814038327,
+     "enc_ankle": 1.256626250344979,
+     "enc_hip": 0.7594434281871804,
+     "lift_mm": 26.47545062478505
+    },
+    "L": {
+     "tilt": 2.193365329556351,
+     "enc_ankle": 1.1963310650468606,
+     "enc_hip": 0.7111154472010492,
+     "lift_mm": 26.670593069747675
+    }
+   }
+  }
+ },
+ "hw": {
+  "floorR2": {
+   "l10_clear": "no (Tom: did NOT clear at 10 mm)",
+   "l30_clear": "yes (frame: lifted foot visibly higher)",
+   "l10_peak": -2.7,
+   "l30_peak": -5.2
+  },
+  "clrR": {
+   "l10_clear": "not stated (NOTES' YES is the 30 mm hold)",
+   "l30_clear": "yes, ~1-2 cm (pixel est.)",
+   "l10_peak": -1.25,
+   "l30_peak": -3.17
+  },
+  "clrL": {
+   "l10_clear": "not stated (as R)",
+   "l30_clear": "yes, clear gap",
+   "l10_peak": 1.27,
+   "l30_peak": 4.05
+  },
+  "latR": {
+   "curve": [
+    -1.91,
+    -1.85,
+    -1.69,
+    -1.67,
+    -1.45,
+    -1.3,
+    -1.42
+   ]
+  },
+  "latL": {
+   "curve": [
+    1.9,
+    1.75,
+    1.62,
+    1.56,
+    1.53,
+    1.35,
+    1.34
+   ]
+  },
+  "clamp": {
+   "R": 5.2,
+   "L": 5.0
+  }
+ }
+}

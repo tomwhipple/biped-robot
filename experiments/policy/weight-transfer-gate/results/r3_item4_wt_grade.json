@@ -1,0 +1,3368 @@
+[
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.2612278141688491,
+  "tilt_max": 10.299577911794897,
+  "walk_tilt_max": 10.299577911794897,
+  "peak_rate": 0.9499911029777897,
+  "lift_cm": [
+   3.0612382443729422,
+   2.028943073556206
+  ],
+  "shift_when_up": [
+   -0.21943149952705887,
+   0.14852349518080052
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.2669835278171768,
+  "tilt_max": 9.567727789237907,
+  "walk_tilt_max": 9.567727789237907,
+  "peak_rate": 0.9577919743918837,
+  "lift_cm": [
+   3.1444210506423347,
+   1.915049872535286
+  ],
+  "shift_when_up": [
+   -0.2124110891547506,
+   0.15009667333544363
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.2581672022932537,
+  "tilt_max": 9.641152204128339,
+  "walk_tilt_max": 9.641152204128339,
+  "peak_rate": 0.8982462728637108,
+  "lift_cm": [
+   3.2447466360826556,
+   1.9785987078862348
+  ],
+  "shift_when_up": [
+   -0.213973560411398,
+   0.15987832281392356
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.2786181066560645,
+  "tilt_max": 9.33619839426825,
+  "walk_tilt_max": 9.33619839426825,
+  "peak_rate": 0.8908192700806696,
+  "lift_cm": [
+   3.1666941563277593,
+   2.242222003159125
+  ],
+  "shift_when_up": [
+   -0.21191514402160264,
+   0.15817964375207394
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.2651704488490184,
+  "tilt_max": 9.412015929290433,
+  "walk_tilt_max": 9.412015929290433,
+  "peak_rate": 0.905856205459946,
+  "lift_cm": [
+   3.0426443559187213,
+   1.9748919621796135
+  ],
+  "shift_when_up": [
+   -0.2159055186209756,
+   0.1619343771993101
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.26443420481696217,
+  "tilt_max": 9.591415226160953,
+  "walk_tilt_max": 9.591415226160953,
+  "peak_rate": 0.8992320163787781,
+  "lift_cm": [
+   3.1568707336514326,
+   2.109263757945071
+  ],
+  "shift_when_up": [
+   -0.21999326336408723,
+   0.1593388270955231
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.25505563213481003,
+  "tilt_max": 9.068433663979006,
+  "walk_tilt_max": 9.068433663979006,
+  "peak_rate": 0.93266925201706,
+  "lift_cm": [
+   3.195257253770793,
+   2.1612969293147306
+  ],
+  "shift_when_up": [
+   -0.21807276060431538,
+   0.15834311493714184
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   18.744
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    18.744
+   ]
+  },
+  "dx": 0.29385284318419663,
+  "tilt_max": 9.710514530470846,
+  "walk_tilt_max": 9.710514530470846,
+  "peak_rate": 0.8990713916953952,
+  "lift_cm": [
+   2.953875225424365,
+   2.0133821876871756
+  ],
+  "shift_when_up": [
+   -0.2121601594035673,
+   0.1599880641214185
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.683934704651202,
+  "tilt_max": 10.299577911794897,
+  "walk_tilt_max": 10.299577911794897,
+  "peak_rate": 1.240324444399731,
+  "lift_cm": [
+   3.0612382443729422,
+   2.2367137594541378
+  ],
+  "shift_when_up": [
+   -0.3754445368505338,
+   0.4906801316501413
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6810852542743281,
+  "tilt_max": 9.567727789237907,
+  "walk_tilt_max": 9.567727789237907,
+  "peak_rate": 1.152189842849893,
+  "lift_cm": [
+   3.1444210506423347,
+   2.158204237713809
+  ],
+  "shift_when_up": [
+   -0.4096194166691036,
+   0.4785708496458171
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6797673669057167,
+  "tilt_max": 9.641152204128339,
+  "walk_tilt_max": 9.641152204128339,
+  "peak_rate": 1.2241464596064244,
+  "lift_cm": [
+   3.2447466360826556,
+   2.2019880005100547
+  ],
+  "shift_when_up": [
+   -0.39432041101167387,
+   0.4938703693531782
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6886871152514424,
+  "tilt_max": 9.33619839426825,
+  "walk_tilt_max": 9.33619839426825,
+  "peak_rate": 1.3387847223219016,
+  "lift_cm": [
+   3.1666941563277593,
+   2.242222003159125
+  ],
+  "shift_when_up": [
+   -0.39579827139496404,
+   0.5316188229887256
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6802006381173266,
+  "tilt_max": 9.412015929290433,
+  "walk_tilt_max": 9.412015929290433,
+  "peak_rate": 1.2920487215502492,
+  "lift_cm": [
+   3.0426443559187213,
+   2.1612851372057156
+  ],
+  "shift_when_up": [
+   -0.39183997888628924,
+   0.502720514366203
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6773631090546851,
+  "tilt_max": 9.591415226160953,
+  "walk_tilt_max": 9.591415226160953,
+  "peak_rate": 1.451289930734948,
+  "lift_cm": [
+   3.1568707336514326,
+   2.283392253098164
+  ],
+  "shift_when_up": [
+   -0.3977318998726857,
+   0.5243677841089012
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6606087546597569,
+  "tilt_max": 9.068433663979006,
+  "walk_tilt_max": 9.068433663979006,
+  "peak_rate": 1.2477927252409904,
+  "lift_cm": [
+   3.195257253770793,
+   2.1612969293147306
+  ],
+  "shift_when_up": [
+   -0.3694832597732079,
+   0.4994462794940247
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6806489639717808,
+  "tilt_max": 9.710514530470846,
+  "walk_tilt_max": 9.710514530470846,
+  "peak_rate": 1.3200183581198044,
+  "lift_cm": [
+   2.953875225424365,
+   2.2999152205850315
+  ],
+  "shift_when_up": [
+   -0.3932435383856069,
+   0.5053163869054111
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.00035160658779632384,
+  "tilt_max": 1.0787099790853203,
+  "walk_tilt_max": null,
+  "peak_rate": 0.019504065684610678,
+  "lift_cm": [
+   0.052721911249360015,
+   0.053538607302222166
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00011966012908234396,
+  "tilt_max": 1.106686114332762,
+  "walk_tilt_max": null,
+  "peak_rate": 0.027067609823478285,
+  "lift_cm": [
+   0.051691429973653016,
+   0.04969900944615333
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0005758365977333268,
+  "tilt_max": 1.0415706164653116,
+  "walk_tilt_max": null,
+  "peak_rate": 0.020985650546595798,
+  "lift_cm": [
+   0.051072792011908494,
+   0.047453060648292716
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0010988116163711918,
+  "tilt_max": 0.9907467979179988,
+  "walk_tilt_max": null,
+  "peak_rate": 0.02216618530203794,
+  "lift_cm": [
+   0.051173098347693804,
+   0.04683897794022871
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -7.461314711830708e-06,
+  "tilt_max": 1.037991004967201,
+  "walk_tilt_max": null,
+  "peak_rate": 0.021285317753112758,
+  "lift_cm": [
+   0.05128559452488406,
+   0.04822749340239862
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0004742487240643119,
+  "tilt_max": 0.9816925865198268,
+  "walk_tilt_max": null,
+  "peak_rate": 0.023102243932787325,
+  "lift_cm": [
+   0.05215284673077457,
+   0.04870323514864086
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0008415231360519184,
+  "tilt_max": 1.0858765427880104,
+  "walk_tilt_max": null,
+  "peak_rate": 0.026263091385291985,
+  "lift_cm": [
+   0.05072374456742282,
+   0.03721646124331514
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0007210823543325986,
+  "tilt_max": 1.0091340944177485,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01780152367234566,
+  "lift_cm": [
+   0.0505803312066842,
+   0.06219680013539808
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.29083900989010536,
+  "tilt_max": 9.546984523793261,
+  "walk_tilt_max": 9.546984523793261,
+  "peak_rate": 0.8319456118982446,
+  "lift_cm": [
+   3.152097305159497,
+   2.309439136204149
+  ],
+  "shift_when_up": [
+   -0.5335365102526471,
+   0.25329677441772264
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.28514921707616997,
+  "tilt_max": 9.908350741987553,
+  "walk_tilt_max": 9.908350741987553,
+  "peak_rate": 0.91056983939141,
+  "lift_cm": [
+   3.27237085481369,
+   2.1792035684932776
+  ],
+  "shift_when_up": [
+   -0.5666849532240285,
+   0.23727600115153719
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.02,
+   24.089
+  ],
+  "trips_by": {
+   "pose": [
+    4.02,
+    24.089
+   ]
+  },
+  "dx": 0.2930714651442821,
+  "tilt_max": 9.31220752602433,
+  "walk_tilt_max": 9.31220752602433,
+  "peak_rate": 0.8840969652665684,
+  "lift_cm": [
+   3.2809220570540254,
+   2.246636368636401
+  ],
+  "shift_when_up": [
+   -0.561588011637409,
+   0.2536681129545011
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.02,
+   25.301
+  ],
+  "trips_by": {
+   "pose": [
+    4.02,
+    25.301
+   ]
+  },
+  "dx": 0.2910115140806321,
+  "tilt_max": 8.948704876609723,
+  "walk_tilt_max": 8.948704876609723,
+  "peak_rate": 0.8071638676936872,
+  "lift_cm": [
+   3.185024310974845,
+   2.511208525378185
+  ],
+  "shift_when_up": [
+   -0.5346102080707666,
+   0.3546566024862925
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   21.409
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    21.409
+   ]
+  },
+  "dx": 0.2975461535699186,
+  "tilt_max": 9.036196335505187,
+  "walk_tilt_max": 9.036196335505187,
+  "peak_rate": 0.7975836404713361,
+  "lift_cm": [
+   3.1590485533511057,
+   2.271636405511802
+  ],
+  "shift_when_up": [
+   -0.5515703514514708,
+   0.24542469026858255
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.30428290209909414,
+  "tilt_max": 9.311071701166771,
+  "walk_tilt_max": 9.311071701166771,
+  "peak_rate": 0.8597762371560568,
+  "lift_cm": [
+   3.281493485036914,
+   2.4126688842363153
+  ],
+  "shift_when_up": [
+   -0.575435902189534,
+   0.2543639458043103
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   29.318
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    29.318
+   ]
+  },
+  "dx": 0.28452823290081575,
+  "tilt_max": 8.612312809802612,
+  "walk_tilt_max": 8.612312809802612,
+  "peak_rate": 0.9047607453228883,
+  "lift_cm": [
+   3.204744147721371,
+   2.4328227472683595
+  ],
+  "shift_when_up": [
+   -0.557337853440313,
+   0.38602558979613844
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   23.879
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    23.879
+   ]
+  },
+  "dx": 0.30297541664929306,
+  "tilt_max": 9.358000471665408,
+  "walk_tilt_max": 9.358000471665408,
+  "peak_rate": 0.921519029316433,
+  "lift_cm": [
+   3.133290044099234,
+   2.3351956593467555
+  ],
+  "shift_when_up": [
+   -0.5650771692527226,
+   0.26638285485117563
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6686042305333894,
+  "tilt_max": 9.546984523793261,
+  "walk_tilt_max": 9.546984523793261,
+  "peak_rate": 0.8667401656954469,
+  "lift_cm": [
+   3.152097305159497,
+   2.309439136204149
+  ],
+  "shift_when_up": [
+   -0.7948645971219943,
+   0.7798496058620459
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6686872268528316,
+  "tilt_max": 9.908350741987553,
+  "walk_tilt_max": 9.908350741987553,
+  "peak_rate": 0.8705228622517085,
+  "lift_cm": [
+   3.27237085481369,
+   2.1792035684932776
+  ],
+  "shift_when_up": [
+   -0.7778300205293891,
+   0.7789230895822962
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6608445516371225,
+  "tilt_max": 9.31220752602433,
+  "walk_tilt_max": 9.31220752602433,
+  "peak_rate": 0.8349654433043416,
+  "lift_cm": [
+   3.2809220570540254,
+   2.246636368636401
+  ],
+  "shift_when_up": [
+   -0.8047083673918828,
+   0.7683900342842149
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6548513486779168,
+  "tilt_max": 8.948704876609723,
+  "walk_tilt_max": 8.948704876609723,
+  "peak_rate": 0.8555427281678933,
+  "lift_cm": [
+   3.185024310974845,
+   2.511208525378185
+  ],
+  "shift_when_up": [
+   -0.8358495126767396,
+   0.7358696873108685
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6656667910681788,
+  "tilt_max": 9.036196335505187,
+  "walk_tilt_max": 9.036196335505187,
+  "peak_rate": 0.8615627693107224,
+  "lift_cm": [
+   3.1590485533511057,
+   2.271636405511802
+  ],
+  "shift_when_up": [
+   -0.790511657244141,
+   0.795514943320376
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6741575150468934,
+  "tilt_max": 9.311071701166771,
+  "walk_tilt_max": 9.311071701166771,
+  "peak_rate": 0.9386984791295361,
+  "lift_cm": [
+   3.281493485036914,
+   2.4126688842363153
+  ],
+  "shift_when_up": [
+   -0.8164227943488641,
+   0.7393997893075047
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6492526417711891,
+  "tilt_max": 8.612312809802612,
+  "walk_tilt_max": 8.612312809802612,
+  "peak_rate": 0.7848803648005672,
+  "lift_cm": [
+   3.204744147721371,
+   2.4328227472683595
+  ],
+  "shift_when_up": [
+   -0.7939792134883552,
+   0.7346071510999329
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.674376897463504,
+  "tilt_max": 9.358000471665408,
+  "walk_tilt_max": 9.358000471665408,
+  "peak_rate": 0.8432758888258726,
+  "lift_cm": [
+   3.133290044099234,
+   2.3351956593467555
+  ],
+  "shift_when_up": [
+   -0.825785838786636,
+   0.8145902137352046
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00023475526763275476,
+  "tilt_max": 0.6357334164893713,
+  "walk_tilt_max": null,
+  "peak_rate": 0.018927527945822885,
+  "lift_cm": [
+   0.030586871339017933,
+   0.011184597554459927
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00037574559727883503,
+  "tilt_max": 0.6590652901407674,
+  "walk_tilt_max": null,
+  "peak_rate": 0.026148142835660432,
+  "lift_cm": [
+   0.030139571966093272,
+   0.012458215634424813
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 7.378590735946668e-05,
+  "tilt_max": 0.5671765774220431,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01991844022420617,
+  "lift_cm": [
+   0.029515971127008853,
+   0.007254566128187326
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0006064655135100356,
+  "tilt_max": 0.46848860394659836,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01872705440614172,
+  "lift_cm": [
+   0.02871224490643351,
+   0.008367070489347875
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0003635201417077202,
+  "tilt_max": 0.5907322352076586,
+  "walk_tilt_max": null,
+  "peak_rate": 0.02240673645128355,
+  "lift_cm": [
+   0.030401906294669906,
+   0.011882826632611445
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.00023278427773590945,
+  "tilt_max": 0.5198047301988202,
+  "walk_tilt_max": null,
+  "peak_rate": 0.023133088032401477,
+  "lift_cm": [
+   0.03145835154822994,
+   0.01322810634063823
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0005658902087924759,
+  "tilt_max": 0.6150353484206516,
+  "walk_tilt_max": null,
+  "peak_rate": 0.022359653845150065,
+  "lift_cm": [
+   0.030567950670715768,
+   0.004730630849764973
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0009334989038880335,
+  "tilt_max": 0.6060608540127689,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01910491934751299,
+  "lift_cm": [
+   0.03050448616709143,
+   0.020975916513456868
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   31.674
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    31.674
+   ]
+  },
+  "dx": 0.27956834901425465,
+  "tilt_max": 10.79965076622458,
+  "walk_tilt_max": 10.79965076622458,
+  "peak_rate": 0.9361526082626852,
+  "lift_cm": [
+   2.863346769189411,
+   1.335063027912648
+  ],
+  "shift_when_up": [
+   -0.5719539538373112,
+   0.4838708710246656
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   29.15
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    29.15
+   ]
+  },
+  "dx": 0.28126045258425775,
+  "tilt_max": 10.944277471126876,
+  "walk_tilt_max": 10.944277471126876,
+  "peak_rate": 0.9545272288574332,
+  "lift_cm": [
+   2.989442947966814,
+   1.258925796806817
+  ],
+  "shift_when_up": [
+   -0.620784651461581,
+   0.47621019809748216
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   28.946
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    28.946
+   ]
+  },
+  "dx": 0.2793056162804898,
+  "tilt_max": 10.303939245314202,
+  "walk_tilt_max": 10.303939245314202,
+  "peak_rate": 0.9694155954857323,
+  "lift_cm": [
+   3.0242631991684865,
+   1.3261464046508267
+  ],
+  "shift_when_up": [
+   -0.624115862274178,
+   0.4729674527258584
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   31.897
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    31.897
+   ]
+  },
+  "dx": 0.2810645202780994,
+  "tilt_max": 10.085913208851181,
+  "walk_tilt_max": 10.085913208851181,
+  "peak_rate": 0.8794237833846601,
+  "lift_cm": [
+   2.8852930099871363,
+   1.58698367150666
+  ],
+  "shift_when_up": [
+   -0.6117816068210402,
+   0.47836385209925697
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.215
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.215
+   ]
+  },
+  "dx": 0.2841474796944324,
+  "tilt_max": 10.482848683085916,
+  "walk_tilt_max": 10.482848683085916,
+  "peak_rate": 0.80001205130313,
+  "lift_cm": [
+   2.7688740346084293,
+   1.3669215212360293
+  ],
+  "shift_when_up": [
+   -0.5677480514083093,
+   0.48291554814459614
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   33.335
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    33.335
+   ]
+  },
+  "dx": 0.2820551140721772,
+  "tilt_max": 10.47746118727273,
+  "walk_tilt_max": 10.47746118727273,
+  "peak_rate": 0.9209754022949563,
+  "lift_cm": [
+   2.9289699899953328,
+   1.4562750977334078
+  ],
+  "shift_when_up": [
+   -0.5952929781310756,
+   0.49624283045946493
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   29.206
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    29.206
+   ]
+  },
+  "dx": 0.2747115030632442,
+  "tilt_max": 10.488209581581993,
+  "walk_tilt_max": 10.488209581581993,
+  "peak_rate": 0.8274996659450484,
+  "lift_cm": [
+   2.9353348071002077,
+   1.5267823462676522
+  ],
+  "shift_when_up": [
+   -0.6121719405441327,
+   0.46634300973856535
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.548
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.548
+   ]
+  },
+  "dx": 0.2840447429329877,
+  "tilt_max": 10.755221494844644,
+  "walk_tilt_max": 10.755221494844644,
+  "peak_rate": 0.9440620041399131,
+  "lift_cm": [
+   2.7486474707068322,
+   1.448027431698515
+  ],
+  "shift_when_up": [
+   -0.5735406545009196,
+   0.48728974693136956
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6347986588464797,
+  "tilt_max": 10.79965076622458,
+  "walk_tilt_max": 10.79965076622458,
+  "peak_rate": 0.9284735032038928,
+  "lift_cm": [
+   2.863346769189411,
+   1.7169971232553882
+  ],
+  "shift_when_up": [
+   -0.8546049985410156,
+   0.6864661231457674
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6435676783233196,
+  "tilt_max": 10.944277471126876,
+  "walk_tilt_max": 10.944277471126876,
+  "peak_rate": 0.9329499821515168,
+  "lift_cm": [
+   2.989442947966814,
+   1.6905561189263032
+  ],
+  "shift_when_up": [
+   -0.8191483718680602,
+   0.7568416521445837
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.646678811473375,
+  "tilt_max": 10.303939245314202,
+  "walk_tilt_max": 10.303939245314202,
+  "peak_rate": 0.7799438723518362,
+  "lift_cm": [
+   3.0242631991684865,
+   1.7522166283219016
+  ],
+  "shift_when_up": [
+   -0.8250053999401918,
+   0.7661264186976864
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6480061816527789,
+  "tilt_max": 10.085913208851181,
+  "walk_tilt_max": 10.085913208851181,
+  "peak_rate": 0.869424039409455,
+  "lift_cm": [
+   2.885116209389591,
+   1.6843384835004995
+  ],
+  "shift_when_up": [
+   -0.8773909537095465,
+   0.7354301494215767
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6477163212683051,
+  "tilt_max": 10.482848683085916,
+  "walk_tilt_max": 10.482848683085916,
+  "peak_rate": 0.8823561022745616,
+  "lift_cm": [
+   2.7688740346084293,
+   1.7716641213425226
+  ],
+  "shift_when_up": [
+   -0.8420422355686564,
+   0.7509560117194762
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6471515724649457,
+  "tilt_max": 10.47746118727273,
+  "walk_tilt_max": 10.47746118727273,
+  "peak_rate": 0.9763260386310731,
+  "lift_cm": [
+   2.9287940399032295,
+   1.7443916787098737
+  ],
+  "shift_when_up": [
+   -0.8696823961428894,
+   0.7509588938778892
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6350333397970823,
+  "tilt_max": 10.488209581581993,
+  "walk_tilt_max": 10.488209581581993,
+  "peak_rate": 0.8169106188624644,
+  "lift_cm": [
+   2.9353348071002077,
+   1.696529713405012
+  ],
+  "shift_when_up": [
+   -0.8598697107503435,
+   0.7363362918507533
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.6331255996162996,
+  "tilt_max": 10.755221494844644,
+  "walk_tilt_max": 10.755221494844644,
+  "peak_rate": 0.8780856596066711,
+  "lift_cm": [
+   2.7486474707068322,
+   1.7517431137282051
+  ],
+  "shift_when_up": [
+   -0.851578795190748,
+   0.7108000602694498
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0040258270171416154,
+  "tilt_max": 0.6507874651431599,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01652705518100993,
+  "lift_cm": [
+   0.008721214196399409,
+   0.00032449769784975713
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.004346922394943753,
+  "tilt_max": 0.7530301429258136,
+  "walk_tilt_max": null,
+  "peak_rate": 0.024945581310678713,
+  "lift_cm": [
+   0.009778334401559872,
+   0.0003583105581041017
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.003296323490509728,
+  "tilt_max": 0.5725732881888396,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01677984254191612,
+  "lift_cm": [
+   0.009008298753764889,
+   0.0004371767696389507
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.002645770531537067,
+  "tilt_max": 0.450428405849328,
+  "walk_tilt_max": null,
+  "peak_rate": 0.018181488717197165,
+  "lift_cm": [
+   0.008224471254999425,
+   0.00029190418960114983
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0034900826663857463,
+  "tilt_max": 0.5434490148218372,
+  "walk_tilt_max": null,
+  "peak_rate": 0.017618682549259253,
+  "lift_cm": [
+   0.008176250715472705,
+   0.000815444818678436
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0029339237375808768,
+  "tilt_max": 0.46136422685157946,
+  "walk_tilt_max": null,
+  "peak_rate": 0.018639331982139403,
+  "lift_cm": [
+   0.008508619692367946,
+   0.0006343727245492793
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.002576330008509468,
+  "tilt_max": 0.5356947709417541,
+  "walk_tilt_max": null,
+  "peak_rate": 0.018984472204287946,
+  "lift_cm": [
+   0.009887253660516467,
+   0.0001952368874512042
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.004874161059581447,
+  "tilt_max": 0.7401922331519948,
+  "walk_tilt_max": null,
+  "peak_rate": 0.01636813170772409,
+  "lift_cm": [
+   0.007474002400685315,
+   0.0008254045184170715
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   36.83
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    36.83
+   ]
+  },
+  "dx": 0.2991702406015963,
+  "tilt_max": 15.152578337051505,
+  "walk_tilt_max": 15.152578337051505,
+  "peak_rate": 1.2659056580463497,
+  "lift_cm": [
+   4.373717946753624,
+   2.9262642841279884
+  ],
+  "shift_when_up": [
+   -0.29473589692039126,
+   0.30111668364731986
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   37.871
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    37.871
+   ]
+  },
+  "dx": 0.3036455172616233,
+  "tilt_max": 15.390114527827857,
+  "walk_tilt_max": 15.390114527827857,
+  "peak_rate": 1.236383072614971,
+  "lift_cm": [
+   4.365009297246548,
+   2.9052912413281144
+  ],
+  "shift_when_up": [
+   -0.2900471011314748,
+   0.30495453173371867
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   37.446
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    37.446
+   ]
+  },
+  "dx": 0.30018207439649564,
+  "tilt_max": 14.897016925004786,
+  "walk_tilt_max": 14.897016925004786,
+  "peak_rate": 1.2635074988500212,
+  "lift_cm": [
+   4.230984931978445,
+   2.816794981184386
+  ],
+  "shift_when_up": [
+   -0.31647340652995437,
+   0.2933778324745525
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.64
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    38.64
+   ]
+  },
+  "dx": 0.3049264210535042,
+  "tilt_max": 14.471505954782984,
+  "walk_tilt_max": 14.471505954782984,
+  "peak_rate": 1.2488567925057983,
+  "lift_cm": [
+   4.411693338474063,
+   3.2136850919585873
+  ],
+  "shift_when_up": [
+   -0.3144204074209026,
+   0.2890916030725898
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.725
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    39.725
+   ]
+  },
+  "dx": 0.3003152664671264,
+  "tilt_max": 14.73869806165953,
+  "walk_tilt_max": 14.73869806165953,
+  "peak_rate": 1.2534707293802103,
+  "lift_cm": [
+   4.462729245750861,
+   2.869711889458102
+  ],
+  "shift_when_up": [
+   -0.30855202302893586,
+   0.29288822744203147
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.159
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    38.159
+   ]
+  },
+  "dx": 0.31023293260414736,
+  "tilt_max": 15.073988154997199,
+  "walk_tilt_max": 15.073988154997199,
+  "peak_rate": 1.241812428036025,
+  "lift_cm": [
+   4.3085829988055195,
+   3.1077657062775974
+  ],
+  "shift_when_up": [
+   -0.30436241076462056,
+   0.29660930185553386
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.55
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    38.55
+   ]
+  },
+  "dx": 0.3043051414516324,
+  "tilt_max": 14.489128287754774,
+  "walk_tilt_max": 14.489128287754774,
+  "peak_rate": 1.3761187027686976,
+  "lift_cm": [
+   4.474981685627352,
+   3.0322040593398305
+  ],
+  "shift_when_up": [
+   -0.31439227273035436,
+   0.28477122779668806
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.203
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    39.203
+   ]
+  },
+  "dx": 0.3047757176999484,
+  "tilt_max": 14.892068656320895,
+  "walk_tilt_max": 14.892068656320895,
+  "peak_rate": 1.2046742943210633,
+  "lift_cm": [
+   4.36824942467191,
+   2.8805774078814483
+  ],
+  "shift_when_up": [
+   -0.2959604226269157,
+   0.3038397499575439
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.746100561609805,
+  "tilt_max": 15.152578337051505,
+  "walk_tilt_max": 15.152578337051505,
+  "peak_rate": 1.0282577460825653,
+  "lift_cm": [
+   4.373717946753624,
+   2.9262642841279884
+  ],
+  "shift_when_up": [
+   -0.4247654729449341,
+   0.5776130564062214
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7520061425263074,
+  "tilt_max": 15.390114527827857,
+  "walk_tilt_max": 15.390114527827857,
+  "peak_rate": 1.0667602611019964,
+  "lift_cm": [
+   4.365009297246548,
+   2.9052912413281144
+  ],
+  "shift_when_up": [
+   -0.44075898764617094,
+   0.5758024143479459
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7499995385007031,
+  "tilt_max": 14.897016925004786,
+  "walk_tilt_max": 14.897016925004786,
+  "peak_rate": 1.0682225269782248,
+  "lift_cm": [
+   4.230984931978445,
+   2.816794981184386
+  ],
+  "shift_when_up": [
+   -0.43286902633213775,
+   0.6197139733284286
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7588681991319143,
+  "tilt_max": 14.471505954782984,
+  "walk_tilt_max": 14.471505954782984,
+  "peak_rate": 1.1772922069143448,
+  "lift_cm": [
+   4.411693338474063,
+   3.2136850919585873
+  ],
+  "shift_when_up": [
+   -0.4620285148104913,
+   0.6412004491423822
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7456642673182716,
+  "tilt_max": 14.73869806165953,
+  "walk_tilt_max": 14.73869806165953,
+  "peak_rate": 1.1227968476236114,
+  "lift_cm": [
+   4.462729245750861,
+   2.876589452402828
+  ],
+  "shift_when_up": [
+   -0.4213455981005839,
+   0.6121047219769487
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7569622398864201,
+  "tilt_max": 15.073988154997199,
+  "walk_tilt_max": 15.073988154997199,
+  "peak_rate": 1.1781185913600698,
+  "lift_cm": [
+   4.3085829988055195,
+   3.1077657062775974
+  ],
+  "shift_when_up": [
+   -0.4562297006982539,
+   0.6173985070137455
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7523242338860271,
+  "tilt_max": 14.489128287754774,
+  "walk_tilt_max": 14.489128287754774,
+  "peak_rate": 0.988526680606045,
+  "lift_cm": [
+   4.474981685627352,
+   3.0322040593398305
+  ],
+  "shift_when_up": [
+   -0.45340413284224396,
+   0.6001971724495422
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7463121360480173,
+  "tilt_max": 14.892068656320895,
+  "walk_tilt_max": 14.892068656320895,
+  "peak_rate": 0.9909560895170527,
+  "lift_cm": [
+   4.36824942467191,
+   2.8805774078814483
+  ],
+  "shift_when_up": [
+   -0.4355136678513245,
+   0.5691098342519997
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0004416275441209201,
+  "tilt_max": 2.144792081679447,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03894902541271238,
+  "lift_cm": [
+   0.12276615193715394,
+   0.0335871258883437
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0004919365601738604,
+  "tilt_max": 2.1029814060379057,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03696945932045008,
+  "lift_cm": [
+   0.12518313490779237,
+   0.04682341499121761
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -3.645125329454344e-05,
+  "tilt_max": 2.149011673111364,
+  "walk_tilt_max": null,
+  "peak_rate": 0.037614672630431695,
+  "lift_cm": [
+   0.12573113654276072,
+   0.0386906194023086
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0006450385555134367,
+  "tilt_max": 2.132696737126274,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03647103834079295,
+  "lift_cm": [
+   0.12207744926015437,
+   0.023126489715373944
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0002093658746812618,
+  "tilt_max": 2.1092325619812797,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03909191431965121,
+  "lift_cm": [
+   0.11792987799286656,
+   0.029176366136158226
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.00029152678381183907,
+  "tilt_max": 2.162394961406427,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03865057192262729,
+  "lift_cm": [
+   0.1260657262597638,
+   0.03180266857668061
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 2.6160304422893855e-05,
+  "tilt_max": 2.1762209904387384,
+  "walk_tilt_max": null,
+  "peak_rate": 0.041108537006223356,
+  "lift_cm": [
+   0.1252890689798297,
+   0.036627765079094626
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0004170813216767394,
+  "tilt_max": 2.1504541661443968,
+  "walk_tilt_max": null,
+  "peak_rate": 0.0386444466544275,
+  "lift_cm": [
+   0.1305731884367131,
+   0.046305739257506986
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   38.101
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    38.101
+   ]
+  },
+  "dx": 0.2951467271668544,
+  "tilt_max": 16.449120890565876,
+  "walk_tilt_max": 16.449120890565876,
+  "peak_rate": 1.2095899593408697,
+  "lift_cm": [
+   4.524218803968444,
+   3.300108826213298
+  ],
+  "shift_when_up": [
+   -0.7101386319310004,
+   0.5950163533640576
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   38.266
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    38.266
+   ]
+  },
+  "dx": 0.30105095291617234,
+  "tilt_max": 16.63681671878059,
+  "walk_tilt_max": 16.63681671878059,
+  "peak_rate": 1.2017126806456147,
+  "lift_cm": [
+   4.628203777713921,
+   3.152128767616311
+  ],
+  "shift_when_up": [
+   -0.7381369188615703,
+   0.5758433321586987
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.733
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    39.733
+   ]
+  },
+  "dx": 0.3043066718569192,
+  "tilt_max": 16.17122160441504,
+  "walk_tilt_max": 16.17122160441504,
+  "peak_rate": 1.273527811403457,
+  "lift_cm": [
+   4.495849289334773,
+   3.1288666113619197
+  ],
+  "shift_when_up": [
+   -0.7195638184359389,
+   0.6094612897376995
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   39.76
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    39.76
+   ]
+  },
+  "dx": 0.30177781290776406,
+  "tilt_max": 15.786986127504786,
+  "walk_tilt_max": 15.786986127504786,
+  "peak_rate": 1.189136494311571,
+  "lift_cm": [
+   4.604223758410119,
+   3.524387652210633
+  ],
+  "shift_when_up": [
+   -0.7567655929267174,
+   0.6118208906143989
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.415
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    40.415
+   ]
+  },
+  "dx": 0.293883919469865,
+  "tilt_max": 16.07898911435523,
+  "walk_tilt_max": 16.07898911435523,
+  "peak_rate": 1.1786953651405214,
+  "lift_cm": [
+   4.497765505220377,
+   3.1723119728408022
+  ],
+  "shift_when_up": [
+   -0.7348637013820215,
+   0.5896190500821746
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   38.954
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    38.954
+   ]
+  },
+  "dx": 0.3142353410478556,
+  "tilt_max": 16.21125151427925,
+  "walk_tilt_max": 16.21125151427925,
+  "peak_rate": 1.2304407768131804,
+  "lift_cm": [
+   4.578825964953899,
+   3.3913181151809897
+  ],
+  "shift_when_up": [
+   -0.7379262268900263,
+   0.6376927462764461
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   38.619
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    38.619
+   ]
+  },
+  "dx": 0.2985064108802273,
+  "tilt_max": 15.459166934656112,
+  "walk_tilt_max": 15.459166934656112,
+  "peak_rate": 1.212146999874602,
+  "lift_cm": [
+   4.613773057575145,
+   3.3170778462438664
+  ],
+  "shift_when_up": [
+   -0.7392290307756785,
+   0.616337757366349
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   40.111
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    40.111
+   ]
+  },
+  "dx": 0.30872571312448743,
+  "tilt_max": 16.13670397484927,
+  "walk_tilt_max": 16.13670397484927,
+  "peak_rate": 1.2217687799244834,
+  "lift_cm": [
+   4.603422493980445,
+   3.2641525059984215
+  ],
+  "shift_when_up": [
+   -0.7339321152661861,
+   0.592515420036118
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7217341448550965,
+  "tilt_max": 16.449120890565876,
+  "walk_tilt_max": 16.449120890565876,
+  "peak_rate": 1.0180644953365579,
+  "lift_cm": [
+   4.524218803968444,
+   3.300108826213298
+  ],
+  "shift_when_up": [
+   -0.8739964467707356,
+   0.960105292427708
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7292661280567516,
+  "tilt_max": 16.63681671878059,
+  "walk_tilt_max": 16.63681671878059,
+  "peak_rate": 1.0064922689741478,
+  "lift_cm": [
+   4.628203777713921,
+   3.152128767616311
+  ],
+  "shift_when_up": [
+   -0.8664272301440656,
+   0.975064118907336
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7394912131298719,
+  "tilt_max": 16.17122160441504,
+  "walk_tilt_max": 16.17122160441504,
+  "peak_rate": 1.0821530441279608,
+  "lift_cm": [
+   4.495849289334773,
+   3.1288666113619197
+  ],
+  "shift_when_up": [
+   -0.8701114261552647,
+   0.9563475316851092
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.738184547727118,
+  "tilt_max": 15.786986127504786,
+  "walk_tilt_max": 15.786986127504786,
+  "peak_rate": 1.2014787870602692,
+  "lift_cm": [
+   4.604223758410119,
+   3.524387652210633
+  ],
+  "shift_when_up": [
+   -0.839674438951582,
+   0.9558115385388031
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7338876538847253,
+  "tilt_max": 16.07898911435523,
+  "walk_tilt_max": 16.07898911435523,
+  "peak_rate": 1.111647195224779,
+  "lift_cm": [
+   4.497765505220377,
+   3.1723119728408022
+  ],
+  "shift_when_up": [
+   -0.8767493487018766,
+   0.9961767930192771
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7412422648667976,
+  "tilt_max": 16.21125151427925,
+  "walk_tilt_max": 16.21125151427925,
+  "peak_rate": 1.167680976037498,
+  "lift_cm": [
+   4.578825964953899,
+   3.3913181151809897
+  ],
+  "shift_when_up": [
+   -0.8471089679639316,
+   0.939507895058035
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7399800200932631,
+  "tilt_max": 15.459166934656112,
+  "walk_tilt_max": 15.459166934656112,
+  "peak_rate": 1.0566270885597824,
+  "lift_cm": [
+   4.613773057575145,
+   3.3170778462438664
+  ],
+  "shift_when_up": [
+   -0.8576434633255094,
+   0.9487533235227789
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.736588608359461,
+  "tilt_max": 16.13670397484927,
+  "walk_tilt_max": 16.13670397484927,
+  "peak_rate": 1.025182762671506,
+  "lift_cm": [
+   4.603422493980445,
+   3.2641525059984215
+  ],
+  "shift_when_up": [
+   -0.8800209408251574,
+   0.9640778255513369
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.000966229725629982,
+  "tilt_max": 1.5379744597335823,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03774910039676917,
+  "lift_cm": [
+   0.1117748409110551,
+   0.005694246042940807
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0009309346865129055,
+  "tilt_max": 1.5367436949716415,
+  "walk_tilt_max": null,
+  "peak_rate": 0.039406590782535694,
+  "lift_cm": [
+   0.1110217316328637,
+   0.009821986425087841
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0005374397503435619,
+  "tilt_max": 1.5378069287038993,
+  "walk_tilt_max": null,
+  "peak_rate": 0.037672829759168254,
+  "lift_cm": [
+   0.11178994616368966,
+   0.006392198948098303
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.00030438956357563393,
+  "tilt_max": 1.5624509316675566,
+  "walk_tilt_max": null,
+  "peak_rate": 0.038337416554035005,
+  "lift_cm": [
+   0.11399308680641326,
+   0.0033654779189948823
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.000753237822940392,
+  "tilt_max": 1.5297628058323853,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03867696226038807,
+  "lift_cm": [
+   0.1074212840526799,
+   0.004328526275236642
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00015466547799407716,
+  "tilt_max": 1.5498843323984919,
+  "walk_tilt_max": null,
+  "peak_rate": 0.040248450329101876,
+  "lift_cm": [
+   0.11575000111132037,
+   0.004696678463849812
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00039698777599404486,
+  "tilt_max": 1.5807463255121708,
+  "walk_tilt_max": null,
+  "peak_rate": 0.04137273545933042,
+  "lift_cm": [
+   0.11113629188483796,
+   0.005760303978352525
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0010321020797575855,
+  "tilt_max": 1.5177114279181978,
+  "walk_tilt_max": null,
+  "peak_rate": 0.04183007767215901,
+  "lift_cm": [
+   0.1136299799366562,
+   0.006891321678015663
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   41.589
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    41.589
+   ]
+  },
+  "dx": 0.29506372300191314,
+  "tilt_max": 15.21660605040523,
+  "walk_tilt_max": 15.21660605040523,
+  "peak_rate": 1.0896341906802245,
+  "lift_cm": [
+   3.645918746847883,
+   2.2303205824444907
+  ],
+  "shift_when_up": [
+   -0.6481771771030655,
+   0.6264621002341799
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   41.21
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    41.21
+   ]
+  },
+  "dx": 0.29648407678773897,
+  "tilt_max": 15.382116996344267,
+  "walk_tilt_max": 15.382116996344267,
+  "peak_rate": 1.02848218977646,
+  "lift_cm": [
+   3.684560084614531,
+   2.1807526130585364
+  ],
+  "shift_when_up": [
+   -0.6572016592766784,
+   0.5998482107004041
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   42.23
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    42.23
+   ]
+  },
+  "dx": 0.28928002531950664,
+  "tilt_max": 14.69268963318203,
+  "walk_tilt_max": 14.69268963318203,
+  "peak_rate": 1.0447093029151773,
+  "lift_cm": [
+   3.690904398057177,
+   2.0934537947231995
+  ],
+  "shift_when_up": [
+   -0.6912010307048669,
+   0.6857421460860846
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.88,
+   42.662
+  ],
+  "trips_by": {
+   "pose": [
+    3.88,
+    42.662
+   ]
+  },
+  "dx": 0.29375135776515077,
+  "tilt_max": 14.514114801953482,
+  "walk_tilt_max": 14.514114801953482,
+  "peak_rate": 0.9555347917618774,
+  "lift_cm": [
+   3.5992457343181865,
+   2.4050668312757537
+  ],
+  "shift_when_up": [
+   -0.6504917391002247,
+   0.6216581469537789
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   41.656
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    41.656
+   ]
+  },
+  "dx": 0.29234560838148976,
+  "tilt_max": 14.595966618035467,
+  "walk_tilt_max": 14.595966618035467,
+  "peak_rate": 0.9953482320788717,
+  "lift_cm": [
+   3.7646941490878083,
+   2.1189993566758
+  ],
+  "shift_when_up": [
+   -0.6942862942452309,
+   0.6494788228747975
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   42.546
+  ],
+  "trips_by": {
+   "pose": [
+    3.9,
+    42.546
+   ]
+  },
+  "dx": 0.2981951944462479,
+  "tilt_max": 14.90308873222737,
+  "walk_tilt_max": 14.90308873222737,
+  "peak_rate": 0.9950884651504858,
+  "lift_cm": [
+   3.6548917710731037,
+   2.3851924192307603
+  ],
+  "shift_when_up": [
+   -0.6875222134298934,
+   0.6448841288561856
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   41.494
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    41.494
+   ]
+  },
+  "dx": 0.2927581660650293,
+  "tilt_max": 14.25209782276026,
+  "walk_tilt_max": 14.25209782276026,
+  "peak_rate": 1.0038913842854156,
+  "lift_cm": [
+   3.8603768988983695,
+   2.2417941823079004
+  ],
+  "shift_when_up": [
+   -0.6905085381033881,
+   0.6794174512585245
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.88,
+   43.468
+  ],
+  "trips_by": {
+   "pose": [
+    3.88,
+    43.468
+   ]
+  },
+  "dx": 0.29089031134790033,
+  "tilt_max": 14.69716284671387,
+  "walk_tilt_max": 14.69716284671387,
+  "peak_rate": 0.9580762750043981,
+  "lift_cm": [
+   3.6674417679064013,
+   2.146708657783284
+  ],
+  "shift_when_up": [
+   -0.6930247087596559,
+   0.6041397082476322
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7078729370971205,
+  "tilt_max": 15.21660605040523,
+  "walk_tilt_max": 15.21660605040523,
+  "peak_rate": 0.9073710083698471,
+  "lift_cm": [
+   3.718441919797903,
+   2.692497759354149
+  ],
+  "shift_when_up": [
+   -0.8373398092927297,
+   0.8701093654999331
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7156101701911501,
+  "tilt_max": 15.382116996344267,
+  "walk_tilt_max": 15.382116996344267,
+  "peak_rate": 1.0217628348007797,
+  "lift_cm": [
+   3.737499582592246,
+   2.6384361980258473
+  ],
+  "shift_when_up": [
+   -0.8368976452160839,
+   0.8360858475526136
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7074992820097071,
+  "tilt_max": 14.69268963318203,
+  "walk_tilt_max": 14.69268963318203,
+  "peak_rate": 0.8869228295691205,
+  "lift_cm": [
+   3.7888326510655324,
+   2.6042025847444594
+  ],
+  "shift_when_up": [
+   -0.8547877640450715,
+   0.8231995215190249
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7202034856659457,
+  "tilt_max": 14.514114801953482,
+  "walk_tilt_max": 14.514114801953482,
+  "peak_rate": 0.8191520328282218,
+  "lift_cm": [
+   3.5992457343181865,
+   2.624331099772908
+  ],
+  "shift_when_up": [
+   -0.7892739334029885,
+   0.8557428318560918
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7119949910335956,
+  "tilt_max": 14.595966618035467,
+  "walk_tilt_max": 14.595966618035467,
+  "peak_rate": 0.9297707134044638,
+  "lift_cm": [
+   3.7646941490878083,
+   2.714022112562246
+  ],
+  "shift_when_up": [
+   -0.8327071590343901,
+   0.860958517987861
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7218248448324379,
+  "tilt_max": 14.90308873222737,
+  "walk_tilt_max": 14.90308873222737,
+  "peak_rate": 0.8816795483452576,
+  "lift_cm": [
+   3.6548917710731037,
+   2.6209586481531857
+  ],
+  "shift_when_up": [
+   -0.7700160781023339,
+   0.8635582160147769
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7170175077634859,
+  "tilt_max": 14.25209782276026,
+  "walk_tilt_max": 14.25209782276026,
+  "peak_rate": 0.7910982328142186,
+  "lift_cm": [
+   3.8603768988983695,
+   2.763939839578461
+  ],
+  "shift_when_up": [
+   -0.8280176776860182,
+   0.8440653430263929
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "steps5 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.7102698616413248,
+  "tilt_max": 14.69716284671387,
+  "walk_tilt_max": 14.69716284671387,
+  "peak_rate": 0.9109830990179475,
+  "lift_cm": [
+   3.7867442636692603,
+   2.659713306188291
+  ],
+  "shift_when_up": [
+   -0.8301490494302401,
+   0.8967168820762634
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0010119698806875439,
+  "tilt_max": 1.2343693017149466,
+  "walk_tilt_max": null,
+  "peak_rate": 0.032195204123728234,
+  "lift_cm": [
+   0.09849589811423759,
+   0.00023503279271055305
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0013176022528008985,
+  "tilt_max": 1.2367077344549564,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03326491893684106,
+  "lift_cm": [
+   0.09775106690789745,
+   0.0007172500354532714
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.000647931170856585,
+  "tilt_max": 1.2267156113732638,
+  "walk_tilt_max": null,
+  "peak_rate": 0.036142475452113305,
+  "lift_cm": [
+   0.1001740576040416,
+   0.00036842529594028825
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": -0.0002841554692874686,
+  "tilt_max": 1.2184954761560307,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03379812654179473,
+  "lift_cm": [
+   0.09991248773947581,
+   0.00010286809235806813
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0006296622929019002,
+  "tilt_max": 1.2053930898636422,
+  "walk_tilt_max": null,
+  "peak_rate": 0.032718485573276966,
+  "lift_cm": [
+   0.09805364497964221,
+   0.00019796577866056098
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.00011290434701725222,
+  "tilt_max": 1.2271501901671074,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03527003324222618,
+  "lift_cm": [
+   0.10067475801074227,
+   0.0001280845991321472
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0005532424863175589,
+  "tilt_max": 1.2344535631744917,
+  "walk_tilt_max": null,
+  "peak_rate": 0.03587164540719126,
+  "lift_cm": [
+   0.10080233983459694,
+   0.0001899920759326941
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec37_f075_js20_sh35_s2t_s128r24",
+  "variant": "REFIT3",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "dx": 0.0010450296623949243,
+  "tilt_max": 1.1992930872595868,
+  "walk_tilt_max": null,
+  "peak_rate": 0.035582902319696186,
+  "lift_cm": [
+   0.09788971580746665,
+   0.0004320639983918656
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ }
+]

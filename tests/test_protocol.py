@@ -19,13 +19,19 @@ from protocol import (CMD_LEN, DIAG_ARM_SHIFT, DIAG_CAL_OK,  # noqa: E402
                       DIAG_RUN, FLAG_ARM, FLAG_ENABLE, FLAG_ESTOP, FLAG_HOME,
                       FLAG_POSE,
                       NUM_JOINTS, RELAX_MS,
-                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_MAX, W_MAX,
+                      STALE_MS, TLM_LEN, TLM_LEN_EXT, V_BACK_MAX, V_BACK_MIN,
+                      V_FWD_MAX, V_FWD_MIN, VY_MAX, VY_MIN, W_MAX, CROUCH_MIN,
+                      Envelope, clamp_ext_to_envelope,
                       ArmLatch, ArmResult, HomeLatch, is_home_result,
                       Command, LinkState, ProtocolError, Supervisor,
                       Telemetry, Watchdog, clamp_to_envelope, crc16_ccitt,
                       decode_command, decode_telemetry, diag_arm_result,
                       diag_reason, encode_command, encode_telemetry,
                       pack_diag)
+
+
+# a speed inside the deployed run's forward band (generated: cmd_envelope.py)
+V_MID = 0.5 * (V_FWD_MIN + V_FWD_MAX)
 
 
 # -- CRC -------------------------------------------------------------------
@@ -196,25 +202,84 @@ def test_the_crc_covers_the_timestamp():
 
 
 # -- training envelope -----------------------------------------------------
+# The envelope itself is generated (tools/gen_envelope.py); these pin the
+# clamp's behaviour on whatever band the deployed run has, and on a prec-style
+# one (tests/test_cmd_envelope.py pins the generated values against the run).
 def test_clamp_snaps_the_untrained_speed_band_to_stand():
-    # walker_env draws v from (0.3, 1.0) or a stand -- (0, 0.3) was never
-    # trained, so it must not be passed through as a "slow walk".
-    for v in (0.01, 0.1, 0.29):
+    # The policy trained on a stand or a walk inside a band: (0, V_FWD_MIN) was
+    # never trained, so it must not be passed through as a "slow walk".
+    for v in (V_FWD_MIN * 0.1, V_FWD_MIN * 0.5, V_FWD_MIN * 0.99):
         assert clamp_to_envelope(v, 0.0)[0] == 0.0
+    # ... on the backward side too, which has a band of its own
+    for v in (V_BACK_MIN * 0.5, V_BACK_MIN * 0.99):
+        assert clamp_to_envelope(-v, 0.0)[0] == 0.0
 
 
 def test_clamp_preserves_trained_turn_in_place():
     # vx=0, wz!=0 IS trained (cmd_w_range), so the snap must keep the yaw.
     assert clamp_to_envelope(0.0, 0.7) == (0.0, 0.7)
+    assert clamp_to_envelope(V_FWD_MIN * 0.5, 0.7) == (0.0, 0.7)
 
 
 def test_clamp_bounds_speed_and_yaw():
-    assert clamp_to_envelope(9.0, 9.0) == (V_MAX, W_MAX)
-    assert clamp_to_envelope(-9.0, -9.0) == (-V_MAX, -W_MAX)
+    assert clamp_to_envelope(9.0, 9.0) == (V_FWD_MAX, W_MAX)
+    # backward is bounded by its own band, not the forward one
+    assert clamp_to_envelope(-9.0, -9.0) == (-V_BACK_MAX if V_BACK_MAX else 0.0,
+                                             -W_MAX)
+
+
+def test_clamp_passes_the_band_edges_through():
+    assert clamp_to_envelope(V_FWD_MIN, 0.0) == (V_FWD_MIN, 0.0)
+    assert clamp_to_envelope(V_FWD_MAX, 0.0) == (V_FWD_MAX, 0.0)
+    if V_BACK_MAX > 0:
+        assert clamp_to_envelope(-V_BACK_MIN, 0.0) == (-V_BACK_MIN, 0.0)
+        assert clamp_to_envelope(-V_BACK_MAX, 0.0) == (-V_BACK_MAX, 0.0)
+
+
+def test_clamp_lateral_band_both_signs():
+    for sgn in (1.0, -1.0):
+        def vy(x):
+            return clamp_ext_to_envelope(Command(0, 0.0, 0.0, 0, vy=sgn * x))[0]
+        assert vy(VY_MIN * 0.5) == 0.0           # the hole under the band: a stand
+        assert vy(VY_MIN) == sgn * VY_MIN
+        assert vy(VY_MAX) == sgn * VY_MAX
+        assert vy(VY_MAX + 1.0) == sgn * VY_MAX
+
+
+def test_clamp_crouch_to_the_trained_range():
+    assert clamp_ext_to_envelope(Command(0, 0.0, 0.0, 0, crouch=0.0))[1] == CROUCH_MIN
+    assert clamp_ext_to_envelope(Command(0, 0.0, 0.0, 0, crouch=2.0))[1] == 1.0
+
+
+def test_clamp_on_a_prec_style_envelope():
+    env = Envelope(v_fwd_min=0.05, v_fwd_max=0.24, v_back_min=0.15,
+                   v_back_max=0.4, vy_min=0.1, vy_max=0.25, w_max=1.0,
+                   crouch_min=1.0)
+    assert clamp_to_envelope(0.03, 0.5, env) == (0.0, 0.5)
+    assert clamp_to_envelope(0.1, 0.0, env) == (0.1, 0.0)
+    assert clamp_to_envelope(1.0, 0.0, env) == (0.24, 0.0)
+    assert clamp_to_envelope(-0.1, 0.0, env) == (0.0, 0.0)
+    assert clamp_to_envelope(-0.3, 0.0, env) == (-0.3, 0.0)
+    assert clamp_to_envelope(-1.0, 0.0, env) == (-0.4, 0.0)
+    ext = clamp_ext_to_envelope(Command(0, 0.0, 0.0, 0, vy=-0.05, crouch=0.7), env)
+    assert ext[:2] == (0.0, 1.0)
+    # no backward band trained: backward is a stand
+    env0 = env._replace(v_back_min=0.0, v_back_max=0.0)
+    assert clamp_to_envelope(-0.3, 0.0, env0) == (0.0, 0.0)
+
+
+def test_protocol_reads_the_profile_twin_named_by_the_environment(monkeypatch):
+    import protocol
+    monkeypatch.setenv("BIMO_POLICY", "v6legs")
+    mod = protocol._import_envelope()
+    assert mod.PROFILE == "v6legs"
+    monkeypatch.setenv("BIMO_POLICY", "../x")
+    with pytest.raises(ValueError):
+        protocol._import_envelope()
 
 
 # -- watchdog --------------------------------------------------------------
-def live(seq=1, v=0.8, w=0.0, flags=FLAG_ENABLE):
+def live(seq=1, v=V_MID, w=0.0, flags=FLAG_ENABLE):
     return Command(seq=seq, vx=v, wz=w, flags=flags)
 
 
@@ -229,7 +294,7 @@ def test_tracks_a_fresh_command():
     dog = Watchdog()
     assert dog.accept(live(), 0.0)
     assert dog.state(10.0) is LinkState.LIVE
-    assert dog.command(10.0) == (0.8, 0.0)
+    assert dog.command(10.0) == (V_MID, 0.0)
 
 
 def test_decays_to_stand_then_relax():
@@ -259,14 +324,14 @@ def test_disabled_command_stands_without_dropping_the_link():
 def test_command_is_clamped_on_the_way_in():
     dog = Watchdog()
     dog.accept(live(v=9.0, w=9.0), 0.0)
-    assert dog.command(1.0) == (V_MAX, W_MAX)
+    assert dog.command(1.0) == (V_FWD_MAX, W_MAX)
 
 
 def test_reordered_packet_is_dropped():
     dog = Watchdog()
-    dog.accept(live(seq=5, v=0.8), 0.0)
-    assert not dog.accept(live(seq=4, v=0.3), 1.0)
-    assert dog.command(1.0) == (0.8, 0.0)        # old command not applied
+    dog.accept(live(seq=5, v=V_MID), 0.0)
+    assert not dog.accept(live(seq=4, v=V_FWD_MIN), 1.0)
+    assert dog.command(1.0) == (V_MID, 0.0)        # old command not applied
     assert dog.rejected == 1
 
 
@@ -305,7 +370,7 @@ def test_estop_latches_and_needs_a_disabled_command_to_clear():
     dog.accept(live(seq=3, flags=0), 4.0)
     assert dog.state(5.0) is LinkState.LIVE
     dog.accept(live(seq=4, flags=FLAG_ENABLE), 6.0)
-    assert dog.command(7.0) == (0.8, 0.0)
+    assert dog.command(7.0) == (V_MID, 0.0)
 
 
 def test_estop_outranks_a_dead_link():
@@ -322,10 +387,10 @@ def test_rejects_nonsense_timeouts():
 
 def test_end_to_end_encode_decode_accept():
     dog = Watchdog()
-    wire = encode_command(1, 0.75, -0.5, FLAG_ENABLE)
+    wire = encode_command(1, V_MID, -0.5, FLAG_ENABLE)
     assert dog.accept(decode_command(wire), 0.0)
     v, w = dog.command(0.0)
-    assert v == pytest.approx(0.75, abs=1e-3)
+    assert v == pytest.approx(V_MID, abs=1e-3)
     assert w == pytest.approx(-0.5, abs=1e-3)
 
 

@@ -9,8 +9,9 @@ once per link tick and never blocking:
   b (east)          B                E-STOP: the out-of-band hard stop
                                      (Controller.estop), in every role, any host
   lefty             left stick up/dn vx through sources.stick_to_speed (the
-                                     trained band); up = forward
-  leftx             left stick l/r   vy, linear to protocol.VY_MAX; left = +vy
+                                     trained band of its direction); up = forward
+  leftx             left stick l/r   vy through sources.stick_to_lateral (the
+                                     trained sidestep band); left = +vy
   rightx            right stick l/r  wz, linear to protocol.W_MAX; left = +wz
 
 Nothing else: the pad cannot ARM or RESET SERVOS. Axes are SDL's int16
@@ -114,15 +115,27 @@ def stick_frac(a: float, dz: float) -> float:
     return math.copysign(min(1.0, (mag - dz) / (1.0 - dz)), a)
 
 
-def vx_from_stick(a: float, dz: float = DEAD_ZONE) -> float:
-    """sources.stick_to_speed with this pad's dead zone: rescaled so the edge
-    of `dz` lands where stick_to_speed's own dead zone ends (identical when
-    dz is sources.STICK_DEADZONE), so the stick never asks for a speed in the
-    (0, V_MIN_WALK) hole."""
+def _through(f, a: float, dz: float) -> float:
+    """A sources.stick_to_* map with this pad's dead zone: the travel is
+    rescaled so the edge of `dz` lands where the map's own dead zone
+    (sources.STICK_DEADZONE) ends -- identical when dz is that dead zone."""
     if abs(a) < dz:
         return 0.0
     d0 = sources.STICK_DEADZONE
-    return sources.stick_to_speed(math.copysign(d0 + abs(stick_frac(a, dz)) * (1.0 - d0), a))
+    return f(math.copysign(d0 + abs(stick_frac(a, dz)) * (1.0 - d0), a))
+
+
+def vx_from_stick(a: float, dz: float = DEAD_ZONE) -> float:
+    """sources.stick_to_speed with this pad's dead zone, so the stick never
+    asks for a speed in the hole under its direction's band (V_FWD_MIN
+    forward, V_BACK_MIN backward; protocol.py, generated from the run)."""
+    return _through(sources.stick_to_speed, a, dz)
+
+
+def vy_from_stick(a: float, dz: float = DEAD_ZONE) -> float:
+    """sources.stick_to_lateral with this pad's dead zone: never a |vy| in
+    the (0, VY_MIN) hole the robot snaps to zero."""
+    return _through(sources.stick_to_lateral, a, dz)
 
 
 # -- the SDL layer -----------------------------------------------------------
@@ -423,7 +436,7 @@ class Gamepad:
         """(vx, vy, wz) the sticks ask for, signed, in the trained envelope."""
         dz = self.dead_zone
         return (vx_from_stick(-self.axes["lefty"], dz),
-                stick_frac(-self.axes["leftx"], dz) * protocol.VY_MAX,
+                vy_from_stick(-self.axes["leftx"], dz),
                 stick_frac(-self.axes["rightx"], dz) * protocol.W_MAX)
 
     def axes_held(self):

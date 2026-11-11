@@ -14,6 +14,8 @@ not a version among others.
 | [experiments/plan-b-bench/](../../experiments/plan-b-bench/) | the Plan B bench (#73), in its own folder: `gain_bench.py`, the rig (CAD and figures) and its dated sessions -- session 1, the bench servo's registers and the unloaded P ladder; gain-write ack loss (#101) |
 | [getup-decision-2026-09-17.md](getup-decision-2026-09-17.md) | the get-up decision (two elbowed arms) and **every dead end with its measured reason**, so none is retried |
 | [getup-noappendage-2026-09-14.md](getup-noappendage-2026-09-14.md) | the no-appendage get-up search (kip, bear, crow, bridge, skid, bumper): negative, and the hip −90…−100° crouch finding; figures in `figs/` |
+| [getup-overload-2026-09-29.md](getup-overload-2026-09-29.md) | the documented STS overload cutoff (regs 34–36) modelled (`sim/sts_servo_model.py`) and run on the scripted seat push: never fires on the 90 → 0 push; a slower tuck and push cut the peak load from 78 % to 66 % |
+| [getup-overload-2026-11-10.md](getup-overload-2026-11-10.md) | the cutoff re-run on the current get-up references (`prone_ikc`, `supine_ik`) and plant (STS3250 hip rolls, STS3215 knees, 11.1 V and the 12 V refit): never fires at full strength, but the shoulder peaks at 79 % of stall nominal (83 % worst) and now binds before weakness with weakened servos |
 | [study-shoulder-arms.md](study-shoulder-arms.md) | the arm study behind that decision: reach threshold, elbow, mount position |
 | [shoulder-girdle.md](shoulder-girdle.md) | shoulders into the torso in the hip plane; assembly order; §11 the get-up re-run on the robot as drawn |
 | [arms.md](arms.md) | the arm parts in CAD, their ROM and open items |
@@ -57,6 +59,7 @@ leans on:
 | `no3250_{walk,sweep,envelope,arms_walk,getup}.txt`, `no3250_{walk,arms_walk}_plant17.txt`, `no3250_*_elbow_upper.txt` | Plan B: every gate with STS3215s and raised P; the walk on the regenerated 17-actuator plant; the elbow-servo move against main |
 | `getup_search_r6_asdrawn*.txt`, `getup_search_r5_asdrawn*.txt`, `getup_search_shoulder_*.txt`, `getup_search_girdle_*.txt`, `getup_search_hipplane_*.txt`, `getup_search_legroll*.txt` | the get-up on the as-drawn robot, the arm choice, the prone roll |
 | `cad_rom_check.txt`, `girdle_check_assembly.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
+| `getup_overload.txt`, `getup_overload_search.txt`, `getup_overload_r5_2026-11-10.txt`, `getup_overload_2026-11-10.txt` | the get-up against the STS overload cutoff (the two overload records) |
 | `deep_flexion_sweep.txt` | knee 130° / hip flexion limits |
 
 The part masses and the print rollup are written by `make cad` to

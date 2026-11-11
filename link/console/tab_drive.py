@@ -2,11 +2,17 @@
 extended channels, speeds and send rate, and 30 s of telemetry (design §6)."""
 from __future__ import annotations
 
+import os
+import sys
+
 import numpy as np
 import pyqtgraph as pg
 from PyQt6 import QtCore, QtWidgets
 
-from . import core
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import protocol  # noqa: E402  link/protocol.py: the generated command envelope
+
+from . import core  # noqa: E402
 from .ui import (AMBER, BRIGHT, CYAN, DIM, GREEN, Slider, btn, group, hbox, lab,
                  mkplot, vbox, wrap)
 
@@ -55,9 +61,15 @@ class DriveTab(QtWidgets.QWidget):
         gp = group("GAMEPAD", self.gamepad_box)
 
         st = c.core.status(core.now_ms())
-        self.crouch = Slider("crouch ", 0.6, 1.0, st.crouch, "{:.2f}")
-        self.fdx = Slider("foot dx", -0.05, 0.05, st.foot_dx, "{:+.3f} m")
-        self.fdz = Slider("foot dz", -0.05, 0.05, st.foot_dz, "{:+.3f} m")
+        # The ranges are the deployed run's envelope (protocol.py, generated):
+        # the core clamps into it anyway, so a wider track would only snap back.
+        env, fd = protocol.ENVELOPE, protocol.FOOT_D_MAX
+        crouch_lo = min(env.crouch_min, 1.0)
+        self.crouch = Slider("crouch ", crouch_lo, 1.0, st.crouch, "{:.2f}",
+                             note=None if crouch_lo < 1.0 else "trained at 1 only")
+        self.crouch.setEnabled(crouch_lo < 1.0)
+        self.fdx = Slider("foot dx", -fd, fd, st.foot_dx, "{:+.3f} m")
+        self.fdz = Slider("foot dz", -fd, fd, st.foot_dz, "{:+.3f} m")
         self.lift = {}
         lift_row = [lab("lift   ", DIM)]
         grp = QtWidgets.QButtonGroup(self)
@@ -77,20 +89,27 @@ class DriveTab(QtWidgets.QWidget):
                      vbox(self.crouch, self.fdx, self.fdz,
                           hbox(*lift_row, "stretch", reset, spacing=10)))
 
-        self.svx = Slider("vx max", 0.0, 1.0, st.speed_vx, "{:.2f} m/s")
-        self.svy = Slider("vy max", 0.0, 0.3, st.speed_vy, "{:.2f} m/s")
-        self.swz = Slider("wz max", 0.0, 1.0, st.speed_wz, "{:.2f} rad/s")
+        self.svx = Slider("vx max", 0.0, max(env.v_fwd_max, env.v_back_max), st.speed_vx,
+                          "{:.2f} m/s")
+        self.svy = Slider("vy max", 0.0, env.vy_max, st.speed_vy, "{:.2f} m/s")
+        self.swz = Slider("wz max", 0.0, env.w_max, st.speed_wz, "{:.2f} rad/s")
         self.rate = Slider("send   ", 5.0, 100.0, app.rate_hz, "{:.0f} Hz", steps=95)
         for s in (self.svx, self.svy, self.swz):
             s.changed.connect(self._speeds_changed)
         self.rate.changed.connect(app.set_rate)
-        spg = group("SPEEDS   live", vbox(self.svx, self.svy, self.swz, self.rate))
+        envelope = lab(f"trained envelope: vx {env.v_fwd_min:.2f}–"
+                       f"{env.v_fwd_max:.2f}, back {env.v_back_min:.2f}–{env.v_back_max:.2f} "
+                       f"m/s · |vy| {env.vy_min:.2f}–{env.vy_max:.2f} · |wz| ≤ {env.w_max:.1f}; "
+                       f"under a minimum the robot stands", DIM, 11)
+        envelope.setWordWrap(True)
+        spg = group("SPEEDS   live", vbox(self.svx, self.svy, self.swz, self.rate, envelope))
 
         self.p_vbat = mkplot(90, (-WINDOW_S, 0), bottom=False)
         self.p_tilt = mkplot(90, (-WINDOW_S, 0), (0, 15), bottom=False)
         self.p_tilt.addItem(pg.InfiniteLine(10, angle=0, pen=pg.mkPen(
             AMBER, width=1, style=QtCore.Qt.PenStyle.DashLine)))
-        self.p_vx = mkplot(104, (-WINDOW_S, 0), (-0.6, 0.6))
+        vlim = max(env.v_fwd_max, env.v_back_max, 0.5) + 0.1     # the trained top speed
+        self.p_vx = mkplot(104, (-WINDOW_S, 0), (-vlim, vlim))
         self.c_vbat = self.p_vbat.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_tilt = self.p_tilt.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_vx = self.p_vx.plot(pen=pg.mkPen(CYAN, width=1.8, style=QtCore.Qt.PenStyle.DashLine))
