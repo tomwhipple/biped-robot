@@ -107,37 +107,29 @@ class Robot:
         r = self.c.command("fall", idle_timeout=5.0)
         return "not fallen" not in r.text
 
-    def wait_recovered(self, tmax=300.0, tilt_deg=25.0, gyro=1.0, hold_s=1.0, say=print):
-        """After a fall: send nothing that moves until the robot is back upright, then home it.
-        The firmware homes itself once it has been within 10 deg and still (0.35 rad/s) for 2 s, a rule a
-        robot held in the hand or set down leaning does not meet (2026-11-11, third fall: 48 s upright
-        and never homed). So this also homes it, with a typed `home`, once it has been within `tilt_deg`
-        of upright and under `gyro` rad/s for `hold_s`. Returns True once it is homed (torque released)."""
+    def wait_recovered(self, tmax=1200.0, say=print, after=None):
+        """After a fall: send nothing that moves and wait. The firmware does the recovering: it homes itself
+        once the robot is within 25 deg of upright with |gyro| < 1.0 rad/s for 1 s (picked up and held still).
+        This only polls its `fall` status, about once a second, and returns True once it reports "not fallen"
+        and its own home has had time to finish; False after `tmax` s.
+        after=(seconds, callable): `callable()` is called once, if it is still down after that many seconds
+        (a notification; it must not block, and an exception from it is ignored)."""
         t = time.monotonic()
-        since = None
         while time.monotonic() - t < tmax:
-            if not self.fallen():                       # the firmware saw the pick-up first: let its home finish
-                say("  the firmware homed it")
-                self.c.idle(11.0)
-                return True
+            if after is not None and time.monotonic() - t >= after[0]:
+                try:
+                    after[1]()
+                except Exception:
+                    pass
+                after = None
             try:
-                s = self.imu()
+                if not self.fallen():
+                    say("  the firmware homed it")
+                    self.c.idle(11.0)
+                    return True
             except Exception:
-                since = None
-                time.sleep(0.5)
-                continue
-            tilt = math.degrees(math.acos(max(-1.0, min(1.0, s["up"][2]))))
-            w = math.sqrt(sum(x * x for x in s["gyro"]))
-            if tilt < tilt_deg and w < gyro:
-                since = since or time.monotonic()
-                if time.monotonic() - since >= hold_s:
-                    say(f"  upright ({tilt:.0f} deg) and still for {hold_s:.0f} s: homing")
-                    self.c.command("home", idle_timeout=5.0)
-                    self.c.idle(12.0)
-                    return not self.fallen()
-            else:
-                since = None
-            time.sleep(0.1)
+                pass
+            time.sleep(1.0)
         return False
 
     def close(self):

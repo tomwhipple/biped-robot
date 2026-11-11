@@ -33,5 +33,5 @@ class FakeRobot:
     def torque(self): pass
     def release(self): pass
     def fallen(self): return False
-    def wait_recovered(self, tmax=0): return True
+    def wait_recovered(self, tmax=0, say=print, after=None): return True
     def close(self): pass

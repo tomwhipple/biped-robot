@@ -39,11 +39,11 @@ DT="drawtext=$FONTOPT:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.6:x=8:y
 
 # The USB node is group plugdev, which long-lived shells may predate: sg.
 # setsid + trap so a TERM to this script reaches liveview.py (sg forwards none).
-# LATEST=<file.jpg>: also keep that file as the newest frame (4 per second, written whole and renamed),
+# LATEST=<file.jpg>: also keep that file as the newest frame (10 per second, written whole and renamed),
 # for a program that wants to look while the recording runs -- the camera serves one reader.
 SPLIT="split[a][b]"; LATEST_OUT=()
 if [[ -n "${LATEST:-}" ]]; then
-  SPLIT="split=3[a][b][c];[c]fps=4[jpg]"
+  SPLIT="split=3[a][b][c];[c]fps=10[jpg]"
   LATEST_OUT=(-map "[jpg]" -c:v mjpeg -q:v 3 -f image2 -update 1 -atomic_writing 1 "$LATEST")
 fi
 setsid sg plugdev -c "exec /usr/bin/python3 -u '$LIVEVIEW' $SECS" | \

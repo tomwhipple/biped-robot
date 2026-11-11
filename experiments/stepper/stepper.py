@@ -19,7 +19,7 @@ So the lift here:
     happened: never clear -> further over; tipping outward -> back;
   * remembers per stance side the shift, lift and hip trim that worked (state file).
 A real fall is detected (IMU, and the firmware's own latch) and ends the run with nothing more sent
-until the robot is upright again, when it is homed.
+until the firmware has homed the robot (picked up: within 25 deg of upright, |gyro| < 1.0 rad/s, for 1 s).
 
     stepper.py lift --side L            raise the LEFT foot once (right stance), free-standing
     stepper.py march --steps 4          alternate lifts in place
@@ -28,6 +28,13 @@ until the robot is upright again, when it is homed.
     stepper.py walk --board             look at the front camera before every step: steer back toward the
                                         middle of the board, stop short of its edge (needs the Sony; it
                                         records, 180 s unless --video says otherwise; also on `march`)
+
+With --board the look is the median of 3 camera frames (low-confidence ones dropped). A foot does not land
+where it is sent (the stance leg leans through its roll-servo play): each look compares the measured sole
+separation with the believed one and puts a miss of 4..45 mm down to the foot that landed last, moves where it
+is believed to stand and learns lat_ff, an offset added to where that foot is aimed (state file; applied also
+without --board, learned only with it). A fall is waited out (the firmware homes the robot once it is picked
+up); 45 s after it, notify_cmd asks Aime to ping the owner once (--no-notify turns that off).
 
 A sidestep never narrows the stance: moving left, the LEFT foot goes out first and the right follows;
 moving right, the right foot first. The board's edge distances come from board_view.py.
@@ -50,7 +57,7 @@ sys.path.insert(0, HERE)
 from nool import foot_clear, settled, tipping  # noqa: E402
 
 STATE = os.path.join(HERE, "state.json")
-LEARNED = ("k_shift", "h_up", "hike")
+LEARNED = ("k_shift", "h_up", "hike", "lat_ff")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
@@ -78,6 +85,19 @@ DEFAULTS = dict(
     board_dead_mm=15.0,   # no steering while the room left and right differs by less than 2x this, mm
     board_gain=0.5,       # share of the half-difference of the margins corrected per step
     board_step_mm=15.0,   # most a single steering correction moves the lateral target, mm
+    board_conf_min=0.5,   # a board_view result below this confidence is ignored
+    sep_nominal_mm=121.0, # centre-to-centre separation of the soles in the crouch, mm
+    ff_gain=0.6,          # share of a measured landing miss taken into lat_ff each time
+    ff_lim=0.035,         # most the landing compensation may be, m
+    anchor_min_mm=4.0,    # a separation error smaller than this is noise ...
+    anchor_max_mm=45.0,   # ... and larger than this is not a landing miss: neither is acted on
+    notify_after_s=45.0,  # still fallen this long after a fall: run notify_cmd, once
+    fall_wait_s=1200.0,   # the most it waits for the robot to be picked up and homed, s
+    notify_cmd=["/home/claw/.hermes/scripts/ask-aime.sh",
+                "ROBOT PING: the biped fell over at {hhmm} and has not been picked up. It is limp and safe; when you stand it "
+                "upright it homes itself after 1 s. (Tom asked for this ping: please DM him this text on Mattermost and "
+                "reply 'sent'.)"],     # {hhmm} = local time of the fall; [] = never notify
+    lat_ff={"L": 0.0, "R": 0.0},      # learned: lateral offset (m, + = left) added to where each foot is commanded to land
 )
 
 
@@ -104,6 +124,7 @@ class Run:
         self.t0 = time.monotonic()
         self.off = {"L": self.k.model_offset("L"), "R": self.k.model_offset("R")}
         self.feet = {"L": [0.0, 0.0, 0.0], "R": [0.0, 0.0, 0.0]}     # each sole's offset from its stand
+        self.ycmd = {"L": 0.0, "R": 0.0}      # added to feet[side][1] in the pose sent: the landing compensation in force
         self.pel = [0.0, 0.0]                                         # pelvis offset (fwd, shift)
         self.hike = {"L": 0.0, "R": 0.0}                              # hip-roll trim, deg, of the leg it stands on
         self.ref0 = None                                              # the level crouch
@@ -114,6 +135,13 @@ class Run:
         self.board = board
         self.latest = self.base + "_latest.jpg"                       # the newest front-camera frame (board mode)
         self.n_look = 0
+        self.board_w = []                     # board widths (mm) measured so far, for board_view's scale
+        self.taper = []                       # and how fast its edges converge, for an edge it cannot see
+        self.f_sep = None                     # first look: scales the separation to the nominal one
+        self.last_landed = None               # the foot whose landing the next look judges
+        self.stop_why = None
+        self.out = []
+        self.t_fall = ""
         if video:
             env = dict(os.environ, INPUT_FORMAT="mjpeg", SIZE="1920x1080")
             self.video.append(subprocess.Popen(["tools/cam_record.sh", "/dev/video0", self.base + "_emeet", str(video), "emeet"],
@@ -139,9 +167,18 @@ class Run:
             print(f"[{time.monotonic() - self.t0:6.1f}]", *a, flush=True)
 
     # -- motion -----------------------------------------------------------
+    # self.feet[side][1] is where the foot is BELIEVED to stand (what the steering and the separation check
+    # use); the pose sent has self.ycmd[side] added: the landing compensation, so the foot lands where it
+    # was aimed. The pelvis is placed from the sent y (fy): its geometry to the stance sole is the model's.
+    def fy(self, side):
+        return self.feet[side][1] + self.ycmd[side]
+
+    def cmd(self, side):
+        return (self.feet[side][0], self.fy(side), self.feet[side][2])
+
     def go(self, ms, tag):
         try:
-            q = self.k.pose(shift=self.pel[1], fwd=self.pel[0], footL=self.feet["L"], footR=self.feet["R"],
+            q = self.k.pose(shift=self.pel[1], fwd=self.pel[0], footL=self.cmd("L"), footR=self.cmd("R"),
                             drop=self.p["drop"], hike={k: math.radians(v) for k, v in self.hike.items()})
         except ValueError as e:
             raise Abort(f"{tag}: {e}")
@@ -200,7 +237,7 @@ class Run:
         swing = "R" if stance == "L" else "L"
         ox, oy = self.off[stance]
         fwd = P["fwd_w"] * self.feet[stance][0] + (1 - P["fwd_w"]) * self.feet[swing][0] + ox
-        return [fwd, self.feet[stance][1] + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
+        return [fwd, self.fy(stance) + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
 
     def move_pel(self, to, tag):
         """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down."""
@@ -278,7 +315,7 @@ class Run:
         P = self.p
         stance = "L" if swing == "R" else "R"
         oy = self.off[stance][1]
-        yst = self.feet[stance][1]                          # the shift is measured from the stance sole
+        yst = self.fy(stance)                                # the shift is measured from the stance sole
         h = self.feet[swing][2]
         pitch_s = self.lean(self.ref)[1]
         t = time.monotonic()
@@ -312,7 +349,7 @@ class Run:
         n = 1 if fast else max(1, math.ceil(h0 / P["lower_step"]))
         if fast:
             stance = "L" if swing == "R" else "R"
-            yst = self.feet[stance][1]
+            yst = self.fy(stance)
             self.pel[1] = yst + 0.7 * (self.pel[1] - yst)          # back toward the middle, measured from the stance sole
             self.hike = {"L": 0.0, "R": 0.0}
         for i in range(1, n + 1):
@@ -336,22 +373,26 @@ class Run:
             hike = self.hike[stance]
             self.log("lift", swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
             if how == "up":
-                dy = 0.0 if y_to is None else y_to - self.feet[swing][1]
+                dy = 0.0
+                if y_to is not None:
+                    dy = (y_to + P["lat_ff"][swing]) - self.fy(swing)        # aim past the target by what this foot misses
+                if y_to is not None:
+                    self.feet[swing][1] = y_to
+                    self.ycmd[swing] = P["lat_ff"][swing]
                 if dx or abs(dy) > 1e-9:
                     self.feet[swing][0] += dx
-                    if y_to is not None:
-                        self.feet[swing][1] = y_to
                     self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
                 how = self.balance(swing, hold)
             if how == "up":
                 hike = self.hike[stance]
-                k = abs((self.pel[1] - self.feet[stance][1]) / self.off[stance][1])              # remember what this side took
+                k = abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])              # remember what this side took
                 self.say(f"  up: {swing} at {1e3 * h:.0f} mm, hip trim {hike:.1f}, shift x{k:.2f}")
                 a = 0.5 if P["h_up"][stance] else 1.0
                 P["h_up"][stance] = round((1 - a) * P["h_up"][stance] + a * h, 4)
                 P["hike"][stance] = round((1 - a) * P["hike"][stance] + a * hike, 2)
                 P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], k)), 3)
                 self.lower_foot(swing)
+                self.last_landed = swing                                    # judged at the next look, both feet down
                 return how, h
             # not up: put it down and correct the shift for this stance side
             self.lower_foot(swing, fast=(how == "tipping_out"))
@@ -361,53 +402,118 @@ class Run:
         return "gave_up", 0.0
 
     # -- the board ----------------------------------------------------------
+    def _next_frame(self, after, tmax):
+        """The next front-camera frame written after `after` (file mtime) and younger than 0.6 s:
+        (image, mtime), or None if none comes within tmax s."""
+        import cv2
+        t = time.monotonic()
+        while True:
+            try:
+                mt = os.path.getmtime(self.latest)
+                if mt > after and time.time() - mt < 0.6:
+                    im = cv2.imread(self.latest)
+                    if im is not None:
+                        return im, mt
+            except OSError:
+                pass
+            if time.monotonic() - t > tmax:
+                return None
+            time.sleep(0.03)
+
     def look(self, tag):
-        """Measure the margins to the board's edge from the newest front-camera frame (board_view). Waits up
-        to 1.5 s for a frame younger than 0.6 s. Returns the dict, or None; never raises."""
+        """Measure the margins to the board's edge: the median of 3 fresh front-camera frames (board_view),
+        ignoring any below board_conf_min; at least 2 must be good. Returns the dict (the median of every
+        number), or None. The annotated middle frame is saved. Never raises."""
+        import statistics
         self.n_look += 1
-        m, why = None, "no frame"
+        P = self.p
+        res, mid, why, after = [], None, "no frame", 0.0
         try:
-            t = time.monotonic()
-            while True:
-                try:
-                    age = time.time() - os.path.getmtime(self.latest)
-                except OSError:
-                    age = None
-                if age is not None and age < 0.6:
+            import board_view
+            for i in range(3):
+                got = self._next_frame(after, 1.5)
+                if got is None:
                     break
-                if time.monotonic() - t > 1.5:
-                    break
-                time.sleep(0.1)
-            if age is None or age >= 0.6:
-                why = "no frame" if age is None else f"frame {age:.1f} s old"
-            else:
-                import cv2
-                import board_view
-                im = cv2.imread(self.latest)
-                if im is None:
-                    why = "unreadable frame"
-                else:
-                    m = board_view.margins(im)
+                im, after = got
+                m = board_view.margins(im, self.bw(), self.tp())
+                if i == 1 or mid is None:
+                    mid = (im, m)
+                if m is None:
                     why = "board not seen"
-                    cv2.imwrite(f"{self.base}_board_{self.n_look:02d}.jpg", board_view.draw(im, m))
+                elif m["conf"] < P["board_conf_min"]:
+                    why = f"low confidence {m['conf']:.2f}"
+                else:
+                    res.append(m)
+            if mid is not None:
+                import cv2
+                cv2.imwrite(f"{self.base}_board_{self.n_look:02d}.jpg", board_view.draw(*mid))
         except Exception as e:                      # looking must never stop the robot's own control
-            m, why = None, f"look failed: {e!r}"
-        if m is None:
-            self.log("board", tag=tag, seen=False, why=why)
+            res, why = [], f"look failed: {e!r}"
+        if len(res) < 2:
+            self.log("board", tag=tag, seen=False, why=why, good=len(res))
             self.say(f"  board {tag}: not seen ({why})")
             return None
-        self.log("board", tag=tag, seen=True, right_mm=round(m["right_mm"], 1), left_mm=round(m["left_mm"], 1),
-                 ahead_px=m["ahead_px"], mm_per_px=round(m["mm_per_px"], 3), sep_mm=round(m["sep_mm"], 1))
-        self.say(f"  board {tag}: right {m['right_mm']:.0f} mm  left {m['left_mm']:.0f} mm  ahead {m['ahead_px']} px")
+        keys = ("right_mm", "left_mm", "sole_r_mm", "sole_l_mm", "sep_mm", "mm_per_px", "conf", "board_px")
+        m = {k: statistics.median(r[k] for r in res) for k in keys}
+        m["ahead_px"] = int(statistics.median(r["ahead_px"] for r in res))
+        ws = [r["board_w_mm"] for r in res if r.get("board_w_mm")]
+        self.taper = (self.taper + [r["taper"] for r in res if r.get("taper") is not None])[-9:]
+        if ws:
+            self.board_w = (self.board_w + [statistics.median(ws)])[-5:]
+        if self.f_sep is None and P["sep_nominal_mm"] * 0.85 < m["sep_mm"] < P["sep_nominal_mm"] * 1.15:
+            # the first look is the crouch, feet at their nominal separation: calibrate the scale on it
+            self.f_sep = P["sep_nominal_mm"] / m["sep_mm"]
+            self.board_w = [self.f_sep * statistics.median(ws)] if ws else []
+            for k in ("right_mm", "left_mm", "sole_r_mm", "sole_l_mm", "sep_mm"):
+                m[k] *= self.f_sep
+            self.log("board_scale", f_sep=round(self.f_sep, 4), board_w_mm=self.board_w[0] if ws else None)
+        self.log("board", tag=tag, seen=True, n=len(res), right_mm=round(m["right_mm"], 1), left_mm=round(m["left_mm"], 1),
+                 sep_mm=round(m["sep_mm"], 1), sole_r_mm=round(m["sole_r_mm"], 1), sole_l_mm=round(m["sole_l_mm"], 1),
+                 ahead_px=m["ahead_px"], conf=round(m["conf"], 2))
+        self.say(f"  board {tag}: right {m['right_mm']:.0f} mm  left {m['left_mm']:.0f} mm  sep {m['sep_mm']:.0f} mm  "
+                 f"ahead {m['ahead_px']} px  conf {m['conf']:.2f}")
         return m
+
+    def bw(self):
+        """The board's width (mm) learned from earlier frames, for board_view's scale; None before there is one."""
+        import statistics
+        return statistics.median(self.board_w) if self.board_w else None
+
+    def tp(self):
+        import statistics
+        return statistics.median(self.taper) if self.taper else None
+
+    def anchor(self, m):
+        """Both feet are down and `m` is a trustworthy look: compare the measured separation of the soles with
+        the believed one. A miss of 4..45 mm is put down to the foot that landed last: its believed y is moved
+        outward by it (the pose sent does not change), and lat_ff moves inward by ff_gain of it, so the next
+        landing of that foot aims short by that much. Returns the error e in mm (+ = wider than believed)."""
+        P = self.p
+        f = self.last_landed
+        self.last_landed = None
+        e = m["sep_mm"] - (P["sep_nominal_mm"] + 1e3 * (self.feet["L"][1] - self.feet["R"][1]))
+        if f is None or not P["anchor_min_mm"] < abs(e) < P["anchor_max_mm"]:
+            self.log("anchor", foot=f, e_mm=round(e, 1), acted=False)
+            return e
+        out = 1.0 if f == "L" else -1.0                          # outward: +y for the left foot, -y for the right
+        self.feet[f][1] += out * 1e-3 * e
+        self.ycmd[f] -= out * 1e-3 * e                           # the pose sent stays put
+        old = P["lat_ff"][f]
+        P["lat_ff"][f] = round(max(-P["ff_lim"], min(P["ff_lim"], old - out * P["ff_gain"] * 1e-3 * e)), 5)
+        self.log("anchor", foot=f, e_mm=round(e, 1), acted=True, y=round(self.feet[f][1], 5), lat_ff_old=old, lat_ff=P["lat_ff"][f])
+        self.say(f"  {f} landed {e:+.0f} mm wider than aimed: now believed at {1e3 * self.feet[f][1]:+.0f} mm, "
+                 f"landing compensation {1e3 * P['lat_ff'][f]:+.1f} mm")
+        return e
 
     def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
         """The step loop of `walk` and `march`. Returns the list of (side, how, h). dy: sidestep m per pair
-        (+ left). board: look before every step, stop at the edge, steer toward the middle. The lateral
-        target `lat` only ever grows before the LEFT foot swings and shrinks before the RIGHT foot swings,
-        so the stance is never narrowed. self.stop_why says why a board walk ended early."""
+        (+ left). board: look before every step, learn where the last foot really landed, stop at the edge,
+        steer toward the middle. The swing foot is aimed at the stance foot's believed y plus `step_out`, the
+        sidestep and steering share that moves it OUTWARD (left foot +, right foot -); a move that would
+        narrow the stance is dropped, so the feet come back to the nominal separation instead.
+        self.stop_why says why a board walk ended early."""
         P = self.p
-        out, lat, misses = [], 0.0, 0
+        out, misses = [], 0
         self.out = out                                   # kept for the caller if a fall cuts the loop short
         self.stop_why = None
         for i in range(steps):
@@ -423,6 +529,7 @@ class Run:
                 elif m["ahead_px"] < P["board_ahead_px"]:
                     self.stop_why = f"the board ends {m['ahead_px']} px ahead"
                 else:
+                    self.anchor(m)
                     e = 0.5 * (m["left_mm"] - m["right_mm"])            # + = more room on the left: move left
                     if abs(e) > P["board_dead_mm"]:
                         corr = 1e-3 * max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
@@ -430,22 +537,23 @@ class Run:
                     self.log("board_stop", why=self.stop_why)
                     print(f"-- stopping: {self.stop_why}", flush=True)
                     break
-            # the never-narrow rule: a leftward move is made by the LEFT foot stepping out, a rightward by the RIGHT
-            for d in (dy, corr):
+            stance = "R" if side == "L" else "L"
+            step_out = 0.0
+            for d in (dy, corr):                         # outward only: left foot to the left, right foot to the right
                 if (d > 0 and side == "L") or (d < 0 and side == "R"):
-                    lat += d
+                    step_out += d
             if board and corr:
-                self.say(f"  steer {1e3 * corr:+.0f} mm -> lateral target {1e3 * lat:+.0f} mm"
-                         + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
+                self.say(f"  steer {1e3 * corr:+.0f} mm" + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
             out.append((side,) + self.lift(side, hold=0.2 if not march else hold,
-                                           dx=0.0 if march else dx * (1 if i == 0 else 2), y_to=lat))
+                                           dx=0.0 if march else dx * (1 if i == 0 else 2),
+                                           y_to=self.feet[stance][1] + step_out))
             if out[-1][1] == "gave_up":
                 break
-            side = "R" if side == "L" else "L"
+            side = stance
         return out
 
     def centre(self):
-        mid = [0.5 * (self.feet["L"][i] + self.feet["R"][i]) for i in (0, 1)]
+        mid = [0.5 * (self.feet["L"][0] + self.feet["R"][0]), 0.5 * (self.fy("L") + self.fy("R"))]
         return self.move_pel(mid, "centre")
 
     def finish(self, save=True):
@@ -454,10 +562,10 @@ class Run:
                 try:
                     self.feet["L"][2] = self.feet["R"][2] = 0.0
                     self.centre()
-                    split = max(abs(self.feet["L"][i] - self.feet["R"][i]) for i in (0, 1)) > 1e-3   # straight legs cannot span a stride or a width change
+                    split = max(abs(self.feet["L"][0] - self.feet["R"][0]), abs(self.fy("L") - self.fy("R"))) > 1e-3   # straight legs cannot span a stride or a width change
                     self.r.pose(self.k.pose(straight=not split, drop=0.008 if split else None, fwd=self.pel[0], shift=self.pel[1],
-                                            footL=(self.feet["L"][0], self.feet["L"][1], 0),
-                                            footR=(self.feet["R"][0], self.feet["R"][1], 0)), 2500)
+                                            footL=(self.feet["L"][0], self.fy("L"), 0),
+                                            footR=(self.feet["R"][0], self.fy("R"), 0)), 2500)
                     time.sleep(0.5)
                 except self.Fallen as e:
                     self.fallen(e)
@@ -473,14 +581,26 @@ class Run:
                 v.wait()
             self.f.close()
 
+    def notify(self):
+        """Run notify_cmd (once, in the background); a failure to start it is logged, never raised."""
+        cmd = [c.format(hhmm=self.t_fall) for c in self.p["notify_cmd"]]
+        if not cmd:
+            return
+        try:
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.log("notify", cmd=cmd[0], hhmm=self.t_fall)
+        except Exception as e:
+            self.log("notify", err=repr(e))
+
     def fallen(self, e):
-        """It is down. Send nothing that moves; the firmware is limp and homes itself once picked up."""
+        """It is down. Send nothing that moves; the firmware is limp and does the homing itself once it is picked up."""
         self.fell = True
+        self.t_fall = time.strftime("%H:%M")
         self.log("fallen", err=str(e), pel=list(self.pel), hike=self.hike, feet=self.feet)
-        print(f"!! FELL: {e}\n!! nothing more is sent. Pick it up: it is homed once upright and still for 1 s.", flush=True)
-        ok = self.r.wait_recovered()
+        print(f"!! FELL: {e}\n!! nothing more is sent. Pick it up: the firmware homes it once it is within 25 deg of upright and still (< 1.0 rad/s) for 1 s.", flush=True)
+        ok = self.r.wait_recovered(self.p["fall_wait_s"], after=(self.p["notify_after_s"], self.notify))
         self.log("recovered", ok=ok)
-        print("!! picked up and homed" if ok else "!! still down after 5 min", flush=True)
+        print("!! picked up and homed by the firmware" if ok else "!! still down after 5 min", flush=True)
 
 
 def main(argv=None, make_robot=None, log_dir=None):
@@ -494,6 +614,7 @@ def main(argv=None, make_robot=None, log_dir=None):
     ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
     ap.add_argument("--video", type=int, default=0, metavar="SECS", help="record both cameras for SECS")
+    ap.add_argument("--no-notify", action="store_true", help="after a fall, do not ping the owner via Aime")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL")
     ap.add_argument("--host", default="192.168.2.90")
     a = ap.parse_args(argv)
@@ -505,6 +626,8 @@ def main(argv=None, make_robot=None, log_dir=None):
     for kv in a.set:
         k, v = kv.split("=", 1)
         prm[k] = json.loads(v)
+    if a.no_notify:
+        prm["notify_cmd"] = []
 
     from kin import Kin
     from robot_io import Fallen, Robot
