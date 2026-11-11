@@ -17,11 +17,17 @@
 # place, untouched, as history.
 set -uo pipefail
 
-REPO=$HOME/code/robot
-NIGHT=$HOME/code/robot-mjx/night
-SRC=$HOME/code/robot-mjx/sim/runs
-PY="$REPO/.venv/bin/python"
-LOG="$REPO/sim/runs/night_collect.log"
+# Every path is overridable (NIGHT_DIR, COLLECT_REPO, COLLECT_SRC, COLLECT_LOG,
+# COLLECT_PY) so the tests can run a fake night in a throwaway directory.
+REPO=${COLLECT_REPO:-$HOME/code/robot}
+NIGHT=${NIGHT_DIR:-$HOME/code/robot-mjx/night}
+SRC=${COLLECT_SRC:-$HOME/code/robot-mjx/sim/runs}
+PY=${COLLECT_PY:-$REPO/.venv/bin/python}
+LOG=${COLLECT_LOG:-$REPO/sim/runs/night_collect.log}
+# runs collected at once. The referee + render of one run is ~3.5 min on ONE
+# core; the box has 32 (2026-11-11: 31 runs serially took until 10:00, so the
+# planner could not start before then).
+JOBS=${COLLECT_JOBS:-6}
 
 # MuJoCo's renderer needs an OpenGL context. Under cron there is no DISPLAY,
 # so the default GLFW/X11 backend dies with "an OpenGL platform library has
@@ -33,6 +39,13 @@ LOG="$REPO/sim/runs/night_collect.log"
 export MUJOCO_GL=egl
 
 mkdir -p "$REPO/sim/runs"
+# one collector at a time: the runner starts one when its loop ends, and the
+# 07:15 cron is a safety net that must be a no-op when that already ran
+exec 7>"$NIGHT/.collect.lock"
+if ! flock -n 7; then
+  echo "=== $(date) night_collect_local: another collector holds the lock; exiting ===" >> "$LOG"
+  exit 0
+fi
 exec >> "$LOG" 2>&1
 echo "=== $(date) night_collect_local ==="
 # the referee loads what the run trained against (a --rise-ref npz, a plant)
@@ -48,6 +61,7 @@ echo "=== $(date) night_collect_local ==="
 # session (infra/night/claude_fix.sh, installed in $NIGHT) and the step is
 # retried once after it exits
 fix() { "$NIGHT/claude_fix.sh" "$@"; }
+RLOG=$LOG    # the log a fixer is shown; collect_one points it at the run's own
 
 sync_referee() {   # 0 = $REPO is at origin/main
   git -C "$REPO" fetch -q origin main
@@ -98,10 +112,10 @@ collect_one() {   # $1 = state file, $2 = OUT name
       eval_precision.py --run-name "$OUT" --render ); }
   if referee; then
     echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy]"
-  elif fix "referee-$OUT" "$LOG" 45 <<EOF && referee; then
+  elif fix "referee-$OUT" "$RLOG" 45 <<EOF && referee; then
 The morning referee failed for $OUT: in $REPO/sim/mjx,
 \`JAX_PLATFORMS=cpu $PY eval_precision.py --run-name $OUT --render\` exited
-non-zero (its output is at the end of $LOG). The run dir is
+non-zero (its output is at the end of $RLOG). The run dir is
 $REPO/sim/runs/$OUT. Fix the cause in the referee or the code (a bug: fix it
 on main with tests; a run that is genuinely broken: say so). The collector
 re-runs this exact command once after you exit.
@@ -125,13 +139,14 @@ EOF
   fi
 }
 
-found=0
+# the runs to collect, in a stable order: every state.done.*, then (below) an
+# interrupted run
+ITEMS_ST=(); ITEMS_OUT=()
 for ST in "$NIGHT"/state.done.*; do
   [[ -e "$ST" ]] || continue
   OUT=$(sed -n 's/^OUT=//p' "$ST" | head -1)
   [[ -n "$OUT" ]] || { echo "!!! $ST has no OUT; skipping"; continue; }
-  found=1
-  collect_one "$ST" "$OUT"
+  ITEMS_ST+=("$ST"); ITEMS_OUT+=("$OUT")
 done
 
 # The 07:00 hard stop SIGTERMs a still-running job, which leaves a plain
@@ -143,10 +158,50 @@ if [[ -f "$NIGHT/state" ]]; then
   OUT=$(sed -n 's/^OUT=//p' "$NIGHT/state" | head -1)
   if [[ -n "$OUT" ]] && { [[ -z "$PID" ]] || ! kill -0 "$PID" 2>/dev/null; }; then
     echo "--- $OUT was interrupted (pid $PID gone); collecting its last checkpoint"
-    found=1
-    collect_one "$NIGHT/state" "$OUT"
+    ITEMS_ST+=("$NIGHT/state"); ITEMS_OUT+=("$OUT")
   fi
 fi
 
-(( found )) || echo "no completed runs to collect; queue: $(ls "$NIGHT/queue" 2>/dev/null | grep -v '^done$\|^held$' | tr '\n' ' ')"
+# Run them COLLECT_JOBS at a time. Each run writes its own log; the logs are
+# appended to $LOG in the list order as soon as every earlier run has been
+# appended, so a run's output stays together and the order is stable.
+N_ITEMS=${#ITEMS_ST[@]}
+RUNLOGS=$(mktemp -d "$NIGHT/.collect.XXXXXX")
+next_flush=0
+flush_done() {   # append the finished prefix of the per-run logs
+  while (( next_flush < N_ITEMS )) && [[ -e "$RUNLOGS/$next_flush.fin" ]]; do
+    cat "$RUNLOGS/$next_flush.log"
+    next_flush=$((next_flush + 1))
+  done
+}
+running=0
+for (( i = 0; i < N_ITEMS; i++ )); do
+  while (( running >= JOBS )); do
+    wait -n; running=$((running - 1)); flush_done
+  done
+  (
+    exec 7>&-      # the collect lock stays with the parent
+    RLOG=$RUNLOGS/$i.log
+    collect_one "${ITEMS_ST[i]}" "${ITEMS_OUT[i]}" > "$RLOG" 2>&1
+    touch "$RUNLOGS/$i.fin"
+  ) &
+  running=$((running + 1))
+done
+wait
+flush_done
+rm -rf "$RUNLOGS"
+
+(( N_ITEMS )) || echo "no completed runs to collect; queue: $(ls "$NIGHT/queue" 2>/dev/null | grep -v '^done$\|^held$' | tr '\n' ' ')"
 echo "=== $(date) done ==="
+
+# The night's work is collected: if this finished in the small hours, start the
+# planner now rather than at its cron time (plan_morning.sh is idempotent and
+# waits for the runner, so a second trigger is harmless). Detached, and the
+# collect lock is released first, so the planner does not see this collector as
+# still running.
+HM=$(date +%H%M)
+if (( 10#$HM < 730 )) && [[ -x "$NIGHT/plan_morning.sh" ]]; then
+  exec 7>&-      # free the collect lock first: the planner's first check is immediate
+  setsid nohup "$NIGHT/plan_morning.sh" > /dev/null 2>&1 < /dev/null &
+  echo "started plan_morning.sh (finished at ${HM:0:2}:${HM:2})"
+fi

@@ -1,0 +1,325 @@
+#!/usr/bin/env bash
+# DAYTIME copy of night_run.sh (Tom 2026-11-10: "you may use the GPU as needed" to get a robot test this afternoon).
+# Same runner; only the window is DAY_START_BY / DAY_END_BY. Not in cron.
+# Nightly training-window runner (cron 22:00, ON MIRA). Processes the job
+# QUEUE at night/queue/* in sorted order -- multiple runs per night,
+# sequentially. POLICY (user, 2026-07-20): training happens at NIGHT ONLY;
+# days are reserved for the user's other work on this box (and we're
+# waiting on printed parts anyway).
+# Window: starts 22:00; no new job starts after 05:00; hard stop 07:00
+# (night_stop.sh cron). Never evicts ACTIVE ollama inference; unloads IDLE
+# resident models after ~10 min of 0% GPU (they auto-reload on demand).
+# One-shot semantics: a job file moves to queue/done/ at LAUNCH, so an
+# 07:00-interrupted job does not re-run the next night (its checkpoint is
+# collectible either way).
+set -uo pipefail
+# queue order is `ls | sort`: pin the C locale. en_US collation ignores '-', so a
+# hand-started runner (2026-11-05) ordered 11052000021-x before 1105200002-y
+# while cron's C locale orders it after
+export LC_ALL=C
+BASE="$HOME/code/robot-mjx"
+N="$BASE/night"
+exec >> "$N/night.log" 2>&1
+# single-instance guard: an early manual start (user 2026-07-23 "start the
+# simulations now") must not collide with the 22:00 cron firing a second
+# runner over the same queue
+exec 9>"$N/.runner.lock"
+if ! flock -n 9; then
+  echo "=== $(date) night_run: another runner holds the lock; exiting ==="
+  exit 0
+fi
+echo "=== $(date) night_run ==="
+PY="$BASE/.venv/bin/python"
+[[ -x "$PY" ]] || { echo "!!! no venv python at $PY"; exit 1; }
+
+# $BASE is a git clone (converted 2026-07-31 after the stale-plant
+# incident: rsync's hand-curated file list silently missed the v3yaw XML
+# for two days). Every job trains on a freshly pulled committed tree; a
+# queue file's optional BRANCH= line selects a branch for one-off
+# experiments (default main). This runner copy lives OUTSIDE the tree
+# (night/ is untracked) so a reset can never rewrite it mid-run.
+fix() {   # STEP LOG TIMEOUT_MIN <<< detail -> 0 if a Claude session fixed it
+  "$N/claude_fix.sh" "$@"
+}
+sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
+  # Tom 2026-11-05: "Always check to make sure we have the latest from github
+  # before starting a training run." Retry the fetch (a blip must not train a
+  # night on stale code), verify HEAD == the fetched tip, and record the
+  # outcome in SYNC (ok|STALE) -> the job's state file -> the morning card.
+  local BR=$1 TRY TIP
+  SYNC=STALE
+  for TRY in 1 2 3; do
+    if git -C "$BASE" fetch -q --filter=blob:none origin "$BR"; then
+      TIP=$(git -C "$BASE" rev-parse FETCH_HEAD)
+      git -C "$BASE" reset -q --hard "$TIP"
+      if [[ $(git -C "$BASE" rev-parse HEAD) == "$TIP" ]]; then
+        SYNC=ok
+        echo "$(date +%H:%M) repo @ $BR $(git -C "$BASE" rev-parse --short HEAD) (origin tip, verified)"
+        return 0
+      fi
+    fi
+    echo "$(date +%H:%M) !!! fetch/reset of $BR failed (try $TRY/3)"
+    (( TRY < 3 )) && sleep $((TRY * 60))
+  done
+  # fix-and-continue (Tom 2026-11-05): a headless Claude session gets the
+  # failure, then one more try
+  if [[ -z ${IN_FIX_RETRY:-} ]] && fix "sync-$BR" "$N/night.log" 20 <<EOF
+night_run.sh could not fetch origin/$BR into the training clone $BASE (3 tries)
+or could not reset it to the fetched tip. The runner retries sync_repo once
+after you exit and then launches the next queued job on whatever tree it has.
+EOF
+  then
+    IN_FIX_RETRY=1 sync_repo "$BR"; return
+  fi
+  echo "$(date +%H:%M) !!! SYNC=STALE: could not confirm origin/$BR; training on" \
+       "$(git -C "$BASE" rev-parse --short HEAD) -- the morning planner must flag every card from this job"
+}
+sync_repo main
+mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
+# Tom 2026-10-23: "Make sure to always test these jobs before spending all
+# night on them." Pre-flight the queue BEFORE the first launch (and before
+# pausing the vision queue): parses every job like this runner does, checks
+# --out uniqueness/checkpoints/--rise-ref npz, and constructs the CPU env with
+# the recipe's env_kw (constructor catches plant/servo/hold contract bugs --
+# the class that burned night 2, 2026-10-22 -- at 22:00, not 07:00).
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  if ! NO_NOTIFY= python3 "$N/preflight.sh.py" \
+     && ! { fix preflight "$N/preflight.log" 30 <<EOF
+night/preflight.sh.py FAILED on tonight's queue ($N/queue), so no job can launch.
+Its report is $N/preflight.log. Fix the job files (or the code they need) so
+that pre-flight passes; the runner re-runs pre-flight once after you exit.
+EOF
+            NO_NOTIFY= python3 "$N/preflight.sh.py"; }; then
+    echo "$(date +%H:%M) !!! pre-flight FAILED; refusing to launch the queue" \
+         "(fix the jobs or move them to queue/held/). DM notify is OFF (Tom 2026-11-02);"
+    if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
+      "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+        "Night pre-flight FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/preflight.log; jobs are still queued but the runner refuses to burn the night on them." \
+        || true
+    fi
+    "$N/vision_pause.sh" resume 2>/dev/null || true
+    exit 1
+  fi
+fi
+# Tom 2026-10-07: pause the camera classifier (the vision queue) while training
+# runs; resumed when the queue is done (below) and by night_stop.sh at 07:00.
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  "$N/vision_pause.sh" pause
+fi
+# legacy single-args file becomes the first queue item
+[[ -f "$N/args" ]] && mv "$N/args" "$N/queue/00-legacy"
+
+START_DEADLINE=$(date -d "${DAY_START_BY:-05:00}" +%s)
+(( START_DEADLINE <= $(date +%s) )) && START_DEADLINE=$((START_DEADLINE + 86400))
+END_HARD=$(date -d "${DAY_END_BY:-07:00}" +%s)
+(( END_HARD <= $(date +%s) )) && END_HARD=$((END_HARD + 86400))
+
+
+restore_ollama() {
+  # A model that ollama loads WHILE training holds the GPU falls back to
+  # CPU inference and STAYS there after the GPU frees (ollama never
+  # migrates a loaded model) -- the user's LLM then "takes forever" until
+  # something forces a reload. Fix (user problem report 2026-07-21):
+  # detect models not fully resident in VRAM, unload them, and re-warm --
+  # the reload lands on the freed GPU. No service restart needed.
+  local STRANDED M
+  STRANDED=$(curl -s -m 10 localhost:11434/api/ps | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for m in d.get('models', []):
+    if m.get('size_vram', 0) < m.get('size', 1):
+        print(m['name'])
+" 2>/dev/null)
+  for M in $STRANDED; do
+    echo "$(date +%H:%M) migrating CPU-stranded ollama model $M back to GPU"
+    ollama stop "$M" 2>/dev/null || true
+    curl -s -m 300 localhost:11434/api/generate -d "{\"model\":\"$M\"}" \
+      >/dev/null 2>&1 || true
+  done
+}
+
+wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
+  local IDLE_STREAK=0 LINE UTIL USED TOTAL FREE M
+  while :; do
+    LINE=$(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total \
+           --format=csv,noheader,nounits | head -1 | tr -d ',')
+    read -r UTIL USED TOTAL <<<"$LINE"
+    FREE=$((TOTAL - USED))
+    # FREE gate 11500 not 10000: two v8 launches OOM'd (cuSolver) racing
+    # ollama's migrate-back at ~10.5 GB free (2026-07-30)
+    if (( UTIL < 20 && FREE >= 11500 )); then
+      echo "$(date +%H:%M) gpu free (util=${UTIL}% free=${FREE}MiB)"
+      return 0
+    fi
+    (( $(date +%s) > START_DEADLINE )) && return 1
+    if (( UTIL < 5 )); then IDLE_STREAK=$((IDLE_STREAK + 1)); else IDLE_STREAK=0; fi
+    if (( IDLE_STREAK >= 2 )); then
+      while read -r M; do
+        [[ -n "$M" ]] || continue
+        echo "$(date +%H:%M) unloading idle ollama model $M (auto-reloads on demand)"
+        ollama stop "$M" 2>/dev/null || true
+      done < <(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
+      IDLE_STREAK=0
+      # recheck fast: a 30 s sleep here lost the race to a 3am vision
+      # workload reloading llama3.2-vision onto the freed GPU (2026-07-30)
+      sleep 5
+      continue
+    fi
+    # idle but memory held (an ollama model resident, e.g. Honcho's deriver
+    # between requests): recheck in 30 s, so the unload above comes after ~1 min,
+    # not 20 (2026-11-05 day run: every job lost 20 min this way)
+    if (( UTIL < 5 )); then sleep 30; continue; fi
+    echo "$(date +%H:%M) gpu busy (util=${UTIL}% free=${FREE}MiB); retry in 10 m"
+    sleep 600
+  done
+}
+
+# re-scan the queue after every job (not a startup snapshot): jobs armed
+# while an earlier run trains are picked up the same night (2026-07-31)
+while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -n "$JOB" ]]; do
+  JF="$N/queue/$JOB"
+  [[ -f "$JF" ]] || break   # vanished mid-scan; a continue would spin forever
+  if (( $(date +%s) > START_DEADLINE )); then
+    echo "no starts after 05:00; $JOB stays queued for tomorrow"
+    break
+  fi
+  if ! wait_gpu; then
+    echo "gpu never freed before 05:00; $JOB stays queued"
+    break
+  fi
+  BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
+  sync_repo "${BR:-main}"
+  # CMD= jobs: run an arbitrary command from $BASE instead of train_mjx.py
+  # (first need: nightly distill_student.py -- 2026-08-30, after two ad-hoc
+  # launches lost GPU races to ollama's vision reload; ALL gpu work goes
+  # through this loop's wait_gpu from now on). No --steps budget capping;
+  # keep CMD jobs short or put them first in the queue.
+  CMD=$(sed -n 's/^CMD=//p' "$JF" | head -1)
+  if [[ -n "$CMD" ]]; then
+    OUT=$(sed -n 's/^OUT=//p' "$JF" | head -1); OUT=${OUT:-$JOB}
+    mv -f "$JF" "$N/queue/done/$JOB"
+    cd "$BASE"
+    XLA_PYTHON_CLIENT_MEM_FRACTION=0.80 nohup bash -c "$CMD" \
+      > "$BASE/sim/runs/cmd_${OUT}.log" 2>&1 < /dev/null &
+    PID=$!
+    echo "$(date +%H:%M) launched CMD job $JOB pid=$PID"
+    while kill -0 "$PID" 2>/dev/null && (( $(date +%s) < END_HARD - 300 )); do
+      sleep 60
+    done
+    if kill -0 "$PID" 2>/dev/null; then
+      echo "$(date +%H:%M) CMD job $JOB hit the 06:55 guard; killing"
+      kill "$PID" 2>/dev/null
+      continue
+    fi
+    wait "$PID"; RC=$?
+    if (( RC != 0 )); then
+      echo "$(date +%H:%M) !!! CMD job $JOB exited $RC"
+      fix "job-$OUT" "$BASE/sim/runs/cmd_${OUT}.log" 30 <<EOF || true
+The night queue's CMD job $JOB (OUT=$OUT, command: $CMD) exited with status
+$RC after it ran in $BASE. Its job file is in $N/queue/done/$JOB. Find the
+cause and fix it. If the job should run again tonight, re-queue it (copy it back
+to $N/queue/). The runner picks up the queue again as soon as you exit.
+EOF
+    fi
+    continue
+  fi
+  # A queue file can vanish or empty out between selection and here (moved to
+  # held/ by another session -- 2026-09-08 and 2026-09-11 both launched a
+  # DEFAULT-recipe train_mjx run named mjx_cmd_v1 this way). Never launch
+  # with no args: log it, rescan.
+  if [[ ! -f "$JF" ]]; then
+    echo "$(date +%H:%M) $JOB vanished before launch (queue edited under the runner); rescanning"
+    continue
+  fi
+  # comment and blank lines are notes, never args: robot_getup_s1k crashed at
+  # launch (2026-10-12) because its job file's comments reached train_mjx.py
+  ARGS=$(grep -vE '^(BRANCH=|[[:space:]]*#|[[:space:]]*$)' "$JF" | tr '\n' ' ')
+  if [[ -z "${ARGS// /}" ]]; then
+    echo "$(date +%H:%M) $JOB has no args line and no CMD=; moving to done/ unlaunched"
+    mv -f "$JF" "$N/queue/done/$JOB.empty" 2>/dev/null || true
+    continue
+  fi
+  OUT=$(grep -oE '(--out)[= ][^ ]+' <<<"$ARGS" | awk -F'[= ]' '{print $2}')
+  OUT=${OUT:-mjx_cmd_v1}
+  REQ=$(grep -oE '(--steps)[= ][0-9]+' <<<"$ARGS" | grep -oE '[0-9]+$' || true)
+  # steps/s the budget assumes: 17k is the old MJX rate; MuJoCo Warp runs
+  # ~93k (robot_getup_s1k: 525M in 94 min), so at 17k every Warp job started
+  # after ~01:00 was silently cut far below what the window could finish.
+  # 60k keeps a third in hand; the 06:55 guard still bounds a slow run.
+  RATE=17000
+  [[ "$ARGS" == *"--mjx-impl warp"* ]] && RATE=60000
+  BUDGET=$(( (END_HARD - $(date +%s) - 900) * RATE ))
+  if (( BUDGET < 5000000 )); then
+    echo "window too small for $JOB; stays queued"
+    break
+  fi
+  if [[ -n "$REQ" ]] && (( REQ > BUDGET )); then
+    ARGS=${ARGS/--steps $REQ/--steps $BUDGET}
+    echo "capped --steps $REQ -> $BUDGET for $JOB"
+  fi
+  mv -f "$JF" "$N/queue/done/$JOB"      # one-shot: consumed at launch
+  cd "$BASE/sim/mjx"
+  # MuJoCo Warp (--mjx-impl warp) allocates GPU memory outside XLA's pool:
+  # no 90 % preallocation for it (2026-10-07), on-demand allocation instead
+  MEMENV="XLA_PYTHON_CLIENT_MEM_FRACTION=0.90"
+  [[ "$ARGS" == *"--mjx-impl warp"* ]] && MEMENV="XLA_PYTHON_CLIENT_PREALLOCATE=false"
+  env $MEMENV nohup "$PY" train_mjx.py $ARGS \
+    > "$BASE/sim/runs/train.log" 2>&1 < /dev/null &
+  PID=$!
+  { echo "PID=$PID"; echo "OUT=$OUT"; echo "STARTED=$(date +%s)"
+    echo "SHA=$(git -C "$BASE" rev-parse HEAD)"
+    echo "SYNC=${SYNC:-unknown}"
+    echo "BRANCH=${BR:-main}"
+    echo "ARGS=$ARGS"; } > "$N/state"
+  echo "$(date +%H:%M) launched $JOB pid=$PID out=$OUT"
+  # babysit this job until it finishes or the 06:55 guard (night_stop's
+  # 07:00 SIGTERM handles the rest -- checkpoints save at every eval)
+  while kill -0 "$PID" 2>/dev/null && (( $(date +%s) < END_HARD - 300 )); do
+    sleep 120
+  done
+  if kill -0 "$PID" 2>/dev/null; then
+    echo "$(date +%H:%M) $JOB still running at the 06:55 guard; night_stop takes it"
+    break
+  fi
+  wait "$PID"; RC=$?
+  echo "$(date +%H:%M) $JOB finished (exit $RC)"
+  mv -f "$N/state" "$N/state.done.$OUT"
+  if (( RC != 0 )); then
+    RUNMIN=$(( ($(date +%s) - $(sed -n 's/^STARTED=//p' "$N/state.done.$OUT")) / 60 ))
+    cp "$BASE/sim/runs/train.log" "$BASE/sim/runs/train_${OUT}_rc${RC}.log" 2>/dev/null
+    fix "job-$OUT" "$BASE/sim/runs/train_${OUT}_rc${RC}.log" 30 <<EOF || true
+Training job $JOB (--out $OUT, branch ${BR:-main}, sha $(git -C "$BASE" rev-parse --short HEAD))
+exited with status $RC after $RUNMIN min. Its job file is $N/queue/done/$JOB.
+The state is in $N/state.done.$OUT, and the log is
+$BASE/sim/runs/train_${OUT}_rc${RC}.log. Find the cause and fix it. If it crashed
+early and the job is still worth a slot tonight, re-queue it (copy the job file
+back to $N/queue/; rename its --out if a partial run dir would collide). The
+runner picks up the queue again as soon as you exit. The night's start
+deadline is 05:00.
+EOF
+  fi
+  restore_ollama
+done
+"$N/vision_pause.sh" resume
+# leave the tree on main so a branch job never strands the clone
+[[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
+echo "$(date) night_run loop done"
+
+# The night's training is over: collect it NOW rather than at 07:15, so the
+# morning planner is not held up by a long collection (2026-11-11: 31 runs,
+# serial, done at ~10:00). Detached, with its own log, and without this
+# runner's lock (9>&-) so the collector never looks like a running runner.
+# Not while a job is still training (the 05:00..06:55 guard `break` leaves one
+# running until night_stop): the EGL renders would share the GPU with it, and
+# the 07:15 cron collects then.
+CPID=$(sed -n 's/^PID=//p' "$N/state" 2>/dev/null | head -1)
+if [[ -n $CPID ]] && kill -0 "$CPID" 2>/dev/null; then
+  echo "$(date +%H:%M) collector not started: $CPID still training; the 07:15 cron collects"
+elif compgen -G "$N/state.done.*" > /dev/null; then
+  echo "$(date +%H:%M) starting the collector for $(ls "$N"/state.done.* | wc -l) finished run(s)"
+  setsid nohup "${COLLECT_SCRIPT:-$HOME/code/robot/infra/night_collect_local.sh}" \
+    9>&- > /dev/null 2>&1 < /dev/null &
+fi

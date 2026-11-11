@@ -1,7 +1,7 @@
 # Morning planner: the get-up campaign
 
-You were launched headless by `night/plan_morning.sh` (cron 07:30 on mira, as
-claw) after the morning collection. No human is watching. Tom has
+You were launched headless by `night/plan_morning.sh` (cron 05:30/07:30 on mira, or
+started by the collector, as claw) once the night's collection is done. No human is watching. Tom has
 pre-authorized the work below; do it without asking.
 
 ## PROJECT REVIEW 2026-11-10 -- OVERRIDES EVERYTHING BELOW (Tom approved it the same day)
