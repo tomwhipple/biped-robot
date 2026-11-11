@@ -1282,9 +1282,9 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 //  - FALL while armed: ctrl's Detector (Motion::kPolicy, 45 deg / 200 ms) goes
 //    limp and disarms the loop; the fall arrives here through g_armed_falls and
 //    latches THIS Detector, so the recovery below is the same for both.
-//  - PICKED UP: within 10 deg of upright AND |gyro| < 0.35 rad/s for 2 s
-//    continuously (being carried or a moment upright mid-fall does not count),
-//    then `home` runs by itself (2.5 s smooth, play take-up, readback, release)
+//  - PICKED UP: within fallguard::kPickupTiltDeg (25) of upright AND
+//    |gyro| < kPickupGyroRadS (1.0 rad/s) for kPickupHoldMs (1 s) continuously
+//    (a moment upright mid-fall does not count), then `home` runs by itself (2.5 s smooth, play take-up, readback, release)
 //    and the latch clears. It never arms. History: the armed loop's auto-CLEAR
 //    re-armed torque in the operator's hands (2026-08-30/31) and was removed;
 //    this is a slow home that ends released, at Tom's request, and `fall
@@ -1329,7 +1329,7 @@ void fallTickImpl(Sink out) {
             fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
             say(out, "FALL (armed loop): torso tilted %.0f deg -- disarmed, torque OFF\r\n", static_cast<double>(tilt));
             say(out, "  pick it up, hold it upright and still: %s\r\n",
-                s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+                s_fall_autohome ? "it homes itself after 1 s" : "then `home`");
         } else {
             fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
             say(out, "FALL (armed loop) at %.0f deg -- disarmed, torque OFF; bench fall guard is off, no autohome\r\n",
@@ -1354,18 +1354,18 @@ void fallTickImpl(Sink out) {
         fallEvent(fallguard::Motion::kBench, ev, msg);
         say(out, "FALL: torso tilted %.0f deg -- motion stopped, torque OFF. Pick it up and hold it upright "
             "and still: %s\r\n", static_cast<double>(s_fall.fallTiltDeg()),
-            s_fall_autohome ? "it homes itself after 2 s" : "then `home`");
+            s_fall_autohome ? "it homes itself after 1 s" : "then `home`");
         return;
     }
     if (ev != fallguard::Event::kPickedUp || !s_fall_autohome) return;
     const fallguard::Motion m = s_fall.fellIn();
-    out("FALL cleared: upright and still for 2 s -- homing\r\n");
+    out("FALL cleared: upright and still for 1 s -- homing\r\n");
     if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
         out("home did not start -- still FALLEN (`home` to retry)\r\n");
         return;
     }
     s_fall.clear();
-    fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 2 s, autohome started");
+    fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 1 s, autohome started");
 }
 
 // -- flail guard + operator stop, bench half (shared.h g_armed_holds,
@@ -1375,7 +1375,7 @@ void fallTickImpl(Sink out) {
 //    operator stop arrived: ctrl froze every servo where it was, torque ON, and
 //    benched without releasing. This logs why (flight event kFlail), then waits
 //    until the robot is within the flail tilt line (20 deg) and still
-//    (|gyro| < 0.35 rad/s) for 1 s -- standing on its own, or held upright --
+//    (|gyro| < flailguard::kHoldGyroRadS, 0.35 rad/s) for 1 s -- standing on its own, or held upright --
 //    and runs the bench `home` (2.5 s smooth, play take-up, readback, release).
 //    `fall autohome off` (the same switch as the fall pick-up) leaves it held
 //    for a typed `home`. Past the bench fall line (30 deg / 100 ms) the bench
@@ -1498,7 +1498,7 @@ void flailTickImpl(Sink out) {
     const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;
     const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
     const float w = sqrtf(smp.gyro[0] * smp.gyro[0] + smp.gyro[1] * smp.gyro[1] + smp.gyro[2] * smp.gyro[2]);
-    if (!(valid && fallguard::tiltDeg(smp.up) < flailguard::kLimits.tilt_deg && w < fallguard::kPickupGyroRadS)) {
+    if (!(valid && fallguard::tiltDeg(smp.up) < flailguard::kLimits.tilt_deg && w < flailguard::kHoldGyroRadS)) {
         s_hold_cand = false;
         return;
     }

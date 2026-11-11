@@ -570,8 +570,9 @@ longer used on the robot. The bench line is tighter because scripted motion
 never leans on purpose (one-leg stands peak at the 12 deg balance abort).
 
 Recovery is the same whichever path fell: while latched, `pose`/`move` are
-refused; within 10 deg of upright **and** |gyro| < 0.35 rad/s continuously for
-2 s (carried, or upright for a moment mid-tumble, does not count) runs `home`
+refused; within 25 deg of upright **and** |gyro| < 1.0 rad/s continuously for
+1 s (upright for a moment mid-tumble does not count; the line sits below the
+30 deg bench fall line) runs `home`
 by itself (2.5 s smooth, hip play take-up, readback, torque **released**) and
 clears the latch. It never arms. An armed fall reaches the bench guard through
 `g_armed_falls` (ctrl stores the tilt, then bumps the counter; housekeeping

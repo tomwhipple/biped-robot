@@ -95,6 +95,11 @@ struct Limits {
 
 constexpr Limits kLimits = {300u, 1.5f, 0.2f, 20.0f, 200u, 7.0f, 0.1f, kCritAll};
 
+// The bench's hold-then-home (cli.cpp holdTick): after a hold the robot homes once it is
+// within kLimits.tilt_deg of upright with |gyro| below this, for kHoldSettleMs. Its own
+// numbers, not the fall pick-up rule's (fallguard.h kPickup*).
+constexpr float kHoldGyroRadS = 0.35f;
+
 // WalkRecovery's grace window pauses rate / chatter / pose (the stop itself moves the body)
 // but NEVER tilt. 2026-11-06 steps5_03: the robot tipped over inside the grace and lay at
 // ~35 deg -- under the fall guard's 45 -- while the paused guard let the policy drive the
