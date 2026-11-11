@@ -362,6 +362,7 @@ def score(s, r=None, ref=None):
     # not swamp
     rr_abs = np.interp(T, r["t"], np.maximum(np.abs(rr), np.abs(pr)))
     wu = w & (rr_abs < 20.0) & (s["tilt"] < 20.0)
+    sweep = sweep_metrics(log, T, s["roll"], r["t"], rr, t1, t2)
     out = dict(run=s["stamp"], plant=s["plant"], dur=round(t2 - t1, 1),
                roll_rms_up=(float(np.sqrt(np.mean(er[wu] ** 2))) if wu.any() else None),
                up_share=float(wu.sum() / max(w.sum(), 1)),
@@ -393,9 +394,41 @@ def score(s, r=None, ref=None):
         if fr:
             f = fr[-1]["feet"]
             out.update(cmd_L_dx=1e3 * f["L"][0], cmd_L_dy=1e3 * f["L"][1], cmd_R_dx=1e3 * f["R"][0], cmd_R_dy=1e3 * f["R"][1])
+    out.update(sweep)
     trace = dict(T=T, w=w, er=er, ep=ep, rr=rr_i, pr=pr_i, rs=s["roll"] - off_s[0], ps=s["pitch"] - off_s[1],
                  clr=s["clr"], air=air, qs=s["Q"], qr=qi)
     return out, trace
+
+
+def sweep_metrics(log, T, roll_sim, t_rob, roll_rob, t1, t2):
+    """The 2026-11-11 13:05+ sweeps (`sweep` rows): shiftsweep (both feet down, pelvis shift in 6 mm
+    steps, `shift_mm`) and playsweep (one foot up, a triangle sweep of the stance hip-roll trim, then
+    of an ankle-roll trim, `offset_deg`). Per segment (joint + stance), the roll at each row relative
+    to the segment's first row, sim and robot: the slope (deg of body roll per mm or per deg of trim)
+    fitted separately where the swept value is >= 0 and <= 0 (the ankle is one-sided on the robot),
+    and the RMS of sim - robot over the segment's rows. sweep_rms: over every sweep row of the run."""
+    rows = [x for x in log if x["ev"] == "sweep" and t1 <= x["t"] <= t2]
+    if not rows:
+        return {}
+    out, err = {}, []
+    segs = {}
+    for x in rows:
+        segs.setdefault(f"{x['joint']}{('_' + x['stance']) if 'stance' in x else ''}", []).append(x)
+    for k, xs in segs.items():
+        tt = np.array([x["t"] for x in xs])
+        v = np.array([x.get("shift_mm", x.get("offset_deg", np.nan)) for x in xs], float)
+        rs = np.interp(tt, T, roll_sim)
+        rb = np.interp(tt, t_rob, roll_rob)
+        rs, rb = rs - rs[0], rb - rb[0]
+        e = rs - rb
+        err += list(e)
+        out[f"sw_{k}_rms"] = float(np.sqrt(np.mean(e ** 2)))
+        for br, m in (("pos", v >= 0), ("neg", v <= 0)):
+            if m.sum() >= 3 and np.ptp(v[m]) > 0:
+                out[f"sw_{k}_{br}_rob"] = float(np.polyfit(v[m], rb[m], 1)[0])
+                out[f"sw_{k}_{br}_sim"] = float(np.polyfit(v[m], rs[m], 1)[0])
+    out["sweep_rms"] = float(np.sqrt(np.mean(np.square(err))))
+    return out
 
 
 def step_landings(s, r=None):
