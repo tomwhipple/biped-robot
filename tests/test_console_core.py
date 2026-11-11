@@ -513,3 +513,35 @@ def test_headless_leaves_through_shutdown_even_on_an_exception(robot, tmp_path, 
     assert calls == ["shutdown"]
     got = frames(robot)
     assert len(got) >= 10 and all(not f.arm for f in got[-10:])
+
+
+def test_leaving_never_crashes_on_a_handle_without_a_link(robot, tmp_path):
+    """A never-linked core, a failed relink and a freed core (a window's
+    close already ran shutdown) all leave quietly: no frame, no segfault at
+    the ctypes boundary. A second shutdown() is a no-op."""
+    bare = core.Core()                                   # never opened: no socket
+    bare.leave_disarmed(3, 1)
+    bare.close()
+    bare.free()
+    bare.leave_disarmed(3, 1)                            # freed: a no-op
+    bare.close()
+    with pytest.raises(RuntimeError, match="after free"):
+        bare.tick(core.now_ms())                         # not a null handle into C
+
+    o = options.parse(["--tlm-port", "0", "--no-record", "--sessions", str(tmp_path),
+                       "--keymap", str(tmp_path / "keys.conf")])
+    watcher = Controller(o)                              # no --host: an observer
+    assert watcher.start()
+    watcher.shutdown()
+    watcher.shutdown()
+    watcher.core.leave_disarmed(10, 1)
+
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    c.tick()
+    assert not c.relink("not-an-address", robot.getsockname()[1], 0)
+    frames(robot)
+    c.core.leave_disarmed(3, 1)
+    c.shutdown()
+    c.shutdown()
+    c.core.leave_disarmed(3, 1)
+    assert frames(robot, 0.1) == []

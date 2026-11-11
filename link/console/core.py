@@ -323,138 +323,153 @@ class Core:
             self._lib.bimo_free(self._c)
             self._c = None
 
+    @property
+    def freed(self) -> bool:
+        return not self._c
+
+    @property
+    def _h(self):
+        """The handle, or a Python error once freed: the library takes no
+        null handle (a window's close frees the core; a script that then
+        calls shutdown() or leave_disarmed() would segfault)."""
+        if not self._c:
+            raise RuntimeError("console core used after free()")
+        return self._c
+
     # -- the link --------------------------------------------------------
     def open(self, host: str, cmd_port: int, tlm_port: int) -> bool:
-        return bool(self._lib.bimo_open(self._c, _b(host), cmd_port, tlm_port))
+        return bool(self._lib.bimo_open(self._h, _b(host), cmd_port, tlm_port))
 
     def listen(self, tlm_port: int, host: str | None, cmd_port: int) -> bool:
-        return bool(self._lib.bimo_listen(self._c, tlm_port, _b(host), cmd_port))
+        return bool(self._lib.bimo_listen(self._h, tlm_port, _b(host), cmd_port))
 
     def relink(self, host: str, cmd_port: int, tlm_port: int, observe: bool) -> bool:
-        return bool(self._lib.bimo_relink(self._c, _b(host), cmd_port, tlm_port,
+        return bool(self._lib.bimo_relink(self._h, _b(host), cmd_port, tlm_port,
                                           int(observe)))
 
     def set_watch(self, spec: str, default_port: int) -> bool:
-        return bool(self._lib.bimo_set_watch(self._c, _b(spec), default_port))
+        return bool(self._lib.bimo_set_watch(self._h, _b(spec), default_port))
 
     def clear_watch(self) -> None:
-        self._lib.bimo_clear_watch(self._c)
+        self._lib.bimo_clear_watch(self._h)
 
     def set_tee(self, host: str, port: int) -> bool:
         """Twin-in-the-loop: every command frame also to host:port."""
-        return bool(self._lib.bimo_set_tee(self._c, _b(host), port))
+        return bool(self._lib.bimo_set_tee(self._h, _b(host), port))
 
     def clear_tee(self) -> None:
-        self._lib.bimo_clear_tee(self._c)
+        self._lib.bimo_clear_tee(self._h)
 
     def close(self) -> None:
-        self._lib.bimo_close(self._c)
+        if self._c:                     # closing a freed core: already closed
+            self._lib.bimo_close(self._c)
 
     def tick(self, now: float) -> None:
-        self._lib.bimo_tick(self._c, now)
+        self._lib.bimo_tick(self._h, now)
 
     def poll(self, now: float) -> None:
         """Drain beacons; send nothing."""
-        self._lib.bimo_poll(self._c, now)
+        self._lib.bimo_poll(self._h, now)
 
     def status(self, now: float) -> Status:
         """A fresh snapshot (a new object each call)."""
         st = Status()
-        self._lib.bimo_status(self._c, now, ctypes.byref(st))
+        self._lib.bimo_status(self._h, now, ctypes.byref(st))
         return st
 
     def toggle_control(self, host: str | None, now: float) -> tuple[bool, str]:
         buf = ctypes.create_string_buffer(512)
-        ok = self._lib.bimo_toggle_control(self._c, _b(host), now, buf, len(buf))
+        ok = self._lib.bimo_toggle_control(self._h, _b(host), now, buf, len(buf))
         return bool(ok), buf.value.decode(errors="replace")
 
     def leave_disarmed(self, frames: int = 10, gap_ms: int = 20) -> None:
-        self._lib.bimo_leave_disarmed(self._c, frames, gap_ms)
+        if self._c:                     # a freed core has no link to send on
+            self._lib.bimo_leave_disarmed(self._c, frames, gap_ms)
 
     # -- the intent ------------------------------------------------------
     @property
     def note(self) -> str:
-        return _s(self._lib.bimo_note(self._c))
+        return _s(self._lib.bimo_note(self._h))
 
     def say(self, msg: str) -> None:
-        self._lib.bimo_say(self._c, _b(msg))
+        self._lib.bimo_say(self._h, _b(msg))
 
     def press(self, axis: int, now: float) -> bool:
-        return bool(self._lib.bimo_press(self._c, axis, now))
+        return bool(self._lib.bimo_press(self._h, axis, now))
 
     def release(self, axis: int) -> None:
-        self._lib.bimo_release(self._c, axis)
+        self._lib.bimo_release(self._h, axis)
 
     def release_all(self) -> None:
-        self._lib.bimo_release_all(self._c)
+        self._lib.bimo_release_all(self._h)
 
     def toggle_arm(self, now: float) -> None:
-        self._lib.bimo_toggle_arm(self._c, now)
+        self._lib.bimo_toggle_arm(self._h, now)
 
     def stand(self, why: str = "stand") -> None:
-        self._lib.bimo_stand(self._c, _b(why))
+        self._lib.bimo_stand(self._h, _b(why))
 
     def estop(self) -> None:
-        self._lib.bimo_estop(self._c)
+        self._lib.bimo_estop(self._h)
 
     def home(self, now: float) -> None:
-        self._lib.bimo_home(self._c, now)
+        self._lib.bimo_home(self._h, now)
 
     def set_ext(self, crouch: float, lift: float, foot_dx: float,
                 foot_dz: float) -> None:
-        self._lib.bimo_set_ext(self._c, crouch, lift, foot_dx, foot_dz)
+        self._lib.bimo_set_ext(self._h, crouch, lift, foot_dx, foot_dz)
 
     def reset_ext(self) -> None:
-        self._lib.bimo_reset_ext(self._c)
+        self._lib.bimo_reset_ext(self._h)
 
     def set_speeds(self, vx: float, vy: float, wz: float) -> None:
-        self._lib.bimo_set_speeds(self._c, vx, vy, wz)
+        self._lib.bimo_set_speeds(self._h, vx, vy, wz)
 
     def request(self, pose: bool, att: bool) -> None:
-        self._lib.bimo_request(self._c, int(pose), int(att))
+        self._lib.bimo_request(self._h, int(pose), int(att))
 
     def motion_text(self) -> str:
-        return _s(self._lib.bimo_motion_text(self._c))
+        return _s(self._lib.bimo_motion_text(self._h))
 
     # -- the recording ---------------------------------------------------
     def rec_start(self, directory: str, host: str, now: float) -> tuple[bool, str]:
         err = ctypes.create_string_buffer(256)
-        ok = self._lib.bimo_rec_start(self._c, _b(directory), _b(host), now,
+        ok = self._lib.bimo_rec_start(self._h, _b(directory), _b(host), now,
                                       err, len(err))
         return bool(ok), err.value.decode(errors="replace")
 
     def rec_stop(self) -> None:
-        self._lib.bimo_rec_stop(self._c)
+        self._lib.bimo_rec_stop(self._h)
 
     @property
     def rec_path(self) -> str:
-        return _s(self._lib.bimo_rec_path(self._c))
+        return _s(self._lib.bimo_rec_path(self._h))
 
     def rec_cam(self, now: float, pane: int, src: str, url: str) -> None:
-        self._lib.bimo_rec_cam(self._c, now, pane, _b(src), _b(url))
+        self._lib.bimo_rec_cam(self._h, now, pane, _b(src), _b(url))
 
     def rec_bench(self, now: float, datagram: bytes) -> None:
-        self._lib.bimo_rec_bench(self._c, now, datagram, len(datagram))
+        self._lib.bimo_rec_bench(self._h, now, datagram, len(datagram))
 
     # -- the keymap ------------------------------------------------------
     def key_for(self, action: int) -> int:
-        return self._lib.bimo_keymap_key(self._c, action)
+        return self._lib.bimo_keymap_key(self._h, action)
 
     def action_for(self, key: int) -> int:
-        return self._lib.bimo_keymap_action_for(self._c, key)
+        return self._lib.bimo_keymap_action_for(self._h, key)
 
     def bind(self, action: int, key: int) -> None:
-        self._lib.bimo_keymap_bind(self._c, action, key)
+        self._lib.bimo_keymap_bind(self._h, action, key)
 
     def reset_keys(self) -> None:
-        self._lib.bimo_keymap_reset(self._c)
+        self._lib.bimo_keymap_reset(self._h)
 
     def load_keys(self, path: str) -> tuple[bool, str]:
         err = ctypes.create_string_buffer(256)
-        ok = self._lib.bimo_keymap_load(self._c, _b(path), err, len(err))
+        ok = self._lib.bimo_keymap_load(self._h, _b(path), err, len(err))
         return bool(ok), err.value.decode(errors="replace")
 
     def save_keys(self, path: str) -> tuple[bool, str]:
         err = ctypes.create_string_buffer(256)
-        ok = self._lib.bimo_keymap_save(self._c, _b(path), err, len(err))
+        ok = self._lib.bimo_keymap_save(self._h, _b(path), err, len(err))
         return bool(ok), err.value.decode(errors="replace")

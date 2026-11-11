@@ -83,7 +83,11 @@ int bimo_set_tee(BimoConsole* c, const char* host, int port) {
 }
 
 void bimo_clear_tee(BimoConsole* c) { c->link.clearTee(); }
-void bimo_close(BimoConsole* c) { c->link.close(); }
+// The two leaving calls take a null handle (a freed console) as a no-op:
+// there is no link left to close or to send the disarm on.
+void bimo_close(BimoConsole* c) {
+    if (c != nullptr) c->link.close();
+}
 
 void bimo_tick(BimoConsole* c, double now_ms) {
     c->link.poll(now_ms);
@@ -179,6 +183,7 @@ int bimo_toggle_control(BimoConsole* c, const char* host, double now_ms,
 }
 
 void bimo_leave_disarmed(BimoConsole* c, int frames, int gap_ms) {
+    if (c == nullptr) return;
     bimo::leaveDisarmed(c->link, frames, gap_ms);
 }
 

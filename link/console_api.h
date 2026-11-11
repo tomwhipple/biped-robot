@@ -101,7 +101,8 @@ void bimo_poll(BimoConsole* c, double now_ms);
 // `msg` says which.
 int bimo_toggle_control(BimoConsole* c, const char* host, double now_ms,
                         char* msg, size_t cap);
-// bimo::leaveDisarmed: blocks frames * gap_ms.
+// bimo::leaveDisarmed: blocks frames * gap_ms. A null handle is a no-op (and
+// for bimo_close).
 void bimo_leave_disarmed(BimoConsole* c, int frames, int gap_ms);
 
 // -- the operator's intent -----------------------------------------------

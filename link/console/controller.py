@@ -353,7 +353,10 @@ class Controller:
     # -- leaving ---------------------------------------------------------
     def shutdown(self) -> None:
         """Quit and window close: disarm (10 frames), unless watching; let a
-        stop burst in flight finish first."""
+        stop burst in flight finish first. Once done (the core is freed),
+        a second call is a no-op: a window's close already ran it."""
+        if self.core.freed:
+            return
         # A stop still going out finishes first, hearing the beacon but
         # sending nothing else.
         seen = -1
