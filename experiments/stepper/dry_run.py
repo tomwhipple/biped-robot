@@ -820,6 +820,10 @@ FRAMES = {
     "walk110045_t61": ((55, 75), (125, 145), (150, 170), 120),               # eye: 61, 134, 156
     "walk110045_t74": ((55, 75), (140, 165), (132, 146), 110),               # eye: 68, 148, 140
     "walk110045_t88": ((30, 48), (142, 162), (158, 175), 100),               # eye: 35, 153, 165
+    # the evening light (2026-11-11 23:50, daylight gone, room light on: the carpet warm yellow-beige, the wall under the
+    # desk as saturated as the board): robot square and centred. By eye with the 450 mm board: right 105-115, left 100-110;
+    # the plates are 115 px apart (99 px in dim_start, 122 mm) so about 140 mm: it stands wider than at the start
+    "evening_square": ((100, 122), (95, 115), (130, 150), 150),
     # the board (it lies as in the others, the camera has not moved) with the robot's right foot half off its
     # left edge: the sole's outer edge is 40, 34, 84, 71 mm outside it by eye
     "walk104632_offedge_t30": ((-60, -25), (200, 235), (150, 190), 100),

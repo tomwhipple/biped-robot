@@ -47,6 +47,25 @@ def _prep(frame_bgr):
     return hsv[..., 0], hsv[..., 1], hsv[..., 2]
 
 
+def _cut_top(m):
+    """The board ends at its far edge: going up from the bottom of the picture over the columns the board covers
+    there, the first run of rows with next to nothing in them is the carpet beyond it. Everything above is not the
+    board (in warm evening light the dark wall under the desk is as saturated as the board and the robot's legs
+    join them)."""
+    H = m.shape[0]
+    cols = np.nonzero(m[H - 60:].mean(0) >= 0.5)[0]
+    if len(cols) < 60:
+        return m
+    cov = m[:, cols[0]:cols[-1] + 1].mean(1)
+    gap = 0
+    for y in range(H - 61, -1, -1):
+        gap = gap + 1 if cov[y] < 0.2 else 0
+        if gap >= 10:
+            m[:y + gap] = 0
+            break
+    return m
+
+
 def board_mask(hue, sat, val, y0):
     """The board: the saturated mode of the warm-hued pixels below row y0, as the largest connected patch.
     Returns (mask, stats) or None. stats: board and carpet saturation, the split."""
@@ -66,6 +85,7 @@ def board_mask(hue, sat, val, y0):
     m = (((sat > t) | ((val < 65) & (sat > 60))) & (warm > 0)).astype(np.uint8)
     m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    m = _cut_top(m)
     n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
     if n < 2:
         return None
@@ -127,6 +147,15 @@ def edges(board, y_clean=None):
 
 
 def soles(hue, sat, val, board, s_car):
+    """Grey plates first; if that does not give a pair, the not-board-not-dark rule inside the board's outline is added (evening light)."""
+    for bright, strict in ((False, True), (True, False), (False, False)):
+        out = _soles(hue, sat, val, board, s_car, bright, strict)
+        if len(out) == 2:
+            return out
+    return out
+
+
+def _soles(hue, sat, val, board, s_car, use_bright, strict):
     """The two soles as dicts (x0, x1, y0, y1, xc, xl_row, xr_row): wide, low, pale-grey plates on or beside
     the board, in light or in shadow (grey at any brightness: the saturation stays low). Legs and servos
     above them are narrower than the opening kernel. A candidate must have the robot's own grey-or-black
@@ -139,10 +168,16 @@ def soles(hue, sat, val, board, s_car):
     grey = (neutral & (val > 22)).astype(np.uint8)
     grey[:y_top] = 0
     pts = cv2.findNonZero(board.astype(np.uint8))
+    fill = np.zeros((H, W), np.uint8)
     if pts is not None:                                           # a sole may hang off the board's edge, not stand far off it
-        fill = np.zeros((H, W), np.uint8)
         cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
-        grey &= cv2.dilate(fill, np.ones((1, 121), np.uint8))
+        # In warm evening light a plate's saturation is no longer clearly below the carpet's (and the robot's own
+        # shadow tints it), but a plate is still the one thing on the board that is neither board-coloured nor
+        # dark: inside the board's outline, not board, not black. Only inside the outline: the carpet beside the
+        # board is just as pale.
+        v_board = float(np.median(val[board])) if board.any() else 128.0
+        bright = ((val > 0.55 * v_board) & (board == 0) & (fill > 0)).astype(np.uint8)
+        grey = (grey | bright if use_bright else grey) & cv2.dilate(fill, np.ones((1, 121), np.uint8))
     g = cv2.morphologyEx(grey, cv2.MORPH_CLOSE, np.ones((5, 9), np.uint8))
     g = cv2.morphologyEx(g, cv2.MORPH_OPEN, np.ones((7, 41), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(g, connectivity=8)
@@ -150,7 +185,7 @@ def soles(hue, sat, val, board, s_car):
     out = []
     for k in range(1, n):
         x, y, w, h, a = st[k]
-        if a < 700 or w < 55 or w > 150 or h < 12:
+        if a < (700 if strict else 450) or w < 55 or w > 150 or h < (12 if strict else 8):
             continue
         m0 = lab == k
         m = m0
@@ -171,6 +206,10 @@ def soles(hue, sat, val, board, s_car):
         pm = m0[y0:y1 + 1]
         cx = np.nonzero(pm.any(0))[0]
         x0, x1 = int(cx.min()), int(cx.max())
+        ym = min(H - 1, (y0 + y1) // 2)
+        cols_in = np.nonzero(fill[ym])[0]                          # the board's outline at its row: a sole stands on the
+        if len(cols_in) and not (cols_in[0] - 0.5 * (x1 - x0) <= 0.5 * (x0 + x1) <= cols_in[-1] + 0.5 * (x1 - x0)):
+            continue                                               # board or hangs half off it; a strap beside it does not
         sup = float(robot[max(0, y0 - 90):max(1, y0 - 8), x0:x1 + 1].mean())   # structure standing on it
         if sup < 0.08 or pm.sum() < 0.55 * (x1 - x0 + 1) * (y1 - y0 + 1):
             continue
