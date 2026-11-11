@@ -193,6 +193,9 @@ class SafetyBar(QtWidgets.QFrame):
             tx = (f"{d}→</span> {_nb(f'{o.host}:{o.cmd_port}')}&nbsp;&nbsp;"
                   f"{_nb(f'{app.rate_hz:3.0f} Hz')}&nbsp;&nbsp;{_nb(f'{st.last_len:2d} B')}"
                   f"&nbsp;&nbsp;{d}{_nb(f'{flag_names(st.flags):<26s}')}</span>")
+        elif not getattr(c, "linked", True):
+            tx = ("<span style='color:#ff5a50; font-weight:700'>NO LINK · the relink "
+                  "failed: nothing is sent · fix the address in Setup</span>")
         else:
             tx = f"<span style='color:{AMBER}'>OBSERVER · no commands · stops are out of band</span>"
         if not st.have_tlm:

@@ -246,6 +246,135 @@ def test_hold_on_a_running_robot_still_needs_the_stop_reason(robot):
     assert b.escalated and not b.confirmed
 
 
+class _Beacons:
+    """A robot that beacons `state` to the console's telemetry port."""
+
+    def __init__(self, tlm_port, state=protocol.LinkState.LIVE):
+        import threading
+        self.state = state
+        self.port = tlm_port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.halt = threading.Event()
+        self.t = threading.Thread(target=self._run, daemon=True)
+        self.t.start()
+
+    def _run(self):
+        while not self.halt.is_set():
+            t = protocol.Telemetry(seq_echo=0, state=self.state, vbat_v=12.0, up_z=1.0,
+                                   vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+            self.sock.sendto(protocol.encode_telemetry(t), ("127.0.0.1", self.port))
+            time.sleep(0.02)
+
+    def close(self):
+        self.halt.set()
+        self.t.join(1.0)
+        self.sock.close()
+
+
+def test_drive_adopts_a_running_robots_arm_level(robot, tmp_path):
+    """--drive against a robot another console drives (LIVE): it starts as an
+    observer, hears the beacon and adopts, so its first frame already holds
+    ARM -- no 1 -> 0 edge that would bench the robot mid-stride."""
+    tlm = _free_port()
+    bea = _Beacons(tlm)
+    try:
+        o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(robot.getsockname()[1]),
+                           "--tlm-port", str(tlm), "--no-record", "--sessions",
+                           str(tmp_path), "--keymap", str(tmp_path / "keys.conf"), "--drive"])
+        c = Controller(o)
+        assert c.start()
+        assert not c.readonly and "RUNNING robot" in c.core.note
+        for _ in range(5):
+            c.tick()
+            time.sleep(0.02)
+        got = frames(robot)
+        assert got and all(f.arm for f in got)
+        c.shutdown()
+    finally:
+        bea.close()
+
+
+def test_drive_with_no_beacon_starts_disarmed_and_says_so(robot, tmp_path):
+    t0 = time.monotonic()
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    assert 0.9 < time.monotonic() - t0 < 3.0          # it waited ~1 s for a beacon
+    assert not c.readonly and "NO beacon" in c.core.note
+    c.tick()
+    got = frames(robot)
+    assert got and not got[-1].arm
+    c.shutdown()
+
+
+def test_a_failed_relink_leaves_no_link(robot, tmp_path):
+    """A failed relink sends nothing anywhere -- least of all to the old
+    robot -- and nothing names the old host any more."""
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    c.fire("arm")
+    c.tick()
+    frames(robot)
+    assert not c.relink("not-an-address", robot.getsockname()[1], 0)
+    assert c.readonly and c.host is None and c.o.host is None and not c.linked
+    assert "NO LINK" in c.status_msg and "disarmed first" in c.status_msg
+    st = c.tick()
+    assert st.readonly and not st.has_dest
+    for name in ("arm", "stand"):
+        c.fire(name)
+    for _ in range(5):
+        c.tick()
+        time.sleep(0.01)
+    got = frames(robot, 0.1)
+    assert got == [] or all(not f.arm for f in got)     # only the parting disarm
+    ok, _ = c.core.toggle_control(c.host, core.now_ms())
+    assert not ok                                        # nothing to take control of
+    c.shutdown()
+
+
+def test_relink_says_disarmed_only_when_it_was_armed(robot, tmp_path):
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    c.tick()
+    assert c.relink("127.0.0.1", robot.getsockname()[1], 0)
+    assert "disarmed by the move" not in c.status_msg
+    c.fire("arm")
+    c.tick()
+    assert c.relink("127.0.0.1", robot.getsockname()[1], 0)
+    assert "disarmed by the move" in c.status_msg
+    c.shutdown()
+
+
+def test_watch_only_keeps_its_status(robot, tmp_path):
+    """The handover's message stays the status: the mirror re-request on
+    the way through says nothing."""
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    assert c.toggle_control()
+    assert c.status_msg.startswith("WATCHING") and "mirror off" not in c.status_msg
+    c.shutdown()
+
+
+def test_arm_and_reset_are_refused_until_the_real_end_of_a_stop(robot, tmp_path):
+    """The countdown follows the burst's real end, which escalation moves."""
+    c = make(robot.getsockname()[1], "--drive", tmp_path=tmp_path)
+    c.hold()                                   # unconfirmed: escalates at 400 ms
+    time.sleep(0.6)
+    b = c.stops[0]
+    assert b.escalated and b.end > b.t0 + b.seconds
+    c.fire("arm")
+    assert "ARM refused" in c.core.note
+    left = float(c.core.note.split("(")[1].split(" s left")[0])
+    assert left == pytest.approx(b.end - time.monotonic(), abs=0.15) and left > 0.45
+    c.fire("home")
+    assert "RESET SERVOS refused" in c.core.note
+    b.join(3.0)
+    c.tick()
+    c.fire("arm")
+    assert "arm sent" in c.core.note
+    c.shutdown()
+
+
+def test_stops_resolve_localhost_before_deciding_to_broadcast():
+    assert stops.targets("localhost", 4210) == [("127.0.0.1", 4210)]
+    assert stops.is_loopback("localhost") and not stops.is_loopback("192.0.2.30")
+
+
 def test_stops_never_broadcast_from_loopback():
     assert stops.targets("127.0.0.1", 4210) == [("127.0.0.1", 4210)]
     assert stops.targets("192.0.2.30", 4210) == [("192.0.2.30", 4210),
@@ -286,7 +415,7 @@ def test_sigterm_leaves_a_headless_driver_disarmed(tmp_path):
                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, text=True)
     try:
-        time.sleep(1.0)
+        time.sleep(2.0)           # start-up, incl. --drive's 1 s wait for a beacon
         con.stdin.write("arm\n")
         con.stdin.flush()
         time.sleep(1.5)

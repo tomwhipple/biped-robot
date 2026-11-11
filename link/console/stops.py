@@ -19,6 +19,8 @@ can undo it (docs/control-channel.md).
 """
 from __future__ import annotations
 
+import functools
+import ipaddress
 import os
 import socket
 import sys
@@ -46,13 +48,36 @@ class _Tlm:
         self.diag = diag
 
 
+@functools.lru_cache(maxsize=32)
+def resolve(host: str) -> str:
+    """`host` as a dotted quad (a name is looked up once and remembered: a
+    stop press must not wait on DNS twice); unchanged if it does not resolve,
+    so the send fails and says so."""
+    try:
+        return str(ipaddress.IPv4Address(host))
+    except ValueError:
+        pass
+    try:
+        return socket.gethostbyname(host)
+    except OSError:
+        return host
+
+
+def is_loopback(host: str | None) -> bool:
+    try:
+        return bool(host) and ipaddress.ip_address(resolve(host)).is_loopback
+    except ValueError:
+        return False
+
+
 def targets(host: str | None, port: int, broadcast: str | None = BROADCAST):
     """Where a stop goes: the robot, and the LAN broadcast unless the robot is
-    this machine (a sim on loopback) or broadcasting is off."""
+    this machine (a sim on loopback -- `localhost` included, by resolving the
+    name first) or broadcasting is off."""
     out = []
     if host and host != "0.0.0.0":
-        out.append((host, port))
-    if broadcast and not (host or "").startswith("127."):
+        out.append((resolve(host), port))
+    if broadcast and not is_loopback(host):
         out.append((broadcast, port))
     return out
 
@@ -88,6 +113,7 @@ class StopBurst(threading.Thread):
         self.escalated = False
         self.done = False
         self.t0 = time.monotonic()
+        self.end = self.t0 + seconds  # when frames stop; escalation moves it
         self.dt = 0.0
         self.verdict = ""            # the robot's report, once heard
         self._lock = threading.Lock()
@@ -130,10 +156,14 @@ class StopBurst(threading.Thread):
                 if len(self.errors) < 8:
                     self.errors.append(f"{d[0]}: {e}")
 
+    def left(self) -> float:
+        """Seconds until the last frame goes out (0 once it has)."""
+        return max(0.0, self.end - time.monotonic())
+
     def run(self) -> None:
         t0 = self.t0
         nxt = t0
-        end = t0 + self.seconds
+        end = self.end
         while True:
             now = time.monotonic()
             if now < end and now >= nxt:
@@ -145,6 +175,7 @@ class StopBurst(threading.Thread):
                     self._hard = True
                 self.escalated = True
                 end = max(end, now + 1.0)
+                self.end = end
             if now >= end:
                 # After the burst, up to 0.5 s more to hear the verdict.
                 self._ok.wait(max(0.0, end + 0.5 - now))

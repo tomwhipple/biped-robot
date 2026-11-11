@@ -111,7 +111,8 @@ class Window(QtWidgets.QMainWindow):
         self.checks = None        # tab_checks
         self.view = None
         self._plugins()
-        self.setWindowTitle(f"bimo console — {opts.host or 'no host'}")
+        self._title = None
+        self.update_title()
         root = QtWidgets.QWidget()
         root.setObjectName("root")
         self.bar = SafetyBar(self)
@@ -264,8 +265,19 @@ class Window(QtWidgets.QMainWindow):
             self._note = self.message = self.ctl.core.note
         if self.ctl.status_msg != self._status:
             self._status = self.message = self.ctl.status_msg
+        self.update_title()
         if self.ctl.quit:
             self.close()
+
+    def update_title(self) -> None:
+        """The robot this window commands or watches, kept current across
+        relinks; a failed relink says so rather than naming the old robot."""
+        c = self.ctl
+        t = ("bimo console — NO LINK" if not getattr(c, "linked", True)
+             else f"bimo console — {c.host or 'no host'}")
+        if t != self._title:
+            self._title = t
+            self.setWindowTitle(t)
 
     def set_rate(self, hz: float) -> None:
         self.rate_hz = max(5.0, min(100.0, hz))

@@ -69,19 +69,20 @@ class Controller:
         self._last_note = ""
         self.listeners = []           # callables(st) per tick (the window)
         self.host = opts.host
+        self.linked = True            # False after a failed relink: no link at all
         self.sim = SimControl(self)   # sil_twin, its ports and the tee
 
     # -- start-up --------------------------------------------------------
     def start(self) -> bool:
         o = self.o
         self.core.set_speeds(o.vx, o.vy, o.wz)
-        if o.observe:
-            if not self.core.listen(o.tlm_port, o.host, o.cmd_port):
-                self.log("FATAL", f"listen: cannot bind telemetry port {o.tlm_port}")
-                return False
-        elif not self.core.open(o.host, o.cmd_port, o.tlm_port):
-            self.log("FATAL", f"link: cannot open {o.host}:{o.cmd_port} "
-                     f"(telemetry :{o.tlm_port})")
+        # --drive starts as an observer too and then takes control the way
+        # TAKE CONTROL does, adopting the arm level the robot reports: opening
+        # disarmed against a robot another console drives would put a 1 -> 0
+        # ARM edge on the wire and bench it mid-stride (client.h adopt).
+        if not self.core.listen(o.tlm_port, o.host, o.cmd_port):
+            self.log("FATAL", f"listen: cannot bind telemetry port {o.tlm_port}"
+                     + (f" (or bad --host {o.host})" if o.host else ""))
             return False
         self.log("start", f"bimo_console -> {o.host or '(no host)'}:{o.cmd_port} "
                  f"(telemetry :{o.tlm_port}), repo {o.repo}")
@@ -90,6 +91,8 @@ class Controller:
                      + ("will command " + o.host if o.host else
                         "unavailable: no --host")
                      + "; HOLD / E-STOP work regardless.")
+        if not o.observe and not self.adopt_on_start():
+            return False
         if o.watch and not self.set_watch(o.watch):
             self.log("FATAL", f"--watch {o.watch}: expected HOST[:PORT] with a "
                      f"dotted-quad host")
@@ -106,6 +109,23 @@ class Controller:
         if o.mirror:
             self.set_mirror(True)
         return True
+
+    def adopt_on_start(self, wait_s: float = 1.0) -> bool:
+        """--drive: wait up to `wait_s` for a beacon, then TAKE CONTROL's
+        adopt path. No beacon: it starts disarmed and says so, as TAKE
+        CONTROL does."""
+        end = time.monotonic() + wait_s
+        while time.monotonic() < end:
+            now = core.now_ms()
+            self.core.poll(now)
+            if self.core.status(now).fresh:
+                break
+            time.sleep(0.01)
+        self.st = self.core.status(core.now_ms())
+        ok = self.toggle_control()
+        if not ok:
+            self.log("FATAL", f"--drive: {self.status_msg}")
+        return ok
 
     # -- the tick --------------------------------------------------------
     def tick(self, now: float | None = None):
@@ -156,6 +176,10 @@ class Controller:
         """A non-motion keymap action by name. False if unknown."""
         now = core.now_ms()
         if name == "arm":
+            st = self.st
+            if self.stopping() and not (st is not None and st.armed):
+                self.core.say(f"ARM refused: {self._stop_wait()}")
+                return True
             self.core.toggle_arm(now)
         elif name == "stand":
             self.core.stand("stand")
@@ -194,11 +218,16 @@ class Controller:
         hard-stop frame releases torque on a benched robot, so the rest of
         the burst would undo the reset. The stop wins."""
         if self.stopping():
-            left = max(b.t0 + b.seconds - time.monotonic() for b in self.stops)
-            self.core.say(f"RESET SERVOS refused: a stop is still being sent "
-                          f"({max(left, 0.0):.1f} s left); press it again after")
+            self.core.say(f"RESET SERVOS refused: {self._stop_wait()}")
             return
         self.core.home(now)
+
+    def _stop_wait(self) -> str:
+        """The refusal's countdown: to the last frame of the longest burst,
+        escalation included (StopBurst.end moves when it escalates)."""
+        left = max((b.left() for b in self.stops), default=0.0)
+        when = f"{left:.1f} s left" if left > 0.05 else "waiting for its verdict"
+        return f"a stop is still being sent ({when}); press it again after"
 
     def hold(self) -> None:
         """HOLD: the out-of-band SOFT stop (joints held stiff), every role;
@@ -243,19 +272,24 @@ class Controller:
     def toggle_control(self) -> bool:
         was = self.readonly
         ok, msg = self.core.toggle_control(self.host, core.now_ms())
+        self.st = self.core.status(core.now_ms())   # readonly is the new role now
         self.say_status(msg)
         if ok:
             self.log("control" if was else "readonly",
                      msg + (f" | {self.core.note}" if was else ""))
-            self.set_mirror(self.mirror)
+            # Re-ask for the mirror on the new socket, quietly: the
+            # handover's own message (WATCH ONLY / DRIVING) stays the status.
+            self.set_mirror(self.mirror, say=False)
         return ok
 
-    def set_mirror(self, on: bool) -> None:
+    def set_mirror(self, on: bool, say: bool = True) -> None:
         """Ask the robot for joint angles + attitude (the 3D view's measured
         body). An observer cannot ask -- that would be a frame -- so it draws
         whatever the driver's requests put in the relayed beacon."""
         self.mirror = on
         self.core.request(on, on)
+        if not say:
+            return
         if on and self.readonly:
             self.say_status("MIRROR (observer): the 3D view draws the robot's "
                             "measured joints when the driving console asks for "
@@ -286,19 +320,33 @@ class Controller:
 
     def relink(self, host: str, cmd_port: int, tlm_port: int) -> bool:
         observe = self.readonly
+        was_armed = bool(self.st is not None and self.st.armed and not observe)
         ok = self.core.relink(host, cmd_port, tlm_port, observe)
         if not ok:
-            self.say_status(f"relink to {host}:{cmd_port} failed (the old link "
-                            f"is closed; fix the address and apply again)")
+            # The core failed closed: no socket, no destination, read-only.
+            # Nothing may go on naming the old robot as this console's.
+            self.host = None
+            self.o.host = None
+            self.linked = False
+            self.st = self.core.status(core.now_ms())
+            self.say_status(f"NO LINK: relink to {host or '(no host)'}:{cmd_port} "
+                            f"(telemetry :{tlm_port}) failed -- nothing is sent "
+                            f"anywhere"
+                            + (" (the old link was disarmed first)" if was_armed else "")
+                            + "; fix the address and apply again (as an observer: "
+                            "TAKE CONTROL after)")
             self.log("ERROR", self.status_msg)
             return False
         self.host = host
+        self.linked = True
         self.o.host, self.o.cmd_port, self.o.tlm_port = host, cmd_port, tlm_port
         if self.o.watch:
             self.core.set_watch(self.o.watch, tlm_port)
-        self.set_mirror(self.mirror)
+        self.set_mirror(self.mirror, say=False)
+        self.st = self.core.status(core.now_ms())
         self.say_status(f"{'watching' if observe else 'driving'} {host}:{cmd_port} "
-                        f"(telemetry :{tlm_port}) -- disarmed by the move")
+                        f"(telemetry :{tlm_port})"
+                        + (" -- disarmed by the move" if was_armed else ""))
         self.log("relink", self.status_msg)
         return True
 

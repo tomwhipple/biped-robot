@@ -126,8 +126,12 @@ class SetupTab(QtWidgets.QWidget):
 
     def update_from(self, st, now: float) -> None:
         o = self.app.ctl.o
-        self.role.setText("OBSERVER: sends nothing until TAKE CONTROL; HOLD / E-STOP work"
-                          if st.readonly else "DRIVING: this console commands the robot")
+        if not getattr(self.app.ctl, "linked", True):
+            self.role.setText("NO LINK: the last relink failed, so this console sends "
+                              "nothing; fix the address and apply")
+        else:
+            self.role.setText("OBSERVER: sends nothing until TAKE CONTROL; HOLD / E-STOP work"
+                              if st.readonly else "DRIVING: this console commands the robot")
         self.sources.setText("\n".join([
             f"flight records  :{o.flight_port} (robot, via the collector's --forward)",
             f"sim flight      :{o.sim_flight_port}",
