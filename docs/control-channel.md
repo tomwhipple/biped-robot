@@ -70,7 +70,7 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 2 | 1 | version | 2 |
 | 3 | 1 | state | `LinkState`, wire value below |
 | 4 | 4 | seq_echo | u32, the last command seq applied; the [bench diagnostic](#saying-why-the-bench-diagnostic) while `BENCH` |
-| 8 | 2 | vbat | u16 mV |
+| 8 | 2 | vbat | u16 mV, pack voltage off the servos (register 62): every armed tick; benched, once a second from one fitted servo (`cli.cpp benchVbatTick`) and on each bench flight-recorder read. 0 until a servo has answered |
 | 10 | 2 | up_z | i16 milli; torso up-vector z, 1.0 = upright |
 | 12 | 2 | vx_est | i16 mm/s; the firmware does not estimate it and sends 0 |
 | 14 | 2 | wz_est | i16 mrad/s; likewise 0 |
