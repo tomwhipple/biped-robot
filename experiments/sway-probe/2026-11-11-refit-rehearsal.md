@@ -16,7 +16,7 @@ is not drawn.
   The safe open-loop ladder is 4.5 cm sway-only (was 5.0) and 5.0 cm with lift (was 5.6).
 - Swing-foot clearance (median): sway-only rungs 0 to 5 mm (earlier 1 to 9); lift rungs 5 to 6 mm (earlier 7 to 8). The CoM crosses over the stance
   sole between 2.0 and 3.0 cm (earlier 3.0 and 3.9).
-- Peak tilt (worst plant, among plants that stayed up): rungs 7 to 11 are 5.3 to 6.8 deg (earlier 5.2 to 7.2), rungs 1 to 4 0.9 to 5.5 (earlier 2.0 to 6.1). Roll rate max on those rungs 18 to 77 deg/s (earlier 37 to 82).
+- Peak tilt (worst plant, among plants that stayed up): rungs 7 to 11 are 5.3 to 6.8 deg (earlier 5.2 to 7.2), rungs 1 to 4 1.0 to 5.5 (earlier 2.0 to 6.1). Roll rate max on those rungs 18 to 77 deg/s (earlier 37 to 82).
   So the open-loop bands did not widen on the refit plant, and the stop limits (1.5x the worst band tilt / rate, capped 12 deg and 3 rad/s) moved by 2 deg or less on every rung that stays up.
 - Which plants fall (rungs 5, 6, 12): spread over the spring range (hip 11.6 to 18.8, ankle 18.0 to 37.5), not at one end; every one has the action lag at 4.8 Hz or above.
 
