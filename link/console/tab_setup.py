@@ -83,6 +83,8 @@ class SetupTab(QtWidgets.QWidget):
         shotg = group("SCREENSHOT   the window, no screen-recording permission",
                       hbox(self.shot, shot_btn, "stretch"))
         self.gamepad_box = QtWidgets.QVBoxLayout()
+        self.gamepad_label = lab("", DIM)          # without gamepad support: says so
+        self.gamepad_box.addWidget(self.gamepad_label)
         padg = group("GAMEPAD", self.gamepad_box)
         self.cols = Columns(wrap(vbox(link, data, shotg, spacing=10)),
                             wrap(vbox(keyg, padg, spacing=10)), spacing=12)
@@ -126,6 +128,10 @@ class SetupTab(QtWidgets.QWidget):
 
     def update_from(self, st, now: float) -> None:
         o = self.app.ctl.o
+        nopad = getattr(self.app, "pad", None) is None
+        self.gamepad_label.setVisible(nopad)
+        if nopad:
+            self.gamepad_label.setText(self.app.pad_detail())
         self.role.setText("OBSERVER: sends nothing until TAKE CONTROL; HOLD / E-STOP work"
                           if st.readonly else "DRIVING: this console commands the robot")
         self.sources.setText("\n".join([

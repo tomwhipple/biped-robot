@@ -249,6 +249,21 @@ def test_an_observer_drive_tab_is_greyed_and_says_take_control(qapp, twin, tmp_p
         w.close()
 
 
+def test_setup_says_when_there_is_no_gamepad_support(qapp, twin, tmp_path):
+    """Without pygame the Setup GAMEPAD box says so, as Drive's does; it was
+    empty."""
+    w = window(qapp, twin, tmp_path)
+    try:
+        w.pad = None                                 # as when pygame is not installed
+        w.select_tab("Setup")
+        pump(qapp, 0.3)
+        setup = w.tab_widgets["Setup"]
+        assert setup.gamepad_label.isVisibleTo(setup)
+        assert "no gamepad support (pygame not installed)" in setup.gamepad_label.text()
+    finally:
+        w.close()
+
+
 def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
     """SDL (pygame) would take SIGTERM for itself; the console must still
     close on it, through the window's own close path."""

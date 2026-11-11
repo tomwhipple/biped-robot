@@ -311,7 +311,7 @@ class Window(QtWidgets.QMainWindow):
         return self.pad.status()
 
     def pad_detail(self) -> str:
-        return self.pad.detail() if self.pad is not None else "no gamepad support (pygame)"
+        return self.pad.detail() if self.pad is not None else "no gamepad support (pygame not installed)"
 
     def flight_line(self) -> str:
         return self.flight.line() if self.flight is not None else ""
