@@ -116,9 +116,11 @@ DEFAULTS = dict(
     board_w_mm=450.0,     # the board's width, mm: the one scale of a run (board_view)
     board_centre=False,   # steer the starting line toward the board's middle (default: hold it)
     lat_gain=0.5,         # share of a sole's landing error taken into that foot's learned miss comp, each landing
-    lat_step_max=0.04,    # most a swing foot is commanded off the nominal offset from the stance foot, m
+    lat_step_max=0.04,    # most a swing foot's commanded offset from the stance foot changes between two of its swings, m
     comp_lim=0.05,        # most a learned landing miss may be, m
     comp={"L": 0.0, "R": 0.0},   # learned: lateral miss of each SWING foot (m, + = it lands left of where it is sent); sent opposite
+    sep_max_mm=131.0,     # the stance the targets keep: the separation the robot was put down with, clipped to this ...
+    sep_min_mm=115.0,     # ... and from below to this, mm (a robot left standing wide is walked back toward nominal)
     min_sep_cmd=96.0,     # never command the soles closer than this (IK geometry), mm: nominal less 25
     notify_after_s=45.0,  # still fallen this long after a fall: run notify_cmd, once
     fall_wait_s=1200.0,   # the most it waits for the robot to be picked up and homed, s
@@ -160,6 +162,7 @@ class Run:
         self.t0 = time.monotonic()
         self.off = {"L": self.k.model_offset("L"), "R": self.k.model_offset("R")}
         self.feet = {"L": [0.0, 0.0, 0.0], "R": [0.0, 0.0, 0.0]}     # each sole's offset from its stand
+        self.last_off = {"L": 0.0, "R": 0.0}  # the offset from the stance foot each foot was last sent to (m)
         self.rel = {"L": 0.0, "R": 0.0}       # the IK offset (m) each foot was last aimed at, from the stance foot, less comp
         self.meas = {"L": 0.0, "R": 0.0}      # the soles' positions at the last good look (board mm)
         self.fresh = False                    # is `meas` from this step's look?
@@ -380,7 +383,11 @@ class Run:
             if abs(tilt) > 0.7:
                 y = abs(self.pel[1] - yst) + 1e-3 * P["kb"] * tilt
                 y = max(P["k_min"] * abs(oy), min(P["k_max"] * abs(oy), y))
-                self.pel[1] = yst + math.copysign(y, oy)
+                new = yst + math.copysign(y, oy)
+                fl, fr = self.cmd("L"), self.cmd("R")
+                while abs(new - self.pel[1]) > 1e-4 and not self.reachable(new, self.pel[0], fl, fr):
+                    new = self.pel[1] + 0.5 * (new - self.pel[1])        # clamp short of the reach limit
+                self.pel[1] = new
                 self.hike[stance] = max(0.0, min(P["hike_max"], self.hike[stance] + P["g_hike"] * tilt))
                 self.go(int(1e3 * P["t_bal"]), f"balance {swing}")
 
@@ -522,7 +529,8 @@ class Run:
         sl, sr = m["sole_l_mm"], m["sole_r_mm"]
         self.meas, self.fresh = dict(L=sl, R=sr), True
         if self.bt is None:
-            self.bt = dict(half=0.5 * (sl - sr), centre=0.5 * (sl + sr), sep0=sl - sr)
+            sep = sl - sr
+            self.bt = dict(half=0.5 * max(P["sep_min_mm"], min(sep, P["sep_max_mm"])), centre=0.5 * (sl + sr), sep0=sep)
             self.log("board_target", **{k: round(v, 1) for k, v in self.bt.items()})
             return
         d_true, d_cmd = 1e-3 * (sl - sr - self.bt["sep0"]), self.feet["L"][1] - self.feet["R"][1]
@@ -542,27 +550,91 @@ class Run:
             if abs(e) > P["board_dead_mm"]:
                 self.bt["centre"] += max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
 
-    def aim(self, side):
+    def aim(self, side, dx=0.0):
         """Where the swing foot is commanded (IK y, m). The stance foot g is where it was MEASURED to be: the
         wanted real offset is w = (T[f] - meas[g]); the IK offset is that less w0, the nominal one (+-sep0:
         the soles' separation that goes with zero IK offset), relative to g's commanded y, plus comp[f], the
         learned miss of this swing foot. Without a good look this step: the same relative offset as last time
-        for this foot. Never closer than min_sep_cmd (IK geometry) and at most lat_step_max off the nominal."""
+        for this foot. The planned real separation is never below min_sep_cmd, one swing changes the foot's offset from the
+        stance foot by at most lat_step_max, and the result is pulled back until its poses are within the legs' reach."""
         P = self.p
         g = "R" if side == "L" else "L"
         if self.bt is None:
-            return self.feet[g][1] + P["comp"][side]
+            return self.place(side, self.feet[g][1] + P["comp"][side], dx)
         tgt = self.bt["centre"] + (self.bt["half"] if side == "L" else -self.bt["half"])
         if self.fresh:
             w0 = (1.0 if side == "L" else -1.0) * self.bt["sep0"]
             self.rel[side] = 1e-3 * (tgt - self.meas[g] - w0)
-        off = self.rel[side] + P["comp"][side]
-        gap = 1e-3 * (P["min_sep_cmd"] - P["sep_nominal_mm"])           # the least yL - yR, m
-        lo, hi = (gap, 1e9) if side == "L" else (-1e9, -gap)
-        off = max(lo, min(hi, off))
-        off = max(-P["lat_step_max"], min(P["lat_step_max"], off))
+        rel = self.rel[side]
+        # never plan the soles closer than min_sep_cmd: the REAL separation after the landing is sep0 + rel (the
+        # miss and comp cancel); the IK's own reach limit is handled by reach()
+        lim = 1e-3 * (P["min_sep_cmd"] - self.bt["sep0"])
+        rel = max(rel, lim) if side == "L" else min(rel, -lim)
+        y = self.feet[g][1] + rel + P["comp"][side]
         self.t_land[side] = tgt
-        return self.feet[g][1] + off
+        return self.place(side, y, dx)
+
+    def place(self, side, y, dx):
+        """Final aim for the swing foot at IK y: its offset from the stance foot may change by at most
+        lat_step_max from what this foot was last sent to (a walk's absolute y drifts with comp; it is the
+        offset between the feet that matters), then pulled back into the legs' reach. Remembers the offset."""
+        g = "R" if side == "L" else "L"
+        off = y - self.feet[g][1]
+        last = self.last_off[side]
+        off = last + max(-self.p["lat_step_max"], min(self.p["lat_step_max"], off - last))
+        # the commanded separation (IK geometry) stays above min_sep_cmd, less what the stance was wider than the IK's
+        # nominal when the offsets were zero (that width is real, it is not in the commands)
+        sep0 = self.bt["sep0"] if self.bt else self.p["sep_nominal_mm"]
+        lim = 1e-3 * (self.p["min_sep_cmd"] - self.p["sep_nominal_mm"] - max(0.0, sep0 - self.p["sep_nominal_mm"]))
+        off = max(off, lim) if side == "L" else min(off, -lim)
+        y = self.reach(side, self.feet[g][1] + off, dx)
+        self.last_off[side] = y - self.feet[g][1]
+        return y
+
+    # -- reach --------------------------------------------------------------
+    def reachable(self, shift, fwd, footL, footR):
+        try:
+            self.k.pose(shift=shift, fwd=fwd, footL=footL, footR=footR, drop=self.p["drop"])
+            return True
+        except ValueError:
+            return False
+
+    def reach_ok(self, swing, y_cmd, dx, headroom=True):
+        """Can the poses this step needs be reached with `swing` landing at IK y `y_cmd`? (1) in the air: the pelvis
+        over the stance foot as far as balance may push it (k_max), the swing foot at its lift height; (2) the
+        shift over the swing foot afterwards (its k_shift), both feet down."""
+        P = self.p
+        g = "R" if swing == "L" else "L"
+        xs, xg = self.feet[swing][0] + dx, self.feet[g][0]
+        yg = self.fy(g)
+
+        def feet(zs):
+            f = {swing: (xs, y_cmd, zs), g: (xg, yg, 0.0)}
+            return f["L"], f["R"]
+        ox, oy = self.off[g]
+        fwd = P["fwd_w"] * xg + (1 - P["fwd_w"]) * xs + ox
+        zs = max(P["dh"], P["h_up"][g])
+        if not self.reachable(yg + (P["k_max"] if headroom else P["k_shift"][g]) * oy, fwd, *feet(zs)):
+            return False
+        ox, oy = self.off[swing]
+        fwd = P["fwd_w"] * xs + (1 - P["fwd_w"]) * xg + ox
+        return self.reachable(y_cmd + P["k_shift"][swing] * oy, fwd, *feet(0.0))
+
+    def reach(self, swing, y_to, dx=0.0):
+        """y_to, pulled toward the foot's current y in 5 mm steps until the poses it needs are reachable
+        (`reach_limit` logs what was given up). If even the unchanged y is not reachable the run ends (Abort)."""
+        y0 = self.feet[swing][1]
+        y = y_to
+        while not self.reach_ok(swing, y, dx):
+            if abs(y - y0) < 1e-9:
+                if self.reach_ok(swing, y, dx, headroom=False):        # only balance's headroom is out of reach: go on
+                    break
+                raise Abort(f"{swing} cannot be placed: out of reach even at its present y")
+            y = y0 + math.copysign(max(0.0, abs(y - y0) - 0.005), y - y0)
+        if abs(y - y_to) > 1e-9:
+            self.log("reach_limit", side=swing, aimed=round(y_to, 4), used=round(y, 4), gave_up_mm=round(1e3 * abs(y - y_to), 1))
+            self.say(f"  {swing}: out of reach at {1e3 * (y_to - y0):+.0f} mm, using {1e3 * (y - y0):+.0f}")
+        return y
 
     # -- the servos ---------------------------------------------------------
     def servo_guard(self, tag):
@@ -624,13 +696,13 @@ class Run:
         if board:
             if self.bt is not None:
                 self.bt["centre"] += 0.5e3 * dy                      # a sidestep moves the line, half of dy per step
-            y_to = self.aim(side)
+            y_to = self.aim(side, dx)
         else:
             step_out = 0.0
             for d in (dy,):                          # outward only: left foot to the left, right foot to the right
                 if (d > 0 and side == "L") or (d < 0 and side == "R"):
                     step_out += d
-            y_to = self.feet[stance][1] + step_out + self.p["comp"][side]
+            y_to = self.place(side, self.feet[stance][1] + step_out + self.p["comp"][side], dx)
         res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to)
         if res[1] == "gave_up" or res[1] != "up":
             self.t_land[side] = None                                 # it did not land anew
