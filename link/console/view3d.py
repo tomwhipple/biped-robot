@@ -346,6 +346,17 @@ class ViewPane(QtWidgets.QWidget):
             return None
         return rec if isinstance(rec, dict) else None
 
+    def _store_rate(self, source: str) -> float:
+        """The flight recorder's own receive rate for a source (Hz), not how
+        often this pane looks at it (the window's refresh)."""
+        stats = getattr(getattr(self.app, "flight", None), "stats", None)
+        if stats is None:
+            return 0.0
+        try:
+            return float(stats(source).get("rate_hz") or 0.0)
+        except Exception:      # another module's bug must not take the window down
+            return 0.0
+
     def _tick_rate(self, key: str, t) -> float:
         """Samples per second from distinct sample times (seconds)."""
         r = self._rate[key]
@@ -385,7 +396,7 @@ class ViewPane(QtWidgets.QWidget):
             m.update(source="flight recorder", age=_f(rob.get("age_s")), up=up,
                      fitted=len(fitted), n=len(q),
                      unfitted=len([n for n in names if n not in fitted]),
-                     rate=self._tick_rate("robot", _f(rob.get("t"))))
+                     rate=self._store_rate("robot"))
             self.meas = pose3d.Layer(q, up=up, measured=ok)
         else:
             self._from_beacon(st, now_ms, m, names)

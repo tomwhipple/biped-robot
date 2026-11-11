@@ -316,6 +316,23 @@ def test_a_failing_flight_store_does_not_take_the_window_down(qt):
         p.close_streams()
 
 
+def test_the_pose_rate_is_the_flight_recorders_not_the_refresh(qt):
+    """The status line's "flight recorder N Hz" comes from the store's own
+    receive rate, not from how often the window refreshes the pane."""
+    class Rated(Flight):
+        def stats(self, source):
+            return {"rate_hz": 50.0}
+
+    p = pane_for(qt, Rated())
+    try:
+        for i in range(5):
+            p.update_from(None, 1000.0 + 66.0 * i)
+        assert p.info["measured"]["rate"] == 50.0
+        assert "flight recorder 50.0 Hz" in p.status.text()
+    finally:
+        p.close_streams()
+
+
 def test_selected_joint_and_plant_choice(qt):
     p = pane_for(qt, Flight(), "--plant", "bimo_biped_v6legs.xml")
     try:
