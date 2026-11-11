@@ -40,12 +40,14 @@ until the firmware has homed the robot (picked up: within 25 deg of upright, |gy
 Every guard_every steps the eight load-bearing servos are read (`servos` rows); a servo over temp_max_c or a bus
 under volt_min ends the run cleanly. The log's `start` and `lift` rows carry utc (wall clock).
 
-With --board the look is the median of 3 camera frames (low-confidence ones dropped). A foot does not land
-where it is sent (the stance leg leans through its roll-servo play): each look compares the measured sole
-separation with the believed one and puts a miss of 4..45 mm down to the foot that landed last, moves where it
-is believed to stand and learns lat_ff, an offset added to where that foot is aimed (state file; applied also
-without --board, learned only with it). A fall is waited out (the firmware homes the robot once it is picked
-up); 45 s after it, notify_cmd asks Aime to ping the owner once (--no-notify turns that off).
+With --board the look is the median of 3 camera frames (low-confidence ones dropped), on ONE scale for the
+run: the board is board_w_mm (450) wide and a sole's position is its fraction across it. The first look fixes
+each sole's lateral target on the board: the starting stance (half_sep) about the starting line (--board-centre
+steers that line toward the board's middle instead of holding it; --dy moves it). A foot does not land where it
+is sent (the stance leg leans through its roll-servo play), so after each landing the next look measures that
+sole and the foot's command offset takes lat_gain of the error (`landing` rows); the offset is applied when that
+foot next swings, nothing is kept between runs. A fall is waited out (the firmware homes the robot once it is
+picked up); 45 s after it, notify_cmd asks Aime to ping the owner once (--no-notify turns that off).
 
 A sidestep never narrows the stance: moving left, the LEFT foot goes out first and the right follows;
 moving right, the right foot first. The board's edge distances come from board_view.py.
@@ -70,7 +72,7 @@ from nool import foot_clear, settled, tipping  # noqa: E402
 STATE = os.path.join(HERE, "state.json")
 TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
 GUARD = ("R_hip_roll", "L_hip_roll", "R_knee", "L_knee", "R_ankle_roll", "L_ankle_roll", "R_hip_pitch", "L_hip_pitch")
-LEARNED = ("k_shift", "h_up", "hike", "lat_ff")
+LEARNED = ("k_shift", "h_up", "hike")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
@@ -109,17 +111,17 @@ DEFAULTS = dict(
     board_step_mm=15.0,   # most a single steering correction moves the lateral target, mm
     board_conf_min=0.5,   # a board_view result below this confidence is ignored
     sep_nominal_mm=121.0, # centre-to-centre separation of the soles in the crouch, mm
-    ff_gain=0.6,          # share of a measured landing miss taken into lat_ff each time
-    ff_lim=0.035,         # most the landing compensation may be, m
-    anchor_min_mm=4.0,    # a separation error smaller than this is noise ...
-    anchor_max_mm=45.0,   # ... and larger than this is not a landing miss: neither is acted on
+    board_w_mm=450.0,     # the board's width, mm: the one scale of a run (board_view)
+    board_centre=False,   # steer the starting line toward the board's middle (default: hold it)
+    lat_gain=0.5,         # share of a sole's landing error added to that foot's command offset, each landing
+    lat_cmd_max=0.06,     # most a foot's lateral command offset may be, m
+    min_sep_cmd=96.0,     # never command the soles closer than this (IK geometry), mm: nominal less 25
     notify_after_s=45.0,  # still fallen this long after a fall: run notify_cmd, once
     fall_wait_s=1200.0,   # the most it waits for the robot to be picked up and homed, s
     notify_cmd=["/home/claw/.hermes/scripts/ask-aime.sh",
                 "ROBOT PING: the biped fell over at {hhmm} and has not been picked up. It is limp and safe; when you stand it "
                 "upright it homes itself after 1 s. (Tom asked for this ping: please DM him this text on Mattermost and "
                 "reply 'sent'.)"],     # {hhmm} = local time of the fall; [] = never notify
-    lat_ff={"L": 0.0, "R": 0.0},      # learned: lateral offset (m, + = left) added to where each foot is commanded to land
 )
 
 
@@ -154,7 +156,9 @@ class Run:
         self.t0 = time.monotonic()
         self.off = {"L": self.k.model_offset("L"), "R": self.k.model_offset("R")}
         self.feet = {"L": [0.0, 0.0, 0.0], "R": [0.0, 0.0, 0.0]}     # each sole's offset from its stand
-        self.ycmd = {"L": 0.0, "R": 0.0}      # added to feet[side][1] in the pose sent: the landing compensation in force
+        self.lat_off = {"L": 0.0, "R": 0.0}   # per-foot lateral command offset (m): the integral of its landing errors
+        self.bt = None                        # board targets, set by the first look: a0 (mm), half (mm), centre (mm)
+        self.t_land = {"L": None, "R": None}  # the board target a foot was aimed at, until its landing is measured
         self.pel = [0.0, 0.0]                                         # pelvis offset (fwd, shift)
         self.hike = {"L": 0.0, "R": 0.0}                              # hip-roll trim, deg, of the leg it stands on
         self.ankle = {"L": 0.0, "R": 0.0}                             # ankle-roll trim, deg (data sweeps only)
@@ -166,10 +170,6 @@ class Run:
         self.board = board
         self.latest = self.base + "_latest.jpg"                       # the newest front-camera frame (board mode)
         self.n_look = 0
-        self.board_w = []                     # board widths (mm) measured so far, for board_view's scale
-        self.taper = []                       # and how fast its edges converge, for an edge it cannot see
-        self.f_sep = None                     # first look: scales the separation to the nominal one
-        self.last_landed = None               # the foot whose landing the next look judges
         self.stop_why = None
         self.out = []
         self.ahead = None
@@ -201,11 +201,10 @@ class Run:
             print(f"[{time.monotonic() - self.t0:6.1f}]", *a, flush=True)
 
     # -- motion -----------------------------------------------------------
-    # self.feet[side][1] is where the foot is BELIEVED to stand (what the steering and the separation check
-    # use); the pose sent has self.ycmd[side] added: the landing compensation, so the foot lands where it
-    # was aimed. The pelvis is placed from the sent y (fy): its geometry to the stance sole is the model's.
+    # self.feet[side][1] is where the foot is COMMANDED to stand (IK frame). Where it really lands is measured
+    # on the board (look) and handled by the outer loop in board coordinates (outer / _step), not here.
     def fy(self, side):
-        return self.feet[side][1] + self.ycmd[side]
+        return self.feet[side][1]
 
     def cmd(self, side):
         return (self.feet[side][0], self.fy(side), self.feet[side][2])
@@ -413,12 +412,9 @@ class Run:
             hike = self.hike[stance]
             self.log("lift", utc=time.time(), swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
             if how == "up":
-                dy = 0.0
-                if y_to is not None:
-                    dy = (y_to + P["lat_ff"][swing]) - self.fy(swing)        # aim past the target by what this foot misses
+                dy = 0.0 if y_to is None else y_to - self.fy(swing)
                 if y_to is not None:
                     self.feet[swing][1] = y_to
-                    self.ycmd[swing] = P["lat_ff"][swing]
                 if dx or abs(dy) > 1e-9:
                     self.feet[swing][0] += dx
                     self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
@@ -437,7 +433,6 @@ class Run:
                 P["hike"][stance] = round((1 - a) * P["hike"][stance] + a * hike, 2)
                 P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], k)), 3)
                 self.lower_foot(swing)
-                self.last_landed = swing                                    # judged at the next look, both feet down
                 return how, h
             # not up: put it down and correct the shift for this stance side
             self.lower_foot(swing, fast=(how == "tipping_out"))
@@ -480,7 +475,7 @@ class Run:
                 if got is None:
                     break
                 im, after = got
-                m = board_view.margins(im, self.bw(), self.tp())
+                m = board_view.margins(im, P["board_w_mm"])
                 if i == 1 or mid is None:
                     mid = (im, m)
                 if m is None:
@@ -501,17 +496,6 @@ class Run:
         keys = ("right_mm", "left_mm", "sole_r_mm", "sole_l_mm", "sep_mm", "mm_per_px", "conf", "board_px")
         m = {k: statistics.median(r[k] for r in res) for k in keys}
         m["ahead_px"] = int(statistics.median(r["ahead_px"] for r in res))
-        ws = [r["board_w_mm"] for r in res if r.get("board_w_mm")]
-        self.taper = (self.taper + [r["taper"] for r in res if r.get("taper") is not None])[-9:]
-        if ws:
-            self.board_w = (self.board_w + [statistics.median(ws)])[-5:]
-        if self.f_sep is None and P["sep_nominal_mm"] * 0.85 < m["sep_mm"] < P["sep_nominal_mm"] * 1.15:
-            # the first look is the crouch, feet at their nominal separation: calibrate the scale on it
-            self.f_sep = P["sep_nominal_mm"] / m["sep_mm"]
-            self.board_w = [self.f_sep * statistics.median(ws)] if ws else []
-            for k in ("right_mm", "left_mm", "sole_r_mm", "sole_l_mm", "sep_mm"):
-                m[k] *= self.f_sep
-            self.log("board_scale", f_sep=round(self.f_sep, 4), board_w_mm=self.board_w[0] if ws else None)
         self.log("board", tag=tag, seen=True, n=len(res), right_mm=round(m["right_mm"], 1), left_mm=round(m["left_mm"], 1),
                  sep_mm=round(m["sep_mm"], 1), sole_r_mm=round(m["sole_r_mm"], 1), sole_l_mm=round(m["sole_l_mm"], 1),
                  ahead_px=m["ahead_px"], conf=round(m["conf"], 2))
@@ -519,36 +503,46 @@ class Run:
                  f"ahead {m['ahead_px']} px  conf {m['conf']:.2f}")
         return m
 
-    def bw(self):
-        """The board's width (mm) learned from earlier frames, for board_view's scale; None before there is one."""
-        import statistics
-        return statistics.median(self.board_w) if self.board_w else None
-
-    def tp(self):
-        import statistics
-        return statistics.median(self.taper) if self.taper else None
-
-    def anchor(self, m):
-        """Both feet are down and `m` is a trustworthy look: compare the measured separation of the soles with
-        the believed one. A miss of 4..45 mm is put down to the foot that landed last: its believed y is moved
-        outward by it (the pose sent does not change), and lat_ff moves inward by ff_gain of it, so the next
-        landing of that foot aims short by that much. Returns the error e in mm (+ = wider than believed)."""
+    def outer(self, m, dy):
+        """The outer loop, in board coordinates (mm; sole_l_mm / sole_r_mm of the look `m`). The first look fixes
+        a0 (where each sole stood when the feet were at their commands), half (half the separation: the stance
+        it was put down in) and the line `centre` it holds. Later looks: a foot that has landed since is
+        measured, its error (target - measured) is taken into its command offset (lat_gain, clamped); --dy
+        and (board_centre) steering move the line."""
         P = self.p
-        f = self.last_landed
-        self.last_landed = None
-        e = m["sep_mm"] - (P["sep_nominal_mm"] + 1e3 * (self.feet["L"][1] - self.feet["R"][1]))
-        if f is None or not P["anchor_min_mm"] < abs(e) < P["anchor_max_mm"]:
-            self.log("anchor", foot=f, e_mm=round(e, 1), acted=False)
-            return e
-        out = 1.0 if f == "L" else -1.0                          # outward: +y for the left foot, -y for the right
-        self.feet[f][1] += out * 1e-3 * e
-        self.ycmd[f] -= out * 1e-3 * e                           # the pose sent stays put
-        old = P["lat_ff"][f]
-        P["lat_ff"][f] = round(max(-P["ff_lim"], min(P["ff_lim"], old - out * P["ff_gain"] * 1e-3 * e)), 5)
-        self.log("anchor", foot=f, e_mm=round(e, 1), acted=True, y=round(self.feet[f][1], 5), lat_ff_old=old, lat_ff=P["lat_ff"][f])
-        self.say(f"  {f} landed {e:+.0f} mm wider than aimed: now believed at {1e3 * self.feet[f][1]:+.0f} mm, "
-                 f"landing compensation {1e3 * P['lat_ff'][f]:+.1f} mm")
-        return e
+        sl, sr = m["sole_l_mm"], m["sole_r_mm"]
+        if self.bt is None:
+            self.bt = dict(a0=dict(L=sl, R=sr), half=0.5 * (sl - sr), centre=0.5 * (sl + sr))
+            self.log("board_target", **{k: (dict(v) if isinstance(v, dict) else round(v, 1)) for k, v in self.bt.items()})
+            return
+        for f in "LR":
+            t = self.t_land[f]
+            if t is None:
+                continue
+            self.t_land[f] = None
+            meas = sl if f == "L" else sr
+            err = t - meas
+            self.lat_off[f] = max(-P["lat_cmd_max"], min(P["lat_cmd_max"], self.lat_off[f] + P["lat_gain"] * 1e-3 * err))
+            self.log("landing", side=f, meas=round(meas, 1), target=round(t, 1), err=round(err, 1), ycmd=round(self.lat_off[f], 5))
+            self.say(f"  {f} landed at {meas:+.0f} mm, aimed {t:+.0f}: off by {err:+.0f} -> command offset {1e3 * self.lat_off[f]:+.0f} mm")
+        if P["board_centre"]:
+            e = 0.5 * (m["left_mm"] - m["right_mm"])             # + = more room on the left: move the line left
+            if abs(e) > P["board_dead_mm"]:
+                self.bt["centre"] += max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
+
+    def aim(self, side):
+        """Where the swing foot is commanded (IK y, m): its board target, from the first look's stand, plus its
+        command offset; never closer to the other foot's command than min_sep_cmd. Remembers the target."""
+        P = self.p
+        if self.bt is None:
+            return self.fy(side)
+        tgt = self.bt["centre"] + (self.bt["half"] if side == "L" else -self.bt["half"])
+        y = 1e-3 * (tgt - self.bt["a0"][side]) + self.lat_off[side]
+        gap = 1e-3 * (P["min_sep_cmd"] - P["sep_nominal_mm"])           # the least yL - yR, m
+        other = self.fy("R" if side == "L" else "L")
+        y = max(y, other + gap) if side == "L" else min(y, other - gap)
+        self.t_land[side] = tgt
+        return y
 
     # -- the servos ---------------------------------------------------------
     def servo_guard(self, tag):
@@ -589,7 +583,6 @@ class Run:
                 self.halt(why, "guard_stop")
                 return "stop", None
         self.n_steps += 1
-        corr = 0.0
         if board:
             m = self.look(f"step {self.n_steps - 1}")
             self.misses = 0 if m else self.misses + 1
@@ -605,18 +598,21 @@ class Run:
                 self.log("board_ahead", ahead_px=m["ahead_px"])
                 return "ahead", None
             else:
-                self.anchor(m)
-                e = 0.5 * (m["left_mm"] - m["right_mm"])            # + = more room on the left: move left
-                if abs(e) > P["board_dead_mm"]:
-                    corr = 1e-3 * max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
+                self.outer(m, dy)
         stance = "R" if side == "L" else "L"
-        step_out = 0.0
-        for d in (dy, corr):                         # outward only: left foot to the left, right foot to the right
-            if (d > 0 and side == "L") or (d < 0 and side == "R"):
-                step_out += d
-        if board and corr:
-            self.say(f"  steer {1e3 * corr:+.0f} mm" + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
-        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=self.feet[stance][1] + step_out)
+        if board:
+            if self.bt is not None:
+                self.bt["centre"] += 0.5e3 * dy                      # a sidestep moves the line, half of dy per step
+            y_to = self.aim(side)
+        else:
+            step_out = 0.0
+            for d in (dy,):                          # outward only: left foot to the left, right foot to the right
+                if (d > 0 and side == "L") or (d < 0 and side == "R"):
+                    step_out += d
+            y_to = self.feet[stance][1] + step_out
+        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to)
+        if res[1] == "gave_up" or res[1] != "up":
+            self.t_land[side] = None                                 # it did not land anew
         return ("gave_up" if res[1] == "gave_up" else "ok"), res
 
     def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
@@ -824,10 +820,13 @@ def main(argv=None, make_robot=None, log_dir=None):
     ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
     ap.add_argument("--video", type=int, default=0, metavar="SECS", help="record both cameras for SECS")
+    ap.add_argument("--board-centre", action="store_true", help="--board: steer toward the board's centre line (default: hold the starting line)")
     ap.add_argument("--no-notify", action="store_true", help="after a fall, do not ping the owner via Aime")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL")
     ap.add_argument("--host", default="192.168.2.90")
     a = ap.parse_args(argv)
+    if a.board_centre and not a.board:
+        ap.error("--board-centre needs --board")
     if a.board and a.what not in ("walk", "march", "shuttle"):
         ap.error("--board is for walk, march and shuttle")
     if a.board and not a.video:
@@ -836,6 +835,8 @@ def main(argv=None, make_robot=None, log_dir=None):
     for kv in a.set:
         k, v = kv.split("=", 1)
         prm[k] = json.loads(v)
+    if a.board_centre:
+        prm["board_centre"] = True
     if a.no_notify:
         prm["notify_cmd"] = []
     if a.pace != 1.0:

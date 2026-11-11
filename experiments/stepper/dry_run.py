@@ -117,12 +117,14 @@ def test_sidestep_left_and_right():
     assert abs(yl + 0.03) < 1e-9 and abs(yr + 0.03) < 1e-9, (yl, yr)
 
 
-def board_stub(run, left0=130.0, right0=70.0, ahead=lambda run: 300, script=None, miss=None):
-    """A camera stand-in and a body that lands its feet where it likes. `true` holds where each sole really
-    stands (y, m; set when a foot goes down: the y it was sent to plus miss[side]); the margins and the
-    separation come from it. left0/right0: the room left and right of the soles at y = 0."""
+def board_stub(run, left0=100.0, right0=100.0, ahead=lambda run: 300, script=None, miss=None, sole0=(68.0, -69.0)):
+    """A camera stand-in and a body that lands its feet where it likes, in board coordinates. `true` holds where
+    each sole really stands (y, m, from where it began; set when a foot goes down: the y it was sent to plus
+    miss[side], + = left); the look reports it on ONE fixed scale: sole_l_mm / sole_r_mm = sole0 + true,
+    margins left0/right0 less/plus it, sep = their difference."""
     miss = miss or {"L": 0.0, "R": 0.0}
     run.true = {"L": 0.0, "R": 0.0}
+    run.sole0 = dict(L=sole0[0], R=sole0[1])
     run.landed = []
     lower0 = run.lower_foot
 
@@ -134,24 +136,28 @@ def board_stub(run, left0=130.0, right0=70.0, ahead=lambda run: 300, script=None
     run.lower_foot = lower
     calls = []
 
+    def sole(f):
+        return run.sole0[f] + 1e3 * run.true[f]
+
     def look(tag):
         calls.append(tag)
         if script is not None:
             m = script(len(calls))
         else:
-            t = run.true
-            m = dict(left_mm=left0 - 1e3 * t["L"], right_mm=right0 + 1e3 * t["R"], ahead_px=ahead(run), mm_per_px=0.5,
-                     sep_mm=121.0 + 1e3 * (t["L"] - t["R"]), conf=0.9)
+            m = dict(left_mm=left0 - 1e3 * run.true["L"], right_mm=right0 + 1e3 * run.true["R"], ahead_px=ahead(run), mm_per_px=1.0,
+                     sole_l_mm=sole("L"), sole_r_mm=sole("R"), sep_mm=sole("L") - sole("R"), conf=0.9)
         run.log("board", tag=tag, seen=m is not None)
         return m
     run.look = look
+    run.sole = sole
     return calls
 
 
 def test_board_steers_toward_the_middle():
     with env() as d:
         run = make(d)
-        board_stub(run)                                            # 30 mm more room on the left: go left
+        run.p["board_centre"] = True
+        board_stub(run, left0=130.0, right0=70.0)                  # 30 mm more room on the left: go left
         out = run.walk("L", 6, 0.0, 0.0, board=True)
         check_up(out, 6)
         e = 0.5 * ((130 - 1e3 * run.true["L"]) - (70 + 1e3 * run.true["R"]))
@@ -161,7 +167,8 @@ def test_board_steers_toward_the_middle():
         run.finish(save=False)
     with env() as d:
         run = make(d)
-        board_stub(run, left0=70.0, right0=130.0)                   # more room on the right: right foot first
+        run.p["board_centre"] = True
+        board_stub(run, left0=70.0, right0=130.0)                   # more room on the right: the line moves right
         out = run.walk("L", 6, 0.0, 0.0, board=True)
         check_up(out, 6)
         assert run.feet["L"][1] < 0.0 and run.feet["R"][1] < 0.0, run.feet
@@ -185,7 +192,7 @@ def test_board_stops():
         run.finish(save=False)
     with env() as d:                                                # one miss is tolerated, two stop
         run = make(d)
-        ok = dict(left_mm=100.0, right_mm=100.0, ahead_px=300, mm_per_px=0.5, sep_mm=121.0, conf=0.9)
+        ok = dict(left_mm=100.0, right_mm=100.0, ahead_px=300, mm_per_px=0.5, sep_mm=137.0, sole_l_mm=68.0, sole_r_mm=-69.0, conf=0.9)
         board_stub(run, script=lambda n: None if n in (2, 4, 5) else ok)
         out = run.walk("L", 8, 0.02, 0.0, board=True)
         check_up(out, 4)
@@ -230,37 +237,55 @@ def test_main_arguments():
             raise AssertionError("--board on lift should be refused")
 
 
-def test_landing_misses_converge():
-    """The right foot lands 25 mm too wide, the left 8 mm: after a few steps lat_ff has taken the misses out,
-    the stance is back at its nominal width, and the steering still brings the robot toward the middle."""
-    miss = {"L": 0.008, "R": -0.025}                               # + = left: both outward
-    with env() as d:
+def landing_errors(run):
+    rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+    return [(r["side"], r["err"]) for r in rows if r["ev"] == "landing"]
+
+
+def test_landing_loop():
+    """Both feet land to the right of where they are sent (the right 40 mm, the left 20 mm; 80 / 40 for a 2x
+    miss). The outer loop, in board coordinates, takes their landing errors into per-foot command offsets."""
+    for scale, tol_r in ((1.0, 10.0), (2.0, 25.0)):                # 2x: the right foot needs 80 mm, the offset is capped at 60
+        miss = {"L": -0.020 * scale, "R": -0.040 * scale}
+        with env() as d:
+            run = make(d)
+            board_stub(run, left0=200.0, right0=200.0, miss=miss)
+            out = run.walk("L", 10, 0.0, 0.0, hold=0.0, board=True, march=True)
+            check_up(out, 10)
+            tg = {f: run.bt["centre"] + (run.bt["half"] if f == "L" else -run.bt["half"]) for f in "LR"}
+            for f, tol in (("L", 10.0), ("R", tol_r)):
+                assert abs(run.sole(f) - tg[f]) < tol, (scale, f, run.sole(f), tg[f])        # ends within tolerance of its target
+            errs = landing_errors(run)
+            for f, tol in (("L", 10.0), ("R", tol_r)):
+                last = [abs(e) for sd, e in errs if sd == f][-2:]
+                assert len(last) == 2 and max(last) <= tol, (scale, f, errs)                 # and stays there
+                allf = [abs(e) for sd, e in errs if sd == f]
+                assert max(allf[2:]) <= allf[0] + 1e-6, (scale, f, allf)                    # no oscillation growth
+            assert abs(run.lat_off["R"]) <= run.p["lat_cmd_max"] + 1e-12
+            assert run.bt["centre"] == 0.5 * (68.0 - 69.0)                                  # held the starting line
+            run.finish(save=False)
+    with env() as d:                                               # a walk holds the starting line
         run = make(d)
-        board_stub(run, miss=miss)                                 # starts 30 mm right of the middle
-        out = run.walk("L", 10, 0.0, 0.0, board=True)
-        check_up(out, 10)
-        ff = run.p["lat_ff"]
-        for f in "LR":
-            assert abs(miss[f] + ff[f]) < 0.006, (f, miss[f], ff[f])             # the landing error left
-        assert abs(1e3 * (run.true["L"] - run.true["R"])) < 6.0, run.true       # stance width nominal +-6 mm
-        e0, e1 = 30.0, 0.5 * ((130 - 1e3 * run.true["L"]) - (70 + 1e3 * run.true["R"]))
-        assert abs(e1) < 20.0 and abs(e1) < e0, (e0, e1)
-        assert any(abs(v) > 0 for v in ff.values())
-        run.finish(save=True)
-        saved = json.load(open(S.STATE))
-        assert saved["lat_ff"] == ff, saved
-    with env() as d:                                               # without --board nothing is measured or learned
-        prm = S.load_state()
-        prm["lat_ff"] = {"L": 0.01, "R": -0.01}
-        kin = Kin(prm["drop"])
-        run = S.Run("noboard", FakeRobot(kin), kin, prm, quiet=QUIET, log_dir=d)
-        run.stand_up()
-        run.look = lambda tag: (_ for _ in ()).throw(AssertionError("looked"))
-        out = run.walk("L", 4, 0.0, 0.0)
-        check_up(out, 4)
-        assert prm["lat_ff"] == {"L": 0.01, "R": -0.01}
-        assert abs(run.fy("L") - 0.01) < 1e-9 and abs(run.fy("R") + 0.01) < 1e-9, (run.fy("L"), run.fy("R"))   # applied
-        assert run.feet["L"][1] == 0.0 and run.feet["R"][1] == 0.0                                             # belief unchanged
+        board_stub(run, miss={"L": -0.020, "R": -0.040})
+        out = run.walk("L", 8, 0.02, 0.0, board=True)
+        check_up(out, 8)
+        centre = 0.5 * (run.sole("L") + run.sole("R"))
+        assert abs(centre - run.bt["centre"]) < 15.0, (centre, run.bt)
+        assert abs((run.sole("L") - run.sole("R")) - 2 * run.bt["half"]) < 15.0
+        run.finish(save=False)
+    with env() as d:                                               # a sidestep command moves the line (half of dy per step)
+        run = make(d)
+        board_stub(run)
+        run.walk("L", 6, 0.0, 0.015, hold=0.0, board=True, march=True)
+        assert abs(run.bt["centre"] - (-0.5 + 6 * 7.5)) < 1e-6, run.bt
+        assert abs(run.sole("L") - (68.0 + 6 * 7.5 - 0.0)) < 15.0, run.sole("L")
+        run.finish(save=False)
+    with env() as d:                                               # the soles are never commanded closer than min_sep_cmd
+        run = make(d)
+        board_stub(run)
+        run.lat_off = {"L": -0.06, "R": 0.06}                      # offsets that would cross the feet
+        run.walk("L", 4, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert 121.0 + 1e3 * (run.fy("L") - run.fy("R")) >= run.p["min_sep_cmd"] - 1e-6
         run.finish(save=False)
 
 
@@ -362,7 +387,7 @@ def test_backward_and_shuttle():
         run.finish(save=False)
     with env() as d:                                               # the landing misses, learned away, over 2 cycles of 4
         run = make(d)
-        board_stub(run, left0=100.0, right0=100.0, miss={"L": 0.008, "R": -0.025})
+        board_stub(run, miss={"L": -0.020, "R": -0.040})
         out = run.shuttle("L", 4, 2, 0.02, 0.0, board=True)
         check_up(out, 16)
         assert all(abs(run.true[f]) < 0.015 for f in "LR"), run.true
@@ -509,10 +534,13 @@ def test_board_view_frames():
         if name.startswith("walk104632"):
             assert m["right_mm"] < 25.0, name                          # the warning is there before the fall
     # no stored width: the soles' own scale (calibrated on the nominal stance) still reads the nominal stance
-    m = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "dim_start.jpg")))
-    assert m is not None and 116 <= m["sep_mm"] <= 126 and 400 <= m["board_w_mm"] <= 500, m
-    m = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "roomlight_wide_stance.jpg")))
-    assert m is not None and 40 <= m["right_mm"] <= 55, m             # the room light, no state at all
+    m = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "dim_start.jpg")), None)
+    assert m is not None and 116 <= m["sep_mm"] <= 126 and 400 <= m["board_w_mm"] <= 500, m   # (soles' own scale)
+    for name in FRAMES:                                               # the default IS the fixed 450 mm scale
+        im = cv2.imread(os.path.join(HERE, "testdata", "frames", name + ".jpg"))
+        assert board_view.margins(im)["sep_mm"] == board_view.margins(im, 450.0)["sep_mm"]
+    m = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "roomlight_wide_stance.jpg")), None)
+    assert m is not None and 40 <= m["right_mm"] <= 55, m             # the room light, no width at all
     # one board edge not reliably seen: the other is inferred from the stored width, with less confidence
     im = cv2.imread(os.path.join(HERE, "testdata", "frames", "walk110045_t47.jpg"))
     full = board_view.margins(im, board_w_mm=450.0)
@@ -525,8 +553,41 @@ def test_board_view_frames():
             assert abs(m["right_mm"] - full["right_mm"]) < 25 and abs(m["left_mm"] - full["left_mm"]) < 25, (side, m, full)
             m = board_view.margins(im, board_w_mm=450.0)                # no taper known: parallel, less trusted
             assert m is not None and m["conf"] < 0.4, m
-            assert board_view.margins(im) is None                      # no width to infer from: cannot tell
+            assert board_view.margins(im, None) is None                # no width to infer from: cannot tell
     assert board_view.margins(im * 0) is None                          # a black frame: cannot tell, says so
+
+
+def test_track_tool():
+    import io
+    import cv2
+    import board_view
+    names = ("dim_start", "walk110045_t47", "walk110045_t88")
+    ims = [cv2.imread(os.path.join(HERE, "testdata", "frames", n + ".jpg")) for n in names]
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "x_sony.avi")
+        vw = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"MJPG"), 5.0, (ims[0].shape[1], ims[0].shape[0]))
+        if not vw.isOpened():
+            print("   (no MJPG writer: track test skipped)")
+            return
+        for im in ims:
+            vw.write(im)
+        vw.release()
+        with open(os.path.join(d, "x_sony.pts"), "w") as f:
+            f.write("# timestamp format v2\n" + "\n".join(str(1.7e12 + 200 * i) for i in range(3)) + "\n")
+        buf = io.StringIO()
+        rows = board_view.track(path, every=1, board_w_mm=450.0, out=buf)
+        lines = buf.getvalue().strip().splitlines()
+        assert lines[0].split(",") == ["frame", "t_s", "utc", "sole_r_mm", "sole_l_mm", "right_mm", "left_mm", "sep_mm", "conf"], lines[0]
+        assert len(rows) == 3 and len(lines) == 4
+        good = 0
+        for i, (r, im) in enumerate(zip(rows, ims)):
+            m = board_view.margins(im, 450.0)
+            if r[8] and float(r[8]) >= 0.5:                        # (video compression can cost a frame its confidence)
+                good += 1
+                assert abs(float(r[3]) - m["sole_r_mm"]) < 8 and abs(float(r[4]) - m["sole_l_mm"]) < 8, (r, m["sole_r_mm"])
+            assert abs(float(r[2]) - (1.7e9 + 0.2 * i)) < 1e-3 and abs(float(r[1]) - 0.2 * i) < 1e-3, r
+        assert good >= 2
+        assert len(board_view.track(path, every=2, out=io.StringIO())) == 2
 
 
 def test_look_median_of_frames():
@@ -550,8 +611,8 @@ def test_look_median_of_frames():
             run.finish(save=False)
             return m, files, run
     m, files, run = run_with([ims["dim_start"], ims["dim_shadow_right"], ims["dim_start"]])
-    assert m is not None and abs(m["sep_mm"] - 121.0) < 0.01, m           # first look: scaled to the nominal separation
-    assert run.f_sep is not None and 0.8 < run.f_sep < 1.2 and run.bw() is not None
+    assert m is not None, m
+    assert 116 <= m["sep_mm"] <= 128 and run.bt is None            # the fixed scale; the look itself sets no target
     assert files == ["%s_board_01.jpg" % os.path.basename(run.base)], files
     m, _, _ = run_with([ims["dim_start"], blank, ims["dim_start"]])        # one frame lost: the other two do
     assert m is not None

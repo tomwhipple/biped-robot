@@ -4,7 +4,7 @@ The robot walks on a brown board laid on a pale carpet, toward the camera. One f
 foot, how far its sole's outer edge is from the board's edge on that side, where each sole stands across
 the board, and how far the feet are from the bottom of the picture (the board runs out of view there).
 
-    margins(frame_bgr, board_w_mm=None, taper=None) -> dict(right_mm, left_mm, sole_r_mm, sole_l_mm, sep_mm, ahead_px,
+    margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None) -> dict(right_mm, left_mm, sole_r_mm, sole_l_mm, sep_mm, ahead_px,
                                                  mm_per_px, board_w_mm, conf, ...)   or None
 
 right/left are the ROBOT's (it faces the camera, so its right foot is on the picture's left).
@@ -21,18 +21,23 @@ Board edges are straight lines fitted by RANSAC to the per-row extent of the boa
 the edge or a shadow cannot drag them: they are a minority of the rows). The two edges must converge
 toward the horizon. If only one is trustworthy the other is inferred from the board's width, which is
 returned (board_w_mm, with taper: how fast the edges converge) and can be handed back in on later frames;
-an inferred edge is good to about 5 % of the board's width, and conf says so (0.5, or 0.35 without a taper).
+an inferred edge is good to about 5 % of the board's width, and conf says so (0.4, or 0.3 without a taper).
 
-Scale: the board's own width at the feet's row when board_w_mm is given, else the soles' width in the
-picture (SOLE_W_MM). SOLE_W_MM is calibrated, not the 84 mm of the CAD: the soles stand toed-out in the
-crouch and the picture shows their x-extent, which is wider than the plate; with it the nominal stance
-(2026-11-11 dim_start.jpg, 121 mm centre to centre by design) reads 121 mm.
+Scale: ONE for the whole run: the board's width (board_w_mm, default BOARD_W_MM = 450 mm) over its width in
+pixels at the soles' row. Every position, margin and separation is on that scale, so two frames are comparable
+(a per-frame scale from the soles' own width, SOLE_W_MM = 92 mm, is only the fallback when board_w_mm=None; the
+soles stand toed-out and their x-extent varies from frame to frame, 5 % or more).
+
+    python board_view.py track <sony.mp4> [--every 6] [--board-w 450] > soles.csv
+measures a recording: frame, video time, UTC (from <base>.pts next to it if present), soles, margins, sep, conf.
+    python board_view.py frame.jpg ...      prints the numbers and writes frame_bv.jpg (annotated)
 """
 from __future__ import annotations
 
 import cv2
 import numpy as np
 
+BOARD_W_MM = 450.0    # mm: the board's width, the ONE scale of a run (positions = fraction across the board x this)
 SOLE_W_MM = 92.0      # mm: x-extent of a sole in the picture, calibrated on the nominal stance (see above)
 SEP_RANGE = (80.0, 220.0)   # mm, plausible centre-to-centre separation of the soles
 
@@ -188,9 +193,10 @@ def soles(hue, sat, val, board, s_car):
     return best
 
 
-def margins(frame_bgr, board_w_mm=None, taper=None):
-    """board_w_mm: the board's width (mm) from earlier frames, the scale when given and what the missing edge
-    is inferred from. taper: slope(right edge) - slope(left edge) from earlier frames (the board narrows
+def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
+    """board_w_mm: the board's width (mm): THE scale, the same on every frame of a run (default BOARD_W_MM): a
+    sole's position is its fraction across the board at its row times this. None: scale from the soles'
+    own width instead (SOLE_W_MM; noisy, for a first look at an unknown board only). taper: slope(right edge) - slope(left edge) from earlier frames (the board narrows
     toward the horizon), so an inferred edge converges like the real one. Both come back from a frame where
     both edges were seen (board_w_mm, taper); without them an inferred edge is drawn parallel (conf 0.35)."""
     H, W = frame_bgr.shape[:2]
@@ -233,7 +239,7 @@ def margins(frame_bgr, board_w_mm=None, taper=None):
         else:
             R = ER[0]
             L = np.array([R[0] - t, np.polyval(R, yb) - bw_px - (R[0] - t) * yb])
-        conf *= 0.5 if taper is not None else 0.35
+        conf *= 0.4 if taper is not None else 0.3     # below the 0.5 a run accepts: the scale of an inferred edge is the soles'
     xl, xr = np.polyval(L, a["xl_row"]), np.polyval(R, b["xr_row"])    # the edges where each sole's outer corner is
     mid = 0.5 * (np.polyval(L, yb) + np.polyval(R, yb))
     if max(a["y1"], b["y1"]) >= H - 2:                           # a sole cut off by the picture's bottom is not fully seen
@@ -262,8 +268,54 @@ def draw(frame_bgr, m):
     return out
 
 
+def _pts(path):
+    """Per-frame UTC (s) from the mkvtimestamp_v2 file beside the video (<base>_sony.pts for <base>_sony.mp4), or []."""
+    import os
+    p = os.path.splitext(path)[0] + ".pts"
+    if not os.path.exists(p):
+        return []
+    return [float(x) / 1e3 for x in open(p).read().split("\n") if x.strip() and not x.startswith("#")]
+
+
+def track(path, every=6, board_w_mm=BOARD_W_MM, out=None):
+    """Measure every `every`-th frame of a recording. Writes CSV to `out` (default stdout); returns the rows."""
+    import csv
+    import sys
+    out = out or sys.stdout
+    cap = cv2.VideoCapture(path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    pts = _pts(path)
+    w = csv.writer(out)
+    cols = ("sole_r_mm", "sole_l_mm", "right_mm", "left_mm", "sep_mm", "conf")
+    w.writerow(("frame", "t_s", "utc") + cols)
+    rows, i = [], 0
+    while True:
+        ok, im = cap.read()
+        if not ok:
+            break
+        if i % every == 0:
+            m = margins(im, board_w_mm)
+            t = (pts[i] - pts[0]) if i < len(pts) else (i / fps if fps else "")
+            utc = f"{pts[i]:.3f}" if i < len(pts) else ""
+            row = [i, f"{t:.3f}" if t != "" else "", utc] + ([f"{m[c]:.1f}" if c != "conf" else f"{m[c]:.2f}" for c in cols] if m else [""] * len(cols))
+            w.writerow(row)
+            rows.append(row)
+        i += 1
+    cap.release()
+    return rows
+
+
 if __name__ == "__main__":
     import sys
+    if len(sys.argv) > 2 and sys.argv[1] == "track":
+        import argparse
+        ap = argparse.ArgumentParser(prog="board_view.py track")
+        ap.add_argument("video")
+        ap.add_argument("--every", type=int, default=6)
+        ap.add_argument("--board-w", type=float, default=BOARD_W_MM)
+        a = ap.parse_args(sys.argv[2:])
+        track(a.video, a.every, a.board_w)
+        sys.exit(0)
     for p in sys.argv[1:]:
         im = cv2.imread(p)
         m = margins(im)
