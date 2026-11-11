@@ -80,9 +80,9 @@ sys.path.insert(0, HERE)
 from nool import foot_clear, settled, tipping  # noqa: E402
 
 STATE = os.path.join(HERE, "state.json")
-TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
+TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "t_land", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
 GUARD = ("R_hip_roll", "L_hip_roll", "R_knee", "L_knee", "R_ankle_roll", "L_ankle_roll", "R_hip_pitch", "L_hip_pitch")
-LEARNED = ("k_shift", "h_up", "hike", "comp")
+LEARNED = ("k_shift", "h_up", "hike", "comp", "sole_bias")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
@@ -114,6 +114,12 @@ DEFAULTS = dict(
     yaw_dead=0.5,         # ... below this error (deg) nothing is added
     yaw_step_max=8.0,     # most one swing foot is turned, deg
     yaw_board_max=25.0,   # --board: the run ends if the heading passes this, deg (the lateral loop assumes a square board)
+    sole_rate=2.0,        # the swing sole's trims follow the measured body tilt by at most this much per IMU update, deg
+    sole_trim_max=8.0,    # most a swing ankle is trimmed to level its sole, deg
+    sole_bias={"L": 2.0, "R": 2.0},   # learned: the unloaded ankle hangs outer-edge-down in its play; trim the outer edge UP by this, deg
+    swing_extra=0.006,    # a foot is raised this much more than it took to clear before it moves sideways or forward, m
+    land_mm=6.0,          # the last this much of a lowering is one slow move ...
+    t_land=0.5,           # ... of this long, s
     t_bal=0.25,           # the balance move in the air, s
     t_min=0.25,           # shortest monitored pelvis move / fast lower, s
     t_sweep=0.25,         # one step of a data sweep, s
@@ -188,6 +194,8 @@ class Run:
         self.pel = [0.0, 0.0]                                         # pelvis offset (fwd, shift)
         self.hike = {"L": 0.0, "R": 0.0}                              # hip-roll trim, deg, of the leg it stands on
         self.ankle = {"L": 0.0, "R": 0.0}                             # ankle-roll trim, deg (data sweeps only)
+        self.sole_r = {"L": 0.0, "R": 0.0}                            # the swing sole's levelling trims, deg: ankle roll ...
+        self.sole_p = {"L": 0.0, "R": 0.0}                            # ... and ankle pitch (released during the next shift)
         self.ref0 = None                                              # the level crouch
         self.ref = None                                               # after the last shift
         self.tilt_s = 0.0                                             # its lean toward the swing foot then
@@ -195,6 +203,7 @@ class Run:
         self.psi_ref = 0.0                    # rad: the frame the bookkeeping below is in (body-aligned, + = CCW)
         self.psi_p = 0.0                      # rad: the pelvis heading now
         self.yawf = {"L": 0.0, "R": 0.0}      # rad: the soles' world yaws (relative to that same zero)
+        self.pending_d = 0.0
         self.corr = {"L": 0.0, "R": 0.0}      # deg of each sole's yaw that are heading corrections, not the commanded turn
         self.corr_p = 0.0                     # ... and of the pelvis heading
         self.yaw_hist = []                    # (t, fused yaw deg) of recent IMU reads
@@ -256,13 +265,14 @@ class Run:
         try:
             q = self.k.pose(shift=self.pel[1], fwd=self.pel[0], footL=self.cmd("L"), footR=self.cmd("R"),
                             drop=self.p["drop"], hike={k: math.radians(v) for k, v in self.hike.items()},
-                            ankle={k: math.radians(v) for k, v in self.ankle.items()},
+                            ankle={k: math.radians(self.ankle[k] + self.sole_r[k]) for k in "LR"},
+                            ankle_p={k: math.radians(v) for k, v in self.sole_p.items()},
                             ref=self.psi_ref, heading=self.psi_p, yawL=self.yawf["L"], yawR=self.yawf["R"])
         except ValueError as e:
             raise Abort(f"{tag}: {e}")
         self.last_tag = tag
         self.r.pose(q, ms, margin=self.p["pose_margin"])
-        self.log("pose", tag=tag, ms=ms, pel=list(self.pel), hike=dict(self.hike), feet=json.loads(json.dumps(self.feet)))
+        self.log("pose", tag=tag, ms=ms, pel=list(self.pel), hike=dict(self.hike), sole_r=dict(self.sole_r), sole_p=dict(self.sole_p), feet=json.loads(json.dumps(self.feet)))
 
     def read(self, tag=""):
         """One IMU read. A read that jumps from the last accepted one (or is large) may be torn: only then a
@@ -363,6 +373,7 @@ class Run:
         P = self.p
         a, k0 = list(self.pel), dict(self.hike)
         h0 = self.psi_p
+        sr0, sp0 = dict(self.sole_r), dict(self.sole_p)
         dist = math.hypot(to[0] - a[0], to[1] - a[1])
         n = max(1, math.ceil(dist / P["shift_step"]), math.ceil(max(k0.values()) / 3.0))
         ms = int(1e3 * max(P["t_min"], P["t_shift"] * (dist / n) / 0.08))
@@ -371,6 +382,8 @@ class Run:
             u = i / n
             self.pel = [a[0] + u * (to[0] - a[0]), a[1] + u * (to[1] - a[1])]
             self.hike = {k: v * (1 - u) for k, v in k0.items()}
+            self.sole_r = {k: v * (1 - u) for k, v in sr0.items()}        # the sole trims are let go as the foot is loaded
+            self.sole_p = {k: v * (1 - u) for k, v in sp0.items()}
             if heading_to is not None:
                 self.psi_p = h0 + u * (heading_to - h0)               # the pelvis turns with the shift
             self.go(ms, f"{tag} {i}/{n}")
@@ -382,18 +395,23 @@ class Run:
                     self.shift_back(guard[0], toward)
                     return s
             if abs(dr) > P["shift_lean_lim"] or abs(dp) > P["shift_lean_lim"]:
-                self.say(f"  leaning in {tag}: roll {dr:+.1f} pitch {dp:+.1f} at shift {1e3 * self.pel[1]:+.0f} mm")
+                self.say(f"  leaning in {tag}: roll {dr:+.1f} pitch {dp:+.1f} at shift {1e3 * (self.pel[1] - (self.fy(guard[0]) if guard else 0.0)):+.0f} mm")
                 raise Abort(f"lean {dr:+.1f}/{dp:+.1f} deg during {tag}")
         return s
 
     def rebase(self, d):
         """The body-aligned frame turns by d (rad): the feet and the pelvis keep their places in the world, so their
-        coordinates in it rotate by -d. A change of coordinates: no pose changes (the world position is
-        R(psi_ref) * coordinates; the pelvis heading psi_p is not touched)."""
+        coordinates in it rotate by -d. A change of coordinates: no pose changes (the world position of each is
+        R(psi_ref) * (its nominal stand + its offset), and the pelvis heading psi_p is not touched). It is the
+        POSITION that turns, not the offset: the nominal stand of a foot (0, +-42 mm) turns with it -- rotating the
+        offsets alone moved the feet by 42 mm * d at every re-base and walked a 90 deg turn off the board."""
         c, s_ = math.cos(d), math.sin(d)
-        for v in (self.feet["L"], self.feet["R"], self.pel):
-            v[0], v[1] = c * v[0] + s_ * v[1], -s_ * v[0] + c * v[1]
+        base = {"L": self.k.k1.footL[:2], "R": self.k.k1.footR[:2]}
+        for v, (bx, by) in ((self.feet["L"], base["L"]), (self.feet["R"], base["R"]), (self.pel, self.k.k1.pelvis[:2])):
+            x, y = bx + v[0], by + v[1]
+            v[0], v[1] = c * x + s_ * y - bx, -s_ * x + c * y - by
         self.psi_ref += d
+        self.pending_d += d                    # the feet's line has turned by this since the swing foot was last placed
         self.log("rebase", d_deg=round(math.degrees(d), 2), psi_ref=round(math.degrees(self.psi_ref), 2))
 
     def shift_back(self, stance, toward):
@@ -407,9 +425,10 @@ class Run:
         old = P["k_shift"][stance]
         P["k_shift"][stance] = round(max(P["k_min"], old - P["k_step"]), 3)
         self.shift_tipped = True
-        self.log("shift_tip", stance=stance, toward=round(toward, 2), shift_mm=round(1e3 * y, 1), back_to_mm=round(1e3 * self.pel[1], 1),
+        yst = self.fy(stance)
+        self.log("shift_tip", stance=stance, toward=round(toward, 2), shift_mm=round(1e3 * (y - yst), 1), back_to_mm=round(1e3 * (self.pel[1] - yst), 1),
                  k_old=old, k=P["k_shift"][stance])
-        self.say(f"  shift over {stance} tipping out ({toward:+.1f} deg toward it): back to {1e3 * self.pel[1]:+.0f} mm, k now x{P['k_shift'][stance]:.2f}")
+        self.say(f"  shift over {stance} tipping out ({toward:+.1f} deg toward it): back to {1e3 * (self.pel[1] - yst):+.0f} mm from it, k now x{P['k_shift'][stance]:.2f}")
 
     def shift_over(self, stance):
         d = self.yawf[stance] - self.psi_ref
@@ -424,8 +443,25 @@ class Run:
         time.sleep(self.p["settle_s"])
         s = self.ref = self.settle(f"over {stance}")
         dr, dp = self.lean(s)
-        self.say(f"over {stance} x{self.p['k_shift'][stance]:.2f} ({1e3 * to[1]:+.0f} mm, fwd {1e3 * to[0]:+.0f})  lean {dr:+.2f} pitch {dp:+.2f}")
+        self.say(f"over {stance} x{self.p['k_shift'][stance]:.2f} ({1e3 * (to[1] - self.fy(stance)):+.0f} mm from the stance foot, fwd {1e3 * (to[0] - self.feet[stance][0]):+.0f})  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
+
+    def level_sole(self, swing, s):
+        """Trim the swing leg's ankle so its sole is level in the world whatever the body is doing: the roll the
+        IMU reads away from the level reference tips the sole by that much (ankle roll -r on the left leg, +r on
+        the right), the pitch deviation p needs ankle pitch -p; and the unloaded ankle's play lets it hang outer
+        edge down, so the outer edge is trimmed up by sole_bias. Each trim follows its target by at most
+        sole_rate per update and is clamped to sole_trim_max. Returns how far the trims moved (deg)."""
+        P = self.p
+        r = s["roll"] - self.ref0["roll"]
+        ph = s["pitch"] - self.ref0["pitch"]
+        moved = 0.0
+        for dct, tgt in ((self.sole_r, (-r if swing == "L" else r) + P["sole_bias"][swing]), (self.sole_p, -ph)):
+            tgt = max(-P["sole_trim_max"], min(P["sole_trim_max"], tgt))
+            cur = dct[swing]
+            dct[swing] = cur + max(-P["sole_rate"], min(P["sole_rate"], tgt - cur))
+            moved = max(moved, abs(dct[swing] - cur))
+        return moved
 
     def raise_foot(self, swing):
         """Raise `swing` a little at a time, trimming the stance hip against the tilt as it goes.
@@ -447,6 +483,7 @@ class Run:
             self.go(int(1e3 * (P["t_inc"] if not first else max(P["t_inc"], P["t_inc"] * dh / P["dh"] * 0.6))), f"raise {swing} {1e3 * h:.0f}")
             first = False
             s = self.read(f"raise {swing}")
+            self.level_sole(swing, s)
             tilt = self.tilt_to(swing, s) - tilt_s             # toward the lifted foot, since both feet were down
             clr = foot_clear(h, tilt, need=P["need"])
             tip = tipping(tilt, self.lean(s)[1] - pitch_s, s["rate"], P["tilt_lim"], P["pitch_lim"],
@@ -487,16 +524,17 @@ class Run:
         t = time.monotonic()
         while True:
             s = self.read(f"air {swing}")
+            lvl = self.level_sole(swing, s)
             tilt = self.tilt_to(swing, s) - self.tilt_s
             clr = foot_clear(h, tilt, need=P["need"])
             tip = tipping(tilt, self.lean(s)[1] - pitch_s, s["rate"], P["tilt_lim"], P["pitch_lim"], P["rate_lim"],
                           out_lim=P["out_lim"])
-            self.log("air", swing=swing, tilt=round(tilt, 2), shift=round(1e3 * self.pel[1], 1), hike=round(self.hike[stance], 2),
+            self.log("air", swing=swing, tilt=round(tilt, 2), shift=round(1e3 * (self.pel[1] - yst), 1), hike=round(self.hike[stance], 2),
                      clear=clr.row(), tip=tip.row())
             if tip.p > P["p_tip"] and tilt < 0:
                 return "tipping_out"
             if clr.p < 0.3:
-                self.say(f"  fell back onto {swing}: tilt {tilt:+.1f} at shift {1e3 * self.pel[1]:+.0f} mm")
+                self.say(f"  fell back onto {swing}: tilt {tilt:+.1f} at shift {1e3 * (self.pel[1] - yst):+.0f} mm from the stance foot")
                 return "fell_in"
             if time.monotonic() - t >= secs:
                 return "up"
@@ -511,21 +549,30 @@ class Run:
                 self.n_push += 1
                 self.hike[stance] = max(0.0, min(P["hike_max"], self.hike[stance] + P["g_hike"] * tilt))
                 self.go(int(1e3 * P["t_bal"]), f"balance {swing}")
+            elif lvl >= 1.0:                                          # the sole's trim moved: send it
+                self.go(int(1e3 * P["t_bal"]), f"level sole {swing}")
 
     def lower_foot(self, swing, fast=False):
         """Put `swing` down in monitored moves (the hip trim stays until the next shift takes it out).
         fast: it is going over outward -- foot down and pelvis back toward the middle in one move."""
         P = self.p
         h0 = self.feet[swing][2]
-        n = 1 if fast else max(1, math.ceil(h0 / P["lower_step"]))
+        land = 1e-3 * P["land_mm"]
+        n = 1 if fast else (max(1, math.ceil((h0 - land) / P["lower_step"])) + 1 if h0 > land else 1)
         if fast:
             stance = "L" if swing == "R" else "R"
             yst = self.fy(stance)
             self.pel[1] = yst + 0.7 * (self.pel[1] - yst)          # back toward the middle, measured from the stance sole
             self.hike = {"L": 0.0, "R": 0.0}
         for i in range(1, n + 1):
-            self.feet[swing][2] = h0 * (1 - i / n)
-            self.go(int(1e3 * (P["t_min"] if fast else P["t_lower"])), f"lower {swing} {1e3 * self.feet[swing][2]:.0f}")
+            if fast:
+                z, t = h0 * (1 - i / n), P["t_min"]
+            elif h0 > land and i < n:                                  # down to land_mm in monitored moves ...
+                z, t = h0 - (h0 - land) * i / (n - 1), P["t_lower"]
+            else:                                                      # ... and the last of it slowly, flat
+                z, t = 0.0, P["t_land"]
+            self.feet[swing][2] = z
+            self.go(int(1e3 * t), f"lower {swing} {1e3 * z:.0f}")
             self.read(f"lower {swing}")
         s = self.last_imu                                    # the last lowering read: nothing needs a settle here
         dr, dp = self.lean(s)
@@ -544,7 +591,7 @@ class Run:
         P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], new)), 3)
         return P["k_shift"][stance]
 
-    def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None, yaw_to=None, corr_to=None):
+    def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None, yaw_to=None, corr_to=None, y_off=None):
         """One self-correcting lift of `swing` (and, while it is up, a forward move of dx m and, if y_to is
         not None, a move to the absolute lateral offset y_to m: +y = the robot's left). air: a callable run once
         with the foot up and judged up; it returns "up" or a tipping verdict (then the foot goes down and the
@@ -557,13 +604,30 @@ class Run:
             hike = self.hike[stance]
             self.log("lift", utc=time.time(), swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
             if how == "up":
+                if y_off is not None:                              # a lateral offset FROM THE STANCE FOOT: the frame
+                    y_to = self.feet[stance][1] + y_off            # may have turned in the shift that came first
                 dy = 0.0 if y_to is None else y_to - self.fy(swing)
                 if y_to is not None:
                     self.feet[swing][1] = y_to
+                # where the swing foot goes along the heading: the stride phase it had (x relative to the stance foot,
+                # in the frame BEFORE the shift turned it) plus dx. A turn rotates the feet's line about the origin; the
+                # relative x in the new frame is polluted by the lateral separation times sin(turn), which must not pile up
+                rx = self.feet[swing][0] - self.feet[stance][0]
+                if abs(self.pending_d) > 1e-9:
+                    ry = (self.k.k1.footL[1] - self.k.k1.footR[1]) * (1.0 if swing == "L" else -1.0) + self.feet[swing][1] - self.feet[stance][1]
+                    rx = rx * math.cos(self.pending_d) - ry * math.sin(self.pending_d)
+                x_new = self.feet[stance][0] + rx + dx
+                dx = x_new - self.feet[swing][0]                       # (a correction alone is a move too)
+                if abs(dx) < 1e-12:
+                    dx = 0.0
+                self.pending_d = 0.0
                 dyaw = 0.0 if yaw_to is None else yaw_to - self.yawf[swing]
                 if yaw_to is not None:
                     self.yawf[swing] = yaw_to
                     self.corr[swing] = corr_to if corr_to is not None else self.corr[swing]
+                if (dx or abs(dy) > 1e-9 or abs(dyaw) > 1e-9) and P["swing_extra"] > 0:
+                    self.feet[swing][2] += P["swing_extra"]            # more room before it moves sideways or forward
+                    self.go(int(1e3 * max(P["t_min"], 0.5 * P["t_inc"])), f"extra {swing}")
                 if dx or abs(dy) > 1e-9 or abs(dyaw) > 1e-9:
                     self.feet[swing][0] += dx
                     self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
@@ -863,7 +927,7 @@ class Run:
                 if (d > 0 and side == "L") or (d < 0 and side == "R"):
                     step_out += d
             y_to = self.place(side, self.feet[stance][1] + step_out + self.p["comp"][side], dx)
-        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to, yaw_to=self.yawf[stance] + math.radians(yaw_step),
+        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to, y_off=y_to - self.feet[stance][1], yaw_to=self.yawf[stance] + math.radians(yaw_step),
                                       corr_to=self.corr[stance] + corr_step)
         if res[1] == "gave_up" or res[1] != "up":
             self.t_land[side] = None                                 # it did not land anew
