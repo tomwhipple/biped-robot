@@ -332,6 +332,10 @@ class State(NamedTuple):
     dq_qhist: jax.Array       # (hi+1, n_act) policy-joint q at the last obs ticks,
                               # row 0 = now (dq_obs_window); (0, n_act) when off
     dq_win: jax.Array         # ()  int32 per-episode dq obs window, ticks (0 = off)
+    ser_c: jax.Array          # (n_servo,) per-episode roll series compliance 1/k, rad/(N m)
+                              # (0 = rigid); (0,) when roll_series_k is off
+    ser_defl: jax.Array       # (n_servo,) the series spring's deflection tau/k at the end
+                              # of the last step (shaft - link); (0,) when off
 
 
 def _quat_yaw(q):
@@ -696,6 +700,10 @@ class BimoMJXEnv:
         # the four roll joints (hip_roll, ankle_roll) on top of backlash_deg: the
         # play downstream of the encoders (hw 2026-10-24; walker_env mirror)
         roll_lash_deg_max: float | None = None,  # per-episode draw uniform(lo, max)
+        roll_series_k=None,   # a spring (N m/rad) in series with the hip / ankle roll
+        # servos BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)} or
+        # "hip=LO:HI,ankle=LO:HI", per-episode draw per role; None = rigid
+        # (walker_env.parse_roll_series_k; walker_env mirror)
         torso_mass_range: float | None = None,   # batch-level torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
         torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
@@ -1448,6 +1456,18 @@ class BimoMJXEnv:
         self._roll_mask = jp.asarray(np.array(
             [n[2:] in ("hip_roll", "ankle_roll") for n in self._servo_names],
             dtype=np.float32))
+        from walker_env import parse_roll_series_k, roll_series_roles, ROLL_SERIES_ROLES
+        self.roll_series_k = parse_roll_series_k(roll_series_k)
+        self._ser_on = self.roll_series_k is not None
+        if self._ser_on:
+            # per role (hip, ankle) k bounds; a role left out is rigid (compliance 0)
+            rk = [self.roll_series_k.get(r) for r in ROLL_SERIES_ROLES]
+            self._ser_klo = jp.asarray([k[0] if k else 1.0 for k in rk], dtype=jp.float32)
+            self._ser_khi = jp.asarray([k[1] if k else 1.0 for k in rk], dtype=jp.float32)
+            self._ser_rmask = jp.asarray([1.0 if k else 0.0 for k in rk], dtype=jp.float32)
+            role = roll_series_roles(self._servo_names)
+            self._ser_role = jp.asarray(np.maximum(role, 0), dtype=jp.int32)
+            self._ser_smask = jp.asarray((role >= 0).astype(np.float32))
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.floor_contact_range = (None if floor_contact_range is None else
@@ -2180,7 +2200,8 @@ class BimoMJXEnv:
     def _obs(self, data, prev_action, cmd, step_i, imu_R, imu_bias,
              rng: jax.Array, gait_phase=None, model=None,
              zero_off=None, gyro_hist=None, gyro_delay=None,
-             gyro_gain=None, dq_qhist=None, dq_win=None) -> jax.Array:
+             gyro_gain=None, dq_qhist=None, dq_win=None,
+             ser_defl=None, ser_dq=None) -> jax.Array:
         up = data.sensordata[self._up_adr:self._up_adr + 3]
         if self.tilt_max_deg > 0.0:
             # what an accelerometer reads: torso up against GRAVITY, not
@@ -2209,11 +2230,16 @@ class BimoMJXEnv:
         else:
             phase = 2 * jp.pi * (step_i.astype(jp.float32) / self.max_steps)
         q_j = self._p(data.qpos[self._jq0:self._jq1])
+        if ser_defl is not None:
+            # roll series spring: the encoder reads the servo shaft, link + tau/k
+            q_j = q_j + self._p(ser_defl)
         if zero_off is not None:
             # calibration-error DR: the encoder's zero sits zero_off away from
             # the policy's frame, so the reported angle is physical - offset
             q_j = q_j - self._p(zero_off)
         dq_j = self._p(data.qvel[self._jv0:self._jv1])
+        if ser_dq is not None:
+            dq_j = dq_j + self._p(ser_dq)
         if self.dq_obs_window is not None and dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last dq_win ticks
             # (row 0 of the history is this tick's q)
@@ -2345,6 +2371,19 @@ class BimoMJXEnv:
     def _gyro_hist0(data):
         return jp.tile(data.qvel[3:6][None, :], (3, 1))
 
+    def _draw_ser(self, rng: jax.Array):
+        """Per-episode roll series compliance 1/k (k uniform per role, L and R share it;
+        fold_in 6262 so the other draws keep their streams) and a zero deflection.
+        (0,) arrays when the feature is off."""
+        if not self._ser_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        u = jax.random.uniform(jax.random.fold_in(rng, 6262), (len(self._ser_klo),))
+        k = self._ser_klo + u * (self._ser_khi - self._ser_klo)
+        c_role = self._ser_rmask / k
+        c = (c_role[self._ser_role] * self._ser_smask).astype(jp.float32)
+        return c, jp.zeros((self._n_servo,), dtype=jp.float32)
+
     def _draw_dq_win(self, rng: jax.Array):
         """Per-episode dq obs window, ticks (fold_in 5858: the other draws keep
         their streams; a fixed window or the feature off consumes no RNG)."""
@@ -2356,20 +2395,24 @@ class BimoMJXEnv:
         return jax.random.randint(jax.random.fold_in(rng, 5858), (), lo, hi + 1,
                                   dtype=jp.int32)
 
-    def _dq_q(self, data):
-        """The policy joints' physical q (the dq obs history's row)."""
-        return self._p(data.qpos[self._jq0:self._jq1])
+    def _dq_q(self, data, ser_defl=None):
+        """The policy joints' physical q (the dq obs history's row); with a roll series
+        spring, the servo shaft's (link + ser_defl), which is what the encoder reads."""
+        q = data.qpos[self._jq0:self._jq1]
+        if ser_defl is not None:
+            q = q + ser_defl
+        return self._p(q)
 
-    def _dq_qhist0(self, data):
+    def _dq_qhist0(self, data, ser_defl=None):
         """A history at rest at the episode's start pose: the first ticks read dq 0."""
         if self.dq_obs_window is None:
             return jp.zeros((0, self._nq_act), dtype=jp.float32)
-        return jp.tile(self._dq_q(data)[None, :], (self._dq_hist_len, 1))
+        return jp.tile(self._dq_q(data, ser_defl)[None, :], (self._dq_hist_len, 1))
 
-    def _dq_qhist_push(self, data, hist):
+    def _dq_qhist_push(self, data, hist, ser_defl=None):
         if self.dq_obs_window is None:
             return hist
-        return jp.concatenate([self._dq_q(data)[None, :], hist[:-1]], axis=0)
+        return jp.concatenate([self._dq_q(data, ser_defl)[None, :], hist[:-1]], axis=0)
 
     def _draw_act_delay(self, rng: jax.Array):
         """Per-episode servo dead time in control ticks (fold_in 4473 so the
@@ -2627,6 +2670,7 @@ class BimoMJXEnv:
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(data)
         dq_win = self._draw_dq_win(r_ep)
+        ser_c, ser_defl = self._draw_ser(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2743,7 +2787,8 @@ class BimoMJXEnv:
                      imu_R=imu_R, imu_bias=imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
                      gyro_gain=gyro_gain, metrics=metrics,
-                     dq_qhist=dq_qhist, dq_win=dq_win)
+                     dq_qhist=dq_qhist, dq_win=dq_win,
+                     ser_c=ser_c, ser_defl=ser_defl)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2756,6 +2801,7 @@ class BimoMJXEnv:
         gyro_gain, gyro_delay = self._draw_gyro(r_ep)
         gyro_hist = self._gyro_hist0(first.data)
         dq_win = self._draw_dq_win(r_ep)
+        ser_c, ser_defl = self._draw_ser(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -2831,6 +2877,7 @@ class BimoMJXEnv:
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             dq_qhist=dq_qhist, dq_win=dq_win,
+            ser_c=ser_c, ser_defl=ser_defl,
             metrics=metrics)
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
@@ -2993,12 +3040,20 @@ class BimoMJXEnv:
                              state.servo[1] * self._kd_prof,
                              state.servo[2] * self._stall_prof,
                              state.servo[3] * self._w0_prof)
+        if self._ser_on:
+            # roll series spring, quasi-static (massless shaft): the link sees the
+            # servo PD in series with k, gains x k/(kp+k) = 1/(1+kp/k)
+            x_ser = 1.0 / (1.0 + kp * state.ser_c)
+            kp = kp * x_ser
+            kd = kd * x_ser
         lash = state.lash
         last_target = state.last_target
         if self.fw_goal_speed:
             # obs::goalSpeedSteps from the written goal and the PRESENT position (the
             # firmware's last feedback = the joint at the start of this tick), in rad/s
             q_now = state.data.qpos[self._jq0:self._jq1]
+            if self._ser_on:
+                q_now = q_now + state.ser_defl      # the feedback is the shaft's
             gap = jp.abs(goal_written + state.zero_off - q_now)
             v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
                              _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
@@ -3037,6 +3092,13 @@ class BimoMJXEnv:
         (data, tau), _ = jax.lax.scan(
             substep, (data, jp.zeros(self._n_servo)),
             jp.arange(self.n_substeps))
+        if self._ser_on:
+            # the servo shaft leads the link by the spring's deflection tau/k: what the
+            # encoders read (q obs, the dq history, the next tick's feedback)
+            ser_defl = (tau * state.ser_c).astype(jp.float32)
+            ser_dq = (ser_defl - state.ser_defl) / self.control_dt
+        else:
+            ser_defl, ser_dq = None, None
 
         up_z = data.sensordata[self._up_adr + 2]
         if self.tilt_max_deg > 0.0:
@@ -3765,12 +3827,12 @@ class BimoMJXEnv:
                                   state.rise_t0, step_i)
         gyro_hist = jp.concatenate([data.qvel[3:6][None, :],
                                     state.gyro_hist[:-1]], axis=0)
-        dq_qhist = self._dq_qhist_push(data, state.dq_qhist)
+        dq_qhist = self._dq_qhist_push(data, state.dq_qhist, ser_defl)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
                           gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                           gyro_gain=state.gyro_gain, dq_qhist=dq_qhist,
-                          dq_win=state.dq_win)
+                          dq_win=state.dq_win, ser_defl=ser_defl, ser_dq=ser_dq)
         if self.obs_hist_len > 1:
             obs = jp.concatenate([frame, state.obs_hist.reshape(-1)])
             obs_hist = jp.concatenate(
@@ -3830,7 +3892,8 @@ class BimoMJXEnv:
                      imu_bias=state.imu_bias,
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics,
-                     dq_qhist=dq_qhist, dq_win=state.dq_win)
+                     dq_qhist=dq_qhist, dq_win=state.dq_win, ser_c=state.ser_c,
+                     ser_defl=state.ser_defl if ser_defl is None else ser_defl)
 
 
 

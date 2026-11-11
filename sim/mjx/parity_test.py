@@ -40,11 +40,14 @@ Gates (float64, so precision is not the limiter):
   R12 knee-high clearance kernel on a posed one-leg march stance
   R13 pinned march cadence (march_hz)
   R14 torso-pitch hinge: pitch sweep, roll sweep, hinge ON/OFF liveness
+  R15 roll series spring (roll_series_k): airborne arithmetic + grounded
+      stance, the encoder obs reading the servo shaft (link + tau/k)
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py               # every block
       python parity_test.py --robot-only  # R1-R4 only
+      python parity_test.py --roll-series # R15 only
 """
 import os
 import sys
@@ -100,6 +103,12 @@ def sync(state, cpu, gpu_env):
         gait_phase=jp.asarray(float(cpu._gait_phase)),
         obs_hist=(jp.asarray(np.array(cpu._obs_hist))
                   if cpu.obs_hist_len > 1 else state.obs_hist),
+        ser_defl=(jp.asarray(np.array(cpu._ser_defl))
+                  if getattr(cpu, "_ser_c", None) is not None else state.ser_defl),
+        dq_qhist=(jp.asarray(np.array(cpu._dq_qhist))
+                  if getattr(cpu, "_dq_qhist", None) is not None else state.dq_qhist),
+        dq_win=(jp.asarray(cpu._dq_win, dtype=jp.int32)
+                if getattr(cpu, "_dq_qhist", None) is not None else state.dq_win),
     )
 
 
@@ -699,6 +708,47 @@ def pitch_hinge_block():
     return ok_p and ok_r and ok_c
 
 
+# -- R15: roll series spring -----------------------------------------------------
+# roll_series_k: the hip / ankle roll PD in series with a spring (quasi-static,
+# gains x 1/(1 + kp/k)), and the encoders (q obs, quantized; the dq window
+# history) reading the shaft = link + tau/k. Fixed k (no draw), so both engines
+# carry the same compliance. Airborne arithmetic with the reg-58 dq window on,
+# then grounded stance, where the stance rolls carry load; liveness: the obs
+# differs from the link by the deflection, and the deflection is non-trivial.
+ROLL_SERIES_PARITY = "hip=11.0,ankle=17.75"
+
+
+def roll_series_block():
+    over = dict(roll_series_k=ROLL_SERIES_PARITY, dq_obs_window=2)
+    c, g, s = envs_for(rob_kw(**over), solver_tol=ARITH_TOL)
+    ok_a = run_block(
+        "R15. roll series spring (hip 11, ankle 17.75 N m/rad), airborne "
+        "arithmetic, dq window 2", 100, air_acts(c), hoist, AIR_GATES, (c, g, s))
+    c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n2 = c2._nq_act
+    ok_b = run_block(
+        "R15-b. roll series spring, grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n2))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c2, g2, s2), matched_only=True, min_frac=0.5)
+    # liveness on the stance env: the encoder obs is the link + deflection
+    roll = [i for i, nm in enumerate(c2._servo_names) if nm.endswith("roll")]
+    defl = np.degrees(np.abs(c2._ser_defl[roll]))
+    pol = np.asarray(c2._p(np.arange(c2._n_servo)))
+    q_obs = c2._obs()[:n2]
+    zo = c2._p(c2._zero_off) if c2._zero_off is not None else 0.0
+    q_link = c2.data.qpos[c2._jqpos] - zo
+    gap = float(np.max(np.abs(q_obs - q_link - c2._p(c2._ser_defl))))
+    other = [j for j, i in enumerate(pol) if i not in roll]
+    ok_c = (float(defl.max()) > 0.05 and gap < 1.6e-3      # one tick of quantization
+            and float(np.max(np.abs(c2._ser_defl[[i for i in range(c2._n_servo)
+                                                  if i not in roll]]))) == 0.0
+            and len(other) == n2 - 4)
+    print(f"== R15-c. series spring liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   stance roll deflections {np.round(defl, 3).tolist()} deg; |obs q - "
+          f"(link + defl)| max {gap:.1e} rad (quantized)")
+    return ok_a and ok_b and ok_c
+
+
 # -- S: gait-amplitude manifold statistics (informational, no gate) -------------
 def manifold_stats():
     print("== S. gait-amplitude contact-manifold statistics (informational) ==")
@@ -725,13 +775,17 @@ def manifold_stats():
 
 
 def main():
+    if "--roll-series" in sys.argv:
+        ok = roll_series_block()
+        print("\nPARITY (R15):", "PASS" if ok else "FAIL")
+        return ok
     if "--robot-only" in sys.argv:
         ok = robot_blocks()
         print("\nPARITY (R1-R4):", "PASS" if ok else "FAIL")
         return ok
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
-               march_blocks(), pitch_hinge_block()]
+               march_blocks(), pitch_hinge_block(), roll_series_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

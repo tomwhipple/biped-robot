@@ -298,6 +298,46 @@ def parse_dq_obs_window(spec):
     return (lo, hi)
 
 
+ROLL_SERIES_ROLES = ("hip", "ankle")
+
+
+def parse_roll_series_k(spec):
+    """roll_series_k -> {"hip": (lo, hi), "ankle": (lo, hi)} N m/rad (a role left out is
+    rigid), or None when off. Accepts None / "" / {}, the CLI string "hip=LO:HI,ankle=LO:HI"
+    (a single value = no DR) or the dict config.json stores ({"hip": [lo, hi], ...} or
+    numbers). Shared by env_mjx and the CPU env so both read a config.json the same way."""
+    if spec is None or spec == "" or spec == {}:
+        return None
+    if isinstance(spec, str):
+        d = {}
+        for tok in spec.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            k, eq, v = tok.partition("=")
+            if not eq:
+                raise ValueError(f"roll_series_k {spec!r}: want hip=LO:HI,ankle=LO:HI")
+            d[k.strip()] = [float(x) for x in v.split(":")]
+        spec = d
+    out = {}
+    for k, v in dict(spec).items():
+        if k not in ROLL_SERIES_ROLES:
+            raise ValueError(f"roll_series_k: role {k!r} not in {ROLL_SERIES_ROLES}")
+        v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
+        if len(v) == 1:
+            v = v * 2
+        if len(v) != 2 or not (0.0 < v[0] <= v[1] < float("inf")):
+            raise ValueError(f"roll_series_k {k}={v}: need 0 < lo <= hi (N m/rad)")
+        out[k] = (v[0], v[1])
+    return out or None
+
+
+def roll_series_roles(servo_names):
+    """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise."""
+    return np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
+                     for n in servo_names], dtype=np.int64)
+
+
 def apply_floor_contacts(model, floor_contacts):
     """Training-only collision set. "all" (default): the plant as drawn.
     "feet": only the sole pads (contype 1) touch the floor -- the servo
@@ -642,6 +682,10 @@ class BimoWalkerEnv(gym.Env):
         # the stance encoders move ~1 deg). Mirror of env_mjx roll_lash_deg.
         roll_lash_deg_max: float | None = None,  # per-episode draw
         # uniform(roll_lash_deg, max)
+        roll_series_k=None,            # a spring (N m/rad) in series with the hip /
+        # ankle roll servos, BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)}
+        # or "hip=LO:HI,ankle=LO:HI", per-episode draw per role (parse_roll_series_k).
+        # None = rigid (bit-exact). Mirror of env_mjx roll_series_k.
         torso_mass_range: float | None = None,   # per-episode torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of the generic mass_range for the torso body
         torso_com_y: float = 0.0,      # per-episode lateral torso CoM offset
@@ -980,6 +1024,7 @@ class BimoWalkerEnv(gym.Env):
         self.roll_lash_deg = float(roll_lash_deg)
         self.roll_lash_deg_max = roll_lash_deg_max
         self._roll_lash_rad = float(np.deg2rad(roll_lash_deg))
+        self.roll_series_k = parse_roll_series_k(roll_series_k)
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.zero_offset_deg = float(zero_offset_deg)
@@ -1225,6 +1270,14 @@ class BimoWalkerEnv(gym.Env):
         self._sname2i = {n: i for i, n in enumerate(self._servo_names)}
         self._roll_mask = np.array([n[2:] in ("hip_roll", "ankle_roll")
                                     for n in self._servo_names], dtype=np.float64)
+        # roll series spring (roll_series_k): per-servo compliance 1/k (0 = rigid), drawn at
+        # reset; the shaft-link deflection tau/k the encoders add. None when off.
+        self._ser_role = roll_series_roles(self._servo_names)
+        self._ser_c = self._ser_defl = self._ser_dq = None
+        if self.roll_series_k is not None:
+            self._ser_c = np.zeros(len(self._servo_names))
+            self._ser_defl = np.zeros(len(self._servo_names))
+            self._ser_dq = np.zeros(len(self._servo_names))
         self.held_joints = ({} if not held_joints else
                             {str(k): float(v) for k, v in held_joints.items()})
         _bad = [k for k in self.held_joints if k not in self._sname2i]
@@ -1345,6 +1398,8 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
         self._servo_tau = np.zeros(self._n_servo)
+        if self.roll_series_k is not None and self._servo is None:
+            raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -1608,7 +1663,10 @@ class BimoWalkerEnv(gym.Env):
         self._dq_qhist = None          # newest first; seeded in reset()
 
     def _dq_q(self):
-        return np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+        q = np.array(self.data.qpos[self._jqpos], dtype=np.float64)
+        if self._ser_c is not None:
+            q = q + self._p(self._ser_defl)      # the encoder reads the shaft
+        return q
 
     def _dq_qhist_seed(self):
         """The history at rest at the current pose (env_mjx _dq_qhist0)."""
@@ -1798,10 +1856,15 @@ class BimoWalkerEnv(gym.Env):
         else:
             phase = 2 * np.pi * (self._step_i / self.max_steps)
         q_j = d.qpos[self._jqpos]
+        if self._ser_c is not None:
+            # roll series spring: the encoder reads the servo shaft, link + tau/k
+            q_j = q_j + self._p(self._ser_defl)
         if self._zero_off is not None:
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
+        if self._ser_c is not None:
+            dq_j = dq_j + self._p(self._ser_dq)
         if self.dq_obs_window is not None and self._dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last _dq_win ticks
             # (the history is advanced in reset()/step(); this stays a pure read)
@@ -2358,6 +2421,17 @@ class BimoWalkerEnv(gym.Env):
             lo, hi = self.dq_obs_window
             # drawn last, so every other draw keeps its stream
             self._dq_win = lo if lo == hi else int(self.np_random.integers(lo, hi + 1))
+        if self._ser_c is not None:
+            # roll series spring: k per role (L and R share it), uniform in k; a fixed k
+            # draws nothing. After every other draw, so they keep their streams.
+            c = np.zeros(len(ROLL_SERIES_ROLES))
+            for r, role in enumerate(ROLL_SERIES_ROLES):
+                if role in self.roll_series_k:
+                    lo, hi = self.roll_series_k[role]
+                    c[r] = 1.0 / (lo if lo == hi else float(self.np_random.uniform(lo, hi)))
+            self._ser_c = np.where(self._ser_role >= 0, c[np.maximum(self._ser_role, 0)], 0.0)
+            self._ser_defl = np.zeros(self._n_servo)
+            self._ser_dq = np.zeros(self._n_servo)
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -2469,6 +2543,12 @@ class BimoWalkerEnv(gym.Env):
                 # parity; the profile is all ones unless configured)
                 kp = kp * self._kp_prof
                 kd = kd * self._kd_prof
+                if self._ser_c is not None:
+                    # roll series spring, quasi-static (massless shaft): the link sees
+                    # the servo PD in series with k, gains x k/(kp+k) = 1/(1+kp/k)
+                    x_ser = 1.0 / (1.0 + kp * self._ser_c)
+                    kp = kp * x_ser
+                    kd = kd * x_ser
                 stall = stall * self._stall_prof
                 w0 = w0 * self._w0_prof
                 q = self.data.qpos[self._sqpos]
@@ -2508,6 +2588,12 @@ class BimoWalkerEnv(gym.Env):
                 self.data.ctrl[:] = cur
             mujoco.mj_step(self.model, self.data)
         self._last_target = target
+        if self._ser_c is not None:
+            # the servo shaft leads the link by the spring's deflection tau/k: what the
+            # encoders read (q obs, the dq history) is link + defl
+            defl = self._servo_tau * self._ser_c
+            self._ser_dq = (defl - self._ser_defl) / self.control_dt
+            self._ser_defl = defl
         x_after = float(self.data.qpos[0])
 
         d = self.data
