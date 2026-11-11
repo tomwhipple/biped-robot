@@ -22,11 +22,15 @@ class SessionTab(QtWidgets.QWidget):
         self.rec_path = lab("", "#b8bec6", 12, mono=True)
         self.rec_path.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         self.rec_counts = lab("", DIM)
+        # The path has a line of its own and never widens the tab: a long one
+        # is clipped on screen (selectable, and whole in the tooltip).
+        self.rec_path.setMinimumWidth(1)
+        about = lab("the console's own JSONL (bimo_gui's schema): every command sent, every "
+                    "beacon received, both clocks", DIM, 12)
+        about.setWordWrap(True)
         rec = group("RECORDING   on by default", vbox(
-            hbox(self.rec_btn, 14, self.rec_state, 8, self.rec_path, "stretch", self.rec_counts,
-                 spacing=6),
-            lab("the console's own JSONL (bimo_gui's schema): every command sent, every beacon "
-                "received, both clocks", DIM, 12)))
+            hbox(self.rec_btn, 14, self.rec_state, "stretch", self.rec_counts, spacing=6),
+            self.rec_path, about))
         self.flight = lab("", "#b8bec6", 12, mono=True)
         self.flight.setWordWrap(True)
         fr = group("FLIGHT RECORDER   the robot's file lives on mira", vbox(self.flight))
@@ -63,6 +67,7 @@ class SessionTab(QtWidgets.QWidget):
             self.rec_state.setText("● REC")
             self.rec_state.setStyleSheet("color:#ff5a50; font-size:14px; font-weight:700")
             self.rec_path.setText(app.ctl.core.rec_path)
+            self.rec_path.setToolTip(app.ctl.core.rec_path)
             self.rec_counts.setText(f"{st.rec_cmd} cmd · {st.rec_tlm} tlm")
         else:
             self.rec_btn.setText("start recording [r]")

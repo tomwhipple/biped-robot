@@ -15,7 +15,8 @@ import time
 from PyQt6 import QtCore, QtWidgets
 
 from . import mjpeg, simproc
-from .ui import AMBER, DIM, GREEN, RED, SIMC, btn, group, hbox, lab, pill, set_pill, vbox
+from .ui import (AMBER, DIM, GREEN, RED, SIMC, Columns, btn, group, hbox, lab, pill, set_pill,
+                 vbox, wrap)
 
 ID_COLOUR = "#b8bec6"
 FLIGHT_STALE_S = 1.0          # design §5: a layer older than 1 s reads FROZEN
@@ -98,12 +99,14 @@ class SimTab(QtWidgets.QWidget):
 
         # -- the stream ------------------------------------------------------
         self.stream_line = lab("", ID_COLOUR, 12, mono=True)
+        self.stream_line.setWordWrap(True)
         self.stream_note = lab("", AMBER, 12)
         self.stream_note.setWordWrap(True)
-        stream = group("SIM RENDER   the sim's own MJPEG world view (View pane → Sim render)",
-                       vbox(self.stream_line, self.stream_note,
-                            lab(f"STALE after {mjpeg.STALE_S:g} s without a frame · retries "
-                                f"forever (sil_twin takes ~25 s to listen)", DIM, 12)))
+        stale = lab(f"the sim's own MJPEG world view (View pane → Sim render) · STALE after "
+                    f"{mjpeg.STALE_S:g} s without a frame · retries forever (sil_twin takes "
+                    f"~25 s to listen)", DIM, 12)
+        stale.setWordWrap(True)
+        stream = group("SIM RENDER", vbox(self.stream_line, self.stream_note, stale))
 
         # -- the log ---------------------------------------------------------
         self.log = QtWidgets.QPlainTextEdit()
@@ -118,11 +121,8 @@ class SimTab(QtWidgets.QWidget):
         right = group("SIL_TWIN LOG   opens itself when the sim fails",
                       vbox(hbox(self.fail, "stretch", self.log_toggle), self.log))
 
-        lay = hbox(vbox(left, stream, "stretch", spacing=10), right, spacing=12,
-                   margins=(12, 12, 12, 12))
-        lay.setStretch(0, 3)
-        lay.setStretch(1, 2)
-        self.setLayout(lay)
+        self.cols = Columns(wrap(vbox(left, stream, "stretch", spacing=10)), right, spacing=12)
+        self.setLayout(vbox(self.cols, "stretch", margins=(12, 12, 12, 12)))
 
         self._logged = 0
         self._was_failed = False

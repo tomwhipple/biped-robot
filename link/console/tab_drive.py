@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import protocol  # noqa: E402  link/protocol.py: the generated command envelope
 
 from . import core  # noqa: E402
-from .ui import (AMBER, BRIGHT, CYAN, DIM, GREEN, Slider, btn, group, hbox, lab,
+from .ui import (AMBER, BRIGHT, CYAN, DIM, GREEN, Columns, Slider, btn, group, hbox, lab,
                  mkplot, vbox, wrap)
 
 # (label, axis, grid row, grid col)
@@ -123,15 +123,16 @@ class DriveTab(QtWidgets.QWidget):
             charts.addWidget(lab(name, DIM, mono=True), i, 0)
             charts.addWidget(plot, i, 1)
             charts.addWidget(val, i, 2)
-        charts.addWidget(lab("host receive time, last 30 s · tilt from the up vector; dashed "
-                             "amber = the 10° abort line (first-policy-stand §5) · vx: dashed "
-                             "cyan = sent (driver only), white = the robot's estimate", DIM, 11),
-                         3, 1)
+        caption = lab("host receive time, last 30 s · tilt from the up vector; dashed "
+                      "amber = the 10° abort line (first-policy-stand §5) · vx: dashed "
+                      "cyan = sent (driver only), white = the robot's estimate", DIM, 11)
+        caption.setWordWrap(True)
+        charts.addWidget(caption, 3, 1)
         charts.setColumnStretch(1, 1)
         chg = group("TELEMETRY   the beacon, 10 Hz", charts)
-        self.setLayout(vbox(hbox(vbox(motion, gp, spacing=10), vbox(extg, spg, spacing=10),
-                                 spacing=12), chg, "stretch", spacing=10,
-                            margins=(12, 12, 12, 12)))
+        self.cols = Columns(wrap(vbox(motion, gp, spacing=10)),
+                            wrap(vbox(extg, spg, spacing=10)), spacing=12)
+        self.setLayout(vbox(self.cols, chg, "stretch", spacing=10, margins=(12, 12, 12, 12)))
 
     def _ext_changed(self, *_):
         lift = next((v for v, r in self.lift.items() if r.isChecked()), 0.0)

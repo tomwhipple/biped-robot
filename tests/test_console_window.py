@@ -170,17 +170,22 @@ def test_mjpeg_parser_takes_parts_split_anywhere():
     assert p.overflow and p.take() is None
 
 
+# Fonts differ per OS (Menlo vs DejaVu Sans Mono, Noto vs SF): a few points of
+# slack, so a layout that fits here is not a font metric away from not fitting.
+FIT_SLACK = 24
+
+
 def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
     """Everything that must be seen -- the safety bar above all -- fits a
-    1440 x 860 pt laptop area; a tab bigger than its share scrolls instead of
+    1280 x 800 pt laptop area; a tab bigger than its share scrolls instead of
     growing the window off the screen."""
     w = window(qapp, twin, tmp_path, "--drive")
     try:
         pump(qapp, 0.3)
         bar = w.bar.minimumSizeHint()
-        assert bar.width() <= 1440, bar
+        assert bar.width() <= 1280 - FIT_SLACK, bar
         whole = w.centralWidget().minimumSizeHint()
-        assert whole.width() <= 1440 and whole.height() <= 860, whole
+        assert whole.width() <= 1280 - FIT_SLACK and whole.height() <= 760, whole
         for i in range(w.tabs.count()):
             assert isinstance(w.tabs.widget(i), QtWidgets.QScrollArea), w.tabs.tabText(i)
         scr = w.screen().availableGeometry()
@@ -189,24 +194,36 @@ def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
         w.close()
 
 
-def test_setup_and_joints_fit_the_pane_at_1440x900(qapp, twin, tmp_path):
-    """#241: at the 1440 x 900 pt window and the default split, Setup and
-    Joints are no wider than the pane they sit in: no horizontal scrollbar."""
+@pytest.mark.parametrize("size", [(1440, 900), (1280, 800)], ids=["1440x900", "1280x800"])
+def test_every_tab_fits_its_pane(qapp, twin, tmp_path, size):
+    """#241 and the 2026-11-11 review: at a 1440 x 900 or 1280 x 800 pt window
+    and the default split, the window keeps its size and no tab is wider than
+    the pane it sits in -- a tab scrolls down, never sideways."""
     from console.ui import QSS, dark_palette
     qapp.setStyle("Fusion")                  # the look the console runs with: its
     qapp.setPalette(dark_palette())          # padding and fonts set the widths
     qapp.setStyleSheet(QSS)
-    w = window(qapp, twin, tmp_path, "--drive")
+    W, H = size
+    w = window(qapp, twin, tmp_path, "--drive", "--bench-telemetry", "127.0.0.1:9",
+               "--cam-relay", "127.0.0.1:9")
     try:
-        w.resize(1440, 900)
-        w.split.setSizes([547, 893])         # the default split: 38 % to the view
-        for name in ("Setup", "Joints"):
-            w.select_tab(name)
-            pump(qapp, 0.3)
+        w.resize(W, H)
+        view = max(380, min(760, int(W * 0.38)))     # Window.fit_to_screen's split
+        w.split.setSizes([view, W - view])
+        pump(qapp, 0.3)
+        assert w.width() <= W, (w.width(), w.centralWidget().minimumSizeHint())
+        assert w.view.width() <= view + FIT_SLACK, (w.split.sizes(),
+                                                    w.view.minimumSizeHint())
+        for i in range(w.tabs.count()):
+            name = w.tabs.tabText(i)
+            w.tabs.setCurrentIndex(i)
+            pump(qapp, 0.2)
             sa = w.tabs.currentWidget()
+            need = sa.widget().minimumSizeHint().width()
+            assert need <= sa.viewport().width() - FIT_SLACK, (name, need,
+                                                                sa.viewport().width())
             assert sa.horizontalScrollBar().maximum() == 0, (name, sa.widget().size(),
                                                               sa.viewport().size())
-            assert sa.widget().minimumSizeHint().width() <= sa.viewport().width(), name
     finally:
         w.close()
 

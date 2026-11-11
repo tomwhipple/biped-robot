@@ -33,8 +33,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from . import core, pose3d
 from .mjpeg import MjpegStream
 from .options import CAM_NAMES, CAM_PORT, STREAM_PORT
-from .ui import (AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, RED, SIMC, TEXT, hbox, lab, mono_font,
-                 vbox)
+from .ui import (AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, RED, SIMC, TEXT, Flow, hbox, lab,
+                 mono_font, vbox, wrap)
 
 FROZEN_S = 1.0
 SIM_KEY = "sim render"
@@ -223,8 +223,12 @@ class ViewPane(QtWidgets.QWidget):
         # width, so nothing is out of reach when the line shrinks.
         self.cam_pick.setMinimumWidth(60)
         self.preset.setMinimumWidth(60)
-        row1 = hbox(src_lay, 18, self.show_cmd, self.show_sim, self.show_pip, "stretch",
-                    spacing=12)
+        # The source buttons and the overlay boxes share a line when the
+        # pane is wide enough and wrap onto two when it is not: neither sets
+        # the pane's width (the split keeps its designed share).
+        src_lay.setContentsMargins(0, 0, 0, 0)
+        row1 = Flow(wrap(src_lay), wrap(hbox(self.show_cmd, self.show_sim, self.show_pip,
+                                             spacing=12)), spacing=18)
         row2 = hbox(lab("camera", DIM), self.cam_pick, lay_lay, "stretch", self.preset,
                     spacing=10)
         note = lab("camera: not registered to the 3D view, never drawn under the model",

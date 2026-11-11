@@ -26,7 +26,7 @@ import pyqtgraph as pg
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from .flight import BUS_INDEX, decimate, status_text
-from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, btn, mono_font,
+from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, Flow, btn, mono_font,
                  group, hbox, lab, mkplot, restyle, set_cell, table, vbox, wrap)
 
 LEGS = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
@@ -226,8 +226,11 @@ class JointsTab(QtWidgets.QWidget):
         self.table_btn.clicked.connect(self._toggle_table)
         self.legend = lab("", rich=True)
         self.legend.setWordWrap(True)        # its own row: it is the widest thing on the tab
-        top = vbox(hbox(lab("window", DIM), w_lay, 14, self.pause_btn, 14, u_lay, 14, n_lay,
-                        "stretch", spacing=8),
+        for lay in (w_lay, u_lay, n_lay):
+            lay.setContentsMargins(0, 0, 0, 0)
+        # The view controls wrap onto a second line on a narrow pane.
+        top = vbox(Flow(wrap(hbox(lab("window", DIM), w_lay, spacing=8)), self.pause_btn,
+                        wrap(u_lay), wrap(n_lay), spacing=14),
                    hbox(self.legend, self.table_btn, spacing=8), spacing=4)
         self.banner = lab("", AMBER, 12, True)
         self.banner.setWordWrap(True)

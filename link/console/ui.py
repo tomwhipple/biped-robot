@@ -295,3 +295,107 @@ def is_text_input(w) -> bool:
     in it must not arm the robot."""
     return isinstance(w, (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox,
                           QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit))
+
+
+class Flow(QtWidgets.QLayout):
+    """Widgets left to right, wrapping onto another line when the width runs
+    out (Qt's flow-layout example): a row of controls that must never set the
+    width of the pane it sits in."""
+
+    def __init__(self, *widgets, spacing=12, line_spacing=6):
+        super().__init__()
+        self._items: list[QtWidgets.QLayoutItem] = []
+        self._h, self._v = spacing, line_spacing
+        self.setContentsMargins(0, 0, 0, 0)
+        for w in widgets:
+            self.addWidget(w)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):
+        return QtCore.Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._place(QtCore.QRect(0, 0, width, 0), move=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._place(rect, move=True)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        s = QtCore.QSize()
+        for it in self._items:
+            s = s.expandedTo(it.minimumSize())
+        m = self.contentsMargins()
+        return s + QtCore.QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _place(self, rect, move):
+        m = self.contentsMargins()
+        r = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y, line = r.x(), r.y(), 0
+        for it in self._items:
+            if it.isEmpty():
+                continue
+            hint = it.sizeHint()
+            if x > r.x() and x + hint.width() > r.right() + 1:
+                x, y, line = r.x(), y + line + self._v, 0
+            if move:
+                it.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), hint))
+            x += hint.width() + self._h
+            line = max(line, hint.height())
+        return y + line - rect.y() + m.bottom()
+
+
+class Columns(QtWidgets.QWidget):
+    """Widgets side by side while the width allows, stacked when it does not:
+    a tab's columns never make it wider than its pane (the tab scrolls down,
+    never sideways)."""
+
+    def __init__(self, *widgets, spacing=12):
+        super().__init__()
+        self._widgets = widgets
+        self._lay = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.Direction.LeftToRight)
+        self._lay.setSpacing(spacing)
+        self._lay.setContentsMargins(0, 0, 0, 0)
+        for w in widgets:
+            self._lay.addWidget(w, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        self.setLayout(self._lay)
+
+    def _side_by_side_width(self) -> int:
+        return (sum(w.minimumSizeHint().width() for w in self._widgets)
+                + self._lay.spacing() * (len(self._widgets) - 1))
+
+    def minimumSizeHint(self):
+        s = super().minimumSizeHint()
+        return QtCore.QSize(max(w.minimumSizeHint().width() for w in self._widgets), s.height())
+
+    def resizeEvent(self, ev):
+        D = QtWidgets.QBoxLayout.Direction
+        want = D.LeftToRight if ev.size().width() >= self._side_by_side_width() else D.TopToBottom
+        if self._lay.direction() != want:
+            self._lay.setDirection(want)
+            align = QtCore.Qt.AlignmentFlag.AlignTop if want == D.LeftToRight else \
+                QtCore.Qt.AlignmentFlag(0)
+            for w in self._widgets:
+                self._lay.setAlignment(w, align)
+            self.updateGeometry()
+        super().resizeEvent(ev)
+
+    def stacked(self) -> bool:
+        return self._lay.direction() == QtWidgets.QBoxLayout.Direction.TopToBottom
