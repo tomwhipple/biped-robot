@@ -289,10 +289,11 @@ def test_bridge_polling_never_starves_operator(tmp_path):
         n0 = len(board.rx)
         br.cmds.put("release")
         br.cmds.put("torque")
-        deadline = time.time() + 1.0
-        while time.time() < deadline and board.rx[n0:n0 + 2] != ["release", "torque"][:len(board.rx[n0:n0 + 2])] :
+        deadline = time.time() + 2.0
+        while time.time() < deadline and not (
+                "release" in board.rx[n0:] and "torque" in board.rx[n0:]):
             time.sleep(0.01)
-        time.sleep(0.15)
+        time.sleep(0.15)                 # inside quiet_s: any stray poll would show
         after = board.rx[n0:]
         ops = [c for c in after if c not in bb.POLL_COMMANDS]
         assert ops == ["release", "torque"]

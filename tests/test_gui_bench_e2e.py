@@ -4,7 +4,7 @@ camera. No serial port, no /dev/video*, no robot.
 
 Run:  make -C firmware/host gui && .venv/bin/python -m pytest tests/test_gui_bench_e2e.py -q
 """
-import itertools
+
 import json
 import os
 import pty
@@ -19,6 +19,7 @@ import time
 import tty
 
 import pytest
+from conftest import free_udp_ports
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -30,11 +31,11 @@ from test_board_bridge import FakeBoard  # noqa: E402
 GUI = os.path.join(ROOT, "firmware", "host", "build", "bimo_gui")
 pytestmark = pytest.mark.skipif(not os.path.exists(GUI),
                                 reason="build it: make -C firmware/host gui")
-_ports = itertools.count(4812, 4)
+
 
 
 def gui(tmp_path, *args, record=False):
-    tlm = next(_ports)
+    tlm = free_udp_ports(4)
     return subprocess.Popen(
         [GUI, "--headless", *([] if record else ["--no-record"]),
          "--sessions", str(tmp_path),

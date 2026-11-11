@@ -182,8 +182,13 @@ def main():
     out.append("}  // namespace flightrec_vectors")
     text = "\n".join(out) + "\n"
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w") as f:
+    # atomic: tests/test_flight_recorder.py runs this against the tracked file
+    # while another pytest run may be reading it (a truncated read failed the
+    # pre-push gate, #148)
+    tmp = f"{OUT}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
         f.write(text)
+    os.replace(tmp, OUT)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")
 
 

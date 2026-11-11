@@ -15,3 +15,36 @@ os.environ.setdefault("JAX_PLATFORMS", "cpu")
 # (2026-11-03: 11.6 GB, all three mac_train tests errored at setup). The gates
 # are CPU checks; set CUDA_VISIBLE_DEVICES explicitly to override.
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
+
+import random
+import socket
+import time
+
+
+def free_udp_ports(n=4):
+    """The first of `n` consecutive UDP ports that are free right now.
+
+    Tests that spawn a twin and a console need ports they can name up front.
+    Fixed ones collide when two pytest runs overlap (the pre-push hook in two
+    worktrees at once, #148), and the twins bind with SO_REUSEADDR so a
+    collision splits the packet stream instead of failing. The probe range is
+    below the kernel's ephemeral range, so a socket bound to port 0 elsewhere
+    cannot take one in between.
+    """
+    for _ in range(200):
+        base = random.randrange(20000, 32000 - n)
+        socks = []
+        try:
+            for k in range(n):
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                socks.append(s)
+                s.bind(("127.0.0.1", base + k))
+            return base
+        except OSError:
+            continue
+        finally:
+            for s in socks:
+                s.close()
+    raise RuntimeError("no free UDP port block")
+
