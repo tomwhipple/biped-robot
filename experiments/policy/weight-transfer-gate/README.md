@@ -520,6 +520,103 @@ Full table: `results/rp_grade.md`. Tilt = acos(up_z) from the walk command (robo
 - prec52 still marches on its R foot only (L 0.6-0.7 cm); the play takes ~1 cm off the R lift.
   prec57 does not march on this plant with or without the play.
 
+## Round 5 (2026-11-11): the stepper's own runs replayed in the plant (#288)
+
+The host-side quasi-static stepper (branch `hw/stepper`, `experiments/stepper/`) took the robot's first
+free-standing steps on 2026-11-11. `stepper_replay.py` replays each of its runs open loop. It takes
+the robot's written goals from the flight record that covers the run (`goal_rad` forward-filled,
+zero-order hold at 50 Hz), places the plant at the robot's encoders 0.5 s before the first pose, and
+scores the result against the robot's IMU and encoders. `fit_stepper.py` grids the plant terms.
+
+```bash
+.venv/bin/python experiments/policy/weight-transfer-gate/stepper_replay.py run --ref crouch --tag refit \
+    --plants "grade;grade+play_hip=4,play_ankle=5;play_fit=grade+play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0;spring8=grade+ser_hip=8;train"
+.venv/bin/python experiments/policy/weight-transfer-gate/fit_stepper.py grid --name s4_hip_wide --cost sweep --ref crouch \
+    --runs 130557_shiftsweep,130837_playsweep,131111_playsweep --axes "play_L_hip=4,6,8,10,12;play_R_hip=4,6,8,10,12;play_L_ankle=0,1,2,3;play_R_ankle=0,1,2"
+```
+
+- **Clock.** The stepper's file names are the host's local time, MST (UTC-7). Each logged `imu` row
+  is matched by value to its CLI reply in the flight record. Over 21 runs the offsets are 0.0-0.9 s
+  with residual sd at most 32 ms, and the logged roll minus the record's roll has a median of 0.00 deg.
+- **Sign.** Roll is -asin(up_y), + = leaning to the robot's right, on both sides. In the sim, a
+  torso rotated +5 deg about the forward axis reads +5. Each trace is referenced to the settled
+  crouch (`--ref crouch`, the stepper's own level reference). The robot leans 0.6-2.1 deg left
+  every time it crouches, in all 22 robot runs from 10:12 to 11:28; the plants do not.
+- **Falls.** 101413 (the first stepper version, which had no fall detection) fell left at +34.8 s
+  and was stood back up by hand. 111627 fell backward (pitch -82 deg) and 112541 fell sideways.
+
+Fit targets: the 13:05 sweeps. `130557_shiftsweep` keeps both feet down and shifts the pelvis
+±62 mm in 6 mm steps. `130837_playsweep` and `131111_playsweep` hold one foot up and sweep the
+stance hip-roll trim, then an ankle-roll trim, ±4 deg. The cost is the roll RMS at the sweep rows,
+each segment measured from its first row. The 14 lifts and ladders (10:12-11:27) are a first
+validation set; the march and the walks (104303, 104435, 110045, 110708, 130223) are held out.
+In the table, "level err" is the mean roll error (sim - robot, deg) at the stepper's lift-increment
+and foot-up rows, by stance side.
+
+| plant | sweeps: cost | lifts: roll rms / level err L, R stance / falls wrong | held out: roll rms / level err L, R stance |
+|---|---|---|---|
+| grade (= play off: its roll lash is 0) | 1.78 | 3.87 / -4.1, +4.5 / 3 of 14 | 4.44 / -8.2, +2.6 |
+| grade + play hip 4, ankle 5 (#286) | 1.91 | 3.77 / -5.1, +4.8 / 2 of 14 | 4.18 / -6.2, +0.8 |
+| train (prec16 chain, DR centre, lash 1.25) | 1.69 | 5.00 / -9.2, +4.6 / 3 of 14 | 5.69 / -10.4, +3.2 |
+| **play_fit**: grade + play L hip 6, R hip 8, L ankle 3, R ankle 0 | **1.00** | 2.78 / -2.7, +1.6 / 2 of 14 | 2.48 / -4.6, -0.5 |
+| spring8: grade + `ser_hip=8` (a series spring, 8 N m/rad) | 1.20 | 2.64 / -5.3, +0.7 / 2 of 14 | 1.58 / -2.2, -1.3 |
+
+Roll per unit of sweep (deg/mm or deg/deg; in each pair "+" is the swept value above zero, "-" below):
+
+| segment | robot | grade | play 4/5 | play_fit | spring8 |
+|---|---|---|---|---|---|
+| shift, both feet down (+ / -) | 0.05 / 0.03 | 0.00 / 0.00 | -0.01 / 0.01 | 0.02 / 0.00 | 0.01 / 0.00 |
+| R stance, hip trim | 0.83 / 0.45 | 0.96 / 0.92 | 0.96 / 0.69 | 0.81 / 0.24 | 0.28 / 0.09 |
+| R stance, ankle trim | 1.12 / 0.19 | 1.06 / 1.20 | 1.14 / 0.64 | 0.87 / 0.48 | 0.61 / 0.41 |
+| L stance, hip trim | -0.89 / -0.89 | -0.99 / -0.96 | -1.00 / -0.96 | -0.99 / -0.96 | -0.66 / -0.68 |
+| L stance, ankle trim | -1.55 / -2.48 | -1.05 / -3.61 | -1.05 / -3.59 | -0.96 / -1.84 | -1.03 / -1.14 |
+
+Step landings. The robot's moves are measured from the front camera
+(`experiments/stepper/board_view.py track <clip>_sony.mp4 --board-w 450` on `hw/stepper`, 4 runs,
+9 steps per foot). The sim's moves are the sole's world move. Both are given relative to the
+commanded lateral move, in mm (+ = left):
+
+| | L foot steps (R stance) | R foot steps (L stance) |
+|---|---|---|
+| robot (camera) | -23 (-40..+22) | -27 (-43..+12) |
+| grade | +7 (-1..+25) | -47 (-57..-28) |
+| play 4/5 | -18 (-31..+19) | -30 (-69..+11) |
+| play_fit | -20 (-31..-4) | -12 (-25..+8) |
+| spring8 | -16 (-26..-4) | -8 (-16..+2) |
+
+- **The robot lands both feet ~25 mm right.** It is not only the R foot on L stance. The 110708
+  sidestep was commanded +30 mm left and ended about 38 mm right, both feet. The stiff plants put
+  the L foot slightly left and the R foot ~45 mm right. The play plants move both feet right, as
+  the robot does.
+- **What the data pins down.** The incremental trim gains (sweeps) want play, not a spring: under
+  single support the robot follows a hip trim at 0.83-0.89 deg/deg, and a spring soft enough to
+  level the body gives 0.1-0.7. The R-stance one-sidedness of the hip (0.83 / 0.45) and of the
+  ankle (1.12 / 0.19) comes out of R hip play 6-8 with no R ankle play. L ankle play is 2-3 deg
+  (all 11 s4 plants within 0.08 of the best cost have it at 2 or 3); R ankle play is 0-2. Hip play is at least 4 on both sides, and its upper end
+  is not pinned: L hip 4-12 and R hip 6-10 all lie within 0.08 of the best sweep cost.
+- **What it does not.** The L-stance level error stays at -2.7 (lifts) and -4.6 (walks) deg on the
+  best play plant. With ~11 deg of hip trim on L stance the robot stands level, and the plant still
+  rolls toward the stance foot. spring8 levels it (-2.2) but gets the trim gains too soft (R hip 0.28 vs 0.83 deg/deg, L hip 0.66 vs 0.89), and the sim's swing sole is clear at only 56 % of the stepper's foot-up rows. No term
+  reproduces the double-support lean: the robot rolls 0.03-0.05 deg per mm of pelvis shift, away
+  from the side it is shifted to (4.7 deg peak to peak over ±62 mm), against at most 0.02 in every
+  plant. Of the robot's three falls, the plants get 112541; 101413 falls in the sim but 16 s early,
+  and 111627 never falls.
+- **Asymmetry hypotheses.** A torso CoM offset of ±10-20 mm alone moves the sweep cost by less than
+  0.2 and does not change the trim gains. In the lift grids (f1, f4) with the play, the best
+  offset moves between 0 and +20 mm from grid to grid: it is not pinned. Ankle-roll friction (0.17-1.5
+  N m on the link) changes nothing without play; with R-side play it lowered the lift-phase cost from 5.40 to 3.51 (f2),
+  but f4 found plants without it within 0.25 of that, so it is not separable from the play widths. The bench-mass plant (torso 0.4855 kg, no L ankle-roll zero
+  error) is worse than grade on every lift (level err L -9 to -11). The data support **per-side
+  play**: R hip and L ankle differ from their mirror joints. They support neither a lateral CoM
+  offset nor ankle friction as the cause.
+- For training: `--roll-play-deg L_hip=4:10,R_hip=6:10,L_ankle=2:3,R_ankle=0:2` spans the
+  near-optimal set (no `--roll-lash-deg`, as in Round 4). Its double-stance ladder behaviour is not
+  checked here. `--roll-series-k hip=8` (spring8) is the better match on the held-out walks' roll
+  (1.6 vs 2.5 deg RMS), but it is the wrong model of the trim response.
+
+Results: `results/stepper_replay/` (`refit.md`, `baseline*.md`, `sweeps_baseline.md`, and each grid's
+`fit_<name>.csv` with `_cost.csv`). The plots and the camera CSVs go to `build/stepper-replay/` (gitignored).
+
 ## What is still unmeasured
 
 1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s

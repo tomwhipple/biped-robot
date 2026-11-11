@@ -765,7 +765,8 @@ def make_parser():
                         "encoders (q, dq obs) read, the link floats inside +/-play/2 of it and "
                         "is driven only at the band edges. 'LO:HI' (all four rolls) or "
                         "'hip=LO:HI,ankle=LO:HI', drawn per episode per joint (one value = "
-                        "fixed). Exclusive with --roll-series-k (hw 2026-11-11 clamp; "
+                        "fixed); per side, L_hip= R_hip= L_ankle= R_ankle= override the role "
+                        "on that side ('hip=2:3,L_hip=8:10,ankle=4:6'). Exclusive with --roll-series-k (hw 2026-11-11 clamp; "
                         "experiments/policy/weight-transfer-gate). config.json records it; the "
                         "referee and grade.py inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,

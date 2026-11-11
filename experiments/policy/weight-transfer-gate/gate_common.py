@@ -41,6 +41,11 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               servo BEYOND its encoder: walker_env roll_play_deg (the shaft is position-controlled
               and is what the encoder reads; the link floats inside +/-play/2 of it), fixed values,
               live at once and at every reset after; a run's own series spring is dropped
+  play_L_hip=, play_R_hip=, play_L_ankle=, play_R_ankle=<deg>   the same for one side's joint,
+              overriding play_hip / play_ankle there
+  fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
+              hip-roll joints, replacing the plant's: it acts on the link, so under the play it
+              holds the link inside its band
 """
 from __future__ import annotations
 
@@ -235,18 +240,25 @@ def apply_terms(env, terms):
         env._kp_prof = nom["kp"] * s * x
         env._kd_prof = nom["kd"] * s * x
         set_series_view(env, 1.0 - x)
-    if "play_hip" in terms or "play_ankle" in terms:
+    if any(k.startswith("play_") for k in terms):
         import walker_env as W
         # the play replaces a run's own series spring (the env takes one or the other)
         env.roll_series_k = None
         env._ser_c = env._ser_defl = env._ser_dq = None
-        env.roll_play_deg = W.parse_roll_play_deg(
-            {r: float(terms.get("play_" + r, 0.0)) for r in W.ROLL_SERIES_ROLES})
+        spec = {r: float(terms.get("play_" + r, 0.0)) for r in W.ROLL_SERIES_ROLES}
+        spec.update({k: float(terms["play_" + k]) for k in W.ROLL_PLAY_KEYS
+                     if k not in W.ROLL_SERIES_ROLES and "play_" + k in terms})
+        env.roll_play_deg = W.parse_roll_play_deg(spec)
         # live now too (a Replay places the robot without a reset): fixed widths, shaft on the link
         env._rp_h = (None if env.roll_play_deg is None else
                      W.roll_play_bounds(env.roll_play_deg, env._servo_names)[0])
         env._rp_off = np.zeros(env._n_servo)
         env._rp_dq = np.zeros(env._n_servo)
+    for key, suf in (("fric_aroll", "ankle_roll"), ("fric_hroll", "hip_roll")):
+        if key in terms:        # dry friction (N m) on the roll joints themselves: the link side
+            for i, n in enumerate(env._servo_names):
+                if n.endswith(suf):
+                    m.dof_frictionloss[env._jv0 + i] = float(terms[key])
     if "dead" in terms:
         ch = getattr(env, "_gate_chain", None)
         add = float(terms["dead"])

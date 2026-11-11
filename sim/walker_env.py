@@ -333,13 +333,18 @@ def parse_roll_series_k(spec):
 
 
 ROLL_PLAY_MAX_DEG = 30.0
+# roll_play_deg keys: a role (both sides), or one side's joint ("L_hip" = L_hip_roll), which
+# overrides its role's range on that side
+ROLL_PLAY_KEYS = ROLL_SERIES_ROLES + tuple(f"{s}_{r}" for s in "LR" for r in ROLL_SERIES_ROLES)
 
 
 def parse_roll_play_deg(spec):
     """roll_play_deg -> {"hip": (lo, hi), "ankle": (lo, hi)} deg peak to peak (a role left out
     has no play), or None when off. Accepts None / "" / {}, one range for all four rolls
     ("LO:HI", or one value = no DR), per role ("hip=LO:HI,ankle=LO:HI") or the dict config.json
-    stores ({"hip": [lo, hi], ...} or numbers). Shared by env_mjx and the CPU env."""
+    stores ({"hip": [lo, hi], ...} or numbers). Shared by env_mjx and the CPU env.
+    Per side: "L_hip", "R_hip", "L_ankle", "R_ankle" keys set that one joint's range and override
+    the role's on that side ("hip=3:5,L_hip=8:10,ankle=4:6": the L hip roll 8..10, the R 3..5)."""
     if spec is None or spec == "" or spec == {}:
         return None
     if isinstance(spec, (int, float, np.integer, np.floating)):
@@ -356,14 +361,15 @@ def parse_roll_play_deg(spec):
             try:
                 vals = [float(x) for x in v.split(":")]
             except ValueError:
-                raise ValueError(f"roll_play_deg {spec!r}: want LO:HI or hip=LO:HI,ankle=LO:HI")
+                raise ValueError(f"roll_play_deg {spec!r}: want LO:HI or hip=LO:HI,ankle=LO:HI"
+                                 f" (per side: L_hip=, R_hip=, L_ankle=, R_ankle=)")
             for r in (ROLL_SERIES_ROLES if k is None else (k.strip(),)):
                 d[r] = vals
         spec = d
     out = {}
     for k, v in dict(spec).items():
-        if k not in ROLL_SERIES_ROLES:
-            raise ValueError(f"roll_play_deg: role {k!r} not in {ROLL_SERIES_ROLES}")
+        if k not in ROLL_PLAY_KEYS:
+            raise ValueError(f"roll_play_deg: key {k!r} not in {ROLL_PLAY_KEYS}")
         v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
         if len(v) == 1:
             v = v * 2
@@ -374,12 +380,17 @@ def parse_roll_play_deg(spec):
 
 
 def roll_play_bounds(spec, servo_names):
-    """per servo (lo, hi) half-widths of the roll play, rad (0 off the four rolls)."""
+    """per servo (lo, hi) half-widths of the roll play, rad (0 off the four rolls). A side's own
+    key ("L_hip") wins over its role's ("hip")."""
     role = roll_series_roles(servo_names)
     lo, hi = np.zeros(len(servo_names)), np.zeros(len(servo_names))
     for i, r in enumerate(role):
-        if r >= 0 and ROLL_SERIES_ROLES[r] in spec:
-            a, b = spec[ROLL_SERIES_ROLES[r]]
+        if r < 0:
+            continue
+        own = f"{servo_names[i][0]}_{ROLL_SERIES_ROLES[r]}"
+        key = own if own in spec else ROLL_SERIES_ROLES[r]
+        if key in spec:
+            a, b = spec[key]
             lo[i], hi[i] = 0.5 * np.deg2rad(a), 0.5 * np.deg2rad(b)
     return lo, hi
 
