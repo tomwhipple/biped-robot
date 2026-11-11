@@ -39,7 +39,7 @@ class Kin:
         return float(off[0]), float(off[1])
 
     def pose(self, shift=0.0, fwd=0.0, footL=(0.0, 0.0, 0.0), footR=(0.0, 0.0, 0.0), drop=None, straight=False,
-             hike=None, ankle=None, ref=0.0, heading=0.0, yawL=0.0, yawR=0.0):
+             hike=None, ankle=None, ankle_p=None, ref=0.0, heading=0.0, yawL=0.0, yawR=0.0):
         """shift, fwd: pelvis offset (m) from the crouched stand, +y left / +x forward.
         footL/footR: (dx, dy, dz) of that sole from where it stands.
         hike: {"L": rad, "R": rad}, a trim on that leg's hip roll alone that lifts the OTHER hip when
@@ -47,7 +47,11 @@ class Kin:
         (Key.roll is not this: it rolls the soles with the pelvis, which on a flat floor stands the
         legs back upright -- the 2026-11-11 10:28 fall.)
         ankle: {"L": rad, "R": rad}, the same trim on that leg's ankle roll (same sign: it moves the body roll
-        the same way as the hip's).
+        the same way as the hip's). ankle_p: {"L": rad, "R": rad}, a trim added to that leg's ankle PITCH joint.
+        Sole levelling (FK-checked in dry_run.py, MuJoCo model): a body rolled by r about its forward axis (IMU
+        roll +, right side down) tips the sole's normal by r about x: ankle=-r on the left leg, +r on the right
+        cancels it; a body pitched by p (IMU pitch +, forward) needs ankle_p = -p on both; ankle=+b (both) puts
+        the OUTER edge of either sole up by b.
         Turning (2026-11-11 check: Key.heading / yawL / yawR are WORLD yaws about +Z, + = counter-clockwise from above =
         the robot's left; a foot yaw of +a with the pelvis square gives hip_yaw +a, a pelvis heading of +a with the
         feet fixed gives hip_yaw -a and the legs re-aimed; rotating everything rigidly changes no joint):
@@ -69,4 +73,5 @@ class Kin:
         for side, sgn in (("L", +1.0), ("R", -1.0)):
             out[f"{side}_hip_roll"] += sgn * float((hike or {}).get(side, 0.0))
             out[f"{side}_ankle_roll"] += sgn * float((ankle or {}).get(side, 0.0))
+            out[f"{side}_ankle"] += float((ankle_p or {}).get(side, 0.0))
         return out
