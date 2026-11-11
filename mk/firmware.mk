@@ -2,10 +2,13 @@
 .PHONY: host console vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
+# A policy profile's own copy (`make deploy ... POLICY=<p>` writes it): its watchdog
+# commands run through the profile's envelope twin.
+PROFILE_PROTOCOL_VECTORS := $(wildcard firmware/policies/*/vectors/protocol_vectors.h)
 FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
 WCLI_VECTORS := firmware/host/vectors/wcli_vectors.h
 
-host: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
+host: $(PROTOCOL_VECTORS) $(PROFILE_PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the firmware's pure modules under ASan/UBSan, the SIL library and the consoles (firmware/host)
 	$(MAKE) -C firmware/host -j1 check
 
 # ARGS replaces the default --host: a console given only --bench-telemetry or
@@ -15,9 +18,11 @@ console: ## build and open the GUI control panel (bimo_gui) on the local sim; AR
 	$(MAKE) -C firmware/host gui
 	firmware/host/build/bimo_gui $(or $(ARGS),--host 127.0.0.1)
 
-vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors, from link/protocol.py, tools/flightrec.py and link/wcliproto.py
+vectors: $(PROTOCOL_VECTORS) $(PROFILE_PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors, from link/protocol.py, tools/flightrec.py and link/wcliproto.py
 $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)
 	$(PY) tools/gen_protocol_vectors.py
+$(PROFILE_PROTOCOL_VECTORS): firmware/policies/%/vectors/protocol_vectors.h: $(PYDEPS_tools/gen_protocol_vectors.py) firmware/policies/%/linkproto/cmd_envelope.py
+	$(PY) tools/gen_protocol_vectors.py --profile $*
 $(FLIGHTREC_VECTORS): $(PYDEPS_tools/gen_flightrec_vectors.py)
 	$(PY) tools/gen_flightrec_vectors.py
 $(WCLI_VECTORS): $(PYDEPS_tools/gen_wcli_vectors.py)
@@ -31,6 +36,7 @@ deploy: ## put RUN=name's policy into the firmware: weights, obs spec, command e
 	@test -n "$(RUN)" || { echo "name the run: make deploy RUN=<run under sim/runs>" >&2; exit 2; }
 	$(PY) tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	$(PY) tools/gen_envelope.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	$(PY) tools/gen_protocol_vectors.py $(if $(POLICY),--profile $(POLICY))
 	$(PY) tools/export_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	$(PY) tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 

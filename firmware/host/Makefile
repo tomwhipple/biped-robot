@@ -32,6 +32,7 @@ ifeq ($(POLICY),)
   POL_VEC_H    = vectors/policy_vectors.h
   ENV_H        = $(COMPONENTS)/linkproto/include/linkproto/cmd_envelope.h
   ENV_VEC_H    = vectors/cmd_envelope_vectors.h
+  PROTO_VEC_H  = vectors/protocol_vectors.h
   GOLDEN_ENV   =
 else
   PROFILE_DIR  = $(ROOT)/policies/$(POLICY)
@@ -47,6 +48,8 @@ else
   POL_VEC_H    = $(PROFILE_DIR)/vectors/policy_vectors.h
   ENV_H        = $(PROFILE_DIR)/linkproto/cmd_envelope.h
   ENV_VEC_H    = $(PROFILE_DIR)/vectors/cmd_envelope_vectors.h
+  # the profile's own protocol vectors when it has them (its envelope), else the deployed set's
+  PROTO_VEC_H  = $(or $(wildcard $(PROFILE_DIR)/vectors/protocol_vectors.h),vectors/protocol_vectors.h)
   # test_sil_golden reads the profile's own sim/sil/golden/<profile>/
   GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
 endif
@@ -261,7 +264,7 @@ TESTFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS))
 COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h)
 
 $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
-                        vectors/protocol_vectors.h $(ENV_H) $(ENV_VEC_H) \
+                        $(PROTO_VEC_H) $(ENV_H) $(ENV_VEC_H) \
                         test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
@@ -434,11 +437,17 @@ endif
 check-gui: deps gui
 
 
-# Regenerate the golden PROTOCOL vectors from the Python reference. This is
-# the only generator that has one right answer independent of any policy, so
-# it is the only one safe to run without saying anything.
+# Regenerate the golden PROTOCOL vectors from the Python reference, the
+# deployed set's and every profile copy's. The protocol has one right answer;
+# only the watchdog's commands depend on the envelope, and each copy is run
+# through its own set's (already generated), so this is safe to run without
+# saying anything.
 vectors:
 	cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py
+	@for f in $(wildcard $(ROOT)/policies/*/vectors/protocol_vectors.h); do \
+	   p=$$(basename $$(dirname $$(dirname $$f))); \
+	   (cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py --profile $$p) || exit 1; \
+	 done
 
 # The other generators write the DEPLOYED policy: obs_spec.h is the
 # observation layout the flashed weights were trained against, weights.h is the
@@ -460,6 +469,7 @@ deploy-headers:
 	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
 	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
 	cd ../.. && .venv/bin/python tools/gen_envelope.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
+	cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py $(if $(POLICY),--profile $(POLICY))
 	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
 
 clean:

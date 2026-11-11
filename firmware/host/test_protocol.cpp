@@ -12,7 +12,9 @@
 #include "linkproto/watchdog.h"
 #include "test_util.h"
 #include <vectors/cmd_envelope_vectors.h>
-#include "vectors/protocol_vectors.h"
+// A policy profile's own copy when it has one (its watchdog commands run through its
+// envelope: tools/gen_protocol_vectors.py --profile), else the deployed set's.
+#include <vectors/protocol_vectors.h>
 
 using namespace linkproto;
 namespace V = protocol_vectors;
