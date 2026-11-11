@@ -341,8 +341,12 @@ be joined by subtraction.
   values beside it.
 - **Every video frame carries its capture time.** `tools/cam_record.sh`
   burns UTC into the picture to the millisecond and writes a `.pts` sidecar
-  of one epoch-ms per frame; `tools/record_attempt.sh` records both cameras
-  and whether the host clock was NTP-synced.
+  of one epoch-ms per frame; `tools/record_attempt.sh` records the cameras
+  (`CAM_DEVICES`, default `/dev/video0`; `SONY=1` adds the A7 III through
+  `tools/sony_record.sh`) and whether the host clock was NTP-synced. Webcam
+  clips are 1280x720 MJPEG at 30 fps unless `SIZE`, `FPS` or `INPUT_FORMAT`
+  say otherwise (the EMEET C960 does `SIZE=1920x1080`), and the recorder
+  prints the size the driver actually gave.
 - **Every log line carries both clocks.** `link/recorder.cpp` (`bimo_gui`'s
   JSONL in `hw_sessions/`) writes `utc` (host) on every record, `robot_utc`
   (from `t_us`, `null` when 0) and the joints on every beacon, and
@@ -525,8 +529,21 @@ new commander is a class in `link/sources.py` or a front end on
   feed as 12-byte datagrams on UDP 4212 (`sources.PoseFeed`); the robot has
   no odometry to provide one and neither twin publishes one.
 - **`link/arm_script.py`**: arms over the radio, runs a `sources.py` script
-  with `ARM` held, then disarms. It E-stops, disarms and exits 2 on
-  `FALLEN`, a servo fault or `up_z` < 0.5 for 0.3 s.
+  with `ARM` held, and ends the run with the RESET SERVOS edge: `ARM|HOME`
+  sent while still armed, then `ARM`-off frames until the robot's `diag` says
+  `DISARMED_HOME` (the firmware slews home, rolls the hips out and back,
+  reads every joint back and releases torque itself, about 8 s;
+  `HOME_PENDING` until then). `HOME_NOT_REACHED`, any other home verdict, no
+  telemetry or no verdict within `--home-wait` seconds (default 16) sends
+  `ESTOP` as the release and exits 2. A bare `ARM`-off disarm is not an
+  ending: it releases torque where the robot stands, and a stride run that
+  ended that way toppled 1.2 s later. `--stay-armed` skips the ending.
+  `FALLEN`, a servo fault or `up_z` < 0.5 for 0.3 s instead sends `ESTOP`,
+  disarms, homes after a 3 s hold for the spotter, and exits 2.
+  `--check-prep <run>` first reads `standclock` and `shape` back over the
+  Wi-Fi CLI (`tools/robot_prep.sh --check`) and refuses to send a frame when
+  they differ from the run's `config.json`. `link/osc_probe.py` and
+  `link/crouch_probe.py` end the same way (`Driver.home_and_release`).
 
 ## Simulated robots behind the link
 
