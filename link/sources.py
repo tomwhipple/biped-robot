@@ -204,6 +204,10 @@ SCRIPT_SCENARIO = {
     "walk": "line_1m",
     "line_1m": "line_1m",
     "stride1": "line_1m",
+    "stride1_03e": "line_1m",
+    "stride1_02s": "line_1m",
+    "steps5_02s": "line_1m",
+    "back3_02s": "line_1m",
     "dash_stop": "speed_ladder",
     "turn": "turn_180",
     "pivot": "turn_180",
@@ -219,6 +223,31 @@ def _stride1(t):
     # ONE gait-clock cycle of walk (the deployed clock runs 1.5 Hz fixed;
     # clock_stand_freeze holds phase outside the window), stand either side.
     return (0.6, 0.0) if 2.0 <= t < 2.0 + 1.0 / 1.5 else (0.0, 0.0)
+
+
+def _stride1_03e(t):
+    # One stride at 0.3 m/s on the 1.5 Hz clock, ending EARLY: 0.61 s instead of one cycle
+    # (0.667 s). A command that ends past the stand phase lets the clock coast a whole extra
+    # cycle under cmd 0, and the leg makes a swing the sim never makes (2026-11-06 flight
+    # record: ~33 ms late, a third swing, a flail trip). Sim, 8 seeds: ending 40 ms early
+    # 0/8 trips, 20 ms late 8/8; 57 ms early leaves margin. Above the 0.75 Hz policies'
+    # band (the robot clamps it to their maximum): those use the *_02s scripts.
+    return (0.3, 0.0) if 2.0 <= t < 2.61 else (0.0, 0.0)
+
+
+# The slow-gait scripts, for the policies trained on the 0.75 Hz clock (gait_freq_range
+# 0.7-0.8; forward band 0.05-0.24 m/s): 1.333 s per gait cycle at 0.2 m/s, stand either
+# side. Each command ends SLOW_END_EARLY_S before its cycle boundary, the lesson of
+# stride1_03e (a late end coasts the clock through an extra swing).
+SLOW_GAIT_HZ = 0.75
+SLOW_END_EARLY_S = 0.05
+
+
+def _slow_steps(vx, cycles):
+    def script(t):
+        end = 2.0 + cycles / SLOW_GAIT_HZ - SLOW_END_EARLY_S
+        return (vx, 0.0) if 2.0 <= t < end else (0.0, 0.0)
+    return script
 
 
 def _crouch1(t):
@@ -248,6 +277,12 @@ def _sidestep1(t):
 SCRIPTS = {
     "stand": _stand,
     "stride1": _stride1,
+    "stride1_03e": _stride1_03e,
+    # one stride (a step per foot, one cycle), five steps (2.5 cycles), three steps back
+    # (1.5 cycles), all at 0.2 m/s on the 0.75 Hz clock
+    "stride1_02s": _slow_steps(0.2, 1.0),
+    "steps5_02s": _slow_steps(0.2, 2.5),
+    "back3_02s": _slow_steps(-0.2, 1.5),
     "sidestep1": _sidestep1,
     "crouch1": _crouch1,
     "rom_feet": _rom_feet,

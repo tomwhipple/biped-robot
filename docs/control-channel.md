@@ -518,7 +518,10 @@ new commander is a class in `link/sources.py` or a front end on
 - **`link/commander.py`**: streams a `link/sources.py` source at 20 Hz and
   never sets `ARM`. `--source script --script <name>` runs a timed sequence
   (`stand`, `walk`, `dash_stop`, `line_1m`, `turn`, `pivot`, `square`,
-  `march`, `stride1`, `sidestep1`, `crouch1`, `rom_feet`); `--source
+  `march`, `march5`, `stride1`, `stride1_03e`, `sidestep1`, `crouch1`,
+  `rom_feet`; for the policies on the 0.75 Hz gait clock, `stride1_02s`,
+  `steps5_02s` and `back3_02s`: one stride, five steps and three steps back
+  at 0.2 m/s, each ending 50 ms before its cycle boundary); `--source
   gamepad` reads sticks through pygame with a **held** dead-man (right
   shoulder; letting go must stop the robot) and B/circle as E-stop. Sticks
   (SDL2 Xbox/PS layout): left Y is vx through `stick_to_speed` (up =
