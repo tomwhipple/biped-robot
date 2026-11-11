@@ -218,8 +218,10 @@ def mkplot(h=None, xr=(-30, 0), yr=None, bottom=True, left_w=38):
     # A PlotWidget's sizeHint is 640 x 480 pt: left to it, a column of plots
     # makes its tab 480 pt per row and wider than the pane. Take what the
     # layout gives (with the caller's minimum), not what the plot would like.
+    # A fixed height is Fixed vertically: an Ignored row in a grid collapses
+    # to its label's height and the plots overlap (the Bench tab's did).
     P = QtWidgets.QSizePolicy.Policy
-    p.setSizePolicy(P.Ignored, P.Ignored)
+    p.setSizePolicy(P.Ignored, P.Fixed if h else P.Ignored)
     if h:
         p.setFixedHeight(h)
     return p
