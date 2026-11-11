@@ -438,3 +438,22 @@ def test_a_pending_rebind_never_swallows_a_stop(qapp, twin, tmp_path):
         assert not w.start_rebind(fwd) and "disarm first" in w.ctl.status_msg
     finally:
         w.close()
+
+
+def test_a_failed_relink_shows_no_link_everywhere(qapp, twin, tmp_path):
+    """The title, the link line and Setup's role stop naming the old robot."""
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        pump(qapp, 0.3)
+        assert w.windowTitle().endswith("127.0.0.1")
+        assert not w.ctl.relink("not-an-address", twin, twin + 1)
+        w.select_tab("Setup")
+        pump(qapp, 0.3)
+        assert w.windowTitle() == "bimo console — NO LINK"
+        assert "NO LINK" in w.bar.link.text() and "127.0.0.1:" not in w.bar.link.text()
+        assert w.tab_widgets["Setup"].role.text().startswith("NO LINK")
+        assert w.ctl.relink("127.0.0.1", twin, twin + 1)
+        pump(qapp, 0.3)
+        assert w.windowTitle().endswith("127.0.0.1")
+    finally:
+        w.close()
