@@ -1,24 +1,42 @@
 #!/usr/bin/env bash
-# Morning planner for the get-up campaign (cron 07:30, ON MIRA, as claw).
+# Morning planner for the get-up campaign (cron 05:30 and 07:30, ON MIRA, as
+# claw; the collector also starts it when it finishes between 00:00 and 07:30).
 # Tom 2026-10-21: "In the morning, re-evaluate and plan the next run. There
 # should be simulations running all night, every night, always pulling in the
-# latest knowledge." The 07:15 collector referees the night's runs; this waits
-# for it, then hands the evaluation and tonight's queue to a headless Claude
+# latest knowledge." The collector referees the night's runs; this waits
+# for the night's work to be done (runner finished, collector finished, nothing
+# left to collect), then hands the evaluation and tonight's queue to a headless Claude
 # Code session (planner_prompt.md), and DMs Tom the one-line outcome.
 # ensure_queue.sh (21:30) is the safety net if this fails.
 # Installed copy: ~/code/robot-mjx/night/ (outside the training tree, like
 # night_run.sh); source of truth: infra/night/ in the repo.
 set -uo pipefail
-N=$HOME/code/robot-mjx/night
+N=${NIGHT_DIR:-$HOME/code/robot-mjx/night}     # NIGHT_DIR etc.: for testing
 HERE=$(cd "$(dirname "$0")" && pwd)
-COLLECT_LOG=$HOME/code/robot/sim/runs/night_collect.log
-WT=$HOME/code/robot-planner
+COLLECT_LOG=${COLLECT_LOG:-$HOME/code/robot/sim/runs/night_collect.log}
+WT=${PLAN_WT:-$HOME/code/robot-planner}
+RB=${PLAN_REPO:-$HOME/code/robot}
+CLAUDE_BIN=${CLAUDE_BIN:-$HOME/.local/bin/claude}
+POLL_S=${PLAN_POLL_S:-120}
+POLL_N=${PLAN_POLL_N:-90}                      # 90 x 120 s = the 3 h cap
 OUTDIR=$N/planner
 TOM=mattermost:xhtnq11nhjn1jpytz1sj4zzimr     # Tom <-> aime DM (model-remediator's target)
 mkdir -p "$OUTDIR"
 exec >> "$N/planner.log" 2>&1
 exec 8>"$N/.planner.lock"
 flock -n 8 || { echo "=== $(date) plan_morning: another planner holds the lock; exiting"; exit 0; }
+
+# idempotent: a plan that completed today (a "plan_morning done" line after a
+# "plan_morning" header, both dated today) is not redone. The planner is
+# started by cron at 05:30 and 07:30 and by the collector.
+TODAY=$(date '+%a %b %e')
+if awk -v t="=== $TODAY " '
+     index($0, t) == 1 && $0 ~ / plan_morning ===$/ {h = 1}
+     index($0, t) == 1 && $0 ~ / plan_morning done ===$/ && h {ok = 1}
+     END {exit !ok}' "$N/planner.log"; then
+  echo "=== $(date) plan_morning: already planned today; exiting"
+  exit 0
+fi
 echo "=== $(date) plan_morning ==="
 
 notify() {
@@ -30,21 +48,32 @@ notify() {
   fi
 }
 
-# wait (up to 3 h) for today's collection to finish: it referees and renders
-# every run, and the planner must read finished scorecards
-TODAY=$(date '+%a %b %e')
-for _ in $(seq 90); do
-  grep -E '^=== .* done ===$' "$COLLECT_LOG" | tail -1 | grep -q "$TODAY" && break
-  sleep 120
+# wait (up to 3 h) until the night's work is done: the runner has finished
+# (its lock is free), the collector has finished (ditto), no state.done.* is
+# left to collect, and no job is still training. The planner must read finished
+# scorecards.
+lock_free() { ( flock -n 3 ) 3> "$1"; }
+night_done() {
+  lock_free "$N/.runner.lock" && lock_free "$N/.collect.lock" || return 1
+  compgen -G "$N/state.done.*" > /dev/null && return 1
+  # a job the 06:55 guard left training: night_stop turns it into state.done at 07:00
+  if [[ -f $N/state ]]; then
+    local PID; PID=$(sed -n 's/^PID=//p' "$N/state" | head -1)
+    [[ -n $PID ]] && kill -0 "$PID" 2>/dev/null && return 1
+  fi
+  return 0
+}
+for _ in $(seq "$POLL_N"); do
+  night_done && break
+  sleep "$POLL_S"
 done
-grep -E '^=== .* done ===$' "$COLLECT_LOG" | tail -1 | grep -q "$TODAY" \
-  || echo "!!! collection not finished by $(date +%H:%M); planning on what is there"
+night_done || echo "!!! night's work not finished by $(date +%H:%M); planning on what is there"
 
 # the planner's own worktree, reset to origin/main every morning
-git -C "$HOME/code/robot" fetch -q origin
+git -C "$RB" fetch -q origin
 if [[ ! -d $WT ]]; then
-  git -C "$HOME/code/robot" worktree add -q --detach "$WT" origin/main
-  ln -sfn "$HOME/code/robot/.venv" "$WT/.venv"
+  git -C "$RB" worktree add -q --detach "$WT" origin/main
+  ln -sfn "$RB/.venv" "$WT/.venv"
 fi
 git -C "$WT" checkout -q --detach origin/main || echo "!!! could not reset $WT to origin/main"
 
@@ -61,10 +90,10 @@ STAMP=$(date +%Y%m%d)
 } > "$OUTDIR/$STAMP.prompt.md"
 
 uid=$(id -u)
-cd "$WT" || cd "$HOME/code/robot"
+cd "$WT" || cd "$RB"
 env HOME="$HOME" PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" \
     XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
-  timeout 5h "$HOME/.local/bin/claude" -p --output-format json --model opus \
+  timeout 5h "$CLAUDE_BIN" -p --output-format json --model opus \
     --permission-mode bypassPermissions --add-dir "$HOME/code" \
     < "$OUTDIR/$STAMP.prompt.md" > "$OUTDIR/$STAMP.json" 2> "$OUTDIR/$STAMP.stderr"
 RC=$?
@@ -97,4 +126,8 @@ if [[ -z "$LAST" ]]; then
 else
   notify "${LAST#PLAN_STATUS: } ($QN jobs queued)"
 fi
-echo "=== $(date) plan_morning done ==="
+if [[ -z "$LAST" ]]; then
+  echo "=== $(date) plan_morning failed ==="    # not "done": the next trigger retries
+else
+  echo "=== $(date) plan_morning done ==="
+fi

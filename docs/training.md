@@ -563,15 +563,21 @@ Training runs **at night only**; days belong to the box's owner.
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
   back to CPU is moved back onto the GPU.
-- **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
-  finished run into the working checkout and referees it: the python column
-  with `--render`, and the SIL column. The lag column is run by hand (§8). It
+- **Collection.** `infra/night_collect_local.sh` copies each finished run into
+  the working checkout and referees it: the python column with `--render`, and
+  the SIL column. The runner starts it, detached, when its queue loop ends and a
+  run is waiting (never while a job is still training); cron 07:15 on mira is the
+  safety net. `COLLECT_JOBS` (default 6) runs are collected at once, each into
+  its own log that is appended to `night_collect.log` in a stable order; a
+  second collector exits at once on `night/.collect.lock`. The lag column is run by hand (§8). It
   fast-forwards the checkout to `origin/main` first, so the references and
   plants a run trained against are there to referee it. If uncommitted files
   block the fast-forward, it stashes only the paths upstream also changed, under
   a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
-- **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
-  collection, then runs a headless Claude Code session on
+- **Re-planning.** `infra/night/plan_morning.sh` (cron 05:30 and 07:30; also
+  started by a collector that finishes between 00:00 and 07:30) waits until the
+  runner and collector locks are free and no `state.done.*` is left (3 h cap),
+  skips itself if a plan already completed today, then runs a headless Claude Code session on
   `infra/night/planner_prompt.md`: it evaluates the night against the campaign
   record (today the get-up, [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md)),
   improves the references on the CPU if a phase is failing, queues the next

@@ -305,3 +305,19 @@ done
 # leave the tree on main so a branch job never strands the clone
 [[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
 echo "$(date) night_run loop done"
+
+# The night's training is over: collect it NOW rather than at 07:15, so the
+# morning planner is not held up by a long collection (2026-11-11: 31 runs,
+# serial, done at ~10:00). Detached, with its own log, and without this
+# runner's lock (9>&-) so the collector never looks like a running runner.
+# Not while a job is still training (the 05:00..06:55 guard `break` leaves one
+# running until night_stop): the EGL renders would share the GPU with it, and
+# the 07:15 cron collects then.
+CPID=$(sed -n 's/^PID=//p' "$N/state" 2>/dev/null | head -1)
+if [[ -n $CPID ]] && kill -0 "$CPID" 2>/dev/null; then
+  echo "$(date +%H:%M) collector not started: $CPID still training; the 07:15 cron collects"
+elif compgen -G "$N/state.done.*" > /dev/null; then
+  echo "$(date +%H:%M) starting the collector for $(ls "$N"/state.done.* | wc -l) finished run(s)"
+  setsid nohup "${COLLECT_SCRIPT:-$HOME/code/robot/infra/night_collect_local.sh}" \
+    9>&- > /dev/null 2>&1 < /dev/null &
+fi
