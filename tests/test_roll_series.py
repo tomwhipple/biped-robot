@@ -283,3 +283,56 @@ def test_cpu_mjx_parity_airborne():
     p = subprocess.run([sys.executable, "-c", code], cwd=os.path.join(SIM, "mjx"), env=env,
                        capture_output=True, text=True, timeout=900)
     assert p.returncode == 0, p.stdout[-2000:] + p.stderr[-2000:]
+
+
+def test_config_json_records_it(monkeypatch, tmp_path):
+    """train_mjx.main writes it into config.json (and nothing else changes); without the flag
+    the key is absent."""
+    import json
+    import train_mjx
+
+    class Started(Exception):
+        pass
+
+    def no_training(*a, **k):
+        raise Started
+
+    monkeypatch.setattr(train_mjx, "RUNS", str(tmp_path))
+    monkeypatch.setattr(train_mjx.ppo, "train", no_training)
+    cfg = {}
+    for name, extra in (("off", []), ("on", ["--roll-series-k", "hip=11:15,ankle=17.75:24"])):
+        monkeypatch.setattr(sys, "argv", ["train_mjx", "--out", name, "--envs", "4"] + ARGS + extra)
+        with pytest.raises(Started):
+            train_mjx.main()
+        cfg[name] = json.load(open(tmp_path / name / "config.json"))
+    assert "roll_series_k" not in cfg["off"]
+    assert cfg["on"]["roll_series_k"] == {"hip": [11.0, 15.0], "ankle": [17.75, 24.0]}
+    drop = ("train", "git_sha", "git_dirty", "roll_series_k")
+    assert ({k: v for k, v in cfg["off"].items() if k not in drop}
+            == {k: v for k, v in cfg["on"].items() if k not in drop})
+
+
+def test_grade_rebuilds_the_run_on_its_spring(monkeypatch, tmp_path):
+    """grade.py / the RCA harness build a run's env from its config.json (eval_stand_arm._setup
+    -> eval_precision.make_env): a run trained with the spring is graded with it."""
+    import json
+    import eval_stand_arm as ESA
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "weight-transfer-gate"))
+    import gate_common as GC
+    src = GC.run_dir()          # the prec16 student, GATE_MAIN's sim/runs
+    if not os.path.exists(os.path.join(src, "params.pkl")):
+        pytest.skip("the prec16 run is not on this machine (gitignored sim/runs)")
+    run = "rs_probe"
+    os.makedirs(tmp_path / run)
+    os.symlink(os.path.join(src, "params.pkl"), tmp_path / run / "params.pkl")
+    cfg = json.load(open(os.path.join(src, "config.json")))
+    cfg["roll_series_k"] = {"hip": [11.0, 11.0], "ankle": [17.75, 17.75]}
+    json.dump(cfg, open(tmp_path / run / "config.json", "w"))
+    monkeypatch.setattr(ESA, "RUNS", str(tmp_path))
+    for plant in ("fit", "train"):
+        env, _, _ = ESA._setup(run, plant, 0.0, 2.0)
+        env.reset(seed=0)
+        c = env._ser_c
+        assert c is not None
+        assert sorted(np.round(1 / c[c > 0], 2).tolist()) == [11.0, 11.0, 17.75, 17.75]
+        ESA._CACHE.pop((run, plant, 0.0, 2.0), None)
