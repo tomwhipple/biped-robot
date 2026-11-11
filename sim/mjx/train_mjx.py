@@ -751,6 +751,14 @@ def make_parser():
                         "roll joints (hip_roll, ankle_roll) only: the play "
                         "downstream of the encoders (hw 2026-10-24; "
                         "docs/design-v6/roll-compliance-2026-10-24.md)")
+    p.add_argument("--roll-series-k", default=None,
+                   help="a spring in series with the hip / ankle roll servos BEYOND the "
+                        "encoder, N m/rad: 'hip=LO:HI,ankle=LO:HI', k drawn per episode "
+                        "per role (one value = fixed; a role left out is rigid). The "
+                        "encoders (q, dq obs) read the servo shaft, the link yields tau/k "
+                        "more (hw 2026-11-10 clamp: 9.4 deg tilt, encoders 1.5 / 0.5 deg; "
+                        "experiments/policy/weight-transfer-gate Round 3). config.json "
+                        "records it; the referee and grade.py inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,
                    help="torso mass/inertia DR +-fraction (replaces the generic "
                         "--mass-range draw for the torso body)")
@@ -1076,6 +1084,11 @@ def build_env_kw(args):
     if args.roll_lash_deg is not None:
         lo, hi = (float(x) for x in args.roll_lash_deg.split(","))
         env_kw.update(roll_lash_deg=lo, roll_lash_deg_max=hi)
+    if getattr(args, "roll_series_k", None):
+        from walker_env import parse_roll_series_k   # jax-free, shared with both envs
+        rs = parse_roll_series_k(args.roll_series_k)
+        if rs is not None:
+            env_kw["roll_series_k"] = {k: list(v) for k, v in rs.items()}
     if args.torso_mass_range is not None:
         env_kw["torso_mass_range"] = args.torso_mass_range
     if args.torso_com_y is not None:
