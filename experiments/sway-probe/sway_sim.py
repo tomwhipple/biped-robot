@@ -27,6 +27,10 @@ Per rung and per side (the "swing" foot is the one the reference lifts: L while 
              within 10 deg of upright at the end
 
     .venv/bin/python experiments/sway-probe/sway_sim.py --n 16 --json out.json --report out.md
+
+`--refit` runs the ladder on the refit plant instead: gate_common's mass and symmetry terms (REFIT_TERMS), the torso
+mass fixed at the weighed value, and a series roll spring (walker_env `roll_series_k`) drawn per plant over hip 10:25 and
+ankle 16:40 N m/rad, two more Latin-hypercube dimensions beside the DR ranges. The default is the old plant.
 """
 from __future__ import annotations
 
@@ -44,6 +48,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import sway_ref as SR  # noqa: E402  (sets sys.path for sim/, sim/mjx/)
 sys.path.insert(0, os.path.join(SR.ROOT, "experiments", "one-leg-stand"))
+sys.path.insert(0, os.path.join(SR.ROOT, "experiments", "policy", "weight-transfer-gate"))
 import mujoco  # noqa: E402
 
 DT = 1.0 / SR.KEY_HZ
@@ -74,12 +79,24 @@ class Plant:
     delay_3250: int = 0            # hip rolls, STS3250 (0..1)
     latency_ms: float = 4.0        # latency_ms_max 8
     kp_scale: float = 0.9          # servo stiffness (servo_kp_range 0.6..1.2); kd follows
+    ser_hip: float = 0.0           # series roll spring beyond the encoder, N m/rad (0 = rigid: the old plant)
+    ser_ankle: float = 0.0
+
+
+# The refit plant (weight-transfer-gate Round 3, #259; the robot measured 2026-11-10): the mass and
+# symmetry terms gate_common applies (torso 0.4855 kg, the 83 g pack, no L ankle-roll zero error) and a
+# spring in series with each roll servo, walker_env's `roll_series_k`. The fit (hip 11.0, ankle 17.75
+# N m/rad) is too soft with both feet down; the stiffer end of the bracket is ~2.3x it.
+REFIT_TERMS = "torso_kg=0.4855,pack=0.083,zoff_La=0"        # gate_common.MASS_SYM: applied by gate_common.apply_terms
+REFIT_SERIES = dict(ser_hip=(10.0, 25.0), ser_ankle=(16.0, 40.0))     # N m/rad, drawn as two more LHS dimensions
 
 
 class Band:
-    """The draw ranges: the recipe's own DR ranges (config.json)."""
+    """The draw ranges: the recipe's own DR ranges (config.json). refit=True: the refit plant (above): the
+    torso mass is the weighed one (no draw) and the two series springs are drawn over REFIT_SERIES."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, refit=False):
+        self.refit = refit
         g = cfg.get
         self.r = dict(
             mu=tuple(g("contact_mu_range", [0.3, 0.7])),
@@ -94,6 +111,9 @@ class Band:
             latency_ms=(0.0, g("latency_ms_max", 8.0)),
             kp_scale=tuple(g("servo_kp_range", [0.6, 1.2])),
         )
+        if refit:
+            self.r["torso_scale"] = (1.0, 1.0)
+            self.r.update(REFIT_SERIES)
 
     def mid(self):
         d = {k: 0.5 * (a + b) for k, (a, b) in self.r.items()}
@@ -119,7 +139,7 @@ class Band:
 
 
 # --------------------------------------------------------------------------------- the env
-def build_env(cfg, plant, chain="prec", xml=None, seconds=40.0):
+def build_env(cfg, plant, chain="prec", xml=None, seconds=40.0, refit=False):
     import eval_precision as EP
     import walker_env as W
     extra = dict(episode_seconds=seconds, act_lag_hz=plant.lag_hz, act_lag_dr_max=None,
@@ -127,6 +147,8 @@ def build_env(cfg, plant, chain="prec", xml=None, seconds=40.0):
                  backlash_deg=plant.backlash_deg, backlash_deg_max=None,
                  roll_lash_deg=plant.roll_lash_deg, roll_lash_deg_max=None,
                  mimic_sway=0.0, push_prob=0.0, push_force=0.0)
+    if refit:       # walker_env's own series spring (fixed k per plant: the band draws it here)
+        extra["roll_series_k"] = f"hip={plant.ser_hip}:{plant.ser_hip},ankle={plant.ser_ankle}:{plant.ser_ankle}"
     if chain == "pose":
         extra["fw_shaper_hz"] = 0.0
         extra["fw_shaper_hz_max"] = None
@@ -147,6 +169,9 @@ def build_env(cfg, plant, chain="prec", xml=None, seconds=40.0):
     env._act_delay_vec = np.array([plant.delay_3250 if k == "hip_roll" else plant.delay_3215 for k in kinds], dtype=int)
     env._kp_prof = np.asarray(env._kp_prof) * plant.kp_scale
     env._kd_prof = np.asarray(env._kd_prof) * plant.kp_scale
+    if refit:
+        import gate_common as GC
+        GC.apply_terms(env, GC.parse_terms(REFIT_TERMS))
     return env
 
 
@@ -399,10 +424,10 @@ def band_stats(vals):
                 p90=float(np.nanpercentile(v, 90)), max=float(np.nanmax(v)))
 
 
-def run_rung(cfg, rung, plants, chain, seg_ms, balance="off"):
+def run_rung(cfg, rung, plants, chain, seg_ms, balance="off", refit=False):
     eps = []
     for p in plants:
-        env = build_env(cfg, p, chain)
+        env = build_env(cfg, p, chain, refit=refit)
         tr = play(env, rung, seg_ms, 0.0, balance)
         eps.append(dict(plant=asdict(p), u_peak_deg=tr["u_peak_deg"], pi_aborted=bool(tr["pi_aborted"]), **metrics(env, rung, tr)))
     return eps
@@ -437,20 +462,20 @@ def summarise(eps):
 
 
 def rehearse(cfg=None, Ms=SR.LADDER_M, lead=SR.LEAD, hz=SR.CLOCK_HZ, cycles=SR.CYCLES, ramp_s=SR.RAMP_S,
-             n=16, chain="prec", seg_ms=0.0, seed=0, only=None, progress=None, balance="off"):
+             n=16, chain="prec", seg_ms=0.0, seed=0, only=None, progress=None, balance="off", refit=False):
     cfg = cfg or SR.load_config()
     ref = SR.SwayReference(cfg)
-    band = Band(cfg)
+    band = Band(cfg, refit)
     plants = [band.mid()] + band.lhs(n, seed)
     rungs = ref.ladder(Ms, lead, hz, cycles, ramp_s)
-    res = dict(meta=dict(chain=chain, seg_ms=seg_ms, balance=balance, n_band=n, seed=seed, lead=lead, hz=hz, cycles=cycles, ramp_s=ramp_s,
+    res = dict(meta=dict(chain=chain, seg_ms=seg_ms, balance=balance, plant="refit" if refit else "old", n_band=n, seed=seed, lead=lead, hz=hz, cycles=cycles, ramp_s=ramp_s,
                          Ms=list(Ms), config=os.path.basename(cfg.get("_path", SR.DEFAULT_CONFIG)),
                          xml=os.path.basename(SR.DEFAULT_XML), band=band.r), rungs=[])
     for r in rungs:
         if only and r.index not in only:
             continue
         t0 = time.time()
-        eps = run_rung(cfg, r, plants, chain, seg_ms, balance)
+        eps = run_rung(cfg, r, plants, chain, seg_ms, balance, refit)
         res["rungs"].append(dict(rung=r.meta(), nominal=eps[0], band=summarise(eps[1:]), episodes=eps[1:]))
         if progress:
             progress(r, res["rungs"][-1], time.time() - t0)
@@ -511,6 +536,8 @@ def main(argv=None):
     ap.add_argument("--chain", choices=("prec", "pose"), default="prec")
     ap.add_argument("--seg-ms", type=float, default=0.0, help="0 = direct 50 Hz; else chained pose s<ms> segments")
     ap.add_argument("--balance", choices=("off", "stance"), default="off", help="stance: the bench roll PI on the non-swinging foot (needs --seg-ms > 0)")
+    ap.add_argument("--refit", action="store_true",
+                    help="the refit plant (REFIT_TERMS and the series roll springs over REFIT_SERIES) instead of the old one")
     ap.add_argument("--rung", type=int, action="append", help="only this rung (repeatable)")
     ap.add_argument("--json", default=None)
     ap.add_argument("--keep-episodes", action="store_true", help="keep every plant's episode record in the json (large)")
@@ -536,7 +563,7 @@ def main(argv=None):
               f"{fmt_band(b['tilt_peak_deg'])}  " + "  ".join(
                   f"{s} F_min% {fmt_band(v['F_min_frac'], 100, 0)} clear {fmt_band(v['clear_mm'])}" for s, v in b["sides"].items())
               + f"  ({dt:.0f}s)", flush=True)
-    res = rehearse(cfg, a.M, a.lead, a.hz, a.cycles, SR.RAMP_S, a.n, a.chain, a.seg_ms, a.seed, set(a.rung or []), prog, a.balance)
+    res = rehearse(cfg, a.M, a.lead, a.hz, a.cycles, SR.RAMP_S, a.n, a.chain, a.seg_ms, a.seed, set(a.rung or []), prog, a.balance, a.refit)
     if a.json:
         if not a.keep_episodes:
             for R in res["rungs"]:

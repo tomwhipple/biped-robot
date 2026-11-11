@@ -105,3 +105,45 @@ def test_chained_playback_starts_each_segment_from_the_readback(setup):
     goals = [g0] + [st.goal(i) for i in range(1, 10)]
     assert goals[-1][k] == pytest.approx(final, abs=1e-12)         # the move lands on that keyframe
     assert all(np.sign(b - a) == np.sign(final - start) or abs(b - a) < 1e-12 for a, b in zip([g[k] for g in goals], [g[k] for g in goals][1:]))
+
+
+def test_the_default_plant_is_the_old_one_and_refit_is_opt_in(setup):
+    cfg = setup[0]
+    b = S.Band(cfg)
+    assert not b.refit and "ser_hip" not in b.r and b.r["torso_scale"] == (0.6, 1.4)
+    env = S.build_env(cfg, S.Plant(), "pose")
+    assert env.roll_series_k is None and env.model.body_mass[env._torso_bid] == pytest.approx(env._nom_mass[env._torso_bid])
+    assert all(p.ser_hip == 0.0 and p.ser_ankle == 0.0 for p in b.lhs(4, 1))
+
+
+def test_refit_band_draws_the_springs_and_fixes_the_mass(setup):
+    cfg = setup[0]
+    b = S.Band(cfg, refit=True)
+    assert b.r["ser_hip"] == (10.0, 25.0) and b.r["ser_ankle"] == (16.0, 40.0) and b.r["torso_scale"] == (1.0, 1.0)
+    old = S.Band(cfg).lhs(8, 3)
+    new = b.lhs(8, 3)
+    assert b.lhs(8, 3) == new
+    for p in new:
+        assert 10.0 <= p.ser_hip <= 25.0 and 16.0 <= p.ser_ankle <= 40.0 and p.torso_scale == 1.0
+    assert len({p.ser_hip for p in new}) == 8 and len({p.ser_ankle for p in new}) == 8     # Latin hypercube: one draw per slice
+    assert [p.mu for p in new] == [p.mu for p in old]                                      # the DR dimensions keep their draws
+    assert b.mid().ser_hip == 17.5 and b.mid().ser_ankle == 28.0
+
+
+def test_refit_env_carries_the_mass_and_the_springs(setup):
+    cfg = setup[0]
+    p = S.Plant(ser_hip=15.0, ser_ankle=30.0)
+    env = S.build_env(cfg, p, "pose", refit=True)
+    assert env.roll_series_k == {"hip": (15.0, 15.0), "ankle": (30.0, 30.0)}
+    assert S.weight_n(env) / S.G == pytest.approx(1.621, abs=0.002)                        # the weighed robot, with the pack
+    env.reset(seed=0)
+    assert env._ser_c is not None and float(env._ser_c.max()) == pytest.approx(1 / 15.0)
+
+
+def test_refit_rung_runs_and_the_meta_says_which_plant(setup):
+    cfg, ref, rung = setup
+    env = S.build_env(cfg, S.Band(cfg, True).mid(), "pose", refit=True)
+    m = S.metrics(env, rung, S.play(env, rung, 200.0, 0.0, "off"))
+    assert m["up"] and m["completed"] and set(m["sides"]) == {"L", "R"}
+    res = S.rehearse(cfg, Ms=[0.03], n=1, chain="pose", seg_ms=200.0, refit=True)
+    assert res["meta"]["plant"] == "refit" and tuple(res["meta"]["band"]["ser_hip"]) == (10.0, 25.0)

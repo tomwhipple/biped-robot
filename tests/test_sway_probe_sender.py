@@ -304,7 +304,7 @@ def test_go_refuses_a_rung_the_sim_band_fell_on(ladder, tmp_path, capsys):
 
 def test_the_committed_predictions_cover_the_ladder_and_the_lead_variants(ladder):
     ref, _ = ladder
-    for fn, lead in (("predictions.json", SR.LEAD), ("predictions_lead0.4.json", 0.4), ("predictions_lead1.2.json", 1.2)):
+    for fn, lead in (("predictions_refit.json", SR.LEAD), ("predictions.json", SR.LEAD), ("predictions_lead0.4.json", 0.4), ("predictions_lead1.2.json", 1.2)):
         pred = SP.load_predictions(os.path.join(SWAY, fn))
         rungs = ref.ladder(lead=lead)
         assert len(rungs) == 12
@@ -315,7 +315,9 @@ def test_the_committed_predictions_cover_the_ladder_and_the_lead_variants(ladder
             st = SP.stops_for(R)
             assert 6.0 <= st["tilt_deg"] <= 12.0 and 1.0 <= st["rate_rad_s"] <= 3.0
     # a different clock, cycle count or segment length is not this prediction
-    pred = SP.load_predictions(os.path.join(SWAY, "predictions.json"))
+    assert os.path.samefile(SP.DEFAULT_PREDICTIONS, os.path.join(SWAY, "predictions_refit.json"))      # the sender defaults to the refit plant
+    pred = SP.load_predictions(SP.DEFAULT_PREDICTIONS)
+    assert pred["meta"]["plant"] == "refit"
     assert SP.prediction_for(pred, ref.rung(1, "sway", 0.02), 200)[0] is not None
     assert SP.prediction_for(pred, ref.rung(1, "sway", 0.02, hz=0.9), 200)[0] is None
     assert SP.prediction_for(pred, ref.rung(1, "sway", 0.02), 300)[0] is None

@@ -50,7 +50,7 @@ sys.path.insert(0, os.path.join(ROOT, "link"))
 import sway_ref as SR  # noqa: E402
 import bus_cal  # noqa: E402
 
-DEFAULT_PREDICTIONS = os.path.join(HERE, "predictions.json")
+DEFAULT_PREDICTIONS = os.path.join(HERE, "predictions_refit.json")
 SEG_MS = 200                       # firmware minimum for `pose s<ms>`
 SEG_MS_MIN, SEG_MS_MAX = 200, 20000
 SETTLE_MS = 2500                   # the first move to the zero stand
