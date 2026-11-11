@@ -1,5 +1,5 @@
 ##@ Firmware
-.PHONY: host console vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
+.PHONY: host console qtconsole vectors deploy firmware lint cmake-check tidy tidy-gui cppcheck
 
 PROTOCOL_VECTORS := firmware/host/vectors/protocol_vectors.h
 FLIGHTREC_VECTORS := firmware/host/vectors/flightrec_vectors.h
@@ -14,6 +14,10 @@ console: ## build and open the GUI control panel (bimo_gui) on the local sim; AR
 	$(MAKE) -C firmware/host deps
 	$(MAKE) -C firmware/host gui
 	firmware/host/build/bimo_gui $(or $(ARGS),--host 127.0.0.1)
+
+qtconsole: ## build the core library and open the Qt operator console (link/bimo_console.py, docs/console.md) observing the local sim; ARGS="--host <robot-ip>" for the robot
+	$(MAKE) -C firmware/host console
+	$(PY) link/bimo_console.py $(or $(ARGS),--host 127.0.0.1)
 
 vectors: $(PROTOCOL_VECTORS) $(FLIGHTREC_VECTORS) $(WCLI_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors, from link/protocol.py, tools/flightrec.py and link/wcliproto.py
 $(PROTOCOL_VECTORS): $(PYDEPS_tools/gen_protocol_vectors.py)

@@ -16,7 +16,7 @@ SHELL := /bin/bash
 ## V=v6        the design: v6 (the robot), bench-v2, bench-v3 (the Plan B rigs)
 ## PART=name   one v6 part or slice job instead of all of them (cad, slice)
 ## RUN=name    a training run under sim/runs/ (sim, eval, deploy)
-## ARGS="..."  more arguments for the script behind the target (sim, puppet, console, eval, train)
+## ARGS="..."  more arguments for the script behind the target (sim, puppet, console, qtconsole, eval, train)
 ## JOBS=n      parallel jobs (default: every core)
 
 V ?= v6
@@ -44,7 +44,7 @@ endif
 # Prerequisite lists, remade when any Python source changes. Not read for the
 # targets that need none.
 PY_SOURCES := $(wildcard $(shell git ls-files -co --exclude-standard -- '*.py'))
-ifneq ($(filter-out help clean distclean console,$(or $(MAKECMDGOALS),help)),)
+ifneq ($(filter-out help clean distclean console qtconsole,$(or $(MAKECMDGOALS),help)),)
 -include build/deps/py.mk build/deps/v6.mk
 endif
 

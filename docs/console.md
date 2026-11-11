@@ -6,16 +6,38 @@ over the same C++ console core as `bimo_gui` and `bimo_tui`
 [design-v6/2026-11-01-operator-console-ui.md](design-v6/2026-11-01-operator-console-ui.md).
 The wire it speaks is [control-channel.md](control-channel.md)'s.
 
+**Not yet run on hardware.** Everything below has run against the link twin
+and the sim only; `bimo_gui` stays the console for a hardware session until
+this one has run one.
+
 ## Running it
 
 ```sh
-make -C firmware/host console                 # the core library, once per change
-uv pip install --python .venv/bin/python PyQt6 pyqtgraph pygame   # the window's deps
+make qtconsole                                # build the core library, observe the local sim
+make qtconsole ARGS="--host <robot-ip>"       # on the robot
 
+make -C firmware/host console                 # or by hand: the core library, once per change
 .venv/bin/python link/bimo_console.py --host <robot-ip>           # observe
 .venv/bin/python link/bimo_console.py --host <robot-ip> --drive   # drive
 .venv/bin/python link/bimo_console.py --host 127.0.0.1 --drive    # the sim
 ```
+
+`make console` is the older `bimo_gui` (Dear ImGui), not this window.
+
+What it needs, all in the repo's `.venv` (`pip install -r requirements.txt`
+installs it all):
+
+- **PyQt6 and pyqtgraph**: the window.
+- **mujoco and a GL context** for the 3D view (`MUJOCO_GL`: `cgl` on the Mac,
+  `egl` on Linux). Without one the view pane says why and the rest of the
+  window works.
+- **`<repo>/.venv`** for the Sim tab: it starts `sim/sil_twin.py` with
+  `<repo>/.venv/bin/python`, and says so when there is none.
+- **pygame**, only for the gamepad; without it the console runs and says
+  there is no gamepad support. pygame 2.6.1 has no wheel for Python 3.14 (the
+  repo's venv), so there `pip install -r requirements.txt` builds it from
+  source (it needs SDL2's headers); if that fails, install the rest without
+  it.
 
 `--help` lists every flag. `--headless` needs only the core library (no Qt):
 the same link loop with line commands on stdin, which is what
@@ -142,10 +164,11 @@ is that measurement. Its E-STOP works for any host.
 
 | source | port | carries |
 | --- | --- | --- |
+| commands (out) | UDP 4210 (`--cmd-port`) | command frames and the stops, to the robot (or the sim) |
 | beacon | UDP 4211 (`--tlm-port`) | state, pack, up vector, faults; joints / attitude when asked |
 | robot flight records | UDP 4221 (`--flight-port`) | per joint goal vs measured at 50 Hz; forwarded by mira's `tools/flight_collector.py --forward <laptop>:4221` |
 | sim flight records | UDP 4222 (`--sim-flight-port`) | the same, from `sim/sil_twin.py --flight` |
-| sim render | HTTP 8645 | `sil_twin`'s MJPEG |
+| sim render | HTTP 8645 (`--stream-port`, or `--sim-view URL`) | `sil_twin`'s MJPEG |
 | bench cameras | HTTP 8647 (`--cam-relay`) | `tools/cam_relay.py` |
 | bench telemetry | UDP 8650 (`--bench-telemetry`) | `tools/board_bridge.py`, watch-only |
 
@@ -162,8 +185,25 @@ The console records every command and beacon to `hw_sessions/*.jsonl`
   [`headless.py`](../link/console/headless.py); [`app.py`](../link/console/app.py):
   the window. The link tick is a timer on the GUI thread, so a frozen window
   sends nothing and the robot stands.
-- Tests: `tests/test_gui_e2e.py` (every scenario against both consoles),
-  `tests/test_console_core.py` (at the socket: an observer sends only stop
-  frames, a driver quits disarmed, an unconfirmed HOLD escalates),
-  `tests/test_console_window.py` (offscreen; skips without pyqtgraph),
-  `firmware/host/test_client.cpp` (the C boundary under ASan/UBSan).
+- Tests (the window's skip without PyQt6 + pyqtgraph, and the core's
+  without `make -C firmware/host console`):
+  - `tests/test_gui_e2e.py`: every scenario against both consoles, over real
+    UDP to the link twin;
+  - `tests/test_console_core.py`: at the socket: an observer sends only stop
+    frames, a driver quits disarmed, an unconfirmed HOLD escalates;
+  - `tests/test_console_window.py`: the window offscreen, its keys and focus
+    rules, driving the link twin;
+  - `tests/test_console_checks.py`: the Checks rows and the abort watch, which
+    never send anything;
+  - `tests/test_console_flight.py`: the flight-record receiver and the Joints
+    and Telemetry tabs it feeds;
+  - `tests/test_console_view3d.py`: the 3D pose mapping and ghosts; a render
+    skips without a GL context;
+  - `tests/test_console_sim.py`: run discovery, the sil_twin child against a
+    fake, twin-in-the-loop at the socket;
+  - `tests/test_console_gamepad.py`: the gamepad against a fake SDL layer
+    (dead-man, lost pad, sim-only driving);
+  - `tests/test_console_bench.py`: the Bench tab against a fake bridge and
+    camera relay;
+  - `tests/test_cmd_envelope.py`: the command envelope the Drive sliders span;
+  - `firmware/host/test_client.cpp`: the C boundary under ASan/UBSan.
