@@ -46,10 +46,6 @@ import os
 import sys
 import time
 
-os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
-import pygame  # noqa: E402  (a missing pygame is the app's "no gamepad")
-import pygame._sdl2.controller as sdl_controller  # noqa: E402
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import protocol  # noqa: E402  link/protocol.py
@@ -72,20 +68,48 @@ DEADMAN, ESTOP = "rightshoulder", "b"
 # mapping does not.
 LABELS = {"xbox": ("RB", "B"), "playstation": ("R1", "○"), "nintendo": ("R", "A")}
 
-_AXIS_ID = {"leftx": pygame.CONTROLLER_AXIS_LEFTX, "lefty": pygame.CONTROLLER_AXIS_LEFTY,
-            "rightx": pygame.CONTROLLER_AXIS_RIGHTX, "righty": pygame.CONTROLLER_AXIS_RIGHTY,
-            "lefttrigger": pygame.CONTROLLER_AXIS_TRIGGERLEFT,
-            "righttrigger": pygame.CONTROLLER_AXIS_TRIGGERRIGHT}
-_BUTTON_ID = {n: getattr(pygame, "CONTROLLER_BUTTON_" + s) for n, s in (
-    ("a", "A"), ("b", "B"), ("x", "X"), ("y", "Y"), ("back", "BACK"), ("guide", "GUIDE"),
-    ("start", "START"), ("leftstick", "LEFTSTICK"), ("rightstick", "RIGHTSTICK"),
-    ("leftshoulder", "LEFTSHOULDER"), ("rightshoulder", "RIGHTSHOULDER"),
-    ("dpup", "DPAD_UP"), ("dpdown", "DPAD_DOWN"), ("dpleft", "DPAD_LEFT"),
-    ("dpright", "DPAD_RIGHT"))}
-_INPUT_EVENTS = {pygame.JOYAXISMOTION, pygame.JOYBALLMOTION, pygame.JOYHATMOTION,
-                 pygame.JOYBUTTONDOWN, pygame.JOYBUTTONUP, pygame.CONTROLLERAXISMOTION,
-                 pygame.CONTROLLERBUTTONDOWN, pygame.CONTROLLERBUTTONUP,
-                 pygame.CONTROLLERSENSORUPDATE}
+# pygame is imported on first use, by the real SDL adapter (SdlPads) only:
+# everything else here -- and the tests, through a fake adapter -- runs without
+# it. A missing pygame surfaces as ImportError from SdlPads(), which the app
+# reads as "no gamepad".
+pygame = sdl_controller = None
+_AXIS_ID: dict = {}
+_BUTTON_ID: dict = {}
+_INPUT_EVENTS: frozenset = frozenset()
+
+
+class SdlError(RuntimeError):
+    """An SDL failure from an adapter that is not pygame's (pygame.error is
+    caught alongside it)."""
+
+
+def _sdl_errors() -> tuple:
+    return (SdlError,) if pygame is None else (SdlError, pygame.error)
+
+
+def _load_pygame():
+    """Import pygame and build SDL's id tables; ImportError if it is missing."""
+    global pygame, sdl_controller, _AXIS_ID, _BUTTON_ID, _INPUT_EVENTS
+    if pygame is not None:
+        return
+    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+    import pygame as pg
+    import pygame._sdl2.controller as ctl
+    _AXIS_ID = {"leftx": pg.CONTROLLER_AXIS_LEFTX, "lefty": pg.CONTROLLER_AXIS_LEFTY,
+                "rightx": pg.CONTROLLER_AXIS_RIGHTX, "righty": pg.CONTROLLER_AXIS_RIGHTY,
+                "lefttrigger": pg.CONTROLLER_AXIS_TRIGGERLEFT,
+                "righttrigger": pg.CONTROLLER_AXIS_TRIGGERRIGHT}
+    _BUTTON_ID = {n: getattr(pg, "CONTROLLER_BUTTON_" + s) for n, s in (
+        ("a", "A"), ("b", "B"), ("x", "X"), ("y", "Y"), ("back", "BACK"), ("guide", "GUIDE"),
+        ("start", "START"), ("leftstick", "LEFTSTICK"), ("rightstick", "RIGHTSTICK"),
+        ("leftshoulder", "LEFTSHOULDER"), ("rightshoulder", "RIGHTSHOULDER"),
+        ("dpup", "DPAD_UP"), ("dpdown", "DPAD_DOWN"), ("dpleft", "DPAD_LEFT"),
+        ("dpright", "DPAD_RIGHT"))}
+    _INPUT_EVENTS = frozenset({
+        pg.JOYAXISMOTION, pg.JOYBALLMOTION, pg.JOYHATMOTION, pg.JOYBUTTONDOWN,
+        pg.JOYBUTTONUP, pg.CONTROLLERAXISMOTION, pg.CONTROLLERBUTTONDOWN,
+        pg.CONTROLLERBUTTONUP, pg.CONTROLLERSENSORUPDATE})
+    pygame, sdl_controller = pg, ctl
 
 
 def family(name: str) -> str:
@@ -178,6 +202,7 @@ class SdlPads:
     with the same methods (scan, open, events, quit)."""
 
     def __init__(self):
+        _load_pygame()
         # The pad's E-STOP must work whichever window has focus, and "east"
         # must be east on a Nintendo layout too (SDL2 otherwise maps those by
         # label). Both are read when SDL initialises the subsystems below.
@@ -259,7 +284,7 @@ class Gamepad:
         if backend is None:
             try:
                 self.backend = SdlPads()
-            except pygame.error as e:
+            except _sdl_errors() as e:
                 self.error = f"SDL: {e}"
                 log("pad", f"gamepad unavailable: {self.error}")
         self.sdl = getattr(self.backend, "sdl", "")
@@ -300,7 +325,7 @@ class Gamepad:
     def _open(self, index: int) -> None:
         try:
             pad = self.backend.open(index)
-        except pygame.error as e:
+        except _sdl_errors() as e:
             self.log("pad", f"gamepad {index}: cannot open: {e}")
             return
         self.pad = pad
