@@ -589,8 +589,7 @@ class ViewPane(QtWidgets.QWidget):
             else:
                 self._paint_render_error(p, r3d)
         if rc is not None:
-            key = SIM_KEY if self.source == "sim" else self.cam_name
-            self._paint_stream(p, rc, key)
+            self._paint_stream(p, rc, self.stream_key())
 
     def _paint_render_error(self, p, r):
         """The 3D picture alone is unbuildable (no GL context): say so, red,
@@ -690,7 +689,7 @@ class ViewPane(QtWidgets.QWidget):
         """(state text, colour, stream or None) for one camera or the sim render."""
         s = self.streams.get(key)
         if s is None:
-            if key != SIM_KEY and not getattr(self.o, "cam_relay", None):
+            if key is None or (key != SIM_KEY and not getattr(self.o, "cam_relay", None)):
                 return "no --cam-relay", FAINT, None
             return "○ off", FAINT, None
         st = s.state()
@@ -700,8 +699,21 @@ class ViewPane(QtWidgets.QWidget):
             age = s.age_s() or 0.0
             return f"STALE {age:.1f} s", RED, s
         if st == "waiting":
+            if key == SIM_KEY and _refused(s.error):
+                return "○ sim not running", AMBER, s
             return "○ waiting", AMBER, s
         return "○ off", FAINT, s
+
+    def stream_key(self):
+        """What the stream rect shows: the sim render on the Sim render source,
+        else the picked camera -- None for the Camera source with no
+        --cam-relay (it says so; it never falls back to the sim render)."""
+        if self.source == "sim":
+            return SIM_KEY
+        if (self.source == "camera" and self.cam_name == SIM_KEY
+                and not getattr(self.o, "cam_relay", None)):
+            return None
+        return self.cam_name
 
     def _url(self, key: str):
         o = self.o
@@ -729,9 +741,11 @@ class ViewPane(QtWidgets.QWidget):
         p.setFont(font)
         sw = fm.horizontalAdvance(state) + 4
         room = int(r.width() - sw - 28)
-        title = f"{'bench cam · ' if key != SIM_KEY else ''}{key}   {where}"
+        title = (f"{'bench cam · ' if key != SIM_KEY else ''}{key}   {where}" if key is not None
+                 else "bench cam")
         if fm.horizontalAdvance(title) > room:
-            title = fm.elidedText(f"{key}   {where}", QtCore.Qt.TextElideMode.ElideRight, room)
+            title = fm.elidedText(f"{key or 'bench cam'}   {where}",
+                                  QtCore.Qt.TextElideMode.ElideRight, room)
         p.setPen(QtGui.QColor(TEXT))
         p.drawText(QtCore.QRectF(r.x() + 10, r.y() + 4, room, 18),
                    int(QtCore.Qt.AlignmentFlag.AlignLeft), title)
@@ -758,6 +772,8 @@ class ViewPane(QtWidgets.QWidget):
             if s is None:
                 msg = ("no camera: start the console with --cam-relay HOST[:PORT]"
                        if url == "" else f"{key}: not open")
+            elif key == SIM_KEY and _refused(s.error):
+                msg = f"sim not running: start it on the Sim tab\n\n(nothing serves {url})"
             else:
                 msg = f"waiting for {url}"
                 if s.error:
@@ -775,8 +791,11 @@ class ViewPane(QtWidgets.QWidget):
     def _set_status(self):
         sep = f"<span style='color:{DIM}'> · </span>"
         d = f"<span style='color:{DIM}'>"
-        if self.source in ("camera", "sim"):
-            key = SIM_KEY if self.source == "sim" else self.cam_name
+        if self.source in ("camera", "sim") and self.stream_key() is None:
+            html = (f"<span style='color:{AMBER}'>no camera</span>&nbsp;&nbsp;{d}start the "
+                    f"console with --cam-relay HOST[:PORT] (tools/cam_relay.py)</span>")
+        elif self.source in ("camera", "sim"):
+            key = self.stream_key()
             state, colour, _ = self.stream_state(key)
             url = self._url(key) or "no --cam-relay"
             extra = ("sil_twin's own world view (floor, contacts, position)" if key == SIM_KEY
@@ -812,7 +831,8 @@ class ViewPane(QtWidgets.QWidget):
         if self.source == "sim":
             return {SIM_KEY}
         if self.source == "camera" or self.show_pip.isChecked():
-            return {self.cam_name} if self._url(self.cam_name) else set()
+            key = self.stream_key()
+            return {key} if key is not None and self._url(key) else set()
         return set()
 
     def _sync_streams(self) -> None:
@@ -852,6 +872,11 @@ def _stop_async(streams):
         t.start()
         out.append(t)
     return out
+
+
+def _refused(error: str) -> bool:
+    """A stream error that means nothing listens there (ECONNREFUSED)."""
+    return "Errno 111" in error or "Errno 61" in error or "refused" in error.lower()
 
 
 def _f(v):

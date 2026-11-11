@@ -333,6 +333,41 @@ def test_the_pose_rate_is_the_flight_recorders_not_the_refresh(qt):
         p.close_streams()
 
 
+def test_the_camera_source_without_a_relay_says_so(qt):
+    """No --cam-relay: the Camera source shows "no camera", never the sim
+    render in its place, and opens no stream."""
+    from console import view3d
+    p = pane_for(qt, Flight())
+    try:
+        p.set_source("camera")
+        assert p.stream_key() is None and p.shown_streams() == set()
+        assert "no camera" in p.status.text() and "--cam-relay" in p.status.text()
+        p.set_source("sim")
+        assert p.stream_key() == view3d.SIM_KEY
+    finally:
+        p.close_streams()
+
+
+def test_a_sim_render_nobody_serves_says_start_the_sim(qt):
+    from console import view3d
+    from PyQt6 import QtGui
+    port = _free_port()
+    p = pane_for(qt, Flight(), "--stream-port", str(port))
+    try:
+        p.set_source("sim")
+        end = time.monotonic() + 3.0
+        while time.monotonic() < end and p.stream_state(view3d.SIM_KEY)[0] != "○ sim not running":
+            qt.processEvents()
+            time.sleep(0.05)
+        assert p.stream_state(view3d.SIM_KEY)[0] == "○ sim not running"
+        img = QtGui.QImage(760, 640, QtGui.QImage.Format.Format_RGB32)
+        painter = QtGui.QPainter(img)
+        p.paint(painter, 760, 640)                      # paints, never raises
+        painter.end()
+    finally:
+        p.close_streams()
+
+
 def test_selected_joint_and_plant_choice(qt):
     p = pane_for(qt, Flight(), "--plant", "bimo_biped_v6legs.xml")
     try:
