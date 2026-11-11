@@ -39,7 +39,9 @@ the same link loop with line commands on stdin, which is what
   - **HOLD** (`f`): the soft stop. The policy stops, every joint holds where
     it is with torque on, the run ends, and the bench homes the robot once it
     is upright and still. Not confirmed by the beacon within 400 ms, it is
-    escalated to a hard stop.
+    escalated to a hard stop. On a robot already benched it stops any bench
+    motion and changes no reason, so BENCH without a servo reset in progress
+    confirms it.
   - **E-STOP** (`e`): the hard stop. Torque off now and the run ends; for a
     driver also the classic E-stop latch, which firmware older than
     `kFlagStop` understands. Re-arming is a fresh ARM.
@@ -71,7 +73,8 @@ the same link loop with line commands on stdin, which is what
 
   The HOLD and E-STOP buttons always work. The buttons never take focus.
 - Keys are `~/.bimo/keymap.conf`, the file `bimo_gui` uses; rebind them in
-  Setup. Defaults: arrows translate, PgUp/PgDn turn, `a` arm, `space` stand,
+  Setup, disarmed (the HOLD and E-STOP keys always stop, and are changed only
+  in the file). Defaults: arrows translate, PgUp/PgDn turn, `a` arm, `space` stand,
   `f` hold, `e` E-stop, `h` reset servos, `r` record, `0` reset the extended
   channels, `q` quit; take control is unbound.
 
