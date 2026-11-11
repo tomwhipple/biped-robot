@@ -72,6 +72,12 @@ def _get(obj, *names):
     return None
 
 
+def _fail_name(r) -> str:
+    """'#2 pack': the row's number and a word for it (its evaluator's name)."""
+    what = r.fn.strip("_").replace("_", " ") if r.fn else r.item.split(":")[0]
+    return f"#{r.num} {what}" if r.num != "—" else what
+
+
 class Row:
     def __init__(self, num, item, source, tick=False, fn=None):
         self.num, self.item, self.source = num, item, source
@@ -493,8 +499,7 @@ class ChecksTab(QtWidgets.QWidget):
         if ticks_open:
             parts.append(f"{len(ticks_open)} tether / eye checks open")
         if fails:
-            names = ", ".join(dict.fromkeys(r.num if r.num != "—" else r.item.split(":")[0]
-                                            for r in fails))
+            names = ", ".join(dict.fromkeys(_fail_name(r) for r in fails))
             parts.append(f"{len(fails)} failed: {names}")
         if nodata:
             parts.append(f"{len(nodata)} waiting for data")

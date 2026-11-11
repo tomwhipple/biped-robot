@@ -294,3 +294,11 @@ def test_window_checks_screenshot(qapp, tmp_path):
         w.close()
         p.terminate()
         p.communicate(timeout=5)
+
+
+def test_a_failed_row_is_named_by_number_and_word():
+    """The summary reads "1 failed: #2 pack", not "1 failed: 2"."""
+    from console.tab_checks import Row, _fail_name
+    assert _fail_name(Row("2", "pack ≥ 11.4 V (3S)", "beacon", fn="_pack")) == "#2 pack"
+    assert _fail_name(Row("10b", "a stop is ready", "x", fn="_stop_ready")) == "#10b stop ready"
+    assert _fail_name(Row("—", "console recording on", "x", fn="_console_rec")) == "console rec"
