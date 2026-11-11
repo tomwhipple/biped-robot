@@ -315,6 +315,47 @@ def test_wcli_tool_exit_codes(twin, tmp_path):
     assert r.returncode == 1 and "chmod 600" in r.stderr
 
 
+@needs_twin
+def test_wcli_wait_returns_on_the_matching_async_line(twin, tmp_path):
+    """`pose` replies "streaming" at once; "pose: done" arrives ~0.3 s later.
+    Without --wait the tool is gone before it; with --wait it prints it and
+    exits 0."""
+    kf = _key_file(tmp_path, twin.key)
+    base = [sys.executable, WCLI, "--host", "127.0.0.1", "--port",
+            str(twin.port), "--key-file", kf]
+    r = subprocess.run(base + ["pose 2048 s300"], capture_output=True,
+                       text=True, timeout=30)
+    assert (r.returncode, r.stdout) == (0, "pose: streaming\n")
+    r = subprocess.run(base + ["pose 2048 s300", "--wait", r"pose: d.ne$"],
+                       capture_output=True, text=True, timeout=30)
+    assert (r.returncode, r.stdout) == (0, "pose: streaming\npose: done\n")
+
+
+@needs_twin
+def test_wcli_wait_times_out_nonzero(twin, tmp_path):
+    kf = _key_file(tmp_path, twin.key)
+    base = [sys.executable, WCLI, "--host", "127.0.0.1", "--port",
+            str(twin.port), "--key-file", kf]
+    t0 = time.monotonic()
+    r = subprocess.run(base + ["ping W", "--wait", "never printed",
+                               "--timeout", "1.5"],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 4 and r.stdout == "pong W #1\n"
+    assert "WAIT TIMEOUT" in r.stderr and time.monotonic() - t0 >= 1.4
+    # a match already inside the reply needs no wait; a refused command is
+    # reported as refused, not waited on
+    r = subprocess.run(base + ["ping X", "--wait", "pong X"],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0
+    r = subprocess.run(base + ["id 1 2", "--wait", "anything",
+                               "--timeout", "5"],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 2
+    r = subprocess.run(base + ["--wait", "x"], capture_output=True, text=True,
+                       timeout=30)
+    assert r.returncode == 1 and "needs a command" in r.stderr
+
+
 def _run_bridge(tmp_path, port, key, lines, extra=()):
     kf = _key_file(tmp_path, key)
     fifo, log = str(tmp_path / "board.fifo"), str(tmp_path / "board.log")
