@@ -1784,7 +1784,22 @@ void drawSettings(App& a, double now_ms) {
     ImGui::EndChild();
 }
 
-void drawKeymap(App& a) {
+// The stops come first (the Qt console's rule): the HOLD and E-STOP keys are
+// never rebound from the window, and nothing is rebound while the robot could
+// be moving -- armed, or a fresh beacon says LIVE. nullptr: allowed.
+const char* rebindRefusal(const App& a, int action, double now_ms) {
+    if (action == bimo::kActHold || action == bimo::kActEstop) {
+        return "the HOLD and E-STOP keys are not rebound here; edit the keymap "
+               "file with bimo_gui closed";
+    }
+    if (a.in.armed || (a.link.have_tlm && !a.link.linkLost(now_ms) &&
+                       a.link.tlm.state == LinkState::kLive)) {
+        return "not while armed or the robot is LIVE -- disarm first";
+    }
+    return nullptr;
+}
+
+void drawKeymap(App& a, double now_ms) {
     ImGui::SeparatorText("KEYMAP");
     ImGui::TextDisabled("%s -- click a binding, then press a key",
                         a.keymap_path[0] ? a.keymap_path : "(no file)");
@@ -1796,7 +1811,17 @@ void drawKeymap(App& a) {
         char btn[64];
         snprintf(btn, sizeof btn, "%-10s##bind%d",
                  a.rebind == i ? "press a key" : (kn[0] ? kn : "none"), i);
-        if (ImGui::Button(btn, ImVec2(120, 0))) a.rebind = (a.rebind == i) ? -1 : i;
+        if (ImGui::Button(btn, ImVec2(120, 0))) {
+            const char* why = rebindRefusal(a, i, now_ms);
+            if (a.rebind == i) {
+                a.rebind = -1;
+            } else if (why != nullptr) {
+                snprintf(a.status, sizeof a.status, "rebind %s refused: %s",
+                         bimo::actionLabel(i), why);
+            } else {
+                a.rebind = i;
+            }
+        }
     }
     if (ImGui::Button("restore defaults")) {
         a.keys.reset();
@@ -1823,11 +1848,31 @@ void pumpKeys(App& a, GLFWwindow* win, double now_ms) {
     const bool focused = glfwGetWindowAttrib(win, GLFW_FOCUSED) != 0;
 
     if (a.rebind >= 0) {
+        // Armed or LIVE since the click: give up rather than rebind.
+        const char* why = rebindRefusal(a, a.rebind, now_ms);
+        if (why != nullptr) {
+            snprintf(a.status, sizeof a.status, "rebind %s cancelled: %s",
+                     bimo::actionLabel(a.rebind), why);
+            a.rebind = -1;
+        }
+    }
+    if (a.rebind >= 0) {
         for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
             const ImGuiKey key = static_cast<ImGuiKey>(k);
             if (!ImGui::IsKeyPressed(key, false)) continue;
             const int code = toKeyCode(key);
             if (code == bimo::kKeyNone) continue;
+            // A stop key stops, rebind or not (as below: not for an
+            // observer) -- and stays the stop's.
+            if (code == a.keys.key[bimo::kActHold] ||
+                code == a.keys.key[bimo::kActEstop]) {
+                const int stop = code == a.keys.key[bimo::kActEstop]
+                                     ? bimo::kActEstop
+                                     : bimo::kActHold;
+                a.rebind = -1;
+                if (!a.link.readonly) fireAction(a, stop, now_ms);
+                break;
+            }
             a.keys.bind(a.rebind, code);
             snprintf(a.status, sizeof a.status, "%s -> %s",
                      bimo::actionLabel(a.rebind), bimo::keyName(code));
@@ -2248,7 +2293,7 @@ int runWindow(App& a) {
             ImGui::EndChild();
 
             if (a.show_keymap) {
-                drawKeymap(a);
+                drawKeymap(a, now_ms);
             } else if (a.show_settings) {
                 drawSettings(a, now_ms);
             } else {
