@@ -70,9 +70,14 @@ class StopBurst(threading.Thread):
     confirmed within `confirm_ms` becomes hard (estop.stop's rule)."""
 
     def __init__(self, hard: bool, dests, seconds: float = 1.0,
-                 confirm_ms: float = 400.0, send_hz: float = estop.SEND_HZ):
+                 confirm_ms: float = 400.0, send_hz: float = estop.SEND_HZ,
+                 was_bench: bool = False):
         super().__init__(daemon=True, name="stop-burst")
         self.asked_hard = hard
+        # The robot was BENCH (by a fresh beacon) at the press: a soft stop
+        # is then confirmed by BENCH with no servo reset going on, because a
+        # benched robot's soft stop changes no reported reason (estop.confirmed).
+        self.was_bench = was_bench
         self._hard = hard
         self.dests = list(dests)
         self.seconds = seconds
@@ -105,7 +110,7 @@ class StopBurst(threading.Thread):
     def feed(self, state: int, diag: int) -> None:
         """A beacon the console decoded (any thread)."""
         hard = self.hard
-        if estop.confirmed(_Tlm(state, diag), hard):
+        if estop.confirmed(_Tlm(state, diag), hard, self.was_bench):
             if not self._ok.is_set():
                 with self._lock:
                     name = _STATES[state].name if 0 <= state < len(_STATES) else "?"

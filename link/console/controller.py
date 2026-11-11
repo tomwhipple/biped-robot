@@ -216,7 +216,9 @@ class Controller:
             self.status_msg = msg
             self.log("stop", msg)
             return
-        b = StopBurst(hard, dests)
+        st = self.st
+        bench = bool(st is not None and st.fresh and st.state == core.BENCH)
+        b = StopBurst(hard, dests, was_bench=bench)
         self.stops.append(b)
         b.start()
         msg = (f"{kind} STOP sending to {', '.join(h for h, _ in dests)} "

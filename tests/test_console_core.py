@@ -185,6 +185,67 @@ def test_a_confirmed_hold_stays_soft(robot):
     assert "CONFIRMED" in b.summary() and "operator STOP" in b.summary()
 
 
+def _link_twin(port, tlm_port, seconds):
+    import threading
+    import link_twin
+    t = threading.Thread(target=link_twin.run, daemon=True,
+                         kwargs=dict(port=port, tlm_port=tlm_port,
+                                     duration=seconds, quiet=True))
+    t.start()
+    time.sleep(0.2)
+    return t
+
+
+def _free_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(("127.0.0.1", 0))
+    p = s.getsockname()[1]
+    s.close()
+    return p
+
+
+def test_hold_on_a_benched_robot_is_confirmed_soft(tmp_path):
+    """HOLD on a robot already BENCH (link_twin, booted benched): the robot
+    reports no new reason for a benched soft stop (firmware cli.cpp), so BENCH
+    with no reset going on confirms it -- no escalation to torque off."""
+    port, tlm = _free_port(), _free_port()
+    twin = _link_twin(port, tlm, 4.0)
+    o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port),
+                       "--tlm-port", str(tlm), "--no-record", "--sessions",
+                       str(tmp_path), "--keymap", str(tmp_path / "keys.conf"),
+                       "--drive"])
+    c = Controller(o)
+    assert c.start()
+    try:
+        end = time.monotonic() + 2.0
+        while time.monotonic() < end and not (c.st and c.st.fresh):
+            c.tick()
+            time.sleep(0.02)
+        assert c.st.fresh and c.st.state == core.BENCH
+        c.hold()
+        b = c.stops[0]
+        assert b.was_bench
+        end = time.monotonic() + 3.0
+        while c.stops and time.monotonic() < end:
+            c.tick()
+            time.sleep(0.02)
+        assert b.confirmed and not b.escalated and not b.hard, b.summary()
+        assert "SOFT STOP CONFIRMED" in b.summary()
+    finally:
+        c.shutdown()
+        twin.join(5.0)
+
+
+def test_hold_on_a_running_robot_still_needs_the_stop_reason(robot):
+    """Not benched at the press: BENCH without DISARMED_STOP is no proof."""
+    b = stops.StopBurst(False, [("127.0.0.1", robot.getsockname()[1])],
+                        seconds=0.3, confirm_ms=150.0, was_bench=False)
+    b.start()
+    b.feed(core.BENCH, protocol.pack_diag(False, True, protocol.ArmResult.ACCEPTED))
+    b.join(3.0)
+    assert b.escalated and not b.confirmed
+
+
 def test_stops_never_broadcast_from_loopback():
     assert stops.targets("127.0.0.1", 4210) == [("127.0.0.1", 4210)]
     assert stops.targets("192.0.2.30", 4210) == [("192.0.2.30", 4210),
