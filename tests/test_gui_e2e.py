@@ -27,7 +27,7 @@ there:
 
 Ports are offset so it never collides with a console pointed at the robot.
 """
-import itertools
+
 import os
 import re
 import subprocess
@@ -35,6 +35,7 @@ import sys
 import time
 
 import pytest
+from conftest import free_udp_ports
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUI = os.path.join(ROOT, "firmware", "host", "build", "bimo_gui")
@@ -49,7 +50,8 @@ TWIN = os.path.join(ROOT, "link", "link_twin.py")
 # them -- which fails as "the robot ignored my command", nowhere near the
 # cause. Only ever seen on a loaded CI runner, which is exactly the kind of
 # flake that is impossible to find locally.
-_next_port = itertools.count(4312, 4)
+# (A random free block per call now, not a counter from a fixed base: a second
+# pytest run in another worktree would count over the same ports, #148.)
 
 
 
@@ -81,7 +83,7 @@ def console(request):
 
 
 def _ports():
-    base = next(_next_port)
+    base = free_udp_ports(4)
     return base, base + 1
 
 
