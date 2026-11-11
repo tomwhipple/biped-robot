@@ -58,12 +58,18 @@ TWIN = os.path.join(ROOT, "link", "link_twin.py")
 class Console:
     """How to start one of the two consoles."""
 
-    def __init__(self, name):
+    def __init__(self, name, sessions):
         self.name = name
         self.v2 = name == "bimo_console"
+        # Recordings and the session log go to the test's tmp dir, never the
+        # real <repo>/hw_sessions/ (both consoles write the log even with
+        # --no-record).
+        self.sessions = str(sessions)
 
     def cmd(self, args):
         args = list(args)
+        if "--sessions" not in args:
+            args += ["--sessions", self.sessions]
         if not self.v2:
             return [GUI, *args]
         # v2 starts as an observer; a test that drives says so.
@@ -73,8 +79,8 @@ class Console:
 
 
 @pytest.fixture(params=["bimo_gui", "bimo_console"])
-def console(request):
-    c = Console(request.param)
+def console(request, tmp_path):
+    c = Console(request.param, tmp_path / "sessions")
     if not c.v2 and not os.path.exists(GUI):
         pytest.skip("build it: make -C firmware/host gui")
     if c.v2 and not os.path.exists(V2_LIB):
