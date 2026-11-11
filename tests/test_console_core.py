@@ -61,6 +61,37 @@ def test_status_mirror_matches_the_library():
     assert lib.bimo_api_version() == core.API_VERSION
 
 
+def test_a_library_older_than_its_sources_is_refused(tmp_path, monkeypatch):
+    """A build older than any of its sources (client/console_api/keymap/
+    recorder, linkproto incl. the generated cmd_envelope.h) is refused with
+    the rebuild command; with no sources present (an installed copy) the
+    mtime check is skipped."""
+    srcs = core._sources()
+    assert any(p.endswith("cmd_envelope.h") for p in srcs)
+    assert any(p.endswith("console_api.cpp") for p in srcs)
+    lib = tmp_path / core.LIB_NAME
+    lib.write_bytes(b"")
+    os.utime(lib, (1, 1))                       # 1970: older than everything
+    monkeypatch.setattr(core, "_lib", None)
+    with pytest.raises(core.LibraryError, match="older than .*make -C firmware/host console"):
+        core.library(str(lib))
+    monkeypatch.setattr(core, "_sources", lambda: [])
+    assert core.stale_sources(str(lib)) == []
+
+
+def test_a_library_missing_a_function_is_refused(tmp_path, monkeypatch):
+    """A symbol the binding calls but the library lacks is a LibraryError
+    naming the rebuild, not an AttributeError -- checked after the version."""
+    monkeypatch.setattr(core, "_lib", None)
+    monkeypatch.setattr(core, "_sources", lambda: [])
+    monkeypatch.setitem(core._SIGS, "bimo_no_such_function", (core._I, []))
+    with pytest.raises(core.LibraryError, match="no bimo_no_such_function.*rebuild"):
+        core.library(core.DEFAULT_LIB)
+    monkeypatch.setattr(core, "API_VERSION", core.API_VERSION + 100)
+    with pytest.raises(core.LibraryError, match="API version.*rebuild"):
+        core.library(core.DEFAULT_LIB)
+
+
 def test_no_beacon_lag_while_benched():
     """#237: benched, seq_echo is the diagnostic byte; the lag is not shown
     (Link::lag() gives 0 there, test_client.cpp)."""
