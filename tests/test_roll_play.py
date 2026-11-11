@@ -72,6 +72,46 @@ def test_defaults_parser_and_cli():
     assert P({k: tuple(v) for k, v in kw["roll_play_deg"].items()}) == P("hip=3:5,ankle=4:6")
 
 
+def test_per_side_keys():
+    """Per side (2026-11-11 stepper, #288): "L_hip" / "R_hip" / "L_ankle" / "R_ankle" set one
+    joint's range and win over the role's on that side; specs without them parse as before."""
+    P = W.parse_roll_play_deg
+    assert P("hip=3:5,L_hip=8:10,ankle=4:6") == {"hip": (3.0, 5.0), "L_hip": (8.0, 10.0), "ankle": (4.0, 6.0)}
+    assert P("L_hip=9,R_hip=2,L_ankle=6,R_ankle=4") == {"L_hip": (9.0, 9.0), "R_hip": (2.0, 2.0),
+                                                       "L_ankle": (6.0, 6.0), "R_ankle": (4.0, 4.0)}
+    assert P({"hip": [3, 5], "R_ankle": [1, 2]}) == {"hip": (3.0, 5.0), "R_ankle": (1.0, 2.0)}
+    assert P("L_hip=0") is None
+    for bad in ("L_knee=3", "l_hip=3", "L_hip=5:3", "M_hip=2"):
+        with pytest.raises(ValueError):
+            P(bad)
+    names = ["L_hip_yaw", "L_hip_roll", "L_ankle_roll", "R_hip_roll", "R_ankle_roll", "R_knee"]
+    lo, hi = W.roll_play_bounds(P("hip=3:5,L_hip=8:10,ankle=4:6,R_ankle=1"), names)
+    assert np.degrees(2 * lo) == pytest.approx([0, 8, 4, 3, 1, 0])
+    assert np.degrees(2 * hi) == pytest.approx([0, 10, 6, 5, 1, 0])
+    # a role-only spec gives what it gave before the side keys existed
+    lo, hi = W.roll_play_bounds(P("hip=3:5,ankle=4:6"), names)
+    assert np.degrees(2 * hi) == pytest.approx([0, 5, 6, 5, 6, 0])
+    kw = _kw("--roll-play-deg", "hip=3:5,L_hip=8:10,ankle=4:6")
+    assert kw["roll_play_deg"] == {"hip": [3.0, 5.0], "L_hip": [8.0, 10.0], "ankle": [4.0, 6.0]}
+
+
+def test_per_side_in_both_envs():
+    import jax
+    from env_mjx import BimoMJXEnv
+    spec = "hip=2,L_hip=9,ankle=5,R_ankle=3"
+    want = {"L_hip_roll": 9.0, "R_hip_roll": 2.0, "L_ankle_roll": 5.0, "R_ankle_roll": 3.0}
+    e = _walker(roll_play_deg=spec)
+    e.reset(seed=0)
+    got = _half_deg(e._rp_h, e._servo_names)
+    for n in e._servo_names:
+        assert got[n] == pytest.approx(want.get(n, 0.0))
+    env = BimoMJXEnv(**dict(_kw(), roll_play_deg=spec))
+    st = jax.jit(env.reset)(jax.random.PRNGKey(0))
+    got = _half_deg(np.asarray(st.rp_h), env._servo_names)
+    for n in env._servo_names:
+        assert got[n] == pytest.approx(want.get(n, 0.0), abs=1e-4)
+
+
 def test_exclusive_with_the_series_spring():
     from env_mjx import BimoMJXEnv
     kw = dict(_kw(), roll_play_deg=FIT, roll_series_k="hip=11,ankle=17.75")

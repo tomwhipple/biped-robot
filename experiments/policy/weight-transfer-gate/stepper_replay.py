@@ -243,18 +243,15 @@ def parse_plant(spec):
 
 
 def build(spec, ep_s):
+    """The plant, as gate_common builds it: reset (seed 0, no DR), grade's own zero error, then the
+    terms (so `zoff_La=` and the play are live). No second reset: it would undo `zoff_La`."""
     label, name, terms = parse_plant(spec)
     if name == "grade":
-        env, _, zoff = GC.grade_env(terms=terms, ep_s=ep_s)
+        env = GC.grade_env(terms=terms, ep_s=ep_s)[0]
     else:
         env = GC.make_plant(name, terms=terms, ep_s=ep_s)
-        zoff = np.zeros(env._n_servo)
     env.domain_rand = False
     env.push_prob = 0.0
-    env.reset(seed=0)
-    env._zero_off = zoff.copy()
-    if any(k.startswith("play_") for k in terms):       # live again after this reset
-        GC.apply_terms(env, {k: v for k, v in terms.items() if k.startswith("play_")})
     return label, env
 
 
