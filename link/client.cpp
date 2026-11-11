@@ -130,14 +130,18 @@ void Ext::reset() {
 
 // -- Link -------------------------------------------------------------------
 bool Link::open(const char* host, int cmd_port, int tlm_port) {
-    readonly = false;
+    // Read-only until the very end: a failure anywhere below leaves NO
+    // transmit socket and no destination (fail()), never a half-open link
+    // still pointed at whatever `to` held before -- after a failed relink,
+    // that would be the old robot.
+    readonly = true;
+    has_dest = false;
     tx = socket(AF_INET, SOCK_DGRAM, 0);
     rx = socket(AF_INET, SOCK_DGRAM, 0);
-    if (tx < 0 || rx < 0) return false;
+    if (tx < 0 || rx < 0) return fail();
     to.sin_family = AF_INET;
     to.sin_port = htons(static_cast<uint16_t>(cmd_port));
-    if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
-    has_dest = true;
+    if (host == nullptr || inet_pton(AF_INET, host, &to.sin_addr) != 1) return fail();
     int one = 1;
     setsockopt(rx, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
     sockaddr_in bind_addr = {};
@@ -145,11 +149,22 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
     bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     bind_addr.sin_port = htons(static_cast<uint16_t>(tlm_port));
     if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr), sizeof bind_addr) < 0) {
-        return false;
+        return fail();
     }
     timeval tv = {0, 0};
     setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    has_dest = true;
+    readonly = false;      // last, and only with a real socket and address
     return true;
+}
+
+bool Link::fail() {
+    close();
+    readonly = true;
+    has_dest = false;
+    memset(&to, 0, sizeof to);
+    last_len = 0;
+    return false;
 }
 
 // The observer's open(). Deliberately NOT `open(nullptr, ...)`: a mode that
@@ -157,18 +172,20 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
 // difference an operator's safety rests on should be visible at the call site.
 bool Link::listen(int tlm_port, const char* host, int cmd_port) {
     readonly = true;
+    if (tx >= 0) ::close(tx);
     tx = -1;                      // no transmit socket exists yet
+    has_dest = false;
     // Resolved but not connected: `to` is where takeControl() would send, and
     // resolving it now means a bad --host is a startup error rather than a
     // button that fails at the moment it is finally needed.
     if (host != nullptr) {
         to.sin_family = AF_INET;
         to.sin_port = htons(static_cast<uint16_t>(cmd_port));
-        if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
+        if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return fail();
         has_dest = true;
     }
     rx = socket(AF_INET, SOCK_DGRAM, 0);
-    if (rx < 0) return false;
+    if (rx < 0) return fail();
     int one = 1;
     // SO_REUSEADDR because the whole point is to sit alongside something
     // else: a driver on this same machine, or a previous observer still
@@ -181,7 +198,7 @@ bool Link::listen(int tlm_port, const char* host, int cmd_port) {
     bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     bind_addr.sin_port = htons(static_cast<uint16_t>(tlm_port));
     if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr), sizeof bind_addr) < 0) {
-        return false;
+        return fail();
     }
     timeval tv = {0, 0};
     setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
@@ -404,9 +421,10 @@ void Intent::releaseAll() {
 // this did not.
 bool Intent::refuseReadonly() {
     if (!readonly) return false;
-    say("OBSERVER: this console only watches -- it has no transmit socket. "
-        "The session driving the robot owns every control; restart without "
-        "--readonly to take over.");
+    say("OBSERVER: this console only watches -- it has no transmit socket, "
+        "so the session driving the robot owns every control. Take control "
+        "first: TAKE CONTROL in bimo_console; bimo_gui, restart without "
+        "--readonly.");
     return true;
 }
 
@@ -460,7 +478,11 @@ void Intent::stand(const char* why) {
     if (refuseReadonly()) return;
     if (estop) {
         estop = false;
-        say("E-stop cleared: standing");
+        // The console's ESTOP latch is cleared; the ROBOT is another matter.
+        // An operator stop has benched it (torque off, or held then homed),
+        // and a stand frame does not re-arm it (design record section 17).
+        say("E-stop latch cleared: a running robot stands; a benched one "
+            "stays benched until you arm it");
     } else if (why) {
         say(why);
     }
@@ -585,9 +607,34 @@ bool Intent::syncToRobot(const Link& link, double now_ms) {
     releaseAll();
     estop = false;
     // The robot now says WHY (protocol.h kDiag*), so quote it instead of
-    // guessing at "no calibration?" the way this used to.
-    sayf2("robot stayed BENCH after arm: %s",
-          diagReason(telemetryDiag(link.tlm)));
+    // guessing at "no calibration?" the way this used to. An operator stop
+    // (HOLD / E-STOP, anyone's) or the flail guard ending the run is not a
+    // refused arm, so it is not worded as one.
+    const uint8_t diag = telemetryDiag(link.tlm);
+    const ArmResult r = diagArmResult(diag);
+    if (r == ArmResult::kDisarmedStop || r == ArmResult::kDisarmedFlail) {
+        sayf2("run ended by HOLD/E-STOP (%s): this console disarmed",
+              diagReason(diag));
+    } else {
+        sayf2("robot stayed BENCH after arm: %s", diagReason(diag));
+    }
+    return true;
+}
+
+bool Intent::watchLink(const Link& link, double now_ms) {
+    const bool up = link.have_tlm && !link.linkLost(now_ms);
+    const bool edge = link_was_up && !up;
+    link_was_up = up;
+    if (!edge) return false;
+    // linkproto::Watchdog: STAND after kStaleMs (250 ms) with no valid frame,
+    // RELAX (torque off) after kRelaxMs (5 s); docs/control-channel.md.
+    if (readonly) {
+        say("link lost: no beacon for 1 s (watching: what the robot does "
+            "depends on the driving console's frames)");
+    } else {
+        say("link lost: no beacon for 1 s -- if our frames are not arriving "
+            "either, the robot stands after 250 ms and goes limp after 5 s");
+    }
     return true;
 }
 
@@ -655,7 +702,12 @@ bool relinkDisarming(Link& link, Intent& in, const char* host, int cmd_port,
     in.estop = false;
     in.home_frames = 0;
     in.readonly = observe;
-    return link.relink(host, cmd_port, tlm_port, observe);
+    in.link_was_up = false;      // a new conversation: no "lost" edge for the old one
+    if (link.relink(host, cmd_port, tlm_port, observe)) return true;
+    // Failed: Link::relink has failed closed (no socket, no destination),
+    // and the intent follows it -- nothing here may claim to drive.
+    in.readonly = true;
+    return false;
 }
 
 void leaveDisarmed(Link& link, int frames, int gap_ms) {

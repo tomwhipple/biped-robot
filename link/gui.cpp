@@ -421,6 +421,7 @@ void pumpLog(App& a) {
 // One tick of the link, identical windowed or headless.
 void tick(App& a, double now_ms) {
     a.link.poll(now_ms);
+    a.in.watchLink(a.link, now_ms);
     a.in.syncToRobot(a.link, now_ms);
     a.in.checkHome(a.link, now_ms);
     bimo::sendIntent(a.link, a.in, a.o.speeds, a.vx, a.vy, a.wz, a.ext_sent,
