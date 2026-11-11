@@ -431,15 +431,74 @@ def step_landings(s, r=None):
     return out
 
 
+BOARD = os.path.join(GC.ROOT, "build", "stepper-replay", "board")
+
+
+def board_landings(stamp, path=None, conf=0.8, span=1.5):
+    """The robot's own lateral step moves from the front camera: a CSV of the stepper worktree's
+    `board_view.py track <clip>_sony.mp4 --board-w 450` (sole_l_mm / sole_r_mm across the board, +
+    = the robot's left; frames below `conf` dropped). Per step (the same spans as step_landings),
+    the median sole position over `span` s before the foot leaves and after it is down.
+    -> {t (run time, 0.1 s): (dy_swing_mm, dy_stance_mm, n_before, n_after)}, {} without a CSV."""
+    path = path or os.path.join(BOARD, stamp + ".csv")
+    if not os.path.exists(path):
+        return {}
+    r = robot(stamp)
+    rows = [x for x in csv.DictReader(open(path)) if x["conf"] and float(x["conf"]) >= conf]
+    tb_ = np.array([float(x["utc"]) for x in rows]) - float(r["tu0"])
+    col = {s_: np.array([float(x[f"sole_{s_.lower()}_mm"]) for x in rows]) for s_ in "LR"}
+    med = lambda s_, a, b: (float(np.median(col[s_][(tb_ >= a) & (tb_ <= b)])) if ((tb_ >= a) & (tb_ <= b)).any()
+                            else float("nan"), int(((tb_ >= a) & (tb_ <= b)).sum()))
+    out = {}
+    for sw, ta, tb in _step_spans(r["log"], 1e9):
+        st = "R" if sw == "L" else "L"
+        a, na = med(sw, ta - span, ta)
+        z, nz = med(sw, tb, tb + span)
+        a2, _ = med(st, ta - span, ta)
+        z2, _ = med(st, tb, tb + span)
+        out[round(ta, 1)] = (z - a, z2 - a2, na, nz)
+    return out
+
+
+def _step_spans(log, t_end):
+    """(swing side, t before it leaves, t 0.5 s after it is down, the two pose rows) per step."""
+    poses = [x for x in log if x["ev"] == "pose" and "feet" in x and x["t"] <= t_end]
+    out, i = [], 1
+    while i < len(poses):
+        for sw in "LR":
+            if poses[i]["feet"][sw][2] > 0 and poses[i - 1]["feet"][sw][2] == 0:
+                j = i
+                while j < len(poses) and poses[j]["feet"][sw][2] > 0:
+                    j += 1
+                if j < len(poses):
+                    out.append((sw, poses[i - 1]["t"], poses[j]["t"] + 0.5))
+                    i = j
+                break
+        i += 1
+    return out
+
+
 def steps_md(steps):
     if not steps:
         return ""
-    lines = ["| run | plant | t | swing | cmd dx / dy | sim dx / dy | sim - cmd y | stance slid x / y |",
-             "|---|---|---|---|---|---|---|---|"]
+    lines = ["| run | plant | t | swing | cmd dx / dy | sim dx / dy | sim - cmd y | robot dy (camera) | robot - cmd y | "
+             "stance slid sim / robot y |", "|---|---|---|---|---|---|---|---|---|---|"]
+    f = lambda v, fm="+.0f": "-" if v is None or not np.isfinite(v) else format(v, fm)
     for x in steps:
+        rb = x.get("robot_dy")
         lines.append(f"| {x['run']} | {x['plant']} | {x['t']:.0f} | {x['swing']} | {x['cmd_dx']:.0f} / {x['cmd_dy']:.0f} | "
-                     f"{x['sim_dx']:.0f} / {x['sim_dy']:.0f} | {x['sim_dy'] - x['cmd_dy']:+.0f} | "
-                     f"{x['stance_dx']:.0f} / {x['stance_dy']:.0f} |")
+                     f"{x['sim_dx']:.0f} / {x['sim_dy']:.0f} | {x['sim_dy'] - x['cmd_dy']:+.0f} | {f(rb)} | "
+                     f"{f(None if rb is None else rb - x['cmd_dy'])} | {x['stance_dy']:.0f} / {f(x.get('robot_stance_dy'))} |")
+    lines += ["", "| plant | swing | steps | sim - cmd y, mean (range) | robot - cmd y (camera), mean (range) |",
+              "|---|---|---|---|---|"]
+    for p in dict.fromkeys(x["plant"] for x in steps):
+        for sw in "LR":
+            xs = [x for x in steps if x["plant"] == p and x["swing"] == sw]
+            sm = np.array([x["sim_dy"] - x["cmd_dy"] for x in xs])
+            rm = np.array([x["robot_dy"] - x["cmd_dy"] for x in xs if x.get("robot_dy") is not None
+                           and np.isfinite(x["robot_dy"])])
+            rng = lambda a: f"{a.mean():+.0f} ({a.min():+.0f}..{a.max():+.0f}), n {len(a)}" if len(a) else "-"
+            lines.append(f"| {p} | {sw} | {len(xs)} | {rng(sm)} | {rng(rm)} |")
     return "\n".join(lines)
 
 
@@ -565,7 +624,12 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     rows, traces, steps = [], {}, []
     for s in res:
-        steps += step_landings(s)
+        bl = board_landings(s["stamp"])
+        for x in step_landings(s):
+            b = bl.get(round(x["t"], 1))
+            if b:
+                x.update(robot_dy=b[0], robot_stance_dy=b[1])
+            steps.append(x)
         o, tr = score(s, ref=a.ref)
         rows.append(o)
         traces.setdefault(s["stamp"], {})[s["plant"]] = tr
