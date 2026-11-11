@@ -362,19 +362,41 @@ class Flow(QtWidgets.QLayout):
         return y + line - rect.y() + m.bottom()
 
 
+def fit_table(t: QtWidgets.QTableWidget, width_from_contents: bool = True) -> None:
+    """A table shown whole: its fixed height holds the header and every row
+    (no scrollbar hides the last one or an empty-state line), and -- with
+    width_from_contents -- it is never narrower than its columns, so none is
+    cut off or scrolled out of sight; the layout around it wraps instead."""
+    A = QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    t.setHorizontalScrollBarPolicy(A)
+    t.setVerticalScrollBarPolicy(A)
+    hh = t.horizontalHeader()
+    if width_from_contents:
+        w = sum(max(hh.sectionSizeHint(c), t.sizeHintForColumn(c))
+                for c in range(t.columnCount()) if not t.isColumnHidden(c))
+        w += 2 * t.frameWidth()
+        if t.minimumWidth() != w:
+            t.setMinimumWidth(w)
+    h = (hh.sizeHint().height() + 2 * t.frameWidth()
+         + sum(t.rowHeight(r) for r in range(t.rowCount())))
+    if t.height() != h or t.minimumHeight() != h:
+        t.setFixedHeight(h)
+
+
 class Columns(QtWidgets.QWidget):
     """Widgets side by side while the width allows, stacked when it does not:
     a tab's columns never make it wider than its pane (the tab scrolls down,
     never sideways)."""
 
-    def __init__(self, *widgets, spacing=12):
+    def __init__(self, *widgets, spacing=12, stretch=None):
         super().__init__()
         self._widgets = widgets
+        self._stretch = stretch or (0,) * len(widgets)
         self._lay = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.Direction.LeftToRight)
         self._lay.setSpacing(spacing)
         self._lay.setContentsMargins(0, 0, 0, 0)
-        for w in widgets:
-            self._lay.addWidget(w, 0, QtCore.Qt.AlignmentFlag.AlignTop)
+        for w, k in zip(widgets, self._stretch):
+            self._lay.addWidget(w, k, QtCore.Qt.AlignmentFlag.AlignTop)
         self.setLayout(self._lay)
 
     def _side_by_side_width(self) -> int:
@@ -386,16 +408,27 @@ class Columns(QtWidgets.QWidget):
         return QtCore.QSize(max(w.minimumSizeHint().width() for w in self._widgets), s.height())
 
     def resizeEvent(self, ev):
+        self._arrange(ev.size().width())
+        super().resizeEvent(ev)
+
+    def event(self, ev):
+        # A child's minimum can grow with its contents (a table filling in):
+        # look again whenever the children ask for a new layout.
+        if ev.type() == QtCore.QEvent.Type.LayoutRequest:
+            self._arrange(self.width())
+        return super().event(ev)
+
+    def _arrange(self, width: int) -> None:
         D = QtWidgets.QBoxLayout.Direction
-        want = D.LeftToRight if ev.size().width() >= self._side_by_side_width() else D.TopToBottom
+        want = D.LeftToRight if width >= self._side_by_side_width() else D.TopToBottom
         if self._lay.direction() != want:
             self._lay.setDirection(want)
             align = QtCore.Qt.AlignmentFlag.AlignTop if want == D.LeftToRight else \
                 QtCore.Qt.AlignmentFlag(0)
-            for w in self._widgets:
+            for i, w in enumerate(self._widgets):
                 self._lay.setAlignment(w, align)
+                self._lay.setStretch(i, self._stretch[i] if want == D.LeftToRight else 0)
             self.updateGeometry()
-        super().resizeEvent(ev)
 
     def stacked(self) -> bool:
         return self._lay.direction() == QtWidgets.QBoxLayout.Direction.TopToBottom
