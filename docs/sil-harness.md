@@ -282,7 +282,7 @@ bench/run mode) and the armed loop's fall guard.
   fresh `ARM` edge does, and clears the latch, so a plant still lying down
   trips again 200 ms later.
 - **No pick-up home.** The bench guard's recovery (upright and still for
-  2 s, then a slow home) waits for someone to lift the robot; nobody lifts
+  1 s, then a slow home) waits for someone to lift the robot; nobody lifts
   the plant. Stdin `reset` re-rolls the episode standing.
 - **A home ends released.** A reset-servos request (`FLAG_HOME`) benches
   the loop and releases torque, as the robot's `home` does after its
