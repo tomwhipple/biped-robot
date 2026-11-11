@@ -37,6 +37,10 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               servo angle, not the link (set_series_view: the quasi-static form; walker_env cannot
               take an extra joint inside the leg chain). The bare-plant joints replay uses a real
               sprung joint (add_series_joint)
+  play_hip=<deg>, play_ankle=<deg>   free play (peak to peak) inside each hip roll / ankle roll
+              servo BEYOND its encoder: walker_env roll_play_deg (the shaft is position-controlled
+              and is what the encoder reads; the link floats inside +/-play/2 of it), fixed values,
+              live at once and at every reset after; a run's own series spring is dropped
 """
 from __future__ import annotations
 
@@ -231,6 +235,18 @@ def apply_terms(env, terms):
         env._kp_prof = nom["kp"] * s * x
         env._kd_prof = nom["kd"] * s * x
         set_series_view(env, 1.0 - x)
+    if "play_hip" in terms or "play_ankle" in terms:
+        import walker_env as W
+        # the play replaces a run's own series spring (the env takes one or the other)
+        env.roll_series_k = None
+        env._ser_c = env._ser_defl = env._ser_dq = None
+        env.roll_play_deg = W.parse_roll_play_deg(
+            {r: float(terms.get("play_" + r, 0.0)) for r in W.ROLL_SERIES_ROLES})
+        # live now too (a Replay places the robot without a reset): fixed widths, shaft on the link
+        env._rp_h = (None if env.roll_play_deg is None else
+                     W.roll_play_bounds(env.roll_play_deg, env._servo_names)[0])
+        env._rp_off = np.zeros(env._n_servo)
+        env._rp_dq = np.zeros(env._n_servo)
     if "dead" in terms:
         ch = getattr(env, "_gate_chain", None)
         add = float(terms["dead"])
@@ -360,6 +376,8 @@ def encoder_err(env, i):
     the link error minus the deadzones, times (1 - alpha) under a series spring."""
     a = float(getattr(env, "_gate_alpha", np.zeros(env._n_servo))[i])
     e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]))
+    if getattr(env, "_rp_h", None) is not None:      # roll play: the encoder reads the shaft
+        e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]) - float(env._rp_off[i]))
     half = 0.5 * (env._lash_rad + env._roll_lash_rad * env._roll_mask[i])
     return max(0.0, (1.0 - a) * max(e - half, 0.0) if a > 0 else e - half)
 
