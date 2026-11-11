@@ -39,12 +39,20 @@ DT="drawtext=$FONTOPT:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.6:x=8:y
 
 # The USB node is group plugdev, which long-lived shells may predate: sg.
 # setsid + trap so a TERM to this script reaches liveview.py (sg forwards none).
+# LATEST=<file.jpg>: also keep that file as the newest frame (4 per second, written whole and renamed),
+# for a program that wants to look while the recording runs -- the camera serves one reader.
+SPLIT="split[a][b]"; LATEST_OUT=()
+if [[ -n "${LATEST:-}" ]]; then
+  SPLIT="split=3[a][b][c];[c]fps=4[jpg]"
+  LATEST_OUT=(-map "[jpg]" -c:v mjpeg -q:v 3 -f image2 -update 1 -atomic_writing 1 "$LATEST")
+fi
 setsid sg plugdev -c "exec /usr/bin/python3 -u '$LIVEVIEW' $SECS" | \
   ffmpeg -loglevel error -y -use_wallclock_as_timestamps 1 -f image2pipe -c:v mjpeg -i - \
     -copyts -vsync passthrough \
-    -filter_complex "[0:v]${DT},split[a][b];[a]setpts=PTS-STARTPTS[mp4]" \
+    -filter_complex "[0:v]${DT},${SPLIT};[a]setpts=PTS-STARTPTS[mp4]" \
     -map "[mp4]" -c:v libx264 -preset veryfast -pix_fmt yuv420p -movflags +frag_keyframe+empty_moov "$OUT.mp4" \
-    -map "[b]" -c:v rawvideo -enc_time_base 1/1000000 -f mkvtimestamp_v2 "$OUT.pts" &
+    -map "[b]" -c:v rawvideo -enc_time_base 1/1000000 -f mkvtimestamp_v2 "$OUT.pts" \
+    "${LATEST_OUT[@]}" &
 FF=$!
 trap 'pkill -TERM -f "python3 -u $LIVEVIEW" 2>/dev/null; wait $FF; exit 0' INT TERM HUP
 wait $FF

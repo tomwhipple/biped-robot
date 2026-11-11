@@ -24,6 +24,13 @@ until the robot is upright again, when it is homed.
     stepper.py lift --side L            raise the LEFT foot once (right stance), free-standing
     stepper.py march --steps 4          alternate lifts in place
     stepper.py walk --steps 4 --dx 0.02 forward steps of dx m
+    stepper.py walk --dx 0 --dy 0.015   a sidestep: dy m to the robot's left per step pair (- = right)
+    stepper.py walk --board             look at the front camera before every step: steer back toward the
+                                        middle of the board, stop short of its edge (needs the Sony; it
+                                        records, 180 s unless --video says otherwise; also on `march`)
+
+A sidestep never narrows the stance: moving left, the LEFT foot goes out first and the right follows;
+moving right, the right foot first. The board's edge distances come from board_view.py.
 
 Run records: hw_sessions/<date>/stepper/<stamp>_<name>.jsonl (+ camera clips with --video).
 """
@@ -66,6 +73,11 @@ DEFAULTS = dict(
     fall_deg=35.0,
     t_crouch=2.5, t_shift=2.5, t_inc=0.35, t_swing=1.0, t_lower=0.3,
     lower_step=0.01, settle_s=0.4,
+    board_min_mm=25.0,    # stop the walk when a sole's outer edge is this close to the board's edge, mm
+    board_ahead_px=60.0,  # ... or when the feet are this near the bottom of the picture (board runs out), px
+    board_dead_mm=15.0,   # no steering while the room left and right differs by less than 2x this, mm
+    board_gain=0.5,       # share of the half-difference of the margins corrected per step
+    board_step_mm=15.0,   # most a single steering correction moves the lateral target, mm
 )
 
 
@@ -81,11 +93,11 @@ class Abort(RuntimeError):
 
 
 class Run:
-    def __init__(self, name, robot, kin, prm, video=False, quiet=False):
+    def __init__(self, name, robot, kin, prm, video=False, quiet=False, board=False, log_dir=None):
         from robot_io import Fallen
         self.Fallen = Fallen
         self.r, self.k, self.p, self.quiet = robot, kin, prm, quiet
-        d = os.path.join("/home/claw/code/robot", "hw_sessions", time.strftime("%Y-%m-%d"), "stepper")   # the main checkout
+        d = log_dir or os.path.join("/home/claw/code/robot", "hw_sessions", time.strftime("%Y-%m-%d"), "stepper")   # the main checkout
         os.makedirs(d, exist_ok=True)
         self.base = os.path.join(d, time.strftime("%H%M%S") + "_" + name)
         self.f = open(self.base + ".jsonl", "w")
@@ -99,12 +111,20 @@ class Run:
         self.tilt_s = 0.0                                             # its lean toward the swing foot then
         self.fell = False
         self.video = []
+        self.board = board
+        self.latest = self.base + "_latest.jpg"                       # the newest front-camera frame (board mode)
+        self.n_look = 0
         if video:
             env = dict(os.environ, INPUT_FORMAT="mjpeg", SIZE="1920x1080")
             self.video.append(subprocess.Popen(["tools/cam_record.sh", "/dev/video0", self.base + "_emeet", str(video), "emeet"],
                                                cwd="/home/claw/code/robot", env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-            self.video.append(subprocess.Popen(["tools/sony_record.sh", self.base + "_sony", str(video), "sony"],
-                                               cwd="/home/claw/code/robot", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            if board:       # this checkout's recorder: it keeps LATEST as the newest frame
+                self.video.append(subprocess.Popen([os.path.join(ROOT, "tools", "sony_record.sh"), self.base + "_sony", str(video), "sony"],
+                                                   cwd=ROOT, env=dict(os.environ, LATEST=self.latest),
+                                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            else:
+                self.video.append(subprocess.Popen(["tools/sony_record.sh", self.base + "_sony", str(video), "sony"],
+                                                   cwd="/home/claw/code/robot", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             time.sleep(2.5)
         self.log("start", prm=prm, cal=robot.cal, off=self.off)
 
@@ -180,7 +200,7 @@ class Run:
         swing = "R" if stance == "L" else "L"
         ox, oy = self.off[stance]
         fwd = P["fwd_w"] * self.feet[stance][0] + (1 - P["fwd_w"]) * self.feet[swing][0] + ox
-        return [fwd, P["k_shift"][stance] * oy]
+        return [fwd, self.feet[stance][1] + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
 
     def move_pel(self, to, tag):
         """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down."""
@@ -258,6 +278,7 @@ class Run:
         P = self.p
         stance = "L" if swing == "R" else "R"
         oy = self.off[stance][1]
+        yst = self.feet[stance][1]                          # the shift is measured from the stance sole
         h = self.feet[swing][2]
         pitch_s = self.lean(self.ref)[1]
         t = time.monotonic()
@@ -277,9 +298,9 @@ class Run:
             if time.monotonic() - t >= secs:
                 return "up"
             if abs(tilt) > 0.7:
-                y = abs(self.pel[1]) + 1e-3 * P["kb"] * tilt
+                y = abs(self.pel[1] - yst) + 1e-3 * P["kb"] * tilt
                 y = max(P["k_min"] * abs(oy), min(P["k_max"] * abs(oy), y))
-                self.pel[1] = math.copysign(y, oy)
+                self.pel[1] = yst + math.copysign(y, oy)
                 self.hike[stance] = max(0.0, min(P["hike_max"], self.hike[stance] + P["g_hike"] * tilt))
                 self.go(250, f"balance {swing}")
 
@@ -290,7 +311,9 @@ class Run:
         h0 = self.feet[swing][2]
         n = 1 if fast else max(1, math.ceil(h0 / P["lower_step"]))
         if fast:
-            self.pel[1] *= 0.7
+            stance = "L" if swing == "R" else "R"
+            yst = self.feet[stance][1]
+            self.pel[1] = yst + 0.7 * (self.pel[1] - yst)          # back toward the middle, measured from the stance sole
             self.hike = {"L": 0.0, "R": 0.0}
         for i in range(1, n + 1):
             self.feet[swing][2] = h0 * (1 - i / n)
@@ -302,8 +325,9 @@ class Run:
         self.say(f"  down {swing}  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
 
-    def lift(self, swing, hold=1.5, dx=0.0):
-        """One self-correcting lift of `swing` (and a forward move of dx m while it is up)."""
+    def lift(self, swing, hold=1.5, dx=0.0, y_to=None):
+        """One self-correcting lift of `swing` (and, while it is up, a forward move of dx m and, if y_to is
+        not None, a move to the absolute lateral offset y_to m: +y = the robot's left)."""
         stance = "L" if swing == "R" else "R"
         P = self.p
         for attempt in range(4):
@@ -312,13 +336,16 @@ class Run:
             hike = self.hike[stance]
             self.log("lift", swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
             if how == "up":
-                if dx:
+                dy = 0.0 if y_to is None else y_to - self.feet[swing][1]
+                if dx or abs(dy) > 1e-9:
                     self.feet[swing][0] += dx
-                    self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f}")
+                    if y_to is not None:
+                        self.feet[swing][1] = y_to
+                    self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
                 how = self.balance(swing, hold)
             if how == "up":
                 hike = self.hike[stance]
-                k = abs(self.pel[1] / self.off[stance][1])              # remember what this side took
+                k = abs((self.pel[1] - self.feet[stance][1]) / self.off[stance][1])              # remember what this side took
                 self.say(f"  up: {swing} at {1e3 * h:.0f} mm, hip trim {hike:.1f}, shift x{k:.2f}")
                 a = 0.5 if P["h_up"][stance] else 1.0
                 P["h_up"][stance] = round((1 - a) * P["h_up"][stance] + a * h, 4)
@@ -333,9 +360,93 @@ class Run:
             self.say(f"  {how} at {1e3 * h:.0f} mm (hip trim {hike:.1f}) -> shift over {stance} now x{P['k_shift'][stance]:.2f}")
         return "gave_up", 0.0
 
+    # -- the board ----------------------------------------------------------
+    def look(self, tag):
+        """Measure the margins to the board's edge from the newest front-camera frame (board_view). Waits up
+        to 1.5 s for a frame younger than 0.6 s. Returns the dict, or None; never raises."""
+        self.n_look += 1
+        m, why = None, "no frame"
+        try:
+            t = time.monotonic()
+            while True:
+                try:
+                    age = time.time() - os.path.getmtime(self.latest)
+                except OSError:
+                    age = None
+                if age is not None and age < 0.6:
+                    break
+                if time.monotonic() - t > 1.5:
+                    break
+                time.sleep(0.1)
+            if age is None or age >= 0.6:
+                why = "no frame" if age is None else f"frame {age:.1f} s old"
+            else:
+                import cv2
+                import board_view
+                im = cv2.imread(self.latest)
+                if im is None:
+                    why = "unreadable frame"
+                else:
+                    m = board_view.margins(im)
+                    why = "board not seen"
+                    cv2.imwrite(f"{self.base}_board_{self.n_look:02d}.jpg", board_view.draw(im, m))
+        except Exception as e:                      # looking must never stop the robot's own control
+            m, why = None, f"look failed: {e!r}"
+        if m is None:
+            self.log("board", tag=tag, seen=False, why=why)
+            self.say(f"  board {tag}: not seen ({why})")
+            return None
+        self.log("board", tag=tag, seen=True, right_mm=round(m["right_mm"], 1), left_mm=round(m["left_mm"], 1),
+                 ahead_px=m["ahead_px"], mm_per_px=round(m["mm_per_px"], 3), sep_mm=round(m["sep_mm"], 1))
+        self.say(f"  board {tag}: right {m['right_mm']:.0f} mm  left {m['left_mm']:.0f} mm  ahead {m['ahead_px']} px")
+        return m
+
+    def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
+        """The step loop of `walk` and `march`. Returns the list of (side, how, h). dy: sidestep m per pair
+        (+ left). board: look before every step, stop at the edge, steer toward the middle. The lateral
+        target `lat` only ever grows before the LEFT foot swings and shrinks before the RIGHT foot swings,
+        so the stance is never narrowed. self.stop_why says why a board walk ended early."""
+        P = self.p
+        out, lat, misses = [], 0.0, 0
+        self.out = out                                   # kept for the caller if a fall cuts the loop short
+        self.stop_why = None
+        for i in range(steps):
+            corr = 0.0
+            if board:
+                m = self.look(f"step {i}")
+                misses = 0 if m else misses + 1
+                if m is None:
+                    if misses >= 2:
+                        self.stop_why = "the board was not seen twice in a row"
+                elif min(m["left_mm"], m["right_mm"]) < P["board_min_mm"]:
+                    self.stop_why = f"a sole is {min(m['left_mm'], m['right_mm']):.0f} mm from the board's edge"
+                elif m["ahead_px"] < P["board_ahead_px"]:
+                    self.stop_why = f"the board ends {m['ahead_px']} px ahead"
+                else:
+                    e = 0.5 * (m["left_mm"] - m["right_mm"])            # + = more room on the left: move left
+                    if abs(e) > P["board_dead_mm"]:
+                        corr = 1e-3 * max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
+                if self.stop_why:
+                    self.log("board_stop", why=self.stop_why)
+                    print(f"-- stopping: {self.stop_why}", flush=True)
+                    break
+            # the never-narrow rule: a leftward move is made by the LEFT foot stepping out, a rightward by the RIGHT
+            for d in (dy, corr):
+                if (d > 0 and side == "L") or (d < 0 and side == "R"):
+                    lat += d
+            if board and corr:
+                self.say(f"  steer {1e3 * corr:+.0f} mm -> lateral target {1e3 * lat:+.0f} mm"
+                         + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
+            out.append((side,) + self.lift(side, hold=0.2 if not march else hold,
+                                           dx=0.0 if march else dx * (1 if i == 0 else 2), y_to=lat))
+            if out[-1][1] == "gave_up":
+                break
+            side = "R" if side == "L" else "L"
+        return out
+
     def centre(self):
-        mid = 0.5 * (self.feet["L"][0] + self.feet["R"][0])
-        return self.move_pel([mid, 0.0], "centre")
+        mid = [0.5 * (self.feet["L"][i] + self.feet["R"][i]) for i in (0, 1)]
+        return self.move_pel(mid, "centre")
 
     def finish(self, save=True):
         try:
@@ -343,9 +454,10 @@ class Run:
                 try:
                     self.feet["L"][2] = self.feet["R"][2] = 0.0
                     self.centre()
-                    split = abs(self.feet["L"][0] - self.feet["R"][0]) > 1e-3        # straight legs cannot span a stride
-                    self.r.pose(self.k.pose(straight=not split, drop=0.008 if split else None, fwd=self.pel[0],
-                                            footL=(self.feet["L"][0], 0, 0), footR=(self.feet["R"][0], 0, 0)), 2500)
+                    split = max(abs(self.feet["L"][i] - self.feet["R"][i]) for i in (0, 1)) > 1e-3   # straight legs cannot span a stride or a width change
+                    self.r.pose(self.k.pose(straight=not split, drop=0.008 if split else None, fwd=self.pel[0], shift=self.pel[1],
+                                            footL=(self.feet["L"][0], self.feet["L"][1], 0),
+                                            footR=(self.feet["R"][0], self.feet["R"][1], 0)), 2500)
                     time.sleep(0.5)
                 except self.Fallen as e:
                     self.fallen(e)
@@ -354,7 +466,7 @@ class Run:
                 if not self.fell:
                     self.r.release()
         finally:
-            self.log("end", **{k: self.p[k] for k in LEARNED})
+            self.log("end", feet=json.loads(json.dumps(self.feet)), **{k: self.p[k] for k in LEARNED})
             if save:
                 json.dump({k: self.p[k] for k in LEARNED}, open(STATE, "w"))
             for v in self.video:
@@ -371,17 +483,24 @@ class Run:
         print("!! picked up and homed" if ok else "!! still down after 5 min", flush=True)
 
 
-def main(argv=None):
+def main(argv=None, make_robot=None, log_dir=None):
+    """make_robot(kin) and log_dir are for dry runs (see dry_run.py)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("what", choices=("lift", "march", "walk"))
     ap.add_argument("--side", choices=("L", "R"), default="L", help="the foot that comes up (first)")
     ap.add_argument("--steps", type=int, default=2)
     ap.add_argument("--dx", type=float, default=0.02)
+    ap.add_argument("--dy", type=float, default=0.0, help="walk: sidestep per step pair, m (+ = the robot's left)")
+    ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
     ap.add_argument("--video", type=int, default=0, metavar="SECS", help="record both cameras for SECS")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL")
     ap.add_argument("--host", default="192.168.2.90")
     a = ap.parse_args(argv)
+    if a.board and a.what == "lift":
+        ap.error("--board is for walk and march")
+    if a.board and not a.video:
+        a.video = 180
     prm = load_state()
     for kv in a.set:
         k, v = kv.split("=", 1)
@@ -390,23 +509,17 @@ def main(argv=None):
     from kin import Kin
     from robot_io import Fallen, Robot
     kin = Kin(prm["drop"])
-    rob = Robot(a.host)
+    rob = make_robot(kin) if make_robot else Robot(a.host)
     if rob.fallen():
         print("the firmware says FALLEN: pick the robot up and let it home first"); rob.close(); return 2
-    run = Run(a.what, rob, kin, prm, video=a.video)
+    run = Run(a.what, rob, kin, prm, video=a.video, board=a.board, log_dir=log_dir)
     out = []
     try:
         run.stand_up()
         if a.what == "lift":
             out.append((a.side,) + run.lift(a.side, hold=a.hold))
         else:
-            side = a.side
-            for i in range(a.steps):
-                out.append((side,) + run.lift(side, hold=a.hold if a.what == "march" else 0.2,
-                                              dx=a.dx * (1 if i == 0 else 2) if a.what == "walk" else 0.0))
-                if out[-1][1] == "gave_up":
-                    break
-                side = "R" if side == "L" else "L"
+            out = run.walk(a.side, a.steps, a.dx, a.dy, hold=a.hold, board=a.board, march=a.what == "march")
     except Fallen as e:
         run.fallen(e)
     except Exception as e:                                           # any other fault: say it, then stand and let go
@@ -414,6 +527,7 @@ def main(argv=None):
     finally:
         run.finish()
         rob.close()
+    out = out or getattr(run, "out", [])
     print("RESULT", out, {k: prm[k] for k in LEARNED}, "fell" if run.fell else "", "log", run.base + ".jsonl")
     return 1 if run.fell else 0
 
