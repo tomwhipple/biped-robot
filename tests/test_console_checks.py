@@ -223,9 +223,12 @@ def test_the_tab_never_sends(qapp, tmp_path):
     from console import options
     from console.app import Window
     from console.controller import Controller
-    o = options.parse(["--host", "127.0.0.1", "--cmd-port", "4999", "--tlm-port", "4998",
-                       "--no-record", "--sessions", str(tmp_path), "--keymap",
-                       str(tmp_path / "keys.conf"), "--drive"])
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
+    o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                       str(port + 1), "--no-record", "--sessions", str(tmp_path), "--keymap",
+                       str(tmp_path / "keys.conf"), "--drive",
+                       "--flight-port", "0", "--sim-flight-port", "0"])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)
@@ -255,11 +258,13 @@ def test_window_checks_screenshot(qapp, tmp_path):
     from console.app import Window
     from console.controller import Controller
     from console.ui import QSS, dark_palette
-    port = 4400 + (os.getpid() % 150) * 2
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     p = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "link_twin.py"), "--port",
                           str(port), "--tlm-port", str(port + 1), "--duration", "30"],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    time.sleep(0.4)
+    first = p.stdout.readline()          # "link_twin: listening on ..." once bound
+    assert "listening" in first, first
     shots = os.environ.get("CONSOLE_SHOTS")
     if shots:
         qapp.setStyle("Fusion")
@@ -267,7 +272,8 @@ def test_window_checks_screenshot(qapp, tmp_path):
         qapp.setStyleSheet(QSS)
     o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
                        str(port + 1), "--sessions", str(tmp_path), "--keymap",
-                       str(tmp_path / "keys.conf"), "--drive", "--tab", "checks"])
+                       str(tmp_path / "keys.conf"), "--drive", "--tab", "checks",
+                       "--flight-port", "0", "--sim-flight-port", "0"])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)

@@ -7,7 +7,6 @@ offscreen.
 Run:  make -C firmware/host console && .venv/bin/python -m pytest tests/test_console_sim.py -q
 (the tab test needs PyQt6 + pyqtgraph and skips without them).
 """
-import itertools
 import json
 import os
 import socket
@@ -28,7 +27,21 @@ LIB = os.path.join(ROOT, "firmware", "host", "build", "libbimo_console."
                    + ("dylib" if sys.platform == "darwin" else "so"))
 needs_lib = pytest.mark.skipif(not os.path.exists(LIB),
                                reason="build it: make -C firmware/host console")
-_ports = itertools.count(4700 + (os.getpid() % 50) * 20, 4)
+
+class _FreePorts:
+    """next() -> the first of four consecutive UDP ports free right now
+    (conftest.free_udp_ports): a counter from a fixed base collided with a
+    second pytest run in another worktree."""
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        from conftest import free_udp_ports
+        return free_udp_ports(4)
+
+
+_ports = _FreePorts()
 
 # A stand-in for sim/sil_twin.py: argparse (with --flight only when a FLIGHT
 # file sits beside it), sil_twin's ident line, the `reset` verb, an
@@ -517,7 +530,7 @@ def test_sim_tab_builds_runs_and_opens_its_log_on_failure(tmp_path):
     o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
                        str(port + 1), "--no-record", "--sessions", str(tmp_path / "s"),
                        "--repo", str(repo), "--keymap", str(tmp_path / "keys.conf"),
-                       "--tab", "sim"])
+                       "--tab", "sim", "--flight-port", "0", "--sim-flight-port", "0"])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)
@@ -567,7 +580,7 @@ def test_sim_tab_builds_runs_and_opens_its_log_on_failure(tmp_path):
     o2 = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
                         str(port + 1), "--no-record", "--sessions", str(tmp_path / "s2"),
                         "--repo", str(repo), "--keymap", str(tmp_path / "keys.conf"),
-                        "--tab", "sim"])
+                        "--tab", "sim", "--flight-port", "0", "--sim-flight-port", "0"])
     ctl2 = Controller(o2)
     assert ctl2.start()
     w2 = Window(o2, ctl2)
