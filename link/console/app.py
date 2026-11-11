@@ -49,6 +49,8 @@ TABS = [("Checks", "tab_checks", "ChecksTab"),
         ("Setup", "tab_setup", "SetupTab"),
         ("Bench", "tab_bench", "BenchTab")]
 DEFAULT_TAB = "Drive"
+STOP_ACTIONS = ("hold", "estop")
+REBIND_TIMEOUT_S = 5.0     # a pending rebind gives up this long after the click
 
 _QT_NAMED = {
     QtCore.Qt.Key.Key_Space: "Space", QtCore.Qt.Key.Key_Return: "Enter",
@@ -98,7 +100,8 @@ class Window(QtWidgets.QMainWindow):
         self.key_held = [False] * core.NUM_AXES
         self.mouse_held = [False] * core.NUM_AXES
         self.asked = [False] * core.NUM_AXES     # a press was asked for (maybe refused)
-        self.rebind_action = None
+        self.rebind_action = None     # a keymap row waiting for its key (Setup)
+        self.rebind_until = 0.0
         self._closed = False
         self.message = ""
         self._note = self._status = ""
@@ -162,6 +165,7 @@ class Window(QtWidgets.QMainWindow):
         self.ui_timer.timeout.connect(self.refresh)
         self.ui_timer.start(66)
         QtWidgets.QApplication.instance().applicationStateChanged.connect(self._app_state)
+        self.tabs.currentChanged.connect(lambda _i: self.cancel_rebind("tab changed"))
         self._stdin()
         if opts.screenshot:
             QtCore.QTimer.singleShot(int(opts.screenshot_after * 1000),
@@ -266,6 +270,8 @@ class Window(QtWidgets.QMainWindow):
         if self.ctl.status_msg != self._status:
             self._status = self.message = self.ctl.status_msg
         self.update_title()
+        if self.rebind_action is not None and time.monotonic() > self.rebind_until:
+            self.cancel_rebind(f"no key in {REBIND_TIMEOUT_S:.0f} s")
         if self.ctl.quit:
             self.close()
 
@@ -346,6 +352,67 @@ class Window(QtWidgets.QMainWindow):
         t = targets(host, self.o.cmd_port, None if self.o.no_broadcast else "255.255.255.255")
         return (", ".join(f"{h}:{p}" for h, p in t) + f"  ({src})") if t else "nowhere"
 
+    # -- rebinding a key (Setup's keymap) ------------------------------------
+    # The stops come first. The keys bound to HOLD and E-STOP always fire their
+    # stop -- a pending rebind never swallows them -- and are never rebound
+    # away from the stops here; and nothing is rebound while the robot could
+    # be moving (armed, or a fresh beacon says LIVE).
+    def stop_keys(self) -> set[int]:
+        c = self.ctl.core
+        keys = (c.key_for(core.action_from_name(n)) for n in STOP_ACTIONS)
+        return {k for k in keys if k > 0}
+
+    def rebind_refusal(self, action: int) -> str | None:
+        if core.action_name(action) in STOP_ACTIONS:
+            return ("the HOLD and E-STOP keys are not rebound from the console; "
+                    f"edit {self.ctl.keymap_path or 'the keymap file'} with it closed")
+        st = self.ctl.st
+        if st is not None and (st.armed or (st.fresh and st.state == core.LIVE)):
+            return "not while armed or the robot is LIVE -- disarm first"
+        return None
+
+    def start_rebind(self, action: int) -> bool:
+        label = core.action_label(action)
+        why = self.rebind_refusal(action)
+        if why:
+            self.ctl.say_status(f"REBIND {label} refused: {why}")
+            return False
+        self.rebind_action = action
+        self.rebind_until = time.monotonic() + REBIND_TIMEOUT_S
+        self.ctl.say_status(f"REBINDING {label}: press a key (Escape cancels, "
+                            f"{REBIND_TIMEOUT_S:.0f} s; the stop keys still stop)")
+        return True
+
+    def cancel_rebind(self, why: str) -> None:
+        if self.rebind_action is None:
+            return
+        label = core.action_label(self.rebind_action)
+        self.rebind_action = None
+        self.ctl.say_status(f"rebinding {label} cancelled: {why}")
+        self.keymap_changed()
+
+    def _rebind_key(self, ev, code: int) -> None:
+        """The key press a pending rebind is waiting for."""
+        if code and code in self.stop_keys():
+            # A stop key stops, rebind or not -- and stays the stop's.
+            self.ctl.fire(core.action_name(self.ctl.core.action_for(code)))
+            self.cancel_rebind(f"{core.key_name(code)} is a stop key: it fired its stop")
+            return
+        if ev.key() == QtCore.Qt.Key.Key_Escape or not code:
+            self.cancel_rebind("Escape" if code or ev.key() == QtCore.Qt.Key.Key_Escape
+                               else "not a key the keymap can hold")
+            return
+        action = self.rebind_action
+        why = self.rebind_refusal(action)
+        if why:
+            self.cancel_rebind(why)
+            return
+        self.ctl.core.bind(action, code)
+        self.rebind_action = None
+        self.ctl.say_status(f"{core.action_label(action)} -> {core.key_name(code)} "
+                            f"(save to keep it)")
+        self.keymap_changed()
+
     def keymap_changed(self):
         self.bar.keymap_changed()
         setup = self.tab_widgets.get("Setup")
@@ -413,10 +480,8 @@ class Window(QtWidgets.QMainWindow):
         code = key_code(ev)
         press = t == QtCore.QEvent.Type.KeyPress
         if self.rebind_action is not None and press:
-            if ev.key() != QtCore.Qt.Key.Key_Escape and code:
-                self.ctl.core.bind(self.rebind_action, code)
-            self.rebind_action = None
-            self.keymap_changed()
+            if not ev.isAutoRepeat():
+                self._rebind_key(ev, code)
             return True
         action = self.ctl.core.action_for(code) if code else -1
         motion = 0 <= action < core.motion_actions()
@@ -449,10 +514,13 @@ class Window(QtWidgets.QMainWindow):
 
     def _app_state(self, state):
         if state != QtCore.Qt.ApplicationState.ApplicationActive:
+            self.cancel_rebind("window lost focus")
             self.release_everything("window lost focus: every key released")
 
     def changeEvent(self, ev):
         if ev.type() == QtCore.QEvent.Type.ActivationChange and not self.isActiveWindow():
+            if not self._closed:
+                self.cancel_rebind("window deactivated")
             if any(self.key_held) or any(self.mouse_held):
                 self.release_everything("window deactivated: every key released")
         super().changeEvent(ev)

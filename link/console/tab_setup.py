@@ -105,8 +105,11 @@ class SetupTab(QtWidgets.QWidget):
             self.app.ctl.say_status(f"--watch {spec}: expected HOST[:PORT] with a dotted-quad host")
 
     def _rebind(self, row, _col):
-        self.app.rebind_action = row
-        self.key_hint.setText(f"press a key for `{core.action_label(row)}` (Escape cancels)")
+        # The window decides (app.start_rebind): never the stop keys, never
+        # while armed or LIVE; it says REBINDING in the safety bar.
+        if self.app.start_rebind(row):
+            self.key_hint.setText(f"REBINDING `{core.action_label(row)}`: press a key "
+                                  f"(Escape cancels)")
 
     def _restore(self):
         self.app.ctl.core.reset_keys()
