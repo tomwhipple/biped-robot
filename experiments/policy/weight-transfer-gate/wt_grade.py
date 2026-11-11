@@ -29,6 +29,13 @@ PROBES = ["stride1 0.3 robot", "steps5 0.3 robot"]
 VARIANTS = {"grade as is": {},
             "roll lash 1.25 deg (train DR centre)": {"GRADE_ROLL_LASH": "1.25"},
             "series spring hip 14.2 N m/rad": {"GRADE_ROLL_SERIES": "hip=14.2"}}
+# round 3 (README): the mass-and-symmetry plant and the 2026-11-10 clamp refit, through grade.py's
+# GRADE_PLANT_TERMS; `--round 3` grades these, with march5 robot added
+PROBES3 = ["stride1 0.3 robot", "steps5 0.3 robot", "march5 robot"]
+VARIANTS3 = {"grade as is": {},
+             "MASS_SYM": {"GRADE_PLANT_TERMS": GC.MASS_SYM},
+             "REFIT3": {"GRADE_PLANT_TERMS": GC.REFIT3}}
+ENV_KEYS = ("GRADE_ROLL_LASH", "GRADE_ROLL_SERIES", "GRADE_PLANT_TERMS")
 _FT = []
 
 
@@ -80,24 +87,28 @@ def wt_metrics(ft):
 
 def job(args):
     run, vname, probe, seed = args
-    for k in ("GRADE_ROLL_LASH", "GRADE_ROLL_SERIES"):
+    for k in ENV_KEYS:
         os.environ.pop(k, None)
-    os.environ.update(VARIANTS[vname])
+    os.environ.update(dict(VARIANTS, **VARIANTS3)[vname])
     G = _install()
     p = G.PROBES[probe]
     spec = dict(run=run, shaper_hz=GC.SHAPER_HZ, stand_phase=np.pi / 2, clock="coast")
     spec.update({k: x for k, x in p.items() if k not in ("run_s", "hold_s")})
     m = G.episode(spec, seed=seed, run_s=p["run_s"], hold_s=p.get("hold_s", 0.0))
-    m = dict(fell=bool(m["fell"]), trip=m.get("trip"), dx=m.get("dx"), **wt_metrics(_FT))
+    m = dict(fell=bool(m["fell"]), trip=m.get("trip"), trips_by=m.get("trips_by"), dx=m.get("dx"),
+             tilt_max=m.get("tilt_max"), walk_tilt_max=m.get("walk_tilt_max"), peak_rate=m.get("peak_rate"),
+             **wt_metrics(_FT))
     return run, vname, probe, seed, m
 
 
-def table(res, runs, seeds):
-    L = ["| student | plant | probe | lift L / R cm, mean (min) | shift_when_up L-up / R-up | falls / trips |",
-         "|---|---|---|---|---|---|"]
+def table(res, runs, seeds, variants=None, probes=None):
+    variants = variants or VARIANTS
+    probes = probes or PROBES
+    L = ["| student | plant | probe | lift L / R cm, mean (min) | shift_when_up L-up / R-up | tilt max deg (walk 2.5 s) | guard rate peak | falls / trips [kinds] |",
+         "|---|---|---|---|---|---|---|---|"]
     for run in runs:
-        for vn in VARIANTS:
-            for pr in PROBES:
+        for vn in variants:
+            for pr in probes:
                 e = [m for (r, v, p, s), m in res.items() if r == run and v == vn and p == pr]
                 if not e:
                     continue
@@ -106,8 +117,22 @@ def table(res, runs, seeds):
                 L.append(f"| {run.replace('robot_legs_', '').replace('_s128r24', '')} | {vn} | {pr} | "
                          f"{lf[:, 0].mean():.2f} ({lf[:, 0].min():.2f}) / {lf[:, 1].mean():.2f} ({lf[:, 1].min():.2f}) | "
                          f"{np.nanmean(sh[:, 0]):+.2f} / {np.nanmean(sh[:, 1]):+.2f} | "
-                         f"{sum(m['fell'] for m in e)}/{sum(m['trip'] is not None for m in e)} of {len(e)} |")
+                         f"{np.mean([m['tilt_max'] for m in e]):.1f} ({_mean([m.get('walk_tilt_max') for m in e])}) | "
+                         f"{np.mean([m['peak_rate'] for m in e]):.2f} | "
+                         f"{sum(m['fell'] for m in e)}/{sum(m['trip'] is not None for m in e)} of {len(e)}"
+                         f" [{_kinds(e)}] |")
     return "\n".join(L)
+
+
+def _mean(xs):
+    xs = [x for x in xs if x is not None]
+    return f"{np.mean(xs):.1f}" if xs else "-"
+
+
+def _kinds(e):
+    from collections import Counter
+    c = Counter(k for m in e for k in (m.get("trips_by") or {}))
+    return " ".join(f"{k} {n}" for k, n in sorted(c.items())) or "-"
 
 
 def main(argv=None):
@@ -116,12 +141,14 @@ def main(argv=None):
     ap.add_argument("--md", default=None)
     ap.add_argument("--json", default=None)
     ap.add_argument("--workers", type=int, default=int(os.environ.get("WORKERS", "24")))
+    ap.add_argument("--round", type=int, default=2, help="2: round 2's variants/probes; 3: VARIANTS3 x PROBES3")
     a = ap.parse_args(argv)
+    variants, probes = (VARIANTS3, PROBES3) if a.round == 3 else (VARIANTS, PROBES)
     runs = [r for r in RUNS if os.path.exists(os.path.join(GC.run_dir(r), "params.pkl"))]
-    jobs = [(r, v, p, s) for r in runs for v in VARIANTS for p in PROBES for s in range(a.seeds)]
+    jobs = [(r, v, p, s) for r in runs for v in variants for p in probes for s in range(a.seeds)]
     with ProcessPoolExecutor(max_workers=a.workers) as ex:
         res = {(r, v, p, s): m for r, v, p, s, m in ex.map(job, jobs)}
-    md = table(res, runs, a.seeds)
+    md = table(res, runs, a.seeds, variants, probes)
     print(md)
     if a.md:
         open(a.md, "w").write(md + "\n")

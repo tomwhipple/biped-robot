@@ -46,7 +46,9 @@ FREC = os.path.join(GC.HW, "2026-11-09", "flight_20261109T232022Z_prec16.frec")
 # steps5_03 of 2026-11-06 (experiments/policy/yaw-gap: the sign check of this pipeline)
 RECORDS = {"1109": (FREC, 0),
            "1106t1": (os.path.join(GC.HW, "2026-11-06", "flight_20261106T160828Z_omni5.frec"), 0),
-           "1106t2": (os.path.join(GC.HW, "2026-11-06", "flight_20261106T160828Z_omni5.frec"), 1)}
+           "1106t2": (os.path.join(GC.HW, "2026-11-06", "flight_20261106T160828Z_omni5.frec"), 1),
+           # 2026-11-10 (round 3): the 11-09 stride repeated with floor cameras (2026-11-10-robot/README.md)
+           "1110": (os.path.join(GC.HW, "2026-11-10", "m271", "flight_snapshot_0035Z.frec"), 0)}
 
 
 def record_name():
@@ -139,8 +141,25 @@ def metrics(trel, q, gyro, quat, sole_z=None, clr=None, rate_series=None):
         out.update(lift_L=float(1e3 * lift[:, 0].max()), lift_R=float(1e3 * lift[:, 1].max()))
     if clr is not None:
         c = np.asarray(clr, float)[w]
+        tw = trel[w]
         out.update(clear_L=float(1e3 * c[:, 0].max()), clear_R=float(1e3 * c[:, 1].max()),
                    air_L=float(DT * (c[:, 0] > 0.005).sum()), air_R=float(DT * (c[:, 1] > 0.005).sum()))
+        if c.shape[1] >= 6:
+            for k, sd in enumerate("LR"):
+                end = np.where(c[:, 2 + k] > 0.003)[0]          # one end of the sole 3 mm up
+                off = np.where(c[:, k] > 0.001)[0]              # every pad 1 mm up
+                out[f"t_end_{sd}"] = float(tw[end[0]]) if len(end) else None
+                out[f"t_off_{sd}"] = float(tw[off[0]]) if len(off) else None
+                out[f"tilt_off_{sd}"] = float(c[off[0], 4 + k]) if len(off) else None
+                out[f"tilt_end_{sd}"] = float(c[end[0], 4 + k]) if len(end) else None
+    up = np.array([GC.up_of(x) for x in quat])
+    tiltd = np.degrees(np.arccos(np.clip(up[:, 2], -1, 1)))
+    for tt in (0.3, 0.5, 0.6):
+        out[f"torso_tilt_{int(tt * 10):02d}"] = float(np.interp(tt, trel, tiltd))
+    out["up_x_06"] = float(np.interp(0.6, trel, up[:, 0]))
+    out["up_y_06"] = float(np.interp(0.6, trel, up[:, 1]))
+    ww = (trel >= 0.0) & (trel <= 0.7)
+    out["torso_tilt_max07"] = float(tiltd[ww].max())
     return out
 
 
@@ -275,7 +294,7 @@ def closed_loop(job):
         T.append((i + 1) * DT - T_WALK)
         Q.append(obs[:nj].astype(np.float64)); GY.append(gyro); QT.append(np.array(d.qpos[3:7]))
         SZ.append((d.geom_xpos[sole[0]][2], d.geom_xpos[sole[1]][2]))
-        c = GC.clearance(env, pads); CL.append((c["L"], c["R"]))
+        CL.append(GC.foot_state(env.model, env.data, pads, env._sole_gids))
         if term:
             fell = True
             break
@@ -321,7 +340,7 @@ def goals_replay(job):
         T.append(hw["trel"][k]); Q.append(obs[:env._nq_act].astype(np.float64))
         GY.append(np.array(d.qvel[3:6])); QT.append(np.array(d.qpos[3:7]))
         SZ.append((d.geom_xpos[sole[0]][2], d.geom_xpos[sole[1]][2]))
-        c = GC.clearance(env, pads); CL.append((c["L"], c["R"]))
+        CL.append(GC.foot_state(env.model, env.data, pads, env._sole_gids))
         if term:
             fell = True
             break
@@ -403,6 +422,12 @@ def joints_replay(job):
                 m.body_inertia[b] *= var["legs"]
     if "com_y" in var:
         m.body_ipos[tb][1] += var["com_y"]
+    if "torso_kg" in var:
+        x = var["torso_kg"] / float(m.body_mass[tb])
+        m.body_mass[tb] *= x
+        m.body_inertia[tb] *= x
+    if "pack" in var:
+        GC.add_box_to_body(m, tb, var["pack"], GC.PACK_POS, GC.PACK_HALF)
     off = np.zeros(12)
     for i, n in enumerate(rec.POL):
         if n.endswith("hip_roll"):
@@ -444,7 +469,7 @@ def joints_replay(job):
         T.append(t0 + (kk + 1) * DT)
         Q.append(np.array(d.qpos[jq])); GY.append(np.array(d.qvel[3:6])); QT.append(np.array(d.qpos[3:7]))
         SZ.append((d.geom_xpos[sole[0]][2], d.geom_xpos[sole[1]][2]))
-        CL.append(tuple(min(d.geom_xpos[g][2] - m.geom_size[g][0] for g in pads[s_]) for s_ in "LR"))
+        CL.append(GC.foot_state(m, d, pads, sole))
         fz = {"L": 0.0, "R": 0.0}
         for ci in range(d.ncon):
             c = d.contact[ci]
@@ -457,9 +482,68 @@ def joints_replay(job):
     T, FZ = np.array(T), np.array(FZ)
     w = (T >= 0.4) & (T <= 0.7)
     share = FZ[:, 1] / np.maximum(FZ.sum(1), 1e-9)
+    upz = np.array([GC.up_of(x)[2] for x in QT])
     out.update(plant="bare plant", schedule=f"joints mu {mu if mu is not None else 'xml'}",
+               fell=bool((np.degrees(np.arccos(np.clip(upz, -1, 1))) > 60.0).any()),
                rload_min=float(share[w].min()), rload_mean=float(share[w].mean()), variant=var)
     return out
+
+
+STRIDE3_JOINTS = {"joints, plant": {},
+                  "joints, mass (torso 0.4855 kg + 83 g pack)": dict(torso_kg=0.4855, pack=0.083),
+                  "joints, mass + refit springs (real sprung joints)": dict(torso_kg=0.4855, pack=0.083,
+                                                                           ser_ankle=17.75, ser_hip=11.0)}
+STRIDE3_CLOSED = {"closed, grade as is": "", "closed, grade + MASS_SYM": GC.MASS_SYM,
+                  "closed, grade + REFIT3": GC.REFIT3}
+S3KEYS = [("torso_tilt_03", "tilt +0.3"), ("torso_tilt_05", "tilt +0.5"), ("torso_tilt_06", "tilt +0.6"),
+          ("up_x_06", "up_x +0.6"), ("up_y_06", "up_y +0.6"),
+          ("t_end_R", "R end up t"), ("tilt_end_R", "R tilt then"), ("t_off_R", "R off t"), ("tilt_off_R", "R tilt then"),
+          ("t_off_L", "L off t"), ("lift_R", "R lift mm"), ("lift_L", "L lift mm"),
+          ("yaw_07", "yaw +0.7"), ("yaw_end", "yaw +2 s"), ("gz_peak", "gz peak"), ("rate_peak", "guard rate peak")]
+ROBOT_FEET_1110 = dict(t_end_R="~0.42 (video)", tilt_end_R="tilted (video)", t_off_R="~0.59 (video)",
+                       tilt_off_R="~10-15 (video)", t_off_L="~0.59 (video)")
+
+
+def stride3(seeds=8, workers=24):
+    """round 3, item 3: the 2026-11-10 stride (GATE_REC=1110) on grade as is, + MASS_SYM, + REFIT3,
+    closed loop under the recorded command, and the joints replay with the same mass / springs."""
+    os.environ["GATE_REC"] = "1110"
+    rows = [("robot 2026-11-10", robot_row())]
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        cl = {n: [ex.submit(closed_loop, ("grade", "record", k, GC.parse_terms(t))) for k in range(seeds)]
+              for n, t in STRIDE3_CLOSED.items()}
+        jt = {n: ex.submit(joints_replay, (0.5, v)) for n, v in STRIDE3_JOINTS.items()}
+        for n, fs in cl.items():
+            rs = [f.result() for f in fs]
+            agg = {}
+            for k, _ in S3KEYS:
+                vals = [r[k] for r in rs if r.get(k) is not None]
+                agg[k] = (float(np.mean(vals)), float(np.min(vals)), float(np.max(vals)), len(vals)) if vals else None
+            agg["falls"] = sum(bool(r["fell"]) for r in rs)
+            agg["n"] = len(rs)
+            agg["trips"] = [r["trip"] for r in rs]
+            rows.append((n, agg))
+        for n, f in jt.items():
+            rows.append((n, f.result()))
+    L = ["Round 3: the 2026-11-10 stride (`flight_snapshot_0035Z`), torso tilt = acos(up_z) deg; up = the torso z "
+         "axis in the world, yaw stripped (the record's own `up`); foot times s from the walk command: `end up` = "
+         "the sole's highest pad 3 mm off the floor, `off` = every pad 1 mm off; tilt then = the sole's angle from "
+         "level (deg). Closed loop: mean [min, max] over seeds (n = seeds where it happened).", "",
+         "| row | " + " | ".join(h for _, h in S3KEYS) + " | falls |", "|---|" + "---|" * (len(S3KEYS) + 1)]
+    for n, r in rows:
+        cells = []
+        for k, _ in S3KEYS:
+            v = r.get(k)
+            if v is None:
+                cells.append(ROBOT_FEET_1110.get(k, "unknown") if n.startswith("robot") else "never")
+            elif isinstance(v, tuple):
+                cells.append(f"{v[0]:+.2f}" + (f" [{v[1]:+.2f}, {v[2]:+.2f}]" if v[2] - v[1] > 0.005 else "")
+                             + (f" n={v[3]}" if v[3] < r["n"] else ""))
+            else:
+                cells.append(f"{v:+.2f}")
+        fl = f"{r['falls']}/{r['n']}" if "n" in r else ("fell" if r.get("fell") else ("0" if "fell" in r else "-"))
+        L.append(f"| {n} | " + " | ".join(cells) + f" | {fl} |")
+    return rows, "\n".join(L)
 
 
 def joint_variants(names=None, mu=0.5, workers=12):
@@ -539,6 +623,7 @@ def main(argv=None):
     ap.add_argument("--seeds", type=int, default=4)
     ap.add_argument("--no-open", action="store_true", help="skip the open-loop rows")
     ap.add_argument("--fk-trace", action="store_true", help="print the robot's encoder+IMU sole kinematics through the swing and exit")
+    ap.add_argument("--stride3", action="store_true", help="round-3 item 3: the 2026-11-10 stride on grade / MASS_SYM / REFIT3")
     ap.add_argument("--joint-variants", action="store_true", help="round-2 item 2: the joints replay under JOINT_VARIANTS")
     ap.add_argument("--record", default=None, help="flight record: " + ", ".join(RECORDS) + " (default 1109)")
     ap.add_argument("--json", default=None)
@@ -548,6 +633,14 @@ def main(argv=None):
     if a.record:
         os.environ["GATE_REC"] = a.record
     terms = GC.parse_terms(a.terms)
+    if a.stride3:
+        rows, md = stride3(a.seeds, a.workers)
+        print(md)
+        if a.md:
+            open(a.md, "w").write(md + "\n")
+        if a.json:
+            json.dump(rows, open(a.json, "w"), indent=1, default=str)
+        return None
     if a.joint_variants:
         md = variants_table(joint_variants(workers=a.workers), robot_row())
         print(md)

@@ -1,5 +1,5 @@
 #!/bin/sh
-# The weight-transfer gate (#259), every table in README.md, CPU only (~5 min on 32 cores).
+# The weight-transfer gate (#259), every table in README.md, CPU only (~6 min on 32 cores).
 #   sh experiments/policy/weight-transfer-gate/run_all.sh            # from the repo root
 # Writes results/*.md (and check1.json / check2.json); hw_sessions/ and the prec16 run are read
 # from the main checkout (GATE_MAIN, default /home/claw/code/robot).
@@ -28,3 +28,8 @@ for T in "lash=0,ser_hip=14.2" "lash=0,ser_ankle=27.8" "lash=0,ser_hip=40.1,ser_
   $PY check2_replay.py --schedules record,probe --seeds 4 --terms "$T" --md "results/r2_item3_check2_$T.md" > /dev/null
 done
 $PY wt_grade.py 8 --md results/r2_item4_wt_grade.md --json results/r2_item4_wt_grade.json > /dev/null
+# round 3 (README "Round 3"): the 2026-11-10 robot measurements (2026-11-10-robot/README.md)
+$PY fit_clamp3.py --md results/r3_item1_clamp_fit.md --json results/r3_item1_clamp_fit.json > /dev/null
+$PY ladder.py --plants "grade,grade:torso_kg=0.4855|pack=0.083|zoff_La=0,grade:torso_kg=0.4855|pack=0.083|zoff_La=0|ser_ankle=17.75|ser_hip=11.0,grade:zoff_La=0,grade:torso_kg=0.4855|com_y_abs=-0.001|pack=0.083|zoff_La=0" --md results/r3_item2_ladder.md --json results/r3_item2_ladder.json > /dev/null
+$PY check2_replay.py --stride3 --seeds 8 --md results/r3_item3_stride.md --json results/r3_item3_stride.json > /dev/null
+$PY wt_grade.py 8 --round 3 --md results/r3_item4_wt_grade.md --json results/r3_item4_wt_grade.json > /dev/null

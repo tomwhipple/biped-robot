@@ -190,7 +190,7 @@ def test_wt_metrics_lift_and_shift():
 
 def test_records_and_joint_variants_are_named():
     import check2_replay as C2
-    assert set(C2.RECORDS) == {"1109", "1106t1", "1106t2"} and C2.record_name() in C2.RECORDS
+    assert set(C2.RECORDS) == {"1109", "1106t1", "1106t2", "1110"} and C2.record_name() in C2.RECORDS
     assert C2.JOINT_VARIANTS["plant"] == {}
     assert C2.JOINT_VARIANTS["series spring, hip rolls 14.2 N m/rad"] == dict(ser_hip=14.2)
 
@@ -206,3 +206,44 @@ def test_series_term_scales_the_roll_pd_and_hides_it_from_the_encoder():
     assert env._kp_prof[i] == pytest.approx(env._gate_nom["kp"][i] * x)
     assert env._gate_alpha[i] == pytest.approx(1 - x) and env._gate_alpha[k] == 0.0
     assert env._kp_prof[k] == pytest.approx(env._gate_nom["kp"][k])
+
+
+def test_round3_terms_and_targets(monkeypatch):
+    """round 3: the refit's term strings parse, grade.py's GRADE_PLANT_TERMS reaches the gate terms
+    (unset: nothing), the clamp fit's cost is zero on its own targets, the ladder's robot table is whole."""
+    t = GC.parse_terms(GC.REFIT3)
+    assert t == dict(torso_kg=0.4855, pack=0.083, zoff_La=0.0, ser_ankle=17.75, ser_hip=11.0)
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "shaper-train"))
+    import grade
+    for k in ("GRADE_ROLL_LASH", "GRADE_ROLL_SERIES", "GRADE_PLANT_TERMS"):
+        monkeypatch.delenv(k, raising=False)
+    assert grade.roll_plant_opts() == {}
+    monkeypatch.setenv("GRADE_PLANT_TERMS", "torso_kg=0.4855,sole_sym")
+    assert grade.roll_plant_opts() == {"gate:torso_kg": 0.4855, "gate:sole_sym": True}
+    import fit_clamp3 as F
+    assert F.cost(dict(F.TARGET)) == 0.0
+    import ladder as LD
+    assert len(LD.ROBOT["L"]) == len(LD.ROBOT["R"]) == len(LD.MULTS) == 7
+    assert LD.parse_plant("grade:torso_kg=0.4855|pack=0.083") == ("grade", dict(torso_kg=0.4855, pack=0.083))
+
+
+def test_pack_inertial_and_up_vector():
+    import mujoco
+    m = mujoco.MjModel.from_xml_path(GC.XML)
+    b = m.body("torso").id
+    m0, c0 = float(m.body_mass[b]), m.body_ipos[b].copy()
+    GC.add_box_to_body(m, b, 0.083, GC.PACK_POS, GC.PACK_HALF)
+    assert m.body_mass[b] == pytest.approx(m0 + 0.083)
+    assert np.allclose(m.body_ipos[b], (m0 * c0 + 0.083 * GC.PACK_POS) / (m0 + 0.083))
+    assert np.all(m.body_inertia[b] > 0)
+    th = math.radians(12.0)                         # pitch forward about +y: the torso z leans to +x
+    up = GC.up_of((math.cos(th / 2), 0.0, math.sin(th / 2), 0.0))
+    assert up[0] == pytest.approx(math.sin(th)) and up[2] == pytest.approx(math.cos(th))
+    yaw = math.radians(70.0)                        # yaw is stripped
+    q = np.array([math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)])
+    qp = np.array([math.cos(th / 2), 0.0, math.sin(th / 2), 0.0])
+    w1, x1, y1, z1 = q
+    w2, x2, y2, z2 = qp
+    qq = (w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+          w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2)
+    assert np.allclose(GC.up_of(qq), up, atol=1e-9)
