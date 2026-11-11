@@ -434,6 +434,27 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-11 card: night 21 -- weight transfer, night 2; march, night 1. The walking sway moved the weight a little on
+# 3 seeds, 2 sizes and 2 leads (stride1 robot shift 0.20-0.39, bar 0.6): the line stops. Every reference-march student
+# marches on ONE leg only (5 of 6 seeds; side set by the seed). Tonight: the mirror loss on the march, 3 arms x 3 seeds.
+fig_1111 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec52_march_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec52_march_s128r24_walk_steps',
+                 'prec52, the march slice with the reference on, walking: the walk is kept (six directions, x1.5 0/0). '
+                 'On the march probe it lifts the R foot 6.3 cm on every R step and the L foot at most 0.75 cm'),
+    video_figure('robot_legs_prec59_march_rs_s1_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec59_march_rs_s1_s128r24_walk_steps',
+                 'prec59, the same march recipe with the soft roll plant (--roll-series-k), seed 15: marches on the L foot '
+                 'only (6.3 cm, CoM 0.76 over the stance foot); lost sidestep L and falls 5/8 on the 0.6 m/s stride'),
+    video_figure('robot_legs_prec49_ws2_sw35_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec49_ws2_sw35_s128r24_walk_steps',
+                 'prec49, sway 3.5 cm on the walk-shift-2 policy: the most walking shift of the line (0.39/0.37 on the '
+                 'one-stride robot probe, bar 0.6), but sidestep L is lost'),
+    video_figure('robot_legs_prec46_sw35_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec46_sw35_s128r24_walk_steps',
+                 'prec46, sway 3.5 cm on prec16: shift 0.27/0.28 (prec16 0.21/0.16); its seed replicate prec50 and the '
+                 '5 cm and no-lead variants land in the same place'),
+] if f)
 # 2026-11-10 card: night 20 -- weight transfer, night 1. The 11-09 robot run of prec16 never unloaded its R foot;
 # the walk-shift reward barely moved the CoM (the imitation reference held the rolls at the standing pose).
 # Tonight: --mimic-sway puts the shift into the reference.
@@ -1043,6 +1064,28 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·11 · night 21: the march finds one leg</span></p>
+    <p><b>The march in place works, but only on one leg.</b> Five of the six march runs that follow the new march reference
+    learned to lift a foot high, 5-9 cm on every one of its steps, with the centre of mass 0.53-0.76 of the way over the
+    standing foot. The other foot stays down (at most 0.8 cm). The seed picks the side: two lift only the right foot, three
+    only the left. Without the reference, or with the lift command alone, no run found the march at all. The reason it stops
+    at one leg: every reward for lifting is paid only once that foot is already off the floor, so the side that never lifted
+    gets no signal to start.</p>
+    <p><b>Swaying the torso in the walking reference did not move the weight.</b> On the one-stride robot probe the shift
+    is 0.20-0.39 (prec16 0.16-0.21, the bar 0.6), the same across 3 seeds, 2 sway sizes and 2 timings, so that line stops.
+    The soft roll plant (<code>--roll-series-k</code>, now in every recipe): on these grade plants, 2 of its 3 seeds lost
+    sidestep left and fell on the fast stride. Nothing is a robot candidate.</p>
+    <p><b>Tonight:</b> the mirror loss, which makes the policy treat left and right the same way, so that a learned left lift
+    also gives a right lift. Three arms of three seeds each: A adds it to prec59 (marches on the left only), B trains the march
+    with it from prec16, and C, the control, gives prec59 the same 300M steps without it. <b>For you:</b> tonight is the third
+    night of the weight-transfer line with no robot number behind it (see #137). The march itself is not filmed here; the clips
+    show the same policies walking. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1111}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·10 · night 20: weight transfer, night 1</span></p>
