@@ -17,7 +17,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from . import bench
 from .ui import (AMBER, BG, BRIGHT, DIM, FAINT, GREEN, MONO, RED, TEXT, group, hbox,
-                 lab, mkplot, set_cell, table, vbox, wrap)
+                 lab, mkplot, mono_font, set_cell, table, vbox, wrap)
 
 BINS = 300                                   # bimo_gui's chart width
 X = np.arange(1, BINS + 1) * (bench.WINDOW_MS / 1000.0 / BINS) - bench.WINDOW_MS / 1000.0
@@ -53,7 +53,7 @@ class FrameView(QtWidgets.QWidget):
             p.drawImage(tgt, img)
             if self.stale:
                 p.fillRect(tgt, QtGui.QColor(150, 30, 30, 110))
-                f = QtGui.QFont(MONO, 22)
+                f = mono_font(22)
                 f.setBold(True)
                 p.setFont(f)
                 p.setPen(QtGui.QColor("#ffd0cc"))

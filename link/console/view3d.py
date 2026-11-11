@@ -33,7 +33,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from . import core, pose3d
 from .mjpeg import MjpegStream
 from .options import CAM_NAMES, CAM_PORT, STREAM_PORT
-from .ui import AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, MONO, RED, SIMC, TEXT, hbox, lab, vbox
+from .ui import (AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, RED, SIMC, TEXT, hbox, lab, mono_font,
+                 vbox)
 
 FROZEN_S = 1.0
 SIM_KEY = "sim render"
@@ -583,7 +584,7 @@ class ViewPane(QtWidgets.QWidget):
         p.setClipRect(r)
         p.fillRect(r, QtGui.QColor(SKY))
         p.setPen(QtGui.QColor(RED))
-        p.setFont(QtGui.QFont(MONO, 11))
+        p.setFont(mono_font(11))
         p.drawText(r.adjusted(16, 16, -16, -16), int(QtCore.Qt.TextFlag.TextWordWrap),
                    f"3D render unavailable: {self._render_error}\n"
                    "the streams (camera, sim render) still show")
@@ -596,7 +597,7 @@ class ViewPane(QtWidgets.QWidget):
         img = self._img
         if self.model is None:
             p.setPen(QtGui.QColor(RED))
-            p.setFont(QtGui.QFont(MONO, 11))
+            p.setFont(mono_font(11))
             p.drawText(r.adjusted(16, 16, -16, -16), int(QtCore.Qt.TextFlag.TextWordWrap),
                        f"plant failed to load: {self.plant}\n{self.plant_error}")
         elif img is not None:
@@ -610,7 +611,7 @@ class ViewPane(QtWidgets.QWidget):
         if self.model is not None:
             self._paint_legend(p, r.x() + 14, r.y() + 14)
             if r.width() > 560:
-                p.setFont(QtGui.QFont(MONO, 10))
+                p.setFont(mono_font(10))
                 p.setPen(QtGui.QColor(DIM))
                 p.drawText(QtCore.QRectF(r.right() - 330, r.y() + 12, 316, 40),
                            int(QtCore.Qt.AlignmentFlag.AlignRight),
@@ -653,7 +654,7 @@ class ViewPane(QtWidgets.QWidget):
 
     def _paint_legend(self, p, x, y):
         rows = self.legend_rows()
-        font = QtGui.QFont(MONO, 11)
+        font = mono_font(11)
         fm = QtGui.QFontMetrics(font)
         tw = max(fm.horizontalAdvance(t) for _, t, _, _ in rows)
         aw = max([fm.horizontalAdvance(a) for _, _, a, _ in rows] + [40])
@@ -708,7 +709,7 @@ class ViewPane(QtWidgets.QWidget):
         state, colour, s = self.stream_state(key)
         url = self._url(key) or ""
         where = url.split("//", 1)[-1].split("/", 1)[0] if url else ""
-        font = QtGui.QFont(MONO, 10)
+        font = mono_font(10)
         fm = QtGui.QFontMetrics(font)
         p.setFont(font)
         sw = fm.horizontalAdvance(state) + 4
@@ -733,12 +734,12 @@ class ViewPane(QtWidgets.QWidget):
                 band = QtCore.QRectF(body.x(), body.center().y() - 18, body.width(), 36)
                 p.fillRect(band, QtGui.QColor(10, 12, 15, 200))
                 p.setPen(QtGui.QColor(RED))
-                p.setFont(QtGui.QFont(MONO, 13, QtGui.QFont.Weight.Bold))
+                p.setFont(mono_font(13, QtGui.QFont.Weight.Bold))
                 p.drawText(band, int(QtCore.Qt.AlignmentFlag.AlignCenter),
                            f"{state}: the last frame, not live")
         else:
             p.setPen(QtGui.QColor(DIM))
-            p.setFont(QtGui.QFont(MONO, 11))
+            p.setFont(mono_font(11))
             if s is None:
                 msg = ("no camera: start the console with --cam-relay HOST[:PORT]"
                        if url == "" else f"{key}: not open")
@@ -750,7 +751,7 @@ class ViewPane(QtWidgets.QWidget):
                        int(QtCore.Qt.AlignmentFlag.AlignCenter | QtCore.Qt.TextFlag.TextWordWrap),
                        msg)
         if key != SIM_KEY:
-            p.setFont(QtGui.QFont(MONO, 9))
+            p.setFont(mono_font(9))
             p.setPen(QtGui.QColor(FAINT))
             p.drawText(QtCore.QPointF(body.x() + 8, body.bottom() - 6), "not registered to 3D")
         p.restore()

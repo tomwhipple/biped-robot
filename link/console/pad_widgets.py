@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
-from .ui import AMBER, BLUE, BRIGHT, DIM, FAINT, GREEN, MONO, RED, hbox, lab, set_cell, table, vbox
+from .ui import (AMBER, BLUE, BRIGHT, DIM, FAINT, GREEN, RED, hbox, lab, mono_font, set_cell, table,
+                 vbox)
 
 REFRESH_MS = 66
 
@@ -51,7 +52,7 @@ class PadView(_Ticking):
         a = pad.axes
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        p.setFont(QtGui.QFont(MONO, 10))
+        p.setFont(mono_font(10))
         for cx, label, (x, y) in ((60, "L  vx / vy", (a["leftx"], a["lefty"])),
                                   (190, "R  wz", (a["rightx"], a["righty"]))):
             c = QtCore.QPointF(cx, 62)

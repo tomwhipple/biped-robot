@@ -26,7 +26,7 @@ import pyqtgraph as pg
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from .flight import BUS_INDEX, decimate, status_text
-from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, btn,
+from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, btn, mono_font,
                  group, hbox, lab, mkplot, restyle, set_cell, table, vbox, wrap)
 
 LEGS = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
@@ -273,7 +273,7 @@ class JointsTab(QtWidgets.QWidget):
             for ax in ("left", "bottom"):
                 pi.getAxis(ax).setTextPen(DIM)
                 pi.getAxis(ax).setPen("#3a3f47")
-                pi.getAxis(ax).setStyle(tickFont=QtGui.QFont(MONO, 9))
+                pi.getAxis(ax).setStyle(tickFont=mono_font(9))
             pi.getAxis("left").setWidth(48)
         a, e, ld = self.d_plots
         for pi in (e, ld):

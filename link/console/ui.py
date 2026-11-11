@@ -10,7 +10,11 @@ TEXT, DIM, FAINT = "#d6d9de", "#8a9099", "#5a6068"
 GREEN, AMBER, RED, ORANGE, BENCHC = "#2fa35a", "#c98a1b", "#c62828", "#d9731f", "#7f8ca6"
 CYAN, SIMC, BLUE = "#3cc8ff", "#ffa41f", "#2f6fca"
 BRIGHT = "#e8e8e8"
-MONO = "Menlo"
+# Monospace: Menlo (macOS), then the usual Linux / Windows faces, then the
+# platform's own monospace (a family list in style sheets, the Monospace
+# style hint in a QFont: mono_font).
+MONO_FAMILIES = ("Menlo", "DejaVu Sans Mono", "Liberation Mono", "Consolas", "monospace")
+MONO = ", ".join(f"'{f}'" if " " in f else f for f in MONO_FAMILIES)
 
 # Badge colour per linkproto::LinkState (wire order), bimo_gui's stateColour.
 STATE_COLOUR = (GREEN, AMBER, ORANGE, RED, RED, RED, RED, BENCHC)
@@ -80,6 +84,18 @@ def dark_palette() -> QtGui.QPalette:
                       (R.HighlightedText, "#ffffff"), (R.PlaceholderText, DIM)]:
         p.setColor(role, QtGui.QColor(col))
     return p
+
+
+def mono_font(pt: int, weight=None) -> QtGui.QFont:
+    """A monospace QFont at `pt` points, whatever the platform has."""
+    f = QtGui.QFont()
+    f.setFamilies(list(MONO_FAMILIES))
+    f.setStyleHint(QtGui.QFont.StyleHint.Monospace)
+    f.setFixedPitch(True)
+    f.setPointSize(pt)
+    if weight is not None:
+        f.setWeight(weight)
+    return f
 
 
 def lab(text="", color=None, size=None, bold=False, mono=False, rich=False):
@@ -195,7 +211,7 @@ def mkplot(h=None, xr=(-30, 0), yr=None, bottom=True, left_w=38):
         a = pi.getAxis(ax)
         a.setTextPen(DIM)
         a.setPen("#3a3f47")
-        a.setStyle(tickFont=QtGui.QFont(MONO, 9))
+        a.setStyle(tickFont=mono_font(9))
     pi.getAxis("left").setWidth(left_w)
     if not bottom:
         pi.hideAxis("bottom")
