@@ -165,6 +165,10 @@ mattered.
 
 ## Hardware tests
 
+- **Floor tests run without a catch line** for now (carpet falls have been
+  fine, reprints are cheap). The left hip still carries the original, weaker
+  yoke; see
+  [the yoke record](docs/design-v6/2026-11-02-hip-yoke-roll-failure.md) §7.
 - **Bench before policy.** A capability claim about the body (a lift, a step, a
   turn, a push recovery, the get-up) is first tried open-loop over the tether,
   with joint readbacks and cameras, and written down — before any training run

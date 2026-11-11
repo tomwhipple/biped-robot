@@ -842,7 +842,10 @@ Everything open is a GitHub issue.
 4. **Print and assemble** ([cad/PRINT_LIST.md](cad/PRINT_LIST.md),
    [docs/assembly.md](docs/assembly.md)); weigh every part; measure play per roll
    joint (≤ 3° required, ≤ 1° target). The legs and the torso frame are built,
-   tethered; the pack, Pi, head, neck and arms are not yet on.
+   tethered; the pack, Pi, head, neck and arms are not yet on. Hips as
+   fitted: the right carries the redesigned yoke, the left the original,
+   weaker one, replaced only if it breaks
+   ([record](docs/design-v6/2026-11-02-hip-yoke-roll-failure.md) §7).
 5. **Put the measurements in the plant** and re-run the gates
    (`gate_no3250.py walk | sweep | arms | getup`).
 6. **Floor work, over the tether, one motion per go**: system-identification
@@ -850,7 +853,8 @@ Everything open is a GitHub issue.
    margin, clearance and slip number against the sim's, whose measurements go
    into the plant; then the policy milestones: march in place with full weight
    transfer (#261), a stride, the full command volume (#263). Then the scripted
-   get-up. Powered from a
+   get-up. No catch line for now: carpet falls have been fine and reprints are
+   cheap. Powered from a
    bench supply instead of the pack, the supply tether's check T1
    ([pcb/power-board/harness.md](pcb/power-board/harness.md)) comes first.
 7. **Gate E**: train a policy on the measured plant, trusted once the

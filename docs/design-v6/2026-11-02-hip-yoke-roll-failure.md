@@ -200,15 +200,28 @@ stall, 10.6 MPa peel under 50 N forward and 8.8 MPa shear under 100 N up. These
 are nodal values at a sharp corner of a perfect-glue model; the glue's real
 strength was not measured.
 
-## 7. Open items
+## 7. As fitted, and open items
 
-Hardware, not done:
+As fitted (Tom, 2026-11-10): the **right** hip, the one that broke, carries
+the redesigned yoke of §4. The **left** hip still carries the original glued
+two-piece yoke (the failed design, §1), to be replaced only if it breaks. The
+left yoke is a known weaker part: by §3 its roll horn arm root sees about 9x
+the across-layer stress of the redesign, and it is the one expected to fail
+next. The repo records no fit check, glue cure, stall load or strength
+measurement of the redesigned yoke; the items below stay open.
 
-- Reprint both pieces at 100 % infill and fit them: the disc screws, the
-  carrier bay, the clips, and the roll idler boss's journal (printed tangent
-  on the bed).
-- Cure the glue fully, then load the roll joint to stall and see where it
-  goes next. The FEM's next candidates are the glue's rear corner (x −14,
+Floor tests run **without a catch line** for now (Tom, 2026-11-10: falls onto
+the carpet have generally been fine, and reprinting parts is cheap). A fall
+can therefore break a yoke; the left one first.
+
+Hardware, still open:
+
+- Fit the redesigned yoke's 100 % infill pieces (right hip) and check: the
+  disc screws, the carrier bay, the clips, and the roll idler boss's journal
+  (printed tangent on the bed). When the left breaks, replace it with the
+  redesign.
+- Cure the glue fully, then load the right roll joint to stall and see where
+  it goes next. The FEM's next candidates are the glue's rear corner (x −14,
   y −10) under yaw, the fin-to-arm junction on the roll piece, and the
   pitch idler arm's front root.
 - Measure the across-layer strength of this PETG on this printer (a printed

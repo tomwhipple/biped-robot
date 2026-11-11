@@ -158,7 +158,7 @@ hw_sessions/2026-10-24/stand/left_serial.log (L 15 mm: 1816 2461 1849; L 30 mm: 
 | 15 mm | 7.1 / 6.75 deg (lifted foot back on the desk, outer edge: Tom) | 4.1 | 11 ticks | 4 ticks |
 | 30 mm | 9.7 / 9.35 deg, steady, foot in the air | 5.0 | 17 ticks (10-24: 17) | 8 ticks (10-24: 10) |
 Differences from 10-24 that are known: battery in; the four roll zeros moved 2-3 deg after the 10-24 clamp runs (18:14Z fix: 52 2059 -> 2082,
-11 2085 -> 2108, 51 2025 -> 1991, 12 2031 -> 1997), so "straight" is a different roll pose; the hip yoke broke and was repaired (11-02); a leg link
+11 2085 -> 2108, 51 2025 -> 1991, 12 2031 -> 1997), so "straight" is a different roll pose; the right hip yoke broke and was replaced by the redesigned one (11-02 record; left is still the original); a leg link
 was replaced (11-06); desk without the mat, not perfectly level (Tom). Which of these accounts for the extra 4.4-4.7 deg is not established.
 - Tom: tightened ALL the ankle screws (on the ankle servos and the servo wheels) before the d-series repeat.
 - 01:04Z robot REBOOTED (battery alarm, Tom) and is now on BENCH POWER. LEFT foot clamped for the mirror test (e-series).

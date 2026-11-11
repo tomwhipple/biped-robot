@@ -121,7 +121,7 @@ Torso tilt toward the lifted side:
 - With the left foot clamped the torso also pitched about 4 deg; the other side showed none.
 
 Known differences from 10-24: the battery is in; the four roll zeros were moved 2 to 3 deg after the 10-24
-clamp runs (the 18:14Z fix), so "straight" is a different roll pose; the hip yoke was repaired (11-02) and a
+clamp runs (the 18:14Z fix), so "straight" is a different roll pose; the right hip yoke was replaced by the redesigned one (the left is still the original; see the yoke record §7) and a
 leg link replaced (11-06); the desk had no mat and is not level. Which of these accounts for the extra tilt is
 not established.
 
