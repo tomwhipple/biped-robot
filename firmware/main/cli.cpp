@@ -1382,8 +1382,9 @@ void fallTickImpl(Sink out) {
 //    fall guard takes it from here and goes limp, as for any bench fall.
 //  - OPERATOR STOP (tools/estop.py) while benched: any bench motion -- pose
 //    stream, balance, home -- stops where it is; a HARD stop also releases
-//    torque. Armed, ctrl has already acted; this only logs (kStop), once per
-//    burst (the tool repeats its frame for a second).
+//    torque. A reset cut short this way reports DISARMED_STOP: no readback
+//    will follow it. Armed, ctrl has already acted; this only logs (kStop),
+//    once per burst (the tool repeats its frame for a second).
 static uint32_t s_holds_seen = 0, s_stops_seen = 0, s_estops_seen = 0, s_walkrec_seen = 0;
 static bool s_hold_cand = false;
 static uint32_t s_hold_since = 0;
@@ -1408,6 +1409,11 @@ void flailTickImpl(Sink out) {
                              !robot::g_ctrl_owns_bus.load();
         if (benched) {
             s_traj_active = false;
+            // A reset cut short gets no readback: say the stop ended it
+            // (linkproto::benchStopResult), or HOME_PENDING stands for good.
+            const auto was = static_cast<linkproto::ArmResult>(robot::g_arm_result.load());
+            const linkproto::ArmResult now_r = linkproto::benchStopResult(was, s_home_pending);
+            if (now_r != was) robot::g_arm_result.store(static_cast<uint8_t>(now_r));
             s_home_pending = false;
             balStop(out, "STOP");
             if (hard) {

@@ -177,3 +177,22 @@ def test_the_fast_encoder_is_byte_exact_with_protocol():
             assert E.encode_stop(seq, flags) == P.encode_command(seq, 0.0, 0.0, flags)
             pkt = P.decode_command(E.encode_stop(seq, flags))
             assert pkt.stop and not pkt.arm and not pkt.enabled and not pkt.home
+
+
+def test_a_benched_stop_that_ends_a_reset_confirms_soft():
+    # Issue #281: the robot reports DISARMED_STOP when a benched stop cuts a
+    # servo reset short (linkproto::benchStopResult). That verdict confirms a
+    # soft stop; the HOME_PENDING it replaces does not (bench motion still in
+    # progress) and would escalate the HOLD to a hard stop.
+    import importlib.util
+    from types import SimpleNamespace
+    spec = importlib.util.spec_from_file_location("estop_under_test", ESTOP)
+    estop = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(estop)
+
+    def bench(r):
+        return SimpleNamespace(state=P.LinkState.BENCH, diag=P.pack_diag(False, True, r))
+
+    assert estop.confirmed(bench(P.ArmResult.DISARMED_STOP), hard=False)
+    assert not estop.confirmed(bench(P.ArmResult.HOME_PENDING), hard=False)
+    assert not P.is_home_result(P.ArmResult.DISARMED_STOP)
