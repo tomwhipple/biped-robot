@@ -417,6 +417,109 @@ is unchanged (test). 8 seeds, SHAPE_HZ 8:
   not analysed. march5: neither student was trained on the lift channel. grade pins it as the
   firmware does, so neither marches.
 
+## Round 4 (2026-11-11): free play inside the roll servos, beyond the encoder (#277)
+
+The 2026-11-11 clamp session (`hw_sessions/2026-11-11/m277/NOTES.md`, gitignored): with the R foot
+clamped toe and heel, the stance roll encoders move far less than the torso, and a fingertip
+swings the torso 9.4 deg (-9.74 .. -0.35) while the ankle-roll encoder moves 2.7 and the hip roll
+0.6. Tom, by hand: the play is inside the servo, between the horn and the motor / sensor. So the
+encoder reads the servo shaft, and the link floats beyond it. The training flag for it is
+`--roll-play-deg` (walker_env / env_mjx `roll_play_deg`, [training.md §2](../../../docs/training.md)):
+the shaft is position-controlled and is every encoder reading; the link floats inside +/-play/2 of
+it with no torque between them and is reached by the servo only at a band edge, through a contact
+that pushes only. gate_common's `play_hip` / `play_ankle` terms put it on the gate's plants.
+
+```bash
+.venv/bin/python experiments/policy/weight-transfer-gate/fit_rollplay.py --check "" \
+    --grid "ankle=3,4,4.5,5,5.5,6,7,8;hip=0,2,3,3.5,4,4.5,5,6"                       # item 1
+.venv/bin/python experiments/policy/weight-transfer-gate/ladder.py --plants ...      # item 2
+.venv/bin/python experiments/policy/weight-transfer-gate/rp_grade.py 8               # item 3
+```
+
+### 1. Clamp fit (`fit_rollplay.py`, `results/rp_fit_*.md`)
+
+The robot's own pose commands (the NOTES' tick poses, one_leg.CAL zeros), streamed open loop with
+minimum jerk over each pose's own duration, the R foot welded, L lifted. Four tests: the 30 mm
+lift from the straight stand (B), the 15 mm lift, the 81 mm shift then the 30 mm lift (G), and a
+lateral push on the torso ramped at 0.5 N/s after the 30 mm lift until the torso has swung 9.4 deg
+(the H rocking; the robot's force is not measured). Cost: squares of the residuals on the 30 mm
+tilt (8.55), its ankle / hip encoder moves (1.3 / 0.45), the 15 mm tilt (7.0), the shifted lift's
+tilt (2.7) and the rocking swing beyond the encoders (6.1), deg.
+
+Best on `grade` + `MASS_SYM`, no roll lash: **hip 4, ankle 5 deg peak to peak** (cost 1.92):
+
+| test | robot | play hip 4, ankle 5 | no play |
+|---|---|---|---|
+| 30 mm lift: tilt, deg | 8.45 / 8.70 | 7.87 | 2.67 |
+| ... stance encoders ankle / hip, deg | 1.14-1.49 / 0.35-0.44 | 1.91 / 0.83 | 1.66 / 0.63 |
+| 15 mm lift: tilt; lifted foot | 7.0; barely touching, no weight | 7.85; lowest pad 0.9 mm up, 0 N | 2.66; 9.0 mm up |
+| 81 mm shift, then 30 mm: tilt | 2.68 | 2.45 | 1.27 |
+| ... the shifted both-feet pose before vs after the lift | 4.22 apart | 0.74 apart | 0.04 |
+| hand rock: swing; encoders ankle / hip | 9.4; 2.7 / 0.6 | 9.42; 3.60 / 0.12 | 9.49; 7.81 / 0.50 |
+| ... beyond the encoders | ~6.1 | 5.70 | 1.18 |
+| ... push, start -> end; N per deg of swing | not measured | 0.46 -> 3.02 N; 0.19 | 0.54 -> 8.87 N; 0.99 |
+
+- **The roll lash must be off.** On the same plant with `lash=1.25` (the recipes' DR centre) the
+  best is hip 2, ankle 5 at cost 5.25: the deadzone sits on the encoder side, so the stance
+  encoders move 2.6 / 1.45 deg, about twice the robot's. The `train` plant (the prec16 chain at its
+  DR centre) agrees: best cost 5.43 with its 1.25 deg lash, 2.22 (hip 3, ankle 5; hip 4, ankle 5:
+  2.31) with `lash=0`.
+- **What the play does not fix.** The stance encoders move more than the robot's at every play
+  (1.9 / 0.8 deg against 1.1-1.5 / 0.35-0.45): that is the servos' stiffness under load, which the
+  play does not touch. The double-stance hysteresis (the same shifted pose 4.22 deg apart by
+  direction on the robot) comes out at 0.5-0.9 deg. The 15 mm lift tilts as far as the 30 mm one
+  (the play is used up either way) and its foot stays ~1 mm up; on the robot the foot touches at
+  7.0 (the robot's 15 mm pose was the 10-24 roll pose, whose roll zeros differ by ~2 deg).
+- **For training**: `--roll-play-deg hip=3:5,ankle=4:6` around the fit, without `--roll-lash-deg`.
+  A zero-action stand at the top of that range (hip 5, ankle 6, the `train` plant, no lash) holds
+  4 s (`tests/test_roll_play.py`).
+
+### 2. The scale ladder with the play (`ladder.py`, `results/rp_ladder.md`)
+
+`ladder.py` now reports a rung the plant falls off as FELL (it divided by zero before).
+
+| L-foot share | robot | MASS_SYM | REFIT3 springs | play 4/5 (fit) | play 3/4 | play 5/6 |
+|---|---|---|---|---|---|---|
+| toward L 62.0 mm | 0.695 | 0.684 | 0.684 | 0.711 | 0.737 | 0.729 |
+| toward L 74.4 mm | 0.737 | 0.732 | 0.742 | 0.860 | 0.766 | FELL |
+| toward L 80.6 mm | 0.771 | 0.758 | 0.815 | FELL | 0.893 | FELL |
+| toward L 86.8 mm | 0.793 | 0.787 | 0.952 | FELL | FELL | FELL |
+| toward R 86.8 mm | 0.193 | 0.219 | 0.214 | FELL | 0.201 | FELL |
+| rms vs robot (rungs that stood) | | 0.017 | 0.044 | 0.047 (3 fell) | 0.049 (1 fell) | 0.041 (5 fell) |
+
+**The play breaks the linear foot-load curve.** Free play in all four rolls is a sway mode of the
+both-feet-down chain: at the far rungs the body tips over the loaded foot's edge and falls (the
+traced 80.6 mm rung toward L: the play offsets go to the band edges and the torso rolls past 20 deg
+about 2.5 s after the shift pose is reached), and the near rungs toward R are not monotonic (0.355, 0.258, 0.303,
+...). The robot, with the same servos, stands on every rung with a linear curve. The plant is
+missing whatever holds the play in double stance (friction inside the play, or play that shrinks
+under preload are candidates, neither measured).
+
+### 3. grade.py with the play (`rp_grade.py`, `results/rp_grade.md`)
+
+Students on grade.py's `robot` plant, 8 seeds; `play 4/5` = `GRADE_PLANT_TERMS=play_hip=4,play_ankle=5`
+(prec57 trained with `--roll-series-k`: "grade as is" carries its spring, the play rows replace it).
+Full table: `results/rp_grade.md`. Tilt = acos(up_z) from the walk command (robot, 2026-11-10:
+5.6 / 11.3 / 14.4 deg at +0.3 / +0.5 / +0.6 s).
+
+| student, probe | plant | lift L / R cm | shift_when_up L-up / R-up | tilt +0.3 / +0.5 / +0.6 | falls / trips |
+|---|---|---|---|---|---|
+| prec16, stride1 0.3 | as is | 3.12 / 2.05 | -0.22 / +0.16 | 3.3 / 7.0 / 6.6 | 0 / 1 of 8 |
+| prec16, stride1 0.3 | play 4/5 | 2.83 / 1.92 | -0.19 / +0.16 | 2.9 / 7.0 / 6.0 | 0 / 7 of 8 |
+| prec16, stride1 0.3 | MASS_SYM + play | 2.81 / 1.77 | -0.50 / +0.29 | 3.0 / 6.7 / 6.1 | 0 / 8 of 8 |
+| prec52_march, march5 | as is | 0.70 / 6.38 | - / +0.62 | | 0 / 0 |
+| prec52_march, march5 | play 4/5 | 0.62 / 5.28 | - / +0.50 | | 0 / 0 |
+| prec52_march, stride1 0.3 | play 4/5 | 2.37 / 1.96 | -0.19 / +0.28 | 6.8 / 11.2 / 12.1 | 0 / 8 of 8 |
+| prec57_march_rs, march5 | as is (its spring) | 0.18 / 0.21 | - / - | | 0 / 0 |
+| prec57_march_rs, march5 | play 4/5 | 0.19 / 0.15 | - / - | | 0 / 0 |
+| prec57_march_rs, stride1 0.3 | play 4/5 | 2.74 / 1.38 | -0.24 / +0.11 | 4.2 / 9.2 / 10.4 | 0 / 8 of 8 |
+
+- **The play does not make the stride tip like the robot.** prec16's tilt at +0.5 s is 7.0 deg with
+  and without it (robot 11.3). The play lowers the lifts (the R foot by 0.1-0.8 cm) and adds guard
+  trips (all `pose`), with no falls.
+- prec52 still marches on its R foot only (L 0.6-0.7 cm); the play takes ~1 cm off the R lift.
+  prec57 does not march on this plant with or without the play.
+
 ## What is still unmeasured
 
 1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s

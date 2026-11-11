@@ -40,7 +40,7 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
   play_hip=<deg>, play_ankle=<deg>   free play (peak to peak) inside each hip roll / ankle roll
               servo BEYOND its encoder: walker_env roll_play_deg (the shaft is position-controlled
               and is what the encoder reads; the link floats inside +/-play/2 of it), fixed values,
-              taking effect at the env's next reset
+              live at once and at every reset after; a run's own series spring is dropped
 """
 from __future__ import annotations
 
@@ -237,6 +237,9 @@ def apply_terms(env, terms):
         set_series_view(env, 1.0 - x)
     if "play_hip" in terms or "play_ankle" in terms:
         import walker_env as W
+        # the play replaces a run's own series spring (the env takes one or the other)
+        env.roll_series_k = None
+        env._ser_c = env._ser_defl = env._ser_dq = None
         env.roll_play_deg = W.parse_roll_play_deg(
             {r: float(terms.get("play_" + r, 0.0)) for r in W.ROLL_SERIES_ROLES})
         # live now too (a Replay places the robot without a reset): fixed widths, shaft on the link
