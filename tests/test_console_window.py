@@ -228,6 +228,27 @@ def test_every_tab_fits_its_pane(qapp, twin, tmp_path, size):
         w.close()
 
 
+def test_an_observer_drive_tab_is_greyed_and_says_take_control(qapp, twin, tmp_path):
+    """An observer sends nothing: Drive's pad buttons, channel and speed
+    sliders are greyed and the source line points at TAKE CONTROL; taking
+    control enables them."""
+    w = window(qapp, twin, tmp_path)                 # no --drive: an observer
+    try:
+        pump(qapp, 0.4)
+        d = w.tab_widgets["Drive"]
+        live = (*d.pad_btns.values(), d.fdx, d.fdz, d.svx, d.svy, d.swz, d.rate, d.reset_ext)
+        assert w.ctl.st.readonly
+        assert not any(x.isEnabled() for x in live)
+        assert "TAKE CONTROL" in d.source.text()
+        w.ctl.toggle_control()
+        pump(qapp, 0.4)
+        assert not w.ctl.st.readonly
+        assert all(x.isEnabled() for x in live)
+        assert d.source.text().startswith("source:")
+    finally:
+        w.close()
+
+
 def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
     """SDL (pygame) would take SIGTERM for itself; the console must still
     close on it, through the window's own close path."""

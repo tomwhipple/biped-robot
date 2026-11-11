@@ -67,7 +67,8 @@ class DriveTab(QtWidgets.QWidget):
         crouch_lo = min(env.crouch_min, 1.0)
         self.crouch = Slider("crouch ", crouch_lo, 1.0, st.crouch, "{:.2f}",
                              note=None if crouch_lo < 1.0 else "trained at 1 only")
-        self.crouch.setEnabled(crouch_lo < 1.0)
+        self._crouch_ok = crouch_lo < 1.0
+        self.crouch.setEnabled(self._crouch_ok)
         self.fdx = Slider("foot dx", -fd, fd, st.foot_dx, "{:+.3f} m")
         self.fdz = Slider("foot dz", -fd, fd, st.foot_dz, "{:+.3f} m")
         self.lift = {}
@@ -81,7 +82,7 @@ class DriveTab(QtWidgets.QWidget):
             self.lift[v] = r
             lift_row.append(r)
         self.lift[0.0].setChecked(True)
-        reset = btn("reset [0]", 110, h=32)
+        reset = self.reset_ext = btn("reset [0]", 110, h=32)
         reset.clicked.connect(lambda: c.fire("reset_ext"))
         for s in (self.crouch, self.fdx, self.fdz):
             s.changed.connect(self._ext_changed)
@@ -136,6 +137,22 @@ class DriveTab(QtWidgets.QWidget):
                             wrap(vbox(extg, spg, spacing=10)), spacing=12)
         self.setLayout(vbox(self.cols, chg, "stretch", spacing=10, margins=(12, 12, 12, 12)))
 
+    def _set_driver(self, driver: bool) -> None:
+        """An observer sends nothing: every control that would is greyed (the
+        safety bar's TAKE CONTROL is the way in), never hidden."""
+        if getattr(self, "_driver", None) == driver:
+            return
+        self._driver = driver
+        for w in (*self.pad_btns.values(), self.fdx, self.fdz, *self.lift.values(),
+                  self.reset_ext, self.svx, self.svy, self.swz, self.rate):
+            w.setEnabled(driver)
+        self.crouch.setEnabled(driver and self._crouch_ok)
+        self.source.setStyleSheet(f"color:{GREEN if driver else AMBER}; font-size:11px; "
+                                  f"font-weight:700")
+        tip = "" if driver else "observer: TAKE CONTROL in the safety bar to drive"
+        for w in self.pad_btns.values():
+            w.setToolTip(tip)
+
     def _ext_changed(self, *_):
         lift = next((v for v, r in self.lift.items() if r.isChecked()), 0.0)
         self.app.ctl.set_ext(self.crouch.value(), lift, self.fdx.value(), self.fdz.value())
@@ -164,7 +181,11 @@ class DriveTab(QtWidgets.QWidget):
         for k, i, f in (("vx", 0, "{:+.2f}"), ("vy", 1, "{:+.2f}"), ("wz", 2, "{:+.2f}"),
                         ("crouch", 3, "{:.2f}")):
             self.saw[k].setText(f.format(saw[i]) if saw is not None else "  —  ")
-        self.source.setText(f"source: {app.drive_source()}")
+        self._set_driver(not st.readonly)
+        if st.readonly:
+            self.source.setText("observer: nothing here drives · TAKE CONTROL (safety bar)")
+        else:
+            self.source.setText(f"source: {app.drive_source()}")
         # Mirror the intent's extended channels, which `set` / reset change too.
         for s, v in ((self.crouch, st.crouch), (self.fdx, st.foot_dx), (self.fdz, st.foot_dz)):
             if abs(s.value() - v) > 1e-3 and not s.s.isSliderDown():
