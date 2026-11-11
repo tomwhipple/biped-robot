@@ -22,6 +22,7 @@ from .core import lag_text
 from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, ORANGE, RED, STATE_COLOUR, btn, hbox,
                  lab, restyle, vbox)
 
+ARM_CHECKS_OPEN = "ARM · checks open"
 SEP = "<span style='color:#4a5059'>&nbsp;&nbsp;│&nbsp;&nbsp;</span>"
 
 
@@ -36,15 +37,17 @@ def flag_names(flags: int) -> str:
                     if flags & bit) or "-"
 
 
-def _fit(b: QtWidgets.QPushButton, px: int, texts, least: int) -> None:
-    """Fix a stop button's width at the widest text it can show (in its
-    style sheet's font), never under `least`: a stop button never clips."""
+def _fit(b: QtWidgets.QPushButton, px: int, texts, least: int,
+         weight=QtGui.QFont.Weight.ExtraBold, border: int = 3) -> None:
+    """Fix a button's width at the widest text it can show (in its style
+    sheet's font), never under `least`: a safety-bar button never clips."""
     f = QtGui.QFont(b.font())
     f.setPixelSize(px)
-    f.setWeight(QtGui.QFont.Weight.ExtraBold)
+    f.setWeight(weight)
     fm = QtGui.QFontMetrics(f)
-    # padding 14 px a side (ui.QSS) + a 3 px border + slack for the font.
-    b.setFixedWidth(max(least, max(fm.horizontalAdvance(t) for t in texts) + 2 * 17 + 14))
+    # padding 14 px a side (ui.QSS) + the border + slack for the font.
+    b.setFixedWidth(max(least, max(fm.horizontalAdvance(t) for t in texts)
+                        + 2 * (14 + border) + 14))
 
 
 class SafetyBar(QtWidgets.QFrame):
@@ -66,7 +69,7 @@ class SafetyBar(QtWidgets.QFrame):
                                "BENCH", "ESTOP", "VLAND", "VSAFE", "RELAX", "STAND", "LIVE"))
         self.badge.setFixedWidth(widest + 32)
         self.badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.arm = btn("ARM", 212, "arm")
+        self.arm = btn("ARM", None, "arm")          # sized in _labels
         self.stand = btn("STAND", 124)
         # The stop buttons are sized from the widest text they can show
         # (_labels), so neither is ever clipped; "sending" is beside them on
@@ -125,7 +128,10 @@ class SafetyBar(QtWidgets.QFrame):
         self.stand.setText("STAND" + self._key("stand"))
         self.hold.setText("HOLD" + self._key("hold"))
         self.reset.setText("RESET SERVOS" + self._key("home"))
-        # ui.QSS: #hold is 16 px, #estop / #estop_latched 19 px, all weight 800.
+        # ui.QSS: #arm is 13 px weight 700 with a 1 px border; #hold is 16 px,
+        # #estop / #estop_latched 19 px, both weight 800.
+        _fit(self.arm, 13, [t + self._key("arm") for t in ("ARM", "DISARM", ARM_CHECKS_OPEN)],
+             212, QtGui.QFont.Weight.Bold, 1)
         _fit(self.hold, 16, ["HOLD" + self._key("hold")], 124)
         _fit(self.estop, 19, [t + self._key("estop") for t in ("E-STOP", "E-STOP LATCHED")],
              204)
@@ -154,7 +160,7 @@ class SafetyBar(QtWidgets.QFrame):
         # -- controls --------------------------------------------------------
         arm_txt = "DISARM" if st.armed else "ARM"
         if not st.armed and app.checks_open():
-            arm_txt = "ARM · checks open"
+            arm_txt = ARM_CHECKS_OPEN
         self.arm.setText(arm_txt + self._key("arm"))
         self.arm.setEnabled(driver)
         self.stand.setEnabled(driver)

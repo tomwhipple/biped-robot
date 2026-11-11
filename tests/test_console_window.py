@@ -149,6 +149,31 @@ def test_keys_follow_the_dead_man_rules(qapp, twin, tmp_path):
         w.close()
 
 
+def test_the_safety_bar_buttons_fit_their_widest_text(qapp, twin, tmp_path):
+    """ARM's longest text ("ARM · checks open" and its key) must not clip,
+    like HOLD's and E-STOP's: each button is as wide as its text needs, in
+    its style sheet's font (ui.QSS), whatever key it is bound to."""
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        w.checks_open = lambda: True
+        c = w.ctl.core
+        c.bind(core.action_from_name("arm"), core.key_from_name("Backspace"))
+        w.bar.keymap_changed()
+        pump(qapp, 0.3)
+        assert w.bar.arm.text() == "ARM · checks open   [Backspace]", w.bar.arm.text()
+        # (button, px, weight, border) as ui.QSS styles them; padding 14 px.
+        for b, px, weight, border in ((w.bar.arm, 13, QtGui.QFont.Weight.Bold, 1),
+                                      (w.bar.hold, 16, QtGui.QFont.Weight.ExtraBold, 2),
+                                      (w.bar.estop, 19, QtGui.QFont.Weight.ExtraBold, 2)):
+            f = QtGui.QFont(b.font())
+            f.setPixelSize(px)
+            f.setWeight(weight)
+            need = QtGui.QFontMetrics(f).horizontalAdvance(b.text()) + 2 * (14 + border)
+            assert b.width() >= need, (b.text(), b.width(), need)
+    finally:
+        w.close()
+
+
 def test_an_observer_window_greys_what_it_cannot_do(qapp, twin, tmp_path):
     w = window(qapp, twin, tmp_path)                    # the default: observer
     try:
