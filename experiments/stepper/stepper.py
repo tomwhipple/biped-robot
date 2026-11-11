@@ -78,8 +78,10 @@ LEARNED = ("k_shift", "h_up", "hike", "comp")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
-    k_step=0.1, k_min=0.8, k_max=1.5,
+    k_step=0.1, k_min=0.8, k_max=1.4, k_floor=1.0,
     shift_step=0.02,      # the pelvis crosses in moves of this size, IMU read between, m
+    shift_out_lim=2.5,    # shifting over a stance foot: a lean TOWARD it this far (deg, from the start of the shift) = tipping out
+    shift_back_mm=20.0,   # ... then the pelvis steps back toward the middle by this much, mm, and k_shift of that side drops a step
     shift_lean_lim=8.0,   # a lean past this (deg) during a shift ends the run
     fwd_w=0.75,           # the pelvis rides this far from the swing foot toward the stance foot, fore-aft
     dh=0.005,             # lift increment, m
@@ -182,6 +184,9 @@ class Run:
         self.stop_why = None
         self.out = []
         self.ahead = None
+        self.shift_tipped = False
+        self.n_push = 0                       # how often balance has moved the pelvis
+        self.k_off = None                     # the shift (x model) at which the foot was first judged clear
         self.n_steps = 0
         self.misses = 0
         self.t_fall = ""
@@ -282,8 +287,12 @@ class Run:
         fwd = P["fwd_w"] * self.feet[stance][0] + (1 - P["fwd_w"]) * self.feet[swing][0] + ox
         return [fwd, self.fy(stance) + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
 
-    def move_pel(self, to, tag):
-        """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down."""
+    def move_pel(self, to, tag, guard=None):
+        """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down.
+        guard=(stance, roll0): a shift over `stance`; with both feet down the body normally leans AWAY from the
+        side the pelvis goes to, so a lean toward it (roll relative to roll0) past shift_out_lim is the stance
+        foot tipping over its outer edge: the pelvis steps back toward the middle, k_shift[stance] drops a step
+        and the move ends there (self.shift_tipped)."""
         P = self.p
         a, k0 = list(self.pel), dict(self.hike)
         dist = math.hypot(to[0] - a[0], to[1] - a[1])
@@ -297,14 +306,36 @@ class Run:
             self.go(ms, f"{tag} {i}/{n}")
             s = self.read(tag)
             dr, dp = self.lean(s)
+            if guard is not None:
+                toward = (dr - guard[1]) if guard[0] == "R" else -(dr - guard[1])      # roll + = leaning to the robot's right
+                if toward > P["shift_out_lim"]:
+                    self.shift_back(guard[0], toward)
+                    return s
             if abs(dr) > P["shift_lean_lim"] or abs(dp) > P["shift_lean_lim"]:
                 self.say(f"  leaning in {tag}: roll {dr:+.1f} pitch {dp:+.1f} at shift {1e3 * self.pel[1]:+.0f} mm")
                 raise Abort(f"lean {dr:+.1f}/{dp:+.1f} deg during {tag}")
         return s
 
+    def shift_back(self, stance, toward):
+        """The shift over `stance` is tipping outward: one quick move back toward the middle, k_shift down a step."""
+        P = self.p
+        mid = 0.5 * (self.fy("L") + self.fy("R"))
+        y = self.pel[1]
+        back = max(0.0, abs(y - mid) - 1e-3 * P["shift_back_mm"])
+        self.pel[1] = mid + math.copysign(back, y - mid)
+        self.go(int(1e3 * P["t_min"]), f"shift back {stance}")
+        old = P["k_shift"][stance]
+        P["k_shift"][stance] = round(max(P["k_min"], old - P["k_step"]), 3)
+        self.shift_tipped = True
+        self.log("shift_tip", stance=stance, toward=round(toward, 2), shift_mm=round(1e3 * y, 1), back_to_mm=round(1e3 * self.pel[1], 1),
+                 k_old=old, k=P["k_shift"][stance])
+        self.say(f"  shift over {stance} tipping out ({toward:+.1f} deg toward it): back to {1e3 * self.pel[1]:+.0f} mm, k now x{P['k_shift'][stance]:.2f}")
+
     def shift_over(self, stance):
         to = self.stance_pel(stance)
-        self.move_pel(to, f"shift {stance}")
+        roll0 = self.lean(self.read(f"shift {stance} start"))[0]
+        self.shift_tipped = False
+        self.move_pel(to, f"shift {stance}", guard=(stance, roll0))
         time.sleep(self.p["settle_s"])
         s = self.ref = self.settle(f"over {stance}")
         dr, dp = self.lean(s)
@@ -348,6 +379,8 @@ class Run:
             if clr.p >= P["p_clear"]:
                 self.hike[stance] = hike
                 self.go(int(1e3 * P["t_inc"]), f"level {swing}")
+                self.k_off = abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])    # the shift at lift-off
+                self.n_push0 = self.n_push
                 return self.balance(swing, P["t_confirm"]), h     # up for a moment is not up: it must stay
             h_next = h + P["dh"]
         return "max", h
@@ -388,6 +421,7 @@ class Run:
                 while abs(new - self.pel[1]) > 1e-4 and not self.reachable(new, self.pel[0], fl, fr):
                     new = self.pel[1] + 0.5 * (new - self.pel[1])        # clamp short of the reach limit
                 self.pel[1] = new
+                self.n_push += 1
                 self.hike[stance] = max(0.0, min(P["hike_max"], self.hike[stance] + P["g_hike"] * tilt))
                 self.go(int(1e3 * P["t_bal"]), f"balance {swing}")
 
@@ -411,6 +445,18 @@ class Run:
         dr, dp = self.lean(s)
         self.say(f"  down {swing}  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
+
+    def learn_k(self, stance, k_off, pushed):
+        """The shift remembered for `stance` after a successful lift: the one at lift-off (not where balance
+        wandered to later), rising by at most half a step per lift; after a lift that needed no balance push it
+        decays 0.02 toward k_floor. So k cannot ratchet up to its ceiling."""
+        P = self.p
+        old = P["k_shift"][stance]
+        new = min(k_off, old + 0.5 * P["k_step"])
+        if not pushed and new > P["k_floor"]:
+            new = max(P["k_floor"], new - 0.02)
+        P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], new)), 3)
+        return P["k_shift"][stance]
 
     def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None):
         """One self-correcting lift of `swing` (and, while it is up, a forward move of dx m and, if y_to is
@@ -439,12 +485,12 @@ class Run:
                         return how, h
             if how == "up":
                 hike = self.hike[stance]
-                k = abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])              # remember what this side took
-                self.say(f"  up: {swing} at {1e3 * h:.0f} mm, hip trim {hike:.1f}, shift x{k:.2f}")
+                k = self.k_off if self.k_off is not None else abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])
+                self.say(f"  up: {swing} at {1e3 * h:.0f} mm, hip trim {hike:.1f}, shift x{k:.2f} at lift-off")
                 a = 0.5 if P["h_up"][stance] else 1.0
                 P["h_up"][stance] = round((1 - a) * P["h_up"][stance] + a * h, 4)
                 P["hike"][stance] = round((1 - a) * P["hike"][stance] + a * hike, 2)
-                P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], k)), 3)
+                self.learn_k(stance, k, pushed=self.n_push > getattr(self, "n_push0", 0))
                 self.lower_foot(swing)
                 return how, h
             # not up: put it down and correct the shift for this stance side
@@ -614,7 +660,8 @@ class Run:
         ox, oy = self.off[g]
         fwd = P["fwd_w"] * xg + (1 - P["fwd_w"]) * xs + ox
         zs = max(P["dh"], P["h_up"][g])
-        if not self.reachable(yg + (P["k_max"] if headroom else P["k_shift"][g]) * oy, fwd, *feet(zs)):
+        kg = P["k_max"] if headroom else P["k_shift"][g]
+        if not self.reachable(yg + kg * oy, fwd, *feet(zs)) or not self.reachable(yg + kg * oy, fwd, *feet(0.0)):   # up, and lowering
             return False
         ox, oy = self.off[swing]
         fwd = P["fwd_w"] * xs + (1 - P["fwd_w"]) * xg + ox
