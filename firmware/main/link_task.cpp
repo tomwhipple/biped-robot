@@ -183,6 +183,7 @@ void houseTask(void*) {
         // the beacon actually means: at the zeros, or not.
         cli::fallTick(&houseSay);
         cli::servoRamTick(&houseSay);
+        cli::benchVbatTick();
         cli::flailTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);

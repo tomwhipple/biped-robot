@@ -1978,6 +1978,40 @@ void servoRamTickImpl(Sink out) {
     }
 }
 
+// Benched pack voltage for the beacon (shared.h g_telemetry.vbat_mv). The armed
+// loop publishes the pack from its own servo reads (ctrl_task.cpp publish) and
+// benched it publishes nothing, so without this the beacon's vbat -- the
+// console's header voltage and its Checks pack row -- is the last armed tick's
+// pack, or 0 since boot. Once a second, when the CLI owns an idle bus (no pose
+// stream, no bench balance): register 62 of ONE fitted servo, the next one in
+// bus order each time a read fails, so a dead bus costs one reply timeout a
+// second and a single silent servo does not blind it. 0 means no answer
+// (ctrl_task's rule): the last reading stands.
+static TickType_t s_bench_vbat_next = 0;
+static int s_bench_vbat_bus = 0;
+void benchVbatTickImpl() {
+    const TickType_t now = xTaskGetTickCount();
+    if (now < s_bench_vbat_next) return;
+    s_bench_vbat_next = now + pdMS_TO_TICKS(1000);
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
+        !robot::g_bus || s_traj_active || s_bal.engaged())
+        return;
+    const obs::Calibration& cal = robot::calibration();
+    for (int k = 0; k < obs::kNumBusJoints; ++k) {
+        const int b = (s_bench_vbat_bus + k) % obs::kNumBusJoints;
+        if (!cal.fitted[b]) continue;
+        uint8_t dv = 0;
+        if (robot::g_bus->readVoltageDeciVolts(obs::kBusServoId[b], dv) == scsbus::Status::kOk &&
+            dv != 0) {
+            robot::g_telemetry.vbat_mv.store(static_cast<uint16_t>(dv * 100u));
+            s_bench_vbat_bus = b;
+        } else {
+            s_bench_vbat_bus = (b + 1) % obs::kNumBusJoints;
+        }
+        return;
+    }
+}
+
 // `servocfg [fast|factory]` -- show / set the STS3215 response config (RAM regs 85/81).
 void cmdServocfg(Sink out, int argc, char** argv) {
     if (argc >= 2 && tetherOnly(out, "`servocfg fast|factory` rewrites servo registers")) return;
@@ -2581,6 +2615,7 @@ void traceDump(Sink out) {
 
 void fallTick(Sink out) { fallTickImpl(out); }
 void servoRamTick(Sink out) { servoRamTickImpl(out); }
+void benchVbatTick() { benchVbatTickImpl(); }
 void flailTick(Sink out) { flailTickImpl(out); }
 
 constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
