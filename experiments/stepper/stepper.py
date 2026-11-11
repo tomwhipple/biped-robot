@@ -29,6 +29,17 @@ until the firmware has homed the robot (picked up: within 25 deg of upright, |gy
                                         middle of the board, stop short of its edge (needs the Sony; it
                                         records, 180 s unless --video says otherwise; also on `march`)
 
+    stepper.py walk --dx -0.02          backward steps
+    stepper.py shuttle --steps 4 --cycles 3 --dx 0.02 [--dx-list 0.02,0.03] [--dy D] [--board]
+                                        N steps forward, N back (undoing them, so the feet end where they
+                                        began), M times in one run; --dx-list: cycle k uses the k-th dx
+    stepper.py playsweep --side L       lift that foot, then in the air sweep the stance hip-roll trim, then
+                                        the stance ankle-roll trim, +-sweep_deg around where it is (`sweep` rows)
+    stepper.py shiftsweep               both feet down: the pelvis shift 0 -> +62 -> -62 -> 0 mm x sweep_k
+    --pace X                            every phase time x X (walk --pace 0.6 = the same walk in 60 % of the time)
+Every guard_every steps the eight load-bearing servos are read (`servos` rows); a servo over temp_max_c or a bus
+under volt_min ends the run cleanly. The log's `start` and `lift` rows carry utc (wall clock).
+
 With --board the look is the median of 3 camera frames (low-confidence ones dropped). A foot does not land
 where it is sent (the stance leg leans through its roll-servo play): each look compares the measured sole
 separation with the believed one and puts a miss of 4..45 mm down to the foot that landed last, moves where it
@@ -57,6 +68,8 @@ sys.path.insert(0, HERE)
 from nool import foot_clear, settled, tipping  # noqa: E402
 
 STATE = os.path.join(HERE, "state.json")
+TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
+GUARD = ("R_hip_roll", "L_hip_roll", "R_knee", "L_knee", "R_ankle_roll", "L_ankle_roll", "R_hip_pitch", "L_hip_pitch")
 LEARNED = ("k_shift", "h_up", "hike", "lat_ff")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
@@ -76,10 +89,19 @@ DEFAULTS = dict(
     h_up={"L": 0.0, "R": 0.0},        # learned: the lift (m) at which the foot was judged clear, per STANCE side
     hike={"L": 0.0, "R": 0.0},        # learned: the stance hip trim (deg) by then
     p_clear=0.9, p_tip=0.5,
-    tilt_lim=12.0, out_lim=3.0, pitch_lim=6.0, rate_lim=30.0,
+    tilt_lim=8.0, out_lim=3.0, pitch_lim=6.0, rate_lim=30.0,
     fall_deg=35.0,
     t_crouch=2.5, t_shift=2.5, t_inc=0.35, t_swing=1.0, t_lower=0.3,
     lower_step=0.01, settle_s=0.4,
+    t_bal=0.25,           # the balance move in the air, s
+    t_min=0.25,           # shortest monitored pelvis move / fast lower, s
+    t_sweep=0.25,         # one step of a data sweep, s
+    guard_every=4,        # read the load-bearing servos every this many steps
+    temp_max_c=65.0,      # a servo hotter than this ends the run, deg C
+    volt_min=10.5,        # a bus voltage below this ends the run, V
+    sweep_deg=4.0,        # playsweep: trim swept +- this, deg, in steps of 0.5
+    sweep_cycles=2,       # playsweep/shiftsweep: triangles
+    sweep_k=1.0,          # shiftsweep: the pelvis shift swept +- this x 62 mm, in steps of 6 mm
     board_min_mm=25.0,    # stop the walk when a sole's outer edge is this close to the board's edge, mm
     board_ahead_px=60.0,  # ... or when the feet are this near the bottom of the picture (board runs out), px
     board_dead_mm=15.0,   # no steering while the room left and right differs by less than 2x this, mm
@@ -99,6 +121,14 @@ DEFAULTS = dict(
                 "reply 'sent'.)"],     # {hhmm} = local time of the fall; [] = never notify
     lat_ff={"L": 0.0, "R": 0.0},      # learned: lateral offset (m, + = left) added to where each foot is commanded to land
 )
+
+
+def apply_pace(prm, pace):
+    """Every phase time x pace (t_crouch, the slow first stand, excluded)."""
+    for k in TIMES:
+        prm[k] = prm[k] * pace
+    prm["pace"] = pace
+    return prm
 
 
 def load_state():
@@ -127,6 +157,7 @@ class Run:
         self.ycmd = {"L": 0.0, "R": 0.0}      # added to feet[side][1] in the pose sent: the landing compensation in force
         self.pel = [0.0, 0.0]                                         # pelvis offset (fwd, shift)
         self.hike = {"L": 0.0, "R": 0.0}                              # hip-roll trim, deg, of the leg it stands on
+        self.ankle = {"L": 0.0, "R": 0.0}                             # ankle-roll trim, deg (data sweeps only)
         self.ref0 = None                                              # the level crouch
         self.ref = None                                               # after the last shift
         self.tilt_s = 0.0                                             # its lean toward the swing foot then
@@ -141,6 +172,9 @@ class Run:
         self.last_landed = None               # the foot whose landing the next look judges
         self.stop_why = None
         self.out = []
+        self.ahead = None
+        self.n_steps = 0
+        self.misses = 0
         self.t_fall = ""
         if video:
             env = dict(os.environ, INPUT_FORMAT="mjpeg", SIZE="1920x1080")
@@ -154,7 +188,7 @@ class Run:
                 self.video.append(subprocess.Popen(["tools/sony_record.sh", self.base + "_sony", str(video), "sony"],
                                                    cwd="/home/claw/code/robot", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             time.sleep(2.5)
-        self.log("start", prm=prm, cal=robot.cal, off=self.off)
+        self.log("start", prm=prm, cal=robot.cal, off=self.off, utc=time.time(), pace=prm.get("pace", 1.0))
 
     # -- records ----------------------------------------------------------
     def log(self, ev, **kw):
@@ -179,7 +213,8 @@ class Run:
     def go(self, ms, tag):
         try:
             q = self.k.pose(shift=self.pel[1], fwd=self.pel[0], footL=self.cmd("L"), footR=self.cmd("R"),
-                            drop=self.p["drop"], hike={k: math.radians(v) for k, v in self.hike.items()})
+                            drop=self.p["drop"], hike={k: math.radians(v) for k, v in self.hike.items()},
+                            ankle={k: math.radians(v) for k, v in self.ankle.items()})
         except ValueError as e:
             raise Abort(f"{tag}: {e}")
         self.r.pose(q, ms)
@@ -245,7 +280,7 @@ class Run:
         a, k0 = list(self.pel), dict(self.hike)
         dist = math.hypot(to[0] - a[0], to[1] - a[1])
         n = max(1, math.ceil(dist / P["shift_step"]), math.ceil(max(k0.values()) / 3.0))
-        ms = int(1e3 * max(0.25, P["t_shift"] * (dist / n) / 0.08))
+        ms = int(1e3 * max(P["t_min"], P["t_shift"] * (dist / n) / 0.08))
         s = None
         for i in range(1, n + 1):
             u = i / n
@@ -297,7 +332,10 @@ class Run:
                      f"pitch {self.lean(s)[1] - pitch_s:+5.2f}  rate {s['rate']:4.1f}  clear~{clr.why['clear_mm']:+5.1f} mm "
                      f"P(clear) {clr.p:.2f}  P(tip) {tip.p:.2f}")
             if tip.p > P["p_tip"]:
-                return ("tipping_out" if tilt < -0.5 * P["out_lim"] else "tipping"), h
+                if tilt < -0.5 * P["out_lim"]:
+                    return "tipping_out", h
+                # hanging toward the lifted foot: the weight is inboard of the stance foot -- like fell_in
+                return ("tipping_in" if tilt > 0.5 * P["tilt_lim"] else "tipping"), h
             hike = max(0.0, min(P["hike_max"], hike + P["g_hike"] * tilt))      # the stance hip takes up the sag
             if clr.p >= P["p_clear"]:
                 self.hike[stance] = hike
@@ -339,7 +377,7 @@ class Run:
                 y = max(P["k_min"] * abs(oy), min(P["k_max"] * abs(oy), y))
                 self.pel[1] = yst + math.copysign(y, oy)
                 self.hike[stance] = max(0.0, min(P["hike_max"], self.hike[stance] + P["g_hike"] * tilt))
-                self.go(250, f"balance {swing}")
+                self.go(int(1e3 * P["t_bal"]), f"balance {swing}")
 
     def lower_foot(self, swing, fast=False):
         """Put `swing` down in monitored moves (the hip trim stays until the next shift takes it out).
@@ -354,7 +392,7 @@ class Run:
             self.hike = {"L": 0.0, "R": 0.0}
         for i in range(1, n + 1):
             self.feet[swing][2] = h0 * (1 - i / n)
-            self.go(int(1e3 * (0.25 if fast else P["t_lower"])), f"lower {swing} {1e3 * self.feet[swing][2]:.0f}")
+            self.go(int(1e3 * (P["t_min"] if fast else P["t_lower"])), f"lower {swing} {1e3 * self.feet[swing][2]:.0f}")
             self.read(f"lower {swing}")
         time.sleep(P["settle_s"])
         s = self.settle(f"down {swing}")
@@ -362,16 +400,18 @@ class Run:
         self.say(f"  down {swing}  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
 
-    def lift(self, swing, hold=1.5, dx=0.0, y_to=None):
+    def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None):
         """One self-correcting lift of `swing` (and, while it is up, a forward move of dx m and, if y_to is
-        not None, a move to the absolute lateral offset y_to m: +y = the robot's left)."""
+        not None, a move to the absolute lateral offset y_to m: +y = the robot's left). air: a callable run once
+        with the foot up and judged up; it returns "up" or a tipping verdict (then the foot goes down and the
+        lift ends: no retry)."""
         stance = "L" if swing == "R" else "R"
         P = self.p
         for attempt in range(4):
             self.shift_over(stance)
             how, h = self.raise_foot(swing)
             hike = self.hike[stance]
-            self.log("lift", swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
+            self.log("lift", utc=time.time(), swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
             if how == "up":
                 dy = 0.0
                 if y_to is not None:
@@ -383,6 +423,11 @@ class Run:
                     self.feet[swing][0] += dx
                     self.go(int(1e3 * P["t_swing"]), f"swing {swing} {1e3 * dx:+.0f} {1e3 * dy:+.0f}")
                 how = self.balance(swing, hold)
+                if how == "up" and air is not None:
+                    how = air(swing)
+                    if how != "up":
+                        self.lower_foot(swing, fast=(how == "tipping_out"))
+                        return how, h
             if how == "up":
                 hike = self.hike[stance]
                 k = abs((self.pel[1] - self.fy(stance)) / self.off[stance][1])              # remember what this side took
@@ -396,7 +441,7 @@ class Run:
                 return how, h
             # not up: put it down and correct the shift for this stance side
             self.lower_foot(swing, fast=(how == "tipping_out"))
-            dk = -P["k_step"] if how == "tipping_out" else (P["k_step"] if how in ("max", "fell_in") else 0.0)
+            dk = -P["k_step"] if how == "tipping_out" else (P["k_step"] if how in ("max", "fell_in", "tipping_in") else 0.0)
             P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], P["k_shift"][stance] + dk)), 3)
             self.say(f"  {how} at {1e3 * h:.0f} mm (hip trim {hike:.1f}) -> shift over {stance} now x{P['k_shift'][stance]:.2f}")
         return "gave_up", 0.0
@@ -505,52 +550,214 @@ class Run:
                  f"landing compensation {1e3 * P['lat_ff'][f]:+.1f} mm")
         return e
 
-    def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
-        """The step loop of `walk` and `march`. Returns the list of (side, how, h). dy: sidestep m per pair
-        (+ left). board: look before every step, learn where the last foot really landed, stop at the edge,
-        steer toward the middle. The swing foot is aimed at the stance foot's believed y plus `step_out`, the
-        sidestep and steering share that moves it OUTWARD (left foot +, right foot -); a move that would
-        narrow the stance is dropped, so the feet come back to the nominal separation instead.
-        self.stop_why says why a board walk ended early."""
+    # -- the servos ---------------------------------------------------------
+    def servo_guard(self, tag):
+        """Read position, load, voltage and temperature of the eight load-bearing joints, log them (`servos`).
+        Returns why the run must end (a servo over temp_max_c, the bus under volt_min), or None. A read that
+        fails is logged and does not end the run."""
         P = self.p
-        out, misses = [], 0
-        self.out = out                                   # kept for the caller if a fall cuts the loop short
-        self.stop_why = None
+        rows, why = {}, None
+        try:
+            for n in GUARD:
+                rows[n] = self.r.pos(n)
+        except Exception as e:
+            self.log("servos", tag=tag, err=repr(e), rows=rows)
+            return None
+        self.log("servos", tag=tag, rows=rows)
+        hot = max(rows.items(), key=lambda kv: kv[1]["temp"])
+        low = min(rows.items(), key=lambda kv: kv[1]["volt"])
+        if hot[1]["temp"] > P["temp_max_c"]:
+            why = f"{hot[0]} is at {hot[1]['temp']} C (limit {P['temp_max_c']:.0f})"
+        elif low[1]["volt"] < P["volt_min"]:
+            why = f"the bus is at {low[1]['volt']:.1f} V (limit {P['volt_min']:.1f})"
+        return why
+
+    def halt(self, why, ev="stop"):
+        self.stop_why = why
+        self.log(ev, why=why)
+        print(f"-- stopping: {why}", flush=True)
+
+    # -- the step loops -----------------------------------------------------
+    def _step(self, side, dx, dy, hold, march, board, forward):
+        """One step of a walk: servo guard, look (board), then the lift. Returns (status, result):
+        "ok" (result = (how, h)), "ahead" (the board ends ahead: only for forward motion), "stop" (self.stop_why
+        says why: an edge, no sight of the board, a servo) or "gave_up"."""
+        P = self.p
+        if self.n_steps % P["guard_every"] == 0:
+            why = self.servo_guard(f"step {self.n_steps}")
+            if why:
+                self.halt(why, "guard_stop")
+                return "stop", None
+        self.n_steps += 1
+        corr = 0.0
+        if board:
+            m = self.look(f"step {self.n_steps - 1}")
+            self.misses = 0 if m else self.misses + 1
+            if m is None:
+                if self.misses >= 2:
+                    self.halt("the board was not seen twice in a row", "board_stop")
+                    return "stop", None
+            elif min(m["left_mm"], m["right_mm"]) < P["board_min_mm"]:
+                self.halt(f"a sole is {min(m['left_mm'], m['right_mm']):.0f} mm from the board's edge", "board_stop")
+                return "stop", None
+            elif forward and m["ahead_px"] < P["board_ahead_px"]:
+                self.ahead = m["ahead_px"]
+                self.log("board_ahead", ahead_px=m["ahead_px"])
+                return "ahead", None
+            else:
+                self.anchor(m)
+                e = 0.5 * (m["left_mm"] - m["right_mm"])            # + = more room on the left: move left
+                if abs(e) > P["board_dead_mm"]:
+                    corr = 1e-3 * max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
+        stance = "R" if side == "L" else "L"
+        step_out = 0.0
+        for d in (dy, corr):                         # outward only: left foot to the left, right foot to the right
+            if (d > 0 and side == "L") or (d < 0 and side == "R"):
+                step_out += d
+        if board and corr:
+            self.say(f"  steer {1e3 * corr:+.0f} mm" + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
+        res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=self.feet[stance][1] + step_out)
+        return ("gave_up" if res[1] == "gave_up" else "ok"), res
+
+    def walk(self, side="L", steps=2, dx=0.02, dy=0.0, hold=0.2, board=False, march=False):
+        """The step loop of `walk` and `march`. Returns the list of (side, how, h). dx < 0 walks backward.
+        dy: sidestep m per pair (+ left). board: look before every step, learn where the last foot really
+        landed, stop at the edge, steer toward the middle. The swing foot is aimed at the stance foot's
+        believed y plus `step_out`, the sidestep and steering share that moves it OUTWARD (left foot +, right
+        foot -); a move that would narrow the stance is dropped, so the feet come back to the nominal
+        separation instead. self.stop_why says why a run ended early."""
+        out = self.out = []                              # kept for the caller if a fall cuts the loop short
+        self.stop_why, self.misses = None, 0
         for i in range(steps):
-            corr = 0.0
-            if board:
-                m = self.look(f"step {i}")
-                misses = 0 if m else misses + 1
-                if m is None:
-                    if misses >= 2:
-                        self.stop_why = "the board was not seen twice in a row"
-                elif min(m["left_mm"], m["right_mm"]) < P["board_min_mm"]:
-                    self.stop_why = f"a sole is {min(m['left_mm'], m['right_mm']):.0f} mm from the board's edge"
-                elif m["ahead_px"] < P["board_ahead_px"]:
-                    self.stop_why = f"the board ends {m['ahead_px']} px ahead"
-                else:
-                    self.anchor(m)
-                    e = 0.5 * (m["left_mm"] - m["right_mm"])            # + = more room on the left: move left
-                    if abs(e) > P["board_dead_mm"]:
-                        corr = 1e-3 * max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
-                if self.stop_why:
-                    self.log("board_stop", why=self.stop_why)
-                    print(f"-- stopping: {self.stop_why}", flush=True)
-                    break
-            stance = "R" if side == "L" else "L"
-            step_out = 0.0
-            for d in (dy, corr):                         # outward only: left foot to the left, right foot to the right
-                if (d > 0 and side == "L") or (d < 0 and side == "R"):
-                    step_out += d
-            if board and corr:
-                self.say(f"  steer {1e3 * corr:+.0f} mm" + ("" if (corr > 0) == (side == "L") else "  (waits for the other foot)"))
-            out.append((side,) + self.lift(side, hold=0.2 if not march else hold,
-                                           dx=0.0 if march else dx * (1 if i == 0 else 2),
-                                           y_to=self.feet[stance][1] + step_out))
-            if out[-1][1] == "gave_up":
+            st, res = self._step(side, 0.0 if march else dx * (1 if i == 0 else 2), dy,
+                                 hold if march else 0.2, march, board, forward=dx >= 0)
+            if st == "ahead":
+                self.halt(f"the board ends {self.ahead} px ahead", "board_stop")
+            if st != "ok":
+                if st == "gave_up":
+                    out.append(res)
                 break
-            side = stance
+            out.append(res)
+            side = "R" if side == "L" else "L"
         return out
+
+    def shuttle(self, side="L", steps=4, cycles=1, dx=0.02, dy=0.0, hold=0.2, board=False, dx_list=None):
+        """`steps` steps forward, then back the way it came, `cycles` times, in one run. A leg's first and last
+        steps are half strides (dx, the others 2 dx), so the feet end level; the return leg undoes the forward
+        steps in reverse order, so the feet end where they began (in belief). dx_list: cycle k uses
+        dx_list[k % len]. A board's end ahead turns the forward leg round early (the return then starts from
+        a split stance); an edge or a servo ends the run."""
+        out = self.out = []
+        self.stop_why, self.misses = None, 0
+        side0 = side
+        for c in range(cycles):
+            d = dx_list[c % len(dx_list)] if dx_list else dx
+            side, hist = side0, []
+            for i in range(steps):
+                x0 = self.feet[side][0]
+                st, res = self._step(side, d * (1 if i in (0, steps - 1) else 2), dy, 0.2, False, board, forward=d >= 0)
+                if st == "ahead":
+                    self.say("  the board ends ahead: turning round early")
+                    break
+                if st != "ok":
+                    if st == "gave_up":
+                        out.append(res)
+                    return out
+                out.append(res)
+                hist.append((side, x0))
+                side = "R" if side == "L" else "L"
+            for sd, x0 in reversed(hist):
+                st, res = self._step(sd, x0 - self.feet[sd][0], dy, 0.2, False, board, forward=d < 0)
+                if st == "ahead":                        # backward legs of a negative dx walk forward
+                    self.say("  the board ends ahead: ending the return leg")
+                    return out
+                if st != "ok":
+                    if st == "gave_up":
+                        out.append(res)
+                    return out
+                out.append(res)
+        return out
+
+    # -- data blocks --------------------------------------------------------
+    def _air_state(self, swing, h, pitch_s):
+        s = self.read(f"sweep {swing}")
+        tilt = self.tilt_to(swing, s) - self.tilt_s
+        P = self.p
+        clr = foot_clear(h, tilt, need=P["need"])
+        tip = tipping(tilt, self.lean(s)[1] - pitch_s, s["rate"], P["tilt_lim"], P["pitch_lim"], P["rate_lim"], out_lim=P["out_lim"])
+        return s, tilt, clr, tip
+
+    def sweeps(self, swing):
+        """With `swing` up: sweep the stance hip-roll trim, then the stance ankle-roll trim, in a slow
+        triangle of +-sweep_deg around where it is (0.5 deg steps, one IMU read each), sweep_cycles times.
+        A leg of the sweep turns round early if P(tip) > 0.3 or P(clear) < 0.5; if that is so at the
+        trim itself, the sweep ends ("tipping"). Returns "up" or a tipping verdict."""
+        P = self.p
+        stance = "L" if swing == "R" else "R"
+        h = self.feet[swing][2]
+        pitch_s = self.lean(self.ref)[1]
+        for joint, trim in (("hip_roll", self.hike), ("ankle_roll", self.ankle)):
+            base = trim[stance]
+            off, n = 0.0, 0
+            for _ in range(int(P["sweep_cycles"])):
+                for target in (P["sweep_deg"], -P["sweep_deg"], 0.0):
+                    d = 1.0 if target > off else -1.0
+                    while (target - off) * d > 1e-9 and n < 600:
+                        n += 1
+                        off = round(off + d * 0.5, 6)
+                        trim[stance] = base + off
+                        self.go(int(1e3 * P["t_sweep"]), f"sweep {joint} {off:+.1f}")
+                        s, tilt, clr, tip = self._air_state(swing, h, pitch_s)
+                        self.log("sweep", joint=joint, stance=stance, offset_deg=off, roll=round(s["roll"], 2),
+                                 pitch=round(s["pitch"], 2), tilt=round(tilt, 2), rate=round(s["rate"], 1),
+                                 p_tip=round(tip.p, 3), p_clear=round(clr.p, 3))
+                        if tip.p > 0.3 or clr.p < 0.5:
+                            if abs(off) < 0.75:
+                                trim[stance] = base
+                                self.go(int(1e3 * P["t_sweep"]), f"sweep {joint} abort")
+                                self.say(f"  sweep {joint}: not safe at the found trim (P(tip) {tip.p:.2f}, P(clear) {clr.p:.2f})")
+                                return "tipping"
+                            off = round(off - d * 0.5, 6)       # one step back, and this leg is over
+                            trim[stance] = base + off
+                            self.go(int(1e3 * P["t_sweep"]), f"sweep {joint} back {off:+.1f}")
+                            self.say(f"  sweep {joint}: turning round at {off:+.1f} deg")
+                            break
+            trim[stance] = base
+            self.go(int(1e3 * P["t_sweep"]), f"sweep {joint} done")
+            self.say(f"  sweep {joint}: {n} steps")
+        return "up"
+
+    def shiftsweep(self):
+        """Both feet down in the crouch: the pelvis shift 0 -> +sweep_k*62 mm -> -sweep_k*62 mm -> 0 in 6 mm
+        steps, sweep_cycles times; an IMU read every step, the servos every 3rd. Ends (back at the centre) if
+        the lean passes shift_lean_lim or a servo is over its limit. Returns "ok" or why it ended."""
+        P = self.p
+        top = P["sweep_k"] * 0.062
+        n = 0
+        for _ in range(int(P["sweep_cycles"])):
+            for target in (top, -top, 0.0):
+                y = self.pel[1]
+                d = 1.0 if target > y else -1.0
+                while (target - y) * d > 1e-6:
+                    y = y + d * min(0.006, abs(target - y))
+                    n += 1
+                    self.pel[1] = y
+                    self.go(int(1e3 * P["t_sweep"]), f"shiftsweep {1e3 * y:+.0f}")
+                    s = self.read("shiftsweep")
+                    dr, dp = self.lean(s)
+                    self.log("sweep", joint="shift", shift_mm=round(1e3 * y, 1), roll=round(s["roll"], 2), pitch=round(s["pitch"], 2),
+                             lean_roll=round(dr, 2), lean_pitch=round(dp, 2))
+                    if abs(dr) > P["shift_lean_lim"] or abs(dp) > P["shift_lean_lim"]:
+                        self.say(f"  shiftsweep: leaning {dr:+.1f}/{dp:+.1f} at {1e3 * y:+.0f} mm: back to the centre")
+                        self.centre()
+                        return "lean"
+                    if n % 3 == 0:
+                        why = self.servo_guard(f"shiftsweep {1e3 * y:+.0f}")
+                        if why:
+                            self.halt(why, "guard_stop")
+                            self.centre()
+                            return why
+        return "ok"
 
     def centre(self):
         mid = [0.5 * (self.feet["L"][0] + self.feet["R"][0]), 0.5 * (self.fy("L") + self.fy("R"))]
@@ -606,10 +813,13 @@ class Run:
 def main(argv=None, make_robot=None, log_dir=None):
     """make_robot(kin) and log_dir are for dry runs (see dry_run.py)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("what", choices=("lift", "march", "walk"))
+    ap.add_argument("what", choices=("lift", "march", "walk", "shuttle", "playsweep", "shiftsweep"))
     ap.add_argument("--side", choices=("L", "R"), default="L", help="the foot that comes up (first)")
     ap.add_argument("--steps", type=int, default=2)
-    ap.add_argument("--dx", type=float, default=0.02)
+    ap.add_argument("--dx", type=float, default=0.02, help="walk/shuttle: stride m (walk: negative = backward)")
+    ap.add_argument("--cycles", type=int, default=1, help="shuttle: forward-and-back cycles")
+    ap.add_argument("--dx-list", default="", metavar="A,B,C", help="shuttle: cycle k uses the k-th dx (wraps)")
+    ap.add_argument("--pace", type=float, default=1.0, help="every phase time x this (not the first stand-up)")
     ap.add_argument("--dy", type=float, default=0.0, help="walk: sidestep per step pair, m (+ = the robot's left)")
     ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
@@ -618,8 +828,8 @@ def main(argv=None, make_robot=None, log_dir=None):
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL")
     ap.add_argument("--host", default="192.168.2.90")
     a = ap.parse_args(argv)
-    if a.board and a.what == "lift":
-        ap.error("--board is for walk and march")
+    if a.board and a.what not in ("walk", "march", "shuttle"):
+        ap.error("--board is for walk, march and shuttle")
     if a.board and not a.video:
         a.video = 180
     prm = load_state()
@@ -628,6 +838,8 @@ def main(argv=None, make_robot=None, log_dir=None):
         prm[k] = json.loads(v)
     if a.no_notify:
         prm["notify_cmd"] = []
+    if a.pace != 1.0:
+        apply_pace(prm, a.pace)
 
     from kin import Kin
     from robot_io import Fallen, Robot
@@ -641,6 +853,13 @@ def main(argv=None, make_robot=None, log_dir=None):
         run.stand_up()
         if a.what == "lift":
             out.append((a.side,) + run.lift(a.side, hold=a.hold))
+        elif a.what == "playsweep":
+            out.append((a.side,) + run.lift(a.side, hold=a.hold, air=run.sweeps))
+        elif a.what == "shiftsweep":
+            out.append(("both", run.shiftsweep()))
+        elif a.what == "shuttle":
+            out = run.shuttle(a.side, a.steps, a.cycles, a.dx, a.dy, hold=a.hold, board=a.board,
+                              dx_list=[float(x) for x in a.dx_list.split(",")] if a.dx_list else None)
         else:
             out = run.walk(a.side, a.steps, a.dx, a.dy, hold=a.hold, board=a.board, march=a.what == "march")
     except Fallen as e:

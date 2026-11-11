@@ -32,7 +32,7 @@ _orig_go = S.Run.go
 def _go(self, ms, tag):
     _orig_go(self, ms, tag)
     if hasattr(self.r, "tell"):
-        self.r.tell(self.feet, self.hike)            # the fake body follows the commanded feet
+        self.r.tell(self.feet, self.hike, self.ankle)    # the fake body follows the commanded feet and trims
 
 
 _load_state = S.load_state
@@ -333,6 +333,162 @@ def test_fall_notification_fires_once():
         run.finish(save=False)
     assert S.DEFAULTS["notify_cmd"][0].endswith("ask-aime.sh") and S.DEFAULTS["notify_after_s"] == 45.0
     assert S.main(["lift", "--no-notify", "--set", "x=1"], make_robot=FakeRobot, log_dir=tempfile.mkdtemp()) in (0, 1)
+
+
+def test_backward_and_shuttle():
+    with env() as d:
+        run = make(d)
+        out = run.walk("L", 4, -0.02, 0.0)
+        check_up(out, 4)
+        assert abs(run.feet["L"][0] + 0.06) < 1e-9 and abs(run.feet["R"][0] + 0.08) < 1e-9, run.feet   # half, full, full, full strides
+        run.finish(save=False)
+    with env() as d:                                               # N forward, N back, twice: where it began
+        run = make(d)
+        out = run.shuttle("L", 4, 2, 0.02, 0.0)
+        check_up(out, 16)
+        assert all(abs(f[0]) < 1e-9 and abs(f[1]) < 1e-9 for f in run.feet.values()), run.feet
+        xs = [round(f[0], 6) for f in run.feet.values()]
+        assert xs == [0.0, 0.0], xs
+        run.finish(save=False)
+    with env() as d:                                               # a dx per cycle (a landing map)
+        run = make(d)
+        seen = []
+        lift0 = run.lift
+        run.lift = lambda swing, **kw: (seen.append(kw["dx"]), lift0(swing, **kw))[1]
+        out = run.shuttle("R", 3, 3, 0.0, 0.0, dx_list=[0.02, 0.03])
+        check_up(out, 18)
+        assert abs(max(abs(x) for x in seen) - 0.06) < 1e-9 and abs(min(abs(x) for x in seen if x) - 0.02) < 1e-9, seen
+        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        run.finish(save=False)
+    with env() as d:                                               # the landing misses, learned away, over 2 cycles of 4
+        run = make(d)
+        board_stub(run, left0=100.0, right0=100.0, miss={"L": 0.008, "R": -0.025})
+        out = run.shuttle("L", 4, 2, 0.02, 0.0, board=True)
+        check_up(out, 16)
+        assert all(abs(run.true[f]) < 0.015 for f in "LR"), run.true
+        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        run.finish(save=False)
+    with env() as d:                                               # the board runs out ahead: turn round early, still home
+        run = make(d)
+        board_stub(run, ahead=lambda r: int(200 - 1500 * max(f[0] for f in r.feet.values())))
+        out = run.shuttle("L", 6, 1, 0.03, 0.0, board=True)
+        check_up(out, len(out))
+        assert 0 < len(out) < 12 and run.stop_why is None, (len(out), run.stop_why)
+        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        run.finish(save=False)
+    with env() as d:                                               # an edge ends the run, forward or back
+        run = make(d)
+        board_stub(run, left0=20.0, right0=90.0)
+        assert run.shuttle("L", 4, 1, 0.02, 0.0, board=True) == [] and run.stop_why
+        run.finish(save=False)
+
+
+def test_pace():
+    with env() as d:
+        prm = S.apply_pace(S.load_state(), 0.6)
+        base = S.load_state()
+        for k in S.TIMES:
+            assert abs(prm[k] - 0.6 * base[k]) < 1e-12, k
+        assert prm["t_crouch"] == base["t_crouch"] and prm["pace"] == 0.6
+        rc = S.main(["walk", "--pace", "0.6", "--steps", "2", "--hold", "0"], make_robot=FakeRobot, log_dir=d)
+        assert rc == 0
+        rows = [json.loads(line) for line in open(os.path.join(d, [f for f in os.listdir(d) if f.endswith(".jsonl")][0]))]
+        st = rows[0]
+        assert st["ev"] == "start" and st["pace"] == 0.6 and abs(st["utc"] - time.time()) < 3600 and abs(st["prm"]["t_swing"] - 0.6) < 1e-9, st
+        assert all("utc" in r for r in rows if r["ev"] == "lift")
+
+
+def test_inward_tipping_raises_k():
+    with env() as d:
+        run = make(d)
+        run.shift_over("R")
+        ref = dict(run.ref0)
+        # hanging 9 deg toward the lifted left foot: the weight is inboard of the stance foot
+        run.read = lambda tag="": dict(roll=ref["roll"] - 9.0, pitch=ref["pitch"], rate=0.0, gyro=[0, 0, 0], up=[0, 0, 1])
+        assert run.raise_foot("L")[0] == "tipping_in"
+        run.read = lambda tag="": dict(roll=ref["roll"], pitch=ref["pitch"] + 9.0, rate=0.0, gyro=[0, 0, 0], up=[0, 0, 1])
+        assert run.raise_foot("L")[0] == "tipping"                 # pitch alone: as before
+        run.finish(save=False)
+    with env() as d:
+        run = make(d)
+        k0 = run.p["k_shift"]["R"]
+        raise0 = run.raise_foot
+        calls = []
+
+        def raise_foot(swing):
+            calls.append(1)
+            if len(calls) == 1:
+                return "tipping_in", 0.01
+            return raise0(swing)
+        run.raise_foot = raise_foot
+        how, h = run.lift("L", hold=0.0)
+        assert how == "up"
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        lifts = [r for r in rows if r["ev"] == "lift"]
+        assert lifts[0]["how"] == "tipping_in" and abs(lifts[1]["k"] - (k0 + run.p["k_step"])) < 1e-9, lifts
+        run.finish(save=False)
+    assert S.DEFAULTS["tilt_lim"] == 8.0
+
+
+def test_servo_guard_stops_run():
+    with env() as d:
+        run = make(d)
+        run.r.temp = 70
+        out = run.walk("L", 4, 0.02, 0.0)
+        assert out == [] and run.stop_why and "C" in run.stop_why, (out, run.stop_why)
+        run.finish(save=False)
+    with env() as d:
+        run = make(d)
+        run.p["guard_every"] = 2
+        n = [0]
+        pos0 = run.r.pos
+
+        def pos(name):
+            n[0] += 1
+            run.r.volt = 11.8 if n[0] <= 16 else 9.9               # sags after the second set of readings
+            return pos0(name)
+        run.r.pos = pos
+        out = run.walk("L", 8, 0.02, 0.0)
+        assert len(out) == 4 and "V" in run.stop_why, (len(out), run.stop_why)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert sum(r["ev"] == "servos" for r in rows) == 3 and rows[-1]["ev"] in ("guard_stop", "servos"), rows[-3:]
+        run.finish(save=False)
+
+
+def test_playsweep_and_shiftsweep():
+    with env() as d:
+        rc = S.main(["playsweep", "--side", "L", "--hold", "0"], make_robot=FakeRobot, log_dir=d)
+        assert rc == 0
+        rows = [json.loads(line) for line in open(os.path.join(d, os.listdir(d)[0]))]
+        sw = [r for r in rows if r["ev"] == "sweep"]
+        joints = {r["joint"] for r in sw}
+        assert joints == {"hip_roll", "ankle_roll"}, joints
+        assert all(k in sw[0] for k in ("offset_deg", "roll", "pitch", "tilt", "rate")), sw[0]
+        for j in joints:
+            offs = [r["offset_deg"] for r in sw if r["joint"] == j]
+            assert len(offs) >= 16 and max(offs) > 0 > min(offs), (j, len(offs))   # both ways round the found trim
+        assert not any(r["ev"] == "error" for r in rows)
+        assert rows[-1]["ev"] == "end"
+    with env() as d:
+        rc = S.main(["shiftsweep", "--set", "sweep_cycles=1"], make_robot=FakeRobot, log_dir=d)
+        assert rc == 0
+        rows = [json.loads(line) for line in open(os.path.join(d, os.listdir(d)[0]))]
+        sw = [r for r in rows if r["ev"] == "sweep"]
+        mm = [r["shift_mm"] for r in sw]
+        assert max(mm) >= 61.9 and min(mm) <= -61.9 and abs(mm[-1]) < 1e-6 and all(k in sw[0] for k in ("roll", "pitch")), (max(mm), min(mm), mm[-1])
+        assert sum(r["ev"] == "servos" for r in rows) >= len(sw) // 3 - 1
+        assert not any(r["ev"] == "error" for r in rows)
+    with env() as d:                                               # a lean past the limit: back to the centre, run ends clean
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+        rob = FakeRobot(kin, noise=0.0)
+        run = S.Run("lean", rob, kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        real = rob.imu
+        rob.imu = lambda: dict(real(), roll=real()["roll"] + (9.0 if abs(run.pel[1]) > 0.03 else 0.0))
+        assert run.shiftsweep() == "lean"
+        assert abs(run.pel[1]) < 1e-6
+        run.finish(save=False)
 
 
 def test_board_view_frames():

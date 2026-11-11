@@ -13,9 +13,12 @@ class FakeRobot:
     def __init__(self, kin, play=(9.0, 5.0), noise=0.15):
         self.kin, self.play, self.noise = kin, dict(L=play[0], R=play[1]), noise
         self.h = dict(L=0.0, R=0.0); self.hike = dict(L=0.0, R=0.0); self.t = 0.0
+        self.temp, self.volt = 40, 11.8             # what `pos` reports
 
-    def tell(self, feet, hike):                 # the stepper's own state, handed over by the test
-        self.h = dict(L=feet["L"][2], R=feet["R"][2]); self.hike = dict(hike)
+    def tell(self, feet, hike, ankle=None):     # the stepper's own state, handed over by the test
+        # hip and ankle trim both act on the body roll through the same play
+        self.h = dict(L=feet["L"][2], R=feet["R"][2])
+        self.hike = {k: hike[k] + (ankle or {}).get(k, 0.0) for k in hike}
 
     def imu(self):
         self.t += 0.094
@@ -29,6 +32,9 @@ class FakeRobot:
 
     def pose(self, q, ms, wait=True):
         assert all(math.isfinite(v) for v in q.values())
+
+    def pos(self, name):
+        return dict(pos=2048, spd=0, load=0, volt=self.volt, temp=self.temp)
 
     def torque(self): pass
     def release(self): pass

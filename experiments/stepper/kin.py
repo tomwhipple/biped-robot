@@ -38,13 +38,15 @@ class Kin:
         return float(off[0]), float(off[1])
 
     def pose(self, shift=0.0, fwd=0.0, footL=(0.0, 0.0, 0.0), footR=(0.0, 0.0, 0.0), drop=None, straight=False,
-             hike=None):
+             hike=None, ankle=None):
         """shift, fwd: pelvis offset (m) from the crouched stand, +y left / +x forward.
         footL/footR: (dx, dy, dz) of that sole from where it stands.
         hike: {"L": rad, "R": rad}, a trim on that leg's hip roll alone that lifts the OTHER hip when
         the leg is the one standing (the pelvis rolls toward it over a flat foot). Returns {joint: rad}.
         (Key.roll is not this: it rolls the soles with the pelvis, which on a flat floor stands the
-        legs back upright -- the 2026-11-11 10:28 fall.)"""
+        legs back upright -- the 2026-11-11 10:28 fall.)
+        ankle: {"L": rad, "R": rad}, the same trim on that leg's ankle roll (same sign: it moves the body roll
+        the same way as the hip's)."""
         k = (self.k0 if straight else (self.k1 if drop is None else standing_key(self.p, drop))).copy()
         k.pelvis = k.pelvis + np.array([fwd, shift, 0.0])
         k.footL = k.footL + np.asarray(footL, float)
@@ -54,4 +56,5 @@ class Kin:
         # body roll (IMU sign, + = right side down) = -(ankle_roll + hip_roll) of the standing leg
         for side, sgn in (("L", +1.0), ("R", -1.0)):
             out[f"{side}_hip_roll"] += sgn * float((hike or {}).get(side, 0.0))
+            out[f"{side}_ankle_roll"] += sgn * float((ankle or {}).get(side, 0.0))
         return out
