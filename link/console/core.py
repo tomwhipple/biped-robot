@@ -277,10 +277,6 @@ def fault_ids(servo_err: int) -> str:
     return _s(library().bimo_fault_ids(servo_err & 0xFFFFFFFF, buf, len(buf)))
 
 
-def axis_name(axis: int) -> str:
-    return _s(library().bimo_axis_name(axis))
-
-
 def action_count() -> int:
     return library().bimo_action_count()
 
