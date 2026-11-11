@@ -251,10 +251,13 @@ def test_clamp_tilt_at_the_fit(side, monkeypatch):
     assert lift > 10.0                       # the lifted foot is off the floor
 
 
+SOFT = "hip=10,ankle=16"           # the soft end of the recipe range hip=10:25,ankle=16:40
+
+
 def test_zero_action_stand_at_the_soft_end():
     """A zero action (the stand pose) on the training plant at the soft end of the recipe range
-    (hip 11, ankle 17.75 N m/rad) with the roll play at its DR top (2.0 deg) does not fall."""
-    env, _ = _gate_train_env(os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml"), FIT, 2.0)
+    (hip 10, ankle 16 N m/rad) with the roll play at its DR top (2.0 deg) does not fall."""
+    env, _ = _gate_train_env(os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml"), SOFT, 2.0)
     env.reset(seed=0)
     z = np.zeros(env.action_space.shape[0], np.float32)
     ups = []
@@ -336,3 +339,21 @@ def test_grade_rebuilds_the_run_on_its_spring(monkeypatch, tmp_path):
         assert c is not None
         assert sorted(np.round(1 / c[c > 0], 2).tolist()) == [11.0, 11.0, 17.75, 17.75]
         ESA._CACHE.pop((run, plant, 0.0, 2.0), None)
+
+
+def test_same_physics_as_the_gate_common_stand_in():
+    """weight-transfer-gate's static stand-in (gate_common.apply_terms ser_hip / ser_ankle: the
+    roll PD scaled by k/(kp + k)) and the flag at the same single values move the plant
+    identically. The encoder obs differs by design: the stand-in reads alpha (target - link),
+    the flag tau/k (zero inside the deadzone, with the damping and the clip)."""
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "weight-transfer-gate"))
+    import gate_common as GC
+    pin = dict(backlash_deg=0.0, backlash_deg_max=None, roll_lash_deg=0.0, roll_lash_deg_max=None)
+    a = _walker(roll_series_k=FIT, **pin)
+    b = _walker(**pin)
+    b.reset(seed=3)
+    GC.apply_terms(b, dict(ser_hip=11.0, ser_ankle=17.75))
+    _, qa = _walker_roll(a, steps=40)
+    _, qb = _walker_roll(b, steps=40)
+    assert np.abs(qa[-1] - qa[0]).max() > 1e-3          # it moves
+    np.testing.assert_allclose(qa, qb, atol=1e-9)
