@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import random
 import sys
@@ -32,7 +33,7 @@ _orig_go = S.Run.go
 def _go(self, ms, tag):
     _orig_go(self, ms, tag)
     if hasattr(self.r, "tell"):
-        self.r.tell(self.feet, self.hike, self.ankle)    # the fake body follows the commanded feet and trims
+        self.r.tell(self.feet, self.hike, self.ankle, math.degrees(self.psi_p))    # the fake body follows the commanded feet, trims and heading
 
 
 _load_state = S.load_state
@@ -48,7 +49,10 @@ def _safe_state():
 def env():
     """No sleeping, state and logs in a temp dir, the fake body told where the feet are."""
     random.seed(1)
-    with tempfile.TemporaryDirectory() as d, mock.patch.object(time, "sleep", lambda s: None), \
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with tempfile.TemporaryDirectory() as d, mock.patch.object(time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s)), \
+            mock.patch.object(time, "monotonic", lambda: clock[0]), \
             mock.patch.object(S, "STATE", os.path.join(d, "state.json")), mock.patch.object(S.Run, "go", _go), mock.patch.object(S, "load_state", _safe_state):
         yield d
 
@@ -395,6 +399,204 @@ def test_wide_stance_and_reach_limit():
         run.finish(save=False)
 
 
+def test_link_drop_retry_and_stand_down():
+    import types
+    import robot_io
+    W = robot_io.W
+
+    class Flaky:                                          # a wcliproto.Client whose link drops `drops` times
+        def __init__(self, drops):
+            self.drops, self.lines, self.connects = drops, [], 0
+
+        def command(self, line, idle_timeout=0, **kw):
+            self.lines.append(line)
+            if line.startswith("pose") and self.drops > 0:
+                self.drops -= 1
+                raise W.LinkDown("robot not answering (command 257 outcome unknown)")
+            return types.SimpleNamespace(status="done", text="ok\r\n", refused=False, seq=1)
+
+        def connect(self, *a, **kw):
+            self.connects += 1
+
+        def close(self): pass
+        def idle(self, t): pass
+
+    def robot(drops, retries=3):
+        r = robot_io.Robot.__new__(robot_io.Robot)
+        r.c, r.link_retries, r.link_wait, r.log, r.t0 = Flaky(drops), retries, 2.0, None, 0.0
+        r.events = []
+        r.on_link = r.events.append
+        return r
+    with mock.patch.object(robot_io.time, "sleep", lambda s: None):
+        r = robot(2)
+        r.cmd("pose 1 2 3 s500")                              # two drops, then it gets through
+        assert r.c.lines.count("pose 1 2 3 s500") == 3 and r.c.lines.count("imu") == 2, r.c.lines     # re-read the IMU, re-sent the pose
+        assert [e["ev"] for e in r.events].count("down") == 2 and r.events[-1]["ev"] == "reconnected", r.events
+        assert r.c.connects == 2
+        r = robot(9)
+        try:
+            r.cmd("pose 1 2 3 s500")
+        except W.LinkDown:
+            assert r.c.lines.count("pose 1 2 3 s500") == 4                    # the first try and 3 retries
+        else:
+            raise AssertionError("a link that stays down must raise")
+        r = robot(0)
+        r.cmd("torque")
+        assert r.c.lines == ["torque"]
+    # the run: the stand-down gets a fresh connection; and says so plainly if there is none
+    class DownRobot(FakeRobot):
+        down = 0
+
+        def pose(self, q, ms, wait=True, margin=0.0):
+            if self.down > 0:
+                self.down -= 1
+                raise robot_io.LinkDown("robot not answering")
+            return super().pose(q, ms, wait, margin)
+
+        def fresh(self):
+            self.down = 0
+            self.fresh_calls = getattr(self, "fresh_calls", 0) + 1
+    import io
+    with env() as d:
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+        rob = DownRobot(kin)
+        run = S.Run("link", rob, kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        run.walk("L", 2, 0.02, 0.0)
+        rob.down = 1                                       # the link drops for the stand-down pose
+        run.finish(save=False)
+        assert rob.fresh_calls == 1
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert any(r["ev"] == "link" and r.get("what") == "fresh_connection" for r in rows) and any(r["ev"] == "link" and r.get("what") == "stand_down_failed" for r in rows)
+    with env() as d:
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+
+        class Dead(DownRobot):
+            def fresh(self):
+                pass
+        rob = Dead(kin)
+        run = S.Run("link2", rob, kin, prm, quiet=True, log_dir=d)
+        run.stand_up()
+        rob.down = 99
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            run.finish(save=False)
+        assert "torque is still ON" in buf.getvalue() and "LINK DOWN" in buf.getvalue(), buf.getvalue()
+        assert any('"left_torqued"' in line for line in open(run.base + ".jsonl"))
+
+
+def test_turning_kinematics():
+    """The facts the turning rests on (checked against design_gates / v6_kin, 2026-11-11)."""
+    import numpy as np
+    import design_gates as G
+    k = Kin(0.02)
+
+    def q(**kw):
+        key = k.k1.copy()
+        for a, b in kw.items():
+            setattr(key, a, b)
+        v = G.q_of(k.p, key)
+        return {n: float(v[G.JN.index(n)]) for n in G.JN}
+    q0 = q()
+    assert abs(q(yawL=0.1)["L_hip_yaw"] - q0["L_hip_yaw"] - 0.1) < 1e-9           # a sole yawed +a (CCW): hip_yaw +a
+    assert abs(q(heading=0.2)["L_hip_yaw"] - q0["L_hip_yaw"] + 0.2) < 1e-9        # a pelvis turned +a, feet fixed: hip_yaw -a
+    base = k.pose(shift=0.01, fwd=0.005, footL=(0.01, 0.002, 0.0), footR=(-0.01, 0.0, 0.0))
+    for ref in (0.3, -0.5):                                                       # rotating everything rigidly: no joint moves
+        turned = k.pose(shift=0.01, fwd=0.005, footL=(0.01, 0.002, 0.0), footR=(-0.01, 0.0, 0.0), ref=ref, heading=ref, yawL=ref, yawR=ref)
+        assert max(abs(turned[n] - base[n]) for n in base) < 1e-9, ref
+    plain = k.pose(shift=0.01)                                                    # with all of it 0 the pose is the old one
+    assert k.pose(shift=0.01, ref=0.0, heading=0.0, yawL=0.0, yawR=0.0) == plain
+    assert np.isfinite(list(k.pose(shift=0.02, ref=0.1, heading=0.15, yawL=0.2, yawR=0.2).values())).all()
+
+
+def heading_fake(d, slip_per_landing=0.0):
+    prm = S.load_state()
+    kin = Kin(prm["drop"])
+    rob = FakeRobot(kin)
+    run = S.Run("turn", rob, kin, prm, quiet=QUIET, log_dir=d)
+    run.stand_up()
+    lower0 = run.lower_foot
+
+    def lower(swing, fast=False):
+        r = lower0(swing, fast)
+        rob.slip += slip_per_landing                      # each landing yaws the body on its own
+        return r
+    run.lower_foot = lower
+    return run, rob
+
+
+def test_turn_and_hold_heading():
+    with env() as d:                                      # 30 deg over 4 pairs, the fused yaw drifting at -1 deg/s
+        run, rob = heading_fake(d)
+        out = run.walk("L", 8, 0.0, 0.0, hold=0.0, march=True, dyaw=7.5)
+        check_up(out, 8)
+        run.centre()
+        assert abs(rob.psi_deg + rob.slip - 30.0) < 3.0, (rob.psi_deg, rob.slip)
+        assert abs(run.heading_now() - (rob.psi_deg + rob.slip)) < 1.0, (run.heading_now(), rob.psi_deg)
+        assert max(abs(math.degrees(v)) for v in run.yawf.values()) <= 30.0 + 1e-6
+        run.finish(save=False)
+    with env() as d:                                      # a turn of 3 pairs to the right, walking
+        run, rob = heading_fake(d)
+        out = run.walk("L", 6, 0.02, 0.0, dyaw=-8.0)
+        check_up(out, 6)
+        run.centre()
+        assert abs(rob.psi_deg + rob.slip + 24.0) < 3.0, rob.psi_deg
+        run.finish(save=False)
+    with env() as d:                                      # a straight walk, the body yawing 2 deg on its own every step
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        trace = []
+        lift0 = run.lift
+
+        def lift(swing, **kw):
+            r = lift0(swing, **kw)
+            trace.append(rob.psi_deg + rob.slip)
+            return r
+        run.lift = lift
+        out = run.walk("L", 12, 0.02, 0.0)
+        check_up(out, 12)
+        assert all(abs(h) <= 5.0 for h in trace) and all(abs(h) <= 4.0 for h in trace[6:]), [round(h, 1) for h in trace]   # (24 without the loop)
+        run.finish(save=False)
+    with env() as d:                                      # the same with the loop off: the body walks away
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        run.p["yaw_gain"] = 0.0
+        run.walk("L", 12, 0.02, 0.0)
+        assert abs(rob.psi_deg + rob.slip) > 20.0
+        run.finish(save=False)
+    with env() as d:                                      # --board: a heading past yaw_board_max ends the run
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        run.p["yaw_gain"] = 0.0
+        board_stub(run, left0=300.0, right0=300.0)
+        out = run.walk("L", 20, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert run.stop_why and "heading" in run.stop_why and 8 <= len(out) <= 14, (len(out), run.stop_why)
+        run.finish(save=False)
+
+
+def test_step_budget():
+    """Where a step's time goes, on the fake's virtual clock (a round trip: IMU 94 ms, a pose 100 ms + its move +
+    the margin). Before this round: ~14.9 s per step at pace 1.0 (41 IMU reads, 13.5 poses at 0.15 s margin, settle
+    waits after every shift and landing)."""
+    import fake_robot
+    with env() as d:
+        run = make(d)
+        reads = [0]
+        imu0 = run.r.imu
+
+        def imu():
+            reads[0] += 1
+            return imu0()
+        run.r.imu = imu
+        t0, r0 = fake_robot.CLOCK[0], reads[0]
+        out = run.walk("L", 4, 0.02, 0.0)
+        check_up(out, 4)
+        per = (fake_robot.CLOCK[0] - t0) / 4
+        n = (reads[0] - r0) / 4
+        print(f"   step budget: {per:.1f} s per step, {n:.0f} IMU reads per step")
+        assert per < 13.0 and n < 30, (per, n)
+        run.finish(save=False)
+
+
 def test_shift_tip_guard():
     """Past 60 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
     the guard backs the pelvis off, lowers k, and the lift goes on from there."""
@@ -561,9 +763,7 @@ def test_backward_and_shuttle():
         run = make(d)
         out = run.shuttle("L", 4, 2, 0.02, 0.0)
         check_up(out, 16)
-        assert all(abs(f[0]) < 1e-9 and abs(f[1]) < 1e-9 for f in run.feet.values()), run.feet
-        xs = [round(f[0], 6) for f in run.feet.values()]
-        assert xs == [0.0, 0.0], xs
+        assert all(abs(f[0]) < 1e-4 and abs(f[1]) < 1e-4 for f in run.feet.values()), run.feet    # (a heading correction may rotate it a hair)
         run.finish(save=False)
     with env() as d:                                               # a dx per cycle (a landing map)
         run = make(d)
@@ -573,7 +773,7 @@ def test_backward_and_shuttle():
         out = run.shuttle("R", 3, 3, 0.0, 0.0, dx_list=[0.02, 0.03])
         check_up(out, 18)
         assert abs(max(abs(x) for x in seen) - 0.06) < 1e-9 and abs(min(abs(x) for x in seen if x) - 0.02) < 1e-9, seen
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert all(abs(f[0]) < 1e-4 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # the landing misses, learned away, over 2 cycles of 4
         run = make(d)
@@ -581,7 +781,7 @@ def test_backward_and_shuttle():
         out = run.shuttle("L", 4, 2, 0.02, 0.0, board=True)
         check_up(out, 16)
         assert all(abs(run.true[f] - run.start[f]) < 15.0 for f in "LR"), run.true
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert all(abs(f[0]) < 1e-4 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # the board runs out ahead: turn round early, still home
         run = make(d)
@@ -589,7 +789,7 @@ def test_backward_and_shuttle():
         out = run.shuttle("L", 6, 1, 0.03, 0.0, board=True)
         check_up(out, len(out))
         assert 0 < len(out) < 12 and run.stop_why is None, (len(out), run.stop_why)
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert all(abs(f[0]) < 1e-4 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # an edge ends the run, forward or back
         run = make(d)
