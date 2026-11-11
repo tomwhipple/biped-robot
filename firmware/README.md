@@ -97,7 +97,7 @@ hardware-touching files are excluded by construction.
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
 | `battguard` | the pack guard's thresholds, debounce and landing ramp |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
-| `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 2 s upright-and-still pick-up, the armed-to-bench hand-over -> autohome |
+| `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 1 s upright-and-still (25 deg, 1 rad/s) pick-up, the armed-to-bench hand-over -> autohome |
 | `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |

@@ -170,7 +170,7 @@ One line of reason per rule:
   benches the loop on the same tick, so on the wire a fall reads as `BENCH`
   with `DISARMED_FALL` in the diagnostic byte. Once the robot
   is benched, the bench fall guard holds the latch and, when the robot is
-  picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
+  picked up (upright < 25 deg and still for 1 s), runs a slow `home` that
   ends with torque released.
 - **A misbehaving policy ends the run holding.** The armed loop's flail guard
   (`components/flailguard`: targets far from the stand at a stand command,

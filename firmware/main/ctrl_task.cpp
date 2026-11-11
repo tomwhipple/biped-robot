@@ -512,8 +512,8 @@ void ctrlTask(void*) {
         // one (righted ~2 s + ENABLE off) re-engaged torque while the robot was
         // in the operator's hands on 2026-08-30 and twice on 08-31. Instead the
         // fall is handed to the bench Detector (g_armed_falls): once benched,
-        // the same pick-up rule as a bench fall (upright < 10 deg and still for
-        // 2 s) runs a slow `home` that ENDS RELEASED -- never an arm. Re-arming
+        // the same pick-up rule as a bench fall (upright < 25 deg and still for
+        // 1 s) runs a slow `home` that ENDS RELEASED -- never an arm. Re-arming
         // is deliberate: a fresh wireless ARM edge or a tethered `run`, both of
         // which pass through the arm handover above, where the latch resets
         // (user directive 2026-08-31).

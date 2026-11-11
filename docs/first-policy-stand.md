@@ -176,7 +176,7 @@ past 45 deg for 200 ms the fall guard goes limp.
 FALLEN → torque off and the loop benches itself (`DISARMED_FALL` in the
 beacon). It does not re-arm on its own: re-arming is a fresh `run` or ARM
 edge, both of which start again at item 12. With the bench guard's autohome
-on, picking the robot up and holding it upright and still for 2 s homes it.
+on, picking the robot up and holding it upright (< 25 deg) and still for 1 s homes it.
 
 ## 5. Abort conditions
 

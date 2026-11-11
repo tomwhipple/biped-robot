@@ -7,7 +7,8 @@
 //     what the hardware uses any more
 //   * a short dip does not trip it; a gap in the attitude neither trips nor
 //     clears anything
-//   * recovery needs upright AND still, continuously, for 2 s
+//   * recovery needs upright AND still, continuously, for the kPickup* rule
+//     (25 deg, 1 rad/s, 1 s: a robot held in the hand or set down leaning)
 //   * an armed-loop fall handed to the bench Detector (latch()) recovers by
 //     the same pick-up rule -> autohome (the cross-core hand-over, modelled)
 #include "fallguard/fallguard.h"
@@ -59,6 +60,9 @@ void testLimitsTable() {
     CHECK_NEAR(fallguard::kBenchLimits.fall_up_z, cos(30.0 / 57.29578), 1e-4);
     CHECK_EQ(fallguard::kBenchLimits.debounce_ms, 100u);
     CHECK_NEAR(fallguard::kPickupUpZ, cos(fallguard::kPickupTiltDeg / 57.29578), 1e-4);
+    CHECK_NEAR(fallguard::kPickupTiltDeg, 25.0, 1e-6);   // below the 30 deg bench fall line
+    CHECK_NEAR(fallguard::kPickupGyroRadS, 1.0, 1e-6);
+    CHECK_EQ(fallguard::kPickupHoldMs, 1000u);
     // the hardware's armed line is tighter than the sim's episode end, which stays 0.4
     CHECK_NEAR(linkproto::kFallUpZ, 0.4, 1e-6);
     CHECK(fallguard::kPolicyLimits.fall_up_z > linkproto::kFallUpZ);
@@ -140,40 +144,57 @@ void testInvalidSampleNeitherTripsNorCompletes() {
     CHECK(!d.fallen());
     // and while fallen, a gap breaks the pick-up hold
     CHECK(feed(d, Motion::kPolicy, 70.0f, 300, now) == Event::kFell);
-    CHECK(feed(d, Motion::kBench, 0.0f, 1900, now) == Event::kNone);
+    CHECK(feed(d, Motion::kBench, 0.0f, fallguard::kPickupHoldMs - 100u, now) == Event::kNone);
     CHECK(feed(d, Motion::kBench, 0.0f, 40, now, nullptr, kStill, false) == Event::kNone);
-    CHECK(feed(d, Motion::kBench, 0.0f, 1900, now) == Event::kNone);
+    CHECK(feed(d, Motion::kBench, 0.0f, fallguard::kPickupHoldMs - 100u, now) == Event::kNone);
     uint32_t at = 0;
     const uint32_t t0 = now;
     CHECK(feed(d, Motion::kBench, 0.0f, 400, now, &at) == Event::kPickedUp);
     CHECK(at - t0 < 200u);
 }
 
-void testPickupNeedsUprightAndStillFor2s() {
+void testPickupNeedsUprightAndStill() {
+    using namespace fallguard;
+    constexpr uint32_t hold = kPickupHoldMs;
     Detector d;
     uint32_t now = 0, at = 0;
     CHECK(feed(d, Motion::kBench, 90.0f, 500, now) == Event::kFell);
     // lying there: nothing
     CHECK(feed(d, Motion::kBench, 90.0f, 5000, now) == Event::kNone);
-    // carried upright but swinging (|w| 0.5 rad/s): nothing
-    const float swing[3] = {0.3f, 0.4f, 0.0f};
+    // carried upright but swinging (|w| 1.13 rad/s, over the limit): nothing
+    const float swing[3] = {0.8f, 0.8f, 0.0f};
     CHECK(feed(d, Motion::kBench, 3.0f, 5000, now, nullptr, swing) == Event::kNone);
-    // still but 15 deg off upright: nothing
-    CHECK(feed(d, Motion::kBench, 15.0f, 5000, now) == Event::kNone);
-    // upright 1.9 s, a wobble, upright again: the hold restarts
-    CHECK(feed(d, Motion::kBench, 4.0f, 1900, now) == Event::kNone);
+    // still but 26 deg off upright (past the line): nothing
+    CHECK(feed(d, Motion::kBench, kPickupTiltDeg + 1.0f, 5000, now) == Event::kNone);
+    // just under the hold, a wobble, then the hold restarts
+    CHECK(feed(d, Motion::kBench, 4.0f, hold - 100, now) == Event::kNone);
     CHECK(feed(d, Motion::kBench, 4.0f, 20, now, nullptr, swing) == Event::kNone);
     const uint32_t t0 = now;
-    CHECK(feed(d, Motion::kBench, 4.0f, 2500, now, &at) == Event::kPickedUp);
-    CHECK_EQ(at - t0, 2000u);
+    CHECK(feed(d, Motion::kBench, 4.0f, 2 * hold, now, &at) == Event::kPickedUp);
+    CHECK_EQ(at - t0, hold);
     CHECK(d.fallen());          // the caller clears once the home has started
     d.clear();
     CHECK(!d.fallen());
     CHECK(feed(d, Motion::kBench, 4.0f, 3000, now) == Event::kNone);
 }
 
+// 2026-11-11 bench fall 3: set down limp, leaning 20 deg, still. And a robot in the hand
+// (0.8 rad/s) at 20 deg. Both must home; 26 deg or 1.2 rad/s must not.
+void testPickupLeaningOrHandHeld() {
+    using namespace fallguard;
+    const float hand[3] = {0.8f, 0.0f, 0.0f};
+    const float over[3] = {1.2f, 0.0f, 0.0f};
+    Detector d;
+    uint32_t now = 0;
+    CHECK(feed(d, Motion::kBench, 90.0f, 500, now) == Event::kFell);
+    CHECK(feed(d, Motion::kBench, 20.0f, 1100, now, nullptr, hand) == Event::kPickedUp);
+    CHECK(feed(d, Motion::kBench, 26.0f, 3000, now, nullptr, hand) == Event::kNone);
+    CHECK(feed(d, Motion::kBench, 20.0f, 3000, now, nullptr, over) == Event::kNone);
+    CHECK(feed(d, Motion::kBench, 20.0f, 1100, now) == Event::kPickedUp);   // still, set down
+}
+
 void testPickupRepeatsWhileNotCleared() {
-    // autohome off: the caller ignores kPickedUp, the latch stays, and it comes at most every 2 s
+    // autohome off: the caller ignores kPickedUp, the latch stays, and it comes at most every kPickupHoldMs
     Detector d;
     uint32_t now = 0;
     CHECK(feed(d, Motion::kBench, 90.0f, 200, now) == Event::kFell);
@@ -181,7 +202,7 @@ void testPickupRepeatsWhileNotCleared() {
     float up[3];
     upAt(0.0f, up);
     for (int k = 0; k < 500; ++k) n += d.update(Motion::kBench, true, up, kStill, now += kDt) == Event::kPickedUp;
-    CHECK(n >= 4 && n <= 5);    // 10 s / 2 s
+    CHECK(n >= 9 && n <= 10);   // 10 s / 1 s
     CHECK(d.fallen());
 }
 
@@ -276,7 +297,8 @@ int main() {
     testBenchTripsAt30After100ms();
     testShortDipDoesNotTrip();
     testInvalidSampleNeitherTripsNorCompletes();
-    testPickupNeedsUprightAndStillFor2s();
+    testPickupNeedsUprightAndStill();
+    testPickupLeaningOrHandHeld();
     testPickupRepeatsWhileNotCleared();
     testClockWrap();
     testArmedFallHandsOverToBenchAutohome();
