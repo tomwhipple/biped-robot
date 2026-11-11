@@ -432,7 +432,7 @@ uv run --no-project --with PyQt6 --with pyqtgraph --with mujoco==3.15.0 \
 writes the nine `figs/console_ui_*.png` beside the script. Every image carries
 "MOCKUP · synthetic data"; camera panes are placeholders.
 
-## 17. As built (2026-11-02)
+## 17. As built (2026-11-11)
 
 Where the build ([console.md](../console.md)) departs from the sections above:
 
@@ -446,7 +446,26 @@ Where the build ([console.md](../console.md)) departs from the sections above:
 - **A focused text field takes every key**, the keymap's included (§4 said the
   ARM / STAND / HOLD / E-STOP keys would work whatever has focus). Typing a host
   name with an `a` in it must not arm the robot; the on-screen buttons never take
-  focus and are always there.
+  focus and are always there. Two exceptions (#234): while the robot is LIVE (this
+  console armed it, or a fresh beacon says LIVE) the HOLD and E-STOP keys still
+  fire from inside a field and do not type, and a key-up always ends a held
+  motion key. A field gets the keys only after a click into it: no tab change,
+  `Tab` or window switch puts focus there.
+- **Eight tabs: Bench is the eighth** (§6 has seven). It carries `bimo_gui`'s
+  bench view (the serial-bridge telemetry and two camera panes, watch-only;
+  [bench-console.md](../bench-console.md)) and is there when the console starts
+  with `--bench-telemetry` or `--cam-relay`.
+- **Cameras come from [`tools/cam_relay.py`](../../tools/cam_relay.py) on :8647**
+  (`--cam-relay HOST[:PORT]`), not `tools/cam_live.py` on mira:8646 (§5, §8).
+  Without `--cam-relay` the view pane has no camera source.
+- **The sim child and the MJPEG readers are Python**
+  ([`link/console/simproc.py`](../../link/console/simproc.py),
+  [`mjpeg.py`](../../link/console/mjpeg.py)), not part of the C layer (§10).
+  The C library carries the link, the keymap and the recorder; simproc.py
+  follows `link/simproc.cpp`'s rules.
+- **Setup shows the data sources read-only**, as the command line set them, and
+  has no observer / driver choice (§6 Setup). The role is TAKE CONTROL / WATCH
+  ONLY in the safety bar (or `--drive` at start); Setup only shows it.
 - **Ports for flight records**: robot records on UDP 4221 (forwarded by mira's
   collector), the sim's on 4222.
 - **`bimo_gui` stays until the new console has run a hardware session** (§13
