@@ -99,6 +99,41 @@ def test_every_script_stays_in_the_trained_envelope(name):
                 f"robot clamps"
 
 
+# The slow-gait scripts: the band of the 0.75 Hz policies (robot_legs_prec16_f075_js20's
+# generated envelope: forward 0.05-0.24, backward 0.15-0.4), whatever run is deployed here.
+SLOW_BAND = __import__("protocol").Envelope(0.05, 0.24, 0.15, 0.4, 0.1, 0.25, 1.0, 1.0)
+
+
+@pytest.mark.parametrize("name,vx,cycles", [("stride1_02s", 0.2, 1.0),
+                                            ("steps5_02s", 0.2, 2.5),
+                                            ("back3_02s", -0.2, 1.5)])
+def test_slow_gait_scripts_walk_whole_steps_on_the_075hz_clock(name, vx, cycles):
+    """2 s of stand, then vx for `cycles` gait cycles at 0.75 Hz less 50 ms (ending before
+    the cycle boundary, so the clock does not coast through an extra swing), then stand.
+    Inside the 0.75 Hz policies' band, which the robot would not clamp."""
+    src = sources.ScriptSource(name)
+    end = 2.0 + cycles / 0.75 - 0.05
+    assert sources.SCRIPT_SCENARIO[name] == "line_1m"
+    for i in range(2000):                      # 20 s at 100 Hz
+        t = i * 0.01
+        v, w, flags, ext = src.poll(t)
+        assert (w, flags, ext) == (0.0, FLAG_ENABLE, {})
+        want = vx if 2.0 <= t < end else 0.0
+        assert v == pytest.approx(want), f"{name} at t={t:.2f}s"
+        assert clamp_to_envelope(v, w, SLOW_BAND) == (v, w)
+    assert src.poll(end - 0.005)[0] == pytest.approx(vx)
+    assert src.poll(end + 0.005)[0] == 0.0
+
+
+def test_stride1_03e_ends_57_ms_before_its_1p5hz_cycle():
+    src = sources.ScriptSource("stride1_03e")
+    assert src.poll(1.99)[0] == 0.0
+    assert src.poll(2.0)[0] == pytest.approx(0.3)
+    assert src.poll(2.605)[0] == pytest.approx(0.3)
+    assert src.poll(2.61)[0] == 0.0
+    assert 2.0 + 1.0 / 1.5 - 2.61 == pytest.approx(0.0567, abs=1e-3)
+
+
 def test_script_duration_disables_rather_than_stopping_the_stream():
     # Going quiet would make the robot wait out the 250 ms watchdog; sending
     # an explicit disabled command stops it now.
