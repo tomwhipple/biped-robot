@@ -118,34 +118,40 @@ def test_sidestep_left_and_right():
 
 
 def board_stub(run, left0=100.0, right0=100.0, ahead=lambda run: 300, script=None, miss=None, sole0=(68.0, -69.0)):
-    """A camera stand-in and a body that lands its feet where it likes, in board coordinates. `true` holds where
-    each sole really stands (y, m, from where it began; set when a foot goes down: the y it was sent to plus
-    miss[side], + = left); the look reports it on ONE fixed scale: sole_l_mm / sole_r_mm = sole0 + true,
-    margins left0/right0 less/plus it, sep = their difference."""
+    """A camera stand-in and a body that lands its feet like the robot, in board mm. `true` is where each sole
+    really stands. The stance foot never moves. A foot that goes down lands relative to the TRUE position of
+    the stance foot: true[f] = true[g] + (+-sep0) + 1e3 * (commanded y of f - commanded y of g) + miss[f], where
+    sep0 is the separation the robot was put down with (the IK's zero offsets) and miss[f] (mm, + = left) is
+    what that swing foot adds. The look reports the true positions on one fixed scale; left0 / right0 are the
+    margins at the start."""
     miss = miss or {"L": 0.0, "R": 0.0}
-    run.true = {"L": 0.0, "R": 0.0}
-    run.sole0 = dict(L=sole0[0], R=sole0[1])
+    run.true = {"L": sole0[0], "R": sole0[1]}
+    run.start = dict(run.true)
+    run.sep0 = sole0[0] - sole0[1]
     run.landed = []
     lower0 = run.lower_foot
 
     def lower(swing, fast=False):
         r = lower0(swing, fast)
-        run.true[swing] = run.fy(swing) + miss[swing]
+        g = "R" if swing == "L" else "L"
+        sgn = 1.0 if swing == "L" else -1.0
+        run.true[swing] = run.true[g] + sgn * run.sep0 + 1e3 * (run.fy(swing) - run.fy(g)) + miss[swing]
         run.landed.append((swing, run.true[swing]))
         return r
     run.lower_foot = lower
     calls = []
 
     def sole(f):
-        return run.sole0[f] + 1e3 * run.true[f]
+        return run.true[f]
 
     def look(tag):
         calls.append(tag)
         if script is not None:
             m = script(len(calls))
         else:
-            m = dict(left_mm=left0 - 1e3 * run.true["L"], right_mm=right0 + 1e3 * run.true["R"], ahead_px=ahead(run), mm_per_px=1.0,
-                     sole_l_mm=sole("L"), sole_r_mm=sole("R"), sep_mm=sole("L") - sole("R"), conf=0.9)
+            t, s0 = run.true, run.start
+            m = dict(left_mm=left0 - (t["L"] - s0["L"]), right_mm=right0 + (t["R"] - s0["R"]), ahead_px=ahead(run), mm_per_px=1.0,
+                     sole_l_mm=t["L"], sole_r_mm=t["R"], sep_mm=t["L"] - t["R"], conf=0.9)
         run.log("board", tag=tag, seen=m is not None)
         return m
     run.look = look
@@ -160,7 +166,7 @@ def test_board_steers_toward_the_middle():
         board_stub(run, left0=130.0, right0=70.0)                  # 30 mm more room on the left: go left
         out = run.walk("L", 6, 0.0, 0.0, board=True)
         check_up(out, 6)
-        e = 0.5 * ((130 - 1e3 * run.true["L"]) - (70 + 1e3 * run.true["R"]))
+        e = 0.5 * ((130 - (run.true["L"] - 68.0)) - (70 + (run.true["R"] + 69.0)))
         assert abs(e) <= run.p["board_dead_mm"] + 1e-6, e          # it came back inside the dead band
         assert run.feet["L"][1] > 0.0 and run.feet["R"][1] > 0.0, run.feet
         assert run.stop_why is None
@@ -242,50 +248,139 @@ def landing_errors(run):
     return [(r["side"], r["err"]) for r in rows if r["ev"] == "landing"]
 
 
-def test_landing_loop():
-    """Both feet land to the right of where they are sent (the right 40 mm, the left 20 mm; 80 / 40 for a 2x
-    miss). The outer loop, in board coordinates, takes their landing errors into per-foot command offsets."""
-    for scale, tol_r in ((1.0, 10.0), (2.0, 25.0)):                # 2x: the right foot needs 80 mm, the offset is capped at 60
-        miss = {"L": -0.020 * scale, "R": -0.040 * scale}
-        with env() as d:
-            run = make(d)
-            board_stub(run, left0=200.0, right0=200.0, miss=miss)
-            out = run.walk("L", 10, 0.0, 0.0, hold=0.0, board=True, march=True)
-            check_up(out, 10)
-            tg = {f: run.bt["centre"] + (run.bt["half"] if f == "L" else -run.bt["half"]) for f in "LR"}
-            for f, tol in (("L", 10.0), ("R", tol_r)):
-                assert abs(run.sole(f) - tg[f]) < tol, (scale, f, run.sole(f), tg[f])        # ends within tolerance of its target
-            errs = landing_errors(run)
-            for f, tol in (("L", 10.0), ("R", tol_r)):
-                last = [abs(e) for sd, e in errs if sd == f][-2:]
-                assert len(last) == 2 and max(last) <= tol, (scale, f, errs)                 # and stays there
-                allf = [abs(e) for sd, e in errs if sd == f]
-                assert max(allf[2:]) <= allf[0] + 1e-6, (scale, f, allf)                    # no oscillation growth
-            assert abs(run.lat_off["R"]) <= run.p["lat_cmd_max"] + 1e-12
-            assert run.bt["centre"] == 0.5 * (68.0 - 69.0)                                  # held the starting line
-            run.finish(save=False)
-    with env() as d:                                               # a walk holds the starting line
+MISS = {"L": -15.0, "R": -20.0}      # mm, + = left: both swing feet land to the robot's right (R wider, L narrower)
+
+
+def targets(run):
+    return {f: run.bt["centre"] + (run.bt["half"] if f == "L" else -run.bt["half"]) for f in "LR"}
+
+
+def test_fake_is_honest_blind_drift():
+    """The fake reproduces the robot: with no loop and no comp a march drifts right ~35 mm per pair."""
+    with env() as d:
         run = make(d)
-        board_stub(run, miss={"L": -0.020, "R": -0.040})
-        out = run.walk("L", 8, 0.02, 0.0, board=True)
-        check_up(out, 8)
-        centre = 0.5 * (run.sole("L") + run.sole("R"))
-        assert abs(centre - run.bt["centre"]) < 15.0, (centre, run.bt)
-        assert abs((run.sole("L") - run.sole("R")) - 2 * run.bt["half"]) < 15.0
+        board_stub(run, miss=MISS)
+        out = run.walk("L", 6, 0.0, 0.0, hold=0.0, march=True)           # blind: no --board
+        check_up(out, 6)
+        shift = [run.true[f] - run.start[f] for f in "LR"]
+        assert -115 < shift[1] < -95 and -95 < shift[0] < -75, shift     # about -35 mm per pair (the first L swing only -15)
+        sep = run.true["L"] - run.true["R"]
+        assert abs(sep - run.sep0) < 21.0                                # the stance only wobbles by the misses
         run.finish(save=False)
-    with env() as d:                                               # a sidestep command moves the line (half of dy per step)
+
+
+def run_march(steps, miss, comp=None, gain=0.5, walk=False, left0=300.0, right0=300.0, **over):
+    with env() as d:
+        prm = S.load_state()
+        prm["lat_gain"] = gain
+        prm.update(over)
+        if comp:
+            prm["comp"] = dict(comp)
+        kin = Kin(prm["drop"])
+        run = S.Run("m", FakeRobot(kin), kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        board_stub(run, left0=left0, right0=right0, miss=miss)
+        trace = []
+        lower0 = run.lower_foot
+
+        def lower(swing, fast=False):
+            r = lower0(swing, fast)
+            tg = targets(run) if run.bt else {"L": run.true["L"], "R": run.true["R"]}
+            trace.append((swing, run.true["L"] - tg["L"], run.true["R"] - tg["R"], 0.5 * (run.true["L"] + run.true["R"]) - (run.bt["centre"] if run.bt else 0.0)))
+            return r
+        run.lower_foot = lower
+        out = run.walk("L", steps, 0.02 if walk else 0.0, 0.0, hold=0.0, board=True, march=not walk)
+        check_up(out, steps)
+        res = dict(trace=trace, comp=dict(run.p["comp"]), run=run, errs=landing_errors(run))
+        run.finish(save=False)
+        return res
+
+
+def test_landing_loop_marches():
+    r = run_march(12, MISS)
+    tr = r["trace"]                                       # after each landing: (foot, L err, R err, centre err), mm
+    for i, (f, el, er, c) in enumerate(tr):
+        if i >= 6:                                        # by step 6 both soles are within 8 mm of their targets, and stay
+            assert abs(el) < 8.0 and abs(er) < 8.0, (i, tr[i])
+    assert abs(r["comp"]["R"] - 0.020) < 0.003 and abs(r["comp"]["L"] - 0.015) < 0.003, r["comp"]
+    errs = [abs(e) for sd, e in r["errs"] if sd == "R"]
+    assert errs[0] > 15 and errs[-1] < 5, errs                                # the right foot's landing error halves each time
+    # starting from a saved comp: within 8 mm from the first pair
+    r = run_march(6, MISS, comp={"L": 0.015, "R": 0.020})
+    assert all(abs(el) < 8.0 and abs(er) < 8.0 for _, el, er, _ in r["trace"]), r["trace"]
+    # with the misses 1.5x (30 / 22.5 mm) it still converges, slower, without a growing oscillation. (min_sep_cmd
+    # leaves 25 mm of narrowing for the right foot: this run lets it have 30. The IK's reach for the left foot ends
+    # near +30 mm: doubled misses, 40 / 30 mm, do not fit the leg geometry at all.)
+    r = run_march(16, {"L": -22.5, "R": -30.0}, min_sep_cmd=91.0)
+    for f in "LR":
+        e = [abs(x) for sd, x in r["errs"] if sd == f]
+        assert e[-1] < 5.0 and max(e[1:]) <= e[0] + 1e-6, (f, e)
+        assert all(b <= a + 1e-6 for a, b in zip(e, e[1:])), (f, e)             # monotone: nothing rings
+    assert abs(r["trace"][-1][1]) < 8.0 and abs(r["trace"][-1][2]) < 8.0, r["trace"][-3:]
+    assert abs(r["comp"]["R"] - 0.030) < 0.004 and abs(r["comp"]["L"] - 0.0225) < 0.004, r["comp"]
+    # doubled (40 / 30 mm) with the default limits: the right foot's 40 mm is beyond min_sep_cmd: the soles are never
+    # commanded closer than it, the comp stays inside its clamp, the run goes on (it drifts: the limit is in the way)
+    r = run_march(8, {"L": -30.0, "R": -40.0})
+    run = r["run"]
+    assert 121.0 + 1e3 * (run.fy("L") - run.fy("R")) >= run.p["min_sep_cmd"] - 1e-6
+    assert all(abs(r["comp"][f]) <= 0.05 for f in "LR"), r["comp"]
+
+
+def test_landing_loop_walk_and_blind_comp():
+    r = run_march(12, MISS, walk=True)
+    assert all(abs(c) < 12.0 for _, _, _, c in r["trace"][4:]), [round(t[3], 1) for t in r["trace"]]    # holds the line
+    assert all(abs(el) < 12.0 and abs(er) < 12.0 for _, el, er, _ in r["trace"][4:]), r["trace"]
+    with env() as d:                                      # blind, from a saved comp: less than 8 mm per pair
+        prm = S.load_state()
+        prm["comp"] = {"L": 0.015, "R": 0.020}
+        kin = Kin(prm["drop"])
+        run = S.Run("blind", FakeRobot(kin), kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        board_stub(run, miss=MISS)
+        out = run.walk("L", 12, 0.02, 0.0)
+        check_up(out, 12)
+        assert all(abs(run.true[f] - run.start[f]) < 8.0 * 6 for f in "LR"), run.true
+        assert all(abs(run.true[f] - run.start[f]) < 8.0 for f in "LR"), run.true      # (the saved comp is exact: no drift at all)
+        run.finish(save=False)
+    with env() as d:                                      # the saved comp is part of the state file
+        prm = S.load_state()
+        prm["comp"] = {"L": 0.011, "R": 0.012}
+        kin = Kin(prm["drop"])
+        run = S.Run("save", FakeRobot(kin), kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        run.finish(save=True)
+        assert json.load(open(S.STATE))["comp"] == {"L": 0.011, "R": 0.012}
+        assert S.load_state()["comp"] == {"L": 0.011, "R": 0.012}
+
+
+def test_landing_loop_limits():
+    with env() as d:                                      # offsets that would cross the feet are held at min_sep_cmd, and capped
+        prm = S.load_state()
+        prm["comp"] = {"L": -0.05, "R": 0.05}
+        kin = Kin(prm["drop"])
+        run = S.Run("lim", FakeRobot(kin), kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        board_stub(run)
+        run.walk("L", 4, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert 121.0 + 1e3 * (run.fy("L") - run.fy("R")) >= run.p["min_sep_cmd"] - 1e-6
+        assert abs(run.fy("L") - run.fy("R")) <= run.p["lat_step_max"] + 1e-9
+        run.finish(save=False)
+    with env() as d:                                      # a sidestep command moves the line (half of dy per step) and the feet follow
         run = make(d)
         board_stub(run)
         run.walk("L", 6, 0.0, 0.015, hold=0.0, board=True, march=True)
         assert abs(run.bt["centre"] - (-0.5 + 6 * 7.5)) < 1e-6, run.bt
-        assert abs(run.sole("L") - (68.0 + 6 * 7.5 - 0.0)) < 15.0, run.sole("L")
+        assert abs(run.sole("L") - (68.0 + 5 * 7.5)) < 8.0 and abs(run.sole("R") - (-69.0 + 6 * 7.5 - 0.5 + 0.5)) < 8.0, run.true
         run.finish(save=False)
-    with env() as d:                                               # the soles are never commanded closer than min_sep_cmd
+    with env() as d:                                      # a missed look: the same relative offset as last time, no learning
         run = make(d)
-        board_stub(run)
-        run.lat_off = {"L": -0.06, "R": 0.06}                      # offsets that would cross the feet
-        run.walk("L", 4, 0.0, 0.0, hold=0.0, board=True, march=True)
-        assert 121.0 + 1e3 * (run.fy("L") - run.fy("R")) >= run.p["min_sep_cmd"] - 1e-6
+        board_stub(run, miss=MISS, script=lambda n: None if n == 3 else dict(
+            left_mm=200.0, right_mm=200.0, ahead_px=300, mm_per_px=1.0, sole_l_mm=run.true["L"], sole_r_mm=run.true["R"],
+            sep_mm=run.true["L"] - run.true["R"], conf=0.9))
+        out = run.walk("L", 6, 0.0, 0.0, hold=0.0, board=True, march=True)
+        check_up(out, 6)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert sum(r["ev"] == "landing" for r in rows) >= 3
         run.finish(save=False)
 
 
@@ -387,10 +482,10 @@ def test_backward_and_shuttle():
         run.finish(save=False)
     with env() as d:                                               # the landing misses, learned away, over 2 cycles of 4
         run = make(d)
-        board_stub(run, miss={"L": -0.020, "R": -0.040})
+        board_stub(run, left0=300.0, right0=300.0, miss=MISS)
         out = run.shuttle("L", 4, 2, 0.02, 0.0, board=True)
         check_up(out, 16)
-        assert all(abs(run.true[f]) < 0.015 for f in "LR"), run.true
+        assert all(abs(run.true[f] - run.start[f]) < 15.0 for f in "LR"), run.true
         assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # the board runs out ahead: turn round early, still home
@@ -484,7 +579,7 @@ def test_playsweep_and_shiftsweep():
     with env() as d:
         rc = S.main(["playsweep", "--side", "L", "--hold", "0"], make_robot=FakeRobot, log_dir=d)
         assert rc == 0
-        rows = [json.loads(line) for line in open(os.path.join(d, os.listdir(d)[0]))]
+        rows = [json.loads(line) for line in open(os.path.join(d, [f for f in os.listdir(d) if f.endswith('.jsonl')][0]))]
         sw = [r for r in rows if r["ev"] == "sweep"]
         joints = {r["joint"] for r in sw}
         assert joints == {"hip_roll", "ankle_roll"}, joints
@@ -497,7 +592,7 @@ def test_playsweep_and_shiftsweep():
     with env() as d:
         rc = S.main(["shiftsweep", "--set", "sweep_cycles=1"], make_robot=FakeRobot, log_dir=d)
         assert rc == 0
-        rows = [json.loads(line) for line in open(os.path.join(d, os.listdir(d)[0]))]
+        rows = [json.loads(line) for line in open(os.path.join(d, [f for f in os.listdir(d) if f.endswith('.jsonl')][0]))]
         sw = [r for r in rows if r["ev"] == "sweep"]
         mm = [r["shift_mm"] for r in sw]
         assert max(mm) >= 61.9 and min(mm) <= -61.9 and abs(mm[-1]) < 1e-6 and all(k in sw[0] for k in ("roll", "pitch")), (max(mm), min(mm), mm[-1])

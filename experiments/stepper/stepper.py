@@ -42,11 +42,13 @@ under volt_min ends the run cleanly. The log's `start` and `lift` rows carry utc
 
 With --board the look is the median of 3 camera frames (low-confidence ones dropped), on ONE scale for the
 run: the board is board_w_mm (450) wide and a sole's position is its fraction across it. The first look fixes
-each sole's lateral target on the board: the starting stance (half_sep) about the starting line (--board-centre
-steers that line toward the board's middle instead of holding it; --dy moves it). A foot does not land where it
-is sent (the stance leg leans through its roll-servo play), so after each landing the next look measures that
-sole and the foot's command offset takes lat_gain of the error (`landing` rows); the offset is applied when that
-foot next swings, nothing is kept between runs. A fall is waited out (the firmware homes the robot once it is
+each sole's lateral target on the board (the starting stance about the starting line; --board-centre steers
+that line toward the board's middle, --dy moves it) and sep0, the measured separation that goes with the IK's
+zero offsets. A swing foot lands where it is sent, relative to the stance foot, plus a systematic miss (both
+feet land to the robot's right, 15-30 mm). So every step aims relative to the MEASURED stance foot, and
+comp[side] (state file, learned from each landing's error, lat_gain per landing) is added to the command; the
+`anchor` and `landing` rows show the real offset against the commanded one and each learned miss. Without
+--board the saved comp is still applied, blind. A fall is waited out (the firmware homes the robot once it is
 picked up); 45 s after it, notify_cmd asks Aime to ping the owner once (--no-notify turns that off).
 
 A sidestep never narrows the stance: moving left, the LEFT foot goes out first and the right follows;
@@ -72,7 +74,7 @@ from nool import foot_clear, settled, tipping  # noqa: E402
 STATE = os.path.join(HERE, "state.json")
 TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
 GUARD = ("R_hip_roll", "L_hip_roll", "R_knee", "L_knee", "R_ankle_roll", "L_ankle_roll", "R_hip_pitch", "L_hip_pitch")
-LEARNED = ("k_shift", "h_up", "hike")
+LEARNED = ("k_shift", "h_up", "hike", "comp")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
@@ -113,8 +115,10 @@ DEFAULTS = dict(
     sep_nominal_mm=121.0, # centre-to-centre separation of the soles in the crouch, mm
     board_w_mm=450.0,     # the board's width, mm: the one scale of a run (board_view)
     board_centre=False,   # steer the starting line toward the board's middle (default: hold it)
-    lat_gain=0.5,         # share of a sole's landing error added to that foot's command offset, each landing
-    lat_cmd_max=0.06,     # most a foot's lateral command offset may be, m
+    lat_gain=0.5,         # share of a sole's landing error taken into that foot's learned miss comp, each landing
+    lat_step_max=0.04,    # most a swing foot is commanded off the nominal offset from the stance foot, m
+    comp_lim=0.05,        # most a learned landing miss may be, m
+    comp={"L": 0.0, "R": 0.0},   # learned: lateral miss of each SWING foot (m, + = it lands left of where it is sent); sent opposite
     min_sep_cmd=96.0,     # never command the soles closer than this (IK geometry), mm: nominal less 25
     notify_after_s=45.0,  # still fallen this long after a fall: run notify_cmd, once
     fall_wait_s=1200.0,   # the most it waits for the robot to be picked up and homed, s
@@ -156,8 +160,10 @@ class Run:
         self.t0 = time.monotonic()
         self.off = {"L": self.k.model_offset("L"), "R": self.k.model_offset("R")}
         self.feet = {"L": [0.0, 0.0, 0.0], "R": [0.0, 0.0, 0.0]}     # each sole's offset from its stand
-        self.lat_off = {"L": 0.0, "R": 0.0}   # per-foot lateral command offset (m): the integral of its landing errors
-        self.bt = None                        # board targets, set by the first look: a0 (mm), half (mm), centre (mm)
+        self.rel = {"L": 0.0, "R": 0.0}       # the IK offset (m) each foot was last aimed at, from the stance foot, less comp
+        self.meas = {"L": 0.0, "R": 0.0}      # the soles' positions at the last good look (board mm)
+        self.fresh = False                    # is `meas` from this step's look?
+        self.bt = None                        # board targets, set by the first look: half, centre, sep0 (mm)
         self.t_land = {"L": None, "R": None}  # the board target a foot was aimed at, until its landing is measured
         self.pel = [0.0, 0.0]                                         # pelvis offset (fwd, shift)
         self.hike = {"L": 0.0, "R": 0.0}                              # hip-roll trim, deg, of the leg it stands on
@@ -503,46 +509,60 @@ class Run:
                  f"ahead {m['ahead_px']} px  conf {m['conf']:.2f}")
         return m
 
-    def outer(self, m, dy):
-        """The outer loop, in board coordinates (mm; sole_l_mm / sole_r_mm of the look `m`). The first look fixes
-        a0 (where each sole stood when the feet were at their commands), half (half the separation: the stance
-        it was put down in) and the line `centre` it holds. Later looks: a foot that has landed since is
-        measured, its error (target - measured) is taken into its command offset (lat_gain, clamped); --dy
-        and (board_centre) steering move the line."""
+    def outer(self, m):
+        """The outer loop, in board coordinates (mm; sole_l_mm / sole_r_mm of a good look `m`, both feet down).
+        The first look fixes the targets: T[L], T[R] = `centre` +- `half` (the stance it was put down in) and
+        sep0, the measured separation that goes with the IK's zero offsets. Every later look:
+          anchor: the real offset between the feet vs the commanded one (logged; the aim below is relative to
+                  the MEASURED stance foot, so the commands themselves are never jumped);
+          landing: the foot that landed since (its lift ended up) has error T - measured; its learned miss
+                  comp[f] takes lat_gain of it (m, clamped +-comp_lim);
+          --board-centre moves the line toward the board's middle."""
         P = self.p
         sl, sr = m["sole_l_mm"], m["sole_r_mm"]
+        self.meas, self.fresh = dict(L=sl, R=sr), True
         if self.bt is None:
-            self.bt = dict(a0=dict(L=sl, R=sr), half=0.5 * (sl - sr), centre=0.5 * (sl + sr))
-            self.log("board_target", **{k: (dict(v) if isinstance(v, dict) else round(v, 1)) for k, v in self.bt.items()})
+            self.bt = dict(half=0.5 * (sl - sr), centre=0.5 * (sl + sr), sep0=sl - sr)
+            self.log("board_target", **{k: round(v, 1) for k, v in self.bt.items()})
             return
+        d_true, d_cmd = 1e-3 * (sl - sr - self.bt["sep0"]), self.feet["L"][1] - self.feet["R"][1]
+        self.log("anchor", d_true=round(1e3 * d_true, 1), d_cmd=round(1e3 * d_cmd, 1), corr=round(1e3 * (d_true - d_cmd), 1))
         for f in "LR":
             t = self.t_land[f]
             if t is None:
                 continue
             self.t_land[f] = None
             meas = sl if f == "L" else sr
-            err = t - meas
-            self.lat_off[f] = max(-P["lat_cmd_max"], min(P["lat_cmd_max"], self.lat_off[f] + P["lat_gain"] * 1e-3 * err))
-            self.log("landing", side=f, meas=round(meas, 1), target=round(t, 1), err=round(err, 1), ycmd=round(self.lat_off[f], 5))
-            self.say(f"  {f} landed at {meas:+.0f} mm, aimed {t:+.0f}: off by {err:+.0f} -> command offset {1e3 * self.lat_off[f]:+.0f} mm")
+            err = t - meas                                       # + = it should have landed further left
+            P["comp"][f] = round(max(-P["comp_lim"], min(P["comp_lim"], P["comp"][f] + P["lat_gain"] * 1e-3 * err)), 5)
+            self.log("landing", side=f, meas=round(meas, 1), target=round(t, 1), err=round(err, 1), comp=P["comp"][f])
+            self.say(f"  {f} landed at {meas:+.0f} mm, aimed {t:+.0f}: off by {err:+.0f} -> miss compensation {1e3 * P['comp'][f]:+.1f} mm")
         if P["board_centre"]:
             e = 0.5 * (m["left_mm"] - m["right_mm"])             # + = more room on the left: move the line left
             if abs(e) > P["board_dead_mm"]:
                 self.bt["centre"] += max(-P["board_step_mm"], min(P["board_step_mm"], P["board_gain"] * e))
 
     def aim(self, side):
-        """Where the swing foot is commanded (IK y, m): its board target, from the first look's stand, plus its
-        command offset; never closer to the other foot's command than min_sep_cmd. Remembers the target."""
+        """Where the swing foot is commanded (IK y, m). The stance foot g is where it was MEASURED to be: the
+        wanted real offset is w = (T[f] - meas[g]); the IK offset is that less w0, the nominal one (+-sep0:
+        the soles' separation that goes with zero IK offset), relative to g's commanded y, plus comp[f], the
+        learned miss of this swing foot. Without a good look this step: the same relative offset as last time
+        for this foot. Never closer than min_sep_cmd (IK geometry) and at most lat_step_max off the nominal."""
         P = self.p
+        g = "R" if side == "L" else "L"
         if self.bt is None:
-            return self.fy(side)
+            return self.feet[g][1] + P["comp"][side]
         tgt = self.bt["centre"] + (self.bt["half"] if side == "L" else -self.bt["half"])
-        y = 1e-3 * (tgt - self.bt["a0"][side]) + self.lat_off[side]
+        if self.fresh:
+            w0 = (1.0 if side == "L" else -1.0) * self.bt["sep0"]
+            self.rel[side] = 1e-3 * (tgt - self.meas[g] - w0)
+        off = self.rel[side] + P["comp"][side]
         gap = 1e-3 * (P["min_sep_cmd"] - P["sep_nominal_mm"])           # the least yL - yR, m
-        other = self.fy("R" if side == "L" else "L")
-        y = max(y, other + gap) if side == "L" else min(y, other - gap)
+        lo, hi = (gap, 1e9) if side == "L" else (-1e9, -gap)
+        off = max(lo, min(hi, off))
+        off = max(-P["lat_step_max"], min(P["lat_step_max"], off))
         self.t_land[side] = tgt
-        return y
+        return self.feet[g][1] + off
 
     # -- the servos ---------------------------------------------------------
     def servo_guard(self, tag):
@@ -583,6 +603,7 @@ class Run:
                 self.halt(why, "guard_stop")
                 return "stop", None
         self.n_steps += 1
+        self.fresh = False
         if board:
             m = self.look(f"step {self.n_steps - 1}")
             self.misses = 0 if m else self.misses + 1
@@ -598,7 +619,7 @@ class Run:
                 self.log("board_ahead", ahead_px=m["ahead_px"])
                 return "ahead", None
             else:
-                self.outer(m, dy)
+                self.outer(m)
         stance = "R" if side == "L" else "L"
         if board:
             if self.bt is not None:
@@ -609,7 +630,7 @@ class Run:
             for d in (dy,):                          # outward only: left foot to the left, right foot to the right
                 if (d > 0 and side == "L") or (d < 0 and side == "R"):
                     step_out += d
-            y_to = self.feet[stance][1] + step_out
+            y_to = self.feet[stance][1] + step_out + self.p["comp"][side]
         res = (side,) + self.lift(side, hold=hold, dx=dx, y_to=y_to)
         if res[1] == "gave_up" or res[1] != "up":
             self.t_land[side] = None                                 # it did not land anew
