@@ -112,6 +112,7 @@ class TelemetryTab(QtWidgets.QWidget):
         left_lay.setStretchFactor(grid, 1)
         left = group(f"ROBOT   last {WINDOW_S:.0f} s", left_lay)
         left.setMinimumWidth(380)         # narrower charts are unreadable: stack instead
+        left.setMinimumHeight(560)        # six charts of ~80 pt, stacked or not
 
         # The joint names set the first column; the slack goes to status.
         # Units in the header, numbers in the cells: the table fits beside
@@ -144,8 +145,8 @@ class TelemetryTab(QtWidgets.QWidget):
                           spacing=10))
         # The 60 s traces get the width, the tables what they need; on a
         # narrow pane the tables go beneath the traces.
-        self.cols = Columns(left, right, spacing=12, stretch=(2, 1))
-        self.setLayout(vbox(self.cols, "stretch", margins=(12, 12, 12, 12)))
+        self.cols = Columns(left, right, spacing=12, stretch=(2, 1), top=False)
+        self.setLayout(vbox(self.cols, margins=(12, 12, 12, 12)))
 
     # -- the refresh -----------------------------------------------------------
     def update_from(self, st, now_ms: float) -> None:

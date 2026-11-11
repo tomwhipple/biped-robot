@@ -400,15 +400,18 @@ class Columns(QtWidgets.QWidget):
     a tab's columns never make it wider than its pane (the tab scrolls down,
     never sideways)."""
 
-    def __init__(self, *widgets, spacing=12, stretch=None):
+    def __init__(self, *widgets, spacing=12, stretch=None, top=True):
         super().__init__()
         self._widgets = widgets
         self._stretch = stretch or (0,) * len(widgets)
+        # top: side by side, each column is as tall as it needs, top-aligned;
+        # else each fills the height (a column of charts that takes the rest).
+        self._top = QtCore.Qt.AlignmentFlag.AlignTop if top else QtCore.Qt.AlignmentFlag(0)
         self._lay = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.Direction.LeftToRight)
         self._lay.setSpacing(spacing)
         self._lay.setContentsMargins(0, 0, 0, 0)
         for w, k in zip(widgets, self._stretch):
-            self._lay.addWidget(w, k, QtCore.Qt.AlignmentFlag.AlignTop)
+            self._lay.addWidget(w, k, self._top)
         self.setLayout(self._lay)
 
     def _side_by_side_width(self) -> int:
@@ -435,8 +438,7 @@ class Columns(QtWidgets.QWidget):
         want = D.LeftToRight if width >= self._side_by_side_width() else D.TopToBottom
         if self._lay.direction() != want:
             self._lay.setDirection(want)
-            align = QtCore.Qt.AlignmentFlag.AlignTop if want == D.LeftToRight else \
-                QtCore.Qt.AlignmentFlag(0)
+            align = self._top if want == D.LeftToRight else QtCore.Qt.AlignmentFlag(0)
             for i, w in enumerate(self._widgets):
                 self._lay.setAlignment(w, align)
                 self._lay.setStretch(i, self._stretch[i] if want == D.LeftToRight else 0)
