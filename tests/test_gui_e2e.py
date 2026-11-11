@@ -104,6 +104,10 @@ def _gui(console, script, cmd_port, tlm_port, extra=()):
                      "--tlm-port", str(tlm_port), "--headless", *extra]),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, text=True, bufsize=1)
+    if console.v2 and "--readonly" not in extra and script:
+        # --drive first listens up to 1 s for a beacon to adopt (none comes:
+        # the twin beacons only to its commander), so the script starts later.
+        script = [(script[0][0] + 1.0, script[0][1]), *script[1:]]
     for delay, line in script:
         time.sleep(delay)
         if proc.poll() is not None:

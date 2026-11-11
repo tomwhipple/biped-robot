@@ -6,9 +6,10 @@ bimo_gui and bimo_tui share; this module only calls it. Build it with
 
     make -C firmware/host console
 
-$BIMO_CONSOLE_LIB overrides the library path. The library is refused when its
-API version or status-struct size differs from the mirror below, so a stale
-build fails loudly at start-up instead of misreading a field.
+$BIMO_CONSOLE_LIB overrides the library path. The library is refused when it
+is older than any of its sources (when they are present), or its API version,
+functions or status-struct size differ from the mirror below, so a stale build
+fails loudly at start-up instead of misreading a field.
 
 Stdlib only: the headless console (and its tests) run on a bare python.
 """
@@ -22,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LINK_DIR = os.path.dirname(HERE)
 ROOT = os.path.dirname(LINK_DIR)
 
-API_VERSION = 1
+API_VERSION = 2
 NUM_JOINTS = 17
 NUM_AXES = 6
 LIB_NAME = "libbimo_console." + ("dylib" if sys.platform == "darwin" else "so")
@@ -156,8 +157,48 @@ _SIGS = {
 _lib = None
 
 
+REBUILD = "rebuild it: make -C firmware/host console"
+
+
+def _sources() -> list[str]:
+    """What the library is built from (firmware/host/Makefile's console
+    rule), or [] when they are not here -- an installed copy, checked by its
+    API version and status size alone."""
+    import glob
+    link = [os.path.join(LINK_DIR, f"{n}.{x}")
+            for n in ("client", "console_api", "keymap", "recorder")
+            for x in ("h", "cpp")]
+    lp = os.path.join(ROOT, "firmware", "components", "linkproto")
+    proto = (glob.glob(os.path.join(lp, "include", "linkproto", "*.h"))
+             + glob.glob(os.path.join(lp, "*.cpp")))
+    if not all(os.path.exists(p) for p in link) or not proto:
+        return []
+    return link + proto
+
+
+def stale_sources(path: str) -> list[str]:
+    """Sources newer than the library at `path` (repo-relative names)."""
+    try:
+        built = os.path.getmtime(path)
+    except OSError:
+        return []
+    out = []
+    for src in _sources():
+        try:
+            if os.path.getmtime(src) > built:
+                out.append(os.path.relpath(src, ROOT))
+        except OSError:
+            pass
+    return out
+
+
 def library(path: str | None = None) -> ctypes.CDLL:
-    """The loaded, checked core library (once per process)."""
+    """The loaded, checked core library (once per process).
+
+    Refused, with the rebuild command, when it is older than any of its
+    sources, speaks another API version, lacks a function this module calls,
+    or lays the status struct out differently -- a stale build fails loudly
+    at start-up instead of misreading a field or sending the wrong frame."""
     global _lib
     if _lib is not None:
         return _lib
@@ -165,14 +206,30 @@ def library(path: str | None = None) -> ctypes.CDLL:
     if not os.path.exists(path):
         raise LibraryError(f"{path} not found -- build it: "
                            f"make -C firmware/host console")
-    lib = ctypes.CDLL(path)
+    newer = stale_sources(path)
+    if newer:
+        more = f" (+{len(newer) - 3} more)" if len(newer) > 3 else ""
+        raise LibraryError(f"{path} is older than {', '.join(newer[:3])}{more} "
+                           f"-- {REBUILD}")
+    try:
+        lib = ctypes.CDLL(path)
+    except OSError as e:
+        raise LibraryError(f"{path}: cannot load ({e}) -- {REBUILD}") from e
+    try:
+        ver = lib.bimo_api_version
+        ver.restype, ver.argtypes = ctypes.c_int, []
+    except AttributeError as e:
+        raise LibraryError(f"{path}: no bimo_api_version -- {REBUILD}") from e
+    if ver() != API_VERSION:
+        raise LibraryError(f"{path}: API version {ver()}, this console "
+                           f"speaks {API_VERSION} -- {REBUILD}")
     for name, (res, args) in _SIGS.items():
-        fn = getattr(lib, name)
+        try:
+            fn = getattr(lib, name)
+        except AttributeError as e:
+            raise LibraryError(f"{path}: no {name}() -- {REBUILD}") from e
         fn.restype = res
         fn.argtypes = args
-    if lib.bimo_api_version() != API_VERSION:
-        raise LibraryError(f"{path}: API version {lib.bimo_api_version()}, "
-                           f"this console speaks {API_VERSION} -- rebuild it")
     if lib.bimo_status_size() != ctypes.sizeof(Status):
         raise LibraryError(f"{path}: status is {lib.bimo_status_size()} B, "
                            f"core.py expects {ctypes.sizeof(Status)} -- rebuild "

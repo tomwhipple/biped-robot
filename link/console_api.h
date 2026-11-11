@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define BIMO_API_VERSION 1
+#define BIMO_API_VERSION 2
 #define BIMO_NUM_JOINTS 17
 #define BIMO_NUM_AXES 6
 

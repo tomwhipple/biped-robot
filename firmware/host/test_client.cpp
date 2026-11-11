@@ -1298,6 +1298,93 @@ void test_recorder_keeps_bench_rows_and_sink() {
     close(srv);
 }
 
+// A relink that fails anywhere -- a bad address after both sockets exist, or
+// a telemetry port that will not bind -- fails CLOSED: no transmit socket, no
+// destination, read-only, in the link AND the intent. Never a link that goes
+// on sending to the previous robot.
+void test_failed_relink_fails_closed() {
+    Link link;
+    Intent in;
+    CHECK(link.open("127.0.0.1", 4210, 0));
+    in.readonly = false;
+    in.arm(0.0);
+    CHECK(!link.readonly && link.tx >= 0 && link.has_dest);
+
+    CHECK(!relinkDisarming(link, in, "not-an-address", 4210, 0, false));
+    CHECK(link.readonly && link.tx < 0 && link.rx < 0 && !link.has_dest);
+    CHECK(in.readonly && !in.armed);
+    CHECK(!link.takeControl());              // and nothing to take control OF
+    Speeds s;
+    float vx = 0.0f, vy = 0.0f, wz = 0.0f;
+    Ext ext;
+    uint8_t flags = 0;
+    sendIntent(link, in, s, vx, vy, wz, ext, flags);
+    CHECK(link.sent == 0);
+
+    // A telemetry port somebody else holds (no SO_REUSEADDR on theirs).
+    const int blocker = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in a = {};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_ANY);
+    a.sin_port = 0;
+    CHECK(bind(blocker, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0);
+    socklen_t len = sizeof a;
+    getsockname(blocker, reinterpret_cast<sockaddr*>(&a), &len);
+    const int busy = ntohs(a.sin_port);
+    CHECK(link.open("127.0.0.1", 4210, 0));
+    in.readonly = false;
+    CHECK(!relinkDisarming(link, in, "127.0.0.2", 4210, busy, false));
+    CHECK(link.readonly && link.tx < 0 && link.rx < 0 && !link.has_dest);
+    CHECK(in.readonly);
+    CHECK(!relinkDisarming(link, in, "127.0.0.2", 4210, busy, true));
+    CHECK(link.readonly && link.tx < 0 && !link.has_dest);
+    ::close(blocker);
+    link.close();
+}
+
+// After HOLD / E-STOP the robot benches with DISARMED_STOP; the console that
+// was armed says the run was ENDED, not that an arm was refused.
+void test_stop_ended_run_is_not_a_refused_arm() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm.seq_echo = linkproto::packDiag(false, true,
+                                            linkproto::ArmResult::kDisarmedStop);
+    in.arm(0.0);
+    link.tlm_at_ms = kArmSyncMs + 100.0;
+    CHECK(in.syncToRobot(link, kArmSyncMs + 100.0));
+    CHECK(!in.armed);
+    CHECK(strstr(in.note, "run ended by HOLD/E-STOP") != nullptr);
+    CHECK(strstr(in.note, "stayed BENCH") == nullptr);
+}
+
+// The link-lost edge says what the robot's watchdog does, once.
+void test_link_lost_edge_is_noted_once() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm_at_ms = 0.0;
+    CHECK(!in.watchLink(link, 10.0));          // up: nothing to say
+    CHECK(in.watchLink(link, kTlmLostMs + 50.0));
+    CHECK(strstr(in.note, "250 ms") != nullptr && strstr(in.note, "5 s") != nullptr);
+    CHECK(!in.watchLink(link, kTlmLostMs + 100.0));   // once per edge
+    link.tlm_at_ms = 5000.0;
+    CHECK(!in.watchLink(link, 5000.0));        // back up
+    CHECK(in.watchLink(link, 5000.0 + kTlmLostMs + 1.0));
+}
+
+// The E-STOP latch clearing does not claim the robot is standing.
+void test_estop_clear_note_tells_the_truth() {
+    Intent in;
+    in.arm(0.0);
+    in.estop = true;
+    in.stand("stand");
+    CHECK(!in.estop);
+    CHECK(strstr(in.note, "standing") == nullptr);
+    CHECK(strstr(in.note, "benched one stays benched") != nullptr);
+}
+
 int main() {
     test_fault_ids_name_the_servos();
     test_frame_length_rule();
@@ -1341,5 +1428,9 @@ int main() {
     test_timeseries_resample();
     test_beacon_servo_outranks_bridge_then_yields();
     test_bench_link_subscribes_and_receives();
+    test_failed_relink_fails_closed();
+    test_stop_ended_run_is_not_a_refused_arm();
+    test_link_lost_edge_is_noted_once();
+    test_estop_clear_note_tells_the_truth();
     return testutil::report("client");
 }

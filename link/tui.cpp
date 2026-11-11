@@ -327,6 +327,7 @@ int main(int argc, char** argv) {
         // The robot decides its mode. Armed here but BENCH there, after the
         // edge has had time to land: refused (no calibration in NVS) or the
         // robot rebooted under us. Either way, this console is wrong.
+        in.watchLink(link, now_ms);
         if (in.syncToRobot(link, now_ms)) hold.clear();
         in.checkHome(link, now_ms);
 

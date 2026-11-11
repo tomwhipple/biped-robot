@@ -49,8 +49,9 @@ void bimo_free(BimoConsole* c) {
 }
 
 int bimo_open(BimoConsole* c, const char* host, int cmd_port, int tlm_port) {
-    c->in.readonly = false;
-    return c->link.open(host, cmd_port, tlm_port) ? 1 : 0;
+    const bool ok = c->link.open(host, cmd_port, tlm_port);
+    c->in.readonly = !ok;      // a failed open fails closed (Link::fail)
+    return ok ? 1 : 0;
 }
 
 int bimo_listen(BimoConsole* c, int tlm_port, const char* host, int cmd_port) {
@@ -86,6 +87,7 @@ void bimo_close(BimoConsole* c) { c->link.close(); }
 
 void bimo_tick(BimoConsole* c, double now_ms) {
     c->link.poll(now_ms);
+    c->in.watchLink(c->link, now_ms);
     c->in.syncToRobot(c->link, now_ms);
     c->in.checkHome(c->link, now_ms);
     bimo::sendIntent(c->link, c->in, c->speeds, c->vx, c->vy, c->wz,

@@ -190,7 +190,12 @@ struct Link {
     // `sent` and the beacon tallies all describe a conversation with ONE
     // robot, and carrying them across would make `lag` meaningless in
     // exactly the way the observer's own header had to avoid.
+    //
+    // A failure in open/listen/relink fails CLOSED: both sockets shut,
+    // tx = -1, readonly, no destination (fail()). It never leaves a link that
+    // still transmits to the previous robot's address.
     bool relink(const char* host, int cmd_port, int tlm_port, bool observe);
+    bool fail();      // close everything, read-only, no destination; false
     bool setWatch(const char* host, int port);
     void clearWatch() { watch_on = false; }
     // The twin-in-the-loop copy (tee_to above). False on a non-dotted-quad.
@@ -320,6 +325,11 @@ struct Intent {
     // reason). Armed and out of BENCH, it replaces arm()'s "waiting for the
     // robot to leave BENCH" note, if that is still the note, with the state.
     bool syncToRobot(const Link& link, double now_ms);
+
+    // The link-lost edge (no beacon for kTlmLostMs after hearing one): says
+    // what the robot's own watchdog does about it. Returns true on the edge.
+    bool watchLink(const Link& link, double now_ms);
+    bool link_was_up = false;
 };
 
 // A short human name for the current motion, for the status line.

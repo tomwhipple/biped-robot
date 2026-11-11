@@ -380,3 +380,80 @@ def test_closing_with_a_key_held_does_not_touch_the_freed_core(qapp, twin, tmp_p
         pump(qapp, 0.1)
     finally:
         other.close()
+
+
+def test_a_pending_rebind_never_swallows_a_stop(qapp, twin, tmp_path):
+    """A Setup keymap row waiting for its key: the HOLD and E-STOP keys still
+    fire their stop and stay the stops'; Escape, a tab change, focus loss and
+    5 s cancel it; and nothing is rebound while armed or LIVE."""
+    from console import app as app_mod
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        w.activateWindow()
+        pump(qapp, 0.5)
+        fired = record_fires(w)
+        c = w.ctl.core
+        estop_key = c.key_for(core.action_from_name("estop"))
+        hold_key = c.key_for(core.action_from_name("hold"))
+        fwd = core.action_from_name("forward")
+        w.select_tab("Setup")
+        pump(qapp, 0.1)
+        for qkey, ch, name in ((QtCore.Qt.Key.Key_E, "e", "estop"),
+                               (QtCore.Qt.Key.Key_F, "f", "hold")):
+            fired.clear()
+            assert w.start_rebind(fwd)
+            assert "REBINDING" in w.ctl.status_msg
+            key(w, qkey, text=ch)
+            key(w, qkey, press=False, text=ch)
+            pump(qapp, 0.05)
+            assert fired == [name] and w.rebind_action is None
+            assert c.key_for(core.action_from_name("estop")) == estop_key
+            assert c.key_for(core.action_from_name("hold")) == hold_key
+            assert c.key_for(fwd) != estop_key and c.key_for(fwd) != hold_key
+        # The stop rows themselves are not rebound here.
+        assert not w.start_rebind(core.action_from_name("estop"))
+        assert "refused" in w.ctl.status_msg
+        # An ordinary rebind works, and Escape / a tab change / the timeout cancel.
+        assert w.start_rebind(fwd)
+        key(w, QtCore.Qt.Key.Key_Y, text="y")
+        pump(qapp, 0.05)
+        assert core.key_name(c.key_for(fwd)) == "y"
+        assert w.start_rebind(fwd)
+        key(w, QtCore.Qt.Key.Key_Escape)
+        assert w.rebind_action is None and "cancelled" in w.ctl.status_msg
+        assert w.start_rebind(fwd)
+        w.select_tab("Drive")
+        assert w.rebind_action is None
+        assert w.start_rebind(fwd)
+        w.rebind_until = time.monotonic() - 0.1
+        pump(qapp, 0.1)
+        assert w.rebind_action is None and "no key in" in w.ctl.status_msg
+        assert w.start_rebind(fwd)
+        w._app_state(QtCore.Qt.ApplicationState.ApplicationInactive)
+        assert w.rebind_action is None
+        assert app_mod.REBIND_TIMEOUT_S == 5.0
+        # Armed: refused outright.
+        w.ctl.core.toggle_arm(core.now_ms())
+        pump(qapp, 0.1)
+        assert not w.start_rebind(fwd) and "disarm first" in w.ctl.status_msg
+    finally:
+        w.close()
+
+
+def test_a_failed_relink_shows_no_link_everywhere(qapp, twin, tmp_path):
+    """The title, the link line and Setup's role stop naming the old robot."""
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        pump(qapp, 0.3)
+        assert w.windowTitle().endswith("127.0.0.1")
+        assert not w.ctl.relink("not-an-address", twin, twin + 1)
+        w.select_tab("Setup")
+        pump(qapp, 0.3)
+        assert w.windowTitle() == "bimo console — NO LINK"
+        assert "NO LINK" in w.bar.link.text() and "127.0.0.1:" not in w.bar.link.text()
+        assert w.tab_widgets["Setup"].role.text().startswith("NO LINK")
+        assert w.ctl.relink("127.0.0.1", twin, twin + 1)
+        pump(qapp, 0.3)
+        assert w.windowTitle().endswith("127.0.0.1")
+    finally:
+        w.close()

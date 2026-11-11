@@ -452,3 +452,38 @@ Where the build ([console.md](../console.md)) departs from the sections above:
 - **`bimo_gui` stays until the new console has run a hardware session** (§13
   step 8, §15 decision 3): parity on the bench cannot be claimed from the twins
   alone.
+
+### 2026-11-11 polish
+
+- **A pending key rebind never swallows a stop.** The HOLD and E-STOP keys fire
+  their stop while a Setup keymap row waits for its key, and the console never
+  rebinds them (the stop rows refuse; edit `keymap.conf` with it closed).
+  Rebinding is refused while armed or LIVE; Escape, a tab change, focus loss or
+  5 s cancels it; the safety bar's note says `REBINDING <action>: press a key`.
+- **HOLD on a benched robot is confirmed by BENCH, not escalated.** The
+  firmware's benched soft stop changes no reported reason, so when the robot was
+  BENCH at the press, BENCH with no servo reset in progress (`HOME_PENDING`)
+  confirms it; `tools/estop.py --soft` uses the same rule. A HOLD during a reset
+  still escalates: the robot leaves `HOME_PENDING` standing after a stop.
+- **A failed relink leaves no link**: both sockets closed, read-only, no
+  destination; the link line, Setup's role and the window title say NO LINK and
+  no longer name the old robot. The title follows every relink.
+- **`--drive` adopts.** It starts as an observer, waits up to 1 s for a beacon
+  and takes control through TAKE CONTROL's adopt path; with no beacon it starts
+  disarmed with the same warning.
+- **Closing or quitting disarms first**: `shutdown()` runs before the gamepad,
+  streams and flight store close, and in a `finally` (window and headless).
+- **Notes say what happened**: a run ended by HOLD/E-STOP (or the flail guard)
+  says so rather than "stayed BENCH after arm"; clearing the E-STOP latch no
+  longer claims the robot stands; the link-lost edge says the robot stands after
+  250 ms and goes limp after 5 s without our frames.
+- **ARM is refused while a stop burst is going out**, like RESET SERVOS, and
+  both countdowns run to the burst's real end (escalation extends it).
+- **Stops resolve the host first**, so `localhost` is loopback and is not
+  broadcast to the LAN.
+- **The core library refuses a stale build**: older than any of its sources
+  (when present), another `BIMO_API_VERSION` (now 2), or a missing function.
+- **Known limit: a stop's confirmation needs the GUI thread.** The burst thread
+  cannot hear beacons itself (a second socket on the beacon port would take
+  them from the console's link), so a GUI hitch over the 400 ms window escalates
+  a HOLD the robot did confirm to HARD: the safe direction.

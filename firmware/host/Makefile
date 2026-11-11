@@ -113,6 +113,9 @@ WCLI_TWIN = $(BUILD)/wcli_twin
 # The software-in-the-loop library (docs/sil-harness.md): the same component
 # sources the tests use, plus the C boundary python loads with ctypes.
 SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
+# The Qt console's core library (its rule is further down). Defined here,
+# before `all:` names it: make expands a prerequisite list when it reads it.
+CONSOLE_LIB = $(BUILD)/libbimo_console.$(SIL_EXT)
 SRC_SIL   = sil_lib.cpp sil_net.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
@@ -242,7 +245,6 @@ $(BUILD)/imgui/stb_impl.o: ../../link/stb_impl.cpp ../../link/jpeg.h \
 # decides nothing itself. No sanitizers, for the reason the SIL library has
 # none: an ASan dylib dlopen()ed into a stock python aborts. test_client links
 # the same sources WITH both sanitizers.
-CONSOLE_LIB = $(BUILD)/libbimo_console.$(SIL_EXT)
 console: $(CONSOLE_LIB)
 $(CONSOLE_LIB): ../../link/console_api.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                 ../../link/recorder.cpp $(SRC_LINK) ../../link/console_api.h \
