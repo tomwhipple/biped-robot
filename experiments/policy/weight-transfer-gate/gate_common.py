@@ -176,11 +176,19 @@ def apply_terms(env, terms):
                              ipos=m.body_ipos[b].copy(), kp=np.array(env._kp_prof, float).copy(),
                              kd=np.array(env._kd_prof, float).copy())
     nom = env._gate_nom
-    if "lash_fit" in terms or "lash" in terms:
+    if any(k in terms for k in ("lash_fit", "lash", "lash_hip", "lash_ankle")):
+        cur = {n: math.degrees(env._roll_lash_rad * env._roll_mask[i]) for i, n in enumerate(env._servo_names)}
         if "lash_fit" in terms:
             w = {n: FIT_LASH.get(n[2:], 0.0) for n in env._servo_names}
-        else:
+        elif "lash" in terms:
             w = {n: (float(terms["lash"]) if "roll" in n else 0.0) for n in env._servo_names}
+        else:
+            w = dict(cur)
+        for n in env._servo_names:
+            if n.endswith("hip_roll") and "lash_hip" in terms:
+                w[n] = float(terms["lash_hip"])
+            if n.endswith("ankle_roll") and "lash_ankle" in terms:
+                w[n] = float(terms["lash_ankle"])
         ref = max(w.values())
         env.roll_lash_deg_max = None
         env._roll_lash_rad = math.radians(ref)
@@ -200,6 +208,20 @@ def apply_terms(env, terms):
                 m.body_inertia[i] = nom["legs_inertia"][i] * x
     if "com_y" in terms:
         m.body_ipos[b][1] = nom["ipos"][1] + float(terms["com_y"])
+    if "torso_kg" in terms:     # absolute torso mass, inertia scaled with it
+        x = float(terms["torso_kg"]) / float(m.body_mass[b])
+        m.body_mass[b] *= x
+        m.body_inertia[b] *= x
+    if "com_y_abs" in terms:    # absolute torso CoM y in the torso frame (the XML's is -0.001)
+        m.body_ipos[b][1] = float(terms["com_y_abs"])
+    if "pack" in terms:
+        add_box_to_body(m, b, float(terms["pack"]), PACK_POS, PACK_HALF)
+    if "sole_sym" in terms:
+        sole_symmetric(env)
+    if "zoff_La" in terms:      # the L ankle-roll calibration zero error (deg); grade's fit carries -2.12
+        env._gate_zoff_La = float(terms["zoff_La"])
+        if env._zero_off is not None:
+            env._zero_off[env._servo_names.index("L_ankle_roll")] = math.radians(float(terms["zoff_La"]))
     if "roll_k" in terms or "ser_hip" in terms or "ser_ankle" in terms:
         s = _role_vec(env, lambda n: float(terms.get("roll_k", 1.0)) if "roll" in n else 1.0)
         kp_abs = float(env._servo[0]) * nom["kp"] * s          # the servo's own stiffness, N m/rad
@@ -244,6 +266,69 @@ def add_series_joint(spec, joint, k, damping=0.05, armature=1e-4):
     return j
 
 
+# The battery pack where the CAD puts it: gen_plant_v6's legs-plant torso with m_battery > 0 places a
+# 3S pack box, transverse, at (-0.012, 0, 0.0585) in the torso frame, half-sizes 18 x 52.5 x 13 mm
+# (build_v6_inertia.plant_xml(measured_sole(measured_stops(asbuilt_legs())) with m_battery set; the
+# whole regenerated plant is NOT used: its CAD sums move other torso parts too). The pack's mass,
+# 83 g, is 1621 g (2026-11-10, battery in) minus 1538 g (2026-11-01, no battery), both kitchen scale.
+PACK_POS = np.array([-0.012, 0.0, 0.0585])
+PACK_HALF = np.array([0.018, 0.0525, 0.013])
+PACK_KG = 0.083
+# the meas-sole plant weighs 1507 g against the robot's 1538 g without its pack: the 31 g are not
+# located; MASS_SYM puts them in the torso at its own CoM (torso 0.4545 -> 0.4855 kg). On grade's
+# plant MASS_SYM also zeroes the L ankle-roll zero error (-2.12 deg, the 10-30 fit), which is what puts
+# 0.60 of the stand on the R foot (ladder.py, README Round 3); grade's torso CoM offset is kept: the
+# ladder fits better with it (rms 0.017 against 0.027 without)
+MASS_SYM = "torso_kg=0.4855,pack=0.083,zoff_La=0"
+# round 3's refit: MASS_SYM plus the series roll springs fitted to the 2026-11-10 clamp signature
+# (fit_clamp3.py: ankle rolls 17.75, hip rolls 11.0 N m/rad; the shank -> thigh slop lumped at the hip)
+REFIT3 = MASS_SYM + ",ser_ankle=17.75,ser_hip=11.0"
+
+
+def add_box_to_body(m, b, mass, pos, half):
+    """Add a solid box (mass, centre `pos` and half-sizes in the body frame) to body b's
+    inertial: new mass, CoM, and principal inertia / frame."""
+    import mujoco
+    m0, c0 = float(m.body_mass[b]), np.array(m.body_ipos[b], float)
+    R0 = np.zeros(9)
+    mujoco.mju_quat2Mat(R0, m.body_iquat[b])
+    R0 = R0.reshape(3, 3)
+    I0 = R0 @ np.diag(m.body_inertia[b]) @ R0.T
+    a, bb, c = 2 * np.asarray(half, float)
+    Ib = mass / 12.0 * np.diag([bb * bb + c * c, a * a + c * c, a * a + bb * bb])
+    pos = np.asarray(pos, float)
+    M = m0 + mass
+    com = (m0 * c0 + mass * pos) / M
+    shift = lambda I, mm, r: I + mm * (np.dot(r, r) * np.eye(3) - np.outer(r, r))
+    I = shift(I0, m0, c0 - com) + shift(Ib, mass, pos - com)
+    w, V = np.linalg.eigh(I)
+    if np.linalg.det(V) < 0:
+        V[:, 0] *= -1
+    q = np.zeros(4)
+    mujoco.mju_mat2Quat(q, V.reshape(-1))
+    m.body_mass[b] = M
+    m.body_ipos[b] = com
+    m.body_inertia[b] = w
+    m.body_iquat[b] = q
+
+
+def sole_symmetric(env, sole_w=0.0814):
+    """Both feet's sole pads at the XML's positions scaled to one effective width (the one-leg
+    fit's 81.4 mm, as simfit applies it): drops grade's L-only outer-edge pull-in."""
+    import mujoco
+    m = env.model
+    m0 = mujoco.MjModel.from_xml_path(env.xml_path if os.path.exists(getattr(env, "xml_path", "")) else XML)
+    nm = lambda mm, g: mujoco.mj_id2name(mm, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+    for side in "LR":
+        ps = [g for g in range(m.ngeom) if nm(m, g).startswith(f"{side}_pad_")]
+        p0 = {nm(m, g): m0.geom_pos[m0.geom(nm(m, g)).id].copy() for g in ps}
+        ys = np.array([p0[nm(m, g)][1] for g in ps])
+        yc, half = 0.5 * (ys.max() + ys.min()), 0.5 * (ys.max() - ys.min())
+        for g in ps:
+            y = p0[nm(m, g)][1]
+            m.geom_pos[g][1] = yc + (y - yc) * (0.5 * sole_w) / half
+
+
 def set_series_view(env, alpha):
     """The `ser_hip` / `ser_ankle` terms: a spring k_s in series with the servo, on its output
     side, in its quasi-static form. The link sees k_eff = kp k_s / (kp + k_s) (the env's PD on
@@ -279,14 +364,18 @@ def encoder_err(env, i):
     return max(0.0, (1.0 - a) * max(e - half, 0.0) if a > 0 else e - half)
 
 
-def clamp_run(env, side, ramp=1.0, hold=3.0, settle=1.0):
+def clamp_run(env, side, ramp=1.0, hold=3.0, settle=1.0, dz=0.030, detail=None):
     """sim/roll_compliance.run (the 10-24 clamped-foot lift) with the encoder read through
     encoder_err (so a series spring's deflection stays invisible to it). -> (tilt toward the
-    lifted side deg, {hip_roll, ankle_roll: stance encoder deg}, foot rise mm)"""
+    lifted side deg, {hip_roll, ankle_roll: stance encoder deg}, foot rise mm). `detail` (a dict)
+    also gets the lifted foot's lowest-pad clearance (mm) and the stance rolls' deflection beyond
+    their encoders (deg: link error minus what the encoder reads)."""
     import roll_compliance as RC
     stance = "R" if side == "L" else "L"
     env.reset(seed=0)
-    qlift, q0 = RC.lift_targets(env, side)
+    qlift, q0 = RC.lift_targets(env, side, dz)
+    pads = pad_gids(env)
+    clr, beyond = [], []
     names = env._act_names
     base = env._default.copy()
     tgt = base.copy()
@@ -307,6 +396,16 @@ def clamp_run(env, side, ramp=1.0, hold=3.0, settle=1.0):
             lifts.append(1e3 * (env.data.xpos[bl][2] - env.data.xpos[bs][2]))
             enc.append({j: math.degrees(encoder_err(env, env._sname2i[f"{stance}_{j}"]))
                         for j in ("hip_roll", "ankle_roll")})
+            clr.append(clearance(env, pads)[side])
+            bd = {}
+            for j in ("hip_roll", "ankle_roll"):
+                i = env._sname2i[f"{stance}_{j}"]
+                e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]))
+                bd[j] = math.degrees(e - encoder_err(env, i))
+            beyond.append(bd)
+    if detail is not None:
+        detail.update(clear_mm=1e3 * float(np.mean(clr)), clear_min_mm=1e3 * float(np.min(clr)),
+                      beyond={j: float(np.mean([x[j] for x in beyond])) for j in beyond[0]})
     return float(np.mean(tilts)), {j: float(np.mean([e[j] for e in enc])) for j in enc[0]}, float(np.mean(lifts))
 
 
@@ -392,6 +491,27 @@ def clearance(env, pads):
     """per foot: the lowest sole pad's bottom above the floor (m)."""
     d, m = env.data, env.model
     return {s: float(min(d.geom_xpos[g][2] - m.geom_size[g][0] for g in gs)) for s, gs in pads.items()}
+
+
+def foot_state(m, d, pads, soles):
+    """(lowest pad L, R, highest pad L, R above the floor in m, sole tilt from level L, R in deg):
+    the lowest pad > 0 = wholly off the floor; only the highest > 0 = one end raised."""
+    lo, hi, tl = [], [], []
+    for s, sg in zip("LR", soles):
+        z = [d.geom_xpos[g][2] - m.geom_size[g][0] for g in pads[s]]
+        lo.append(float(min(z)))
+        hi.append(float(max(z)))
+        tl.append(math.degrees(math.acos(min(1.0, abs(float(d.geom_xmat[sg].reshape(3, 3)[2, 2]))))))
+    return tuple(lo + hi + tl)
+
+
+def up_of(q):
+    """the torso's z axis in the world, yaw stripped (the flight record's `up`): (x fwd, y left, z)."""
+    w, x, y, z = (float(c) for c in q)
+    zx, zy, zz = 2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)
+    psi = yaw_of(q)
+    c, s = math.cos(psi), math.sin(psi)
+    return np.array([c * zx + s * zy, -s * zx + c * zy, zz])
 
 
 def flail_rate(gyro, dt=0.02, tau=0.2):

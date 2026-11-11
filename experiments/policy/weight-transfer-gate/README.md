@@ -2,7 +2,8 @@
 
 Two checks of the walking plant (`sim/bimo_biped_v6legs_meas_sole.xml`) against what the robot has
 already shown about weight transfer, a first attribution pass, and a second (Round 2: the pipeline's
-yaw sign, the one-fault hypothesis, compliance beyond the encoders, grade.py's roll opt-ins). CPU only; no plant XML, training
+yaw sign, the one-fault hypothesis, compliance beyond the encoders, grade.py's roll opt-ins), and a
+refit against the 2026-11-10 robot measurements (Round 3). CPU only; no plant XML, training
 default or DR default is changed. Every term below is opt-in (`--terms`).
 
 ```bash
@@ -283,18 +284,150 @@ With the roll chain the R lift drops on both students, most with the hip spring 
 on both feet under every variant, and prec16's R foot no longer does on stride1. Neither plant
 passed check 1 or 2, so this changes which plant grade.py ranks on only if the planner chooses it.
 
+## Round 3 (2026-11-11): refit against the 2026-11-10 robot measurements
+
+The data are in [2026-11-10-robot/README.md](2026-11-10-robot/README.md) (#271, #277): the mass, the
+scale ladder, the stride repeated with floor cameras, and the clamp test with front-on stills.
+
+```bash
+.venv/bin/python experiments/policy/weight-transfer-gate/fit_clamp3.py          # item 1
+.venv/bin/python experiments/policy/weight-transfer-gate/ladder.py --plants ... # item 2
+.venv/bin/python experiments/policy/weight-transfer-gate/check2_replay.py --stride3   # item 3
+.venv/bin/python experiments/policy/weight-transfer-gate/wt_grade.py 8 --round 3      # item 4
+```
+
+**The plants.** These are `gate_common` constants, applied as opt-in terms on grade.py's plant.
+- **`MASS_SYM`** = `torso_kg=0.4855,pack=0.083,zoff_La=0`.
+  - Torso back to the XML's 0.4545 kg, plus 31 g. grade's fit has it at x0.702. The meas-sole plant weighs 1507 g against the 1538 g kitchen-scale total without the pack (11-01). The 31 g are not located, so they go into the torso at its CoM (an assumption).
+  - An 83 g pack: 1621 g with the battery minus 1538 g without. It sits where the CAD puts the 3S pack: gen_plant_v6's legs torso with `m_battery` set gives a transverse box at (-0.012, 0, 0.0585) m in the torso frame, half-sizes 18 x 52.5 x 13 mm. That the real pack sits there is an assumption.
+  - The L ankle-roll zero error set to 0.
+  - Total 1621 g.
+- **`REFIT3`** = `MASS_SYM` + `ser_ankle=17.75,ser_hip=11.0` (item 1).
+
+### 1. Clamp refit (`fit_clamp3.py`, `results/r3_item1_clamp_fit.md`)
+
+**Targets**, lifting L 30 mm with the R foot clamped (the stills' side):
+- torso tilt 9.4 deg;
+- encoders: ankle roll 1.55, hip roll 0.55;
+- beyond the encoders: ankle roll 5.6 − 1.55 = 4.05, hip roll 2.1 − 0.55 + 2.0 = 3.55.
+
+The stills' **shank → thigh 2.0 deg is lateral slop at the knee / hip-pitch joints.** No roll term
+can sit there, so it is **lumped into the hip-roll term** (the nearest roll joint above it). For
+the torso's tilt this is the same; for the swing leg's sideways path it is not.
+
+On the base plant (`grade` + `MASS_SYM`) with no term: tilt 2.66, encoders 1.46 / 0.83, cost 74.5.
+
+| family | best | tilt | encoders ankle / hip | beyond ankle / hip | cost | 15 mm lift |
+|---|---|---|---|---|---|---|
+| robot | | 9.4 (9.35-9.7) | 1.5-1.6 / 0.4-0.7 | ~4.1 / ~3.5 (stills, +-1) | | the foot comes back down, ~7 deg |
+| **series springs** | **ankle 17.75, hip 11.0 N m/rad** | 10.08 (R lifted: 10.99) | 2.00 / 0.78 | 3.49 / 3.13 | 1.22 | foot down (lowest pad −0.0 mm), **7.50 / 6.94 deg** |
+| free play | ankle 7.0, hip 6.0 deg p-p | 10.14 (10.41) | 2.08 / 0.83 | 3.50 / 3.00 | 1.51 | foot down, 9.05 / 8.93 deg |
+
+Residuals of the spring fit: tilt +0.7, encoders +0.45 / +0.23, beyond −0.56 / −0.42 deg. Both
+families over-read the encoders. The base plant's rigid servo deflection is already 1.46 / 0.83
+at today's mass, so less is left for the terms to carry. **The springs are kept.** Play is
+load-independent and keeps ~9 deg at 15 mm, while the robot's lifted foot came back down at
+about 7 deg. The springs give 7.5 / 6.9 deg with the foot down.
+
+**At the 10-24 numbers** (tilt 5.0-5.2): the same springs on the no-pack plant give 9.06 deg, and
+round 2's `ser_hip=14.2` on today's plant gives 5.16. As expected, one set does not fit both days:
+the robot changed between them (#277).
+
+### 2. Mass and symmetry: the scale ladder (`ladder.py`, `results/r3_item2_ladder.md`)
+
+`hw_sessions/2026-11-10/m271/part2.py`'s method: the ladder's own poses from the crouch, no
+balance loop, the L share of the summed foot normal forces over the last 0.5 s.
+
+| pose | robot | `grade` | `grade:zoff_La=0` | `+MASS_SYM` | `+MASS_SYM`, torso CoM at the XML's | `+REFIT3` |
+|---|---|---|---|---|---|---|
+| total g | 1621 | 1372 | 1372 | 1621 | 1621 | 1621 |
+| stand | 0.504 | 0.399 | 0.486 | 0.480 | 0.502 | 0.477 |
+| toward L 31 / 62 / 86.8 mm | 0.568 / 0.695 / 0.793 | 0.527 / 0.667 / 0.781 | 0.590 / 0.669 / 0.740 | 0.596 / 0.684 / 0.787 | 0.612 / 0.698 / 0.805 | 0.594 / 0.684 / **0.952** |
+| toward R 31 / 62 / 86.8 mm | 0.374 / 0.276 / 0.193 | 0.308 / 0.236 / 0.187 | 0.391 / 0.317 / 0.264 | 0.376 / 0.294 / 0.219 | 0.392 / 0.308 / 0.234 | 0.367 / 0.291 / 0.214 |
+| rms over all 16 poses | | 0.045 | 0.042 | **0.017** | 0.027 | 0.044 |
+
+- **What makes grade 0.60 / 0.40 at the stand is the L ankle-roll zero error (-2.12 deg, the 10-30
+  fit), not the torso CoM offset.** Removing the offset moves the stand share 0.399 → 0.409.
+  Removing the zero error moves it to 0.486. `MASS_SYM` keeps the offset, which fits the ladder
+  better (rms 0.017 against 0.027).
+- With `MASS_SYM` the ladder is within 0.03 of the robot everywhere.
+- **The refit springs break the ladder toward L.** From 80.6 mm the R foot nearly unloads (0.952 at
+  86.8 mm, robot 0.793). Toward R they change nothing. The clamp fit and the both-feet-down ladder
+  are not reproduced by the same roll springs.
+
+### 3. The stride on the refit plant (`check2_replay.py --stride3`, `results/r3_item3_stride.md`)
+
+prec16 closed loop under the recorded 2026-11-10 command (`flight_snapshot_0035Z`, 8 seeds).
+Tilt = acos(up_z). up is the record's own vector (torso z in the world, yaw stripped); the sim's
+is computed the same way, and on the record it reproduces 5.6 / 11.3 / 14.4. Foot times are s
+from the walk command:
+- "end up" = the sole's highest pad 3 mm off the floor;
+- "off" = every pad 1 mm off;
+- the tilt is the sole's angle from level at that moment.
+
+| | tilt +0.3 / +0.5 / +0.6 | up_x / up_y at +0.6 | R: end up; off (sole tilt) | L off | R lift mm | yaw +2 s | gz peak | guard-rate peak | falls |
+|---|---|---|---|---|---|---|---|---|---|
+| **robot** | **5.6 / 11.3 / 14.4** | **+0.22 / +0.11** | ~0.42 tilted; ~0.59 (~10-15 deg), video | ~0.59, video | unknown | **-43.6** | **-7.26** | **3.63** | 0 |
+| grade as is | 4.2 / 7.7 / 8.0 | +0.13 / +0.06 | 0.18; 0.58 (8.8) | 0.93 | 20.6 | +9.0 | +1.44 | 0.68 | 0/8 |
+| grade + MASS_SYM | 4.1 / 8.0 / 8.4 | +0.13 / +0.06 | 0.18; 0.58 (9.0) | 1.18 | 20.4 | +8.3 | +1.32 | 0.60 | 0/8 |
+| grade + REFIT3 | 4.1 / 7.8 / 8.0 | +0.14 / +0.03 | 0.28; 0.64 (8.2) | 1.06 (5 of 8) | 12.1 | +18.6 | +1.68 | 0.88 | 0/8 |
+| joints, mass + refit springs (real sprung joints) | 4.7 / 8.4 / 7.1 | +0.10 / +0.07 | ~0; 0.50 (9.3) | 0.78 | 20.6 | +3.2 | +3.89 | 1.89 | 0 |
+
+- **The tilt was never reproduced, and the refit does not change that.** Every plant tips 4 / 8 / 8
+  deg against the robot's 5.6 / 11.3 / 14.4. From +0.5 s the robot keeps tipping and the plant
+  stops at ~8. Both components fall short: forward (up_x 0.13-0.14 vs 0.22) and toward the stance
+  side (0.03-0.06 vs 0.11).
+- **The R foot does come off tilted in the sim**, at +0.58 to +0.64 s, the sole 8-9 deg off level.
+  The robot's video shows it wholly off at ~+0.59 s, tilted roughly 10-15 deg. The sim raises one
+  end of the sole much earlier (+0.18 to +0.28 s against the video's ~0.42; the 3 mm threshold is
+  below what a 640x480 frame resolves).
+- The refit halves the R lift (20.6 → 12.1 mm). The yaw sign, the gyro-z peak (1.7 vs -7.3 rad/s)
+  and the rate (0.9 vs 3.6) stay the plant's. Nothing falls.
+
+### 4. For the planner: grade.py on the refit plant (`wt_grade.py --round 3`, `results/r3_item4_wt_grade.md`)
+
+```bash
+GRADE_PLANT_TERMS="torso_kg=0.4855,pack=0.083,zoff_La=0,ser_ankle=17.75,ser_hip=11.0" python grade.py ...   # REFIT3
+GRADE_PLANT_TERMS="torso_kg=0.4855,pack=0.083,zoff_La=0" python grade.py ...                                 # MASS_SYM
+```
+
+`grade.roll_plant_opts` hands any `gate_common.apply_terms` terms to every probe. Unset, grade.py
+is unchanged (test). 8 seeds, SHAPE_HZ 8:
+
+| student, probe | plant | lift L / R cm (min) | shift_when_up L-up / R-up | tilt max deg | guard-rate peak | falls / trips |
+|---|---|---|---|---|---|---|
+| prec16, stride1 0.3 robot | as is | 3.12 (2.95) / 2.05 (1.92) | -0.22 / +0.16 | 9.6 | 0.92 | 0 / 1 pose |
+| | MASS_SYM | 3.21 (3.13) / 2.34 (2.18) | -0.56 / +0.28 | 9.3 | 0.86 | 0 / 5 pose |
+| | REFIT3 | 2.89 (2.75) / **1.41 (1.26)** | **-0.60 / +0.48** | 10.5 | 0.90 | 0 / 8 pose |
+| prec16, steps5 0.3 robot | as is | 3.12 / 2.22 (2.16) | -0.39 / +0.50 | 9.6 | 1.28 | 0 / 0 |
+| | REFIT3 | 2.89 / 1.73 (1.68) | -0.85 / +0.74 | 10.5 | 0.88 | 0 / 0 |
+| prec37, stride1 0.3 robot | as is | 4.37 (4.23) / 2.97 (2.82) | -0.30 / +0.30 | 14.9 | 1.26 | 0 / 8 pose |
+| | REFIT3 | 3.70 (3.60) / 2.23 (2.09) | -0.68 / +0.64 | 14.8 | 1.01 | 0 / 8 pose |
+| prec37, steps5 0.3 robot | as is | 4.37 / 2.97 (2.82) | -0.44 / +0.60 | 14.9 | 1.08 | 0 / 0 |
+| | REFIT3 | 3.74 / 2.66 (2.60) | -0.82 / +0.86 | 14.8 | 0.89 | 0 / 0 |
+| march5 robot, both students, every plant | | ≤ 0.12 / ≤ 0.05 | - | ≤ 2.1 | ≤ 0.04 | 0 / 0 |
+
+- **prec16 stands and walks the probes on the refit plant** (0 falls). No softening was needed.
+- **shift_when_up moves with the mass and the zero error, not only with the springs.** `MASS_SYM`
+  alone takes prec16's stride1 shift from -0.22 / +0.16 to -0.56 / +0.28. On `REFIT3`, prec37 reaches
+  the bar on stride1 (feet 3.70 / 2.23 cm, shift -0.68 / +0.64), and both students reach |shift| >=
+  0.6 on steps5. This does not say either student transfers weight on the robot: the same plant
+  under-tips the robot's stride by 6 deg (item 3).
+- The `pose` guard trips sit under the stand command after the stride, at 3.98 s; they are counted,
+  not analysed. march5: neither student was trained on the lift channel. grade pins it as the
+  firmware does, so neither marches.
+
 ## What is still unmeasured
 
-1. **The R foot's real height on 11-09**, or on any stride: a side camera at floor level with a
-   scale, or a contact switch / FSR under each sole. Without it, the check-2 lift column is
-   "unknown" for the robot.
-2. **The mass split**: a leg (or a foot and a shank) weighed against the CAD numbers. The check-1
-   attribution hangs on it.
-3. **Where the stance-side tilt lives**: an encoder-independent angle at the ankle and hip rolls
-   under load (an IMU on the shank, or a dial gauge). It would tell play from compliance, and
-   whether the 11-09 L sole was on an edge.
-4. Sole/board friction and torsional grip on the 11-09 surface. The yaw-gap work measured the TPU
-   sole (mu ~0.45, ~0.1 N m) on a different floor.
+1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s
+   and wholly at about +0.59 s (video), with no height in mm: 640x480 and no scale in frame.
+2. **The mass split**: a leg (or a foot and a shank) weighed against the CAD numbers. Only the
+   total is measured (1621 g with the pack, 1538 g without), and the pack's place is the CAD's.
+3. **Where the tilt beyond the encoders lives in a stride.** The clamp stills split it (foot →
+   shank 5.6, shank → thigh 2.0, thigh → torso 2.1 deg, one side, +-1 deg). But the springs fitted to
+   them do not reproduce the both-feet-down ladder or the stride's 14 deg tilt, so a static clamp
+   split does not yet say how the chain behaves in motion.
+4. Sole/board friction and torsional grip on the board used on 11-09 and 11-10.
 
 ## Limits
 
@@ -305,8 +438,9 @@ passed check 1 or 2, so this changes which plant grade.py ranks on only if the p
 - The robot's err peaks are ~1 Hz polls, and its clearances are eyes or pixels.
 - The 11-09 replay is one run. The closed-loop rows depend on the takeover from the stand2 arm
   pose (grade.py's), not the robot's 5 s of armed stand.
-- `grade.py`'s weight-transfer ranking still runs on the `grade` plant. Neither plant passed, so
-  the "done when" clause about ranking on the plant that passed is not met.
+- `grade.py`'s weight-transfer ranking runs on the `grade` plant unless `GRADE_PLANT_TERMS` is set.
+  No plant passes both checks (round 3: the stride tilt is still 6 deg short), so the "done when"
+  clause about ranking on the plant that passed is not met.
 
 ## Robot measurements, 2026-11-10 (#271)
 

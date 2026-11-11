@@ -295,7 +295,9 @@ def roll_plant_opts():
       GRADE_ROLL_LASH=<deg>      roll-joint deadzone (walker_env roll lash), e.g. 1.25 = the prec
                                  recipes' DR centre
       GRADE_ROLL_SERIES=hip=<k>[,ankle=<k>]  a spring (N m/rad) in series with the hip / ankle rolls
-                                 beyond the encoders (weight-transfer-gate/gate_common, ser_* terms)"""
+                                 beyond the encoders (weight-transfer-gate/gate_common, ser_* terms)
+      GRADE_PLANT_TERMS=<terms>  any gate_common.apply_terms terms, comma separated (the round-3
+                                 refit: gate_common.REFIT3)"""
     out = {}
     if os.environ.get("GRADE_ROLL_LASH"):
         out["roll_lash_deg"] = float(os.environ["GRADE_ROLL_LASH"])
@@ -303,6 +305,13 @@ def roll_plant_opts():
         if kv.strip():
             k, _, x = kv.partition("=")
             out["ser_" + k.strip()] = float(x)
+    if os.environ.get("GRADE_PLANT_TERMS"):
+        # any weight-transfer-gate probe terms (gate_common.apply_terms), e.g. its REFIT3:
+        # torso_kg=0.4855,pack=0.083,zoff_La=0,ser_ankle=17.75,ser_hip=11.0
+        for tok in os.environ["GRADE_PLANT_TERMS"].split(","):
+            if tok.strip():
+                k, _, x = tok.strip().partition("=")
+                out["gate:" + k] = float(x) if x else True
     return out
 
 
@@ -310,11 +319,12 @@ def roll_plant(env):
     o = roll_plant_opts()
     if "roll_lash_deg" in o:
         simh.apply_model(env, dict(roll_lash_deg=o["roll_lash_deg"]))
-    ser = {k: x for k, x in o.items() if k.startswith("ser_")}
-    if ser:
+    terms = {k: x for k, x in o.items() if k.startswith("ser_")}
+    terms.update({k[5:]: x for k, x in o.items() if k.startswith("gate:")})
+    if terms:
         sys.path.insert(0, os.path.join(HERE, "..", "weight-transfer-gate"))
         import gate_common
-        gate_common.apply_terms(env, ser)
+        gate_common.apply_terms(env, terms)
 
 
 def body_yaw(q):
