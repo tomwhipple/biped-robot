@@ -43,6 +43,26 @@ hold the work. These rules change how you plan:
    issue comment lists parsed recipes) and grade every student on the `march` probe. Size `--mimic-sway`
    from #260's robot measurement once it exists; until then keep testing the model's sizes as now.
 
+### Hardware session 2026-11-10 (record: experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md; #271, #277, #259)
+
+What the robot showed, and what follows for your plans:
+
+- **The stance leg is soft in roll.** One foot clamped, the other lifted 30 mm: the torso tilts 9.4 deg on both sides (2026-10-24: 5.0-5.2),
+  about 7 deg of it beyond the roll encoders. The plants give 2.3 deg (grade.py's) and 4.2-5.0 (training). Every student so far trained on
+  a plant that is stiffer in roll than the robot. When #259 or a merged PR names a training flag for this compliance, **every arm carries
+  it** (it is part of the plant, not a variable), and the grade runs on the matching plant. Until then say next to every result that the
+  plant is too stiff in roll.
+- **The 11-09 stride repeats exactly, and the right foot does leave the floor**: tilted, from +0.42 s, with the torso tipping 11-14 deg in the
+  first 0.6 s before the yaw spike. "The right foot never left the floor" (11-09) was an observation and is withdrawn. Judge a student on
+  the torso tilt in the first 0.6 s of a stride (the robot: 11.3 deg at +0.5 s) as well as on lift and shift.
+- **With both feet down the robot's foot load follows the commanded shift linearly, and it stands laterally even.** grade.py's plant is close
+  (but 0.60 / 0.40 at the stand); the training plant's roll lash makes the curve flat after the first rung. The robot weighs 1621 g with its
+  pack (plants: 1372 and 1507 g).
+- **No scripted hardware run is proposed until #276 is fixed**: `arm_script --phase script` ended with a bare disarm and the robot toppled
+  after the stride. Hardware next steps are Tom's: #277 (where the roll softness is) and #260 (the sway ladder, after its rehearsal is
+  rerun on the refit plant).
+- The first march students trained the night of 11-10 (prec52-56; #261). Grade them on `march5 robot`.
+
 ## PRECISION AT REDUCED SPEED -- TOP PRIORITY (Tom 2026-11-06; findings of the 11-06 night)
 Tom, after the omni14_shp8 hardware runs: "significant side to side movement of the feet with not as much
 forward motion as desired, but the servos are still moving very fast. focus on the precision of movement
