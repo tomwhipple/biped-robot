@@ -317,6 +317,24 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec39_f075_js20_sh45 | 11-09 | prec26_f075_js20_sh35 | `--swing-height` 0.035 → 0.045 | median ≥ 2.0 cm, mean knee < 90 deg/s | | | | | |
 | robot_legs_prec40_f075_js20_crouch_lg | 11-09 | prec29_f075_js20_crouch_s1 | `--loop-gain-range 1.0,1.6` | repair: x1.5 back to 0/0 at crouch 0.9 and 1.0 | | | | | |
 | robot_legs_prec41_f075_js30_lg | 11-09 | prec31_f075_js30 | `--loop-gain-range 1.0,1.6` | repair: x1.5 back to 0/0, time above 180 ≤ 0.33 kept | | | | | |
+| robot_legs_prec46_sw35 | 11-10 | prec16_f075_js20 | `--mimic-sway 0.035` | stride1 robot shift ≥ 0.5 both sides, R lift ≥ 2 cm | | | | | **not held**: shift −0.27/+0.28 (prec16 −0.21/+0.16), R lift 1.9 cm; x1.5 0/0, six directions |
+| robot_legs_prec47_sw50 | 11-10 | prec16_f075_js20 | `--mimic-sway 0.05` | a bigger sway reaches ≥ 0.6 | | | | | **not held**: −0.24/+0.20; side L 0.34, turn L +97 |
+| robot_legs_prec48_s2t_sw35 | 11-10 | prec37_f075_js20_sh35_s2t | `--mimic-sway 0.035` | prec37's lift kept, with the shift | | | | | **not held**: lift 4.9/2.6 kept, shift −0.33/+0.34, x1.5 lost (8/8) |
+| robot_legs_prec49_ws2_sw35 | 11-10 | prec43_ws2 | `--mimic-sway 0.035` | the walk-shift kernel gets gradient: ≥ 0.6 | | | | | **not held**: best shift of the line (−0.39/+0.37; steps5 −0.57/+0.58) but side L lost (+0.01) |
+| robot_legs_prec50_sw35_s1 | 11-10 | prec16_f075_js20 | seed 15 (prec46 recipe) | replicate | | | | | replicates prec46's null: −0.26/+0.23, R lift 1.4 cm |
+| robot_legs_prec51_sw35_lead0 | 11-10 | prec16_f075_js20 | `--mimic-sway-lead 0` (prec46 recipe) | lead 0.785 beats 0 | | | | | **not held**: −0.29/+0.28 = prec46; the lead makes no difference |
+| robot_legs_prec52_march | 11-10 | prec16_f075_js20 | march slice, reference on (`--march-mix 0.15 --march-lift 0.08 --mimic-march 0.035` …) | 5 march steps ≥ 3 cm on both feet, shift ≥ 0.6 | | | | | **half held**: marches on the **R foot only** (6.3 cm on every R step, L ≤ 0.75 cm), shift R-up +0.62; 0 falls |
+| robot_legs_prec53_march_noref | 11-10 | prec16_f075_js20 | prec52 without `--mimic-march` (control) | lifts, with less shift than prec52 | | | | | no lift at all (0/5 steps): the reference is what finds the march |
+| robot_legs_prec54_march6 | 11-10 | prec16_f075_js20 | prec52 with `--march-lift 0.06` (c6 = 0) | c4 alone is enough | | | | | **not held**: no lift at all |
+| robot_legs_prec55_march_s1 | 11-10 | prec16_f075_js20 | seed 15 (prec52 recipe) | replicate | | | | | one-sided again, **L only** (8.6 cm), shift L-up −0.64; x1.5 6/6 |
+| robot_legs_prec56_march_s2 | 11-10 | prec16_f075_js20 | seed 16 (prec52 recipe) | replicate | | | | | one-sided, **L only** (5.2 cm), shift −0.70 |
+| robot_legs_prec57_march_rs | 11-10 | prec16_f075_js20 | prec52 + `--roll-series-k hip=10:25,ankle=16:40` | the march survives the soft roll plant | | | | | never found the march (lift_ok flat at ~1 for 300M); x1.5 8/8 |
+| robot_legs_prec58_sw35_rs | 11-10 | prec16_f075_js20 | prec46 + `--roll-series-k` | lift and directions kept on the refit plant | | | | | lift 2.7/2.2, shift −0.26/+0.14; stride1 0.6 refit 4/8 falls |
+| robot_legs_prec59_march_rs_s1 | 11-10 | prec16_f075_js20 | seed 15 (prec57 recipe) | replicate | | | | | one-sided, **L only** (6.3 cm), shift −0.76; side L lost (+0.02), stride1 0.6 refit 5/8 falls |
+| robot_legs_prec60_march_rs_s2 | 11-10 | prec16_f075_js20 | seed 16 (prec57 recipe) | replicate | | | | | one-sided, **R only** (5.3 cm), shift +0.53; side L lost (+0.02), x1.5 8/8, stride1 0.6 refit 7/8 |
+| robot_legs_prec61_mrs_mir (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | `--w-mirror-loss 1.0` | march5 robot lifts BOTH feet ≥ 3 cm on every step in ≥ 2 of 3 seeds | | | | | |
+| robot_legs_prec64_march_rs_mir (+ _s1, _s2) | 11-11 | prec16_f075_js20 | prec57 recipe + `--w-mirror-loss 1.0` | the march is found in 3 of 3 seeds, on both feet | | | | | |
+| robot_legs_prec67_mrs_cont (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | none: +300M on prec59's recipe (control for prec61) | the second foot does not come up with more training alone | | | | | |
 
 ## Nights
 
@@ -2760,3 +2778,94 @@ at a wider σ (6 cm) to sharpen it.
 (A slip this morning: for about a minute at ~08:20 I switched the shared `~/code/robot` checkout to a branch off
 `train/walk-shift`, then switched it straight back to main. The grade's worker pool had already started on main. The prec16
 and prec26 control rows reproduce 11-09 exactly.)
+
+### Night of 2026-11-10 (evaluated 2026-11-11)
+
+**Weight transfer, night 2; march, night 1.** Stride only; get-up stays parked. Planned under the 2026-11-10 project review's
+rules (planner prompt on main). Note: the wrapper fed this morning's session a stale copy of the prompt
+(`robot-mjx/night/planner_prompt.md`, 11-09, without the review rules). I followed main's version and copied it over the night
+copy (backup `planner_prompt.md.bak-20261111`). That copy is untracked, so every prompt change on main has to be copied by hand.
+
+**The runner.** Day run 11-10 12:06–14:11 (prec38 distil, prec49/46/48 teachers), then from 18:18 (`day_run.sh`, the 22:00 cron
+found the lock) to 03:01: prec47–60, 15 teacher + distil pairs in all. Every job ran on main and logged "origin tip, verified".
+There was one transient DNS failure at 21:14, and the retry passed. The collect log has no STALE REFEREE. **Fixers:** one, at
+11-10 12:13. `train/mimic-sway` had been merged and deleted, so the fetch failed; the fixer restored the branch and repointed the
+sway jobs to `BRANCH=main`. That fix is complete: the branch is in main, and tonight's jobs are on main. prec39–41 are held
+(`queue/held/WHY-1110-prec39-41.txt`, the interactive session).
+
+**Merged / branched:** nothing this morning. Open PRs (#254, #229, #206, #71) are firmware, console and CAD. The newest local branches
+(`fix/281-benched-hold-result`, `deploy/sway-candidate`, `tools/sway-probe-refit`) belong to the interactive session and do not
+touch training. Since the last plan, main gained `--roll-series-k` (PR #280), round 3 of the #259 gate (PR #278, grade.py's opt-in
+`GRADE_PLANT_TERMS`) and the scripted-run tooling (#276). **This changes comparisons:** students with the flag train on a softer
+roll plant than everything before them.
+
+**Grades** (grade.py on main, measured sole, 8 seeds, SHAPE_HZ=8, 22 probes; `/tmp/plan1111/gradeA.{md,json}`; plant-terms
+re-grade `/tmp/plan1111/gradeB.*` with `GRADE_PLANT_TERMS="torso_kg=0.4855,pack=0.083,zoff_La=0,ser_ankle=17.75,ser_hip=11.0"`;
+summaries `summA.md` / `summB.md`). The control re-grade reproduces 11-10 (prec16 x1.5 0/0, prec37 lift 4.4/3.0 cm, directions
+unchanged). Every student WALKS, is 0/0 on push 0.4 and walk 0.3 → stop, has 0 falls on all the robot probes, and fails x2 8/8.
+
+| student | x1.5 | stride1 refit .6/.4/.3/.4μ.4 falls | directions fwd back sideL sideR turnL turnR | stride1 robot lift L/R (min) | stride1 robot shift | steps5 robot shift | march5 robot |
+|---|---|---|---|---|---|---|---|
+| prec16 (control) | 0/0 | 0/0/0/0 | +0.92 −0.86 +0.47 −0.49 +114 −106 | 3.1/2.1 (1.9) | −0.21/+0.16 | −0.39/+0.50 | stands (never trained) |
+| prec46_sw35 | 0/0 | 0/0/0/0 | +0.92 −0.78 +0.41 −0.47 +120 −122 | 3.0/1.9 (1.8) | −0.27/+0.28 | −0.35/+0.57 | stands |
+| prec47_sw50 | 0/0 | 0/0/0/0 | +0.91 −0.86 +0.34 −0.45 +97 −126 | 2.8/1.9 (1.7) | −0.24/+0.20 | −0.35/+0.54 | stands |
+| prec48_s2t_sw35 | **8/8** | 0/0/0/0 | +0.87 −0.91 +0.42 −0.48 +138 −96 | **4.9/2.6 (2.5)** | −0.33/+0.34 | −0.44/+0.66 | stands |
+| prec49_ws2_sw35 | 0/0 | 0/0/0/0 | +0.86 −0.84 **+0.01** −0.41 +139 −102 | 3.9/2.1 (2.0) | **−0.39/+0.37** | −0.57/+0.58 | stands |
+| prec50_sw35_s1 | 0/0 | 0/0/0/0 | +0.84 −0.73 +0.36 −0.48 +95 −121 | 3.5/1.4 (1.3) | −0.26/+0.23 | −0.42/+0.51 | stands |
+| prec51_sw35_lead0 | 0/0 | 0/0/0/0 | +0.86 −0.78 +0.49 −0.48 +118 −130 | 3.0/1.7 (1.6) | −0.29/+0.28 | −0.44/+0.37 | stands |
+| prec52_march | 0/0 | 0/0/0/0 | +0.86 −0.93 +0.42 −0.42 +121 −118 | 2.9/2.3 (2.1) | −0.27/+0.32 | −0.47/+0.55 | **R only**: 6.3 cm every R step, L ≤ 0.75; shift R-up +0.62 |
+| prec53_march_noref | 1/1 | 0/0/0/0 | +0.85 −0.84 +0.44 −0.46 +113 −91 | 3.2/1.6 (1.4) | −0.26/+0.23 | −0.40/+0.49 | no lift |
+| prec54_march6 | 0/0 | 0/0/0/0 | +0.77 −0.79 +0.43 −0.43 +92 −112 | 3.7/1.9 (1.8) | −0.23/+0.21 | −0.38/+0.51 | no lift |
+| prec55_march_s1 | 6/6 | 0/0/0/0 | +0.84 −0.83 +0.46 −0.45 +131 **−66** | 3.4/1.9 (1.8) | −0.32/+0.16 | −0.44/+0.66 | **L only**: 8.6 cm, shift −0.64 |
+| prec56_march_s2 | 1/3 | 0/0/0/0 | +0.91 −0.85 +0.41 −0.37 +98 −109 | 3.3/1.6 (1.5) | −0.27/+0.17 | −0.49/+0.36 | **L only**: 5.2 cm, shift −0.70 |
+| prec57_march_rs | 8/8 | 0/0/0/0 | +0.84 −0.80 +0.38 −0.40 +114 −110 | 2.7/2.2 (2.0) | −0.26/+0.21 | −0.45/+0.58 | no lift |
+| prec58_sw35_rs | 0/0 | **4**/0/0/0 | +0.86 −0.80 +0.39 −0.44 +132 −115 | 2.7/2.1 (1.9) | −0.26/+0.14 | −0.47/+0.37 | stands |
+| prec59_march_rs_s1 | 0/0 | **5**/0/0/0 | +0.64 −0.78 **+0.02** −0.36 +118 −107 | 3.6/2.2 (2.1) | −0.27/+0.20 | −0.40/+0.69 | **L only**: 6.3 cm, shift −0.76 |
+| prec60_march_rs_s2 | 8/8 | **7**/0/0/0 | +0.82 −0.72 **+0.02** −0.47 +112 −73 | 3.3/1.9 (1.8) | −0.29/+0.28 | −0.42/+0.58 | **R only**: 5.3 cm, shift +0.53 |
+
+`march5 robot` and `march5 refit` agree on every student. The stride1 robot torso tilt maximum (whole episode, not at +0.5 s) is
+9.7–15.9 deg (the robot: 11.3 at +0.5 s, 14.4 at +0.6 s). On the plant-terms plant every shift grows (prec16 stride1 −0.60/+0.48,
+steps5 0.7–1.3 for all students) and R lifts drop by ~0.5 cm. The one-sided marches stay one-sided. Under #259 these shifts are a
+ranking aid, not evidence.
+
+**Hypotheses:**
+- **Sway in the walking reference (prec46–51, 58): not held, on 3 seeds, 2 sizes and 2 leads.** stride1 robot shift is 0.20–0.39
+  against prec16's 0.16–0.21, and the bar is 0.6. A bigger sway (prec47) or no lead (prec51) changes nothing. Stacked on prec37
+  (prec48) it keeps the lift and loses x1.5; stacked on walk-shift 2 (prec49) it gives the most shift and loses side L.
+  The line stops here. Walking shift has to come from something other than a bigger reference.
+- **The march (prec52–57, 59, 60): the reference finds a march, but only on one leg.** 5 of the 6 reference-march seeds learned to
+  lift a foot high (5–9 cm, well over 3 cm) on every one of that foot's steps, with the CoM over the stance foot (|shift|
+  0.53–0.76). The other foot stays down (≤ 0.8 cm). Which side is set by the seed: R for prec52/60, L for prec55/56/59. No seed lifts
+  both. The training curves show a step change at 200–250M steps (`lift_ok` ~1 → 12–14) and then a plateau. **Why:** every lift
+  term (`w_lift`, `w_knee_high`, `w_com_stance`) is gated by the commanded foot's clearance, so the side that has never lifted gets no
+  gradient: the walk-shift lesson again. Without the reference (prec53) or with c4 alone (prec54) no seed found the march at all. The
+  hypotheses: A **half held** (one leg), B **held** (the reference is what finds the march), C **not held**.
+- **The roll-series flag (52/55/56 against 57/59/60, three seeds each), graded on both plants:** the march was found 3/3 without it
+  and 2/3 with it. x1.5 was clean on 1/3 each way. With the flag, 2 of 3 seeds **lost side L** (dy +0.02) and fell on stride1 0.6
+  refit (5/8, 7/8); without it, 0 falls and side L 0.41–0.46. On these grade plants the flag shows a cost and no visible gain. It
+  stays in every recipe (it is part of the plant: review rule, #259), but Tom should know (issue comment).
+- **Distil gap** (card seed-passes teacher → student): 46 23→39, 47 21→23, 48 28→32, 49 36→42, 50 22→28, 51 30→34, 52 22→23,
+  53 23→27, 54 27→30, 55 20→29, 56 23→28, 57 26→23, 58 32→32, 59 21→23, 60 20→22. The median is +4; distillation is not the limit.
+
+**Ranking:** no student meets the march bar (both feet ≥ 3 cm on every step, |shift| ≥ 0.6 both sides). Nothing is a hardware
+candidate: the #259 gate has not passed, and every march is one-sided. For the walk, prec37 is still first on the old criteria.
+
+**Stop and escalate (rule 4).** The weight-transfer family has no hardware-confirmed gain. It ran walk-shift (11-09) and
+sway / march (11-10), and tonight is its **third night**. Tomorrow's planner adds no new variables to it. It writes up the
+replicates and asks Tom, unless a robot number arrives first. The walking-sway sub-line is stopped now (above).
+
+**Tonight: three arms × three seeds, all with `--roll-series-k hip=10:25,ankle=16:40`, 300M, BRANCH=main, each with its distil.**
+The order is A, B, C, nine pairs, ~44 min a pair, last start ~04:00.
+
+| arm | runs (seeds 14/15/16) | parent | variable | hypothesis |
+|---|---|---|---|---|
+| A | prec61_mrs_mir, _s1, _s2 | prec59_march_rs_s1 (marches on L only) | `--w-mirror-loss 1.0` | the mirror of an L lift is an R lift: march5 robot lifts both feet ≥ 3 cm on every step in ≥ 2 of 3 seeds, 0 falls; walking no worse than prec59 |
+| B | prec64_march_rs_mir, _s1, _s2 | prec16_f075_js20 (prec57 recipe) | `--w-mirror-loss 1.0` | the march is found on both feet in 3 of 3 seeds (control: prec57/59/60, 0 of 3 two-sided) |
+| C | prec67_mrs_cont, _s1, _s2 | prec59_march_rs_s1 | none: +300M on prec59's recipe | control for A: more training alone does not bring the second foot up |
+
+The mirror loss is the tool that held symmetry on two seeds (prec20, prec33). I checked its maps on this recipe's env on the CPU:
+obs 165, act 12, the permutation is an involution, and c4 (lift) and the gait phase flip as they should. Preflight passed 18/18.
+**Fallback:** arm A's recipe (`fallback.job`; the prec46 sway fallback is saved as `fallback.job.prec46-20261111`).
+
+Tomorrow: grade on `march5 robot` first (`march_lifts_pass`, per-foot minimum step, shift both sides), then the walking probes, on
+both plants, and write the spread over the three seeds.
