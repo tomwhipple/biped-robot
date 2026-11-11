@@ -105,7 +105,9 @@ servo faults by servo ID, the gamepad, recording, the handover button, a
 fixed-width link line, the BENCH reason, and the console's last message. The
 view pane on the left shows the 3D pose, a camera or the sim's render. Tabs:
 Checks, Drive, Joints, Telemetry, Sim, Session, Setup, and Bench when started
-with `--bench-telemetry` / `--cam-relay`.
+with `--bench-telemetry` / `--cam-relay`. The window fits a 1280 x 800 pt
+screen: a pane too narrow for a tab's columns stacks them and scrolls down,
+never sideways.
 
 - **3D pose** (`view3d.py`, `pose3d.py`): the plant posed from the measured
   joints (flight records, else the beacon's joint block when `--mirror` asks
@@ -121,7 +123,9 @@ with `--bench-telemetry` / `--cam-relay`.
   nothing.
 - **Drive**: hold-to-move buttons, what was sent beside what the policy saw
   (the flight record's command), the extended channels, speeds and send rate,
-  30 s of pack, tilt and vx. The sliders span the deployed run's generated
+  30 s of pack, tilt and the vx sent (the robot does not estimate its speed:
+  the beacon's `vx_est` is 0). An observer's controls are greyed until TAKE
+  CONTROL in the safety bar. The sliders span the deployed run's generated
   command envelope (`link/cmd_envelope.py`); a channel the run never varied
   (crouch, on a run trained at 1 only) is shown and disabled.
 - **Joints** (`tab_joints.py`): goal vs measured for every bus joint on the
