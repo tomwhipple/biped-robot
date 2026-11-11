@@ -265,6 +265,28 @@ void testBenchDiagnostics() {
     CHECK_EQ(packDiag(false, false, ArmResult::kNone), 0);
 }
 
+// Issue #281: an operator stop that lands on the bench while a servo reset is
+// slewing ends the reset with no readback. The beacon must stop saying
+// HOME_PENDING (bench motion in progress), or a soft stop (HOLD) never
+// confirms and the tools escalate it to a hard one. It reports the stop.
+void testBenchStopEndsAReset() {
+    const ArmResult cut = benchStopResult(ArmResult::kHomePending, true);
+    CHECK_EQ(static_cast<int>(cut), static_cast<int>(ArmResult::kDisarmedStop));
+    CHECK(!isHomeResult(cut));       // the reset is over, not pending or failed
+    const char* why = diagReason(packDiag(false, true, cut));
+    CHECK(strstr(why, "operator STOP") != nullptr);
+    // A reset typed on the tether need not have put HOME_PENDING in the
+    // beacon; the stop still ends it.
+    CHECK_EQ(static_cast<int>(benchStopResult(ArmResult::kAccepted, true)),
+             static_cast<int>(ArmResult::kDisarmedStop));
+    // No reset under way: every verdict stands (a flail hold's reason, a
+    // finished reset's, a refusal's).
+    for (int r = 0; r <= static_cast<int>(ArmResult::kDisarmedStop); ++r) {
+        const auto a = static_cast<ArmResult>(r);
+        CHECK_EQ(static_cast<int>(benchStopResult(a, false)), r);
+    }
+}
+
 // The command envelope: the generated header against the bands derived from
 // the run's config.json (tools/gen_envelope.py writes both, so a hand edit of
 // either fails here), then the clamp on both sides of every band against the
@@ -791,6 +813,7 @@ int main() {
     testHomeFlag();
     testHomeLatch();
     testBenchDiagnostics();
+    testBenchStopEndsAReset();
     testEnvelopeBands();
     testClampToEnvelope();
     testClampExtToEnvelope();

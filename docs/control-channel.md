@@ -204,6 +204,11 @@ watchdog**:
   the robot once it is upright and still, exactly as after a flail-guard
   trip; benched, bench motion stops where it is.
 
+Benched, a stop leaves the reported verdict as it was, except during a servo
+reset: the reset ends where it is with no readback, so the robot reports
+`DISARMED_STOP` in place of `HOME_PENDING` (`linkproto::benchStopResult`),
+and a soft stop pressed mid-slew confirms with torque still on.
+
 Out of band is the point. A second sender's ordinary frames interleaved with
 a running commander's would fight it: its `ARM` level against the
 commander's makes bench and arm edges (each re-arm a fresh watchdog, so a
@@ -283,7 +288,7 @@ a false fault.)
 | 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
 | 11 `REFUSED_POLICY` | arm refused: the compiled-in net is a placeholder or an untrained test net, not a policy (a policy profile's, [training.md §9](training.md)) |
 | 12 `DISARMED_FLAIL` | the flail guard stopped the policy; joints held stiff, run over, homes when upright and still |
-| 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop) |
+| 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop), or ended a servo reset on the bench |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a
