@@ -291,8 +291,8 @@ class JointsTab(QtWidgets.QWidget):
         e.addItem(pg.InfiniteLine(0, angle=0, pen=pg.mkPen("#4a5059")))
         self.d_load = ld.plot(pen=pg.mkPen(LOADC, width=1.6), connect="finite")
         self.d_yr = [YRange(pi, 3) for pi in self.d_plots]
-        a.setLabel("left", "deg", color=DIM)
-        e.setLabel("left", "err°", color=DIM)
+        a.setLabel("left", "pos °", color=DIM)        # axis labels: "<what> <unit>"
+        e.setLabel("left", "err °", color=DIM)
         ld.setLabel("left", "load %", color=DIM)
         ld.setLabel("bottom", "s (robot time)", color=DIM)
         for pi in self.d_plots:
@@ -321,9 +321,9 @@ class JointsTab(QtWidgets.QWidget):
             c.yr.reset()
         for y in self.d_yr:
             y.reset()
-        u = "deg" if self.deg else "rad"
-        self.d_plots[0].setLabel("left", u, color=DIM)
-        self.d_plots[1].setLabel("left", "err°" if self.deg else "err rad", color=DIM)
+        u = "°" if self.deg else "rad"
+        self.d_plots[0].setLabel("left", f"pos {u}", color=DIM)
+        self.d_plots[1].setLabel("left", f"err {u}", color=DIM)
         self._redraw()
 
     def _set_nominal(self, i: int) -> None:

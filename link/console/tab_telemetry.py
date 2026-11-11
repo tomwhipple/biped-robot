@@ -69,7 +69,9 @@ class Chart:
         if note is not None:
             self.value.setText(note)
         elif len(f):
-            self.value.setText(f"{fmt.format(float(f[-1]))} {self.unit}")
+            # Degrees sit on the number (2.3°), every other unit after a space.
+            sep = "" if self.unit == "°" else " "
+            self.value.setText(f"{fmt.format(float(f[-1]))}{sep}{self.unit}")
         else:
             self.value.setText("—")
         if not self.fixed and len(f):
@@ -176,13 +178,14 @@ class TelemetryTab(QtWidgets.QWidget):
             return t, v
 
         rec = "sim rec" if fs is not None and fs.simulated("robot") else "flight rec"
-        for chart, fname, bcol in ((self.c_vbat, "vbat", "vbat"),
-                                   (self.c_tilt, "tilt_deg", "tilt")):
+        # Tilt reads as in the safety bar and Drive: one decimal, 2.3°.
+        for chart, fname, bcol, fmt in ((self.c_vbat, "vbat", "vbat", "{:.2f}"),
+                                        (self.c_tilt, "tilt_deg", "tilt", "{:.1f}")):
             t, v = flight(fname)
             if len(t):
-                chart.set(t, v, rec)
+                chart.set(t, v, rec, fmt)
             elif len(bt):
-                chart.set(*beacon(bcol), "beacon")
+                chart.set(*beacon(bcol), "beacon", fmt)
             else:
                 chart.set(np.zeros(0), np.zeros(0), "no data")
         for chart, fname, fmt in ((self.c_gyro, "gyro", "{:.2f}"),

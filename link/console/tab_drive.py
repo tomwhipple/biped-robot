@@ -118,7 +118,7 @@ class DriveTab(QtWidgets.QWidget):
         charts.setVerticalSpacing(2)
         self.v_vbat, self.v_tilt, self.v_vx = (lab("", BRIGHT, 14, True, True) for _ in range(3))
         for i, (name, val, plot) in enumerate((("vbat", self.v_vbat, self.p_vbat),
-                                               ("tilt°", self.v_tilt, self.p_tilt),
+                                               ("tilt °", self.v_tilt, self.p_tilt),
                                                ("vx sent", self.v_vx, self.p_vx))):
             charts.addWidget(lab(name, DIM, mono=True), i, 0)
             charts.addWidget(plot, i, 1)
