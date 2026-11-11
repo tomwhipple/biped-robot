@@ -299,6 +299,16 @@ def is_text_input(w) -> bool:
                           QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit))
 
 
+class Unavailable(QtWidgets.QWidget):
+    """A pane that could not be built, saying why (and what would build it)."""
+
+    def __init__(self, why: str):
+        super().__init__()
+        self.why = lab(why, AMBER, 14)
+        self.why.setWordWrap(True)
+        self.setLayout(vbox(self.why, "stretch", margins=(16, 16, 16, 16)))
+
+
 class Flow(QtWidgets.QLayout):
     """Widgets left to right, wrapping onto another line when the width runs
     out (Qt's flow-layout example): a row of controls that must never set the

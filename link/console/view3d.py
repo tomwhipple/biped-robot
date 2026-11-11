@@ -282,17 +282,6 @@ class ViewPane(QtWidgets.QWidget):
             if v is not None:
                 box.setChecked(bool(v))
 
-    def set_camera(self, name: str) -> None:
-        self.cam_pick.setCurrentText(name)
-
-    def set_preset(self, name: str) -> None:
-        for i, p in enumerate(PRESETS):
-            if name.lower() in p[0].lower():
-                self.preset.setCurrentIndex(i + 1)
-                self._preset_chosen(i + 1)
-                return
-        raise KeyError(name)
-
     def reset_camera(self) -> None:
         self.cam = dict(CAM0)
         self.preset.setCurrentIndex(1)

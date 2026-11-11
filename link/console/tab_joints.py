@@ -23,7 +23,7 @@ import warnings
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 from .flight import BUS_INDEX, decimate, status_text
 from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, Flow, btn, mono_font,

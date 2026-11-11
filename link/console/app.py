@@ -37,9 +37,9 @@ from . import core, headless
 from .controller import Controller, EventLog
 from .safety_bar import SafetyBar
 from .tab_drive import History
-from .ui import AMBER, DIM, GREEN, QSS, dark_palette, is_text_input, lab, vbox, wrap
+from .ui import DIM, QSS, Unavailable, dark_palette, is_text_input, vbox, wrap
 
-# (title, module, class): a module that is not there yet shows a placeholder.
+# (title, module, class)
 TABS = [("Checks", "tab_checks", "ChecksTab"),
         ("Drive", "tab_drive", "DriveTab"),
         ("Joints", "tab_joints", "JointsTab"),
@@ -77,16 +77,6 @@ def key_code(ev: QtGui.QKeyEvent) -> int:
         return core.key_from_name(f"F{k - _K.Key_F1.value + 1}")
     name = _NAMED.get(k)
     return core.key_from_name(name) if name else 0
-
-
-class Placeholder(QtWidgets.QWidget):
-    def __init__(self, title):
-        super().__init__()
-        self.setLayout(vbox(lab(f"{title}: not built yet", DIM, 14), "stretch",
-                            margins=(16, 16, 16, 16)))
-
-    def update_from(self, st, now):
-        pass
 
 
 class Window(QtWidgets.QMainWindow):
@@ -183,17 +173,13 @@ class Window(QtWidgets.QMainWindow):
         try:
             from .view3d import ViewPane
             self.view = ViewPane(self)
-        except ImportError:
-            self.view = Placeholder("3D view")
+        except ImportError as e:          # mujoco is the 3D view's own dependency
+            self.view = Unavailable(f"3D view needs {e.name or 'mujoco'}: pip install -r "
+                                    f"requirements.txt (the console's block) -- the pose, "
+                                    f"the cameras and the sim render show here")
 
     def _make(self, mod, cls, title):
-        try:
-            m = importlib.import_module(f".{mod}", __package__)
-        except ImportError as e:
-            if e.name and e.name.endswith(mod):
-                return Placeholder(title)
-            raise
-        return getattr(m, cls)(self)
+        return getattr(importlib.import_module(f".{mod}", __package__), cls)(self)
 
     def fit_to_screen(self) -> None:
         """Size the window to the screen it opens on, never larger: an
@@ -326,7 +312,7 @@ class Window(QtWidgets.QMainWindow):
         return self.flight.policy_cmd() if self.flight is not None else None
 
     def plant_path(self) -> str:
-        return getattr(self.view, "plant", "") or "(3D view not built)"
+        return getattr(self.view, "plant", "") or "(no 3D view: needs mujoco)"
 
     def stop_dest_text(self) -> str:
         from .stops import stop_host, targets
