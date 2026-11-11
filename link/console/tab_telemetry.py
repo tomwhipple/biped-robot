@@ -30,8 +30,8 @@ from .core import lag_text
 from .flight import decimate, status_text
 from .tab_drive import History
 from .tab_joints import ORDER
-from .ui import (AMBER, BRIGHT, DIM, FAINT, GREEN, RED, SIMC, group, hbox, lab, mkplot,
-                 set_cell, table, vbox, wrap)
+from .ui import (AMBER, BRIGHT, DIM, FAINT, GREEN, RED, SIMC, Columns, fit_table, group, lab,
+                 mkplot, set_cell, table, vbox, wrap)
 
 WINDOW_S = 60.0
 CHART_POINTS = 700
@@ -69,7 +69,9 @@ class Chart:
         if note is not None:
             self.value.setText(note)
         elif len(f):
-            self.value.setText(f"{fmt.format(float(f[-1]))} {self.unit}")
+            # Degrees sit on the number (2.3°), every other unit after a space.
+            sep = "" if self.unit == "°" else " "
+            self.value.setText(f"{fmt.format(float(f[-1]))}{sep}{self.unit}")
         else:
             self.value.setText("—")
         if not self.fixed and len(f):
@@ -109,31 +111,42 @@ class TelemetryTab(QtWidgets.QWidget):
         left_lay = vbox(grid, refs)
         left_lay.setStretchFactor(grid, 1)
         left = group(f"ROBOT   last {WINDOW_S:.0f} s", left_lay)
+        left.setMinimumWidth(380)         # narrower charts are unreadable: stack instead
+        left.setMinimumHeight(560)        # six charts of ~80 pt, stacked or not
 
         # The joint names set the first column; the slack goes to status.
-        self.servos = table(["joint", "id", "temp", "load", "current", "volt", "status"], 0,
+        # Units in the header, numbers in the cells: the table fits beside
+        # the charts at 1440 pt.
+        self.servos = table(["joint", "id", "°C", "load %", "mA", "V", "status"], 0,
                             stretch_col=6)
         self._servo_rows = None
         right_servos = group("SERVOS   flight recorder feedback block, per fitted joint",
                              vbox(self.servos))
         self.link_rows = ("commands sent", "beacon", "flight recorder", "sim records",
                           "robot clock", "loop", "ctrl tick (last)", "recorder")
-        self.link = table(["link", "value"], len(self.link_rows), stretch_col=1,
-                          height=26 * len(self.link_rows) + 34)
+        # Labels whole; a long value wraps in its row rather than scrolling.
+        self.link = table(["link", "value"], len(self.link_rows), stretch_col=1)
+        self.link.setWordWrap(True)
+        self.link.verticalHeader().setSectionResizeMode(
+            QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         for r, k in enumerate(self.link_rows):
             set_cell(self.link, r, 0, k)
+        self.link.setMinimumWidth(self.link.sizeHintForColumn(0) + 160)
+        fit_table(self.link, width_from_contents=False)
+        fit_table(self.servos)
         self.power = lab("no source yet: the power board's block (#109) and PWR_ESTOP (#106) "
                          "go here", FAINT, 12)
         self.power.setWordWrap(True)
         self.obs = lab("Observer: no command traces — a flat zero would read as "
                        "'told to stand'.", DIM, 11)
         self.obs.setWordWrap(True)
-        right = vbox(right_servos, group("LINK", vbox(self.link)),
-                     group("POWER BOARD", vbox(self.power)), self.obs, "stretch", spacing=10)
-        lay = hbox(left, right, spacing=12, margins=(12, 12, 12, 12))
-        lay.setStretch(0, 2)          # the 60 s traces get the width, the tables the rest
-        lay.setStretch(1, 1)
-        self.setLayout(lay)
+        right = wrap(vbox(right_servos, group("LINK", vbox(self.link)),
+                          group("POWER BOARD", vbox(self.power)), self.obs, "stretch",
+                          spacing=10))
+        # The 60 s traces get the width, the tables what they need; on a
+        # narrow pane the tables go beneath the traces.
+        self.cols = Columns(left, right, spacing=12, stretch=(2, 1), top=False)
+        self.setLayout(vbox(self.cols, margins=(12, 12, 12, 12)))
 
     # -- the refresh -----------------------------------------------------------
     def update_from(self, st, now_ms: float) -> None:
@@ -166,13 +179,14 @@ class TelemetryTab(QtWidgets.QWidget):
             return t, v
 
         rec = "sim rec" if fs is not None and fs.simulated("robot") else "flight rec"
-        for chart, fname, bcol in ((self.c_vbat, "vbat", "vbat"),
-                                   (self.c_tilt, "tilt_deg", "tilt")):
+        # Tilt reads as in the safety bar and Drive: one decimal, 2.3°.
+        for chart, fname, bcol, fmt in ((self.c_vbat, "vbat", "vbat", "{:.2f}"),
+                                        (self.c_tilt, "tilt_deg", "tilt", "{:.1f}")):
             t, v = flight(fname)
             if len(t):
-                chart.set(t, v, rec)
+                chart.set(t, v, rec, fmt)
             elif len(bt):
-                chart.set(*beacon(bcol), "beacon")
+                chart.set(*beacon(bcol), "beacon", fmt)
             else:
                 chart.set(np.zeros(0), np.zeros(0), "no data")
         for chart, fname, fmt in ((self.c_gyro, "gyro", "{:.2f}"),
@@ -201,8 +215,10 @@ class TelemetryTab(QtWidgets.QWidget):
         if fitted != self._servo_rows:
             self._servo_rows = fitted
             self.servos.setRowCount(max(1, len(fitted)))
-            self.servos.setFixedHeight(26 * max(1, len(fitted)) + 34)
-            self.servos.setSpan(0, 0, 1, 1 if fitted else 7)   # the empty-state text spans
+            if fitted:
+                self.servos.clearSpans()
+            else:
+                self.servos.setSpan(0, 0, 1, 7)     # the empty-state text spans the row
             for r, n in enumerate(fitted):
                 set_cell(self.servos, r, 0, n)
         if not fitted:
@@ -210,6 +226,7 @@ class TelemetryTab(QtWidgets.QWidget):
                      FAINT)
             for c in range(1, 7):
                 set_cell(self.servos, 0, c, "")
+            fit_table(self.servos)
             return
         fb = fs.feedback("robot")
         for r, n in enumerate(fitted):
@@ -219,15 +236,15 @@ class TelemetryTab(QtWidgets.QWidget):
             temp = f.get("temp_c")
             tcol = (RED if temp is not None and temp >= TEMP_HOT_C else
                     AMBER if temp is not None and temp >= TEMP_WARN_C else BRIGHT)
-            set_cell(self.servos, r, 2, "—" if temp is None else f"{temp:.0f} °C", tcol)
+            set_cell(self.servos, r, 2, "—" if temp is None else f"{temp:.0f}", tcol)
             t, load = fs.series("robot", f"{n}.load", LOAD_MEAN_S)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
                 ml = float(np.nanmean(np.abs(load))) if len(load) else math.nan
-            set_cell(self.servos, r, 3, "—" if not math.isfinite(ml) else f"{ml:4.0f} %", BRIGHT)
+            set_cell(self.servos, r, 3, "—" if not math.isfinite(ml) else f"{ml:.0f}", BRIGHT)
             cur, volt = f.get("current_ma"), f.get("voltage_v")
-            set_cell(self.servos, r, 4, "—" if cur is None else f"{cur:4.0f} mA", BRIGHT)
-            set_cell(self.servos, r, 5, "—" if volt is None else f"{volt:.1f} V", BRIGHT)
+            set_cell(self.servos, r, 4, "—" if cur is None else f"{cur:.0f}", BRIGHT)
+            set_cell(self.servos, r, 5, "—" if volt is None else f"{volt:.1f}", BRIGHT)
             if f.get("fault"):
                 set_cell(self.servos, r, 6, "FAULT · held" if f.get("answered") else "no reply",
                          RED)
@@ -239,6 +256,7 @@ class TelemetryTab(QtWidgets.QWidget):
                 set_cell(self.servos, r, 6, "no reading yet", DIM)
             else:
                 set_cell(self.servos, r, 6, "ok", GREEN)
+        fit_table(self.servos)
 
     def _link_table(self, st, fs) -> None:
         app = self.app
@@ -305,3 +323,4 @@ class TelemetryTab(QtWidgets.QWidget):
         for r, k in enumerate(self.link_rows):
             text, col = vals.get(k, ("", DIM))
             set_cell(self.link, r, 1, text, col)
+        fit_table(self.link, width_from_contents=False)

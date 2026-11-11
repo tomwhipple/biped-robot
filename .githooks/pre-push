@@ -158,10 +158,27 @@ echo "== pre-push: making sure everything compiles, links and passes =="
 
 # Each gate is a make target (`make help`, Tests and Firmware), so a gate runs
 # the same here as by hand. A target whose tool is missing prints SKIP and passes.
+# Every gate's output is kept: tee'd into one log per push under the git dir
+# (shared by all worktrees), newest PREPUSH_KEEP (default 10) kept, and the
+# path printed on failure -- a flake seen once in the gate (#148) was gone
+# with the terminal scrollback before anyone could read it.
+GITC="$(git rev-parse --git-common-dir 2>/dev/null)" || GITC=""
+LOGDIR="" LOG=/dev/null
+if [ -n "$GITC" ]; then
+  LOGDIR="$(cd "$GITC" && pwd)/prepush-logs"
+  if mkdir -p "$LOGDIR" 2>/dev/null; then
+    LOG="$LOGDIR/$(date +%Y%m%d-%H%M%S)-$$.log"
+    ls -1t "$LOGDIR"/*.log 2>/dev/null | tail -n +"$(( ${PREPUSH_KEEP:-10} + 1 ))" | while read -r old; do rm -f "$old"; done
+  fi
+fi
+RCF="$(mktemp)"
+trap 'rm -f "$RCF"' EXIT
+
 gate() {
   echo "" >&2
-  echo "== [$1] make $2 =="
-  if ! make -C "$ROOT" PY="$PY" "$2"; then
+  echo "== [$1] make $2 ==" | tee -a "$LOG"
+  { make -C "$ROOT" PY="$PY" "$2"; echo $? > "$RCF"; } 2>&1 | tee -a "$LOG"
+  if [ "$(cat "$RCF")" != 0 ]; then
     echo "FAIL: $1 (make $2)" >&2
     rc=1
   fi
@@ -210,6 +227,7 @@ if [ "$rc" -eq 0 ]; then
 else
   echo "" >&2
   echo "Pre-push gate FAILED. Push blocked until fix is pushed." >&2
+  [ "$LOG" = /dev/null ] || echo "Full gate output: $LOG" >&2
   echo "Escape hatch (if you know what you're doing): git push --no-verify" >&2
   echo "" >&2
   exit 1

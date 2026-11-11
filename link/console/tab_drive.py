@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import protocol  # noqa: E402  link/protocol.py: the generated command envelope
 
 from . import core  # noqa: E402
-from .ui import (AMBER, BRIGHT, CYAN, DIM, GREEN, Slider, btn, group, hbox, lab,
+from .ui import (AMBER, BRIGHT, CYAN, DIM, GREEN, Columns, Slider, btn, group, hbox, lab,
                  mkplot, vbox, wrap)
 
 # (label, axis, grid row, grid col)
@@ -67,7 +67,8 @@ class DriveTab(QtWidgets.QWidget):
         crouch_lo = min(env.crouch_min, 1.0)
         self.crouch = Slider("crouch ", crouch_lo, 1.0, st.crouch, "{:.2f}",
                              note=None if crouch_lo < 1.0 else "trained at 1 only")
-        self.crouch.setEnabled(crouch_lo < 1.0)
+        self._crouch_ok = crouch_lo < 1.0
+        self.crouch.setEnabled(self._crouch_ok)
         self.fdx = Slider("foot dx", -fd, fd, st.foot_dx, "{:+.3f} m")
         self.fdz = Slider("foot dz", -fd, fd, st.foot_dz, "{:+.3f} m")
         self.lift = {}
@@ -81,7 +82,7 @@ class DriveTab(QtWidgets.QWidget):
             self.lift[v] = r
             lift_row.append(r)
         self.lift[0.0].setChecked(True)
-        reset = btn("reset [0]", 110, h=32)
+        reset = self.reset_ext = btn("reset [0]", 110, h=32)
         reset.clicked.connect(lambda: c.fire("reset_ext"))
         for s in (self.crouch, self.fdx, self.fdz):
             s.changed.connect(self._ext_changed)
@@ -113,25 +114,44 @@ class DriveTab(QtWidgets.QWidget):
         self.c_vbat = self.p_vbat.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_tilt = self.p_tilt.plot(pen=pg.mkPen(BRIGHT, width=1.6))
         self.c_vx = self.p_vx.plot(pen=pg.mkPen(CYAN, width=1.8, style=QtCore.Qt.PenStyle.DashLine))
-        self.c_vx_est = self.p_vx.plot(pen=pg.mkPen(BRIGHT, width=1.4))
         charts = QtWidgets.QGridLayout()
         charts.setVerticalSpacing(2)
         self.v_vbat, self.v_tilt, self.v_vx = (lab("", BRIGHT, 14, True, True) for _ in range(3))
         for i, (name, val, plot) in enumerate((("vbat", self.v_vbat, self.p_vbat),
-                                               ("tilt°", self.v_tilt, self.p_tilt),
-                                               ("vx", self.v_vx, self.p_vx))):
+                                               ("tilt °", self.v_tilt, self.p_tilt),
+                                               ("vx sent", self.v_vx, self.p_vx))):
             charts.addWidget(lab(name, DIM, mono=True), i, 0)
             charts.addWidget(plot, i, 1)
             charts.addWidget(val, i, 2)
-        charts.addWidget(lab("host receive time, last 30 s · tilt from the up vector; dashed "
-                             "amber = the 10° abort line (first-policy-stand §5) · vx: dashed "
-                             "cyan = sent (driver only), white = the robot's estimate", DIM, 11),
-                         3, 1)
+        # The robot does not estimate its speed: the beacon's vx_est is always
+        # 0 (firmware/README.md), so the vx chart is what was sent.
+        caption = lab("host receive time, last 30 s · tilt from the up vector; dashed "
+                      "amber = the 10° abort line (first-policy-stand §5) · vx: dashed "
+                      "cyan = sent (driver only); the robot's speed is not estimated "
+                      "(vx_est is 0)", DIM, 11)
+        caption.setWordWrap(True)
+        charts.addWidget(caption, 3, 1)
         charts.setColumnStretch(1, 1)
         chg = group("TELEMETRY   the beacon, 10 Hz", charts)
-        self.setLayout(vbox(hbox(vbox(motion, gp, spacing=10), vbox(extg, spg, spacing=10),
-                                 spacing=12), chg, "stretch", spacing=10,
-                            margins=(12, 12, 12, 12)))
+        self.cols = Columns(wrap(vbox(motion, gp, spacing=10)),
+                            wrap(vbox(extg, spg, spacing=10)), spacing=12)
+        self.setLayout(vbox(self.cols, chg, "stretch", spacing=10, margins=(12, 12, 12, 12)))
+
+    def _set_driver(self, driver: bool) -> None:
+        """An observer sends nothing: every control that would is greyed (the
+        safety bar's TAKE CONTROL is the way in), never hidden."""
+        if getattr(self, "_driver", None) == driver:
+            return
+        self._driver = driver
+        for w in (*self.pad_btns.values(), self.fdx, self.fdz, *self.lift.values(),
+                  self.reset_ext, self.svx, self.svy, self.swz, self.rate):
+            w.setEnabled(driver)
+        self.crouch.setEnabled(driver and self._crouch_ok)
+        self.source.setStyleSheet(f"color:{GREEN if driver else AMBER}; font-size:11px; "
+                                  f"font-weight:700")
+        tip = "" if driver else "observer: TAKE CONTROL in the safety bar to drive"
+        for w in self.pad_btns.values():
+            w.setToolTip(tip)
 
     def _ext_changed(self, *_):
         lift = next((v for v, r in self.lift.items() if r.isChecked()), 0.0)
@@ -161,7 +181,11 @@ class DriveTab(QtWidgets.QWidget):
         for k, i, f in (("vx", 0, "{:+.2f}"), ("vy", 1, "{:+.2f}"), ("wz", 2, "{:+.2f}"),
                         ("crouch", 3, "{:.2f}")):
             self.saw[k].setText(f.format(saw[i]) if saw is not None else "  —  ")
-        self.source.setText(f"source: {app.drive_source()}")
+        self._set_driver(not st.readonly)
+        if st.readonly:
+            self.source.setText("observer: nothing here drives · TAKE CONTROL (safety bar)")
+        else:
+            self.source.setText(f"source: {app.drive_source()}")
         # Mirror the intent's extended channels, which `set` / reset change too.
         for s, v in ((self.crouch, st.crouch), (self.fdx, st.foot_dx), (self.fdz, st.foot_dz)):
             if abs(s.value() - v) > 1e-3 and not s.s.isSliderDown():
@@ -186,13 +210,13 @@ class DriveTab(QtWidgets.QWidget):
             tilt = h.column("tilt")[m]
             self.c_tilt.setData(t, tilt)
             self.v_tilt.setText(f"{tilt[-1]:4.1f}°" if len(tilt) else "")
-            vx_est = h.column("vx_est")[m]
-            self.c_vx_est.setData(t, vx_est)
             if st.readonly:
                 self.c_vx.setData([], [])
+                self.v_vx.setText("  —  ")
             else:
-                self.c_vx.setData(t, h.column("vx_cmd")[m])
-            self.v_vx.setText(f"{vx_est[-1]:+.2f}" if len(vx_est) else "")
+                vx = h.column("vx_cmd")[m]
+                self.c_vx.setData(t, vx)
+                self.v_vx.setText(f"{vx[-1]:+.2f} m/s" if len(vx) else "")
 
 
 class History:

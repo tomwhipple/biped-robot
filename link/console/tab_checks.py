@@ -72,6 +72,12 @@ def _get(obj, *names):
     return None
 
 
+def _fail_name(r) -> str:
+    """'#2 pack': the row's number and a word for it (its evaluator's name)."""
+    what = r.fn.strip("_").replace("_", " ") if r.fn else r.item.split(":")[0]
+    return f"#{r.num} {what}" if r.num != "—" else what
+
+
 class Row:
     def __init__(self, num, item, source, tick=False, fn=None):
         self.num, self.item, self.source = num, item, source
@@ -169,8 +175,13 @@ class ChecksTab(QtWidgets.QWidget):
         self.window = lab("—", BRIGHT, 18, True, True)
         untick = btn("untick all", 120, h=30)
         untick.clicked.connect(self.untick_all)
-        head = hbox(self.pill, 12, self.summary, "stretch", untick, 14,
+        # The summary wraps rather than widening the tab (it grows with the
+        # number of open rows).
+        self.summary.setWordWrap(True)
+        self.summary.setMinimumWidth(160)
+        head = hbox(self.pill, 12, self.summary, 1, untick, 14,
                     lab("arm window after home readback", DIM), 8, self.window, spacing=8)
+        head.setStretchFactor(self.summary, 1)
         self.table = table(["#", "go / no-go (docs/first-policy-stand.md §2)", "status", "value",
                             "source"], len(self.rows), stretch_col=4)
         self.boxes = {}
@@ -203,8 +214,9 @@ class ChecksTab(QtWidgets.QWidget):
         self.abort_table.setFixedHeight(40 + 26 * len(self.aborts))
         self.setLayout(vbox(
             group("PRE-ARM", vbox(head, self.table, note, spacing=10)),
-            group("ABORT WATCH   advisory: the console flags, the operator and the spotter act; "
-                  "it sends nothing", vbox(self.abort_table)),
+            group("ABORT WATCH   advisory: it sends nothing",
+                  vbox(self.abort_table, lab("the console flags; the operator and the spotter "
+                                             "act", DIM, 12))),
             "stretch", spacing=10, margins=(12, 12, 12, 12)))
 
     def untick_all(self):
@@ -487,8 +499,7 @@ class ChecksTab(QtWidgets.QWidget):
         if ticks_open:
             parts.append(f"{len(ticks_open)} tether / eye checks open")
         if fails:
-            names = ", ".join(dict.fromkeys(r.num if r.num != "—" else r.item.split(":")[0]
-                                            for r in fails))
+            names = ", ".join(dict.fromkeys(_fail_name(r) for r in fails))
             parts.append(f"{len(fails)} failed: {names}")
         if nodata:
             parts.append(f"{len(nodata)} waiting for data")

@@ -16,10 +16,11 @@ FLIGHT_PORT = 4221          # robot flight records, forwarded by mira's collecto
 SIM_FLIGHT_PORT = 4222      # the sim twin's flight records
 SEND_HZ = 20.0
 DEFAULT_VX, DEFAULT_VY, DEFAULT_WZ = 0.4, 0.2, 0.5   # client.h kDefault*
+TAB_NAMES = ("checks", "drive", "joints", "telemetry", "sim", "session", "setup", "bench")
 
 USAGE_NOTES = """\
-Starts as an OBSERVER: it sends no command until TAKE CONTROL (Setup, or a key
-bound to `control`), or --drive. HOLD [f] and E-STOP [e] are the out-of-band
+Starts as an OBSERVER: it sends no command until TAKE CONTROL (the safety bar's
+button, or a key bound to `control`), or --drive. HOLD [f] and E-STOP [e] are the out-of-band
 operator stops (tools/estop.py's frames) and work in every role.
 
 The robot beacons only to whoever commanded it last, so a watcher sees the
@@ -34,34 +35,50 @@ def parser() -> argparse.ArgumentParser:
         epilog=USAGE_NOTES, formatter_class=argparse.RawDescriptionHelpFormatter)
     a = p.add_argument
     a("--host", help="robot (or sim) IP; where commands and stops go")
-    a("--cmd-port", type=int, default=CMD_PORT)
-    a("--tlm-port", type=int, default=TLM_PORT)
+    a("--cmd-port", type=int, default=CMD_PORT,
+      help=f"robot UDP port commands go to (default {CMD_PORT})")
+    a("--tlm-port", type=int, default=TLM_PORT,
+      help=f"local UDP port the beacon arrives on (default {TLM_PORT})")
     a("--drive", action="store_true",
       help="start DRIVING (needs --host) instead of observing")
     a("--readonly", action="store_true",
       help="start observing (the default; kept for bimo_gui's command lines)")
     a("--watch", metavar="HOST[:PORT]", help="relay each beacon to a watcher")
-    a("--vx", type=float, default=DEFAULT_VX)
-    a("--vy", type=float, default=DEFAULT_VY)
-    a("--wz", type=float, default=DEFAULT_WZ)
-    a("--rate", type=float, default=SEND_HZ, help="send rate, Hz (5..100)")
+    a("--vx", type=float, default=DEFAULT_VX,
+      help=f"forward / back speed a held key sends, m/s (Drive's vx max; default {DEFAULT_VX})")
+    a("--vy", type=float, default=DEFAULT_VY,
+      help=f"strafe speed a held key sends, m/s (Drive's vy max; default {DEFAULT_VY})")
+    a("--wz", type=float, default=DEFAULT_WZ,
+      help=f"turn rate a held key sends, rad/s (Drive's wz max; default {DEFAULT_WZ})")
+    a("--rate", type=float, default=SEND_HZ,
+      help=f"command send rate, Hz, in (0, 100]; under 5 is raised to 5, bimo_gui's "
+           f"floor (default {SEND_HZ:g})")
     a("--keymap", help="keymap file (default ~/.bimo/keymap.conf)")
-    a("--repo", default=ROOT)
+    a("--repo", default=ROOT,
+      help="the robot repo: sim runs, the plant, <repo>/.venv for the Sim tab "
+           "(default: this checkout)")
     a("--sessions", help="recordings and the log (default <repo>/hw_sessions)")
-    a("--no-record", action="store_true")
+    a("--no-record", action="store_true",
+      help="do not record the session's JSONL (recording is on by default)")
     a("--mirror", action="store_true",
       help="ask the robot for joint angles and attitude (the 3D view)")
     a("--flight-port", type=int, default=FLIGHT_PORT,
-      help="UDP port for forwarded flight records (0 = off)")
-    a("--sim-flight-port", type=int, default=SIM_FLIGHT_PORT)
+      help=f"UDP port for forwarded flight records (0 = off; default {FLIGHT_PORT})")
+    a("--sim-flight-port", type=int, default=SIM_FLIGHT_PORT,
+      help=f"UDP port for the sim twin's flight records (0 = off; default "
+           f"{SIM_FLIGHT_PORT})")
     a("--plant", help="MuJoCo plant for the 3D view (default: the v6 plant)")
-    a("--run-name", help="preselected sim run")
-    a("--sim-cmd-port", type=int, default=0, help="0 -> cmd-port + 100")
-    a("--stream-port", type=int, default=STREAM_PORT)
+    a("--run-name", help="the policy run the Sim tab preselects (one exported to "
+      "sim/sil/weights/<name>.silw.json)")
+    a("--sim-cmd-port", type=int, default=0,
+      help="the sim twin's command port (default 0: --cmd-port + 100)")
+    a("--stream-port", type=int, default=STREAM_PORT,
+      help=f"the sim's MJPEG render port on 127.0.0.1 (default {STREAM_PORT})")
     a("--sim-view", metavar="URL", help="an MJPEG sim stream to show")
     a("--bench-telemetry", metavar="HOST[:PORT]",
       help="tools/board_bridge.py's telemetry (watch-only)")
-    a("--cam-relay", metavar="HOST[:PORT]", help="tools/cam_relay.py")
+    a("--cam-relay", metavar="HOST[:PORT]",
+      help=f"tools/cam_relay.py's bench cameras (default port {CAM_PORT})")
     a("--cam", action="append", default=[], choices=CAM_NAMES + ("off",),
       help="camera to open at start (twice for both panes)")
     a("--drive-view", action="store_true",
@@ -70,12 +87,13 @@ def parser() -> argparse.ArgumentParser:
       "(default: $BIMO_HOST, then the flight collector's robot_addr)")
     a("--no-broadcast", action="store_true",
       help="send stops to the robot only, not also the LAN broadcast")
-    a("--tab", help="start on this tab (checks, drive, joints, telemetry, "
-      "sim, session, setup, bench)")
+    a("--tab", type=str.lower, choices=TAB_NAMES,
+      help="start on this tab (default drive; bench with the bench flags)")
     a("--headless", action="store_true",
       help="no window: line commands on stdin (tests/test_gui_e2e.py)")
     a("--screenshot", metavar="PNG", help="write a PNG of the window, then quit")
-    a("--screenshot-after", type=float, default=4.0)
+    a("--screenshot-after", type=float, default=4.0,
+      help="seconds before --screenshot is taken (default 4)")
     a("--quit-after", type=float, default=0.0, help="quit after S seconds")
     return p
 

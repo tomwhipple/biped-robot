@@ -23,10 +23,10 @@ import warnings
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6 import QtCore, QtGui, QtWidgets
+from PyQt6 import QtCore, QtWidgets
 
 from .flight import BUS_INDEX, decimate, status_text
-from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, btn,
+from .ui import (AMBER, BG, BRIGHT, CYAN, DIM, FAINT, LINE, MONO, RED, SIMC, Flow, btn, mono_font,
                  group, hbox, lab, mkplot, restyle, set_cell, table, vbox, wrap)
 
 LEGS = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
@@ -226,8 +226,11 @@ class JointsTab(QtWidgets.QWidget):
         self.table_btn.clicked.connect(self._toggle_table)
         self.legend = lab("", rich=True)
         self.legend.setWordWrap(True)        # its own row: it is the widest thing on the tab
-        top = vbox(hbox(lab("window", DIM), w_lay, 14, self.pause_btn, 14, u_lay, 14, n_lay,
-                        "stretch", spacing=8),
+        for lay in (w_lay, u_lay, n_lay):
+            lay.setContentsMargins(0, 0, 0, 0)
+        # The view controls wrap onto a second line on a narrow pane.
+        top = vbox(Flow(wrap(hbox(lab("window", DIM), w_lay, spacing=8)), self.pause_btn,
+                        wrap(u_lay), wrap(n_lay), spacing=14),
                    hbox(self.legend, self.table_btn, spacing=8), spacing=4)
         self.banner = lab("", AMBER, 12, True)
         self.banner.setWordWrap(True)
@@ -273,7 +276,7 @@ class JointsTab(QtWidgets.QWidget):
             for ax in ("left", "bottom"):
                 pi.getAxis(ax).setTextPen(DIM)
                 pi.getAxis(ax).setPen("#3a3f47")
-                pi.getAxis(ax).setStyle(tickFont=QtGui.QFont(MONO, 9))
+                pi.getAxis(ax).setStyle(tickFont=mono_font(9))
             pi.getAxis("left").setWidth(48)
         a, e, ld = self.d_plots
         for pi in (e, ld):
@@ -288,8 +291,8 @@ class JointsTab(QtWidgets.QWidget):
         e.addItem(pg.InfiniteLine(0, angle=0, pen=pg.mkPen("#4a5059")))
         self.d_load = ld.plot(pen=pg.mkPen(LOADC, width=1.6), connect="finite")
         self.d_yr = [YRange(pi, 3) for pi in self.d_plots]
-        a.setLabel("left", "deg", color=DIM)
-        e.setLabel("left", "err°", color=DIM)
+        a.setLabel("left", "pos °", color=DIM)        # axis labels: "<what> <unit>"
+        e.setLabel("left", "err °", color=DIM)
         ld.setLabel("left", "load %", color=DIM)
         ld.setLabel("bottom", "s (robot time)", color=DIM)
         for pi in self.d_plots:
@@ -318,9 +321,9 @@ class JointsTab(QtWidgets.QWidget):
             c.yr.reset()
         for y in self.d_yr:
             y.reset()
-        u = "deg" if self.deg else "rad"
-        self.d_plots[0].setLabel("left", u, color=DIM)
-        self.d_plots[1].setLabel("left", "err°" if self.deg else "err rad", color=DIM)
+        u = "°" if self.deg else "rad"
+        self.d_plots[0].setLabel("left", f"pos {u}", color=DIM)
+        self.d_plots[1].setLabel("left", f"err {u}", color=DIM)
         self._redraw()
 
     def _set_nominal(self, i: int) -> None:

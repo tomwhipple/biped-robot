@@ -33,7 +33,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from . import core, pose3d
 from .mjpeg import MjpegStream
 from .options import CAM_NAMES, CAM_PORT, STREAM_PORT
-from .ui import AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, MONO, RED, SIMC, TEXT, hbox, lab, vbox
+from .ui import (AMBER, BRIGHT, CYAN, DIM, FAINT, GREEN, RED, SIMC, TEXT, Flow, hbox, lab,
+                 mono_font, vbox, wrap)
 
 FROZEN_S = 1.0
 SIM_KEY = "sim render"
@@ -222,8 +223,12 @@ class ViewPane(QtWidgets.QWidget):
         # width, so nothing is out of reach when the line shrinks.
         self.cam_pick.setMinimumWidth(60)
         self.preset.setMinimumWidth(60)
-        row1 = hbox(src_lay, 18, self.show_cmd, self.show_sim, self.show_pip, "stretch",
-                    spacing=12)
+        # The source buttons and the overlay boxes share a line when the
+        # pane is wide enough and wrap onto two when it is not: neither sets
+        # the pane's width (the split keeps its designed share).
+        src_lay.setContentsMargins(0, 0, 0, 0)
+        row1 = Flow(wrap(src_lay), wrap(hbox(self.show_cmd, self.show_sim, self.show_pip,
+                                             spacing=12)), spacing=18)
         row2 = hbox(lab("camera", DIM), self.cam_pick, lay_lay, "stretch", self.preset,
                     spacing=10)
         note = lab("camera: not registered to the 3D view, never drawn under the model",
@@ -276,17 +281,6 @@ class ViewPane(QtWidgets.QWidget):
         for box, v in ((self.show_cmd, commanded), (self.show_sim, sim), (self.show_pip, pip)):
             if v is not None:
                 box.setChecked(bool(v))
-
-    def set_camera(self, name: str) -> None:
-        self.cam_pick.setCurrentText(name)
-
-    def set_preset(self, name: str) -> None:
-        for i, p in enumerate(PRESETS):
-            if name.lower() in p[0].lower():
-                self.preset.setCurrentIndex(i + 1)
-                self._preset_chosen(i + 1)
-                return
-        raise KeyError(name)
 
     def reset_camera(self) -> None:
         self.cam = dict(CAM0)
@@ -341,6 +335,17 @@ class ViewPane(QtWidgets.QWidget):
             return None
         return rec if isinstance(rec, dict) else None
 
+    def _store_rate(self, source: str) -> float:
+        """The flight recorder's own receive rate for a source (Hz), not how
+        often this pane looks at it (the window's refresh)."""
+        stats = getattr(getattr(self.app, "flight", None), "stats", None)
+        if stats is None:
+            return 0.0
+        try:
+            return float(stats(source).get("rate_hz") or 0.0)
+        except Exception:      # another module's bug must not take the window down
+            return 0.0
+
     def _tick_rate(self, key: str, t) -> float:
         """Samples per second from distinct sample times (seconds)."""
         r = self._rate[key]
@@ -380,7 +385,7 @@ class ViewPane(QtWidgets.QWidget):
             m.update(source="flight recorder", age=_f(rob.get("age_s")), up=up,
                      fitted=len(fitted), n=len(q),
                      unfitted=len([n for n in names if n not in fitted]),
-                     rate=self._tick_rate("robot", _f(rob.get("t"))))
+                     rate=self._store_rate("robot"))
             self.meas = pose3d.Layer(q, up=up, measured=ok)
         else:
             self._from_beacon(st, now_ms, m, names)
@@ -573,8 +578,7 @@ class ViewPane(QtWidgets.QWidget):
             else:
                 self._paint_render_error(p, r3d)
         if rc is not None:
-            key = SIM_KEY if self.source == "sim" else self.cam_name
-            self._paint_stream(p, rc, key)
+            self._paint_stream(p, rc, self.stream_key())
 
     def _paint_render_error(self, p, r):
         """The 3D picture alone is unbuildable (no GL context): say so, red,
@@ -583,7 +587,7 @@ class ViewPane(QtWidgets.QWidget):
         p.setClipRect(r)
         p.fillRect(r, QtGui.QColor(SKY))
         p.setPen(QtGui.QColor(RED))
-        p.setFont(QtGui.QFont(MONO, 11))
+        p.setFont(mono_font(11))
         p.drawText(r.adjusted(16, 16, -16, -16), int(QtCore.Qt.TextFlag.TextWordWrap),
                    f"3D render unavailable: {self._render_error}\n"
                    "the streams (camera, sim render) still show")
@@ -596,7 +600,7 @@ class ViewPane(QtWidgets.QWidget):
         img = self._img
         if self.model is None:
             p.setPen(QtGui.QColor(RED))
-            p.setFont(QtGui.QFont(MONO, 11))
+            p.setFont(mono_font(11))
             p.drawText(r.adjusted(16, 16, -16, -16), int(QtCore.Qt.TextFlag.TextWordWrap),
                        f"plant failed to load: {self.plant}\n{self.plant_error}")
         elif img is not None:
@@ -610,7 +614,7 @@ class ViewPane(QtWidgets.QWidget):
         if self.model is not None:
             self._paint_legend(p, r.x() + 14, r.y() + 14)
             if r.width() > 560:
-                p.setFont(QtGui.QFont(MONO, 10))
+                p.setFont(mono_font(10))
                 p.setPen(QtGui.QColor(DIM))
                 p.drawText(QtCore.QRectF(r.right() - 330, r.y() + 12, 316, 40),
                            int(QtCore.Qt.AlignmentFlag.AlignRight),
@@ -653,7 +657,7 @@ class ViewPane(QtWidgets.QWidget):
 
     def _paint_legend(self, p, x, y):
         rows = self.legend_rows()
-        font = QtGui.QFont(MONO, 11)
+        font = mono_font(11)
         fm = QtGui.QFontMetrics(font)
         tw = max(fm.horizontalAdvance(t) for _, t, _, _ in rows)
         aw = max([fm.horizontalAdvance(a) for _, _, a, _ in rows] + [40])
@@ -674,7 +678,7 @@ class ViewPane(QtWidgets.QWidget):
         """(state text, colour, stream or None) for one camera or the sim render."""
         s = self.streams.get(key)
         if s is None:
-            if key != SIM_KEY and not getattr(self.o, "cam_relay", None):
+            if key is None or (key != SIM_KEY and not getattr(self.o, "cam_relay", None)):
                 return "no --cam-relay", FAINT, None
             return "○ off", FAINT, None
         st = s.state()
@@ -684,8 +688,21 @@ class ViewPane(QtWidgets.QWidget):
             age = s.age_s() or 0.0
             return f"STALE {age:.1f} s", RED, s
         if st == "waiting":
+            if key == SIM_KEY and _refused(s.error):
+                return "○ sim not running", AMBER, s
             return "○ waiting", AMBER, s
         return "○ off", FAINT, s
+
+    def stream_key(self):
+        """What the stream rect shows: the sim render on the Sim render source,
+        else the picked camera -- None for the Camera source with no
+        --cam-relay (it says so; it never falls back to the sim render)."""
+        if self.source == "sim":
+            return SIM_KEY
+        if (self.source == "camera" and self.cam_name == SIM_KEY
+                and not getattr(self.o, "cam_relay", None)):
+            return None
+        return self.cam_name
 
     def _url(self, key: str):
         o = self.o
@@ -708,14 +725,16 @@ class ViewPane(QtWidgets.QWidget):
         state, colour, s = self.stream_state(key)
         url = self._url(key) or ""
         where = url.split("//", 1)[-1].split("/", 1)[0] if url else ""
-        font = QtGui.QFont(MONO, 10)
+        font = mono_font(10)
         fm = QtGui.QFontMetrics(font)
         p.setFont(font)
         sw = fm.horizontalAdvance(state) + 4
         room = int(r.width() - sw - 28)
-        title = f"{'bench cam · ' if key != SIM_KEY else ''}{key}   {where}"
+        title = (f"{'bench cam · ' if key != SIM_KEY else ''}{key}   {where}" if key is not None
+                 else "bench cam")
         if fm.horizontalAdvance(title) > room:
-            title = fm.elidedText(f"{key}   {where}", QtCore.Qt.TextElideMode.ElideRight, room)
+            title = fm.elidedText(f"{key or 'bench cam'}   {where}",
+                                  QtCore.Qt.TextElideMode.ElideRight, room)
         p.setPen(QtGui.QColor(TEXT))
         p.drawText(QtCore.QRectF(r.x() + 10, r.y() + 4, room, 18),
                    int(QtCore.Qt.AlignmentFlag.AlignLeft), title)
@@ -733,15 +752,17 @@ class ViewPane(QtWidgets.QWidget):
                 band = QtCore.QRectF(body.x(), body.center().y() - 18, body.width(), 36)
                 p.fillRect(band, QtGui.QColor(10, 12, 15, 200))
                 p.setPen(QtGui.QColor(RED))
-                p.setFont(QtGui.QFont(MONO, 13, QtGui.QFont.Weight.Bold))
+                p.setFont(mono_font(13, QtGui.QFont.Weight.Bold))
                 p.drawText(band, int(QtCore.Qt.AlignmentFlag.AlignCenter),
                            f"{state}: the last frame, not live")
         else:
             p.setPen(QtGui.QColor(DIM))
-            p.setFont(QtGui.QFont(MONO, 11))
+            p.setFont(mono_font(11))
             if s is None:
                 msg = ("no camera: start the console with --cam-relay HOST[:PORT]"
                        if url == "" else f"{key}: not open")
+            elif key == SIM_KEY and _refused(s.error):
+                msg = f"sim not running: start it on the Sim tab\n\n(nothing serves {url})"
             else:
                 msg = f"waiting for {url}"
                 if s.error:
@@ -750,7 +771,7 @@ class ViewPane(QtWidgets.QWidget):
                        int(QtCore.Qt.AlignmentFlag.AlignCenter | QtCore.Qt.TextFlag.TextWordWrap),
                        msg)
         if key != SIM_KEY:
-            p.setFont(QtGui.QFont(MONO, 9))
+            p.setFont(mono_font(9))
             p.setPen(QtGui.QColor(FAINT))
             p.drawText(QtCore.QPointF(body.x() + 8, body.bottom() - 6), "not registered to 3D")
         p.restore()
@@ -759,8 +780,11 @@ class ViewPane(QtWidgets.QWidget):
     def _set_status(self):
         sep = f"<span style='color:{DIM}'> · </span>"
         d = f"<span style='color:{DIM}'>"
-        if self.source in ("camera", "sim"):
-            key = SIM_KEY if self.source == "sim" else self.cam_name
+        if self.source in ("camera", "sim") and self.stream_key() is None:
+            html = (f"<span style='color:{AMBER}'>no camera</span>&nbsp;&nbsp;{d}start the "
+                    f"console with --cam-relay HOST[:PORT] (tools/cam_relay.py)</span>")
+        elif self.source in ("camera", "sim"):
+            key = self.stream_key()
             state, colour, _ = self.stream_state(key)
             url = self._url(key) or "no --cam-relay"
             extra = ("sil_twin's own world view (floor, contacts, position)" if key == SIM_KEY
@@ -796,7 +820,8 @@ class ViewPane(QtWidgets.QWidget):
         if self.source == "sim":
             return {SIM_KEY}
         if self.source == "camera" or self.show_pip.isChecked():
-            return {self.cam_name} if self._url(self.cam_name) else set()
+            key = self.stream_key()
+            return {key} if key is not None and self._url(key) else set()
         return set()
 
     def _sync_streams(self) -> None:
@@ -836,6 +861,11 @@ def _stop_async(streams):
         t.start()
         out.append(t)
     return out
+
+
+def _refused(error: str) -> bool:
+    """A stream error that means nothing listens there (ECONNREFUSED)."""
+    return "Errno 111" in error or "Errno 61" in error or "refused" in error.lower()
 
 
 def _f(v):

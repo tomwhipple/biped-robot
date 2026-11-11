@@ -61,6 +61,11 @@ brew install glfw && make console
 #   SIM: pick a run, Start; [a] arm, arrows to walk, PgUp/PgDn to turn
 ```
 
+That is `bimo_gui` (Dear ImGui), the console for hardware sessions. The Qt
+operator console that replaces it, `link/bimo_console.py` (built by
+`make -C firmware/host console`), opens with `make qtconsole`; it has not yet
+run a hardware session ([docs/console.md](docs/console.md)).
+
 **Trained policies are not in the repo.** They are local artifacts under
 `sim/runs/` (gitignored); [docs/training.md](docs/training.md) walks the pipeline
 from the physics model to the weights compiled into the firmware. Training
@@ -76,6 +81,7 @@ wants an NVIDIA GPU; the referee, distillation and export run on a laptop.
 | [docs/wiring.md](docs/wiring.md) · [docs/servo-map.md](docs/servo-map.md) · [docs/bringup.md](docs/bringup.md) | power and electrical, servo IDs and calibration, bare board to first arm |
 | [firmware/README.md](firmware/README.md) · [docs/firmware-design.md](docs/firmware-design.md) | what runs on the ESP32 |
 | [docs/control-channel.md](docs/control-channel.md) | the wireless command protocol and its failsafe |
+| [docs/console.md](docs/console.md) | the Qt operator console: roles, the stops, input, the tabs, the gamepad, its ports |
 | [docs/wifi-cli.md](docs/wifi-cli.md) | the bench CLI over Wi-Fi: provisioning, what is refused, the threat model |
 | [docs/training.md](docs/training.md) · [docs/sil-harness.md](docs/sil-harness.md) | how a policy is trained, refereed and deployed |
 | [AGENTS.md](AGENTS.md) | working practices: gates, branching, generated files, bench safety |

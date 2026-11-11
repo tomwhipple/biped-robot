@@ -10,7 +10,11 @@ TEXT, DIM, FAINT = "#d6d9de", "#8a9099", "#5a6068"
 GREEN, AMBER, RED, ORANGE, BENCHC = "#2fa35a", "#c98a1b", "#c62828", "#d9731f", "#7f8ca6"
 CYAN, SIMC, BLUE = "#3cc8ff", "#ffa41f", "#2f6fca"
 BRIGHT = "#e8e8e8"
-MONO = "Menlo"
+# Monospace: Menlo (macOS), then the usual Linux / Windows faces, then the
+# platform's own monospace (a family list in style sheets, the Monospace
+# style hint in a QFont: mono_font).
+MONO_FAMILIES = ("Menlo", "DejaVu Sans Mono", "Liberation Mono", "Consolas", "monospace")
+MONO = ", ".join(f"'{f}'" if " " in f else f for f in MONO_FAMILIES)
 
 # Badge colour per linkproto::LinkState (wire order), bimo_gui's stateColour.
 STATE_COLOUR = (GREEN, AMBER, ORANGE, RED, RED, RED, RED, BENCHC)
@@ -80,6 +84,18 @@ def dark_palette() -> QtGui.QPalette:
                       (R.HighlightedText, "#ffffff"), (R.PlaceholderText, DIM)]:
         p.setColor(role, QtGui.QColor(col))
     return p
+
+
+def mono_font(pt: int, weight=None) -> QtGui.QFont:
+    """A monospace QFont at `pt` points, whatever the platform has."""
+    f = QtGui.QFont()
+    f.setFamilies(list(MONO_FAMILIES))
+    f.setStyleHint(QtGui.QFont.StyleHint.Monospace)
+    f.setFixedPitch(True)
+    f.setPointSize(pt)
+    if weight is not None:
+        f.setWeight(weight)
+    return f
 
 
 def lab(text="", color=None, size=None, bold=False, mono=False, rich=False):
@@ -195,15 +211,17 @@ def mkplot(h=None, xr=(-30, 0), yr=None, bottom=True, left_w=38):
         a = pi.getAxis(ax)
         a.setTextPen(DIM)
         a.setPen("#3a3f47")
-        a.setStyle(tickFont=QtGui.QFont(MONO, 9))
+        a.setStyle(tickFont=mono_font(9))
     pi.getAxis("left").setWidth(left_w)
     if not bottom:
         pi.hideAxis("bottom")
     # A PlotWidget's sizeHint is 640 x 480 pt: left to it, a column of plots
     # makes its tab 480 pt per row and wider than the pane. Take what the
     # layout gives (with the caller's minimum), not what the plot would like.
+    # A fixed height is Fixed vertically: an Ignored row in a grid collapses
+    # to its label's height and the plots overlap (the Bench tab's did).
     P = QtWidgets.QSizePolicy.Policy
-    p.setSizePolicy(P.Ignored, P.Ignored)
+    p.setSizePolicy(P.Ignored, P.Fixed if h else P.Ignored)
     if h:
         p.setFixedHeight(h)
     return p
@@ -279,3 +297,152 @@ def is_text_input(w) -> bool:
     in it must not arm the robot."""
     return isinstance(w, (QtWidgets.QLineEdit, QtWidgets.QAbstractSpinBox,
                           QtWidgets.QPlainTextEdit, QtWidgets.QTextEdit))
+
+
+class Unavailable(QtWidgets.QWidget):
+    """A pane that could not be built, saying why (and what would build it)."""
+
+    def __init__(self, why: str):
+        super().__init__()
+        self.why = lab(why, AMBER, 14)
+        self.why.setWordWrap(True)
+        self.setLayout(vbox(self.why, "stretch", margins=(16, 16, 16, 16)))
+
+
+class Flow(QtWidgets.QLayout):
+    """Widgets left to right, wrapping onto another line when the width runs
+    out (Qt's flow-layout example): a row of controls that must never set the
+    width of the pane it sits in."""
+
+    def __init__(self, *widgets, spacing=12, line_spacing=6):
+        super().__init__()
+        self._items: list[QtWidgets.QLayoutItem] = []
+        self._h, self._v = spacing, line_spacing
+        self.setContentsMargins(0, 0, 0, 0)
+        for w in widgets:
+            self.addWidget(w)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, i):
+        return self._items[i] if 0 <= i < len(self._items) else None
+
+    def takeAt(self, i):
+        return self._items.pop(i) if 0 <= i < len(self._items) else None
+
+    def expandingDirections(self):
+        return QtCore.Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._place(QtCore.QRect(0, 0, width, 0), move=False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._place(rect, move=True)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        s = QtCore.QSize()
+        for it in self._items:
+            s = s.expandedTo(it.minimumSize())
+        m = self.contentsMargins()
+        return s + QtCore.QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _place(self, rect, move):
+        m = self.contentsMargins()
+        r = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y, line = r.x(), r.y(), 0
+        for it in self._items:
+            if it.isEmpty():
+                continue
+            hint = it.sizeHint()
+            if x > r.x() and x + hint.width() > r.right() + 1:
+                x, y, line = r.x(), y + line + self._v, 0
+            if move:
+                it.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), hint))
+            x += hint.width() + self._h
+            line = max(line, hint.height())
+        return y + line - rect.y() + m.bottom()
+
+
+def fit_table(t: QtWidgets.QTableWidget, width_from_contents: bool = True) -> None:
+    """A table shown whole: its fixed height holds the header and every row
+    (no scrollbar hides the last one or an empty-state line), and -- with
+    width_from_contents -- it is never narrower than its columns, so none is
+    cut off or scrolled out of sight; the layout around it wraps instead."""
+    A = QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+    t.setHorizontalScrollBarPolicy(A)
+    t.setVerticalScrollBarPolicy(A)
+    hh = t.horizontalHeader()
+    if width_from_contents:
+        w = sum(max(hh.sectionSizeHint(c), t.sizeHintForColumn(c))
+                for c in range(t.columnCount()) if not t.isColumnHidden(c))
+        w += 2 * t.frameWidth()
+        if t.minimumWidth() != w:
+            t.setMinimumWidth(w)
+    h = (hh.sizeHint().height() + 2 * t.frameWidth()
+         + sum(t.rowHeight(r) for r in range(t.rowCount())))
+    if t.height() != h or t.minimumHeight() != h:
+        t.setFixedHeight(h)
+
+
+class Columns(QtWidgets.QWidget):
+    """Widgets side by side while the width allows, stacked when it does not:
+    a tab's columns never make it wider than its pane (the tab scrolls down,
+    never sideways)."""
+
+    def __init__(self, *widgets, spacing=12, stretch=None, top=True):
+        super().__init__()
+        self._widgets = widgets
+        self._stretch = stretch or (0,) * len(widgets)
+        # top: side by side, each column is as tall as it needs, top-aligned;
+        # else each fills the height (a column of charts that takes the rest).
+        self._top = QtCore.Qt.AlignmentFlag.AlignTop if top else QtCore.Qt.AlignmentFlag(0)
+        self._lay = QtWidgets.QBoxLayout(QtWidgets.QBoxLayout.Direction.LeftToRight)
+        self._lay.setSpacing(spacing)
+        self._lay.setContentsMargins(0, 0, 0, 0)
+        for w, k in zip(widgets, self._stretch):
+            self._lay.addWidget(w, k, self._top)
+        self.setLayout(self._lay)
+
+    def _side_by_side_width(self) -> int:
+        return (sum(w.minimumSizeHint().width() for w in self._widgets)
+                + self._lay.spacing() * (len(self._widgets) - 1))
+
+    def minimumSizeHint(self):
+        s = super().minimumSizeHint()
+        return QtCore.QSize(max(w.minimumSizeHint().width() for w in self._widgets), s.height())
+
+    def resizeEvent(self, ev):
+        self._arrange(ev.size().width())
+        super().resizeEvent(ev)
+
+    def event(self, ev):
+        # A child's minimum can grow with its contents (a table filling in):
+        # look again whenever the children ask for a new layout.
+        if ev.type() == QtCore.QEvent.Type.LayoutRequest:
+            self._arrange(self.width())
+        return super().event(ev)
+
+    def _arrange(self, width: int) -> None:
+        D = QtWidgets.QBoxLayout.Direction
+        want = D.LeftToRight if width >= self._side_by_side_width() else D.TopToBottom
+        if self._lay.direction() != want:
+            self._lay.setDirection(want)
+            align = self._top if want == D.LeftToRight else QtCore.Qt.AlignmentFlag(0)
+            for i, w in enumerate(self._widgets):
+                self._lay.setAlignment(w, align)
+                self._lay.setStretch(i, self._stretch[i] if want == D.LeftToRight else 0)
+            self.updateGeometry()
+
+    def stacked(self) -> bool:
+        return self._lay.direction() == QtWidgets.QBoxLayout.Direction.TopToBottom

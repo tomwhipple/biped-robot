@@ -8,7 +8,7 @@ import os
 from PyQt6 import QtCore, QtWidgets
 
 from . import core
-from .ui import AMBER, DIM, btn, group, hbox, lab, set_cell, table, vbox
+from .ui import AMBER, DIM, Columns, btn, group, hbox, lab, set_cell, table, vbox, wrap
 
 
 def edit(text, width=None, shrink=False):
@@ -83,10 +83,12 @@ class SetupTab(QtWidgets.QWidget):
         shotg = group("SCREENSHOT   the window, no screen-recording permission",
                       hbox(self.shot, shot_btn, "stretch"))
         self.gamepad_box = QtWidgets.QVBoxLayout()
+        self.gamepad_label = lab("", DIM)          # without gamepad support: says so
+        self.gamepad_box.addWidget(self.gamepad_label)
         padg = group("GAMEPAD", self.gamepad_box)
-        self.setLayout(hbox(vbox(link, data, shotg, "stretch", spacing=10),
-                            vbox(keyg, padg, "stretch", spacing=10),
-                            spacing=12, margins=(12, 12, 12, 12)))
+        self.cols = Columns(wrap(vbox(link, data, shotg, spacing=10)),
+                            wrap(vbox(keyg, padg, spacing=10)), spacing=12)
+        self.setLayout(vbox(self.cols, "stretch", margins=(12, 12, 12, 12)))
         self.refresh_keys()
 
     def _apply_link(self):
@@ -129,6 +131,10 @@ class SetupTab(QtWidgets.QWidget):
 
     def update_from(self, st, now: float) -> None:
         o = self.app.ctl.o
+        nopad = getattr(self.app, "pad", None) is None
+        self.gamepad_label.setVisible(nopad)
+        if nopad:
+            self.gamepad_label.setText(self.app.pad_detail())
         if not getattr(self.app.ctl, "linked", True):
             self.role.setText("NO LINK: the last relink failed, so this console sends "
                               "nothing; fix the address and apply")

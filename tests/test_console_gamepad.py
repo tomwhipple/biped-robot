@@ -17,7 +17,8 @@ from types import SimpleNamespace
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-pytest.importorskip("pygame")
+# No pygame needed: every test drives a fake SDL adapter (FakeSdl), and
+# gamepad.py imports pygame only inside the real one.
 pytest.importorskip("PyQt6")
 pytest.importorskip("pyqtgraph")
 
@@ -359,7 +360,7 @@ def test_a_pad_moving_is_not_called_streaming():
 def test_a_pad_without_sdl_is_reported_not_raised():
     class Broken:
         def __init__(self):
-            raise gamepad.pygame.error("no joystick subsystem")
+            raise gamepad.SdlError("no joystick subsystem")
 
     real = gamepad.SdlPads
     gamepad.SdlPads = Broken
@@ -382,11 +383,13 @@ def qapp():
 
 @pytest.fixture
 def twin():
-    port = 4600 + (os.getpid() % 150) * 2
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     p = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "link_twin.py"), "--port",
                           str(port), "--tlm-port", str(port + 1), "--duration", "30"],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    time.sleep(0.4)
+    first = p.stdout.readline()          # "link_twin: listening on ..." once bound
+    assert "listening" in first, first
     yield port
     p.terminate()
     p.communicate(timeout=5)
@@ -416,7 +419,8 @@ def test_the_pad_drives_the_twin_and_releases(qapp, twin, tmp_path, monkeypatch)
         qapp.setStyleSheet(QSS)
     o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(twin), "--tlm-port",
                        str(twin + 1), "--no-record", "--sessions", str(tmp_path), "--keymap",
-                       str(tmp_path / "keys.conf"), "--drive"])
+                       str(tmp_path / "keys.conf"), "--drive",
+                       "--flight-port", "0", "--sim-flight-port", "0"])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)

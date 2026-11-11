@@ -35,14 +35,21 @@ def qapp():
 
 @pytest.fixture
 def twin():
-    port = 4500 + (os.getpid() % 200) * 2
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     p = subprocess.Popen([sys.executable, TWIN, "--port", str(port), "--tlm-port",
                           str(port + 1), "--duration", "30"],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    time.sleep(0.4)
+    first = p.stdout.readline()          # "link_twin: listening on ..." once bound
+    assert "listening" in first, first
     yield port
     p.terminate()
     p.communicate(timeout=5)
+
+
+# The flight-record receivers bind 0.0.0.0:4221/4222 by default: off in the
+# tests, so two runs (or a console on this box) do not fight over them.
+NO_FLIGHT = ("--flight-port", "0", "--sim-flight-port", "0")
 
 
 def window(qapp, port, tmp_path, *extra):
@@ -50,7 +57,7 @@ def window(qapp, port, tmp_path, *extra):
     from console.controller import Controller
     o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
                        str(port + 1), "--no-record", "--sessions", str(tmp_path),
-                       "--keymap", str(tmp_path / "keys.conf"), *extra])
+                       "--keymap", str(tmp_path / "keys.conf"), *NO_FLIGHT, *extra])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)
@@ -133,10 +140,10 @@ def test_keys_follow_the_dead_man_rules(qapp, twin, tmp_path):
         setup = w.tab_widgets["Setup"]
         w.select_tab("Setup")
         click_into(qapp, w, setup.host)
-        if QtWidgets.QApplication.focusWidget() is setup.host:
-            key(w, QtCore.Qt.Key.Key_A, text="a")
-            pump(qapp, 0.1)
-            assert w.ctl.st.armed
+        assert focused() is setup.host
+        key(w, QtCore.Qt.Key.Key_A, text="a")
+        pump(qapp, 0.1)
+        assert w.ctl.st.armed
         w.select_tab("Drive")
     finally:
         w.close()
@@ -170,17 +177,22 @@ def test_mjpeg_parser_takes_parts_split_anywhere():
     assert p.overflow and p.take() is None
 
 
+# Fonts differ per OS (Menlo vs DejaVu Sans Mono, Noto vs SF): a few points of
+# slack, so a layout that fits here is not a font metric away from not fitting.
+FIT_SLACK = 24
+
+
 def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
     """Everything that must be seen -- the safety bar above all -- fits a
-    1440 x 860 pt laptop area; a tab bigger than its share scrolls instead of
+    1280 x 800 pt laptop area; a tab bigger than its share scrolls instead of
     growing the window off the screen."""
     w = window(qapp, twin, tmp_path, "--drive")
     try:
         pump(qapp, 0.3)
         bar = w.bar.minimumSizeHint()
-        assert bar.width() <= 1440, bar
+        assert bar.width() <= 1280 - FIT_SLACK, bar
         whole = w.centralWidget().minimumSizeHint()
-        assert whole.width() <= 1440 and whole.height() <= 860, whole
+        assert whole.width() <= 1280 - FIT_SLACK and whole.height() <= 760, whole
         for i in range(w.tabs.count()):
             assert isinstance(w.tabs.widget(i), QtWidgets.QScrollArea), w.tabs.tabText(i)
         scr = w.screen().availableGeometry()
@@ -189,41 +201,115 @@ def test_the_window_fits_a_laptop_screen(qapp, twin, tmp_path):
         w.close()
 
 
-def test_setup_and_joints_fit_the_pane_at_1440x900(qapp, twin, tmp_path):
-    """#241: at the 1440 x 900 pt window and the default split, Setup and
-    Joints are no wider than the pane they sit in: no horizontal scrollbar."""
+@pytest.mark.parametrize("size", [(1440, 900), (1280, 800)], ids=["1440x900", "1280x800"])
+def test_every_tab_fits_its_pane(qapp, twin, tmp_path, size):
+    """#241 and the 2026-11-11 review: at a 1440 x 900 or 1280 x 800 pt window
+    and the default split, the window keeps its size and no tab is wider than
+    the pane it sits in -- a tab scrolls down, never sideways."""
     from console.ui import QSS, dark_palette
     qapp.setStyle("Fusion")                  # the look the console runs with: its
     qapp.setPalette(dark_palette())          # padding and fonts set the widths
     qapp.setStyleSheet(QSS)
-    w = window(qapp, twin, tmp_path, "--drive")
+    W, H = size
+    w = window(qapp, twin, tmp_path, "--drive", "--bench-telemetry", "127.0.0.1:9",
+               "--cam-relay", "127.0.0.1:9")
     try:
-        w.resize(1440, 900)
-        w.split.setSizes([547, 893])         # the default split: 38 % to the view
-        for name in ("Setup", "Joints"):
-            w.select_tab(name)
-            pump(qapp, 0.3)
+        w.resize(W, H)
+        view = max(380, min(760, int(W * 0.38)))     # Window.fit_to_screen's split
+        w.split.setSizes([view, W - view])
+        pump(qapp, 0.3)
+        assert w.width() <= W, (w.width(), w.centralWidget().minimumSizeHint())
+        assert w.view.width() <= view + FIT_SLACK, (w.split.sizes(),
+                                                    w.view.minimumSizeHint())
+        for i in range(w.tabs.count()):
+            name = w.tabs.tabText(i)
+            w.tabs.setCurrentIndex(i)
+            pump(qapp, 0.2)
             sa = w.tabs.currentWidget()
+            need = sa.widget().minimumSizeHint().width()
+            assert need <= sa.viewport().width() - FIT_SLACK, (name, need,
+                                                                sa.viewport().width())
             assert sa.horizontalScrollBar().maximum() == 0, (name, sa.widget().size(),
                                                               sa.viewport().size())
-            assert sa.widget().minimumSizeHint().width() <= sa.viewport().width(), name
     finally:
         w.close()
+
+
+def test_an_observer_drive_tab_is_greyed_and_says_take_control(qapp, twin, tmp_path):
+    """An observer sends nothing: Drive's pad buttons, channel and speed
+    sliders are greyed and the source line points at TAKE CONTROL; taking
+    control enables them."""
+    w = window(qapp, twin, tmp_path)                 # no --drive: an observer
+    try:
+        pump(qapp, 0.4)
+        d = w.tab_widgets["Drive"]
+        live = (*d.pad_btns.values(), d.fdx, d.fdz, d.svx, d.svy, d.swz, d.rate, d.reset_ext)
+        assert w.ctl.st.readonly
+        assert not any(x.isEnabled() for x in live)
+        assert "TAKE CONTROL" in d.source.text()
+        w.ctl.toggle_control()
+        pump(qapp, 0.4)
+        assert not w.ctl.st.readonly
+        assert all(x.isEnabled() for x in live)
+        assert d.source.text().startswith("source:")
+    finally:
+        w.close()
+
+
+def test_setup_says_when_there_is_no_gamepad_support(qapp, twin, tmp_path):
+    """Without pygame the Setup GAMEPAD box says so, as Drive's does; it was
+    empty."""
+    w = window(qapp, twin, tmp_path)
+    try:
+        w.pad = None                                 # as when pygame is not installed
+        w.select_tab("Setup")
+        pump(qapp, 0.3)
+        setup = w.tab_widgets["Setup"]
+        assert setup.gamepad_label.isVisibleTo(setup)
+        assert "no gamepad support (pygame not installed)" in setup.gamepad_label.text()
+    finally:
+        w.close()
+
+
+def _wait_for_sigterm_handler(p, timeout):
+    """Until the console has installed its SIGTERM handler (app.run does it
+    once the window is built): a SIGTERM before that is the default action,
+    a kill, not the close path under test. Linux reads the caught-signal mask
+    from /proc; elsewhere a fixed wait."""
+    import signal
+    status = f"/proc/{p.pid}/status"
+    if not os.path.exists(status):
+        time.sleep(4.0)
+        return
+    bit = 1 << (signal.SIGTERM - 1)
+    end = time.monotonic() + timeout
+    while time.monotonic() < end and p.poll() is None:
+        try:
+            with open(status) as f:
+                cgt = next(ln for ln in f if ln.startswith("SigCgt:"))
+        except (OSError, StopIteration):
+            break
+        if int(cgt.split()[1], 16) & bit:
+            return                        # the close it queues runs in app.exec()
+        time.sleep(0.05)
+    raise AssertionError("the console never installed its SIGTERM handler")
 
 
 def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
     """SDL (pygame) would take SIGTERM for itself; the console must still
     close on it, through the window's own close path."""
     import signal
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
     p = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
-                          "--host", "127.0.0.1", "--cmd-port", "4890", "--tlm-port", "4891",
-                          "--no-record", "--sessions", str(tmp_path), "--keymap",
-                          str(tmp_path / "keys.conf")],
+                          "--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                          str(port + 1), "--no-record", "--sessions", str(tmp_path),
+                          "--keymap", str(tmp_path / "keys.conf"), *NO_FLIGHT],
                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, text=True, env=env)
     try:
-        time.sleep(4.0)
+        _wait_for_sigterm_handler(p, 15.0)
         assert p.poll() is None, p.communicate()[0]
         p.send_signal(signal.SIGTERM)
         out = p.communicate(timeout=8)[0]

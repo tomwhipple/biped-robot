@@ -10,7 +10,6 @@ the window test also needs pyqtgraph.
 
 Run:  QT_QPA_PLATFORM=offscreen python -m pytest tests/test_console_bench.py -q
 """
-import itertools
 import json
 import os
 import pty
@@ -37,7 +36,21 @@ from console.bench import (BEACON_PREFER_MS, STALE_MS, TS_CAP, BenchLink,  # noq
 V2 = os.path.join(ROOT, "link", "bimo_console.py")
 LIB = os.path.join(ROOT, "firmware", "host", "build", "libbimo_console."
                    + ("dylib" if sys.platform == "darwin" else "so"))
-_ports = itertools.count(5212, 4)
+
+class _FreePorts:
+    """next() -> the first of four consecutive UDP ports free right now
+    (conftest.free_udp_ports): a counter from a fixed base collided with a
+    second pytest run in another worktree."""
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        from conftest import free_udp_ports
+        return free_udp_ports(4)
+
+
+_ports = _FreePorts()
 
 try:
     from PyQt6 import QtCore, QtGui
@@ -755,7 +768,8 @@ def bench_window(qapp, tmp_path, *extra):
     from console.app import Window
     from console.controller import Controller
     o = options.parse(["--no-record", "--sessions", str(tmp_path), "--keymap",
-                       str(tmp_path / "keys.conf"), "--tlm-port", str(next(_ports)), *extra])
+                       str(tmp_path / "keys.conf"), "--tlm-port", str(next(_ports)),
+                       "--flight-port", "0", "--sim-flight-port", "0", *extra])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)

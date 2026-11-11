@@ -19,7 +19,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 from . import core
 from .core import lag_text
-from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, RED, STATE_COLOUR, btn, hbox,
+from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, ORANGE, RED, STATE_COLOUR, btn, hbox,
                  lab, restyle, vbox)
 
 SEP = "<span style='color:#4a5059'>&nbsp;&nbsp;│&nbsp;&nbsp;</span>"
@@ -34,6 +34,17 @@ def flag_names(flags: int) -> str:
                                     (core.FLAG_ESTOP, "ESTOP"), (core.FLAG_HOME, "HOME"),
                                     (core.FLAG_POSE, "POSE"), (core.FLAG_ATT, "ATT"))
                     if flags & bit) or "-"
+
+
+def _fit(b: QtWidgets.QPushButton, px: int, texts, least: int) -> None:
+    """Fix a stop button's width at the widest text it can show (in its
+    style sheet's font), never under `least`: a stop button never clips."""
+    f = QtGui.QFont(b.font())
+    f.setPixelSize(px)
+    f.setWeight(QtGui.QFont.Weight.ExtraBold)
+    fm = QtGui.QFontMetrics(f)
+    # padding 14 px a side (ui.QSS) + a 3 px border + slack for the font.
+    b.setFixedWidth(max(least, max(fm.horizontalAdvance(t) for t in texts) + 2 * 17 + 14))
 
 
 class SafetyBar(QtWidgets.QFrame):
@@ -57,8 +68,11 @@ class SafetyBar(QtWidgets.QFrame):
         self.badge.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.arm = btn("ARM", 212, "arm")
         self.stand = btn("STAND", 124)
-        self.hold = btn("HOLD", 124, "hold", h=46)
-        self.estop = btn("E-STOP", 204, "estop", h=46)
+        # The stop buttons are sized from the widest text they can show
+        # (_labels), so neither is ever clipped; "sending" is beside them on
+        # the second row, not in them.
+        self.hold = btn("HOLD", None, "hold", h=46)
+        self.estop = btn("E-STOP", None, "estop", h=46)
         self.reset = btn("RESET SERVOS", 176, "reset")
         self.control = btn("TAKE CONTROL", 150, "take", h=34)
         self.arm.clicked.connect(lambda: c.fire("arm"))
@@ -75,13 +89,19 @@ class SafetyBar(QtWidgets.QFrame):
         self.pad_sub = lab("keyboard / mouse", DIM, 11)
         self.rec = lab("○ not recording", DIM, 14, True)
         self.rec_sub = lab("", DIM, 11)
+        self.sending = lab("", rich=True)
         self.vbat.setMinimumWidth(110)
-        # Two rows, so the bar fits a laptop screen (1440 pt wide): the
-        # controls on top, the readouts beneath them.
+        # The small print gives way before the window grows past the screen.
+        for w in (self.vbat_sub, self.servo_sub, self.pad_sub, self.rec_sub):
+            w.setMinimumWidth(1)
+        # Two rows, so the bar fits a laptop screen (1280 pt wide): the robot
+        # controls on top; the readouts, a stop being sent and the handover
+        # button beneath them.
         row1 = hbox(self.badge, 6, self.arm, self.stand, 14, self.hold, self.estop, 22,
-                    self.reset, "stretch", self.control, spacing=10)
-        row2 = hbox(self.vbat, self.vbat_sub, 28, self.servo, self.servo_sub, 28,
-                    self.pad, self.pad_sub, 28, self.rec, self.rec_sub, "stretch", spacing=8)
+                    self.reset, "stretch", spacing=10)
+        row2 = hbox(self.vbat, self.vbat_sub, 24, self.servo, self.servo_sub, 24,
+                    self.pad, self.pad_sub, 24, self.rec, self.rec_sub, "stretch",
+                    self.sending, 12, self.control, spacing=8)
         self.link = lab("", mono=True, rich=True)
         self.bench = lab("", rich=True)
         self.note = lab("", rich=True)
@@ -105,6 +125,10 @@ class SafetyBar(QtWidgets.QFrame):
         self.stand.setText("STAND" + self._key("stand"))
         self.hold.setText("HOLD" + self._key("hold"))
         self.reset.setText("RESET SERVOS" + self._key("home"))
+        # ui.QSS: #hold is 16 px, #estop / #estop_latched 19 px, all weight 800.
+        _fit(self.hold, 16, ["HOLD" + self._key("hold")], 124)
+        _fit(self.estop, 19, [t + self._key("estop") for t in ("E-STOP", "E-STOP LATCHED")],
+             204)
 
     def update_from(self, st, now: float) -> None:
         app = self.app
@@ -137,12 +161,15 @@ class SafetyBar(QtWidgets.QFrame):
         self.reset.setEnabled(driver)
         stopping = c.stopping()
         latched = bool(st.estop)
-        self.estop.setText(("E-STOP LATCHED" if latched else "E-STOP")
-                           + (" ·sending" if stopping and c.stops[-1].hard else "")
-                           + self._key("estop"))
+        self.estop.setText(("E-STOP LATCHED" if latched else "E-STOP") + self._key("estop"))
         restyle(self.estop, "estop_latched" if latched else "estop")
-        self.hold.setText("HOLD" + (" ·sending" if stopping and not c.stops[-1].hard else "")
-                          + self._key("hold"))
+        self.hold.setText("HOLD" + self._key("hold"))
+        sending = ("" if not stopping else
+                   f"<span style='color:#ff5a50; font-weight:800'>■ E-STOP sending</span>"
+                   if c.stops[-1].hard else
+                   f"<span style='color:{ORANGE}; font-weight:800'>■ HOLD sending</span>")
+        if sending != self.sending.text():
+            self.sending.setText(sending)
         if driver:
             self.control.setText("WATCH ONLY")
             restyle(self.control, "watch")
