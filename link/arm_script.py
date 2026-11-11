@@ -363,12 +363,24 @@ def main():
     p.add_argument("--tail", type=float, default=2.0)
     p.add_argument("--home-wait", type=float, default=16,
                    help="script: seconds to wait for the home read-back before the ESTOP release (default 16; the routine takes ~8 s)")
+    p.add_argument("--check-prep", metavar="RUN",
+                   help="before sending any frame, run tools/robot_prep.sh --check "
+                        "--run RUN --host HOST (the robot's `standclock` and "
+                        "`shape` read back over the Wi-Fi CLI against RUN's "
+                        "config.json); exit 2 without arming on a mismatch")
     p.add_argument("--stay-armed", action="store_true",
                    help="script: skip the closing RESET SERVOS and leave the robot armed")
     p.add_argument("--watch", metavar="HOST[:PORT]",
                    help="forward every beacon to a `bimo_gui --readonly` watcher (HOST[:PORT]); the robot beacons only to whoever commanded it last, so a second console cannot listen in")
     a = p.parse_args()
 
+    if a.check_prep and a.phase != "disarm":
+        r = subprocess.run([str(Path(__file__).resolve().parent.parent / "tools" / "robot_prep.sh"),
+                            "--run", a.check_prep, "--host", a.host, "--check"])
+        if r.returncode:
+            print(f"!! robot_prep --check {a.check_prep} failed (exit {r.returncode}): "
+                  f"not arming -- run tools/robot_prep.sh --run {a.check_prep}", flush=True)
+            sys.exit(2)
     d = Driver(a.host, cmd_port=a.port, tlm_port=a.tlm_port, watch=a.watch)
     print(Driver.host_clock_line(), flush=True)
     try:
