@@ -35,14 +35,21 @@ def qapp():
 
 @pytest.fixture
 def twin():
-    port = 4500 + (os.getpid() % 200) * 2
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     p = subprocess.Popen([sys.executable, TWIN, "--port", str(port), "--tlm-port",
                           str(port + 1), "--duration", "30"],
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    time.sleep(0.4)
+    first = p.stdout.readline()          # "link_twin: listening on ..." once bound
+    assert "listening" in first, first
     yield port
     p.terminate()
     p.communicate(timeout=5)
+
+
+# The flight-record receivers bind 0.0.0.0:4221/4222 by default: off in the
+# tests, so two runs (or a console on this box) do not fight over them.
+NO_FLIGHT = ("--flight-port", "0", "--sim-flight-port", "0")
 
 
 def window(qapp, port, tmp_path, *extra):
@@ -50,7 +57,7 @@ def window(qapp, port, tmp_path, *extra):
     from console.controller import Controller
     o = options.parse(["--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
                        str(port + 1), "--no-record", "--sessions", str(tmp_path),
-                       "--keymap", str(tmp_path / "keys.conf"), *extra])
+                       "--keymap", str(tmp_path / "keys.conf"), *NO_FLIGHT, *extra])
     ctl = Controller(o)
     assert ctl.start()
     w = Window(o, ctl)
@@ -133,10 +140,10 @@ def test_keys_follow_the_dead_man_rules(qapp, twin, tmp_path):
         setup = w.tab_widgets["Setup"]
         w.select_tab("Setup")
         click_into(qapp, w, setup.host)
-        if QtWidgets.QApplication.focusWidget() is setup.host:
-            key(w, QtCore.Qt.Key.Key_A, text="a")
-            pump(qapp, 0.1)
-            assert w.ctl.st.armed
+        assert focused() is setup.host
+        key(w, QtCore.Qt.Key.Key_A, text="a")
+        pump(qapp, 0.1)
+        assert w.ctl.st.armed
         w.select_tab("Drive")
     finally:
         w.close()
@@ -264,19 +271,45 @@ def test_setup_says_when_there_is_no_gamepad_support(qapp, twin, tmp_path):
         w.close()
 
 
+def _wait_for_sigterm_handler(p, timeout):
+    """Until the console has installed its SIGTERM handler (app.run does it
+    once the window is built): a SIGTERM before that is the default action,
+    a kill, not the close path under test. Linux reads the caught-signal mask
+    from /proc; elsewhere a fixed wait."""
+    import signal
+    status = f"/proc/{p.pid}/status"
+    if not os.path.exists(status):
+        time.sleep(4.0)
+        return
+    bit = 1 << (signal.SIGTERM - 1)
+    end = time.monotonic() + timeout
+    while time.monotonic() < end and p.poll() is None:
+        try:
+            with open(status) as f:
+                cgt = next(ln for ln in f if ln.startswith("SigCgt:"))
+        except (OSError, StopIteration):
+            break
+        if int(cgt.split()[1], 16) & bit:
+            return                        # the close it queues runs in app.exec()
+        time.sleep(0.05)
+    raise AssertionError("the console never installed its SIGTERM handler")
+
+
 def test_sigterm_closes_the_window_like_the_close_button(tmp_path):
     """SDL (pygame) would take SIGTERM for itself; the console must still
     close on it, through the window's own close path."""
     import signal
+    from conftest import free_udp_ports
+    port = free_udp_ports(2)
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen")
     p = subprocess.Popen([sys.executable, os.path.join(ROOT, "link", "bimo_console.py"),
-                          "--host", "127.0.0.1", "--cmd-port", "4890", "--tlm-port", "4891",
-                          "--no-record", "--sessions", str(tmp_path), "--keymap",
-                          str(tmp_path / "keys.conf")],
+                          "--host", "127.0.0.1", "--cmd-port", str(port), "--tlm-port",
+                          str(port + 1), "--no-record", "--sessions", str(tmp_path),
+                          "--keymap", str(tmp_path / "keys.conf"), *NO_FLIGHT],
                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, text=True, env=env)
     try:
-        time.sleep(4.0)
+        _wait_for_sigterm_handler(p, 15.0)
         assert p.poll() is None, p.communicate()[0]
         p.send_signal(signal.SIGTERM)
         out = p.communicate(timeout=8)[0]
