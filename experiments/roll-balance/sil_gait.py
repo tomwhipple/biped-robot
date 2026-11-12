@@ -59,8 +59,8 @@ def to_ticks(name, rad, cal=None):
     return int(round(zero + d * rad * 4096 / (2 * math.pi)))
 
 
-def from_ticks(name, ticks):
-    zero, d = CAL[name]
+def from_ticks(name, ticks, cal=None):
+    zero, d = (cal or CAL)[name]
     return (ticks - zero) * d * 2 * math.pi / 4096
 
 
@@ -71,16 +71,28 @@ def hex_frame(dt_ms, phi, flags, q, cal=None):
     return s + "".join(f"{max(0, min(4095, to_ticks(n, q[n], cal))):03x}" for n in LEG)
 
 
-def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, **kw):
-    """The sway gait (A2's settings + the width-aware amplitude) and its keyframes: (sway, [(t_ms, hex, kind)]), kind 'kf' | 'rest'.
-    Track time 0 = the first keyframe (the crouched, centred stand after the crouch and settle)."""
-    kw.setdefault("kL", 1.35)
-    kw.setdefault("kR", 1.1)
-    sw = W.Sway(T=T_step, n_steps=n_steps, dt=kf_s, k=1.2, ss=0.5, h=0.04, wide=True, first=first, **kw)
+def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **kw):
+    """A gait and its keyframes: (gait, [(t_ms, hex, kind)]), kind 'kf' | 'rest'. Track time 0 = the first
+    keyframe (the crouched, centred stand after the crouch and settle).
+    model 'sway': A2's sine sway (+ the width-aware amplitude), kw kL / kR its amplitudes.
+    model 'dwell': dwell.Dwell, the robot's static shift as a hard constraint (kw kL / kR = k_static, ds, h)."""
+    if model == "dwell":
+        import dwell as DW
+        sw = DW.Dwell(T=T_step, n_steps=n_steps, dt=kf_s, first=first, **kw)
+        ends = list(sw.step_ends)
+        t_lift0 = sw.phases[0]["t0"] - (sw.t_shift + sw.t_settle)
+        phi_of = sw.phi
+    else:
+        kw.setdefault("kL", 1.35)
+        kw.setdefault("kR", 1.1)
+        sw = W.Sway(T=T_step, n_steps=n_steps, dt=kf_s, k=1.2, ss=0.5, h=0.04, wide=True, first=first, **kw)
+        c0 = sw.phases[0]["t0"] + 0.25 * T_step              # the first single support's centre
+        ends = [p["t1"] + 0.25 * T_step for p in sw.phases]   # mid double support after each step
+        t_lift0 = c0 - 0.5 * T_step
+        # the policy convention: L swings while sin(phi) > 0; single support = the middle half of each half cycle
+        phi_of = (lambda t: math.pi * (t - c0) / T_step + math.pi / 2 + (0.0 if first == "L" else math.pi))
     K = W.S.kin(0.02)
-    c0 = sw.phases[0]["t0"] + 0.25 * T_step              # the first single support's centre
-    ends = [p["t1"] + 0.25 * T_step for p in sw.phases]   # mid double support after each step
-    t_lift0, t_last = c0 - 0.5 * T_step, ends[-1]
+    t_last = ends[-1]
     t_first = sw.segs[1]["t"]
     out, prev, end_i = [], 0, 0
     for seg in sw.segs[1:]:
@@ -88,8 +100,7 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, **kw):
         if t > t_last + 0.5 * kf_s:
             break
         tm = int(round(1e3 * (t - t_first)))
-        # the policy convention: L swings while sin(phi) > 0; single support = the middle half of each half cycle
-        phi = math.pi * (t - c0) / T_step + math.pi / 2 + (0.0 if first == "L" else math.pi)
+        phi = phi_of(t)
         flags = LIFT if t_lift0 - 0.5 * kf_s <= t <= t_last + 0.5 * kf_s else 0
         is_end = end_i < len(ends) and t >= ends[end_i] - 0.5 * kf_s
         if is_end:
@@ -98,7 +109,8 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, **kw):
         prev = tm
         if is_end:
             pa = seg["pa"]
-            rq = K.pose(shift=pa["shift"], fwd=pa["fwd"], footL=(pa["feet"]["L"][0], pa["feet"]["L"][1], 0.0),
+            mid = 0.5 * (pa["feet"]["L"][1] + pa["feet"]["R"][1])
+            rq = K.pose(shift=mid, fwd=pa["fwd"], footL=(pa["feet"]["L"][0], pa["feet"]["L"][1], 0.0),
                         footR=(pa["feet"]["R"][0], pa["feet"]["R"][1], 0.0))
             rq["L_hip_yaw"] += pa["yaw"]["L"]
             rq["R_hip_yaw"] += pa["yaw"]["R"]
@@ -126,17 +138,18 @@ def _lib(path=LIB):
 
 
 def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, seed=SEED, gains=(0.25, 1.0),
-        lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False):
+        lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False, model="sway", gkw=None):
     """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports."""
     import gate_common as GC
     import rec
     import simh
     L = _lib()
-    sw, fr = gait(T_step, n_steps, first=first, **DIRS[direction], **(dict(kL=amp[0], kR=amp[1]) if amp else {}))
+    sw, fr = gait(T_step, n_steps, first=first, model=model, **DIRS[direction],
+                  **(dict(kL=amp[0], kR=amp[1]) if amp else {}), **(gkw or {}))
     g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, fade, 15.0)
     L.sil_gait_set_learned(g, b"L", seed[0])
     L.sil_gait_set_learned(g, b"R", seed[1])
-    lead_ms = 1e3 * lead_steps * T_step
+    lead_ms = 1e3 * min(lead_steps * T_step, 8.0)       # the 128-frame queue: <= 8 s ahead
     pend = deque(fr)
     max_q = 0
 
@@ -177,6 +190,17 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     buf = deque(maxlen=lag + 1)
     reports, fell, fall_dir, t_fall, peak_tilt = [], False, None, None, 0.0
     ph_up = {i: [0, 0, -1.0] for i in range(len(sw.phases))}      # n_hold, n_up, max clearance
+    com_at = {}                                                   # (phase, 'lo'|'mid') -> CoM inboard of the stance sole, m
+
+    def com_inboard(stance):
+        """The CoM's lateral distance from the stance sole's centre TOWARD the swing foot (m; + = inboard)."""
+        com = d.subtree_com[env._torso_bid]
+        ps = np.array([d.geom_xpos[gid] for gid in pads[stance]])
+        sole = d.geom_xmat[env._sole_gids[0 if stance == "L" else 1]].reshape(3, 3)
+        ylat = sole[:2, 1] / max(np.linalg.norm(sole[:2, 1]), 1e-9)
+        yc = float(np.dot(com[:2], ylat))
+        ys = float(np.mean(ps[:, :2] @ ylat))
+        return (ys - yc) if stance == "L" else (yc - ys)
     done_at = None
     tr_rows = []
     for k in range(int(t_track_end * 50)):
@@ -207,6 +231,9 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
         # the lift, as testbed/A2: the swing sole's lowest pad > 5 mm over the hold (raise end -> lower start)
         ts = sw.t_first + t_ms / 1e3
         for i, p in enumerate(sw.phases):
+            for key, tk in (("lo", p["t0"]), ("mid", 0.5 * (p["t0"] + p["t1"]))):
+                if (i, key) not in com_at and ts >= tk:
+                    com_at[(i, key)] = com_inboard(p["stance"])
             if p["hold_from"] <= ts <= p["lower_start"]:
                 c = GC.clearance(env, pads)[p["swing"]]
                 s = ph_up[i]
@@ -226,7 +253,9 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
                 break
     learned = (L.sil_gait_learned(g, b"L"), L.sil_gait_learned(g, b"R"))
     L.sil_gait_free(g)
-    phs = [dict(stance=p["stance"], up_frac=ph_up[i][1] / max(ph_up[i][0], 1), clr_max_mm=1e3 * ph_up[i][2])
+    phs = [dict(stance=p["stance"], up_frac=ph_up[i][1] / max(ph_up[i][0], 1), clr_max_mm=1e3 * ph_up[i][2],
+                com_in_lo_mm=1e3 * com_at[(i, "lo")] if (i, "lo") in com_at else None,
+                com_in_mid_mm=1e3 * com_at[(i, "mid")] if (i, "mid") in com_at else None)
            for i, p in enumerate(sw.phases) if ph_up[i][0]]
     return dict(T=T_step, dir=direction, plant=plant, delay=extra_ms, fell=fell, fall_dir=fall_dir, t_fall=t_fall,
                 done=done_at is not None, n_steps=n_steps, lifts=sum(p["up_frac"] >= 0.5 for p in phs),

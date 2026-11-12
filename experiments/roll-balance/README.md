@@ -341,3 +341,70 @@ The roll rate around the handover is the sway's own; the fade length and the han
 change it at the track's step times. On the track the fade falls in the double support, while the sway
 is already carrying the pelvis to the other foot. That is where the stepper saw the fade roll the body;
 the SIL shows no extra roll from it at the next ramp-in.
+
+## C3 on hardware fell; the dwell sway (`dwell.py`, `dwell_grid.py`)
+
+**The fall.** First track run on the robot, 2026-11-12 16:25: `track_host.py --T 4 --dir march --live` with the
+sine sway. The robot fell on the first step toward the lifted left foot, over its right stance foot.
+- The trim aborted at e −15.4 deg; T was put back as designed.
+- From the flight record: the left knee started to flex at a pelvis shift of ~1.0 × 62 mm, and the
+  pelvis was at ~1.1-1.2 × as the robot went over. The sway's 1.25 × peak came only in the middle of
+  single support.
+- The robot needs 1.25 × over its right foot and 1.3 × over its left before the foot comes up (B1
+  lifts). At 4 s a step there are no dynamics to carry it.
+- The SIL passed this gait because the sim is optimistic on right stance (above). So the SIL cannot
+  set the static shift.
+
+**The dwell sway.** The static requirement is imposed as a hard constraint (`dwell.K_STATIC`, L 1.3, R
+1.25, parameters). Each step:
+1. A min-jerk shift (both feet down) to k_static × 62 mm over the new stance foot, plus that foot's own
+   offset from where it stands.
+2. A settle there.
+3. Single support with the pelvis holding. The sole rises to 22 mm (min-jerk) over the first 35 %, moves
+   over the middle and comes down over the last 35 %.
+
+The phase sent with the frames is warped so the firmware's support map lands on these instants (lift-off
+u = 0.25, raise end, lower start, touchdown u = 0.75). No firmware change.
+
+`track_host.py` now refuses before sending anything if the frames put the pelvis under the requirement
+at any lift-off or touchdown. It recovers the shift by inverting the IK on the frames' stance hip roll
+goals. The sine sway that fell is refused: 0.89 × right, 0.92 × left at lift-off. The dwell plans pass
+(tightest 1.302 ×).
+
+**Timing, from the SIL** (`results/dwell_sweep.json`, `dwell_timing*.json`; 6 directions × fit / lo / hi
+/ hard):
+- What limits the step time is the shift. It moves the pelvis ~158 mm (1.25 × over one foot to 1.3 ×
+  over the other), and the roll play rings: a 0.6 s shift falls OUTWARD right after the next lift-off in
+  every case, 0.8 s in a third of them, 1.0 s holds but leans up to 11.7 deg, 1.2 s holds at ≤ 5 deg.
+- Single support needs ≥ 1.8 s: raise 0.63 s. At 1.2-1.5 s the raise is fast enough to fall or lean.
+- A longer settle does not help (the oscillation is set off by the shift); a fixed fraction of T
+  (`ds`) was worse than absolute times.
+
+The schedule (`dwell.SCHEDULE`: shift / settle / single support) and the predictions at it
+(`results/dwell_schedule.txt`: 48 runs per T, delay 0 and 60 ms, seeded T 5.2 / 3.4):
+
+| T s | shift / settle / single support s | raise s | falls | lifts | TS lean toward swing med / max | outward max | T at mid support L / R | hike L / R | clearance med (sim; 22 mm commanded) |
+|---|---|---|---|---|---|---|---|---|---|
+| 6 (start here) | 1.5 / 0.5 / 4.0 | 1.40 | 0 | 288 / 288 | 2.6 / 4.7 | 3.5 | 6.5 / 6.6 | 6.3 / 6.4 | 18 mm |
+| 5 | 1.4 / 0.4 / 3.2 | 1.12 | 0 | 288 / 288 | 2.6 / 4.7 | 3.6 | 6.4 / 6.2 | 6.3 / 6.2 | 18 mm |
+| 4 | 1.2 / 0.4 / 2.4 | 0.84 | 0 | 288 / 288 | 2.3 / 4.7 | 3.8 | 6.5 / 5.5 | 6.6 / 5.5 | 17 mm |
+| 3.4 | 1.2 / 0.4 / 1.8 | 0.63 | 0 | 288 / 288 | 2.4 / 5.0 | 3.9 | 6.6 / 5.0 | 6.9 / 5.1 | 16 mm |
+| **3.2 (the floor)** | 1.2 / 0.2 / 1.8 | 0.63 | 0 | 288 / 288 | 2.4 / 5.1 | 3.7 | 6.5 / 5.0 | 6.9 / 5.1 | 17 mm |
+| 3.0 | 1.0 / 0.2 / 1.8 | 0.63 | 0 | 288 / 288 | 2.7 / **11.7** | 4.0 | 6.7 / 5.0 | 7.0 / 5.0 | 16 mm |
+| 2.5 | best of 7 splits tried | ≤ 0.53 | 4-9 / 24 | 115-123 / 144 | up to 13 | | | | |
+| 2.0 | best of 8 splits tried | ≤ 0.42 | 14-24 / 24 | ≤ 87 / 144 | | | | | |
+
+**T = 2 s is infeasible with the static constraint.** Every split tried falls: a 1 s single support
+and a ≤ 0.8 s shift do not fit in it. The floor is 3.2 s: a 1.2 s shift, 0.2 s settle and 1.8 s single
+support. Below that the shift or the raise sets the robot rolling. The 2.0 s the sine sway reached in A2
+relied, as far as the sim shows, on the CoM swinging through, which the robot's static requirement at
+foot-off rules out.
+
+In the sim the T at mid support settles L 6.4-6.7, R 5.0-6.6; the robot learned L 5.2, R 3.4. The hike
+the sim wants on the right is higher because its static picture is not the robot's. Watch the TS T on the
+robot: it should stay near the seeds.
+
+**On the robot:** start at T = 6 s (`track_host.py`'s default). Step down 6 → 5 → 4 → 3.4 → 3.2 only
+after a green run at the step above; the host refuses T under 3.2 s unless `--below-floor`. With the
+128-frame queue the host stays at most 8 s ahead. The upload measured 29 ms per line (138 frames/s), so
+that is plenty.
