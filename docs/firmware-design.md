@@ -237,6 +237,7 @@ graph LR
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
 | `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>`, and the stance-hip trim behind `pose ... S<L\|R>` (§5.6) | yes, pinned to the sim twins |
+| `components/gaitplay/` | the gait track behind `track`: rolling keyframe queue, interpolation, stop/rest, the phase → support-state map (§5.6) | yes, plus the SIL harness `host/sil_gait.cpp` |
 | `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
 | `components/flailguard/` | the armed loop's judge of the POLICY: pose / rate / tilt / chatter (§5.6 "Flail guard") | yes, incl. a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`) |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
@@ -602,6 +603,42 @@ The upper layer marks the phases on its poses:
 - **Not combined.** `B<L|R>` and `S<L|R>` are refused in one pose.
 - **Tests.** `components/balance/stance_trim` is host-tested and pinned to
   the Python twin `sim/stance_trim.py`.
+
+**Gait track** (`components/gaitplay`, `track`; #297 B2). A queue of
+time-stamped 12-leg keyframes the host appends WHILE it plays, sampled at the
+50 Hz pose tick on the robot's own clock. It exists because the host has no
+50 Hz joint-target path (a CLI pose costs ~100 ms), and a continuous sway needs
+a target every tick. Each frame carries the gait phase φ and flags: kLift (a
+foot lifts in this half cycle), kStepEnd (both feet down: a stop may end
+here) and kRest (not on the timeline: the centred stand for that step end).
+Ticks are Catmull-Rom between frames, φ linear.
+
+- **Support state from the phase.** `gaitplay::supportFromPhase` maps φ
+  (the policy convention: L swings while sin φ > 0) to the stance leg in
+  single support (the middle half of each half cycle), the raise progress
+  (its first 35 %) and the lowering (after 65 %). `balance::TrimDriver` turns
+  that into the trim's begin / ramp / hold / fade, the same calls the S poses
+  make. A policy's gait clock will drive the same two functions.
+- **Rolling append.** `track add` takes up to 4 frames a line (42 hex digits
+  each), during playback too. The queue holds 256 frames (25 s at 10 Hz).
+- **Ending.** `track stop`, or a queue that runs dry AT a step end, finishes
+  the step, drops the rest and moves to that step end's rest pose (min-jerk,
+  `track rest <ms>`, default 1 s). A queue that runs dry mid-step holds the
+  last frame and says so. `track halt` is the walking-safe abort: the targets
+  freeze where they are and the trim fades; nothing returns to a pre-lift
+  pose. A trim abort freezes and fades only the correction; the track goes
+  on. Anything that ends the trim (move, home, STOP, a fall, torque, arming)
+  ends the track; `pose` and `sweep` are refused while it plays.
+- **Telemetry.** One line per single support, printed when it ends:
+  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT` (peak
+  lean toward the swing foot and toward the stance side; e, T and hike at the
+  end of the raise). `track steps` repeats the last 16. The flight record
+  carries the trim per tick, as for S poses.
+- **Tests.** `host/test_gaitplay` (parse, rolling append, interpolation,
+  stop / dry / rest, the phase map) and the TrimDriver cases in
+  `host/test_stance_trim`. `host/sil_gait.cpp` exposes the track + trim to
+  Python: `experiments/roll-balance/sil_gait.py` plays the sway gait through
+  them against the sim plant.
 
 **Fall guard** (`components/fallguard`, `fall`). One module, one table of
 limits, used by both control paths (Tom 2026-11-01: work towards one

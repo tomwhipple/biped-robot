@@ -233,7 +233,7 @@ def run(stamp, law=None, plant=BOARD, trims="none", speed=1.0, imu_delay=1, extr
             s["margin"] = min(s["margin"], _stance_margin(env, pads, ph["stance"]))
             if s["clear"] is None and t >= ph["raise_end"]:
                 s["clear"] = GC.clearance(env, pads)[ph["swing"]]
-            if ph["raise_end"] + 0.2 <= t <= ph.get("lower_start", ph["t1"]):
+            if ph.get("hold_from", ph["raise_end"] + 0.2) <= t <= ph.get("lower_start", ph["t1"]):
                 c_sw = GC.clearance(env, pads)[ph["swing"]]
                 s["n_hold"] += 1
                 s["n_up"] += c_sw > UP_M

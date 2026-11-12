@@ -125,6 +125,47 @@ bool StanceTrim::setLearned(char side, float t_rad) {
     return true;
 }
 
+bool TrimDriver::step(const SupportIn& in, float roll_rad, float dt_s, StepReport* done) {
+    bool ended = false;
+    if (cur_ != 0 && in.stance != cur_) {
+        // the single support is over (double support, or the other foot): fade, report
+        trim_.release();
+        rep_.aborted = rep_.aborted || trim_.aborted();
+        if (done != nullptr) *done = rep_;
+        ended = true;
+        cur_ = 0;
+    }
+    if (in.stance != 0 && cur_ == 0) {
+        if (!isfinite(roll_rad)) {
+            trim_.update(roll_rad, dt_s, 1.0f);        // a fading chain goes on; no new chain without attitude
+            return ended;
+        }
+        trim_.begin(in.stance, roll_rad);
+        cur_ = in.stance;
+        rep_ = StepReport();
+        rep_.stance = in.stance;
+        mid_taken_ = false;
+    }
+    if (cur_ != 0) {
+        if (in.lowering) trim_.hold();
+        trim_.update(roll_rad, dt_s, in.progress);
+        const float s = cur_ == 'R' ? -1.0f : 1.0f;
+        const float lean = s * trim_.err();              // + = toward the swing foot
+        if (lean > rep_.lean_in) rep_.lean_in = lean;
+        if (-lean > rep_.lean_out) rep_.lean_out = -lean;
+        if (!mid_taken_ && in.progress >= 1.0f) {
+            mid_taken_ = true;
+            rep_.e_mid = trim_.err();
+            rep_.t_mid = trim_.learned(cur_);
+            rep_.hike_mid = trim_.hike();
+        }
+        if (trim_.aborted()) rep_.aborted = true;
+    } else {
+        trim_.update(roll_rad, dt_s, 1.0f);              // the fade of the last chain
+    }
+    return ended;
+}
+
 const char* trimStateName(TrimState s) {
     switch (s) {
         case TrimState::kOff: return "off";
