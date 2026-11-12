@@ -827,6 +827,10 @@ class BimoMJXEnv:
         # clock, c6 raising the swing-foot target to knee height) -- the obs
         # contract is untouched. Carved out as an extra slice after the
         # ext_mix slices, so 0.0 leaves the draw bit-identical.
+        w_march_unload: float = 0.0,  # UNGATED march lift term (walker_env.march_unload_term):
+        # during a gait-clock march (traj mode 4) the COMMANDED swing foot's static
+        # unloading (CoM from the swing sole toward the stance sole) and its sole
+        # height, paid whether or not the foot is already up. 0 = off (bit-exact).
         w_knee_high: float = 0.0,     # knee-high clearance kernel weight: the
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
@@ -1563,6 +1567,7 @@ class BimoMJXEnv:
         self.march_mix = float(march_mix)
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
+        self.w_march_unload = float(w_march_unload)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.w_feet_phase = w_feet_phase
@@ -3204,6 +3209,7 @@ class BimoMJXEnv:
         com_kernel = jp.zeros(())
         head_err = jp.zeros(())
         knee_frac = jp.zeros(())
+        march_unload = jp.zeros(())
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
             # pattern (stance down, swing up, >= lift_clear clearance) and
@@ -3274,6 +3280,12 @@ class BimoMJXEnv:
             com_off = jp.sqrt((com[0] - stance_w[0]) ** 2
                               + (com[1] - stance_w[1]) ** 2 + 1e-12)
             com_kernel = jp.exp(-((com_off / self.com_sigma) ** 2))
+            if self.w_march_unload:
+                from walker_env import march_unload_term
+                march_unload = march_unload_term(
+                    data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
+                    self.lift_height + state.cmd[6],
+                    ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
 
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
@@ -3614,6 +3626,8 @@ class BimoMJXEnv:
             reward += self.w_foot_under * foot_under
         if self.w_knee_high and self.ext_cmd:
             reward += self.w_knee_high * knee_frac
+        if self.w_march_unload and self.ext_cmd:
+            reward += self.w_march_unload * march_unload
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
