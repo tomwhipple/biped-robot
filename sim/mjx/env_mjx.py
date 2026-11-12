@@ -336,6 +336,10 @@ class State(NamedTuple):
                               # (0 = rigid); (0,) when roll_series_k is off
     ser_defl: jax.Array       # (n_servo,) the series spring's deflection tau/k at the end
                               # of the last step (shaft - link); (0,) when off
+    rp_h: jax.Array           # (n_servo,) per-episode roll play half-width, rad (0 off the
+                              # rolls); (0,) when roll_play_deg is off
+    rp_off: jax.Array         # (n_servo,) servo shaft - link at the end of the last step
+                              # (within +/-rp_h); (0,) when off
 
 
 def _quat_yaw(q):
@@ -704,6 +708,11 @@ class BimoMJXEnv:
         # servos BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)} or
         # "hip=LO:HI,ankle=LO:HI", per-episode draw per role; None = rigid
         # (walker_env.parse_roll_series_k; walker_env mirror)
+        roll_play_deg=None,   # FREE PLAY (deg peak to peak) inside the hip / ankle roll
+        # servos BEYOND the encoder: the shaft is position-controlled and is what the encoder
+        # reads, the link floats inside +/-play/2 of it. "LO:HI" (all four rolls),
+        # "hip=LO:HI,ankle=LO:HI" or {"hip": (lo, hi), ...}, drawn per episode per joint;
+        # None = off (walker_env.parse_roll_play_deg / roll_play_substep; walker_env mirror)
         torso_mass_range: float | None = None,   # batch-level torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
         torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
@@ -818,6 +827,10 @@ class BimoMJXEnv:
         # clock, c6 raising the swing-foot target to knee height) -- the obs
         # contract is untouched. Carved out as an extra slice after the
         # ext_mix slices, so 0.0 leaves the draw bit-identical.
+        w_march_unload: float = 0.0,  # UNGATED march lift term (walker_env.march_unload_term):
+        # during a gait-clock march (traj mode 4) the COMMANDED swing foot's static
+        # unloading (CoM from the swing sole toward the stance sole) and its sole
+        # height, paid whether or not the foot is already up. 0 = off (bit-exact).
         w_knee_high: float = 0.0,     # knee-high clearance kernel weight: the
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
@@ -1468,6 +1481,16 @@ class BimoMJXEnv:
             role = roll_series_roles(self._servo_names)
             self._ser_role = jp.asarray(np.maximum(role, 0), dtype=jp.int32)
             self._ser_smask = jp.asarray((role >= 0).astype(np.float32))
+        from walker_env import parse_roll_play_deg, roll_play_bounds
+        self.roll_play_deg = parse_roll_play_deg(roll_play_deg)
+        self._rp_on = self.roll_play_deg is not None
+        if self._rp_on:
+            if self._ser_on:
+                raise ValueError("roll_play_deg and roll_series_k are two models of the same "
+                                 "beyond-encoder roll yield: set one")
+            lo, hi = roll_play_bounds(self.roll_play_deg, self._servo_names)
+            self._rp_lo = jp.asarray(lo, dtype=jp.float32)
+            self._rp_hi = jp.asarray(hi, dtype=jp.float32)
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.floor_contact_range = (None if floor_contact_range is None else
@@ -1544,6 +1567,7 @@ class BimoMJXEnv:
         self.march_mix = float(march_mix)
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
+        self.w_march_unload = float(w_march_unload)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.w_feet_phase = w_feet_phase
@@ -2384,6 +2408,16 @@ class BimoMJXEnv:
         c = (c_role[self._ser_role] * self._ser_smask).astype(jp.float32)
         return c, jp.zeros((self._n_servo,), dtype=jp.float32)
 
+    def _draw_rp(self, rng: jax.Array):
+        """Per-episode roll play half-widths (uniform per joint; fold_in 7373 so the other
+        draws keep their streams) and a zero shaft offset. (0,) arrays when off."""
+        if not self._rp_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        u = jax.random.uniform(jax.random.fold_in(rng, 7373), (self._n_servo,))
+        h = (self._rp_lo + u * (self._rp_hi - self._rp_lo)).astype(jp.float32)
+        return h, jp.zeros((self._n_servo,), dtype=jp.float32)
+
     def _draw_dq_win(self, rng: jax.Array):
         """Per-episode dq obs window, ticks (fold_in 5858: the other draws keep
         their streams; a fixed window or the feature off consumes no RNG)."""
@@ -2671,6 +2705,7 @@ class BimoMJXEnv:
         gyro_hist = self._gyro_hist0(data)
         dq_win = self._draw_dq_win(r_ep)
         ser_c, ser_defl = self._draw_ser(r_ep)
+        rp_h, rp_off = self._draw_rp(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2788,7 +2823,7 @@ class BimoMJXEnv:
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
                      gyro_gain=gyro_gain, metrics=metrics,
                      dq_qhist=dq_qhist, dq_win=dq_win,
-                     ser_c=ser_c, ser_defl=ser_defl)
+                     ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2802,6 +2837,7 @@ class BimoMJXEnv:
         gyro_hist = self._gyro_hist0(first.data)
         dq_win = self._draw_dq_win(r_ep)
         ser_c, ser_defl = self._draw_ser(r_ep)
+        rp_h, rp_off = self._draw_rp(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -2877,7 +2913,7 @@ class BimoMJXEnv:
             imu_R=imu_R, imu_bias=imu_bias,
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             dq_qhist=dq_qhist, dq_win=dq_win,
-            ser_c=ser_c, ser_defl=ser_defl,
+            ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
             metrics=metrics)
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
@@ -3054,6 +3090,8 @@ class BimoMJXEnv:
             q_now = state.data.qpos[self._jq0:self._jq1]
             if self._ser_on:
                 q_now = q_now + state.ser_defl      # the feedback is the shaft's
+            if self._rp_on:
+                q_now = q_now + state.rp_off        # the feedback is the shaft's
             gap = jp.abs(goal_written + state.zero_off - q_now)
             v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
                              _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
@@ -3070,8 +3108,13 @@ class BimoMJXEnv:
             v_goal = None
             served_end = target
 
+        if self._rp_on:
+            from walker_env import roll_play_substep
+            rp = state.rp_h > 0.0
+            rp_lim = w0 * self.sim_dt
+
         def substep(carry, i):
-            d, _ = carry
+            d, _, off = carry
             if self.fw_goal_speed:
                 t_i = jp.maximum(i - lat_k + 1, 0).astype(jp.float32) * self.sim_dt
                 cur = last_target + jp.clip(target - last_target,
@@ -3082,16 +3125,40 @@ class BimoMJXEnv:
             qd = d.qvel[self._jv0:self._jv1]
             cap = stall * jp.clip(1.0 - jp.abs(qd) / w0, 0.0, 1.0)
             err = cur - q
+            if self._rp_on:
+                # roll play beyond the encoder: the PD acts on the shaft, and on the link
+                # only through the band edge it is held at
+                rp_eng, rp_sg, shaft = roll_play_substep(cur, q, q + off, state.rp_h,
+                                                         rp_lim, xp=jp)
+                err = jp.where(rp, cur - shaft, err)
             err = jp.sign(err) * jp.maximum(jp.abs(err) - 0.5 * lash, 0.0)
             tau = jp.clip(kp * err - kd * qd, -cap, cap)
+            if self._rp_on:
+                # a contact pushes only: inside the band, or a servo pulling away from the
+                # edge, leaves the link free (no drive, no damping)
+                tau = jp.where(rp, jp.where(rp_eng, rp_sg * jp.maximum(rp_sg * tau, 0.0),
+                                            0.0), tau)
             d = d.replace(qfrc_applied=jp.zeros(self.mj_model.nv
                                                 ).at[self._jv0:self._jv1].set(tau))
             d = mjx.step(m, d)
-            return (d, tau), None
+            if self._rp_on:
+                # the shaft stays where it is while the link moves on, and is pushed along
+                # where the link reaches the band edge
+                off = jp.where(rp, jp.clip(shaft - d.qpos[self._jq0:self._jq1],
+                                           -state.rp_h, state.rp_h), 0.0)
+            return (d, tau, off), None
 
-        (data, tau), _ = jax.lax.scan(
-            substep, (data, jp.zeros(self._n_servo)),
+        (data, tau, off), _ = jax.lax.scan(
+            substep, (data, jp.zeros(self._n_servo),
+                      state.rp_off if self._rp_on else jp.zeros((self._n_servo,))),
             jp.arange(self.n_substeps))
+        if self._rp_on:
+            # the shaft (what the encoders read: q obs, the dq history, the next tick's
+            # feedback) sits rp_off from the link; its rate joins the link's in the dq obs
+            rp_off = off.astype(jp.float32)
+            rp_dq = (rp_off - state.rp_off) / self.control_dt
+        else:
+            rp_off = state.rp_off
         if self._ser_on:
             # the servo shaft leads the link by the spring's deflection tau/k: what the
             # encoders read (q obs, the dq history, the next tick's feedback)
@@ -3142,6 +3209,7 @@ class BimoMJXEnv:
         com_kernel = jp.zeros(())
         head_err = jp.zeros(())
         knee_frac = jp.zeros(())
+        march_unload = jp.zeros(())
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
             # pattern (stance down, swing up, >= lift_clear clearance) and
@@ -3212,6 +3280,12 @@ class BimoMJXEnv:
             com_off = jp.sqrt((com[0] - stance_w[0]) ** 2
                               + (com[1] - stance_w[1]) ** 2 + 1e-12)
             com_kernel = jp.exp(-((com_off / self.com_sigma) ** 2))
+            if self.w_march_unload:
+                from walker_env import march_unload_term
+                march_unload = march_unload_term(
+                    data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
+                    self.lift_height + state.cmd[6],
+                    ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
 
         if self.getup:
             # recovery: dense progress toward tall + upright, then a standing
@@ -3552,6 +3626,8 @@ class BimoMJXEnv:
             reward += self.w_foot_under * foot_under
         if self.w_knee_high and self.ext_cmd:
             reward += self.w_knee_high * knee_frac
+        if self.w_march_unload and self.ext_cmd:
+            reward += self.w_march_unload * march_unload
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
@@ -3827,6 +3903,9 @@ class BimoMJXEnv:
                                   state.rise_t0, step_i)
         gyro_hist = jp.concatenate([data.qvel[3:6][None, :],
                                     state.gyro_hist[:-1]], axis=0)
+        if self._rp_on:
+            # the encoder offset the obs and the dq history add (exclusive with roll_series_k)
+            ser_defl, ser_dq = rp_off, rp_dq
         dq_qhist = self._dq_qhist_push(data, state.dq_qhist, ser_defl)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
@@ -3893,7 +3972,9 @@ class BimoMJXEnv:
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics,
                      dq_qhist=dq_qhist, dq_win=state.dq_win, ser_c=state.ser_c,
-                     ser_defl=state.ser_defl if ser_defl is None else ser_defl)
+                     ser_defl=(state.ser_defl if ser_defl is None or self._rp_on
+                               else ser_defl),
+                     rp_h=state.rp_h, rp_off=rp_off)
 
 
 

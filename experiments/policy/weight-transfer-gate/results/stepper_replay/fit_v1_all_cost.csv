@@ -1,0 +1,7 @@
+plant,cost,roll_rms_up_mean,sweep_rms,lift_rms,err_stance_L,err_stance_R,fall_wrong,n
+grade+ser_hip=10,3.6392,2.487,1.176,3.2301,-3.3276,-0.0074,3,22
+"grade+play_L_hip=6,play_R_hip=6,play_L_ankle=2,play_R_ankle=0",5.1697,2.5839,1.1383,4.897,-3.6222,1.0967,2,22
+grade,6.1834,3.9176,1.7821,5.7743,-6.4249,3.3868,3,22
+"grade+ser_hip=5,ser_ankle=10",7.865,1.9262,1.3083,7.4559,-1.5065,-0.5931,3,22
+train,8.4636,5.0773,1.6853,8.0545,-9.8949,3.7686,3,22
+"grade+play_hip=4,play_ankle=5",8.8761,3.885,1.9082,8.6034,-5.8488,2.5512,2,22

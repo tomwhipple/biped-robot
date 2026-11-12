@@ -245,6 +245,17 @@ def check_job(jf, seen_outs, queued=None):
                         ("--rise-ref-et", "--rise-ref")):
         if flag in args and needs not in args:
             e["errors"].append(f"{flag} requires {needs}")
+    # the Warp OOM at the 16th eval (convex_narrowphase, 229M of 300M steps): hit 3 times by
+    # --w-mirror-loss runs (prec28 11-09, prec71 s14 and s15 11-11, fixer.log); --num-evals 12 cured
+    # every one. Root cause unknown (needs a GPU repro); until then a mirror-loss job must stop short.
+    try:
+        mirror = float(getopt("--w-mirror-loss", args) or 0)
+        n_evals = int(getopt("--num-evals", args) or 20)
+    except ValueError:
+        mirror, n_evals = 0.0, 20
+    if mirror > 0 and n_evals >= 16:
+        e["errors"].append(f"--w-mirror-loss with --num-evals {n_evals}: add --num-evals 12 "
+                           "(the 16th-eval Warp OOM, fixer.log 2026-11-09/11)")
     if e["errors"]:
         return e
     # 5) THE REAL TEST — construct the env on CPU with the recipe's kw

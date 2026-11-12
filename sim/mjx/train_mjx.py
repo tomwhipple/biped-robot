@@ -687,6 +687,12 @@ def make_parser():
                    help="swing-height kernel denominator (m^2; default 0.004 = "
                         "sigma 6.3 cm -- a 1 cm shuffle still earns 0.5 of a "
                         "6 cm target; 0.002 halves that)")
+    p.add_argument("--w-march-unload", type=float, default=None,
+                   help="UNGATED march lift term weight (default off): during a gait-clock "
+                        "march, 0.5 (u + h) for the COMMANDED swing foot whether or not it "
+                        "is up: u = its static unloading (the CoM's progress from the swing "
+                        "sole to the stance sole, 0..1), h = its sole height / (lift_height "
+                        "+ c6), clipped to 1 (walker_env.march_unload_term)")
     p.add_argument("--w-knee-high", type=float, default=None,
                    help="knee-high clearance kernel weight: fraction of the "
                         "commanded swing height (lift_height + c6) the swing "
@@ -759,6 +765,16 @@ def make_parser():
                         "more (hw 2026-11-10 clamp: 9.4 deg tilt, encoders 1.5 / 0.5 deg; "
                         "experiments/policy/weight-transfer-gate Round 3). config.json "
                         "records it; the referee and grade.py inherit it")
+    p.add_argument("--roll-play-deg", default=None,
+                   help="free play (deg peak to peak) inside the hip / ankle roll servos "
+                        "BEYOND the encoder: the shaft is position-controlled and is what the "
+                        "encoders (q, dq obs) read, the link floats inside +/-play/2 of it and "
+                        "is driven only at the band edges. 'LO:HI' (all four rolls) or "
+                        "'hip=LO:HI,ankle=LO:HI', drawn per episode per joint (one value = "
+                        "fixed); per side, L_hip= R_hip= L_ankle= R_ankle= override the role "
+                        "on that side ('hip=2:3,L_hip=8:10,ankle=4:6'). Exclusive with --roll-series-k (hw 2026-11-11 clamp; "
+                        "experiments/policy/weight-transfer-gate). config.json records it; the "
+                        "referee and grade.py inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,
                    help="torso mass/inertia DR +-fraction (replaces the generic "
                         "--mass-range draw for the torso body)")
@@ -1089,6 +1105,11 @@ def build_env_kw(args):
         rs = parse_roll_series_k(args.roll_series_k)
         if rs is not None:
             env_kw["roll_series_k"] = {k: list(v) for k, v in rs.items()}
+    if getattr(args, "roll_play_deg", None):
+        from walker_env import parse_roll_play_deg   # jax-free, shared with both envs
+        rp = parse_roll_play_deg(args.roll_play_deg)
+        if rp is not None:
+            env_kw["roll_play_deg"] = {k: list(v) for k, v in rp.items()}
     if args.torso_mass_range is not None:
         env_kw["torso_mass_range"] = args.torso_mass_range
     if args.torso_com_y is not None:
@@ -1282,6 +1303,8 @@ def build_env_kw(args):
         env_kw["march_hz"] = args.march_hz
     if args.w_knee_high is not None:
         env_kw["w_knee_high"] = args.w_knee_high
+    if args.w_march_unload is not None:
+        env_kw["w_march_unload"] = args.w_march_unload
     for _k in ("w_foot_cross", "foot_cross_sep", "swing_height", "w_feet_phase",
                "feet_phase_s2"):
         if getattr(args, _k) is not None:

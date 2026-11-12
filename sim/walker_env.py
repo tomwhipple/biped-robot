@@ -332,10 +332,111 @@ def parse_roll_series_k(spec):
     return out or None
 
 
+ROLL_PLAY_MAX_DEG = 30.0
+# roll_play_deg keys: a role (both sides), or one side's joint ("L_hip" = L_hip_roll), which
+# overrides its role's range on that side
+ROLL_PLAY_KEYS = ROLL_SERIES_ROLES + tuple(f"{s}_{r}" for s in "LR" for r in ROLL_SERIES_ROLES)
+
+
+def parse_roll_play_deg(spec):
+    """roll_play_deg -> {"hip": (lo, hi), "ankle": (lo, hi)} deg peak to peak (a role left out
+    has no play), or None when off. Accepts None / "" / {}, one range for all four rolls
+    ("LO:HI", or one value = no DR), per role ("hip=LO:HI,ankle=LO:HI") or the dict config.json
+    stores ({"hip": [lo, hi], ...} or numbers). Shared by env_mjx and the CPU env.
+    Per side: "L_hip", "R_hip", "L_ankle", "R_ankle" keys set that one joint's range and override
+    the role's on that side ("hip=3:5,L_hip=8:10,ankle=4:6": the L hip roll 8..10, the R 3..5)."""
+    if spec is None or spec == "" or spec == {}:
+        return None
+    if isinstance(spec, (int, float, np.integer, np.floating)):
+        spec = {r: float(spec) for r in ROLL_SERIES_ROLES}
+    elif isinstance(spec, str):
+        d = {}
+        for tok in spec.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            k, eq, v = tok.partition("=")
+            if not eq:          # one range for every roll joint
+                v, k = k, None
+            try:
+                vals = [float(x) for x in v.split(":")]
+            except ValueError:
+                raise ValueError(f"roll_play_deg {spec!r}: want LO:HI or hip=LO:HI,ankle=LO:HI"
+                                 f" (per side: L_hip=, R_hip=, L_ankle=, R_ankle=)")
+            for r in (ROLL_SERIES_ROLES if k is None else (k.strip(),)):
+                d[r] = vals
+        spec = d
+    out = {}
+    for k, v in dict(spec).items():
+        if k not in ROLL_PLAY_KEYS:
+            raise ValueError(f"roll_play_deg: key {k!r} not in {ROLL_PLAY_KEYS}")
+        v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
+        if len(v) == 1:
+            v = v * 2
+        if len(v) != 2 or not (0.0 <= v[0] <= v[1] <= ROLL_PLAY_MAX_DEG):
+            raise ValueError(f"roll_play_deg {k}={v}: need 0 <= lo <= hi <= {ROLL_PLAY_MAX_DEG:g} (deg)")
+        out[k] = (v[0], v[1])
+    return out if any(hi > 0.0 for _, hi in out.values()) else None
+
+
+def roll_play_bounds(spec, servo_names):
+    """per servo (lo, hi) half-widths of the roll play, rad (0 off the four rolls). A side's own
+    key ("L_hip") wins over its role's ("hip")."""
+    role = roll_series_roles(servo_names)
+    lo, hi = np.zeros(len(servo_names)), np.zeros(len(servo_names))
+    for i, r in enumerate(role):
+        if r < 0:
+            continue
+        own = f"{servo_names[i][0]}_{ROLL_SERIES_ROLES[r]}"
+        key = own if own in spec else ROLL_SERIES_ROLES[r]
+        if key in spec:
+            a, b = spec[key]
+            lo[i], hi[i] = 0.5 * np.deg2rad(a), 0.5 * np.deg2rad(b)
+    return lo, hi
+
+
+def roll_play_substep(cur, q, shaft, h, lim, xp=np):
+    """One substep of the roll play (roll_play_deg), numpy or jax (the operators only).
+
+    The servo shaft is position-controlled and is what the encoder reads; the link floats
+    inside +/-h of it with no torque between them. A free shaft runs toward the set point
+    `cur` at up to the no-load speed (lim = w0 x sim_dt per substep); where that would carry
+    it past the link's band edge, the link holds it at the edge (shaft = link -/+ h) and the
+    servo's PD acts on the link through the contact. -> (engaged, sign of the contact,
+    the shaft after the substep). Rows with h = 0 are not play joints (the caller masks them).
+    xp: numpy (walker_env) or jax.numpy (env_mjx)."""
+    s_c = shaft + xp.clip(cur - shaft, -lim, lim)
+    e = s_c - q
+    sg = xp.sign(e)
+    eng = xp.abs(e) > h
+    return eng, sg, xp.where(eng, q + sg * h, s_c)
+
+
 def roll_series_roles(servo_names):
     """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise."""
     return np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
                      for n in servo_names], dtype=np.int64)
+
+
+def march_unload_term(com, stance_w, swing_w, foot_clear, tgt_clear, on, xp=np):
+    """The ungated march lift term (w_march_unload), numpy or jax (the operators only):
+
+        r = on * 0.5 * (u + h)
+        u = clip(((c - p_sw) . e) / |e|^2, 0, 1),  e = p_st - p_sw   (horizontal: x, y)
+        h = clip(foot_clear / tgt_clear, 0, 1)
+
+    c is the whole-robot CoM, p_sw / p_st the commanded swing / stance sole centres. u is the
+    swing foot's static unloading by the lever rule (0 = the CoM over the swing sole, all the
+    weight on it; 1 = over the stance sole, none), h the swing sole's height as a fraction of
+    the commanded swing height (lift_height + c6). Neither is gated on contact or clearance, so
+    the foot that has never lifted is paid from the first millimetre of weight shift and of
+    lift. Symmetric in L/R by construction (only "commanded swing" / "stance" enter).
+    on: 1.0 during a gait-clock march (traj mode 4) with the lift channel set, else 0."""
+    ex, ey = stance_w[0] - swing_w[0], stance_w[1] - swing_w[1]
+    u = xp.clip(((com[0] - swing_w[0]) * ex + (com[1] - swing_w[1]) * ey)
+                / xp.maximum(ex * ex + ey * ey, 1e-6), 0.0, 1.0)
+    h = xp.clip(foot_clear / xp.maximum(tgt_clear, 1e-6), 0.0, 1.0)
+    return on * 0.5 * (u + h)
 
 
 def apply_floor_contacts(model, floor_contacts):
@@ -686,6 +787,11 @@ class BimoWalkerEnv(gym.Env):
         # ankle roll servos, BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)}
         # or "hip=LO:HI,ankle=LO:HI", per-episode draw per role (parse_roll_series_k).
         # None = rigid (bit-exact). Mirror of env_mjx roll_series_k.
+        roll_play_deg=None,            # FREE PLAY (deg peak to peak) inside the hip / ankle
+        # roll servos BEYOND the encoder: the shaft is position-controlled and is what the
+        # encoder reads, the link floats inside +/-play/2 of it (roll_play_substep). "LO:HI"
+        # (all four rolls), "hip=LO:HI,ankle=LO:HI" or {"hip": (lo, hi), ...}: drawn per
+        # episode per joint (parse_roll_play_deg). None = off (bit-exact). Mirror of env_mjx.
         torso_mass_range: float | None = None,   # per-episode torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of the generic mass_range for the torso body
         torso_com_y: float = 0.0,      # per-episode lateral torso CoM offset
@@ -759,6 +865,11 @@ class BimoWalkerEnv(gym.Env):
         # are a KNEE-HIGH march: an extra slice carved out after the ext_mix
         # slices (walk takes the remainder). 0.0 -> the slice is empty and the
         # draw is bit-identical to before the feature existed.
+        w_march_unload: float = 0.0,   # UNGATED march lift term (mirrors sim/mjx): during
+        # a gait-clock march (traj mode 4) pays the COMMANDED swing foot's static
+        # unloading (the CoM's progress from the swing sole to the stance sole) and
+        # its sole height (fraction of lift_height + c6), whether or not the foot is
+        # already off the floor. 0 = off (bit-exact).
         w_knee_high: float = 0.0,      # knee-high clearance kernel weight
         # (mirrors sim/mjx): pays the FRACTION of the commanded swing height
         # (lift_height + c6) the swing sole actually reaches, gated on the
@@ -1025,6 +1136,10 @@ class BimoWalkerEnv(gym.Env):
         self.roll_lash_deg_max = roll_lash_deg_max
         self._roll_lash_rad = float(np.deg2rad(roll_lash_deg))
         self.roll_series_k = parse_roll_series_k(roll_series_k)
+        self.roll_play_deg = parse_roll_play_deg(roll_play_deg)
+        if self.roll_play_deg is not None and self.roll_series_k is not None:
+            raise ValueError("roll_play_deg and roll_series_k are two models of the same "
+                             "beyond-encoder roll yield: set one")
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.zero_offset_deg = float(zero_offset_deg)
@@ -1086,6 +1201,7 @@ class BimoWalkerEnv(gym.Env):
         self.march_mix = float(march_mix)
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
+        self.w_march_unload = float(w_march_unload)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
@@ -1278,6 +1394,9 @@ class BimoWalkerEnv(gym.Env):
             self._ser_c = np.zeros(len(self._servo_names))
             self._ser_defl = np.zeros(len(self._servo_names))
             self._ser_dq = np.zeros(len(self._servo_names))
+        # roll play (roll_play_deg): per-servo half-width h (rad, 0 off the rolls) drawn at
+        # reset, and the shaft - link offset the encoders add (within +/-h). None when off.
+        self._rp_h = self._rp_off = self._rp_dq = None
         self.held_joints = ({} if not held_joints else
                             {str(k): float(v) for k, v in held_joints.items()})
         _bad = [k for k in self.held_joints if k not in self._sname2i]
@@ -1400,6 +1519,8 @@ class BimoWalkerEnv(gym.Env):
         self._servo_tau = np.zeros(self._n_servo)
         if self.roll_series_k is not None and self._servo is None:
             raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
+        if self.roll_play_deg is not None and self._servo is None:
+            raise ValueError("roll_play_deg needs actuator_model='sts3215' (the PD torque model)")
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -1666,6 +1787,8 @@ class BimoWalkerEnv(gym.Env):
         q = np.array(self.data.qpos[self._jqpos], dtype=np.float64)
         if self._ser_c is not None:
             q = q + self._p(self._ser_defl)      # the encoder reads the shaft
+        if self._rp_h is not None:
+            q = q + self._p(self._rp_off)        # the encoder reads the shaft
         return q
 
     def _dq_qhist_seed(self):
@@ -1859,12 +1982,17 @@ class BimoWalkerEnv(gym.Env):
         if self._ser_c is not None:
             # roll series spring: the encoder reads the servo shaft, link + tau/k
             q_j = q_j + self._p(self._ser_defl)
+        if self._rp_h is not None:
+            # roll play: the encoder reads the servo shaft, link + (shaft - link)
+            q_j = q_j + self._p(self._rp_off)
         if self._zero_off is not None:
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
         dq_j = d.qvel[self._jqvel]
         if self._ser_c is not None:
             dq_j = dq_j + self._p(self._ser_dq)
+        if self._rp_h is not None:
+            dq_j = dq_j + self._p(self._rp_dq)
         if self.dq_obs_window is not None and self._dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last _dq_win ticks
             # (the history is advanced in reset()/step(); this stays a pure read)
@@ -2432,6 +2560,22 @@ class BimoWalkerEnv(gym.Env):
             self._ser_c = np.where(self._ser_role >= 0, c[np.maximum(self._ser_role, 0)], 0.0)
             self._ser_defl = np.zeros(self._n_servo)
             self._ser_dq = np.zeros(self._n_servo)
+        self._rp_h = None
+        if self.roll_play_deg is not None:
+            # roll play: a half-width per joint, uniform in the role's range (a fixed range
+            # draws nothing), after every other draw so they keep their streams. The shaft
+            # starts on the link (offset 0).
+            if self._servo is None:
+                raise ValueError("roll_play_deg needs actuator_model='sts3215'")
+            if self.roll_series_k is not None:
+                raise ValueError("roll_play_deg and roll_series_k: set one")
+            lo, hi = roll_play_bounds(self.roll_play_deg, self._servo_names)
+            h = lo.copy()
+            for i in np.flatnonzero(hi > lo):
+                h[i] = float(self.np_random.uniform(lo[i], hi[i]))
+            self._rp_h = h
+            self._rp_off = np.zeros(self._n_servo)
+            self._rp_dq = np.zeros(self._n_servo)
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -2533,6 +2677,8 @@ class BimoWalkerEnv(gym.Env):
         if self._zero_off is not None:
             target = target + self._zero_off  # the servo serves the PHYSICAL target (env_mjx parity)
         x_before = float(self.data.qpos[0])
+        if self._rp_h is not None:
+            rp_off0 = self._rp_off.copy()
         for i in range(self.n_substeps):
             cur = self._last_target if i < lat_k else target
             if self._servo is not None:
@@ -2569,6 +2715,14 @@ class BimoWalkerEnv(gym.Env):
                     free = (err == 0.0) & (self._play_h > 0.0)
                 else:
                     err = cur - q
+                if self._rp_h is not None:
+                    # roll play beyond the encoder (roll_play_substep): the PD acts on the
+                    # shaft, and on the link only through the band edge it is held at
+                    rp = self._rp_h > 0.0
+                    rp_eng, rp_sg, shaft = roll_play_substep(
+                        cur, q, q + self._rp_off, self._rp_h,
+                        w0 * self.sim_dt if self._torque_on else 0.0)
+                    err = np.where(rp, cur - shaft, err)
                 if self._lash_rad > 0.0 or self._roll_lash_rad > 0.0:
                     # gear backlash: +/-lash/2 deadzone on the position error
                     # (inside the lash the output gear floats -- no P torque);
@@ -2579,6 +2733,12 @@ class BimoWalkerEnv(gym.Env):
                 self._servo_tau = np.clip(kp * err - kd * qd, -cap, cap)
                 if free is not None:
                     self._servo_tau = np.where(free, 0.0, self._servo_tau)
+                if self._rp_h is not None:
+                    # a contact pushes only: inside the band, or a servo pulling away from
+                    # the edge, leaves the link free (no drive, no damping)
+                    self._servo_tau = np.where(
+                        rp, np.where(rp_eng, rp_sg * np.maximum(rp_sg * self._servo_tau, 0.0),
+                                     0.0), self._servo_tau)
                 if not self._torque_on:      # released servos: limp, no hold
                     self._servo_tau = np.zeros(self._n_servo)
                 self.data.qfrc_applied[self._sqvel] = self._servo_tau
@@ -2587,7 +2747,16 @@ class BimoWalkerEnv(gym.Env):
                 # target for the first lat_k substeps, then switch
                 self.data.ctrl[:] = cur
             mujoco.mj_step(self.model, self.data)
+            if self._servo is not None and self._rp_h is not None:
+                # the shaft stays where it is while the link moves on, and is pushed along
+                # where the link reaches the band edge
+                self._rp_off = np.where(rp, np.clip(shaft - self.data.qpos[self._sqpos],
+                                                    -self._rp_h, self._rp_h), 0.0)
         self._last_target = target
+        if self._rp_h is not None:
+            # what the encoders read is the shaft (q obs, the dq history); its offset rate
+            # joins the link's velocity in the dq obs
+            self._rp_dq = (self._rp_off - rp_off0) / self.control_dt
         if self._ser_c is not None:
             # the servo shaft leads the link by the spring's deflection tau/k: what the
             # encoders read (q obs, the dq history) is link + defl
@@ -2653,6 +2822,7 @@ class BimoWalkerEnv(gym.Env):
             # attempting to walk from standstill vs 0.24 at reference width.
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
+            march_unload = 0.0
             if self.getup:
                 # recovery primary (matches sim/mjx): height + HEIGHT-GATED
                 # uprightness progress, standing bonus (half up, half still).
@@ -2748,6 +2918,11 @@ class BimoWalkerEnv(gym.Env):
                                         + (com[1] - stance_w[1]) ** 2
                                         + 1e-12))
                 com_kernel = float(np.exp(-((com_off / self.com_sigma) ** 2)))
+                if self.w_march_unload:
+                    march_unload = march_unload_term(
+                        com, d.geom_xpos[stance_gid], d.geom_xpos[gid], foot_clear,
+                        self.lift_height + float(self._cmd[6]),
+                        float(self._traj_on == 4.0 and lifted), np)
                 # skill-compliance gate (round 4, mirrors sim/mjx): under a
                 # skill command the velocity/yaw kernels pay in proportion
                 # to the skill being DONE (precision_v3 stood through them)
@@ -2885,6 +3060,8 @@ class BimoWalkerEnv(gym.Env):
                 reward += self.w_foot_under * foot_under
             if self.w_knee_high:
                 reward += self.w_knee_high * knee_frac
+            if self.w_march_unload:
+                reward += self.w_march_unload * march_unload
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -3135,6 +3312,7 @@ class BimoWalkerEnv(gym.Env):
                             knee_tgt=float(self.lift_height
                                            + self._cmd[6]),
                             knee_frac=knee_frac,
+                            **({"march_unload": march_unload} if self.w_march_unload else {}),
                             recovered=float(self._recovered),
                             com_stance=float(lifted) * com_off,
                             head_err=abs(head_err))
