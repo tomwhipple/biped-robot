@@ -583,6 +583,13 @@ The upper layer marks the phases on its poses:
 - **Abort.** |e| past `abort`, or no usable attitude, freezes the correction
   and fades it. Nothing returns to a pre-lift pose and no other joint moves,
   so in a walking sequence the upper layer owns the foot. Torque stays on.
+  The abort prints a `trim ABORT <side> ...` line at once, and stays latched
+  until the next `trim` read reports it (`ABORTED since the last read`), so a
+  later chain cannot hide it.
+- **Holds without a chain.** `S<L|R>h` with no live chain on that side means
+  no trim: no fresh reference, no T ramp; the pose runs plain.
+- **All 12 leg joints.** An S pose must carry all 12 leg joints (the 17-target
+  form); otherwise it is refused.
 - **Stops.** `move`, `home`, `release`/`torque`, a fall, `STOP`, arming the
   loop or a single-frame pose stop it at once.
 - **CLI.** `trim` prints the gains, the learned T, the state, e, hike and the

@@ -517,6 +517,12 @@ static TickType_t s_trim_last = 0;
 static float s_trim_roll = 0.0f;
 static balance::TrimState s_trim_shown = balance::TrimState::kOff;
 static uint32_t s_trim_clamps = 0;
+// An abort is latched until the next `trim` read (which reports it once and clears it): a later S pose
+// opens a new chain, and the abort must not vanish with it.
+static bool s_trim_abort_latched = false;
+static char s_trim_abort_side = 0;
+static float s_trim_abort_err = 0.0f;
+static bool s_trim_abort_imu = false;
 static int s_tres_bh = -1;              // residual: the previous chain's fading correction ...
 static int32_t s_tres_ticks0 = 0;       // ... its ticks when it was handed over ...
 static float s_tres_left_s = 0.0f;      // ... the fade time left then ...
@@ -683,8 +689,12 @@ static void trimTick(TickType_t now, float ramp, Sink out) {
         const balance::TrimState was = s_trim_shown;
         s_trim_shown = s_trim.state();
         if (s_trim.aborted()) {
-            say(out, "trim ABORT (%s): err %+.2f deg, hike %+.2f deg frozen, fades over %.1f s; the pose "
-                "stream goes on (torque ON)\r\n", s_trim.state() == balance::TrimState::kAbortImu ? "IMU" : "tip",
+            s_trim_abort_latched = true;
+            s_trim_abort_side = s_trim.side();
+            s_trim_abort_err = s_trim.abortErr();
+            s_trim_abort_imu = s_trim.state() == balance::TrimState::kAbortImu;
+            say(out, "trim ABORT %c (%s): err %+.2f deg, hike %+.2f deg frozen, fades over %.1f s; the pose "
+                "stream goes on (torque ON)\r\n", s_trim.side(), s_trim.state() == balance::TrimState::kAbortImu ? "IMU" : "tip",
                 static_cast<double>(s_trim.abortErr() * 57.29578f), static_cast<double>(s_trim.hike() * 57.29578f),
                 static_cast<double>(s_trim_cfg.fade_s));
         } else if (s_trim_shown == balance::TrimState::kOff && was != balance::TrimState::kOff) {
@@ -1026,6 +1036,17 @@ void cmdPose(Sink out, int argc, char** argv) {
                 trim_side, trim_side, obs::kNumBusJoints);
             return;
         }
+        static const char* const kLegs[12] = {"L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle",
+                                              "L_ankle_roll", "R_hip_yaw", "R_hip_roll", "R_hip_pitch",
+                                              "R_knee", "R_ankle", "R_ankle_roll"};
+        for (const char* leg : kLegs) {
+            const int b = obs::busIndexOfName(leg);
+            if (b < 0 || !on[b]) {
+                say(out, "pose S%c: an S pose must carry all 12 leg joints (the %d-target bus form); "
+                    "missing %s -- not moving\r\n", trim_side, obs::kNumBusJoints, leg);
+                return;
+            }
+        }
         const char* bad = balance::validateTrim(s_trim_cfg);
         if (bad) {
             say(out, "pose S%c: trim gains refused (%s) -- fix with `trim set`\r\n", trim_side, bad);
@@ -1051,8 +1072,12 @@ void cmdPose(Sink out, int argc, char** argv) {
     if (trim_idx >= 0 && trim_hold &&
         !(s_trim.side() == trim_side &&
           (s_trim.state() == balance::TrimState::kClosed || s_trim.state() == balance::TrimState::kHold))) {
-        say(out, "pose S%ch: no %c-stance trim chain to hold -- not moving\r\n", trim_side, trim_side);
-        return;
+        // no live chain on that side (aborted, faded, never begun): no correction and no chain -- no fresh
+        // reference at an already tilted roll, no T ramp. The pose runs as a plain pose (a live chain on
+        // the other side fades, as for any pose without S).
+        say(out, "pose S%ch: no %c-stance trim chain is live -- moving with no trim\r\n", trim_side, trim_side);
+        trim_idx = -1;
+        trim_hold = false;
     }
     float trim_ref = 0.0f;
     if (trim_new) {
@@ -2858,8 +2883,16 @@ void cmdTrim(Sink out, int argc, char** argv) {
     }
     if (argc >= 2) {
         out("usage: trim [off | set <kp> <ki> [lim_deg] [tlim_deg] [fade_s] [abort_deg] | set default | "
-            "T <L|R> <deg> | T clear]\r\n");
+            "T <L|R> <deg> | T clear]   (T in deg, the stepper's hike convention: + lifts the other hip, "
+            "same sign on both sides)\r\n");
         return;
+    }
+    if (s_trim_abort_latched) {
+        say(out, "ABORTED since the last read: %c stance, %s, err %+.2f deg\r\n", s_trim_abort_side,
+            s_trim_abort_imu ? "IMU" : "tip", static_cast<double>(s_trim_abort_err) * r2d);
+        s_trim_abort_latched = false;
+    } else {
+        out("aborts   none since the last read\r\n");
     }
     say(out, "gains    kp %.3f  ki %.3f /s  lim %.1f deg  tlim %.1f deg  fade %.2f s  abort %.1f deg\r\n",
         static_cast<double>(s_trim_cfg.kp), static_cast<double>(s_trim_cfg.ki),
@@ -4319,7 +4352,8 @@ void banner(Sink out) {
     out("  balance [set <kp> <ki> <ankle> <hip> [clamp_deg] [abort_deg]|default|off|log]\r\n"
         "                       stance-leg roll balance: gains, live state, correction, log\r\n");
     out("  trim [off|set <kp> <ki> [lim] [tlim] [fade_s] [abort]|set default|T <L|R> <deg>|T clear]\r\n"
-        "                       stance-hip trim through the lift (pose ... S<L|R> / S<L|R>h)\r\n");
+        "                       stance-hip trim through the lift (pose ... S<L|R> / S<L|R>h); T in deg,\r\n"
+        "                       hike convention (+ lifts the other hip), same sign both sides\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
     out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
         "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
