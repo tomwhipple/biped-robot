@@ -196,7 +196,7 @@ class Abort(RuntimeError):
 
 
 class Run:
-    def __init__(self, name, robot, kin, prm, video=False, quiet=False, board=False, log_dir=None):
+    def __init__(self, name, robot, kin, prm, video=False, quiet=False, board=False, log_dir=None, board_calib=None, save_calib=None):
         from robot_io import Fallen, LinkDown
         self.Fallen, self.LinkDown = Fallen, LinkDown
         self.r, self.k, self.p, self.quiet = robot, kin, prm, quiet
@@ -241,6 +241,13 @@ class Run:
         self.last_tag = None
         self.video = []
         self.board = board
+        self.calib = None                     # the board's calibration (board_view.calibrate): found once, then used for every look
+        self.calib_auto = board and board_calib is None   # try to calibrate at the first look
+        self.save_calib = save_calib
+        if board_calib:
+            import json as _json
+            self.calib = _json.load(open(board_calib))
+            self.log("board_calib", source=board_calib, calib=self.calib)
         self.latest = self.base + "_latest.jpg"                       # the newest front-camera frame (board mode)
         self.n_look = 0
         self.stop_why = None
@@ -841,6 +848,36 @@ class Run:
                 return None
             time.sleep(0.03)
 
+    def calibrate_first(self):
+        """At the first look (the robot standing still): the full board detection on up to 10 fresh frames; the calibration
+        is built from the ones that worked (up to 3) and then used for every look: the board and the camera do not move
+        during a session, so the board is not found again in every frame (a person's trouser leg, a dark patch, the robot
+        crouching must not lose it). No frame works: no calibration, the looks go on as they were (and stop as they did)."""
+        self.calib_auto = False
+        import board_view
+        good, after = [], time.time()
+        for _ in range(10):
+            got = self._next_frame(after, 1.5)
+            if got is None:
+                break
+            im, after = got
+            m, _ = board_view.measure(im, self.p["board_w_mm"])
+            if m is not None and m["conf"] >= self.p["board_conf_min"] and m["inferred"] is None:
+                good.append(im)
+                if len(good) >= 3:
+                    break
+        calib = board_view.calibrate(good, self.p["board_w_mm"]) if good else None
+        if calib is None:
+            self.log("board_calib", source=None, ok=False, tried=10)
+            self.say("  board: no frame could be calibrated")
+            return
+        self.calib = calib
+        self.log("board_calib", source="first look", ok=True, n=calib["n"], calib=calib)
+        self.say(f"  board calibrated on {calib['n']} frame(s): edges {calib['edge_l'][0]:+.3f}/{calib['edge_r'][0]:+.3f}, far edge at row {calib['y_top']}")
+        if self.save_calib:
+            import json as _json
+            _json.dump(calib, open(self.save_calib, "w"), indent=1)
+
     def look(self, tag):
         """Measure the margins to the board's edge: the median of 3 fresh front-camera frames (board_view),
         ignoring any below board_conf_min; at least 2 must be good. Returns the dict (the median of every
@@ -851,16 +888,19 @@ class Run:
         res, mid, why, after = [], None, "no frame", time.time()          # every frame must be newer than this request
         try:
             import board_view
+            if self.calib is None and self.calib_auto:
+                self.calibrate_first()
+                after = time.time()
             for i in range(3):
                 got = self._next_frame(after, 1.5)
                 if got is None:
                     break
                 im, after = got
-                m = board_view.margins(im, P["board_w_mm"])
+                m, w = board_view.measure(im, P["board_w_mm"], None, self.calib)
                 if i == 1 or mid is None:
                     mid = (im, m)
                 if m is None:
-                    why = "board not seen"
+                    why = "board not seen" if self.calib is None else f"board not seen ({w})"
                 elif m["conf"] < P["board_conf_min"]:
                     why = f"low confidence {m['conf']:.2f}"
                 else:
@@ -1344,6 +1384,8 @@ def main(argv=None, make_robot=None, log_dir=None):
     ap.add_argument("--board", action="store_true", help="walk/march: watch the board's edge with the front camera")
     ap.add_argument("--hold", type=float, default=1.5)
     ap.add_argument("--video", type=int, default=0, metavar="SECS", help="record both cameras for SECS")
+    ap.add_argument("--board-calib", metavar="FILE", help="--board: use this saved board calibration (board_view.py calibrate) instead of finding the board at the first look")
+    ap.add_argument("--save-board-calib", metavar="FILE", help="--board: write the calibration found at the first look here")
     ap.add_argument("--board-centre", action="store_true", help="--board: steer toward the board's centre line (default: hold the starting line)")
     ap.add_argument("--no-notify", action="store_true", help="after a fall, do not ping the owner via Aime")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VAL")
@@ -1372,7 +1414,7 @@ def main(argv=None, make_robot=None, log_dir=None):
     rob = make_robot(kin) if make_robot else Robot(a.host, link_retries=int(prm["link_retries"]))
     if rob.fallen():
         print("the firmware says FALLEN: pick the robot up and let it home first"); rob.close(); return 2
-    run = Run(a.what, rob, kin, prm, video=a.video, board=a.board, log_dir=log_dir)
+    run = Run(a.what, rob, kin, prm, video=a.video, board=a.board, log_dir=log_dir, board_calib=a.board_calib, save_calib=a.save_board_calib)
     out = []
     try:
         run.stand_up()

@@ -1274,6 +1274,9 @@ FRAMES = {
     # 00:07, 20 minutes later: the left plate (picture right) in the robot's own shadow; a pale carpet patch beside the board
     # (x 255-330, y 408-482) once passed for a plate. By eye on the 450 mm scale: right about 130, left about 85, sep about 137
     "evening_misdetect": ((115, 145), (70, 100), (125, 150), 150),
+    # 01:32 (evening_crouch_notseen, the robot crouched, a red-check trouser leg in the picture) is not in this table: the full
+    # detection cannot read it, only a calibrated look can (test_board_calibration). Its calibration frame, 25 s earlier:
+    "evening_calib_good": ((105, 130), (100, 125), (120, 145), 150),               # right 117, left 113 by the coordinator's eye
     # the board (it lies as in the others, the camera has not moved) with the robot's right foot half off its
     # left edge: the sole's outer edge is 40, 34, 84, 71 mm outside it by eye
     "walk104632_offedge_t30": ((-60, -25), (200, 235), (150, 190), 100),
@@ -1586,6 +1589,107 @@ def test_board_view_cannot_take_carpet_for_a_sole():
     # the stages: a pair found by a fallback carries less confidence
     m2 = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_square.jpg")))
     assert m2 is not None and m2["conf"] < ref["conf"] - 0.1, (m2["conf"], ref["conf"])
+
+
+def test_board_calibration():
+    """The board and the camera do not move during a session: find the board once (calibrate), then look for the soles only
+    inside the stored outline. Frames the full detection cannot read are read; a frame the calibration no longer fits is
+    None with a reason."""
+    import cv2
+    import numpy as np
+    import board_view
+    ld = lambda n: cv2.imread(os.path.join(HERE, "testdata", "frames", n + ".jpg"))          # noqa: E731
+    ce = board_view.calibrate([ld("evening_calib_good")])
+    assert ce and set(ce) >= {"edge_l", "edge_r", "y_top", "size", "board_w_mm", "t", "s_car", "s_brd"} and ce["size"] == [1024, 680]
+    assert 380 <= ce["y_top"] <= 410, ce["y_top"]
+    json.dumps(ce)                                                    # a plain dict: it goes in a file
+    assert board_view.margins(ld("evening_crouch_notseen")) is None   # the full detection loses it (the trouser leg, the crouch)
+    m, why = board_view.measure(ld("evening_crouch_notseen"), calib=ce)
+    assert m is not None and why == "" and m["calibrated"], why
+    assert 105 <= m["right_mm"] <= 130 and 100 <= m["left_mm"] <= 125 and 120 <= m["sep_mm"] <= 145 and m["conf"] >= 0.5, m["right_mm"]
+    # the same evening setup: the numbers hold within 6 mm
+    ref = {"evening_misdetect": (135.5, 88.5, 135.6), "evening_square": (112.2, 103.9, 140.9), "evening_calib_good": (117.2, 112.5, 130.5)}
+    for n, (r, l, sp) in ref.items():
+        m = board_view.margins(ld(n), calib=ce)
+        assert m is not None and abs(m["right_mm"] - r) < 6 and abs(m["left_mm"] - l) < 6 and abs(m["sep_mm"] - sp) < 6, (n, m and (m["right_mm"], m["left_mm"], m["sep_mm"]))
+    # each other setup: a calibration from one frame, the other frames of the same setup within 6 mm of their full detection
+    sets = {"dim_start": ["dim_shadow_right", "walk110045_t20", "walk110045_t34", "walk110045_t47", "walk110045_t61", "walk110045_t74", "walk110045_t88"],
+            "roomlight_wide_stance": [],
+            "walk104632_offedge_t45": ["walk104632_offedge_t30", "walk104632_offedge_t61.5"]}       # (t58: a sole 100 mm off the edge: None)
+    for base, others in sets.items():
+        c = board_view.calibrate([ld(base)])
+        assert c is not None, base
+        for n in [base] + others:
+            m, why = board_view.measure(ld(n), calib=c)
+            f = board_view.margins(ld(n))
+            assert m is not None and f is not None, (base, n, why)
+            for k in ("right_mm", "left_mm", "sep_mm"):
+                assert abs(m[k] - f[k]) < 6.0, (base, n, k, m[k], f[k])
+    c = board_view.calibrate([ld("walk104632_offedge_t45")])
+    assert board_view.margins(ld("walk104632_offedge_t58"), calib=c) is None                    # not a wrong number
+    # the board moved (or the camera): the picture shifted sideways: no longer fits
+    im = ld("evening_misdetect")
+    for dx in (40, -25):
+        m, why = board_view.measure(np.roll(im, dx, axis=1), calib=ce)
+        assert m is None and why == "calibration no longer fits", (dx, why)
+    m, why = board_view.measure(cv2.resize(im, (800, 530)), calib=ce)
+    assert m is None and why == "picture size differs", why
+    # more frames: the median; a calibration from nothing is None
+    c2 = board_view.calibrate([ld("evening_calib_good"), ld("evening_misdetect"), ld("evening_square")])
+    assert c2["n"] == 3 and all(abs(c2["edge_l"][i] - ce["edge_l"][i]) < 2.0 for i in (0, 1))
+    assert board_view.calibrate([im * 0]) is None
+    # the tool
+    import subprocess
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "calib.json")
+        r = subprocess.run([sys.executable, os.path.join(HERE, "board_view.py"), "calibrate", os.path.join(HERE, "testdata", "frames", "evening_calib_good.jpg"), "--out", out],
+                           capture_output=True, text=True, env=dict(os.environ, JAX_PLATFORMS="cpu"))
+        assert r.returncode == 0, r.stderr[-300:]
+        back = json.load(open(out))
+        assert back["y_top"] == ce["y_top"] and abs(back["edge_l"][1] - ce["edge_l"][1]) < 1e-6
+
+
+def test_run_calibrates_at_the_first_look():
+    import cv2
+    ld = lambda n: cv2.imread(os.path.join(HERE, "testdata", "frames", n + ".jpg"))          # noqa: E731
+    blank = ld("dim_start") * 0
+    good, crouch = ld("evening_calib_good"), ld("evening_crouch_notseen")
+
+    def run_with(d, frames, **kw):
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+        run = S.Run("cal", FakeRobot(kin), kin, prm, quiet=True, log_dir=d, board=True, **kw)
+        it = iter(frames)
+
+        def nxt(after, tmax):
+            try:
+                return next(it), after + 0.1
+            except StopIteration:
+                return None
+        run._next_frame = nxt
+        return run
+    with env() as d:
+        save = os.path.join(d, "saved_calib.json")
+        # the first look: two blank frames, then the good ones; the looks after it are the crouch frame the full detection loses
+        run = run_with(d, [blank, blank, good, good, good] + [good] * 3 + [crouch] * 6, save_calib=save)
+        assert run.calib is None and run.calib_auto
+        m = run.look("first")
+        assert m is not None and run.calib is not None and run.calib["n"] == 3 and os.path.exists(save)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert any(r["ev"] == "board_calib" and r.get("ok") for r in rows)
+        m2 = run.look("later")                                  # the crouch frames: only the calibration reads them
+        assert m2 is not None and 105 <= m2["right_mm"] <= 130 and 100 <= m2["left_mm"] <= 125, m2
+        run.f.close()
+        # a saved calibration is loaded instead: no frames are spent on finding the board
+        run2 = run_with(d, [crouch] * 4, board_calib=save)
+        assert run2.calib is not None and not run2.calib_auto
+        m3 = run2.look("loaded")
+        assert m3 is not None and 105 <= m3["right_mm"] <= 130
+        run2.f.close()
+        # no frame calibrates and no file: the looks go on without one (and fail as they did), no exception
+        run3 = run_with(d, [blank] * 12)
+        assert run3.look("none") is None and run3.calib is None
+        run3.f.close()
 
 
 def test_look_median_of_frames():

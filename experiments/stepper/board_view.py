@@ -187,7 +187,7 @@ def _pair(cands, fill, x_robot):
     return best
 
 
-def soles(hue, sat, val, board, s_car):
+def soles(hue, sat, val, board, s_car, widen=60, outline=None):
     """(pair, stage): the two soles and how they were found. Stage 0: grey plates (strict sizes). Stage 1: also
     whatever on the board is neither board-coloured nor dark (evening light). Stage 2: grey plates, relaxed
     sizes. Every candidate is a wide, low plate with dark robot structure above it that stands on the board or
@@ -195,11 +195,13 @@ def soles(hue, sat, val, board, s_car):
     pair well inside the board and 100-175 mm apart, else nothing."""
     pts = cv2.findNonZero(board.astype(np.uint8))
     fill = np.zeros(board.shape, np.uint8)
-    if pts is not None:
+    if outline is not None:                                      # a calibration's stored outline: the board is not looked for
+        fill = outline.astype(np.uint8)
+    elif pts is not None:
         cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
     x_robot = _robot_column(val, board, fill)
     for stage, (bright, strict) in enumerate(((False, True), (True, False), (False, False))):
-        pair = _pair(_soles(hue, sat, val, board, s_car, bright, strict), fill, x_robot)
+        pair = _pair(_soles(hue, sat, val, board, s_car, bright, strict, widen, fill), fill, x_robot)
         if pair:
             if stage:
                 ym = min(fill.shape[0] - 1, int(0.5 * (pair[0]["y1"] + pair[1]["y1"])))
@@ -212,7 +214,7 @@ def soles(hue, sat, val, board, s_car):
     return [], 0
 
 
-def _soles(hue, sat, val, board, s_car, use_bright, strict):
+def _soles(hue, sat, val, board, s_car, use_bright, strict, widen=60, fill=None):
     """The two soles as dicts (x0, x1, y0, y1, xc, xl_row, xr_row): wide, low, pale-grey plates on or beside
     the board, in light or in shadow (grey at any brightness: the saturation stays low). Legs and servos
     above them are narrower than the opening kernel. A candidate must have the robot's own grey-or-black
@@ -225,16 +227,18 @@ def _soles(hue, sat, val, board, s_car, use_bright, strict):
     grey = (neutral & (val > 22)).astype(np.uint8)
     grey[:y_top] = 0
     pts = cv2.findNonZero(board.astype(np.uint8))
-    fill = np.zeros((H, W), np.uint8)
+    if fill is None:
+        fill = np.zeros((H, W), np.uint8)
+        if pts is not None:
+            cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
     if pts is not None:                                           # a sole may hang off the board's edge, not stand far off it
-        cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
         # In warm evening light a plate's saturation is no longer clearly below the carpet's (and the robot's own
         # shadow tints it), but a plate is still the one thing on the board that is neither board-coloured nor
         # dark: inside the board's outline, not board, not black. Only inside the outline: the carpet beside the
         # board is just as pale.
         v_board = float(np.median(val[board])) if board.any() else 128.0
         bright = ((val > 0.55 * v_board) & (board == 0) & (fill > 0)).astype(np.uint8)
-        grey = (grey | bright if use_bright else grey) & cv2.dilate(fill, np.ones((1, 121), np.uint8))
+        grey = (grey | bright if use_bright else grey) & cv2.dilate(fill, np.ones((1, 2 * widen + 1), np.uint8))
     g = cv2.morphologyEx(grey, cv2.MORPH_CLOSE, np.ones((5, 9), np.uint8))
     g = cv2.morphologyEx(g, cv2.MORPH_OPEN, np.ones((7, 41), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(g, connectivity=8)
@@ -288,51 +292,142 @@ def _soles(hue, sat, val, board, s_car, use_bright, strict):
     return sorted(out, key=lambda t: t["xc"])
 
 
-def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
-    """board_w_mm: the board's width (mm): THE scale, the same on every frame of a run (default BOARD_W_MM): a
-    sole's position is its fraction across the board at its row times this. None: scale from the soles'
-    own width instead (SOLE_W_MM; noisy, for a first look at an unknown board only). taper: slope(right edge) - slope(left edge) from earlier frames (the board narrows
-    toward the horizon), so an inferred edge converges like the real one. Both come back from a frame where
-    both edges were seen (board_w_mm, taper); without them an inferred edge is drawn parallel (conf 0.35)."""
+def _trapezoid(calib, H, W, widen=False):
+    """Mask of the board's outline from a calibration: between its two long edges, below its far edge. widen: one
+    sole width more on each side (a sole may hang off an edge)."""
+    ys = np.arange(H, dtype=float)
+    L = calib["edge_l"][0] * ys + calib["edge_l"][1]
+    R = calib["edge_r"][0] * ys + calib["edge_r"][1]
+    if widen:
+        sw = SOLE_W_MM / calib["board_w_mm"] * (R - L)
+        L, R = L - sw, R + sw
+    xs = np.arange(W, dtype=float)
+    return ((xs[None, :] >= L[:, None]) & (xs[None, :] <= R[:, None]) & (ys[:, None] >= calib["y_top"]))
+
+
+def _far_row(board, L, R):
+    """The row of the board's far edge: going up from the bottom between the two edge lines, the last row before a run
+    of 8 rows that are (nearly) not board. Falls back to the mask's first row."""
+    H, W = board.shape
+    best, gap = None, 0
+    for y in range(H - 1, 0, -1):
+        xl, xr = int(np.polyval(L, y)) + 12, int(np.polyval(R, y)) - 12
+        if xr - xl < 20 or xl < 0 or xr >= W:
+            continue
+        cov = board[y, xl:xr].mean()
+        if cov >= 0.25:
+            best, gap = y, 0
+        else:
+            gap += 1
+            if gap >= 8 and best is not None:
+                break
+    ys = np.nonzero(board.any(1))[0]
+    return best if best is not None else (int(ys[0]) if len(ys) else 0)
+
+
+def _calib_mask(hue, sat, val, calib):
+    """The board inside the stored outline, by the stored saturation split. Everything outside it (people, bags, the
+    carpet, the wall) is not looked at."""
+    H, W = sat.shape
+    inside = _trapezoid(calib, H, W)
+    warm = ((hue >= 6) & (hue <= 36) & (val > 10))
+    m = ((((sat > calib["t"]) | ((val < 65) & (sat > 60))) & warm) & inside).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    if n < 2:
+        return None
+    k = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+    if st[k, cv2.CC_STAT_AREA] < 0.04 * m.size:
+        return None
+    return lab == k
+
+
+def _calib_fits(calib, sat, val, y_from):
+    """Do the stored edges still separate board-coloured from carpet-coloured pixels? In the rows nearer than the feet
+    (nothing stands there): 12-30 px inside each edge must be board (>= 80 %), 12-30 px outside carpet (>= 70 %)."""
+    H, W = sat.shape
+    t = calib["t"]
+    rows = range(max(int(y_from), int(calib["y_top"]) + 10), H - 2, 3)
+    res = {"inl": [], "inr": [], "outl": [], "outr": []}
+    for y in rows:
+        xl = calib["edge_l"][0] * y + calib["edge_l"][1]
+        xr = calib["edge_r"][0] * y + calib["edge_r"][1]
+        for d in (12, 20, 30):
+            for key, x in (("inl", xl + d), ("inr", xr - d), ("outl", xl - d), ("outr", xr + d)):
+                xi = int(round(x))
+                if 0 <= xi < W:
+                    isb = bool(sat[y, xi] > t or (val[y, xi] < 65 and sat[y, xi] > 60))
+                    res[key].append(isb if key.startswith("in") else not isb)
+    if min((len(v) for v in res.values()), default=0) < 10:
+        return True                                              # the edges are out of the picture here: nothing to test
+    return all(np.mean(res[k]) >= (0.8 if k.startswith("in") else 0.7) for k in res)
+
+
+def measure(frame_bgr, board_w_mm=BOARD_W_MM, taper=None, calib=None):
+    """(margins dict or None, why). why is "" for a result, else what was missing: "no board", "no soles",
+    "implausible soles", "separation", "calibration no longer fits", "picture size differs"."""
     H, W = frame_bgr.shape[:2]
     hue, sat, val = _prep(frame_bgr)
-    bm = board_mask(hue, sat, val, int(0.4 * H))
-    if bm is None:
-        return None
-    board, stat = bm
-    ss, stage = soles(hue, sat, val, board, stat["s_car"])
+    if calib is not None:
+        if [W, H] != list(calib["size"]):
+            return None, "picture size differs"
+        board = _calib_mask(hue, sat, val, calib)
+        if board is None:
+            return None, "calibration no longer fits"
+        stat = dict(t=calib["t"], s_car=calib["s_car"], s_brd=calib["s_brd"])
+    else:
+        bm = board_mask(hue, sat, val, int(0.4 * H))
+        if bm is None:
+            return None, "no board"
+        board, stat = bm
+    outline = _trapezoid(calib, H, W) if calib is not None else None     # the stored outline, a sole's width and more either side
+    widen = 60
+    if calib is not None:                                        # 0.7 of a sole width either side of the outline (wider swallows the bag and the cable: see dry_run)
+        yy = min(H - 1, int(0.5 * (calib["y_top"] + H)) + 60)
+        widen = int(0.7 * SOLE_W_MM / calib["board_w_mm"] * (calib["edge_r"][0] * yy + calib["edge_r"][1] - calib["edge_l"][0] * yy - calib["edge_l"][1]))
+    ss, stage = soles(hue, sat, val, board, stat["s_car"], widen, outline)
     if len(ss) != 2:
-        return None
+        return None, "no soles"
     a, b = ss                                                    # picture left = the robot's RIGHT foot
     wa, wb = a["x1"] - a["x0"], b["x1"] - b["x0"]
     if max(wa, wb) > 1.6 * min(wa, wb) or a["x1"] >= b["x0"] + 0.5 * wb:
-        return None
+        return None, "implausible soles"
     yb = 0.5 * (a["y1"] + b["y1"])
     mm_sole = SOLE_W_MM / (0.5 * (wa + wb))
-    EL, ER = edges(board, int(max(a["y1"], b["y1"])) + 4)
-    if EL is None and ER is None:
-        return None
     conf = 1.0
-    both = EL is not None and ER is not None
-    if both:
-        L, R = EL[0], ER[0]
+    if calib is not None:
+        if not _calib_fits(calib, sat, val, yb + 6 if yb + 6 < H - 40 else H - 100):
+            return None, "calibration no longer fits"
+        EL = ER = None
+        L, R = np.array(calib["edge_l"], float), np.array(calib["edge_r"], float)
         bw_px = float(np.polyval(R, yb) - np.polyval(L, yb))
-        if bw_px < 100 or np.polyval(R, yb - 150) - np.polyval(L, yb - 150) > bw_px * 1.02:
-            return None                                          # not a board seen end-on: edges must converge upward
-        mmpp = board_w_mm / bw_px if board_w_mm else mm_sole
+        both = True
+        mmpp = (board_w_mm or calib["board_w_mm"]) / bw_px
     else:
-        if not board_w_mm:
-            return None                                          # one edge and no width to infer the other from
-        mmpp = mm_sole
-        bw_px = board_w_mm / mmpp
-        t = taper or 0.0
-        if EL is not None:
-            L = EL[0]
-            R = np.array([L[0] + t, np.polyval(L, yb) + bw_px - (L[0] + t) * yb])
+        EL, ER = edges(board, int(max(a["y1"], b["y1"])) + 4)
+        if EL is None and ER is None:
+            return None, "no board edges"
+        both = EL is not None and ER is not None
+        if both:
+            L, R = EL[0], ER[0]
+            bw_px = float(np.polyval(R, yb) - np.polyval(L, yb))
+            if bw_px < 100 or np.polyval(R, yb - 150) - np.polyval(L, yb - 150) > bw_px * 1.02:
+                return None, "edges do not converge"             # not a board seen end-on: edges must converge upward
+            mmpp = board_w_mm / bw_px if board_w_mm else mm_sole
         else:
-            R = ER[0]
-            L = np.array([R[0] - t, np.polyval(R, yb) - bw_px - (R[0] - t) * yb])
-        conf *= 0.4 if taper is not None else 0.3     # below the 0.5 a run accepts: the scale of an inferred edge is the soles'
+            if not board_w_mm:
+                return None, "one edge, no width"                 # one edge and no width to infer the other from
+            mmpp = mm_sole
+            bw_px = board_w_mm / mmpp
+            t = taper or 0.0
+            if EL is not None:
+                L = EL[0]
+                R = np.array([L[0] + t, np.polyval(L, yb) + bw_px - (L[0] + t) * yb])
+            else:
+                R = ER[0]
+                L = np.array([R[0] - t, np.polyval(R, yb) - bw_px - (R[0] - t) * yb])
+            conf *= 0.4 if taper is not None else 0.3     # below the 0.5 a run accepts: the scale of an inferred edge is the soles'
     xl, xr = np.polyval(L, a["xl_row"]), np.polyval(R, b["xr_row"])    # the edges where each sole's outer corner is
     mid = 0.5 * (np.polyval(L, yb) + np.polyval(R, yb))
     if max(a["y1"], b["y1"]) >= H - 2:                           # a sole cut off by the picture's bottom is not fully seen
@@ -341,14 +436,49 @@ def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
     conf *= (1.0, 0.8, 0.6)[stage]                               # a pair found only by a fallback is less sure
     conf *= 1.0 if stat["s_brd"] - stat["s_car"] > 60 else 0.7
     if not SEP_RANGE[0] <= (b["xc"] - a["xc"]) * mmpp <= SEP_RANGE[1]:
-        return None                                              # not two soles of one robot: never a confident answer
+        return None, "separation"                                # not two soles of one robot: never a confident answer
     return dict(right_mm=float((a["x0"] - xl) * mmpp), left_mm=float((xr - b["x1"]) * mmpp), mm_per_px=float(mmpp),
                 ahead_px=int(H - max(a["y1"], b["y1"])), soles=ss, edge_l=[float(x) for x in L], edge_r=[float(x) for x in R],
                 sep_mm=float((b["xc"] - a["xc"]) * mmpp),
                 sole_r_mm=float((a["xc"] - mid) * mmpp), sole_l_mm=float((b["xc"] - mid) * mmpp),
                 board_w_mm=float(bw_px * mmpp) if both else None, taper=float(R[0] - L[0]) if both else None,
                 board_px=float(bw_px), inferred=None if both else ("left" if EL is None else "right"),
-                conf=float(max(0.0, min(1.0, conf))))
+                conf=float(max(0.0, min(1.0, conf))), t=float(stat["t"]), s_car=float(stat["s_car"]), s_brd=float(stat["s_brd"]),
+                y_top=int(calib["y_top"]) if calib is not None else _far_row(board, L, R), calibrated=calib is not None, stage=stage), ""
+
+
+def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None, calib=None):
+    """board_w_mm: the board's width (mm): THE scale, the same on every frame of a run (default BOARD_W_MM): a
+    sole's position is its fraction across the board at its row times this. None: scale from the soles'
+    own width instead (SOLE_W_MM; noisy, for a first look at an unknown board only). taper: slope(right edge) - slope(left edge) from earlier frames (the board narrows
+    toward the horizon), so an inferred edge converges like the real one. Both come back from a frame where
+    both edges were seen (board_w_mm, taper); without them an inferred edge is drawn parallel (conf 0.35).
+    calib (see calibrate): skip the board detection, use the stored edges, look for the soles only inside the stored
+    outline; None (see measure for why) if the calibration no longer fits the picture."""
+    return measure(frame_bgr, board_w_mm, taper, calib)[0]
+
+
+def calibrate(frames, board_w_mm=BOARD_W_MM):
+    """A calibration from one or more frames where the full detection works (median over them): the two long edges
+    as lines x = a*y + b, the far edge row, the picture size, the board's width, the saturation split and the board's
+    and the carpet's saturation. The board and the camera do not move during a session: find the board once, not in
+    every frame. None if no frame works."""
+    ms = []
+    size = None
+    for f in frames:
+        m, _ = measure(f, board_w_mm)
+        if m is not None and m["conf"] >= 0.5 and m["inferred"] is None:
+            if size is None:
+                size = [int(f.shape[1]), int(f.shape[0])]
+            if [int(f.shape[1]), int(f.shape[0])] == size:
+                ms.append(m)
+    if not ms:
+        return None
+    med = lambda k: float(np.median([m[k] for m in ms]))                     # noqa: E731
+    return dict(edge_l=[float(np.median([m["edge_l"][i] for m in ms])) for i in (0, 1)],
+                edge_r=[float(np.median([m["edge_r"][i] for m in ms])) for i in (0, 1)],
+                y_top=int(round(med("y_top"))), size=size, board_w_mm=float(board_w_mm), t=med("t"), s_car=med("s_car"),
+                s_brd=med("s_brd"), n=len(ms))
 
 
 def draw(frame_bgr, m):
@@ -403,6 +533,33 @@ def track(path, every=6, board_w_mm=BOARD_W_MM, out=None):
 
 if __name__ == "__main__":
     import sys
+    if len(sys.argv) > 2 and sys.argv[1] == "calibrate":
+        import argparse
+        import json
+        ap = argparse.ArgumentParser(prog="board_view.py calibrate")
+        ap.add_argument("source", help="a frame (.jpg) or a video")
+        ap.add_argument("--out", default="calib.json")
+        ap.add_argument("--board-w", type=float, default=BOARD_W_MM)
+        a = ap.parse_args(sys.argv[2:])
+        frames = []
+        if a.source.lower().endswith((".jpg", ".jpeg", ".png")):
+            frames = [cv2.imread(a.source)]
+        else:
+            cap, i = cv2.VideoCapture(a.source), 0
+            while len(frames) < 10:
+                ok, im = cap.read()
+                if not ok:
+                    break
+                if i % 15 == 0:
+                    frames.append(im)
+                i += 1
+        c = calibrate(frames, a.board_w)
+        if c is None:
+            print("no frame could be calibrated", file=sys.stderr)
+            sys.exit(1)
+        json.dump(c, open(a.out, "w"), indent=1)
+        print(a.out, c)
+        sys.exit(0)
     if len(sys.argv) > 2 and sys.argv[1] == "track":
         import argparse
         ap = argparse.ArgumentParser(prog="board_view.py track")
