@@ -9,7 +9,15 @@
 //   s    = +1 on L stance, -1 on R   (the robot's left / right)
 //   hike = clip(r * T[side] + kp * s * e, +-lim)          rad, the stepper's `hike` convention:
 //                                    + lifts the OTHER hip (rolls the pelvis toward the stance side)
-//   T[side] += ki * s * e * dt       while CLOSED and |hike| < lim (anti-windup), |T| <= t_lim
+//   T[side] += ki * s * e * dt       while CLOSED, |hike| < lim (anti-windup) and |e| <= learn_lim;
+//                                    |T| <= t_lim
+//
+// T is PROVISIONAL within a chain (hw 2026-11-12, a forward shuttle: a lift with too little shift tipped
+// 9-10 deg toward the lifted foot, T wound from 5.4 to the 14 deg limit, and the next lifts started from
+// that and failed too -- the trim cannot fix an inboard CoM, so it must not learn from one). It is used
+// as it integrates, but what the chain leaves for the next one is committed only if the chain was clean:
+// when it ends (release, abort, stop) with its peak |e| (CLOSED) past keep_lim, or an abort, or the hike
+// at its clamp at any tick, T of that side goes back to its value at the chain's begin.
 //   stance hip roll joint += s * hike                     (the sim / firmware joint frame)
 //
 // r ramps the learned trim in: the caller passes the raise move's own min-jerk progress (0 -> 1) on the
@@ -37,6 +45,8 @@ struct TrimConfig {
     float t_lim_rad = 0.24435f; // |T| limit, 14 deg
     float fade_s = 0.6f;        // HOLD/ABORT -> 0 over this
     float abort_rad = 0.26180f; // |e| past this (while CLOSED) aborts, 15 deg
+    float learn_rad = 0.10472f; // T integrates only while |e| <= this, 6 deg
+    float keep_rad = 0.13963f;  // a chain whose peak |e| passed this leaves T as it found it, 8 deg
 };
 
 // nullptr when usable, else why not.
@@ -88,6 +98,9 @@ class StanceTrim {
 
     // The learned trims, rad, stepper convention (+ lifts the other hip).
     float learned(char side) const { return side == 'L' ? t_[0] : t_[1]; }
+    // The last ended chain put T back (peak |e| past keep_lim, an abort, or the hike at its clamp).
+    bool lastReverted() const { return reverted_; }
+    float peakErr() const { return peak_; }               // this chain's peak |e| while CLOSED, rad
     // false for a bad side or a non-finite value; clipped to +-t_lim.
     bool setLearned(char side, float t_rad);
     void clearLearned() { t_[0] = t_[1] = 0.0f; }
@@ -100,6 +113,10 @@ class StanceTrim {
     float t_[2] = {0.0f, 0.0f};
     float ref_ = 0.0f, err_ = 0.0f, hike_ = 0.0f;
     float hike_frozen_ = 0.0f, since_ = 0.0f, err_abort_ = 0.0f;
+    // the provisional T (see the top): T at the chain's begin, its peak |e|, whether the hike clamped
+    float t_begin_ = 0.0f, peak_ = 0.0f;
+    bool clamped_ = false, reverted_ = false;
+    void endChain(bool aborting);
 };
 
 const char* trimStateName(TrimState s);
@@ -122,18 +139,32 @@ struct StepReport {
     float t_mid = 0.0f;         // the learned T of the stance side there, rad (hike convention)
     float hike_mid = 0.0f;      // the hike there, rad
     bool aborted = false;
+    bool reverted = false;      // T was put back at the end (the chain was not clean: see StanceTrim)
 };
 
 // Drives a StanceTrim from SupportIn tick by tick: single support begins a chain (reference = the roll
 // then), the raise ramps T in by its progress, the lowering holds, double support releases (the fade).
 // Identical for the gait track and the policy path. step() returns true on the tick a single support ended,
 // with its report.
+//
+// The residual: a new single support can begin while the last one's correction is still fading (at
+// T = 2 s the double support is 0.5 s, the fade 0.6 s). The driver hands that correction to a residual
+// that finishes its fade on its own hip -- never dropped in one tick -- while the new chain ramps in.
+// The caller adds residualHip() to residualSide()'s hip roll, as it adds the trim's hipJoint().
 class TrimDriver {
   public:
     explicit TrimDriver(StanceTrim& trim) : trim_(trim) {}
     // one tick: the support state, the torso roll (NaN = no attitude), dt
     bool step(const SupportIn& in, float roll_rad, float dt_s, StepReport* done);
-    void reset() { cur_ = 0; rep_ = StepReport(); mid_taken_ = false; }
+    void reset() {
+        cur_ = 0;
+        rep_ = StepReport();
+        mid_taken_ = false;
+        res_side_ = 0;
+        res_hip0_ = res_hip_ = 0.0f;
+    }
+    char residualSide() const { return res_side_; }       // 0 when none
+    float residualHip() const { return res_hip_; }        // rad, joint frame (sign applied)
     // true when this tick's step() will begin a new chain (the caller can first hand a still fading
     // correction to its residual, which this class does not hold)
     bool begins(const SupportIn& in) const { return in.stance != 0 && in.stance != cur_; }
@@ -143,6 +174,8 @@ class TrimDriver {
     char cur_ = 0;
     bool mid_taken_ = false;
     StepReport rep_;
+    char res_side_ = 0;
+    float res_hip0_ = 0.0f, res_hip_ = 0.0f, res_left_s_ = 0.0f, res_since_s_ = 0.0f;
 };
 
 }  // namespace balance

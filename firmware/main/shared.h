@@ -105,6 +105,17 @@ extern std::atomic<float> g_heading_err;
 extern std::atomic<float> g_heading_corr;
 // `flail on|off` (CLI writes, ctrl reads every tick). On at boot.
 extern std::atomic<bool> g_flail_on;
+// `trim policy on|off` (#297 B2; CLI writes, ctrl reads at arm and every tick): the stance trim on the
+// policy's gait clock (balance::TrimDriver from gaitplay::supportFromPhase), after the shaper and the
+// takeover ramp, before the limiter -- what sim/trim_kernel.py adds in training (walker_env / env_mjx
+// stance_trim). Off at boot. The gains and the learned T are copied in at `trim policy on` and taken
+// at each arm; ctrl publishes T, the hike and the state back for `trim`.
+extern std::atomic<bool> g_ptrim_on;
+extern std::atomic<float> g_ptrim_kp, g_ptrim_ki;
+extern std::atomic<float> g_ptrim_tl, g_ptrim_tr;     // rad, hike convention (ctrl writes back)
+extern std::atomic<float> g_ptrim_hike;               // rad
+extern std::atomic<uint8_t> g_ptrim_state;            // balance::TrimState
+extern std::atomic<char> g_ptrim_side;
 
 // -- operator stops (the link producers -> ctrl and housekeeping) -----------
 // A kFlagStop frame (tools/estop.py) is OUT OF BAND: the producer that decodes

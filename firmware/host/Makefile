@@ -119,7 +119,8 @@ SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
 SRC_SIL   = sil_lib.cpp sil_net.cpp sil_gait.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp \
-            $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/gaitplay/track.cpp
+            $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/balance/roll_pi.cpp \
+            $(COMPONENTS)/gaitplay/track.cpp
 
 .PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)

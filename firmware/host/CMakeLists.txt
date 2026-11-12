@@ -140,6 +140,7 @@ set(SIL_DEPS ${COMPONENTS}/obs/assembler.cpp
              ${COMPONENTS}/policy/mlp.cpp
              ${COMPONENTS}/policy/q8.cpp
              ${COMPONENTS}/balance/stance_trim.cpp
+             ${COMPONENTS}/balance/roll_pi.cpp
              ${COMPONENTS}/gaitplay/track.cpp)
 
 bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})

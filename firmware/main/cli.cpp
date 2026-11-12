@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <new>
+
 #include "balance/roll_pi.h"
 #include "balance/stance_trim.h"
 #include "fallguard/fallguard.h"
@@ -541,7 +543,7 @@ static int32_t s_tres_dt = 0;           // its current ticks
 // upper layer owns the feet). Anything that ends the stream or the trim (move, home, STOP, FALL, torque,
 // arming) ends the track. One "TS" line per single support: the host's step-to-step telemetry.
 // Threading: housekeeping task only.
-static gaitplay::Track s_track;
+static gaitplay::Track* s_trk = nullptr;    // heap, at the first `track` command (trackAlloc)
 static bool s_track_on = false;             // the pose stream belongs to the track (lead-in included)
 static bool s_track_trim = true;            // `track play notrim`: open loop
 static long s_track_lead_ms = 0;
@@ -560,8 +562,8 @@ static uint32_t s_track_nsteps = 0;         // single supports reported since `t
 static void trackEnd(Sink out, const char* why) {
     if (!s_track_on) return;
     s_track_on = false;
-    const uint32_t steps = s_track.steps();
-    s_track.clear();
+    const uint32_t steps = s_trk->steps();
+    s_trk->clear();
     s_track_prev_t = 0;
     s_track_shown = gaitplay::State::kIdle;
     s_track_drv.reset();
@@ -766,11 +768,10 @@ static void trimAnnounce(Sink out, bool quiet_fade) {
 // s_track_want, the support state from the phase into the trim, a TS line when a single support ended.
 static void trackTick(TickType_t now, long el_ms, Sink out) {
     const float dt_s = trimDt(now);
-    tresTick(dt_s);
-    const uint32_t t = s_track.startTime() + static_cast<uint32_t>(el_ms - s_track_lead_ms);
+    const uint32_t t = s_trk->startTime() + static_cast<uint32_t>(el_ms - s_track_lead_ms);
     s_track_t = t;
     gaitplay::Sample smp;
-    const gaitplay::State st = s_track.sample(t, &smp);
+    const gaitplay::State st = s_trk->sample(t, &smp);
     for (int j = 0; j < gaitplay::kJoints; ++j) {
         const int b = s_track_bus[j];
         bool hit = false;
@@ -778,20 +779,20 @@ static void trackTick(TickType_t now, long el_ms, Sink out) {
         if (hit) ++s_track_clamps;
     }
     const bool playing = st == gaitplay::State::kPlaying || st == gaitplay::State::kStopping;
-    if (playing && s_track.queued() <= 1 && t >= s_track.lastTime()) {
+    if (playing && s_trk->queued() <= 1 && t >= s_trk->lastTime()) {
         if (!s_track_dry_said) {
             s_track_dry_said = true;
             say(out, "track: the queue ran dry mid-step at %lu ms -- holding the last frame (append whole steps)\r\n",
                 static_cast<unsigned long>(t));
         }
-    } else if (s_track.queued() > 1) {
+    } else if (s_trk->queued() > 1) {
         s_track_dry_said = false;
     }
     if (st != s_track_shown) {
         if (st == gaitplay::State::kResting || (st == gaitplay::State::kDone && s_track_shown != gaitplay::State::kResting)) {
             say(out, "track: step end at %lu ms (%lu steps), %s\r\n", static_cast<unsigned long>(t),
-                static_cast<unsigned long>(s_track.steps()),
-                s_track.haveRest() ? "moving to its rest pose" : "no rest pose sent -- holding the step end");
+                static_cast<unsigned long>(s_trk->steps()),
+                s_trk->haveRest() ? "moving to its rest pose" : "no rest pose sent -- holding the step end");
         }
         s_track_shown = st;
     }
@@ -804,7 +805,6 @@ static void trackTick(TickType_t now, long el_ms, Sink out) {
     float roll = NAN;
     if (balReadRoll(&roll)) s_trim_roll = roll;
     if (s_track_drv.begins(in) && isfinite(roll)) {
-        trimToResidual();                   // a still fading correction finishes on its own hip
         char nm[24];
         snprintf(nm, sizeof nm, "%c_hip_roll", in.stance);
         s_trim_bh = obs::busIndexOfName(nm);
@@ -815,13 +815,23 @@ static void trackTick(TickType_t now, long el_ms, Sink out) {
         ++s_track_nsteps;
         // TS <n> <stance> in <lean toward the swing foot> out <lean to the stance side> e <e> T <T> hike <hike>
         // (deg; e/T/hike at mid single support, the end of the raise) ok|ABORT
-        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s\r\n",
+        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n",
             static_cast<unsigned long>(s_track_nsteps), rep.stance, static_cast<double>(rep.lean_in * 57.29578f),
             static_cast<double>(rep.lean_out * 57.29578f), static_cast<double>(rep.e_mid * 57.29578f),
             static_cast<double>(rep.t_mid * 57.29578f), static_cast<double>(rep.hike_mid * 57.29578f),
-            rep.aborted ? "ABORT" : "ok");
+            rep.aborted ? "ABORT" : "ok", rep.reverted ? " Tback" : "");
     }
     s_trim_dth = s_trim.engaged() ? balTicks(s_trim_bh, s_trim.hipJoint()) : 0;
+    // the driver's residual (the last chain's fade, finishing on its own hip) rides the overlay's slot
+    if (s_track_drv.residualSide() != 0) {
+        char nm[24];
+        snprintf(nm, sizeof nm, "%c_hip_roll", s_track_drv.residualSide());
+        s_tres_bh = obs::busIndexOfName(nm);
+        s_tres_dt = balTicks(s_tres_bh, s_track_drv.residualHip());
+    } else {
+        s_tres_bh = -1;
+        s_tres_dt = 0;
+    }
     trimAnnounce(out, true);
 }
 
@@ -2944,6 +2954,34 @@ void cmdBalance(Sink out, int argc, char** argv) {
 // Status, gains and learned trims of the stance-hip trim (`pose ... S<L|R>[h]`).
 void cmdTrim(Sink out, int argc, char** argv) {
     const double r2d = 57.29578;
+    if (argc >= 2 && !strcmp(argv[1], "policy")) {
+        // the stance trim on the policy's gait clock (ctrl_task.cpp g_ptrim; taken at the next arm)
+        if (argc >= 3 && (!strcmp(argv[2], "on") || !strcmp(argv[2], "off"))) {
+            const bool on = !strcmp(argv[2], "on");
+            if (on) {
+                robot::g_ptrim_kp.store(s_trim_cfg.kp);
+                robot::g_ptrim_ki.store(s_trim_cfg.ki);
+                robot::g_ptrim_tl.store(s_trim.learned('L'));
+                robot::g_ptrim_tr.store(s_trim.learned('R'));
+            }
+            robot::g_ptrim_on.store(on);
+            if (on) {
+                say(out, "trim policy ON from the next arm: kp %.2f ki %.2f, T L %+.2f R %+.2f deg (copied now)\r\n",
+                    static_cast<double>(s_trim_cfg.kp), static_cast<double>(s_trim_cfg.ki),
+                    static_cast<double>(s_trim.learned('L')) * r2d, static_cast<double>(s_trim.learned('R')) * r2d);
+            } else {
+                out("trim policy OFF\r\n");
+            }
+            return;
+        }
+        say(out, "trim policy %s: state %s side %c hike %+.2f deg, T L %+.2f R %+.2f deg\r\n",
+            robot::g_ptrim_on.load() ? "ON" : "OFF",
+            balance::trimStateName(static_cast<balance::TrimState>(robot::g_ptrim_state.load())),
+            robot::g_ptrim_side.load() ? robot::g_ptrim_side.load() : '-',
+            static_cast<double>(robot::g_ptrim_hike.load()) * r2d, static_cast<double>(robot::g_ptrim_tl.load()) * r2d,
+            static_cast<double>(robot::g_ptrim_tr.load()) * r2d);
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "off")) {
         if (s_trim.state() == balance::TrimState::kClosed || s_trim.state() == balance::TrimState::kHold) {
             s_trim.release();
@@ -2968,7 +3006,7 @@ void cmdTrim(Sink out, int argc, char** argv) {
             return;
         }
         if (argc < 4) {
-            out("usage: trim set <kp> <ki> [lim_deg] [tlim_deg] [fade_s] [abort_deg] | default\r\n");
+            out("usage: trim set <kp> <ki> [lim_deg] [tlim_deg] [fade_s] [abort_deg] [learn_deg] [keep_deg] | default\r\n");
             return;
         }
         c.kp = strtof(argv[2], nullptr);
@@ -2977,6 +3015,8 @@ void cmdTrim(Sink out, int argc, char** argv) {
         if (argc >= 6) c.t_lim_rad = strtof(argv[5], nullptr) / 57.29578f;
         if (argc >= 7) c.fade_s = strtof(argv[6], nullptr);
         if (argc >= 8) c.abort_rad = strtof(argv[7], nullptr) / 57.29578f;
+        if (argc >= 9) c.learn_rad = strtof(argv[8], nullptr) / 57.29578f;
+        if (argc >= 10) c.keep_rad = strtof(argv[9], nullptr) / 57.29578f;
         const char* bad = balance::validateTrim(c);
         if (bad) {
             say(out, "trim set: refused (%s)\r\n", bad);
@@ -3007,7 +3047,8 @@ void cmdTrim(Sink out, int argc, char** argv) {
         return;
     }
     if (argc >= 2) {
-        out("usage: trim [off | set <kp> <ki> [lim_deg] [tlim_deg] [fade_s] [abort_deg] | set default | "
+        out("usage: trim [off | set <kp> <ki> [lim_deg] [tlim_deg] [fade_s] [abort_deg] [learn_deg] [keep_deg] | "
+            "set default | "
             "T <L|R> <deg> | T clear]   (T in deg, the stepper's hike convention: + lifts the other hip, "
             "same sign on both sides)\r\n");
         return;
@@ -3025,6 +3066,9 @@ void cmdTrim(Sink out, int argc, char** argv) {
         static_cast<double>(s_trim_cfg.fade_s), static_cast<double>(s_trim_cfg.abort_rad) * r2d);
     say(out, "learned  T L %+.2f deg  T R %+.2f deg  (hike convention: + lifts the other hip)\r\n",
         static_cast<double>(s_trim.learned('L')) * r2d, static_cast<double>(s_trim.learned('R')) * r2d);
+    say(out, "learning |e| <= %.1f deg; past %.1f deg, an abort or a clamped hike puts T back: last %s\r\n",
+        static_cast<double>(s_trim_cfg.learn_rad) * r2d, static_cast<double>(s_trim_cfg.keep_rad) * r2d,
+        s_trim.lastReverted() ? "PUT BACK" : "kept");
     float roll = 0.0f;
     if (balReadRoll(&roll)) {
         say(out, "roll now %+.2f deg  (+ = leaning to the robot's RIGHT)\r\n", static_cast<double>(roll) * r2d);
@@ -3085,11 +3129,27 @@ void flailTick(Sink out) { flailTickImpl(out); }
 // gaitplay::kLegJoints order), up to 4 per `track add` line; replies are one short line so the host can
 // stream them. `track play [lead_ms] [notrim]` needs >= 2 frames, all 12 leg servos fitted and torque on,
 // and (with the trim) a fresh attitude.
+// The Track lives on the heap, allocated once at the first `track` command: an image that never plays a
+// track pays nothing for it. false (and says so) when the heap cannot hold it.
+static bool trackAlloc(Sink out) {
+    if (s_trk != nullptr) return true;
+    void* m = heap_caps_malloc(sizeof(gaitplay::Track), MALLOC_CAP_8BIT);
+    if (m == nullptr) {
+        say(out, "track: no memory for the %u-byte queue (%u bytes free in the largest block)\r\n",
+            static_cast<unsigned>(sizeof(gaitplay::Track)),
+            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+        return false;
+    }
+    s_trk = new (m) gaitplay::Track();
+    return true;
+}
+
 void cmdTrack(Sink out, int argc, char** argv) {
     const char* sub = argc >= 2 ? argv[1] : "";
+    if (!trackAlloc(out)) return;
     if (!strcmp(sub, "add")) {
         if (argc < 3 || argc > 6) { out("usage: track add <frame> [<frame> ... up to 4] (42 hex digits each)\r\n"); return; }
-        if (s_track.state() == gaitplay::State::kDone || s_track.state() == gaitplay::State::kResting) {
+        if (s_trk->state() == gaitplay::State::kDone || s_trk->state() == gaitplay::State::kResting) {
             out("track add: the track has ended -- `track clear` first\r\n");
             return;
         }
@@ -3100,21 +3160,21 @@ void cmdTrack(Sink out, int argc, char** argv) {
                 say(out, "track add: frame %d malformed (42 hex digits) -- %d queued before it\r\n", k - 1, added);
                 return;
             }
-            if (!s_track.add(f)) {
+            if (!s_trk->add(f)) {
                 say(out, "track add: frame %d refused (%s) -- %d queued before it\r\n", k - 1,
-                    s_track.queued() >= gaitplay::kCap ? "queue full" :
-                    (s_track.state() == gaitplay::State::kStopping ? "stopping" : "not after the last frame"), added);
+                    s_trk->queued() >= gaitplay::kCap ? "queue full" :
+                    (s_trk->state() == gaitplay::State::kStopping ? "stopping" : "not after the last frame"), added);
                 return;
             }
             if (!(f.flags & gaitplay::kRest)) s_track_prev_t = f.t_ms;
             ++added;
         }
-        say(out, "track +%d q %d t %lu\r\n", added, s_track.queued(), static_cast<unsigned long>(s_track.lastTime()));
+        say(out, "track +%d q %d t %lu\r\n", added, s_trk->queued(), static_cast<unsigned long>(s_trk->lastTime()));
         return;
     }
     if (!strcmp(sub, "clear")) {
         if (s_track_on) { out("track clear: playing -- `track stop` or `track halt` first\r\n"); return; }
-        s_track.clear();
+        s_trk->clear();
         s_track_prev_t = 0;
         s_track_shown = gaitplay::State::kIdle;
         out("track cleared\r\n");
@@ -3122,7 +3182,7 @@ void cmdTrack(Sink out, int argc, char** argv) {
     }
     if (!strcmp(sub, "stop")) {
         if (!s_track_on) { out("track stop: not playing\r\n"); return; }
-        s_track.stop();
+        s_trk->stop();
         say(out, "track: stopping at the next step end (now %lu ms), then the rest pose\r\n",
             static_cast<unsigned long>(s_track_t));
         return;
@@ -3138,8 +3198,8 @@ void cmdTrack(Sink out, int argc, char** argv) {
         s_track_on = false;
         if (s_trim.state() == balance::TrimState::kClosed || s_trim.state() == balance::TrimState::kHold) s_trim.release();
         s_track_drv.reset();
-        const uint32_t steps = s_track.steps();
-        s_track.clear();
+        const uint32_t steps = s_trk->steps();
+        s_trk->clear();
         s_track_prev_t = 0;
         s_track_shown = gaitplay::State::kIdle;
         say(out, "track HALTED at %lu ms (%lu step ends): the targets hold here, the trim fades over %.1f s; "
@@ -3149,8 +3209,8 @@ void cmdTrack(Sink out, int argc, char** argv) {
     }
     if (!strcmp(sub, "rest")) {
         if (argc < 3) { out("usage: track rest <ms 200-5000>\r\n"); return; }
-        s_track.setRestMs(static_cast<uint32_t>(num(argv[2], 1000)));
-        say(out, "track rest move %lu ms\r\n", static_cast<unsigned long>(s_track.restMs()));
+        s_trk->setRestMs(static_cast<uint32_t>(num(argv[2], 1000)));
+        say(out, "track rest move %lu ms\r\n", static_cast<unsigned long>(s_trk->restMs()));
         return;
     }
     if (!strcmp(sub, "steps")) {
@@ -3159,10 +3219,10 @@ void cmdTrack(Sink out, int argc, char** argv) {
             static_cast<unsigned long>(s_track_nsteps));
         for (uint32_t k = s_track_nsteps - n; k < s_track_nsteps; ++k) {
             const balance::StepReport& r = s_track_log[k % kTrackStepLog];
-            say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s\r\n", static_cast<unsigned long>(k + 1),
+            say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n", static_cast<unsigned long>(k + 1),
                 r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
                 static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
-                static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok");
+                static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "");
         }
         return;
     }
@@ -3172,8 +3232,8 @@ void cmdTrack(Sink out, int argc, char** argv) {
         if (!bus) return;
         if (balLanding(out)) return;
         if (s_track_on) { out("track play: already playing\r\n"); return; }
-        if (s_track.state() != gaitplay::State::kIdle) { out("track play: the track has ended -- `track clear` and add frames\r\n"); return; }
-        if (s_track.queued() < 2) { say(out, "track play: %d frame(s) queued, need >= 2\r\n", s_track.queued()); return; }
+        if (s_trk->state() != gaitplay::State::kIdle) { out("track play: the track has ended -- `track clear` and add frames\r\n"); return; }
+        if (s_trk->queued() < 2) { say(out, "track play: %d frame(s) queued, need >= 2\r\n", s_trk->queued()); return; }
         long lead = 1500;
         bool trim = true;
         for (int k = 2; k < argc; ++k) {
@@ -3185,7 +3245,7 @@ void cmdTrack(Sink out, int argc, char** argv) {
         const obs::Calibration& cal = robot::calibration();
         int32_t tgt[obs::kNumBusJoints] = {};
         bool on[obs::kNumBusJoints] = {};
-        const gaitplay::Frame* f0 = s_track.peek(0);
+        const gaitplay::Frame* f0 = s_trk->peek(0);
         for (int j = 0; j < gaitplay::kJoints; ++j) {
             const int b = obs::busIndexOfName(gaitplay::kLegJoints[j]);
             if (b < 0 || !cal.fitted[b]) {
@@ -3208,11 +3268,11 @@ void cmdTrack(Sink out, int argc, char** argv) {
         balStop(out, "track");
         trimStop(out, "track");
         if (!startSmooth(bus, tgt, on, lead, out, "track")) return;
-        if (!s_track.start()) { s_traj_active = false; out("track play: the track did not start\r\n"); return; }
+        if (!s_trk->start()) { s_traj_active = false; out("track play: the track did not start\r\n"); return; }
         s_track_on = true;
         s_track_trim = trim;
         s_track_lead_ms = lead;
-        s_track_t = s_track.startTime();
+        s_track_t = s_trk->startTime();
         s_track_clamps = 0;
         s_track_dry_said = false;
         s_track_shown = gaitplay::State::kPlaying;
@@ -3223,20 +3283,20 @@ void cmdTrack(Sink out, int argc, char** argv) {
         s_trim_clamps = 0;
         s_trim_shown = s_trim.state();
         say(out, "track PLAY: %ld ms to the first frame, then %d frames (%.1f s queued); trim %s, T L %+.2f R %+.2f deg\r\n",
-            lead, s_track.queued(), static_cast<double>(s_track.lastTime() - s_track.startTime()) / 1000.0,
+            lead, s_trk->queued(), static_cast<double>(s_trk->lastTime() - s_trk->startTime()) / 1000.0,
             trim ? "ON" : "OFF (open loop)", static_cast<double>(s_trim.learned('L') * 57.29578f),
             static_cast<double>(s_trim.learned('R') * 57.29578f));
         return;
     }
     if (sub[0] != 0) { out("usage: track [add <frames>|play [lead_ms] [notrim]|stop|halt|clear|rest <ms>|steps]\r\n"); return; }
     static const char* const kStates[] = {"idle", "playing", "stopping", "resting", "done"};
-    const int si = static_cast<int>(s_track.state());
+    const int si = static_cast<int>(s_trk->state());
     say(out, "track %s%s: queued %d/%d to t %lu ms, play t %lu ms, %lu step ends, %lu single supports reported\r\n",
-        kStates[si < 5 ? si : 0], (s_track_on && !s_traj_active) ? " (stream stopped)" : "", s_track.queued(),
-        gaitplay::kCap, static_cast<unsigned long>(s_track.lastTime()), static_cast<unsigned long>(s_track_t),
-        static_cast<unsigned long>(s_track.steps()), static_cast<unsigned long>(s_track_nsteps));
+        kStates[si < 5 ? si : 0], (s_track_on && !s_traj_active) ? " (stream stopped)" : "", s_trk->queued(),
+        gaitplay::kCap, static_cast<unsigned long>(s_trk->lastTime()), static_cast<unsigned long>(s_track_t),
+        static_cast<unsigned long>(s_trk->steps()), static_cast<unsigned long>(s_track_nsteps));
     say(out, "track trim %s, lead-in %ld ms, rest move %lu ms, envelope clamped %lu writes%s\r\n",
-        s_track_trim ? "ON" : "OFF", s_track_lead_ms, static_cast<unsigned long>(s_track.restMs()),
+        s_track_trim ? "ON" : "OFF", s_track_lead_ms, static_cast<unsigned long>(s_trk->restMs()),
         static_cast<unsigned long>(s_track_clamps), s_track_dry_said ? ", queue DRY (holding)" : "");
 }
 
@@ -3480,13 +3540,13 @@ void poseTick(Sink out) {
         }
         if (s_track_on) {
             // the track streams until it is done (rested) and the last step's fade is over
-            if (s_track.state() == gaitplay::State::kDone && !trimLive()) {
+            if (s_trk->state() == gaitplay::State::kDone && !trimLive()) {
                 s_track_on = false;
                 memcpy(s_traj_tgt, s_traj_nom, sizeof s_traj_tgt);     // a later sweep/stream holds these
                 s_traj_active = false;
                 say(out, "track done at %lu ms: %lu step ends, %lu single supports reported, standing at the "
                     "rest pose; trim T L %+.2f R %+.2f deg\r\n", static_cast<unsigned long>(s_track_t),
-                    static_cast<unsigned long>(s_track.steps()), static_cast<unsigned long>(s_track_nsteps),
+                    static_cast<unsigned long>(s_trk->steps()), static_cast<unsigned long>(s_track_nsteps),
                     static_cast<double>(s_trim.learned('L') * 57.29578f),
                     static_cast<double>(s_trim.learned('R') * 57.29578f));
             }
@@ -4653,6 +4713,7 @@ void banner(Sink out) {
         "                       (lowering); the next pose without S fades it (`trim`)\r\n");
     out("  balance [set <kp> <ki> <ankle> <hip> [clamp_deg] [abort_deg]|default|off|log]\r\n"
         "                       stance-leg roll balance: gains, live state, correction, log\r\n");
+    out("  trim policy [on|off] the trim on the policy's gait clock (armed runs, from the next arm)\r\n");
     out("  trim [off|set <kp> <ki> [lim] [tlim] [fade_s] [abort]|set default|T <L|R> <deg>|T clear]\r\n"
         "                       stance-hip trim through the lift (pose ... S<L|R> / S<L|R>h); T in deg,\r\n"
         "                       hike convention (+ lifts the other hip), same sign both sides\r\n");

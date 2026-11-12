@@ -132,6 +132,13 @@ void sil_set_shaper(float pole_hz);
 // on) reseeds it from the next tick's sensed positions, at rest.
 void sil_set_limiter(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3);
 
+// The stance trim on the gait clock (#297 B2), ctrl_task's `trim policy on`: after the shaper, before
+// the limiter, balance::TrimDriver on gaitplay::supportFromPhase(phase, clockWalking(cmd)). Gains and
+// the learned trims T (rad, hike convention); resets the trim now. sil_reset stops it and keeps T.
+// 0 = ok. sil_trim_state: hike (rad), T_L, T_R, state (balance::TrimState).
+int sil_set_trim(int on, float kp, float ki, float t_l, float t_r);
+void sil_trim_state(float* out4);
+
 // sil_abi 4, pure (no sil_init needed): a FRESH obs::MotionLimiter at the
 // given limits, seeded at q0 (kNumJoints rad) at rest, stepped through n
 // ticks of targets (n x kNumJoints rad, row-major), writing each tick's

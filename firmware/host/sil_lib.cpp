@@ -28,6 +28,9 @@
 
 #include <string>
 
+#include "balance/roll_pi.h"
+#include "balance/stance_trim.h"
+#include "gaitplay/track.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "obs/obs_spec.h"
@@ -83,6 +86,12 @@ obs::MotionLimiter g_limiter;
 float g_limit_deg[3] = {0.0f, obs::kLimitAmaxDeg, obs::kLimitJmaxDeg};
 obs::StandClock g_stand_clock = obs::StandClock::kRun;   // ctrl_task g_stand_clock
 float g_stand_phase = 3.14159265f;
+// The stance trim on the gait clock (sil_set_trim), the mirror of ctrl_task's `trim policy on`:
+// after the shaper, before the limiter, from the clock's phase and the trim's lift gate.
+balance::StanceTrim g_trim;
+balance::TrimDriver g_trim_drv{g_trim};
+bool g_trim_on = false;
+int g_trim_il = -1, g_trim_ir = -1;
 static_assert(obs::kGoalSpeedMax == scsbus::kMaxGoalSpeed,
               "obs's speed ceiling must match the servo's");
 
@@ -326,6 +335,38 @@ int sil_limit_trace(float vmax_deg_s, float amax_deg_s2, float jmax_deg_s3,
     return lim.taps();
 }
 
+// The stance trim on the gait clock (ctrl_task `trim policy on`): on/off, gains, learned T (rad, hike).
+// Takes effect now and resets the trim (like an arm). 0 = ok.
+int sil_set_trim(int on, float kp, float ki, float t_l, float t_r) {
+    balance::TrimConfig tc;
+    tc.kp = kp;
+    tc.ki = ki;
+    if (balance::validateTrim(tc) != nullptr) {
+        setError("sil_set_trim: gains refused");
+        return -1;
+    }
+    g_trim.configure(tc);
+    g_trim.stop();
+    g_trim.setLearned('L', t_l);
+    g_trim.setLearned('R', t_r);
+    g_trim_drv.reset();
+    g_trim_il = g_trim_ir = -1;
+    for (int i = 0; i < obs::kNumJoints; ++i) {
+        if (!strcmp(obs::kJointNames[i], "L_hip_roll")) g_trim_il = i;
+        if (!strcmp(obs::kJointNames[i], "R_hip_roll")) g_trim_ir = i;
+    }
+    g_trim_on = on != 0;
+    return 0;
+}
+
+// out[4]: hike (rad), T_L, T_R, state
+void sil_trim_state(float* out4) {
+    out4[0] = g_trim.hike();
+    out4[1] = g_trim.learned('L');
+    out4[2] = g_trim.learned('R');
+    out4[3] = static_cast<float>(g_trim.state());
+}
+
 void sil_reset(void) {
     // ctrl_task's "we just took the bus" path: a fresh ring, a zeroed
     // prev_action and an unprimed history, so the next tick's own frame
@@ -341,6 +382,8 @@ void sil_reset(void) {
     // here that is the next tick's sensed positions.
     g_shaper.invalidate();
     g_limiter.invalidate();
+    g_trim.stop();                 // the learned T stays (sil_set_trim sets it per episode)
+    g_trim_drv.reset();
 }
 
 int sil_tick(const SilSensors* in, SilTargets* out) {
@@ -427,6 +470,22 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     if (g_shape_hz > 0.0f) {
         if (!g_shaper.primed()) g_shaper.reset(q);   // sensed == measured
         g_shaper.update(angle, angle);
+    }
+    // -- stance trim on the clock: the mirror of ctrl_task's (no takeover ramp here) --
+    if (g_trim_on && g_trim_il >= 0 && g_trim_ir >= 0) {
+        const gaitplay::Support sup = gaitplay::supportFromPhase(inp.phase, gaitplay::clockWalking(cmd, obs::kNumCmd));
+        balance::SupportIn sin_;
+        sin_.stance = sup.stance;
+        sin_.progress = sup.progress;
+        sin_.lowering = sup.lowering;
+        float roll = NAN;
+        balance::rollFromUp(in->up, &roll);
+        balance::StepReport rep;
+        g_trim_drv.step(sin_, roll, obs::kControlDt, &rep);
+        if (g_trim.engaged()) angle[g_trim.side() == 'L' ? g_trim_il : g_trim_ir] += g_trim.hipJoint();
+        if (g_trim_drv.residualSide() != 0) {
+            angle[g_trim_drv.residualSide() == 'L' ? g_trim_il : g_trim_ir] += g_trim_drv.residualHip();
+        }
     }
     // -- limit: the mirror of ctrl_task's (seeded at the sensed q, at rest) --
     float lim_vel[obs::kNumJoints] = {};

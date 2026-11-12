@@ -82,24 +82,73 @@ const Row kGolden[] = {
         {"u", -0.050000f, 1.000000f, 5, 0.059860f, 0.052960f},
         {"u", -0.080000f, 1.000000f, 5, 0.067960f, 0.054160f},
         {"u", -0.110000f, 1.000000f, 5, 0.076660f, 0.055960f},
-        {"u", -0.140000f, 1.000000f, 5, 0.085960f, 0.058360f},
-        {"u", -0.170000f, 1.000000f, 5, 0.095860f, 0.061360f},
-        {"u", -0.400000f, 1.000000f, 8, 0.095860f, 0.061360f},
-        {"u", -0.400000f, 1.000000f, 8, 0.092665f, 0.061360f},
-        {"u", -0.400000f, 1.000000f, 8, 0.089469f, 0.061360f},
-        {"u", -0.400000f, 1.000000f, 8, 0.086274f, 0.061360f},
+        {"u", -0.140000f, 1.000000f, 5, 0.085960f, 0.055960f},
+        {"u", -0.170000f, 1.000000f, 5, 0.093460f, 0.055960f},
+        {"u", -0.400000f, 1.000000f, 8, 0.093460f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.090345f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.087229f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.084114f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.080999f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.077883f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.074768f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.071653f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.068537f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.065422f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.062307f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.059191f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.056076f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.052961f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.049845f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.046730f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.043615f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.040499f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.037384f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.034269f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.031153f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.028038f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.024923f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.021807f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.018692f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.015577f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.012461f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.009346f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.006231f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 8, 0.003115f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 0, 0.000000f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 0, 0.000000f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 0, 0.000000f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 0, 0.000000f, 0.052360f},
+        {"u", -0.400000f, 1.000000f, 0, 0.000000f, 0.052360f},
+        {"u", -0.000000f, 1.000000f, 5, 0.052360f, 0.052360f},
+        {"u", -0.016000f, 1.000000f, 5, 0.056360f, 0.052680f},
+        {"u", -0.032000f, 1.000000f, 5, 0.060680f, 0.053320f},
+        {"u", -0.048000f, 1.000000f, 5, 0.065320f, 0.054280f},
+        {"u", -0.064000f, 1.000000f, 5, 0.070280f, 0.055560f},
+        {"u", -0.080000f, 1.000000f, 5, 0.075560f, 0.057160f},
+        {"u", -0.096000f, 1.000000f, 5, 0.081160f, 0.059080f},
+        {"u", -0.112000f, 1.000000f, 5, 0.087080f, 0.059080f},
+        {"u", -0.128000f, 1.000000f, 5, 0.091080f, 0.059080f},
+        {"u", -0.144000f, 1.000000f, 5, 0.095080f, 0.059080f},
+        {"release", -0.100000f, 1.000000f, 7, 0.091911f, 0.052360f},
 };
 
 void testMatchesSimTwin() {
     StanceTrim tr;
     tr.begin('L', 0.01f);
+    int block = 0;
     bool second = false;
     for (const Row& r : kGolden) {
-        if (!second && r.state == 5 && tr.state() == TrimState::kOff) {
-            // the twin's second block: R stance with a learned 3 deg trim
-            CHECK(tr.setLearned('R', 3.0f * kDeg));
-            tr.begin('R', -0.02f);
-            second = true;
+        if (r.state == 5 && tr.state() == TrimState::kOff) {
+            ++block;
+            if (block == 1) {
+                // the twin's second block: R stance with a learned 3 deg trim, then an abort (T reverts)
+                CHECK(tr.setLearned('R', 3.0f * kDeg));
+                tr.begin('R', -0.02f);
+                second = true;
+            } else {
+                // the third: a 9 deg lean released without an abort (learning stops past 6, T reverts)
+                tr.begin('R', 0.0f);
+            }
         }
         if (!strcmp(r.ev, "hold")) tr.hold();
         if (!strcmp(r.ev, "release")) tr.release();
@@ -109,6 +158,8 @@ void testMatchesSimTwin() {
         CHECK_NEAR(tr.learned(second ? 'R' : 'L'), r.t, 2e-5);
     }
     CHECK(second);
+    CHECK_EQ(block, 2);
+    CHECK(tr.lastReverted());
 }
 
 void testSignsBothSides() {
@@ -162,7 +213,7 @@ void testRampAppliesLearnedTrim() {
 void testClampAndAntiWindup() {
     StanceTrim tr;
     tr.begin('L', 0.0f);
-    for (int k = 0; k < 10; ++k) tr.update(0.25f, 0.02f, 1.0f);
+    for (int k = 0; k < 10; ++k) tr.update(0.08f, 0.02f, 1.0f);    // 4.6 deg: inside learn_lim
     const float t1 = tr.learned('L');
     CHECK(tr.hike() <= tr.config().lim_rad + 1e-7f);
     TrimConfig c;
@@ -221,7 +272,8 @@ void testAbortFreezesAndFadesNoLanding() {
     CHECK(tr.aborted());
     CHECK_NEAR(tr.hike(), h, 1e-9);
     CHECK_NEAR(tr.abortErr(), 0.3f, 1e-6);
-    CHECK_NEAR(tr.learned('L'), t, 1e-9);           // the abort tick does not learn
+    CHECK(t > 0.0f);
+    CHECK_NEAR(tr.learned('L'), 0.0f, 1e-9);        // the abort puts T back where the chain found it
     for (int k = 0; k < 15; ++k) tr.update(0.4f, 0.02f, 1.0f);
     CHECK_NEAR(tr.hike(), 0.5f * h, 1e-5);
     for (int k = 0; k < 15; ++k) tr.update(0.4f, 0.02f, 1.0f);
@@ -331,6 +383,80 @@ void testDriverNoAttitudeNoChain() {
     CHECK(rep.aborted);
 }
 
+// The provisional T (hw 2026-11-12 shuttle): learning stops past learn_lim, and a chain that was not
+// clean leaves T as it found it; a clean one commits what it learned.
+void testProvisionalT() {
+    StanceTrim tr;
+    CHECK(tr.setLearned('L', 5.0f * kDeg));
+    // clean: a 3 deg lean, released -> T kept
+    tr.begin('L', 0.0f);
+    for (int k = 0; k < 20; ++k) tr.update(3.0f * kDeg, 0.02f, 1.0f);
+    const float t_clean = tr.learned('L');
+    CHECK(t_clean > 5.0f * kDeg);
+    tr.release();
+    CHECK(!tr.lastReverted());
+    CHECK_NEAR(tr.learned('L'), t_clean, 1e-9);
+    for (int k = 0; k < 40; ++k) tr.update(0.0f, 0.02f, 1.0f);
+    CHECK(tr.state() == TrimState::kOff);
+    // past learn_lim: no learning at all, and past keep_lim: reverted at the release
+    tr.begin('L', 0.0f);
+    for (int k = 0; k < 20; ++k) tr.update(7.0f * kDeg, 0.02f, 1.0f);
+    CHECK_NEAR(tr.learned('L'), t_clean, 1e-9);     // 7 deg > learn 6: T does not move
+    tr.begin('L', 0.0f);                            // (a fresh chain: begin replaces)
+    for (int k = 0; k < 10; ++k) tr.update(5.0f * kDeg, 0.02f, 1.0f);
+    const float t_mid = tr.learned('L');
+    CHECK(t_mid > t_clean);                         // learning below learn_lim
+    for (int k = 0; k < 5; ++k) tr.update(9.0f * kDeg, 0.02f, 1.0f);   // the lean runs on to 9 deg
+    tr.release();
+    CHECK(tr.lastReverted());
+    CHECK_NEAR(tr.learned('L'), t_clean, 1e-9);     // what the bad chain learned is dropped
+    CHECK_NEAR(tr.peakErr(), 9.0f * kDeg, 1e-6);
+    // the hike at its clamp: reverted even with a small peak
+    StanceTrim sat;
+    TrimConfig c;
+    c.lim_rad = 4.0f * kDeg;
+    c.t_lim_rad = 4.0f * kDeg;
+    c.learn_rad = 3.0f * kDeg;
+    c.keep_rad = 7.0f * kDeg;
+    sat.configure(c);
+    CHECK(sat.setLearned('R', 3.5f * kDeg));
+    sat.begin('R', 0.0f);
+    for (int k = 0; k < 10; ++k) sat.update(-2.5f * kDeg, 0.02f, 1.0f);   // 3.5 + 0.6 > 4: clamped
+    sat.release();
+    CHECK(sat.lastReverted());
+    CHECK_NEAR(sat.learned('R'), 3.5f * kDeg, 1e-7);
+    // validate
+    TrimConfig v;
+    v.keep_rad = v.learn_rad * 0.5f;
+    CHECK(balance::validateTrim(v) != nullptr);
+}
+
+// The handover at a fast gait: the last chain's fade continues on its own hip as a residual while the
+// new chain ramps in -- no step in the total correction at the new single support's begin.
+void testDriverResidualHandover() {
+    StanceTrim tr;
+    balance::TrimDriver drv(tr);
+    balance::StepReport rep;
+    CHECK(tr.setLearned('L', 6.0f * kDeg));
+    balance::SupportIn l, ds, r;
+    l.stance = 'L';
+    r.stance = 'R';
+    r.progress = 0.0f;
+    for (int k = 0; k < 20; ++k) drv.step(l, 0.0f, 0.02f, &rep);       // L chain, hike = 6 deg
+    CHECK_NEAR(tr.hike(), 6.0f * kDeg, 1e-6);
+    for (int k = 0; k < 10; ++k) drv.step(ds, 0.0f, 0.02f, &rep);      // 0.2 s of a 0.6 s fade
+    const float before = tr.hipJoint();
+    CHECK(before > 0.0f && before < 6.0f * kDeg);
+    drv.step(r, 0.0f, 0.02f, &rep);                                    // R begins: hand over
+    CHECK_EQ(drv.residualSide(), 'L');
+    CHECK_EQ(tr.side(), 'R');
+    // the L hip keeps its correction (it fades from here), it is not dropped to 0
+    CHECK_NEAR(drv.residualHip(), before, 1e-9);                      // continuous: the same value
+    for (int k = 0; k < 30; ++k) drv.step(r, 0.0f, 0.02f, &rep);
+    CHECK_EQ(drv.residualSide(), 0);                                   // done within the fade left
+    CHECK_NEAR(drv.residualHip(), 0.0f, 1e-9);
+}
+
 void testDriverSideToSide() {
     // straight from one stance to the other (no double support tick): report the first, begin the second
     StanceTrim tr;
@@ -364,5 +490,7 @@ int main() {
     testDriverChainAndReport();
     testDriverNoAttitudeNoChain();
     testDriverSideToSide();
+    testProvisionalT();
+    testDriverResidualHandover();
     return testutil::report("stance_trim");
 }

@@ -72,6 +72,7 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 
 import robot_plant  # noqa: E402
+import trim_kernel as _tk  # noqa: E402
 from walker_env import BimoWalkerEnv  # noqa: E402
 from env_mjx import BimoMJXEnv  # noqa: E402
 
@@ -119,6 +120,8 @@ def sync(state, cpu, gpu_env):
                   if getattr(cpu, "_dq_qhist", None) is not None else state.dq_qhist),
         dq_win=(jp.asarray(cpu._dq_win, dtype=jp.int32)
                 if getattr(cpu, "_dq_qhist", None) is not None else state.dq_win),
+        trim=(jp.asarray(np.array([cpu._trim[k] for k in _tk.KEYS], dtype=np.float32))
+              if getattr(cpu, "_trim", None) is not None else state.trim),
     )
 
 
@@ -842,6 +845,34 @@ def roll_play_block():
     return ok_a and ok_b and ok_c
 
 
+# -- R18: the firmware stance trim on the gait clock (sim/trim_kernel.py) ---------
+def stance_trim_block():
+    over = dict(stance_trim=True, stance_trim_T="5.2,3.4")
+    c, g, s = envs_for(rob_kw(**over), solver_tol=ARITH_TOL)
+    seen = {"modes": set(), "hike": 0.0, "dT": 0.0}
+
+    def watch(env):
+        if env._trim is not None:
+            seen["modes"].add(int(env._trim["mode"]))
+            seen["hike"] = max(seen["hike"], abs(float(env._trim["hike"])))
+            seen["dT"] = max(seen["dT"], abs(float(env._trim["T_L"]) - np.radians(5.2)),
+                             abs(float(env._trim["T_R"]) - np.radians(3.4)))
+    ok_a = run_block(
+        "R18. stance trim on the gait clock (walking command), airborne arithmetic",
+        150, air_acts(c, 0.347, hook=watch), hoist, AIR_GATES, (c, g, s))
+    c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.2, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n2 = c2._nq_act
+    ok_b = run_block(
+        "R18-b. stance trim, grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n2))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c2, g2, s2), matched_only=True, min_frac=0.5)
+    ok_c = {5, 6, 7} <= seen["modes"] and seen["hike"] > np.radians(0.5) and seen["dT"] > 1e-4
+    print(f"== R18-c. stance trim liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   trim states seen {sorted(seen['modes'])}, peak |hike| {np.degrees(seen['hike']):.2f} deg, "
+          f"learned T moved {np.degrees(seen['dT']):.2f} deg")
+    return ok_a and ok_b and ok_c
+
+
 # -- S: gait-amplitude manifold statistics (informational, no gate) -------------
 def manifold_stats():
     print("== S. gait-amplitude contact-manifold statistics (informational) ==")
@@ -880,6 +911,10 @@ def main():
         ok = march_unload_block()
         print("\nPARITY (R17):", "PASS" if ok else "FAIL")
         return ok
+    if "--stance-trim" in sys.argv:
+        ok = stance_trim_block()
+        print("\nPARITY (R18):", "PASS" if ok else "FAIL")
+        return ok
     if "--robot-only" in sys.argv:
         ok = robot_blocks()
         print("\nPARITY (R1-R4):", "PASS" if ok else "FAIL")
@@ -887,7 +922,7 @@ def main():
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
-               roll_play_block(), march_unload_block()]
+               roll_play_block(), march_unload_block(), stance_trim_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
