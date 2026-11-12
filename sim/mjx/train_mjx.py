@@ -765,6 +765,14 @@ def make_parser():
                         "more (hw 2026-11-10 clamp: 9.4 deg tilt, encoders 1.5 / 0.5 deg; "
                         "experiments/policy/weight-transfer-gate Round 3). config.json "
                         "records it; the referee and grade.py inherit it")
+    p.add_argument("--stance-trim", action="store_true",
+                   help="the FIRMWARE stance trim on the gait clock in the loop (#297; ctrl_task "
+                        "`trim policy on`, sim/trim_kernel.py): the stance hip roll gets the trim's "
+                        "correction after the shaper, before the limiter, while a walk / lift is "
+                        "commanded. config.json records it; the referee and the robot must run it too")
+    p.add_argument("--stance-trim-T", default="2:9,1:6",
+                   help="--stance-trim's learned trims, drawn per episode: 'Llo:Lhi,Rlo:Rhi' deg "
+                        "(hike convention; the robot learned L 5.2, R 3.4 on 2026-11-12)")
     p.add_argument("--roll-play-deg", default=None,
                    help="free play (deg peak to peak) inside the hip / ankle roll servos "
                         "BEYOND the encoder: the shaft is position-controlled and is what the "
@@ -1105,6 +1113,8 @@ def build_env_kw(args):
         rs = parse_roll_series_k(args.roll_series_k)
         if rs is not None:
             env_kw["roll_series_k"] = {k: list(v) for k, v in rs.items()}
+    if getattr(args, "stance_trim", False):
+        env_kw.update(stance_trim=True, stance_trim_T=args.stance_trim_T)
     if getattr(args, "roll_play_deg", None):
         from walker_env import parse_roll_play_deg   # jax-free, shared with both envs
         rp = parse_roll_play_deg(args.roll_play_deg)

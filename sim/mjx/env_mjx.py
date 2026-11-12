@@ -340,6 +340,8 @@ class State(NamedTuple):
                               # rolls); (0,) when roll_play_deg is off
     rp_off: jax.Array         # (n_servo,) servo shaft - link at the end of the last step
                               # (within +/-rp_h); (0,) when off
+    trim: jax.Array           # (10,) the firmware stance trim's state (sim/trim_kernel.py KEYS);
+                              # zeros when stance_trim is off
 
 
 def _quat_yaw(q):
@@ -758,6 +760,11 @@ class BimoMJXEnv:
         # fw_goal_speed the goal speed is the limited velocity x 1.25 (obs::limitGoalSpeedSteps).
         # Seeded where the shaper is, at rest. sim/fw_limit.py has the law (2026-11-03).
         fw_limit=None,
+        # the FIRMWARE stance trim on the gait clock (walker_env mirror; sim/trim_kernel.py): the
+        # stance hip roll gets the trim's correction after the shaper, before the limiter, while a
+        # walk / lift is commanded; stance_trim_T = per-episode learned trims 'Llo:Lhi,Rlo:Rhi' deg.
+        stance_trim: bool = False,
+        stance_trim_T: str = "2:9,1:6",
         # LOOP-GAIN DR: per episode, the served targets follow mean + g x (action - mean),
         # mean = the action's 0.5 s EMA, g ~ uniform(lo, hi); the policy still sees its own
         # raw action. The stand-still study's loop-gain probe (x1.5 = the robot's measured
@@ -1528,6 +1535,14 @@ class BimoMJXEnv:
             self._lim_taps = _fwl.taps(self._lim_rad[1], self._lim_rad[2], self.control_dt)
         else:
             self._lim_rad, self._lim_taps = None, 1
+        self.stance_trim = bool(stance_trim)
+        from walker_env import parse_trim_T as _ptt
+        self._trim_T_rng = _ptt(stance_trim_T)
+        import trim_kernel as _tk
+        self._tk = _tk
+        self._trim_il = self._sname2i.get("L_hip_roll", -1)
+        self._trim_ir = self._sname2i.get("R_hip_roll", -1)
+        assert not self.stance_trim or min(self._trim_il, self._trim_ir) >= 0, "stance_trim needs both hip rolls"
         self.loop_gain_range = (None if loop_gain_range is None
                                 else (float(loop_gain_range[0]), float(loop_gain_range[1])))
         assert not self.fw_goal_speed or self._fw_shaper or self._fw_limit, \
@@ -2823,7 +2838,8 @@ class BimoMJXEnv:
                      gyro_hist=gyro_hist, gyro_delay=gyro_delay,
                      gyro_gain=gyro_gain, metrics=metrics,
                      dq_qhist=dq_qhist, dq_win=dq_win,
-                     ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off)
+                     ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
+                     trim=self._trim0(r_ep))
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2914,7 +2930,38 @@ class BimoMJXEnv:
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             dq_qhist=dq_qhist, dq_win=dq_win,
             ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
-            metrics=metrics)
+            trim=self._trim0(r_ep), metrics=metrics)
+
+    def _trim0(self, r_ep):
+        """The stance trim's state at an episode start: off, with this episode's learned trims."""
+        z = jp.zeros(len(self._tk.KEYS), dtype=jp.float32)
+        if not self.stance_trim:
+            return z
+        (a, b), (c, e) = self._trim_T_rng
+        r1, r2 = jax.random.split(jax.random.fold_in(r_ep, 297))
+        tl = jax.random.uniform(r1, minval=np.radians(a), maxval=np.radians(b))
+        tr = jax.random.uniform(r2, minval=np.radians(c), maxval=np.radians(e))
+        i_l, i_r = self._tk.KEYS.index("T_L"), self._tk.KEYS.index("T_R")
+        return z.at[i_l].set(tl).at[i_r].set(tr)
+
+    def _stance_trim(self, state, target):
+        """One control tick of the firmware's stance trim (walker_env._stance_trim mirror)."""
+        tk = {k: state.trim[i] for i, k in enumerate(self._tk.KEYS)}
+        up = self._tk.up_from_quat(state.data.qpos[3:7], xp=jp)
+        if self.imu_obs:
+            up = state.imu_R @ up
+        roll = -jp.arcsin(jp.clip(up[1], -1.0, 1.0))
+        c = state.cmd
+        if not self.gait_clock:
+            walking = jp.zeros((), dtype=bool)
+        elif self.ext_cmd:
+            walking = ((jp.abs(c[0]) > 0.05) | (jp.abs(c[1]) > 0.05) | (jp.abs(c[2]) > 0.05)
+                       | (jp.abs(c[4]) > 0.5))
+        else:
+            walking = (jp.abs(c[0]) > 0.05) | (jp.abs(c[1]) > 0.05)
+        tk, hl, hr = self._tk.trim_step(tk, roll, state.gait_phase, walking, self.control_dt, xp=jp)
+        target = target.at[self._trim_il].add(hl).at[self._trim_ir].add(hr)
+        return target, jp.stack([jp.asarray(tk[k], jp.float32) for k in self._tk.KEYS])
 
     def step(self, state: State, action: jax.Array, model=None) -> State:
         m = self.model if model is None else model
@@ -2965,6 +3012,10 @@ class BimoMJXEnv:
             target = s3
         else:
             shp_y = state.shp_y
+        if self.stance_trim:
+            target, trim = self._stance_trim(state, target)
+        else:
+            trim = state.trim
         # the FIRMWARE motion limiter (obs::MotionLimiter::update, ctrl_task.cpp "limit"):
         # vmax / amax with braking look-ahead, then the jerk boxcar; its velocity is the
         # goal speed below. Same float32 law as sim/fw_limit.py (and the firmware).
@@ -3974,7 +4025,7 @@ class BimoMJXEnv:
                      dq_qhist=dq_qhist, dq_win=state.dq_win, ser_c=state.ser_c,
                      ser_defl=(state.ser_defl if ser_defl is None or self._rp_on
                                else ser_defl),
-                     rp_h=state.rp_h, rp_off=rp_off)
+                     rp_h=state.rp_h, rp_off=rp_off, trim=trim)
 
 
 

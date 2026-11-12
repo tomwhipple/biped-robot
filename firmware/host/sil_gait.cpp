@@ -95,3 +95,58 @@ int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float dt_s, int32_t* q
 }
 
 }  // extern "C"
+
+// The trim on a gait clock alone (the policy path, #297 B2): gaitplay::supportFromPhase + TrimDriver +
+// StanceTrim, one tick per call -- what sim/trim_kernel.py is pinned to (tests/test_trim_kernel.py).
+namespace {
+struct ClockTrim {
+    balance::StanceTrim trim;
+    balance::TrimDriver driver{trim};
+};
+}  // namespace
+
+extern "C" {
+
+void* sil_trim_new(float kp, float ki, float lim_deg, float tlim_deg, float fade_s, float abort_deg) {
+    ClockTrim* c = new ClockTrim();
+    balance::TrimConfig cfg;
+    cfg.kp = kp;
+    cfg.ki = ki;
+    cfg.lim_rad = lim_deg / 57.29578f;
+    cfg.t_lim_rad = tlim_deg / 57.29578f;
+    cfg.fade_s = fade_s;
+    cfg.abort_rad = abort_deg / 57.29578f;
+    if (balance::validateTrim(cfg) != nullptr) {
+        delete c;
+        return nullptr;
+    }
+    c->trim.configure(cfg);
+    return c;
+}
+
+void sil_trim_free(void* h) { delete static_cast<ClockTrim*>(h); }
+
+// T in rad (hike convention)
+void sil_trim_set_learned(void* h, char side, float rad) { static_cast<ClockTrim*>(h)->trim.setLearned(side, rad); }
+
+// out[6] = hip_L, hip_R (joint rad), hike, T_L, T_R, state
+void sil_trim_step(void* h, float phase, int lift, float roll, float dt, float* out6) {
+    ClockTrim* c = static_cast<ClockTrim*>(h);
+    const gaitplay::Support sup = gaitplay::supportFromPhase(phase, lift != 0);
+    balance::SupportIn in;
+    in.stance = sup.stance;
+    in.progress = sup.progress;
+    in.lowering = sup.lowering;
+    balance::StepReport rep;
+    c->driver.step(in, roll, dt, &rep);
+    const bool on = c->trim.engaged();
+    const float hip = on ? c->trim.hipJoint() : 0.0f;
+    out6[0] = on && c->trim.side() == 'L' ? hip : 0.0f;
+    out6[1] = on && c->trim.side() == 'R' ? hip : 0.0f;
+    out6[2] = c->trim.hike();
+    out6[3] = c->trim.learned('L');
+    out6[4] = c->trim.learned('R');
+    out6[5] = static_cast<float>(c->trim.state());
+}
+
+}  // extern "C"

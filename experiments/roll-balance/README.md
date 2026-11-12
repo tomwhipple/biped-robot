@@ -299,8 +299,10 @@ Where the sim is wrong:
 - **Right stance with too little shift.** At 1.15× the robot tipped toward the lifted foot at foot-off
   (10-11 deg); the sim leans 2-4 deg on every play variant and does not tip. At 1.25× both hold. So the
   sim's right-stance side is optimistic about how far the CoM has to go. More hip play does not explain
-  it (the hi plant still leans only 3.6). A lateral CoM offset toward the left in the robot, or a softer
-  right ankle at foot-off, would; neither has been fitted yet.
+  it (the hi plant still leans only 3.6). Nor does a lateral torso CoM offset: with `com_y` from
+  −6 to +12 mm the replayed lean changes by under 0.5 deg on every run. What is left untested is a
+  softer right side at foot-off (the right ankle / sole, or the right hip's play behaving differently
+  under load than the fit says).
 - **Right-stance hike.** Once it holds, the robot settles at hike 3.0-3.4 deg on the right; the sim needs
   5.3-5.9. The right side is the same story from the other end: the robot needs more shift and less hip.
 - **Left stance matches.** The sim reproduces the left side within 1 deg (lean 2.8 / 3.6, hike 5.2 / 5.1,

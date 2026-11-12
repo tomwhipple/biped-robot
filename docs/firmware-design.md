@@ -640,6 +640,27 @@ Ticks are Catmull-Rom between frames, φ linear.
   Python: `experiments/roll-balance/sil_gait.py` plays the sway gait through
   them against the sim plant.
 
+**Stance trim on the policy's gait clock** (`trim policy on|off`; #297 B2).
+The same trim, armed: `ctrl_task` runs `balance::TrimDriver` on
+`gaitplay::supportFromPhase(phase, clockWalking(cmd))` every control tick. It
+sits after the shaper and the takeover ramp, before the motion limiter, and adds
+the correction to the stance hip roll target. `clockWalking` is the training
+envs' gate: vx, vy or wz past 0.05, or the lift channel past 0.5.
+
+- **Off by default.** `trim policy on` copies the bench trim's kp, ki and
+  learned T; the loop takes them at the next arm and never switches
+  mid-run. It starts once the takeover ramp is over.
+- **Status.** `trim policy` prints the state, the hike and T as the loop
+  publishes them.
+- **Training.** The same law runs in training: `walker_env` / `env_mjx`
+  `stance_trim=True`, with `sim/trim_kernel.py` (numpy / jax) at the same
+  point of the chain and the learned T drawn per episode
+  (`stance_trim_T`).
+- **Parity.** `sim/sil/test_trim_kernel.py` pins the kernel to the C++
+  (`sil_trim_*`) and numpy to jax. `parity_test.py --stance-trim` (R18)
+  holds CPU against MJX. The policy SIL (`sil_set_trim`, `host/test_sil`)
+  runs it in the deployed control path.
+
 **Fall guard** (`components/fallguard`, `fall`). One module, one table of
 limits, used by both control paths (Tom 2026-11-01: work towards one
 policy-driven system, not a bench system and a policy system):

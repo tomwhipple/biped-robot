@@ -2944,6 +2944,34 @@ void cmdBalance(Sink out, int argc, char** argv) {
 // Status, gains and learned trims of the stance-hip trim (`pose ... S<L|R>[h]`).
 void cmdTrim(Sink out, int argc, char** argv) {
     const double r2d = 57.29578;
+    if (argc >= 2 && !strcmp(argv[1], "policy")) {
+        // the stance trim on the policy's gait clock (ctrl_task.cpp g_ptrim; taken at the next arm)
+        if (argc >= 3 && (!strcmp(argv[2], "on") || !strcmp(argv[2], "off"))) {
+            const bool on = !strcmp(argv[2], "on");
+            if (on) {
+                robot::g_ptrim_kp.store(s_trim_cfg.kp);
+                robot::g_ptrim_ki.store(s_trim_cfg.ki);
+                robot::g_ptrim_tl.store(s_trim.learned('L'));
+                robot::g_ptrim_tr.store(s_trim.learned('R'));
+            }
+            robot::g_ptrim_on.store(on);
+            if (on) {
+                say(out, "trim policy ON from the next arm: kp %.2f ki %.2f, T L %+.2f R %+.2f deg (copied now)\r\n",
+                    static_cast<double>(s_trim_cfg.kp), static_cast<double>(s_trim_cfg.ki),
+                    static_cast<double>(s_trim.learned('L')) * r2d, static_cast<double>(s_trim.learned('R')) * r2d);
+            } else {
+                out("trim policy OFF\r\n");
+            }
+            return;
+        }
+        say(out, "trim policy %s: state %s side %c hike %+.2f deg, T L %+.2f R %+.2f deg\r\n",
+            robot::g_ptrim_on.load() ? "ON" : "OFF",
+            balance::trimStateName(static_cast<balance::TrimState>(robot::g_ptrim_state.load())),
+            robot::g_ptrim_side.load() ? robot::g_ptrim_side.load() : '-',
+            static_cast<double>(robot::g_ptrim_hike.load()) * r2d, static_cast<double>(robot::g_ptrim_tl.load()) * r2d,
+            static_cast<double>(robot::g_ptrim_tr.load()) * r2d);
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "off")) {
         if (s_trim.state() == balance::TrimState::kClosed || s_trim.state() == balance::TrimState::kHold) {
             s_trim.release();
@@ -4653,6 +4681,7 @@ void banner(Sink out) {
         "                       (lowering); the next pose without S fades it (`trim`)\r\n");
     out("  balance [set <kp> <ki> <ankle> <hip> [clamp_deg] [abort_deg]|default|off|log]\r\n"
         "                       stance-leg roll balance: gains, live state, correction, log\r\n");
+    out("  trim policy [on|off] the trim on the policy's gait clock (armed runs, from the next arm)\r\n");
     out("  trim [off|set <kp> <ki> [lim] [tlim] [fade_s] [abort]|set default|T <L|R> <deg>|T clear]\r\n"
         "                       stance-hip trim through the lift (pose ... S<L|R> / S<L|R>h); T in deg,\r\n"
         "                       hike convention (+ lifts the other hip), same sign both sides\r\n");

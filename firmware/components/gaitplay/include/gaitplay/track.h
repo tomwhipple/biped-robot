@@ -118,4 +118,8 @@ struct Support {
 };
 Support supportFromPhase(float phi, bool lift);
 
+// The policy path's lift gate for the trim (the training envs' walker_env._trim_walking): vx, vy or wz
+// past 0.05, or the lift channel past 0.5. cmd in the link's layout ([0] vx, [1] vy, [2] wz, [4] lift).
+bool clockWalking(const float* cmd, int ncmd);
+
 }  // namespace gaitplay

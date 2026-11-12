@@ -412,6 +412,17 @@ def roll_play_substep(cur, q, shaft, h, lim, xp=np):
     return eng, sg, xp.where(eng, q + sg * h, s_c)
 
 
+def parse_trim_T(spec):
+    """'Llo:Lhi,Rlo:Rhi' (deg) -> ((Llo, Lhi), (Rlo, Rhi)); a single value is a fixed trim."""
+    out = []
+    for part in str(spec).split(","):
+        a, _, b = part.partition(":")
+        out.append((float(a), float(b or a)))
+    if len(out) != 2:
+        raise ValueError(f"stance_trim_T {spec!r}: want 'Llo:Lhi,Rlo:Rhi'")
+    return tuple(out)
+
+
 def roll_series_roles(servo_names):
     """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise."""
     return np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
@@ -1069,6 +1080,13 @@ class BimoWalkerEnv(gym.Env):
         # ticks; seeded where the shaper is, at rest. Inherited from config.json like the
         # shaper -- it is the robot's firmware. None = off (2026-11-03; sim/fw_limit.py).
         fw_limit=None,
+        # the FIRMWARE stance trim on the gait clock (#297; sim/trim_kernel.py, the same law and
+        # support map as balance::TrimDriver in the robot's control tick): the stance hip roll gets
+        # the trim's correction after the shaper, before the motion limiter, while a walk / lift is
+        # commanded. stance_trim_T: per-episode learned trims, uniform, 'Llo:Lhi,Rlo:Rhi' deg (hike
+        # convention). Off by default; env_mjx mirrors it (parity block stance_trim).
+        stance_trim: bool = False,
+        stance_trim_T: str = "2:9,1:6",
         # per-actuator EXTRA dead time on top of act_delay_ticks, {actuator | role: ticks}
         # (or a ACT_DELAY_EXTRA_PRESETS name), and a per-actuator multiplier on the act-lag
         # pole ({actuator | role: x} or a ACT_LAG_SCALE_PRESETS name); mirror of env_mjx
@@ -1278,6 +1296,9 @@ class BimoWalkerEnv(gym.Env):
         import fw_limit as _fwl
         self.fw_limit = _fwl.parse(fw_limit)
         self._lim = None         # fw_limit.MotionLimiter; seeded on 1st step
+        self.stance_trim = bool(stance_trim)
+        self._trim_T_rng = parse_trim_T(stance_trim_T)
+        self._trim = None        # trim_kernel state; drawn at reset
         self.crouch_pose_ref = bool(crouch_pose_ref)
         self.crouch_theta_max = float(np.radians(crouch_theta_max_deg))
         self.crouch_deep = (None if crouch_deep_ref is None
@@ -2539,6 +2560,11 @@ class BimoWalkerEnv(gym.Env):
         self._chain0 = None                   # chain seed: taken on the first step
         self._shp_y = None                    # re-seed the firmware shaper
         self._lim = None                      # ... and the motion limiter
+        if self.stance_trim:
+            import trim_kernel as _tk
+            (a, b), (c, e) = self._trim_T_rng
+            self._trim = _tk.trim_init((), float(np.radians(self.np_random.uniform(a, b))),
+                                       float(np.radians(self.np_random.uniform(c, e))))
         if self.act_lag_dr_max is not None:
             self._act_lag_ep = float(self.np_random.uniform(self.act_lag_hz,
                                                             self.act_lag_dr_max))
@@ -2584,6 +2610,30 @@ class BimoWalkerEnv(gym.Env):
                               for _ in range(self.obs_hist_len - 1)]
         return self._obs(), {}
 
+    def _trim_walking(self):
+        """The trim runs while a walk or a lift is commanded (the gait clock's own moving / lifted gate)."""
+        c = self._cmd
+        if c is None or not self.gait_clock:
+            return False
+        if self.ext_cmd:
+            return bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05 or abs(c[2]) > 0.05 or abs(c[4]) > 0.5)
+        return bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05)
+
+    def _stance_trim(self, target):
+        """One control tick of the firmware's stance trim (sim/trim_kernel.py) on the servo targets: the
+        roll is the torso's as the IMU reads it at the start of the tick, the phase the clock's now."""
+        import trim_kernel as _tk
+        up = _tk.up_from_quat(self.data.qpos[3:7])
+        if self.imu_obs:
+            up = self._imu_R @ up
+        roll = -float(np.arcsin(np.clip(up[1], -1.0, 1.0)))
+        self._trim, hl, hr = _tk.trim_step(self._trim, roll, self._gait_phase, self._trim_walking(),
+                                           self.control_dt)
+        target = target.copy()
+        target[self._sname2i["L_hip_roll"]] += float(hl)
+        target[self._sname2i["R_hip_roll"]] += float(hr)
+        return target
+
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
         # policy targets onto the servo vector (held joints at their hold);
@@ -2606,6 +2656,8 @@ class BimoWalkerEnv(gym.Env):
             self._shp_y[1] += ks * (self._shp_y[0] - self._shp_y[1])
             self._shp_y[2] += ks * (self._shp_y[1] - self._shp_y[2])
             target = self._shp_y[2].copy()
+        if self.stance_trim:
+            target = self._stance_trim(target)
         if self.fw_limit is not None:
             # the firmware motion limiter, after the shaper (mirror of env_mjx step)
             if self._lim is None:

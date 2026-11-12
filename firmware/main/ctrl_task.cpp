@@ -8,6 +8,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "balance/roll_pi.h"
+#include "balance/stance_trim.h"
 #include "battguard/guard.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
@@ -18,6 +20,7 @@
 #include "flight_rec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "gaitplay/track.h"
 #include "imu_sampler.h"
 #include "linkproto/watchdog.h"
 #include "mech_envelope.h"
@@ -153,6 +156,14 @@ flailguard::Detector g_flail_grace(flailguard::kGraceLimits);
 // The IMU heading loop around the walking policy (heading_hold.h): on by default (Tom
 // 2026-11-06: "heading hold seems like something we'd always want"), `heading off` on the tether.
 flailguard::HeadingHold g_heading;
+
+// The stance trim on the gait clock (`trim policy on`, shared.h g_ptrim_on): the firmware's own
+// balance::StanceTrim driven by TrimDriver from gaitplay::supportFromPhase(phase, walking) -- the same
+// mechanism the bench track uses, and what sim/trim_kernel.py adds in training. Loop-owned.
+balance::StanceTrim g_ptrim;
+balance::TrimDriver g_ptrim_drv{g_ptrim};
+int g_ptrim_il = -1, g_ptrim_ir = -1;  // policy index of the L / R hip roll (-1: not a policy joint)
+bool g_ptrim_run = false;              // g_ptrim_on as taken at this run's arm (no mid-run switch)
 
 // The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
 // the foot offsets off the plain stand (the same thresholds as the flail
@@ -409,6 +420,23 @@ void ctrlTask(void*) {
             // while after `run`), from that tick's measured g_q.
             g_ramp_ticks = 0;
             g_ramp_held = false;
+            // a fresh stance trim with the CLI's gains and learned trims (`trim policy on`)
+            {
+                balance::TrimConfig tc;
+                tc.kp = g_ptrim_kp.load();
+                tc.ki = g_ptrim_ki.load();
+                if (balance::validateTrim(tc) != nullptr) tc = balance::TrimConfig();
+                g_ptrim.configure(tc);
+                g_ptrim.stop();
+                g_ptrim.setLearned('L', g_ptrim_tl.load());
+                g_ptrim.setLearned('R', g_ptrim_tr.load());
+                g_ptrim_drv.reset();
+                g_ptrim_run = g_ptrim_on.load();
+                for (int i = 0; i < obs::kNumJoints; ++i) {
+                    if (!strcmp(obs::kJointNames[i], "L_hip_roll")) g_ptrim_il = i;
+                    if (!strcmp(obs::kJointNames[i], "R_hip_roll")) g_ptrim_ir = i;
+                }
+            }
         }
 
         // -- drain the command mailbox (latest wins) -----------------------
@@ -736,6 +764,29 @@ void ctrlTask(void*) {
                 angle[i] = g_ramp_hold[i] + r * (angle[i] - g_ramp_hold[i]);
             }
         }
+
+        // -- stance trim on the gait clock (`trim policy on`; g_ptrim above) ----
+        // After the shaper and the ramp, before the limiter (which then bounds it too), as in
+        // training. Only once the ramp is done: the takeover is the measured pose's, not the trim's.
+        if (g_ptrim_run && g_ramp_ticks >= kArmRampTicks && g_ptrim_il >= 0 && g_ptrim_ir >= 0) {
+            const gaitplay::Support sup = gaitplay::supportFromPhase(in.phase, gaitplay::clockWalking(in.cmd, obs::kNumCmd));
+            balance::SupportIn sin_;
+            sin_.stance = sup.stance;
+            sin_.progress = sup.progress;
+            sin_.lowering = sup.lowering;
+            float roll = NAN;
+            if (s.valid) balance::rollFromUp(s.up, &roll);
+            balance::StepReport rep;
+            g_ptrim_drv.step(sin_, roll, obs::kControlDt, &rep);
+            if (g_ptrim.engaged()) {
+                angle[g_ptrim.side() == 'L' ? g_ptrim_il : g_ptrim_ir] += g_ptrim.hipJoint();
+            }
+            g_ptrim_tl.store(g_ptrim.learned('L'));
+            g_ptrim_tr.store(g_ptrim.learned('R'));
+            g_ptrim_hike.store(g_ptrim.hike());
+            g_ptrim_side.store(g_ptrim.side());
+        }
+        g_ptrim_state.store(static_cast<uint8_t>(g_ptrim.state()));
 
         // -- limit (see g_limiter above; docs/firmware-design.md) ------------
         // Read live every tick, like the shape pole. Last before the goal
