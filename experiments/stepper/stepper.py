@@ -88,6 +88,10 @@ DEFAULTS = dict(
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
     k_step=0.1, k_min=0.8, k_max=1.4, k_floor=1.1,
     shift_step=0.03,      # the pelvis crosses in moves of this size, IMU read between, m
+    shift_final_mm=24.0,  # the last this much of a shift over a stance foot goes in small moves ...
+    shift_final_step=6.0, # ... of this size, mm, a read (and the outward guard) after each
+    shift_out_rate=5.0,   # ... where a roll rate toward the stance side above this, deg/s, is tipping out too
+    shift_done_deg=0.5,   # ... and a lean that has already turned this far toward the stance side means the weight is across: stop
     shift_out_lim=2.5,    # shifting over a stance foot: a lean TOWARD it this far (deg, from the start of the shift) = tipping out
     shift_back_mm=20.0,   # ... then the pelvis steps back toward the middle by this much, mm, and k_shift of that side drops a step
     shift_lean_lim=8.0,   # a lean past this (deg) during a shift ends the run
@@ -391,22 +395,36 @@ class Run:
         fwd = P["fwd_w"] * self.feet[stance][0] + (1 - P["fwd_w"]) * self.feet[swing][0] + ox
         return [fwd, self.fy(stance) + P["k_shift"][stance] * oy]       # over the stance sole, wherever it stands
 
-    def move_pel(self, to, tag, guard=None, heading_to=None, step=None):
+    def move_pel(self, to, tag, guard=None, heading_to=None, step=None, fine=False):
         """Move the pelvis to `to` in monitored moves, taking any hip trim out on the way. Both feet are down.
         guard=(stance, roll0): a shift over `stance`; with both feet down the body normally leans AWAY from the
         side the pelvis goes to, so a lean toward it (roll relative to roll0) past shift_out_lim is the stance
         foot tipping over its outer edge: the pelvis steps back toward the middle, k_shift[stance] drops a step
-        and the move ends there (self.shift_tipped)."""
+        and the move ends there (self.shift_tipped). The last shift_final_mm of such a shift go in shift_final_step
+        moves (all of it if `fine`: a turn, or right after a catch), and there the guard also tests the roll RATE toward
+        the stance side (shift_out_rate), and a lean that has already turned toward the stance side by shift_done_deg
+        ends the shift early (`shift_done_early`: the weight is across; the target is not chased)."""
         P = self.p
         a, k0 = list(self.pel), dict(self.hike)
         h0 = self.psi_p
         sr0, sp0 = dict(self.sole_r), dict(self.sole_p)
         dist = math.hypot(to[0] - a[0], to[1] - a[1])
-        n = max(1, math.ceil(dist / (step or P["shift_step"])), math.ceil(max(k0.values()) / 3.0))
-        ms = int(1e3 * max(P["t_min"], P["t_shift"] * (dist / n) / 0.08))
+        fstep = 1e-3 * P["shift_final_step"]
+        fin_d = (dist if fine else min(dist, 1e-3 * P["shift_final_mm"])) if guard is not None else 0.0
+        coarse = dist - fin_d
+        n_f = math.ceil(fin_d / fstep - 1e-9) if fin_d > 1e-9 else 0
+        n_c = math.ceil(coarse / (step or P["shift_step"]) - 1e-9) if coarse > 1e-9 else 0
+        n_c = max(n_c, math.ceil(max(k0.values()) / 3.0) - n_f)
+        if n_c + n_f == 0:
+            n_c = 1
+        n = n_c + n_f
+        moves = [(coarse * i / n_c / max(dist, 1e-12) if n_c else 0.0, coarse / n_c if n_c else 0.0, False) for i in range(1, n_c + 1)]
+        moves += [((coarse + fin_d * j / n_f) / max(dist, 1e-12), fin_d / n_f, True) for j in range(1, n_f + 1)]
+        if n_c and n_f == 0:
+            moves[-1] = (1.0, moves[-1][1], False)
         s = None
-        for i in range(1, n + 1):
-            u = i / n
+        for i, (u, seg, final) in enumerate(moves, 1):
+            ms = int(1e3 * max(P["t_min"], P["t_shift"] * seg / 0.08))
             self.pel = [a[0] + u * (to[0] - a[0]), a[1] + u * (to[1] - a[1])]
             self.hike = {k: v * (1 - u) for k, v in k0.items()}
             self.sole_r = {k: v * (1 - u) for k, v in sr0.items()}        # the sole trims are let go as the foot is loaded
@@ -417,9 +435,15 @@ class Run:
             s = self.read(tag)
             dr, dp = self.lean(s)
             if guard is not None:
-                toward = (dr - guard[1]) if guard[0] == "R" else -(dr - guard[1])      # roll + = leaning to the robot's right
-                if toward > P["shift_out_lim"]:
+                sg = 1.0 if guard[0] == "R" else -1.0                  # roll + = leaning to the robot's right
+                toward = sg * (dr - guard[1])
+                rate_to = sg * math.degrees(s["gyro"][0])              # gyro x is the roll rate, the roll's sign
+                if toward > P["shift_out_lim"] or (final and rate_to > P["shift_out_rate"]):
                     self.shift_back(guard[0], toward)
+                    return s
+                if final and (1.0 - u) * dist <= 1e-3 * P["shift_final_mm"] + 1e-9 and toward > P["shift_done_deg"]:   # in the last stretch: the weight is across
+                    self.log("shift_done_early", stance=guard[0], toward=round(toward, 2), at_mm=round(1e3 * (self.pel[1] - self.fy(guard[0])), 1),
+                             move=i, of=n)
                     return s
             if abs(dr) > P["shift_lean_lim"] or abs(dp) > P["shift_lean_lim"]:
                 self.say(f"  leaning in {tag}: roll {dr:+.1f} pitch {dp:+.1f} at shift {1e3 * (self.pel[1] - (self.fy(guard[0]) if guard else 0.0)):+.0f} mm")
@@ -469,14 +493,14 @@ class Run:
         caut, self.cautious = self.cautious, False
         if caut:                                                   # after a catch or an outward tip: let it come to rest first
             self.settle(f"pre-shift {stance}", tmax=3.0)
-        self.move_pel(to, f"shift {stance}", guard=(stance, roll0), heading_to=self.yawf[stance],
-                      step=0.5 * self.p["shift_step"] if caut else None)
+        fine = caut or abs(self.dyaw) > 1e-9                       # a turn, or right after a catch / tip: small moves all the way
+        self.move_pel(to, f"shift {stance}", guard=(stance, roll0), heading_to=self.yawf[stance], fine=fine)
         self.psi_p = self.yawf[stance]
         self.corr_p = self.corr[stance]
         time.sleep(self.p["settle_s"])
         s = self.ref = self.settle(f"over {stance}")
         dr, dp = self.lean(s)
-        self.say(f"over {stance} x{self.p['k_shift'][stance]:.2f} ({1e3 * (to[1] - self.fy(stance)):+.0f} mm from the stance foot, fwd {1e3 * (to[0] - self.feet[stance][0]):+.0f})  lean {dr:+.2f} pitch {dp:+.2f}")
+        self.say(f"over {stance} x{self.p['k_shift'][stance]:.2f} ({1e3 * (self.pel[1] - self.fy(stance)):+.0f} mm from the stance foot, fwd {1e3 * (self.pel[0] - self.feet[stance][0]):+.0f})  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
 
     def level_sole(self, swing, s, free=False):
