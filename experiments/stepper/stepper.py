@@ -77,7 +77,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-from nool import foot_clear, settled, tipping  # noqa: E402
+from nool import foot_clear, sag_deg, settled, tipping  # noqa: E402
 
 STATE = os.path.join(HERE, "state.json")
 TIMES = ("t_shift", "t_inc", "t_swing", "t_lower", "t_land", "settle_s", "t_confirm", "t_bal", "t_min", "t_sweep")
@@ -86,7 +86,7 @@ LEARNED = ("k_shift", "h_up", "hike", "comp", "sole_bias")
 DEFAULTS = dict(
     drop=0.02,            # crouch depth, m (a ~50 deg knee bend)
     k_shift={"L": 1.1, "R": 1.1},     # x the model's shift, per STANCE side; adapted on the robot
-    k_step=0.1, k_min=0.8, k_max=1.4, k_floor=1.0,
+    k_step=0.1, k_min=0.8, k_max=1.4, k_floor=1.1,
     shift_step=0.03,      # the pelvis crosses in moves of this size, IMU read between, m
     shift_out_lim=2.5,    # shifting over a stance foot: a lean TOWARD it this far (deg, from the start of the shift) = tipping out
     shift_back_mm=20.0,   # ... then the pelvis steps back toward the middle by this much, mm, and k_shift of that side drops a step
@@ -120,6 +120,12 @@ DEFAULTS = dict(
     swing_extra=0.006,    # a foot is raised this much more than it took to clear before it moves sideways or forward, m
     land_mm=6.0,          # the last this much of a lowering is one slow move ...
     t_land=0.5,           # ... of this long, s
+    t_catch=0.2,          # the catch reflex: the foot goes down in one move of this long, s (not scaled by --pace)
+    catch_out=0.015,      # ... placed this much further outward than it was lifted from, m, if the legs reach
+    catch_back=0.02,      # ... and if the body is still going toward it, the pelvis steps this far toward the middle, m
+    catch_trim_max=12.0,  # ... the sole trims set straight from the IMU, no rate limit, no bias, clamped to this, deg
+    tip_in_margin=2.5,    # tipping in: tilt toward the swing foot beyond what a foot still on the floor explains (sag_deg(h)) by this, deg ...
+    tip_in_rate=12.0,     # ... or a roll rate toward it above this, deg/s, on two reads running
     t_bal=0.25,           # the balance move in the air, s
     t_min=0.25,           # shortest monitored pelvis move / fast lower, s
     t_sweep=0.25,         # one step of a data sweep, s
@@ -204,6 +210,7 @@ class Run:
         self.psi_p = 0.0                      # rad: the pelvis heading now
         self.yawf = {"L": 0.0, "R": 0.0}      # rad: the soles' world yaws (relative to that same zero)
         self.pending_d = 0.0
+        self.last_tilt = 0.0
         self.corr = {"L": 0.0, "R": 0.0}      # deg of each sole's yaw that are heading corrections, not the commanded turn
         self.corr_p = 0.0                     # ... and of the pelvis heading
         self.yaw_hist = []                    # (t, fused yaw deg) of recent IMU reads
@@ -446,20 +453,23 @@ class Run:
         self.say(f"over {stance} x{self.p['k_shift'][stance]:.2f} ({1e3 * (to[1] - self.fy(stance)):+.0f} mm from the stance foot, fwd {1e3 * (to[0] - self.feet[stance][0]):+.0f})  lean {dr:+.2f} pitch {dp:+.2f}")
         return s
 
-    def level_sole(self, swing, s):
+    def level_sole(self, swing, s, free=False):
         """Trim the swing leg's ankle so its sole is level in the world whatever the body is doing: the roll the
         IMU reads away from the level reference tips the sole by that much (ankle roll -r on the left leg, +r on
         the right), the pitch deviation p needs ankle pitch -p; and the unloaded ankle's play lets it hang outer
         edge down, so the outer edge is trimmed up by sole_bias. Each trim follows its target by at most
-        sole_rate per update and is clamped to sole_trim_max. Returns how far the trims moved (deg)."""
+        sole_rate per update and is clamped to sole_trim_max. free (a tipping verdict, the catch): no rate limit, no
+        bias, clamped to catch_trim_max -- the sole must meet the floor flat NOW. Returns how far the trims moved (deg)."""
         P = self.p
         r = s["roll"] - self.ref0["roll"]
         ph = s["pitch"] - self.ref0["pitch"]
         moved = 0.0
-        for dct, tgt in ((self.sole_r, (-r if swing == "L" else r) + P["sole_bias"][swing]), (self.sole_p, -ph)):
-            tgt = max(-P["sole_trim_max"], min(P["sole_trim_max"], tgt))
+        lim = P["catch_trim_max"] if free else P["sole_trim_max"]
+        rate = 1e9 if free else P["sole_rate"]
+        for dct, tgt in ((self.sole_r, (-r if swing == "L" else r) + (0.0 if free else P["sole_bias"][swing])), (self.sole_p, -ph)):
+            tgt = max(-lim, min(lim, tgt))
             cur = dct[swing]
-            dct[swing] = cur + max(-P["sole_rate"], min(P["sole_rate"], tgt - cur))
+            dct[swing] = cur + max(-rate, min(rate, tgt - cur))
             moved = max(moved, abs(dct[swing] - cur))
         return moved
 
@@ -475,6 +485,7 @@ class Run:
         h_next = max(P["dh"], P["ff"] * P["h_up"][stance])      # the first move: half of what it took last time
         hike = P["ff"] * P["hike"][stance]
         first = True
+        in_rate = 0
         while h < P["h_max"] - 1e-9:
             dh = min(h_next, P["h_max"]) - h
             h += dh
@@ -485,6 +496,14 @@ class Run:
             s = self.read(f"raise {swing}")
             self.level_sole(swing, s)
             tilt = self.tilt_to(swing, s) - tilt_s             # toward the lifted foot, since both feet were down
+            self.last_tilt = tilt
+            # going over toward the lifted foot: more tilt than a foot still on the floor explains, or rolling fast toward it
+            rate_to = math.degrees(s["gyro"][0]) * (1.0 if swing == "R" else -1.0)
+            in_rate = in_rate + 1 if rate_to > P["tip_in_rate"] else 0
+            if tilt > sag_deg(h) + P["tip_in_margin"] or in_rate >= 2:
+                self.log("tip_in", swing=swing, h=h, tilt=round(tilt, 2), sag=round(sag_deg(h), 2), rate_to=round(rate_to, 1))
+                self.level_sole(swing, s, free=True)
+                return "tipping_in", h
             clr = foot_clear(h, tilt, need=P["need"])
             tip = tipping(tilt, self.lean(s)[1] - pitch_s, s["rate"], P["tilt_lim"], P["pitch_lim"],
                           P["rate_lim"], out_lim=P["out_lim"])
@@ -493,6 +512,7 @@ class Run:
                      f"pitch {self.lean(s)[1] - pitch_s:+5.2f}  rate {s['rate']:4.1f}  clear~{clr.why['clear_mm']:+5.1f} mm "
                      f"P(clear) {clr.p:.2f}  P(tip) {tip.p:.2f}")
             if tip.p > P["p_tip"]:
+                self.level_sole(swing, s, free=True)
                 if tilt < -0.5 * P["out_lim"]:
                     return "tipping_out", h
                 # hanging toward the lifted foot: the weight is inboard of the stance foot -- like fell_in
@@ -526,6 +546,7 @@ class Run:
             s = self.read(f"air {swing}")
             lvl = self.level_sole(swing, s)
             tilt = self.tilt_to(swing, s) - self.tilt_s
+            self.last_tilt = tilt
             clr = foot_clear(h, tilt, need=P["need"])
             tip = tipping(tilt, self.lean(s)[1] - pitch_s, s["rate"], P["tilt_lim"], P["pitch_lim"], P["rate_lim"],
                           out_lim=P["out_lim"])
@@ -551,6 +572,39 @@ class Run:
                 self.go(int(1e3 * P["t_bal"]), f"balance {swing}")
             elif lvl >= 1.0:                                          # the sole's trim moved: send it
                 self.go(int(1e3 * P["t_bal"]), f"level sole {swing}")
+
+    def catch(self, swing):
+        """The catch reflex, for a lift that ends going over toward the swing foot (tipping_in / fell_in / tipping
+        toward it): the normal slow lowering is far too late. ONE fast move: the foot to the floor, its sole trims set
+        straight from the latest IMU reading (flat, no rate limit, no bias), placed catch_out further outward than it
+        was lifted from if the legs reach (a wider base). Then an IMU read; if the body is still going toward that foot,
+        a second fast move bringing the pelvis catch_back toward the middle. The trims are released in the next shift."""
+        P = self.p
+        stance = "L" if swing == "R" else "R"
+        s = self.last_imu
+        if s is not None:
+            self.level_sole(swing, s, free=True)
+        out = 1.0 if swing == "L" else -1.0
+        y0 = self.feet[swing][1]
+        y = y0 + out * P["catch_out"]
+        while abs(y - y0) > 1e-9:
+            f = {swing: (self.feet[swing][0], y, 0.0), stance: self.cmd(stance)}
+            if self.reachable(self.pel[1], self.pel[0], f["L"], f["R"]):
+                break
+            y = y0 + out * max(0.0, abs(y - y0) - 0.005)
+        self.feet[swing][1], self.feet[swing][2] = y, 0.0
+        self.go(int(1e3 * P["t_catch"]), f"catch {swing}")
+        s = self.read(f"catch {swing}")
+        rate_to = math.degrees(s["gyro"][0]) * (1.0 if swing == "R" else -1.0)
+        back = rate_to > 0.5 * P["tip_in_rate"]
+        if back:
+            mid = 0.5 * (self.fy("L") + self.fy("R"))
+            self.pel[1] = mid + math.copysign(max(0.0, abs(self.pel[1] - mid) - P["catch_back"]), self.pel[1] - mid)
+            self.go(int(1e3 * P["t_catch"]), f"catch back {swing}")
+        self.log("catch", swing=swing, out_mm=round(1e3 * (y - y0), 1), sole_r=round(self.sole_r[swing], 2), sole_p=round(self.sole_p[swing], 2),
+                 rate_to=round(rate_to, 1), back=back)
+        self.say(f"  catch {swing}: flat (trim {self.sole_r[swing]:+.1f}/{self.sole_p[swing]:+.1f}), {1e3 * (y - y0):+.0f} mm out"
+                 + (", pelvis back" if back else ""))
 
     def lower_foot(self, swing, fast=False):
         """Put `swing` down in monitored moves (the hip trim stays until the next shift takes it out).
@@ -582,12 +636,12 @@ class Run:
     def learn_k(self, stance, k_off, pushed):
         """The shift remembered for `stance` after a successful lift: the one at lift-off (not where balance
         wandered to later), rising by at most half a step per lift; after a lift that needed no balance push it
-        decays 0.02 toward k_floor. So k cannot ratchet up to its ceiling."""
+        decays 0.01 toward k_floor. So k cannot ratchet up to its ceiling."""
         P = self.p
         old = P["k_shift"][stance]
         new = min(k_off, old + 0.5 * P["k_step"])
         if not pushed and new > P["k_floor"]:
-            new = max(P["k_floor"], new - 0.02)
+            new = max(P["k_floor"], new - 0.01)
         P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], new)), 3)
         return P["k_shift"][stance]
 
@@ -650,7 +704,10 @@ class Run:
                     self.cached_look, self.has_cached = self.look(f"after {swing}"), True
                 return how, h
             # not up: put it down and correct the shift for this stance side
-            self.lower_foot(swing, fast=(how == "tipping_out"))
+            if how in ("tipping_in", "fell_in") or (how == "tipping" and self.last_tilt > 0):
+                self.catch(swing)
+            else:
+                self.lower_foot(swing, fast=(how == "tipping_out"))
             dk = -P["k_step"] if how == "tipping_out" else (P["k_step"] if how in ("max", "fell_in", "tipping_in") else 0.0)
             P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], P["k_shift"][stance] + dk)), 3)
             self.say(f"  {how} at {1e3 * h:.0f} mm (hip trim {hike:.1f}) -> shift over {stance} now x{P['k_shift'][stance]:.2f}")

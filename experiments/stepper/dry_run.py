@@ -721,6 +721,78 @@ def test_swing_room_and_soft_landing():
         run.finish(save=False)
 
 
+def test_catch_reflex():
+    """The robot starts to go over toward the lifted foot when it is lifted at too small a shift (the roll rate grows
+    until the foot is back on the floor). The reflex must put the foot down flat, fast, before the fake "falls" (the foot
+    not flat on the floor 0.6 s after the verdict); k rises; the next attempt succeeds."""
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with env() as d:
+        run = make(d)
+        st = dict(t0=None, caught=False, fell=None, verdict=None, touch=None)
+        orig_read = run.read
+        sw, stn = "L", "R"                                    # lift L over R
+
+        def read(tag=""):
+            s = dict(orig_read(tag))
+            ratio = abs(run.pel[1] - run.fy(stn)) / abs(run.off[stn][1])
+            up = run.feet[sw][2] > 0.003
+            if up and ratio < 1.15 and not st["caught"]:
+                if st["t0"] is None:
+                    st["t0"] = clock[0]
+                dt = clock[0] - st["t0"]
+                tilt, rate = 0.5 * 12.0 * dt * dt, 12.0 * dt          # deg, deg/s toward the swing foot (L: roll -)
+                s["roll"] -= tilt
+                s["gyro"] = [-math.radians(rate), s["gyro"][1], s["gyro"][2]]
+                s["rate"] = rate
+                st["now_tilt"] = tilt
+            elif not up:
+                st["t0"] = None
+            run.last_imu = s                                     # what the stepper last saw, tilt and all
+            return s
+        run.read = read
+        raise0 = run.raise_foot
+
+        def raise_foot(swing):
+            r = raise0(swing)
+            if r[0] in ("tipping_in", "fell_in", "tipping"):
+                st["verdict"] = clock[0]
+                st["tilt_at"] = st.get("now_tilt", 0.0)
+            return r
+        run.raise_foot = raise_foot
+        go0 = run.go
+
+        def go(ms, tag):
+            go0(ms, tag)
+            if tag.startswith("catch") and not tag.startswith("catch back") and st["touch"] is None:
+                st["touch"] = (run.feet[sw][2], run.sole_r[sw], st["tilt_at"], clock[0] - st["verdict"])
+                st["caught"] = True                                  # flat on the floor: it stops going over
+            if st["verdict"] is not None and st["touch"] is None and clock[0] - st["verdict"] > 0.6 and run.feet[sw][2] > 0.003 and st["fell"] is None:
+                st["fell"] = clock[0] - st["verdict"]
+        run.go = go
+        k0 = run.p["k_shift"][stn]
+        how, h = run.lift(sw, hold=0.0)
+        assert st["verdict"] is not None, "the fake never tipped"
+        assert st["fell"] is None, st
+        z, trim, tilt, dt = st["touch"]
+        assert z == 0.0 and dt < 0.6, st
+        assert abs(trim - tilt) < 2.0, (trim, tilt)                           # the left sole's trim is -(body roll), and the body rolled left by `tilt`
+        assert run.p["k_shift"][stn] >= k0 + run.p["k_step"] - 1e-9 or how == "up"
+        assert how == "up", how
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        lifts = [r for r in rows if r["ev"] == "lift"]
+        assert lifts[0]["how"] in ("tipping_in", "fell_in") and lifts[-1]["how"] == "up", [r["how"] for r in lifts]
+        cat = [r for r in rows if r["ev"] == "catch"]
+        assert cat and cat[0]["swing"] == "L" and cat[0]["out_mm"] > 0, cat                 # a wider base: L goes further left
+        catch_pose = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("catch L") and "back" not in r["tag"]]
+        assert catch_pose and catch_pose[0]["ms"] == int(1e3 * run.p["t_catch"]) and catch_pose[0]["feet"]["L"][2] == 0.0
+        run.finish(save=False)
+    assert S.DEFAULTS["k_floor"] == 1.1 and S.DEFAULTS["tip_in_margin"] == 2.5 and S.DEFAULTS["tip_in_rate"] == 12.0
+    with env() as d:                                      # the catch does not depend on --pace (t_catch is not scaled)
+        prm = S.apply_pace(S.load_state(), 0.6)
+        assert prm["t_catch"] == 0.2
+
+
 def test_shift_tip_guard():
     """Past 60 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
     the guard backs the pelvis off, lowers k, and the lift goes on from there."""
@@ -759,9 +831,9 @@ def test_k_cannot_ratchet():
         assert max(ks) <= P["k_max"] + 1e-9 and ks[-1] == P["k_max"], ks
         # lift-off lower than the old value: it follows it down at once, not the push
         assert run.learn_k("L", 1.2, pushed=True) == 1.2
-        # no push needed: decays 0.02 per lift to the floor and stays
+        # no push needed: decays 0.01 per lift to the floor (1.1) and stays
         seq = [run.learn_k("L", P["k_shift"]["L"], pushed=False) for _ in range(15)]     # (lift-off is where k put it)
-        assert abs(seq[0] - 1.18) < 1e-9 and seq[-1] == P["k_floor"] and seq[-1] == seq[-2] == 1.0, seq
+        assert abs(seq[0] - 1.19) < 1e-9 and seq[-1] == P["k_floor"] and seq[-1] == seq[-2] == 1.1, seq
         assert min(seq) >= P["k_floor"]
         assert P["k_max"] == 1.4
         run.finish(save=False)
@@ -771,7 +843,7 @@ def test_k_cannot_ratchet():
         run.balance = lambda swing, secs: "up"                  # a body that needs no push
         for _ in range(3):
             run.lift("L", hold=0.0)
-        assert abs(run.p["k_shift"]["R"] - 1.24) < 1e-9, run.p["k_shift"]
+        assert abs(run.p["k_shift"]["R"] - 1.27) < 1e-9, run.p["k_shift"]
         run.finish(save=False)
 
 
