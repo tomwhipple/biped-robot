@@ -545,6 +545,12 @@ Training runs **at night only**; days belong to the box's owner.
 - **Window.** cron starts `infra/night/night_run.sh` at 22:00. No new job starts
   after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00, and
   the last eval checkpoint stands.
+- **GPU handover.** The daytime GPU owner is the camera-watcher classifier
+  (`llama3.2-vision` via ollama). The runners call `infra/night/vision_pause.sh
+  pause` before training, which pauses the classifier container and unloads
+  the model (the backlog waits in redis), and `resume` when the night ends or
+  is stopped. While paused, a `CLASSIFIER_PAUSED` sentinel tells mira's camera
+  watchdog that the lag is intentional.
 - **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
   branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
