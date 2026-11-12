@@ -6,7 +6,7 @@ for this gait (results/sil_gait.json). `--live` sends it to the robot over the W
 (experiments/stepper/robot_io.py) -- only on the Stage C plan, a person at the robot.
 
 The session:
-    trim T L <seed>, trim T R <seed>     the learned trims (A2 / SIL: hike L 8, R 3 deg)
+    trim T L <seed>, trim T R <seed>     the learned trims (default: the robot's own, L 5.2, R 3.4 deg)
     track clear
     track add ... (the first `--ahead` steps)
     track play <lead_ms>                  min-jerk to the first frame (the crouch), then play
@@ -33,6 +33,11 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import sil_gait as G  # noqa: E402
 
+# The robot's own working values on the hard panels, 2026-11-12 (B1 runs fwtrim_*): static shift 1.3x over
+# the left foot, 1.25x over the right (1.15x tipped in at foot-off), learned T L 5.2, R 3.4 deg. The SIL holds
+# with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
+ROBOT_AMP = (1.3, 1.25)
+ROBOT_SEED = (5.2, 3.4)
 PER_LINE = 4                  # frames per `track add` (42 hex + space each; the CLI line is <= 192 chars)
 TS_RE = re.compile(r"^TS (\d+) ([LR]) in ([-\d.]+) out ([-\d.]+) e ([-+\d.]+) T ([-+\d.]+) hike ([-+\d.]+) (ok|ABORT)",
                    re.M)
@@ -47,8 +52,8 @@ def lines_for(frames):
     return out
 
 
-def plan(T_step, n_steps, direction, seeds=G.SEED, lead_ms=2500, cal=None, first="L"):
-    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, **G.DIRS[direction])
+def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="L", amp=ROBOT_AMP):
+    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], **G.DIRS[direction])
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
                 duration_s=fr[-1][0] / 1e3)
@@ -193,7 +198,8 @@ def main(argv=None):
     ap.add_argument("--dir", default="march", choices=list(G.DIRS))
     ap.add_argument("--steps", type=int, default=6)
     ap.add_argument("--first", default="L", choices=["L", "R"], help="the first swing foot")
-    ap.add_argument("--seed", default=f"{G.SEED[0]:g},{G.SEED[1]:g}", help="trim T L,R (hike deg)")
+    ap.add_argument("--seed", default=f"{ROBOT_SEED[0]:g},{ROBOT_SEED[1]:g}", help="trim T L,R (hike deg)")
+    ap.add_argument("--amp", default=f"{ROBOT_AMP[0]:g},{ROBOT_AMP[1]:g}", help="sway amplitude over L,R (x 62 mm)")
     ap.add_argument("--lead", type=int, default=2500, help="ms from where it stands to the first frame")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
@@ -204,15 +210,16 @@ def main(argv=None):
     ap.add_argument("--log")
     a = ap.parse_args(argv)
     seeds = tuple(float(x) for x in a.seed.split(","))
+    amp = tuple(float(x) for x in a.amp.split(","))
     if not a.live:
-        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first), a)
+        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp), a)
         return 0
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
     import robot_io
     probe = robot_io.Robot(host=a.host)
     cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
     probe.close()
-    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first), a)
+    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp), a)
     return 0
 
 

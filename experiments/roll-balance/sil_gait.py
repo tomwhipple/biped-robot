@@ -74,7 +74,9 @@ def hex_frame(dt_ms, phi, flags, q, cal=None):
 def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, **kw):
     """The sway gait (A2's settings + the width-aware amplitude) and its keyframes: (sway, [(t_ms, hex, kind)]), kind 'kf' | 'rest'.
     Track time 0 = the first keyframe (the crouched, centred stand after the crouch and settle)."""
-    sw = W.Sway(T=T_step, n_steps=n_steps, dt=kf_s, k=1.2, ss=0.5, h=0.04, kL=1.35, kR=1.1, wide=True, first=first, **kw)
+    kw.setdefault("kL", 1.35)
+    kw.setdefault("kR", 1.1)
+    sw = W.Sway(T=T_step, n_steps=n_steps, dt=kf_s, k=1.2, ss=0.5, h=0.04, wide=True, first=first, **kw)
     K = W.S.kin(0.02)
     c0 = sw.phases[0]["t0"] + 0.25 * T_step              # the first single support's centre
     ends = [p["t1"] + 0.25 * T_step for p in sw.phases]   # mid double support after each step
@@ -124,13 +126,13 @@ def _lib(path=LIB):
 
 
 def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, seed=SEED, gains=(0.25, 1.0),
-        lead_steps=2.0, first="L"):
+        lead_steps=2.0, first="L", amp=None):
     """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports."""
     import gate_common as GC
     import rec
     import simh
     L = _lib()
-    sw, fr = gait(T_step, n_steps, first=first, **DIRS[direction])
+    sw, fr = gait(T_step, n_steps, first=first, **DIRS[direction], **(dict(kL=amp[0], kR=amp[1]) if amp else {}))
     g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, 0.6, 15.0)
     L.sil_gait_set_learned(g, b"L", seed[0])
     L.sil_gait_set_learned(g, b"R", seed[1])
@@ -264,11 +266,15 @@ def main(argv=None):
     ap.add_argument("--plants", default=",".join(PLANTS))
     ap.add_argument("--delays", default="0,60")
     ap.add_argument("--steps", type=int, default=8)
+    ap.add_argument("--amp", default="1.3,1.25", help="sway amplitude over L,R (x 62 mm); A2 used 1.35,1.1")
+    ap.add_argument("--seed", default="5.2,3.4", help="trim T L,R (hike deg); A2 used 8,3")
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--out", default=os.path.join(HERE, "results", "sil_gait.json"))
     a = ap.parse_args(argv)
-    jobs = [(float(t), dn, p, float(dl), a.steps) for t in a.T.split(",") for dn in a.dirs.split(",")
-            for p in a.plants.split(",") for dl in a.delays.split(",")]
+    amp = tuple(float(x) for x in a.amp.split(","))
+    seed = tuple(float(x) for x in a.seed.split(","))
+    jobs = [(float(t), dn, p, float(dl), a.steps, seed, (0.25, 1.0), 2.0, "L", amp) for t in a.T.split(",")
+            for dn in a.dirs.split(",") for p in a.plants.split(",") for dl in a.delays.split(",")]
     with ProcessPoolExecutor(a.workers) as ex:
         rows = list(ex.map(_job, jobs))
     os.makedirs(os.path.dirname(a.out), exist_ok=True)

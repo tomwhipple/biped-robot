@@ -232,16 +232,19 @@ lifts at 4 s), so it is the gait, not the firmware port. Left stance in a left s
 `Sway(wide=True)`, adds the stance foot's offset from the feet's mid line to the amplitude. A2's runs
 did not use it; everything below does.
 
-Predictions (`results/sil_gait.txt`; TS = the firmware's per-step line, deg):
+Predictions (`results/sil_gait.txt`; TS = the firmware's per-step line, deg). The sway amplitudes and the
+seeds are the robot's own working values from the B1 runs (below): 1.3 × 62 mm over the left foot,
+1.25 × over the right, T seeded L 5.2, R 3.4. With A2's 1.35 / 1.1 and 8 / 3 the grid is also 0 falls,
+0 aborts, 100 % lifts (`results/sil_gait_a2amp.txt`).
 
 | T | runs | falls | trim aborts | lifts | TS lean toward swing, median / max | TS outward max | T at mid support L / R | hike L / R | swing sole peak clearance median | queue max (frames) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 4 s | 48 | 0 | 0 | 384 / 384 | 3.1 / 6.0 | 4.2 | 9.5 / 5.7 | 9.8 / 6.0 | 38 mm | 81 |
-| 3 s | 48 | 0 | 0 | 384 / 384 | 3.3 / 6.1 | 4.2 | 9.0 / 5.2 | 9.3 / 5.7 | 36 mm | 61 |
-| 2.5 s | 48 | 0 | 0 | 384 / 384 | 3.3 / 6.1 | 4.7 | 8.8 / 5.1 | 9.1 / 5.6 | 36 mm | 51 |
-| 2 s | 48 | 0 | 0 | 384 / 384 | 3.5 / 6.5 | 4.6 | 8.2 / 4.6 | 8.6 / 5.3 | 38 mm | 41 |
+| 4 s | 48 | 0 | 0 | 384 / 384 | 3.0 / 6.9 | 4.1 | 8.2 / 5.7 | 8.5 / 5.9 | 36 mm | 81 |
+| 3 s | 48 | 0 | 0 | 384 / 384 | 3.1 / 7.4 | 3.7 | 7.5 / 5.4 | 7.8 / 5.7 | 35 mm | 61 |
+| 2.5 s | 48 | 0 | 0 | 384 / 384 | 3.4 / 7.3 | 4.0 | 7.2 / 5.1 | 7.6 / 5.6 | 34 mm | 51 |
+| 2 s | 48 | 0 | 0 | 384 / 384 | 3.5 / 7.2 | 3.5 | 6.5 / 4.6 | 7.0 / 5.4 | 36 mm | 41 |
 
-Peak torso tilt is at most 7.0 deg in every direction and step time. On the robot, a TS line far outside
+Peak torso tilt is at most 6.3 deg in every direction and step time. On the robot, a TS line far outside
 these numbers (a lean toward the swing foot over ~10 deg, an ABORT, T running to its 14 deg limit)
 falsifies the model; `track_host.py` stops the track on the first one.
 
@@ -253,3 +256,59 @@ Stage C plan only. Sizing at 100 ms keyframes:
 - Before `track play`: 20 lines at T = 4 s, 10 at 2 s (2 steps ahead).
 - The per-line round trip and the frames/s it gives are measured on the first live run (`--live` prints
   them); the 100 ms used above is the stepper's pose round trip, an assumption until then.
+
+## Stage C: the hardware plan (hard floor first; one phase at a time)
+
+Each phase has its sim number, a stop rule and what would falsify the model. A phase starts only after the
+previous one met its number. The fall guard stays on throughout; the robot is on the bench tether or on
+the floor with a hand near it.
+
+| phase | how | sim prediction | stop rule | falsified if |
+|---|---|---|---|---|
+| C0 flash | `flash_prec16_trim.sh` (B1) / the B2 image | `trim` prints "aborts none", kp 0.25 ki 1.00, T 0 / 0 | any other status | -- |
+| C1 stand + hand push | T at 0 (`trim T clear`: a seeded T would ramp a hike in with both feet down); crouched double support; `pose <the same 17> s1000 SL`, then push the pelvis sideways ~3 deg for 2 s, release; `trim`; `trim off` | hike follows kp·s·e + ki·∫: about +0.75 deg at once for a 3 deg lean toward the right foot (L stance), growing ~3 deg/s while held; the sign is + (lifts the right hip) | `trim ABORT`, or hike > 10 deg -> `trim off` | hike moves the other way (a sign error), or it moves with no lean |
+| C2 single lift each side | the stepper with S flags (`SL`/`SLh`, `SR`/`SRh`), seeded `trim T L 5.2`, `trim T R 3.4`, 2 lifts per side (done 2026-11-12 with plain S poses: below) | Stage A on the 11-12 runs: 96-97 % lifts, 0 falls, peak lean median 3.4, max 5.0 deg | ABORT, or \|e\| > 8 deg in the flight record -> land (the stepper's own lowering) | the lift fails with a level torso (play larger than the fit), or e > 8 deg with T near its seed |
+| C3 march on the track | `track_host.py --T 4 --dir march --steps 6 --live` (B2 image) | the B2 table at 4 s: 100 % lifts, TS lean toward swing median 3.0 / max 6.9, outward max 4.1, T at mid support L 8.2 / R 5.7, hike L 8.5 / R 5.9 deg, swing sole ~36 mm | `track_host.py` sends `track stop` on an ABORT or a lean toward the swing foot > 10 deg; a refused line or a lost link -> `track halt` | TS lean > 10 deg on two steps in a row of one side, or T walking to the 14 deg limit, or the sole visibly not clearing while the TS numbers are in range (then the plant's play is wrong: re-fit with `stepper_replay`) |
+| C4 faster | march at T = 3, then 2.5, then 2 s (one step down per green run) | the B2 table row for each T | as C3 | as C3, against that row |
+| C5 walk | at T = 4 s: fwd, back, sideL, sideR, turn; then step T down as in C4 | 0 falls, 100 % lifts at every T and direction in the SIL; peak torso tilt ≤ 7 deg | as C3 | as C3; also a sidestep that leans into the swing foot at slow T (the `wide` sway is what fixed that in sim) |
+
+The upload numbers (round trip per `track add` line, frames/s, how far ahead the host stays) are
+measured on the first C3 run; `track_host.py` prints them.
+
+## The B1 firmware on the robot, 2026-11-12, against the sim (`fw_replay.py`)
+
+The first hardware runs of the B1 trim (hard panels; plain `pose ... s<ms> S<L|R>[h]` over Wi-Fi). Five
+runs: `hw_sessions/2026-11-12/fwtrim_*.json`, flight record `flight_20261112T215156Z_prec16.frec`.
+`fw_replay.py` drives the sim plant with the robot's own nominal targets, tick by tick from the flight
+record. The trim twin (`sim/stance_trim.py`) runs on the robot's state transitions, with the robot's T at
+each chain's start; the roll comes back one tick late (`results/fw_replay_1112.json`).
+
+Lean = peak toward the lifted foot while closed; e, hike and T where the hold begins; robot / sim (fit
+plant; lo and hi in brackets where they differ), deg:
+
+| run | what was sent | lean | e at hold | hike at hold | T at hold |
+|---|---|---|---|---|---|
+| lift 1, R stance | shift 1.15×, T from 0 | **10.1** / 4.1 | −8.2 / −2.3 | 7.0 / 3.4 | 5.5 / 2.9 |
+| lift 2, R stance | shift 1.15×, T from 5.5 | **10.8** / 2.6 (1.8-3.6) | −9.1 / +0.4 | 10.3 / 6.3 | 8.6 / 6.4 |
+| lift 3, R stance | shift 1.25×, T from 8.6 | 0.7 / 2.0 | 0.0 / 0.1 | **3.4** / 5.9 (4.3-7.2) | 3.4 / 5.9 |
+| lift 4, L stance | shift 1.3×, T from 0, 4.5 s raise | 2.8 / 3.6 | 0.0 / 0.0 | 5.2 / 5.1 | 5.2 / 5.1 |
+| march, 2 × R | 1.25× | 1.3 / 3.0-3.4 | 0.3 / −0.2 | **3.0** / 5.3-5.6 | 3.1 / 5.3-5.6 |
+| march, 2 × L | 1.3× | 2.0 / 2.7-2.9 | −0.3 / −0.3 | 5.1 / 5.7-5.9 | 5.2 / 5.8-6.0 |
+
+Where the sim is wrong:
+- **Right stance with too little shift.** At 1.15× the robot tipped toward the lifted foot at foot-off
+  (10-11 deg); the sim leans 2-4 deg on every play variant and does not tip. At 1.25× both hold. So the
+  sim's right-stance side is optimistic about how far the CoM has to go. More hip play does not explain
+  it (the hi plant still leans only 3.6). A lateral CoM offset toward the left in the robot, or a softer
+  right ankle at foot-off, would; neither has been fitted yet.
+- **Right-stance hike.** Once it holds, the robot settles at hike 3.0-3.4 deg on the right; the sim needs
+  5.3-5.9. The right side is the same story from the other end: the robot needs more shift and less hip.
+- **Left stance matches.** The sim reproduces the left side within 1 deg (lean 2.8 / 3.6, hike 5.2 / 5.1,
+  learned T 5.2 / 5.1).
+- **Lean in the march.** The robot leans 1.3-2.0 deg toward the lifted foot; the sim leans 2.7-3.4 (both
+  sides). The robot is steadier than the sim there.
+- In the lo-play plant the sim march fell 20.6 s into the run; the robot did not fall.
+
+For the track and the sway: the SIL grid above now uses the robot's working values (1.3 / 1.25, seeds
+5.2 / 3.4) and still holds everywhere. Because the sim is optimistic about right stance, the right-side
+amplitude should not go below 1.25 on the robot even where the sim would allow it.
