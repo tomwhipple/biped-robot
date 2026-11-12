@@ -2941,7 +2941,7 @@ march number; the play plant's large effect is on the OLD policies' x1.5 margin 
   70_s1 21→21, 70_s2 19→18, 71 26→35, 71_s1 35→26. Median +1: not the limit.
 
 **Ranking:** no march candidate (no seed lifts both feet; none is level within 3 deg). No walk candidate either: every play student
-lost the sidesteps, and prec16 / prec37 fall x1.5 8/8 on the play plant. The #259 gate has not passed. **No robot candidate.**
+lost the sidesteps, and prec16 and prec52 fall x1.5 8/8 on the play plant (prec37 not graded there). The #259 gate has not passed. **No robot candidate.**
 
 **Stop and escalate (review rule 4).** The weight-transfer / march line has now run four nights (walk-shift 11-09, sway + march 11-10,
 the play-plant march 11-11) with no hardware-confirmed gain. Across 18 march seeds on three plants it has shown: the reference finds
