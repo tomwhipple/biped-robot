@@ -162,3 +162,48 @@ What it will NOT do:
   runs the C++ component against the CPU twin.
 - **Servo gains:** no change is proposed. Stiffer servo P gains would shorten the servo lag that limits
   kp; this is not yet tested in sim.
+
+## A2: the upper layer's lateral motion for speed (`sway.py`, `sway_grid.py`)
+
+The stepper's quasi-static shift-then-raise carries momentum that falls OUTWARD at about 2.5 s per step,
+with or without the trim loop (Stage A; the robot fell that way in `2026-11-12/132035_walk`). `sway.py`
+replaces it with a continuous LIPM-style sway:
+
+- **Pelvis lateral:** y = k·62 mm · sin(π(t − t_c)/T + π/2), alternating over the stance foot. The
+  peak is at the middle of each single support. The amplitude switches per stance side where the sine
+  crosses zero (mid double support): kL = 1.35 over the left foot, kR = 1.1 over the right. These are
+  the stepper's own learned shift ratios (left 1.26-1.32, right 1.05-1.1).
+- **Pre-sway:** the pelvis sways one half period before the first lift, so the first step starts with
+  the CoM already swinging. Without it the first step from rest falls.
+- **Single support:** 50 % of T, centred on the peak. The swing sole rises 40 mm · sin²(πu) and moves
+  (min-jerk) over the middle 60 % of single support.
+  - A sidestep moves the leading foot outward first; the other foot follows.
+  - A turn puts ±0.15 rad on the swing hip yaw.
+- **Trim loop** on: kp 0.25, ki 1.0, T seeded with the stepper's learned trims (hike L 8, R 3).
+
+Results, 8 steps per run, 6 directions (march, forward, backward, sidestep L / R, turn) × 4 plants
+(fit, lo, hi, hard floor) × extra IMU delay 0 / 60 ms = 48 cases per step time (`results/sway_g4.json`):
+
+| step time T | lifts | falls | peak lean, median / max deg |
+|---|---|---|---|
+| 2.5 s | 100 % | 0 | 3.8 / 18.5 |
+| **2.0 s** | **100 %** | **0** | 4.3 / 6.3 |
+| 1.75 s | 89 % (fit 96, hard 100, lo 100, hi 60) | 0 | 4.5 / 7.0 |
+| 1.5 s | 70 % (lo 100, hard 80, fit 77, hi 26) | 0 | 4.5 / 7.7 |
+
+**The fastest step time at ≥ 95 % lifts and 0 falls across the plants is 2.0 s per step**, in every
+direction. That is 4-7 × the host stepper's pace.
+- Below it no case falls, but the swing sole clears 5 mm for less than half of the single support. The
+  high-play plant (10 / 10 / 3 / 2) limits first.
+- At 2.0 s on fit / hi, 6 directions:
+
+  | loop | lifts | falls |
+  |---|---|---|
+  | off | 0 % | 0 / 12 |
+  | trim with T starting at 0 | 51 % | 0 / 12 |
+  | trim seeded with the stepper's learned T | 100 % | 0 / 12 |
+
+  At these step times the per-side learned trim has to be there from the first step: the integrator has
+  no time to learn it within one single support.
+- With a single amplitude of 1.2 on both sides, sidestepping left falls 4 / 8. So the per-side shift
+  matters as soon as the robot steps sideways.
