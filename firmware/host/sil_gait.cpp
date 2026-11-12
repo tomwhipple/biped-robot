@@ -62,9 +62,10 @@ uint32_t sil_gait_start_time(void* h) { return static_cast<Gait*>(h)->track.star
 int sil_gait_queued(void* h) { return static_cast<Gait*>(h)->track.queued(); }
 
 // One 50 Hz tick at track time t_ms with the torso roll (rad; NaN = none). Out: the 12 goals (ticks,
-// kLegJoints order) with the stance hip roll correction NOT applied (hip_joint_rad and stance say where it
-// goes), the phase, the track state; report[7] = stance, lean_in, lean_out, e_mid, t_mid, hike_mid, aborted
-// (rad), filled when a single support ended (return bit 1). Bit 0 of the return: the track is done.
+// kLegJoints order) with the hip roll corrections NOT applied (hip_joint_rad[2] = L, R: the trim's and the
+// driver residual's, joint rad), the phase, the trim state; report[8] = stance, lean_in, lean_out, e_mid,
+// t_mid, hike_mid (rad), aborted, reverted, filled when a single support ended (return bit 1). Bit 0 of
+// the return: the track is done.
 int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float dt_s, int32_t* q12, float* phi,
                   float* hip_joint_rad, int* stance, int* trim_state, float* report7) {
     Gait* g = static_cast<Gait*>(h);
@@ -79,7 +80,10 @@ int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float dt_s, int32_t* q
     in.lowering = sup.lowering;
     balance::StepReport rep;
     const bool ended = g->driver.step(in, roll_rad, dt_s, &rep);
-    *hip_joint_rad = g->trim.engaged() ? g->trim.hipJoint() : 0.0f;
+    // hip_joint_rad[2]: the L and R hip roll corrections, the trim's and the residual's
+    hip_joint_rad[0] = hip_joint_rad[1] = 0.0f;
+    if (g->trim.engaged()) hip_joint_rad[g->trim.side() == 'L' ? 0 : 1] += g->trim.hipJoint();
+    if (g->driver.residualSide() != 0) hip_joint_rad[g->driver.residualSide() == 'L' ? 0 : 1] += g->driver.residualHip();
     *stance = g->trim.engaged() ? g->trim.side() : 0;
     *trim_state = static_cast<int>(g->trim.state());
     if (ended && report7 != nullptr) {
@@ -90,8 +94,65 @@ int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float dt_s, int32_t* q
         report7[4] = rep.t_mid;
         report7[5] = rep.hike_mid;
         report7[6] = rep.aborted ? 1.0f : 0.0f;
+        report7[7] = rep.reverted ? 1.0f : 0.0f;
     }
     return (st == gaitplay::State::kDone ? 1 : 0) | (ended ? 2 : 0);
+}
+
+}  // extern "C"
+
+// The trim on a gait clock alone (the policy path, #297 B2): gaitplay::supportFromPhase + TrimDriver +
+// StanceTrim, one tick per call -- what sim/trim_kernel.py is pinned to (tests/test_trim_kernel.py).
+namespace {
+struct ClockTrim {
+    balance::StanceTrim trim;
+    balance::TrimDriver driver{trim};
+};
+}  // namespace
+
+extern "C" {
+
+void* sil_trim_new(float kp, float ki, float lim_deg, float tlim_deg, float fade_s, float abort_deg) {
+    ClockTrim* c = new ClockTrim();
+    balance::TrimConfig cfg;
+    cfg.kp = kp;
+    cfg.ki = ki;
+    cfg.lim_rad = lim_deg / 57.29578f;
+    cfg.t_lim_rad = tlim_deg / 57.29578f;
+    cfg.fade_s = fade_s;
+    cfg.abort_rad = abort_deg / 57.29578f;
+    if (balance::validateTrim(cfg) != nullptr) {
+        delete c;
+        return nullptr;
+    }
+    c->trim.configure(cfg);
+    return c;
+}
+
+void sil_trim_free(void* h) { delete static_cast<ClockTrim*>(h); }
+
+// T in rad (hike convention)
+void sil_trim_set_learned(void* h, char side, float rad) { static_cast<ClockTrim*>(h)->trim.setLearned(side, rad); }
+
+// out[6] = hip_L, hip_R (joint rad), hike, T_L, T_R, state
+void sil_trim_step(void* h, float phase, int lift, float roll, float dt, float* out6) {
+    ClockTrim* c = static_cast<ClockTrim*>(h);
+    const gaitplay::Support sup = gaitplay::supportFromPhase(phase, lift != 0);
+    balance::SupportIn in;
+    in.stance = sup.stance;
+    in.progress = sup.progress;
+    in.lowering = sup.lowering;
+    balance::StepReport rep;
+    c->driver.step(in, roll, dt, &rep);
+    const bool on = c->trim.engaged();
+    const float hip = on ? c->trim.hipJoint() : 0.0f;
+    out6[0] = on && c->trim.side() == 'L' ? hip : 0.0f;
+    out6[1] = on && c->trim.side() == 'R' ? hip : 0.0f;
+    if (c->driver.residualSide() != 0) out6[c->driver.residualSide() == 'L' ? 0 : 1] += c->driver.residualHip();
+    out6[2] = c->trim.hike();
+    out6[3] = c->trim.learned('L');
+    out6[4] = c->trim.learned('R');
+    out6[5] = static_cast<float>(c->trim.state());
 }
 
 }  // extern "C"

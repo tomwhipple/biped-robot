@@ -5,7 +5,9 @@ prints (`python sim/stance_trim.py`).
     e    = roll - roll_ref                      (rad; roll + = leaning to the robot's right)
     s    = +1 on L stance, -1 on R
     hike = clip(r * T[side] + kp * s * e, +-lim) (rad, the stepper's convention: + lifts the other hip)
-    T[side] += ki * s * e * dt                   while CLOSED and |unclipped hike| < lim; |T| <= t_lim
+    T[side] += ki * s * e * dt                   while CLOSED, |unclipped hike| < lim and |e| <= learn; |T| <= t_lim
+    T is provisional within a chain: a chain that ends (release, abort, stop) with its peak |e| past keep,
+    an abort, or the hike at its clamp puts T of its side back to its value at the chain's begin
     stance hip roll joint += s * hike
 
 CLOSED -> HOLD (frozen) -> FADE (linear to 0 over fade_s) -> OFF; |e| > abort while CLOSED, or a
@@ -20,13 +22,16 @@ OFF, CLOSED, HOLD, FADE, ABORT_TIP, ABORT_IMU = 0, 5, 6, 7, 8, 9
 
 
 class StanceTrim:
-    def __init__(self, kp=0.25, ki=1.0, lim_deg=15.0, t_lim_deg=14.0, fade_s=0.6, abort_deg=15.0):
+    def __init__(self, kp=0.25, ki=1.0, lim_deg=15.0, t_lim_deg=14.0, fade_s=0.6, abort_deg=15.0, learn_deg=6.0,
+                 keep_deg=8.0):
         self.kp, self.ki = kp, ki
         self.lim, self.t_lim = lim_deg * D2R, t_lim_deg * D2R
         self.fade_s, self.abort = fade_s, abort_deg * D2R
         self.T = {"L": 0.0, "R": 0.0}
         self.state, self.side = OFF, None
         self.ref = self.err = self.hike = self.frozen = self.since = 0.0
+        self.learn, self.keep = learn_deg * D2R, keep_deg * D2R
+        self.t_begin, self.peak, self.clamped, self.reverted = 0.0, 0.0, False, False
 
     def sign(self):
         return -1.0 if self.side == "R" else 1.0
@@ -35,6 +40,14 @@ class StanceTrim:
         self.side = "R" if side == "R" else "L"
         self.ref, self.err, self.hike, self.frozen, self.since = roll_ref, 0.0, 0.0, 0.0, 0.0
         self.state = CLOSED
+        self.t_begin, self.peak, self.clamped = self.T[self.side], 0.0, False
+
+    def end_chain(self, aborting):
+        if self.side not in ("L", "R"):
+            return
+        self.reverted = aborting or self.clamped or self.peak > self.keep
+        if self.reverted:
+            self.T[self.side] = self.t_begin
 
     def fade_left(self):
         if self.state not in (FADE, ABORT_TIP, ABORT_IMU):
@@ -63,13 +76,18 @@ class StanceTrim:
             return self.state
         e = roll - self.ref
         self.err = e
+        self.peak = max(self.peak, abs(e))
         if abs(e) > self.abort:
-            self.frozen, self.since, self.state = self.hike, 0.0, ABORT_TIP
+            self.frozen, self.since = self.hike, 0.0
+            self.end_chain(True)
+            self.state = ABORT_TIP
             return self.state
         r = min(max(ramp if math.isfinite(ramp) else 1.0, 0.0), 1.0)
         s = self.sign()
         unsat = r * self.T[self.side] + self.kp * s * e
-        if abs(unsat) < self.lim:
+        if abs(unsat) >= self.lim:
+            self.clamped = True
+        elif abs(e) <= self.learn:
             self.T[self.side] = min(max(self.T[self.side] + self.ki * s * e * dt, -self.t_lim), self.t_lim)
         self.hike = min(max(unsat, -self.lim), self.lim)
         return self.state
@@ -84,11 +102,15 @@ class StanceTrim:
 
     def release(self):
         if self.state in (CLOSED, HOLD):
-            self.frozen, self.since, self.state = self.hike, 0.0, FADE
+            self.frozen, self.since = self.hike, 0.0
+            self.end_chain(False)
+            self.state = FADE
 
     def imu_fault(self):
         if self.state in (CLOSED, HOLD):
-            self.frozen, self.since, self.state = self.hike, 0.0, ABORT_IMU
+            self.frozen, self.since = self.hike, 0.0
+            self.end_chain(True)
+            self.state = ABORT_IMU
 
     def hip_joint(self):
         return self.sign() * self.hike
@@ -119,6 +141,18 @@ def golden():
     for _ in range(4):
         tr.update(-0.4, 0.02, 1.0)
         rows.append(("u", -0.4, 1.0, tr.state, tr.hike, tr.T["R"]))
+    for _ in range(31):                      # the abort fades out
+        tr.update(-0.4, 0.02, 1.0)
+        rows.append(("u", -0.4, 1.0, tr.state, tr.hike, tr.T["R"]))
+    # R again: a lean to 9 deg (learning stops past 6), released without an abort -> T reverts at release
+    tr.begin("R", 0.0)
+    for k in range(10):
+        roll = -0.016 * k
+        tr.update(roll, 0.02, 1.0)
+        rows.append(("u", roll, 1.0, tr.state, tr.hike, tr.T["R"]))
+    tr.release()
+    tr.update(-0.1, 0.02, 1.0)
+    rows.append(("release", -0.1, 1.0, tr.state, tr.hike, tr.T["R"]))
     return rows
 
 

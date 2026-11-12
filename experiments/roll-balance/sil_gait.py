@@ -126,14 +126,14 @@ def _lib(path=LIB):
 
 
 def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, seed=SEED, gains=(0.25, 1.0),
-        lead_steps=2.0, first="L", amp=None):
+        lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False):
     """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports."""
     import gate_common as GC
     import rec
     import simh
     L = _lib()
     sw, fr = gait(T_step, n_steps, first=first, **DIRS[direction], **(dict(kL=amp[0], kR=amp[1]) if amp else {}))
-    g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, 0.6, 15.0)
+    g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, fade, 15.0)
     L.sil_gait_set_learned(g, b"L", seed[0])
     L.sil_gait_set_learned(g, b"R", seed[1])
     lead_ms = 1e3 * lead_steps * T_step
@@ -157,16 +157,16 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     q0 = np.array([sw.q_start[n] for n in pol])
     simh.place_and_hold(env, np.clip(q0, env._lo, env._hi), 1.0)
     q12 = (ctypes.c_int32 * 12)()
-    phi, hipj = ctypes.c_float(), ctypes.c_float()
+    phi, hipj = ctypes.c_float(), (ctypes.c_float * 2)()
     stance, tstate = ctypes.c_int(), ctypes.c_int()
-    rep = (ctypes.c_float * 7)()
+    rep = (ctypes.c_float * 8)()
     cur = {"t": q0.copy()}
     env._action_to_ctrl = lambda a_: cur["t"]
     a0 = np.zeros(env.action_space.shape[0], np.float32)
     d = env.data
     pads = GC.pad_gids(env)
     # the crouch (a 2 s pose move to the first keyframe) and 1 s settle: the stepper's start, before `track play`
-    L.sil_gait_tick(g, 0, float("nan"), 0.02, q12, ctypes.byref(phi), ctypes.byref(hipj), ctypes.byref(stance),
+    L.sil_gait_tick(g, 0, float("nan"), 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
                     ctypes.byref(tstate), rep)
     q_first = {n: from_ticks(n, q12[i]) for i, n in enumerate(LEG)}
     for k in range(150):
@@ -178,21 +178,30 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     reports, fell, fall_dir, t_fall, peak_tilt = [], False, None, None, 0.0
     ph_up = {i: [0, 0, -1.0] for i in range(len(sw.phases))}      # n_hold, n_up, max clearance
     done_at = None
+    tr_rows = []
     for k in range(int(t_track_end * 50)):
         t_ms = 20 * k
         feed(t_ms)
         up = GC.up_of(d.qpos[3:7])
         roll = -math.asin(max(-1.0, min(1.0, up[1])))
         buf.append(roll)
-        r = L.sil_gait_tick(g, t_ms, buf[0], 0.02, q12, ctypes.byref(phi), ctypes.byref(hipj), ctypes.byref(stance),
+        r = L.sil_gait_tick(g, t_ms, buf[0], 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
                             ctypes.byref(tstate), rep)
         if r & 2:
             reports.append(dict(stance=chr(int(rep[0])), t=t_ms / 1e3, lean_in=math.degrees(rep[1]),
                                 lean_out=math.degrees(rep[2]), e_mid=math.degrees(rep[3]), T_mid=math.degrees(rep[4]),
-                                hike_mid=math.degrees(rep[5]), aborted=bool(rep[6])))
+                                hike_mid=math.degrees(rep[5]), aborted=bool(rep[6]), reverted=bool(rep[7])))
         tgt = {n: from_ticks(n, q12[i]) for i, n in enumerate(LEG)}
-        if stance.value:
-            tgt[f"{chr(stance.value)}_hip_roll"] += hipj.value
+        if drop_residual:                     # the pre-residual behaviour: only the live chain's hip
+            if stance.value:
+                tgt[f"{chr(stance.value)}_hip_roll"] += hipj[0 if chr(stance.value) == "L" else 1]
+        else:
+            tgt["L_hip_roll"] += hipj[0]      # the trim's and the driver residual's corrections
+            tgt["R_hip_roll"] += hipj[1]
+        if trace:
+            tr_rows.append((t_ms / 1e3, math.degrees(roll), math.degrees(float(d.qvel[3])), stance.value,
+                            math.degrees(tgt["L_hip_roll"] - from_ticks("L_hip_roll", q12[1])),
+                            math.degrees(tgt["R_hip_roll"] - from_ticks("R_hip_roll", q12[7]))))
         cur["t"] = np.clip(np.array([tgt[n] for n in pol]), env._lo, env._hi)
         env.step(a0)
         # the lift, as testbed/A2: the swing sole's lowest pad > 5 mm over the hold (raise end -> lower start)
@@ -222,7 +231,8 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     return dict(T=T_step, dir=direction, plant=plant, delay=extra_ms, fell=fell, fall_dir=fall_dir, t_fall=t_fall,
                 done=done_at is not None, n_steps=n_steps, lifts=sum(p["up_frac"] >= 0.5 for p in phs),
                 phases=phs, peak_tilt=round(peak_tilt, 1), reports=reports, aborts=sum(x["aborted"] for x in reports),
-                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]))
+                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]),
+                **(dict(trace=tr_rows) if trace else {}))
 
 
 def _job(a):

@@ -31,7 +31,10 @@ constexpr int kJoints = 12;
 inline constexpr const char* kLegJoints[kJoints] = {
     "L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "L_ankle_roll",
     "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "R_ankle_roll"};
-constexpr int kCap = 256;           // queued frames (25 s at 10 Hz keyframes)
+// Queued frames: 12.8 s at 10 Hz keyframes (the host stays ~2 steps ahead: 80 frames at 4 s a step).
+// 36 bytes a frame; the CLI allocates the Track from the heap at its first `track` command (2026-11-12:
+// a static 256-frame queue took the image to 99.8 % of static DRAM).
+constexpr int kCap = 128;
 
 enum Flags : uint8_t { kLift = 1, kStepEnd = 2, kRest = 4 };
 
@@ -117,5 +120,9 @@ struct Support {
     bool lowering;      // the last 35 % of the single support
 };
 Support supportFromPhase(float phi, bool lift);
+
+// The policy path's lift gate for the trim (the training envs' walker_env._trim_walking): vx, vy or wz
+// past 0.05, or the lift channel past 0.5. cmd in the link's layout ([0] vx, [1] vy, [2] wz, [4] lift).
+bool clockWalking(const float* cmd, int ncmd);
 
 }  // namespace gaitplay

@@ -251,4 +251,9 @@ Support supportFromPhase(float phi, bool lift) {
     return out;
 }
 
+bool clockWalking(const float* cmd, int ncmd) {
+    const auto at = [cmd, ncmd](int i) { return i < ncmd ? fabsf(cmd[i]) : 0.0f; };
+    return at(0) > 0.05f || at(1) > 0.05f || at(2) > 0.05f || at(4) > 0.5f;
+}
+
 }  // namespace gaitplay
