@@ -11,6 +11,14 @@ The review found that the simulation has mispredicted every hardware walking ses
 clearance and yaw, prec24's x1.5 margin, prec16's zero robot-probe trips, prec20's falls). Issues #259 - #267
 hold the work. These rules change how you plan:
 
+0. **Sim-only decisions are yours (Tom, 2026-11-12, #137).** His words, after the planner asked him to
+   choose between sim options: "go with option 1. begin now. In the future, just pick up and run this kind
+   of thing in the night... don't wait for my OK." Where a rule below would have you ask Tom to choose
+   between sim-only options, choose yourself instead. That covers a new training variable, parking or
+   continuing a line, which arms to run, or a one-night test. Pick your own recommendation, queue it that
+   night, and in the morning comment say what you chose and why. Do not @-mention him, assign him or end
+   `NEEDS_TOM` for any of that. Ask him (rule 5) only for what he alone can give: robot time or a hardware
+   session, purchases, anything destructive, or a change of the project's goal.
 1. **Milestone order.** (a) March in place on the robot with full weight transfer (#261); (b) a stride;
    (c) the full vx / vy / wz command volume (#263); then goal-conditioned locomotion (#88). The six-direction
    requirement below stays for stride candidates, but a lost direction does not veto a march candidate.
@@ -25,13 +33,16 @@ hold the work. These rules change how you plan:
    plus one control re-grade. Not eight or nine single-seed variables. A result "holds" only when at least
    two of its three seeds show it; write the spread, not the best seed. "One variable per run" below still
    applies within an arm.
-4. **Stop and escalate.** Count the nights a line (one hypothesis family, e.g. "sway in the reference") has
-   run since its last hardware-confirmed gain. At three, stop adding variables to it: write what the line has
-   and has not shown, queue replicates or the fallback, and ask Tom (rule 5) what to do. A hardware-confirmed
-   gain is a number from a robot run that moved the way the sim said it would.
-5. **Getting Tom's attention.** Tom does not read comments that do not mention him (the 3 cm question sat
-   unanswered on #137 for four mornings). Any question or decision for Tom carries `@tomwhipple` once, next
-   to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
+4. **Stop and decide.** Count the nights a line (one hypothesis family, e.g. "sway in the reference") has
+   run since its last hardware-confirmed gain. At three, stop adding variables to it by default. Write what
+   the line has and has not shown, and then decide yourself (rule 0): park it, pivot it, or give it one
+   more night to test a stated cause. In the morning comment, say which you chose and why. Ask Tom (rule 5)
+   only when the next useful step needs the robot. A hardware-confirmed gain is a number from a robot run
+   that moved the way the sim said it would.
+5. **Getting Tom's attention** (only for what rule 0 leaves to him: robot time or a hardware session,
+   purchases, anything destructive, a change of the project's goal). Tom does not read comments that do not
+   mention him (the 3 cm question sat unanswered on #137 for four mornings). Such a question carries
+   `@tomwhipple` once, next to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
    routine status. Also assign him the issue the ask lives on (`gh issue edit <n> --add-assignee tomwhipple`),
    and remove the assignment (`--remove-assignee tomwhipple`) the morning you act on his answer: his assigned
    list is his to-do list (Tom, 2026-11-10).
@@ -375,12 +386,13 @@ referee shows a phase failing is in scope every day.
 2. Push the ledger update.
 3. Comment on the status issue: last night (each run: score vs parent, verdict),
    what was learned, tonight's queue (each job: parent, variable, hypothesis),
-   anything Tom should decide.
+   the sim-only decisions you made and why (rule 0), and only rule-5 questions for Tom.
 4. End your reply with exactly one line:
    `PLAN_STATUS: QUEUED <n> jobs — <one-line summary of last night and tonight>`
    or, if you could not queue a full night, `PLAN_STATUS: FAILED — <why>`, or,
-   if a decision or hardware action of Tom's blocks the campaign,
-   `PLAN_STATUS: NEEDS_TOM — <what>` (queue the best available night anyway).
+   if something only Tom can give blocks the campaign (rule 5: robot time, hardware, purchases,
+   anything destructive, the project's goal), `PLAN_STATUS: NEEDS_TOM — <what>` (queue the best
+   available night anyway). A sim-only choice is never NEEDS_TOM (rule 0).
    The wrapper sends that line to Tom; do not post to Mattermost/Slack yourself.
 
 ## Actuator dynamics (2026-11-01 RCA) -- every legs job, from now on
