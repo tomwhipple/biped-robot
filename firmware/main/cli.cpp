@@ -3121,8 +3121,8 @@ void poseTick(Sink out) {
             // the stance trim (and a previous chain's fading residual) rides on the nominal target,
             // inside the calibrated envelope like every other bench write
             bool hit = false;
-            const int32_t d = (s_trim.engaged() && b == s_trim_bh ? s_trim_dth : 0) + (b == s_tres_bh ? s_tres_dt : 0);
-            want = clampTicks(obs::kBusServoId[b], want + d, &hit);
+            const int32_t dtrim = (s_trim.engaged() && b == s_trim_bh ? s_trim_dth : 0) + (b == s_tres_bh ? s_tres_dt : 0);
+            want = clampTicks(obs::kBusServoId[b], want + dtrim, &hit);
             if (hit) ++s_trim_clamps;
         }
         if (s_bal.engaged() && (b == s_bal_ba || b == s_bal_bh)) {
