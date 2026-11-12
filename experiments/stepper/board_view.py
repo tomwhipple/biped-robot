@@ -187,7 +187,7 @@ def _pair(cands, fill, x_robot):
     return best
 
 
-def soles(hue, sat, val, board, s_car, widen=60, outline=None):
+def soles(hue, sat, val, board, s_car, widen=60, outline=None, extra=None):
     """(pair, stage): the two soles and how they were found. Stage 0: grey plates (strict sizes). Stage 1: also
     whatever on the board is neither board-coloured nor dark (evening light). Stage 2: grey plates, relaxed
     sizes. Every candidate is a wide, low plate with dark robot structure above it that stands on the board or
@@ -200,18 +200,44 @@ def soles(hue, sat, val, board, s_car, widen=60, outline=None):
     elif pts is not None:
         cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
     x_robot = _robot_column(val, board, fill)
-    for stage, (bright, strict) in enumerate(((False, True), (True, False), (False, False))):
-        pair = _pair(_soles(hue, sat, val, board, s_car, bright, strict, widen, fill), fill, x_robot)
-        if pair:
-            if stage:
-                ym = min(fill.shape[0] - 1, int(0.5 * (pair[0]["y1"] + pair[1]["y1"])))
-                cols = np.nonzero(fill[ym])[0]
-                mm = BOARD_W_MM / max(1, cols[-1] - cols[0])
-                sep = (pair[1]["xc"] - pair[0]["xc"]) * mm
-                if not (100.0 <= sep <= 175.0 and min(p["inside"] for p in pair) >= 0.5):
-                    continue
-            return pair, stage
-    return [], 0
+    if extra is None:                                            # a full look: the stages in turn, the first that gives a pair
+        for stage, (bright, strict) in enumerate(((False, True), (True, False), (False, False))):
+            pair = _pair(_soles(hue, sat, val, board, s_car, bright, strict, widen, fill), fill, x_robot)
+            if pair:
+                if stage:
+                    ym = min(fill.shape[0] - 1, int(0.5 * (pair[0]["y1"] + pair[1]["y1"])))
+                    cols = np.nonzero(fill[ym])[0]
+                    sep = (pair[1]["xc"] - pair[0]["xc"]) * BOARD_W_MM / max(1, cols[-1] - cols[0])
+                    if not (100.0 <= sep <= 175.0 and min(p["inside"] for p in pair) >= 0.5):
+                        continue
+                return pair, stage
+        return [], 0
+    # a calibrated look: the robot's silhouette gives the plates; grey plates hanging off the edge (outside the outline,
+    # where the silhouette is blind) are added; where both found the same plate, the wider box (it includes the part
+    # that hangs off) is kept
+    cands = [dict(c) for c in extra]
+    # a bracket or a leg piece sitting right above a foot (another candidate lower down under at least half of it) is not a foot
+    cands = [a for a in cands if not any(b is not a and b["y1"] > a["y1"] + 8 and
+                                         min(a["x1"], b["x1"]) - max(a["x0"], b["x0"]) >= 0.5 * min(a["x1"] - a["x0"], b["x1"] - b["x0"])
+                                         for b in cands)]
+    for c in _soles(hue, sat, val, board, s_car, False, True, widen, fill):
+        same = [o for o in cands if min(o["x1"], c["x1"]) - max(o["x0"], c["x0"]) > 0.5 * min(o["x1"] - o["x0"], c["x1"] - c["x0"])
+                and min(o["y1"], c["y1"]) - max(o["y0"], c["y0"]) > 0]
+        if not same:
+            cands.append(dict(c, stage=0))
+        elif c["x1"] - c["x0"] > same[0]["x1"] - same[0]["x0"] + 6:
+            cands[cands.index(same[0])] = dict(c, stage=0)
+    pair = _pair(cands, fill, x_robot)
+    if not pair:
+        return [], 0
+    stage = max(p["stage"] for p in pair)
+    if stage:                                                    # a fallback stage: the pair must be convincing
+        ym = min(fill.shape[0] - 1, int(0.5 * (pair[0]["y1"] + pair[1]["y1"])))
+        cols = np.nonzero(fill[ym])[0]
+        sep = (pair[1]["xc"] - pair[0]["xc"]) * BOARD_W_MM / max(1, cols[-1] - cols[0])
+        if not (100.0 <= sep <= 175.0 and min(p["inside"] for p in pair) >= 0.5):
+            return [], 0
+    return pair, stage
 
 
 def _soles(hue, sat, val, board, s_car, use_bright, strict, widen=60, fill=None):
@@ -325,6 +351,93 @@ def _far_row(board, L, R):
     return best if best is not None else (int(ys[0]) if len(ys) else 0)
 
 
+def _silhouette_plates(hue, sat, val, calib, board):
+    """Sole candidates in a calibrated look, from the robot's SILHOUETTE: inside the stored outline, everything that is
+    not board-coloured (hue and saturation of the board, in light or in shadow) is the robot -- legs, servos, wires and
+    the plates, whatever their tint in this light. Each connected piece is a leg with its foot: the foot is what is left
+    of its lowest part after an opening wider than the leg (0.6 of a sole), so a foot seen from a yaw, at another depth
+    than its neighbour, in the robot's own shadow or lit, is found the same way. The plate's x-extent is read from the
+    unopened piece over the plate's rows."""
+    H, W = sat.shape
+    inside = _trapezoid(calib, H, W)
+    boardish = (board > 0) | ((hue <= 29) & ((sat > calib["t"]) | ((val < 65) & (sat > 60))))
+    R = (inside & ~boardish & (val > 18)).astype(np.uint8)
+    R = cv2.morphologyEx(R, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    R = cv2.morphologyEx(R, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(R, connectivity=8)
+    out = []
+
+    def plate(blob, m0, a, sole_px):
+        """One foot from `blob` (what survived the opening, one connected piece), x-extent read from m0 near it."""
+        rows = np.nonzero(blob.any(1))[0]
+        if len(rows) < 5:
+            return None
+        y1 = int(rows.max())
+        rw = blob.sum(1)
+        wide = np.nonzero(rw >= 0.75 * rw.max())[0]                # the plate's own rows: the bracket on it is narrower
+        wide = wide[wide >= y1 - int(0.6 * sole_px)]
+        if len(wide) == 0 or y1 < calib["y_top"] + 25:             # (a piece cut by the far edge is a leg, not a foot)
+            return None
+        y0 = int(wide.min())
+        hp = y1 - y0 + 1
+        bx = np.nonzero(blob.any(0))[0]
+        lo, hi = max(0, int(bx.min()) - 8), min(W, int(bx.max()) + 9)
+        # the plate's x-extent: from the piece eroded by 2 px (a 1-3 px dark or tinted fringe around a plate is not plate, a
+        # pointed corner of a yawed plate is), columns of 3 or more pixels over the plate's rows, then the 2 px given back
+        sub = np.zeros_like(m0)
+        sub[:, lo:hi] = m0[:, lo:hi]
+        pe = cv2.erode(sub[max(0, y0 - 4):y1 + 6].astype(np.uint8), np.ones((3, 3), np.uint8), iterations=2) > 0
+        cx = np.nonzero(pe.sum(0) >= 3)[0]
+        if len(cx) == 0:
+            return None
+        x0, x1 = int(cx.min()) - 2, int(cx.max()) + 2
+        if (x1 - x0 + 1) < 1.2 * hp or (x1 - x0) < 0.55 * sole_px or (x1 - x0) > 1.75 * sole_px:
+            return None
+        ym = (y0 + y1) // 2
+        xl_e = calib["edge_l"][0] * ym + calib["edge_l"][1]
+        xr_e = calib["edge_r"][0] * ym + calib["edge_r"][1]
+        inside_f = max(0.0, min(x1, xr_e) - max(x0, xl_e) + 1) / (x1 - x0 + 1)
+        band = max(40, int(1.5 * hp))                              # dark robot structure directly above (servo, leg)
+        dk = ((val[max(0, y0 - band):y0, x0:x1 + 1] < 75) & ~boardish[max(0, y0 - band):y0, x0:x1 + 1]).mean() if y0 > 0 else 0.0
+        if inside_f < 0.15 or dk < 0.05:
+            return None
+        return dict(x0=x0, x1=x1, y0=y0, y1=y1, area=int(a), xc=0.5 * (x0 + x1), sup=0.5, inside=round(inside_f, 2), stage=0, sil=True,
+                    xl_row=float(y1 - 1), xr_row=float(y1 - 1))        # (the outer corner: the plate's bottom)
+
+    for k in range(1, n):
+        x, y, w, h, a = st[k]
+        if a < 900 or h < 12:
+            continue
+        m0 = lab == k
+        yb = int(y + h - 1)
+        bw = (calib["edge_r"][0] - calib["edge_l"][0]) * yb + calib["edge_r"][1] - calib["edge_l"][1]
+        sole_px = SOLE_W_MM / calib["board_w_mm"] * bw
+        kw = max(15, int(0.6 * sole_px))
+        lowest = m0.copy()
+        lowest[:max(0, yb - int(0.9 * sole_px)), :] = False        # only the lowest bit of the piece: the foot, not the leg
+        op = cv2.morphologyEx(lowest.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, kw), np.uint8)) > 0
+        nb, lb, sb, _ = cv2.connectedComponentsWithStats(op.astype(np.uint8), connectivity=8)
+        for j in range(1, nb):
+            blob = lb == j
+            if sb[j, cv2.CC_STAT_AREA] < 150:
+                continue
+            blobs = [blob]
+            if sb[j, cv2.CC_STAT_WIDTH] > 1.75 * sole_px:          # two feet that touch: cut at the narrowest column between them
+                prof = blob.sum(0).astype(float)
+                xs = np.nonzero(prof)[0]
+                lo_, hi_ = xs.min() + int(0.3 * (xs.max() - xs.min())), xs.max() - int(0.3 * (xs.max() - xs.min())) + 1
+                if hi_ > lo_:
+                    cut = lo_ + int(np.argmin(prof[lo_:hi_]))
+                    left, right = blob.copy(), blob.copy()
+                    left[:, cut:], right[:, :cut] = False, False
+                    blobs = [left, right]
+            for bm in blobs:
+                c = plate(bm, m0, a, sole_px)
+                if c is not None:
+                    out.append(c)
+    return out
+
+
 def _calib_mask(hue, sat, val, calib):
     """The board inside the stored outline, by the stored saturation split. Everything outside it (people, bags, the
     carpet, the wall) is not looked at."""
@@ -343,25 +456,44 @@ def _calib_mask(hue, sat, val, calib):
     return lab == k
 
 
-def _calib_fits(calib, sat, val, y_from):
-    """Do the stored edges still separate board-coloured from carpet-coloured pixels? In the rows nearer than the feet
-    (nothing stands there): 12-30 px inside each edge must be board (>= 80 %), 12-30 px outside carpet (>= 70 %)."""
+def _calib_fits(calib, hue, sat, val, y_from, rows_hidden=None):
+    """Do the stored long edges still separate board from carpet where they can be SEEN? The robot, its shadow, a leg or
+    a person may hide any part of an edge, so each row (every 3rd, from the far edge down) is judged on its own:
+      agrees:    12-30 px inside the line it is board-coloured and 12-30 px outside it is not;
+      disagrees: the board goes on outside the line (the picture or the board moved), or the board is outside it;
+      hidden:    neither (both sides not board: something stands there; mixed): not counted.
+    Board-coloured is shadow-tolerant (hue and saturation of the board, dark or lit). It fits if, over both edges, at least
+    15 rows say anything and 75 % of them agree, and no edge with 10 or more rows says mostly 'disagrees'. Rows hidden by the
+    robot (rows_hidden: y ranges) are never used."""
     H, W = sat.shape
     t = calib["t"]
-    rows = range(max(int(y_from), int(calib["y_top"]) + 10), H - 2, 3)
-    res = {"inl": [], "inr": [], "outl": [], "outr": []}
-    for y in rows:
-        xl = calib["edge_l"][0] * y + calib["edge_l"][1]
-        xr = calib["edge_r"][0] * y + calib["edge_r"][1]
-        for d in (12, 20, 30):
-            for key, x in (("inl", xl + d), ("inr", xr - d), ("outl", xl - d), ("outr", xr + d)):
-                xi = int(round(x))
-                if 0 <= xi < W:
-                    isb = bool(sat[y, xi] > t or (val[y, xi] < 65 and sat[y, xi] > 60))
-                    res[key].append(isb if key.startswith("in") else not isb)
-    if min((len(v) for v in res.values()), default=0) < 10:
-        return True                                              # the edges are out of the picture here: nothing to test
-    return all(np.mean(res[k]) >= (0.8 if k.startswith("in") else 0.7) for k in res)
+    soft = ((hue <= 29) & (hue >= 8) & (sat > 0.72 * t)) | ((hue <= 29) & (val < 65) & (sat > 60))
+    tot = [0, 0]
+    per = {"l": [0, 0], "r": [0, 0]}
+    for y in range(max(int(y_from), int(calib["y_top"]) + 10), H - 2, 3):
+        if rows_hidden and any(a <= y <= b for a, b in rows_hidden):
+            continue
+        for side in ("l", "r"):
+            e = calib["edge_l" if side == "l" else "edge_r"]
+            x = e[0] * y + e[1]
+            sg = 1 if side == "l" else -1                         # +: inward
+            ins = [int(round(x + sg * d)) for d in (12, 20, 30)]
+            out = [int(round(x - sg * d)) for d in (12, 20, 30)]
+            if min(ins + out) < 0 or max(ins + out) >= W:
+                continue
+            inb = np.mean([soft[y, xi] for xi in ins])
+            outb = np.mean([soft[y, xi] for xi in out])
+            if inb >= 0.8 and outb <= 0.2:
+                per[side][0] += 1
+            elif outb >= 0.8:                                    # the board is outside the line (inside or not)
+                per[side][1] += 1
+    agree = per["l"][0] + per["r"][0]
+    dis = per["l"][1] + per["r"][1]
+    if agree + dis < 15:
+        return False
+    if agree < 0.75 * (agree + dis):
+        return False
+    return not any(sum(v) >= 10 and v[1] > v[0] for v in per.values())
 
 
 def measure(frame_bgr, board_w_mm=BOARD_W_MM, taper=None, calib=None):
@@ -386,7 +518,8 @@ def measure(frame_bgr, board_w_mm=BOARD_W_MM, taper=None, calib=None):
     if calib is not None:                                        # 0.7 of a sole width either side of the outline (wider swallows the bag and the cable: see dry_run)
         yy = min(H - 1, int(0.5 * (calib["y_top"] + H)) + 60)
         widen = int(0.7 * SOLE_W_MM / calib["board_w_mm"] * (calib["edge_r"][0] * yy + calib["edge_r"][1] - calib["edge_l"][0] * yy - calib["edge_l"][1]))
-    ss, stage = soles(hue, sat, val, board, stat["s_car"], widen, outline)
+    extra = _silhouette_plates(hue, sat, val, calib, board) if calib is not None else None
+    ss, stage = soles(hue, sat, val, board, stat["s_car"], widen, outline, extra)
     if len(ss) != 2:
         return None, "no soles"
     a, b = ss                                                    # picture left = the robot's RIGHT foot
@@ -397,7 +530,7 @@ def measure(frame_bgr, board_w_mm=BOARD_W_MM, taper=None, calib=None):
     mm_sole = SOLE_W_MM / (0.5 * (wa + wb))
     conf = 1.0
     if calib is not None:
-        if not _calib_fits(calib, sat, val, yb + 6 if yb + 6 < H - 40 else H - 100):
+        if not _calib_fits(calib, hue, sat, val, calib["y_top"] + 10):               # every row of the board's long edges, each judged on its own
             return None, "calibration no longer fits"
         EL = ER = None
         L, R = np.array(calib["edge_l"], float), np.array(calib["edge_r"], float)
