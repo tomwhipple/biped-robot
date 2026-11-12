@@ -103,6 +103,8 @@ bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 
+bimo_test(test_stance_trim test_stance_trim.cpp ${COMPONENTS}/balance/stance_trim.cpp)
+
 bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
 
 bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)

@@ -130,7 +130,7 @@ struct Joint {
 };
 
 struct Balance {
-    uint8_t state = 0;         // balance::State
+    uint8_t state = 0;         // balance::State (0-4), or balance::TrimState (5-9) while the stance trim runs
     uint8_t side = 0;          // 'L' / 'R' stance, 0 = none
     int8_t ankle_bus = -1;     // bus index of the corrected ankle roll
     int8_t hip_bus = -1;       // ... and hip roll

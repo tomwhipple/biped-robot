@@ -236,7 +236,7 @@ graph LR
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
-| `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
+| `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>`, and the stance-hip trim behind `pose ... S<L\|R>` (§5.6) | yes, pinned to the sim twins |
 | `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
 | `components/flailguard/` | the armed loop's judge of the POLICY: pose / rate / tilt / chatter (§5.6 "Flail guard") | yes, incl. a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`) |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
@@ -555,6 +555,46 @@ pinned to the sim twin `balance_abort.py`. An impulsive tip that is already
 past a few rad/s at 12 deg falls under any policy; the sequence is for the
 controller-caused and sensor-caused aborts. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
+
+**Stance trim through the lift** (`pose ... S<L|R>[h]`, `trim`). The stepper's
+own pelvis levelling on the 50 Hz tick (#297; the design and its sim evidence
+are in [experiments/roll-balance](../experiments/roll-balance/README.md)).
+`S` names the stance leg. Each tick it takes e = roll - the roll at the chain's
+first pose. On L stance s = +1, on R s = -1.
+
+    hike = clip(r*T[side] + kp*s*e, +-lim)    (the stepper's hike: + lifts the other hip)
+    T[side] += ki*s*e*dt                      while closed and unsaturated, |T| <= tlim
+    stance hip roll target += s*hike          through the calibrated dir and the envelope clamp
+
+T is learned per stance side and kept from step to step. r ramps it in over
+the chain's first move's own min-jerk progress. Only the stance hip roll moves.
+
+The upper layer marks the phases on its poses:
+
+| pose flag | phase | state | what the trim does |
+|---|---|---|---|
+| `S<L\|R>` | raise, swing | CLOSED | the law above; the first S pose takes the reference |
+| `S<L\|R>h` | lowering | HOLD | the correction is frozen |
+| no `S` | the next pose | FADE | linear to 0 over `fade`, then off |
+
+- **Continuity.** While a correction is live every pose starts from the
+  stream's nominal targets, so it is never counted twice. A new chain, on
+  either side, leaves the previous chain's correction fading on its own hip.
+- **Abort.** |e| past `abort`, or no usable attitude, freezes the correction
+  and fades it. Nothing returns to a pre-lift pose and no other joint moves,
+  so in a walking sequence the upper layer owns the foot. Torque stays on.
+- **Stops.** `move`, `home`, `release`/`torque`, a fall, `STOP`, arming the
+  loop or a single-frame pose stop it at once.
+- **CLI.** `trim` prints the gains, the learned T, the state, e, hike and the
+  joint correction. `trim set <kp> <ki> [lim] [tlim] [fade_s] [abort]` sets the
+  gains; the defaults are kp 0.25, ki 1.0, lim 15 deg, tlim 14 deg, fade
+  0.6 s, abort 15 deg. `trim T <L|R> <deg>` seeds T, `trim T clear` zeroes it,
+  and `trim off` fades now.
+- **Flight record.** The balance block carries the trim: states 5-9
+  (`balance::TrimState`), integral = T, u = hike, hip_* = the correction.
+- **Not combined.** `B<L|R>` and `S<L|R>` are refused in one pose.
+- **Tests.** `components/balance/stance_trim` is host-tested and pinned to
+  the Python twin `sim/stance_trim.py`.
 
 **Fall guard** (`components/fallguard`, `fall`). One module, one table of
 limits, used by both control paths (Tom 2026-11-01: work towards one
