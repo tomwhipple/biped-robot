@@ -418,6 +418,27 @@ def roll_series_roles(servo_names):
                      for n in servo_names], dtype=np.int64)
 
 
+def march_unload_term(com, stance_w, swing_w, foot_clear, tgt_clear, on, xp=np):
+    """The ungated march lift term (w_march_unload), numpy or jax (the operators only):
+
+        r = on * 0.5 * (u + h)
+        u = clip(((c - p_sw) . e) / |e|^2, 0, 1),  e = p_st - p_sw   (horizontal: x, y)
+        h = clip(foot_clear / tgt_clear, 0, 1)
+
+    c is the whole-robot CoM, p_sw / p_st the commanded swing / stance sole centres. u is the
+    swing foot's static unloading by the lever rule (0 = the CoM over the swing sole, all the
+    weight on it; 1 = over the stance sole, none), h the swing sole's height as a fraction of
+    the commanded swing height (lift_height + c6). Neither is gated on contact or clearance, so
+    the foot that has never lifted is paid from the first millimetre of weight shift and of
+    lift. Symmetric in L/R by construction (only "commanded swing" / "stance" enter).
+    on: 1.0 during a gait-clock march (traj mode 4) with the lift channel set, else 0."""
+    ex, ey = stance_w[0] - swing_w[0], stance_w[1] - swing_w[1]
+    u = xp.clip(((com[0] - swing_w[0]) * ex + (com[1] - swing_w[1]) * ey)
+                / xp.maximum(ex * ex + ey * ey, 1e-6), 0.0, 1.0)
+    h = xp.clip(foot_clear / xp.maximum(tgt_clear, 1e-6), 0.0, 1.0)
+    return on * 0.5 * (u + h)
+
+
 def apply_floor_contacts(model, floor_contacts):
     """Training-only collision set. "all" (default): the plant as drawn.
     "feet": only the sole pads (contype 1) touch the floor -- the servo
@@ -844,6 +865,11 @@ class BimoWalkerEnv(gym.Env):
         # are a KNEE-HIGH march: an extra slice carved out after the ext_mix
         # slices (walk takes the remainder). 0.0 -> the slice is empty and the
         # draw is bit-identical to before the feature existed.
+        w_march_unload: float = 0.0,   # UNGATED march lift term (mirrors sim/mjx): during
+        # a gait-clock march (traj mode 4) pays the COMMANDED swing foot's static
+        # unloading (the CoM's progress from the swing sole to the stance sole) and
+        # its sole height (fraction of lift_height + c6), whether or not the foot is
+        # already off the floor. 0 = off (bit-exact).
         w_knee_high: float = 0.0,      # knee-high clearance kernel weight
         # (mirrors sim/mjx): pays the FRACTION of the commanded swing height
         # (lift_height + c6) the swing sole actually reaches, gated on the
@@ -1175,6 +1201,7 @@ class BimoWalkerEnv(gym.Env):
         self.march_mix = float(march_mix)
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
+        self.w_march_unload = float(w_march_unload)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
@@ -2795,6 +2822,7 @@ class BimoWalkerEnv(gym.Env):
             # attempting to walk from standstill vs 0.24 at reference width.
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
+            march_unload = 0.0
             if self.getup:
                 # recovery primary (matches sim/mjx): height + HEIGHT-GATED
                 # uprightness progress, standing bonus (half up, half still).
@@ -2890,6 +2918,11 @@ class BimoWalkerEnv(gym.Env):
                                         + (com[1] - stance_w[1]) ** 2
                                         + 1e-12))
                 com_kernel = float(np.exp(-((com_off / self.com_sigma) ** 2)))
+                if self.w_march_unload:
+                    march_unload = march_unload_term(
+                        com, d.geom_xpos[stance_gid], d.geom_xpos[gid], foot_clear,
+                        self.lift_height + float(self._cmd[6]),
+                        float(self._traj_on == 4.0 and lifted), np)
                 # skill-compliance gate (round 4, mirrors sim/mjx): under a
                 # skill command the velocity/yaw kernels pay in proportion
                 # to the skill being DONE (precision_v3 stood through them)
@@ -3027,6 +3060,8 @@ class BimoWalkerEnv(gym.Env):
                 reward += self.w_foot_under * foot_under
             if self.w_knee_high:
                 reward += self.w_knee_high * knee_frac
+            if self.w_march_unload:
+                reward += self.w_march_unload * march_unload
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -3277,6 +3312,7 @@ class BimoWalkerEnv(gym.Env):
                             knee_tgt=float(self.lift_height
                                            + self._cmd[6]),
                             knee_frac=knee_frac,
+                            **({"march_unload": march_unload} if self.w_march_unload else {}),
                             recovered=float(self._recovered),
                             com_stance=float(lifted) * com_off,
                             head_err=abs(head_err))

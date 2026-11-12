@@ -687,6 +687,12 @@ def make_parser():
                    help="swing-height kernel denominator (m^2; default 0.004 = "
                         "sigma 6.3 cm -- a 1 cm shuffle still earns 0.5 of a "
                         "6 cm target; 0.002 halves that)")
+    p.add_argument("--w-march-unload", type=float, default=None,
+                   help="UNGATED march lift term weight (default off): during a gait-clock "
+                        "march, 0.5 (u + h) for the COMMANDED swing foot whether or not it "
+                        "is up: u = its static unloading (the CoM's progress from the swing "
+                        "sole to the stance sole, 0..1), h = its sole height / (lift_height "
+                        "+ c6), clipped to 1 (walker_env.march_unload_term)")
     p.add_argument("--w-knee-high", type=float, default=None,
                    help="knee-high clearance kernel weight: fraction of the "
                         "commanded swing height (lift_height + c6) the swing "
@@ -1297,6 +1303,8 @@ def build_env_kw(args):
         env_kw["march_hz"] = args.march_hz
     if args.w_knee_high is not None:
         env_kw["w_knee_high"] = args.w_knee_high
+    if args.w_march_unload is not None:
+        env_kw["w_march_unload"] = args.w_march_unload
     for _k in ("w_foot_cross", "foot_cross_sep", "swing_height", "w_feet_phase",
                "feet_phase_s2"):
         if getattr(args, _k) is not None:

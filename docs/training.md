@@ -380,6 +380,17 @@ stance sole, σ 4 cm, gated by the swing clearance): the only one of them that
 pays for lateral weight transfer, and zero in the `loco` family unless set.
 `tests/test_mimic_march.py` pins the reference, the gate, the defaults and the
 CPU/MJX agreement; parity block R13b runs the step.
+Each of those is paid only once the commanded foot is off the floor (or, for
+`w_track_foot`, through a 6 cm kernel that is flat at the floor), so a foot that
+has never lifted earns nothing for starting to. `--w-march-unload W` (default
+off) is the ungated term: during a gait-clock march it pays
+`W · ½(u + h)` for the COMMANDED swing foot whether or not it is up, with
+u = clip(((c − p_sw)·e)/|e|², 0, 1), e = p_st − p_sw (the swing foot's static
+unloading by the lever rule: the whole-robot CoM c moving horizontally from the
+swing sole p_sw toward the stance sole p_st) and h = clip(clearance /
+(lift_height + c6), 0, 1). Both feet planted under a centred CoM it pays ¼W.
+`walker_env.march_unload_term` is shared by both engines;
+`tests/test_march_unload.py` and parity block R17 pin it.
 A warm start from a run that drew no march needs `--init-norm-march`: that run's
 observation normaliser holds std 1e-6 on the lift and foot-dz slots (the channels
 never moved), so a march reads as ~1e6 σ. The flag re-seats those slots to the

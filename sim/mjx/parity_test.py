@@ -44,6 +44,8 @@ Gates (float64, so precision is not the limiter):
       stance, the encoder obs reading the servo shaft (link + tau/k)
   R16 roll play beyond the encoder (roll_play_deg): airborne arithmetic +
       grounded stance, the encoder obs reading the servo shaft (link + offset)
+  R17 the ungated march lift term (w_march_unload): airborne arithmetic, the term live,
+      and paid on a grounded march stand (not gated on the foot being up)
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -51,6 +53,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --robot-only  # R1-R4 only
       python parity_test.py --roll-series # R15 only
       python parity_test.py --roll-play   # R16 only
+      python parity_test.py --march-unload   # R17 only
 """
 import os
 import sys
@@ -623,6 +626,49 @@ def march_blocks():
     return ok11 and ok12 and ok13 and ok13b
 
 
+# -- R17: the ungated march lift term (w_march_unload) -----------------------------
+#     r = w * on * 0.5 * (u + h),  u = clip(((c - p_sw) . e) / |e|^2, 0, 1), e = p_st - p_sw,
+#     h = clip(foot_clear / (lift_height + c6), 0, 1),  on = march (traj mode 4) and c4 set
+# (walker_env.march_unload_term, shared by both engines). Airborne: every reward term
+# incl. this one compared CPU vs MJX at arithmetic tolerance; the twin with the weight 0
+# must differ (the term is live). Grounded: the swing foot posed ON the floor (contact,
+# zero clearance) must still be paid u > 0 -- the term is not gated on the foot being up.
+def march_unload_block():
+    kw = rob_kw(w_knee_high=1.0, w_march_unload=1.0, ext_mix=(0.0,) * 7, march_mix=1.0)
+    kw.pop("cmd_fixed")
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    ok = run_block("R17. ungated march lift term (w_march_unload, airborne)", 120,
+                   air_acts(c, 0.359), hoist, AIR_GATES, (c, g, s))
+    c0, _, _ = envs_for(dict(kw, w_march_unload=0.0), solver_tol=ARITH_TOL)
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = mu_sum = 0.0
+    for _ in range(30):
+        _, r1, _, _, info = c.step(z)
+        r_on += r1
+        r_off += c0.step(z)[1]
+        mu_sum += float(info.get("march_unload", 0.0))
+    live = abs((r_on - r_off) - mu_sum) < 1e-6 and mu_sum > 1e-3
+    # grounded: both feet on the floor in the stand, a march commanded: u > 0, h ~ 0
+    cg = BimoWalkerEnv(actuator_model="sts3215", command_mode=True, domain_rand=False, **kw)
+    cg.reset(seed=7)
+    mus = []
+    for _ in range(40):
+        lift_cmd = abs(float(cg._cmd[4])) > 0.5     # the command the step's reward sees
+        _, _, term, trunc, info = cg.step(z)
+        if lift_cmd:
+            mus.append(float(info["march_unload"]))
+        if term or trunc:
+            break
+    grounded = len(mus) > 5 and min(mus) > 0.0
+    ok = ok and live and grounded
+    print(f"   term live: 30-step reward with / without {r_on:.3f} / {r_off:.3f}, "
+          f"difference {r_on - r_off:.4f} = summed term {mu_sum:.4f}; grounded march stand: "
+          f"{len(mus)} steps, term {min(mus) if mus else float('nan'):.3f}..{max(mus) if mus else float('nan'):.3f}")
+    return ok
+
+
 # -- R14: torso-pitch hinge -----------------------------------------------------
 #     w * max(0, |pitch| - deadband)^2,   pitch = asin(2(qw*qy - qz*qx))
 # Pitch only (sidestep gaits legitimately roll), off while DOWN in a recovery
@@ -830,6 +876,10 @@ def main():
         ok = roll_play_block()
         print("\nPARITY (R16):", "PASS" if ok else "FAIL")
         return ok
+    if "--march-unload" in sys.argv:
+        ok = march_unload_block()
+        print("\nPARITY (R17):", "PASS" if ok else "FAIL")
+        return ok
     if "--robot-only" in sys.argv:
         ok = robot_blocks()
         print("\nPARITY (R1-R4):", "PASS" if ok else "FAIL")
@@ -837,7 +887,7 @@ def main():
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
-               roll_play_block()]
+               roll_play_block(), march_unload_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
