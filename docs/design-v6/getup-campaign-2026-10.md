@@ -332,9 +332,15 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec58_sw35_rs | 11-10 | prec16_f075_js20 | prec46 + `--roll-series-k` | lift and directions kept on the refit plant | | | | | lift 2.7/2.2, shift −0.26/+0.14; stride1 0.6 refit 4/8 falls |
 | robot_legs_prec59_march_rs_s1 | 11-10 | prec16_f075_js20 | seed 15 (prec57 recipe) | replicate | | | | | one-sided, **L only** (6.3 cm), shift −0.76; side L lost (+0.02), stride1 0.6 refit 5/8 falls |
 | robot_legs_prec60_march_rs_s2 | 11-10 | prec16_f075_js20 | seed 16 (prec57 recipe) | replicate | | | | | one-sided, **R only** (5.3 cm), shift +0.53; side L lost (+0.02), x1.5 8/8, stride1 0.6 refit 7/8 |
-| robot_legs_prec61_mrs_mir (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | `--w-mirror-loss 1.0` | march5 robot lifts BOTH feet ≥ 3 cm on every step in ≥ 2 of 3 seeds | | | | | |
-| robot_legs_prec64_march_rs_mir (+ _s1, _s2) | 11-11 | prec16_f075_js20 | prec57 recipe + `--w-mirror-loss 1.0` | the march is found in 3 of 3 seeds, on both feet | | | | | |
-| robot_legs_prec67_mrs_cont (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | none: +300M on prec59's recipe (control for prec61) | the second foot does not come up with more training alone | | | | | |
+| robot_legs_prec61_mrs_mir (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | `--w-mirror-loss 1.0` | march5 robot lifts BOTH feet ≥ 3 cm on every step in ≥ 2 of 3 seeds | | | | | never run: moved to queue/held/ on 11-11 (spring plant replaced by the play plant, WHY-1111-spring-march-replaced.txt) |
+| robot_legs_prec64_march_rs_mir (+ _s1, _s2) | 11-11 | prec16_f075_js20 | prec57 recipe + `--w-mirror-loss 1.0` | the march is found in 3 of 3 seeds, on both feet | | | | | never run: moved to queue/held/ on 11-11 (spring plant replaced by the play plant, WHY-1111-spring-march-replaced.txt) |
+| robot_legs_prec67_mrs_cont (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | none: +300M on prec59's recipe (control for prec61) | the second foot does not come up with more training alone | | | | | never run: moved to queue/held/ on 11-11 (spring plant replaced by the play plant, WHY-1111-spring-march-replaced.txt) |
+| robot_legs_prec68_march_pp (+ _s1) | 11-11 | prec59_march_rs_s1 | roll chain: `--roll-play-deg L_hip=4:10,R_hip=6:10,L_ankle=2:3,R_ankle=0:2` for `--roll-series-k` + lash (P1) | the march still lifts, both feet ≥ 3 cm in ≥ 1 of 2 seeds, torso level within 3 deg | | | | | **not held**: 2/2 **L only** (4.9–5.4 cm, R ≤ 0.1), torso 4.8–5.9 deg over the stance foot; both sidesteps lost (dy ≤ 0.10) on both plants |
+| robot_legs_prec69_slow_pp (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | P1 + `--gait-freq 0.5,0.55 --mimic-sway 0.05` (P2) | more two-sided lifts with a level body than P1 | | | | | **not held**: 3/3 **L only** (4.6–5.0 cm), roll −4.6 to −6.0 deg; sidesteps lost; fwd 0.46–0.65 |
+| robot_legs_prec70_slowlift_pp (+ _s1, _s2) | 11-11 | prec59_march_rs_s1 | P2 + `--mimic-march 0.05 --swing-height 0.035` (P3) | the lift rewards fire on both feet | | | | | **not held**: 3/3 **L only**, higher (5.8–6.6 cm); R never; sidesteps lost |
+| robot_legs_prec71_mir_pp (+ _s1) | 11-11 | prec59_march_rs_s1 | P1 + `--w-mirror-loss 1.0` (P4; `--num-evals 12`) | a two-sided march where P1 is one-sided | | | | | **not held**: 2/2 the march **flips to R only** (6.4 / 5.0 cm), L stays down; 0 guard trips on march5 (P1–P3 trip 8/8); sidesteps lost |
+| robot_legs_prec72_walk_pp (+ _s1, _s2) | 11-12 | prec16_f075_js20 | roll chain only: `--roll-play-deg` (per side) for `--roll-lash-deg 0.5,2.0`, no march | six directions kept and x1.5 0/0 on the play grade plant (prec16 there: 8/8 falls) | | | | | |
+| robot_legs_prec68_march_pp_s2 / prec71_mir_pp_s2 | 11-12 | prec59_march_rs_s1 | seed 16 (replicates of P1 / P4) | P1 stays L-only; P4 stays R-only | | | | | |
 
 ## Nights
 
@@ -2869,3 +2875,93 @@ obs 165, act 12, the permutation is an involution, and c4 (lift) and the gait ph
 
 Tomorrow: grade on `march5 robot` first (`march_lifts_pass`, per-foot minimum step, shift both sides), then the walking probes, on
 both plants, and write the spread over the three seeds.
+
+### Night of 2026-11-11 (evaluated 2026-11-12)
+
+**March on the play plant: night 4 of the weight-transfer line.** Stride only; get-up stays parked. The 11-10 plan (spring-plant
+mirror arms prec61/64/67) never ran: the 11-11 hardware session refitted the roll chain to per-side play beyond the encoders
+(gate README Round 5, PR #290) and replaced them with four play-plant arms (prec68–71, `queue/held/WHY-1111-spring-march-replaced.txt`).
+
+**The runner.** `day_run.sh` from 19:12 (the robot was off for the night; the 22:00 cron found the lock) to 03:39: 10 teachers +
+10 distils, every job on main with origin verified (SYNC=ok), no STALE REFEREE. **Fixers: two**, both the same crash: prec71_mir_pp
+(seed 14) and prec71_mir_pp_s1 (seed 15) died with a Warp out-of-memory (`convex_narrowphase`, 99 MB) in the 16th eval at
+229M steps, the signature of prec28 (11-09, 4 attempts). Each fixer reran the job with `--num-evals 12`, which finished. So the
+crash is not seed 14: all three hits are `--w-mirror-loss` runs that reach eval 16. **Finished properly as far as the day allows:**
+preflight now refuses a mirror-loss job with `--num-evals` ≥ 16 (branch `night/planner-1112`, merged; installed in
+`robot-mjx/night/`). The root cause needs a GPU repro (eval 16 of a mirror-loss run, Warp contact buffers), which the planner
+may not run by day: it is open.
+
+**Merged / branched:** this morning's branch `night/planner-1112` (grade.py's level-body metric, the preflight check, this entry).
+Open PRs #293 / #292 (stepper rounds, the 11-11 record), #282 (sway probe rehearsal, #260), #229, #206, #71 do not touch training.
+Since the last plan main gained `--roll-play-deg` per side (#286, #290), the stepper (#289) and the pick-up autohome (#287).
+**This changes comparisons:** prec68–71 train on the play plant; everything before them on lash or spring.
+
+**New in grade.py (march5):** `march_roll_{l,r}_deg` / `_max`, the torso roll while only that foot is > 1 cm up, signed toward the
+lifted foot (+ = sagging toward the swing foot, − = leaning over the stance foot). The review asks for lifts *with a level body*.
+
+**Grades** (grade.py from the planner worktree = main + the roll metric, measured sole, 8 seeds, SHAPE_HZ=8, 22 probes;
+`/tmp/plan1112/gradeA.*`; play plant `gradeB.*` with `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`;
+tables `python3 /tmp/plan1112/summ.py <json>`). Controls prec16, prec59 (the parent), prec52 reproduce 11-11 on the grade plant.
+Every student WALKS, has 0/0 on push 0.4 and walk 0.3 → stop and 0 falls on every robot probe, and falls x2 8/8.
+
+| student | x1.5 grade / play | stride1 0.6 refit falls | fwd / back / side L / side R / turn L / R (grade plant) | side L / R (play) | march5 robot (both plants): lifted foot, min lift cm, shift, roll toward lifted (mean / max deg) | march5 trips |
+|---|---|---|---|---|---|---|
+| prec16 (control) | 0/0 / **8/8** | 0 | +0.92 −0.86 +0.47 −0.49 +114 −106 | +0.40 / −0.31 | stands | 0 |
+| prec59_march_rs_s1 (parent) | 0/0 / 0/0 | 5 | +0.64 −0.78 **+0.02** −0.36 +118 −107 | +0.01 / −0.29 | L, 6.3, −0.76, −7.4 / 12.4 | 8 |
+| prec52_march (control) | 0/0 / **8/8** | 0 | +0.86 −0.93 +0.42 −0.42 +121 −118 | +0.30 / −0.28 | R, 6.2, +0.62, −6.5 / 9.9 | 0 |
+| P1 prec68_march_pp | 0/0 / 0/0 | 0 | +0.74 −0.75(1) +0.02 −0.04 +104 −102 | +0.01 / −0.04 | L, 5.4, −0.71, −5.8 / 8.2 | 8 |
+| P1 prec68_march_pp_s1 | 5/5 / 5/5 | 8 | +0.66 −0.68 +0.04 −0.10 +98 −126 | +0.04 / −0.10 | L, 4.9, −0.64, −4.8 / 7.1 | 8 |
+| P2 prec69_slow_pp | 2/2 / 4/4 | 8 | +0.65 −0.60(1) +0.01 −0.04 +106 −90 | +0.01 / −0.04 | L, 4.9, −0.69, −4.7 / 7.6 | 8 |
+| P2 prec69_slow_pp_s1 | 0/0 / 0/0 | 0 | +0.46 −0.58 +0.01 −0.05 +82 −86 | +0.01 / −0.05 | L, 4.6, −0.67, −5.6 / 7.1 | 8 |
+| P2 prec69_slow_pp_s2 | 0/0 / 0/0 | 0 | +0.59 −0.58 −0.00 −0.11 +91 −81 | −0.00 / −0.11 | L, 4.8, −0.70, −4.7 / 7.4 | 8 |
+| P3 prec70_slowlift_pp | 0/0 / 0/0 | 1 | +0.59 −0.59 +0.02 −0.06 +86 −114 | +0.02 / −0.07 | L, 6.4, −0.69, −4.9 / 9.0 | 8 |
+| P3 prec70_slowlift_pp_s1 | 0/0 / 0/0 | 8 | +0.61 −0.50 −0.00 −0.06 +112 −101 | −0.01 / −0.06 | L, 6.2, −0.76, −5.0 / 7.3 | 8 |
+| P3 prec70_slowlift_pp_s2 | 0/0 / 0/0 | 0 | +0.53 −0.56 −0.01 −0.06 +89 −101 | −0.02 / −0.06 | L, 5.8, −0.64, −5.0 / 7.9 | 8 |
+| P4 prec71_mir_pp | 0/0 / 0/0 | 0 | +0.86 −0.83 +0.02 −0.03 +104 −134 | +0.02 / −0.03 | **R**, 6.4, +0.61, −6.2 / 7.7 | 0 |
+| P4 prec71_mir_pp_s1 | 0/0 / 0/0 | 6 | +0.73 −0.81 +0.01 −0.08 +91 −120 | +0.01 / −0.08 | **R**, 5.0, +0.56, −4.5 / 5.8 | 0 |
+
+On stride1 0.3 robot the play students lift 2.1–3.9 cm (L) / 1.3–2.4 (R), shift −0.24 to −0.43 / +0.14 to +0.34, about prec16's
+(−0.19/+0.18 on the play plant); steps5 robot reaches −0.66/+0.60 at best (prec70_s1). The two plants agree to ~0.1 on every
+march number; the play plant's large effect is on the OLD policies' x1.5 margin (prec16, prec52: 0/0 → 8/8 falls).
+
+**Hypotheses:**
+- **P1, the play plant under the march: not held (2/2 seeds).** The march survives (L only, as the warm start), but no seed lifts R,
+  and the body is not level: in single support the torso leans 4.8–5.9 deg over the stance foot (max 7–9). The robot, with the
+  stepper's stance-hip trim, comes level. **Cost:** both sidesteps are gone (|dy| ≤ 0.10, prec16 0.47/0.49), on both plants.
+- **P2, the slow clock (0.5–0.55 Hz, sway 5 cm): not held (3/3).** L only, lifts no higher (4.6–5.0), the same lean; forward
+  speed drops (0.46–0.65 vs 0.74).
+- **P3, more commanded lift: not held (3/3).** The L lift grows (5.8–6.6 cm); R still never leaves the floor (≤ 0.1 cm). More
+  target on the side that lifts does nothing for the side that does not: the clearance-gated rewards again (11-11 finding).
+- **P4, the mirror loss: not held, and a new fact (2/2).** Both seeds **switched** the marching side from the parent's L to R
+  (6.4 / 5.0 cm), L down. The loss makes the policy symmetric in the sense that L and R are interchangeable, not that both happen.
+  It is also the only arm with 0 flail-guard trips on march5 (P1–P3 trip 8/8 seeds, no falls).
+- **The sidestep loss is the night's main regression**, 10 of 10 students on both plants. The parent prec59 had already lost side L;
+  its children lose side R too. Whether the play plant or the march warm start takes it is untested: tonight's arm W answers it.
+- **Distil gap** (card seed-passes teacher → student): 68 29→31, 68_s1 23→21, 69 18→22, 69_s1 20→21, 69_s2 18→21, 70 20→19,
+  70_s1 21→21, 70_s2 19→18, 71 26→35, 71_s1 35→26. Median +1: not the limit.
+
+**Ranking:** no march candidate (no seed lifts both feet; none is level within 3 deg). No walk candidate either: every play student
+lost the sidesteps, and prec16 / prec37 fall x1.5 8/8 on the play plant. The #259 gate has not passed. **No robot candidate.**
+
+**Stop and escalate (review rule 4).** The weight-transfer / march line has now run four nights (walk-shift 11-09, sway + march 11-10,
+the play-plant march 11-11) with no hardware-confirmed gain. Across 18 march seeds on three plants it has shown: the reference finds
+a march (no reference, no march); every march is one-legged; the seed or the warm start picks the side; the mirror loss swaps the side;
+more lift, a slower clock and a sway do not bring up the second foot. It has not shown: a two-sided march, a level body in single
+support, or any robot run that moved as the sim said. The structural cause (every lift reward is paid only once the commanded foot is
+already up) suggests a reward change, but that is a new variable, and rule 4 says ask first. **Asked Tom on #137** (rule 5).
+The hardware side meanwhile walks with the host-side stepper (11-11: 9-10 step walks, turning); "hardware leads, training follows".
+
+**Tonight (2026-11-12): two replicates and one plant arm, 5 teacher + distil pairs, BRANCH=main, ~3.7 h.** No new march variable.
+
+| arm | runs | parent | variable | hypothesis |
+|---|---|---|---|---|
+| W | prec72_walk_pp, _s1, _s2 (seeds 14/15/16) | prec16_f075_js20 | the roll chain only: `--roll-play-deg` per side for `--roll-lash-deg 0.5,2.0`, no march | six directions kept (sidesteps ≥ 0.3) and x1.5 0/0 back on the play grade plant (prec16 8/8 there): the march, not the plant, took the sidesteps |
+| P1 | prec68_march_pp_s2 (seed 16) | prec59_march_rs_s1 | replicate | L only again |
+| P4 | prec71_mir_pp_s2 (seed 16, `--num-evals 12`) | prec59_march_rs_s1 | replicate | the mirror loss flips the side again (R only) |
+
+Arm W is not a variable of the march line: it is the plant update the deploy-first rules ask for before more reward tuning, on
+the walk line's reference policy. Preflight passed 10/10. **Fallback:** arm W's recipe (`fallback.job`; the spring mirror-march
+fallback is saved as `fallback.job.prec61-20261112`).
+
+Tomorrow: arm W on the six directions and x1.5, both plants, against prec16; P1 / P4 third seeds into the spread above; and act on
+Tom's answer on #137 (remove his assignment when you do).
