@@ -638,8 +638,8 @@ void testShaping() {
 
 // -- 5b'. the stance trim on the gait clock (sil_set_trim, ctrl_task `trim policy on`) ---------
 // Downstream of the policy: the actions are bit-identical with it on or off, only the two hip rolls
-// move, each only while its leg is the stance leg, and by the learned T once the raise has ramped it in
-// (a level, still torso: e = 0, so hike = T).
+// move (each while its leg is the stance leg, and while its fade finishes as the driver's residual), and
+// by the learned T once the raise has ramped it in (a level, still torso: e = 0, so hike = T).
 void testTrimOnClock() {
     const std::string nom = g_tmp_prefix + "cal_nominal.json";
     const std::string wpath = g_tmp_prefix + "net.silw";
@@ -682,7 +682,7 @@ void testTrimOnClock() {
         both += dl && dr;
     }
     CHECK(moved_l > 5 && moved_r > 5);  // each hip, in its own stance
-    CHECK_EQ(both, 0);                  // never both at once
+    CHECK(both > 0);                    // the last chain's fade overlaps the next (the driver's residual)
     CHECK(hike_max > 0.095f && hike_max <= 0.1f + 1e-6f);   // T_L ramped in fully, e = 0
     float st[4];
     sil_trim_state(st);

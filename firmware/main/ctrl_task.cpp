@@ -781,6 +781,9 @@ void ctrlTask(void*) {
             if (g_ptrim.engaged()) {
                 angle[g_ptrim.side() == 'L' ? g_ptrim_il : g_ptrim_ir] += g_ptrim.hipJoint();
             }
+            if (g_ptrim_drv.residualSide() != 0) {      // the last chain's fade, on its own hip
+                angle[g_ptrim_drv.residualSide() == 'L' ? g_ptrim_il : g_ptrim_ir] += g_ptrim_drv.residualHip();
+            }
             g_ptrim_tl.store(g_ptrim.learned('L'));
             g_ptrim_tr.store(g_ptrim.learned('R'));
             g_ptrim_hike.store(g_ptrim.hike());

@@ -47,10 +47,12 @@ def _sequence(n=2400, seed=0):
         phase[i] = ph
         # a lean toward the swing foot that grows over the run, plus noise; one big lean past the abort
         sw = math.sin(ph)
-        roll[i] = math.radians(-6.0 * sw * (0.3 + i / n) + rng.normal(0, 0.4))
+        roll[i] = math.radians(-8.0 * sw * (0.3 + i / n) + rng.normal(0, 0.4))
         st, prog, _ = K.support(ph, lift[i])
         if 1500 <= i < 1700 and st != 0 and 0.3 < prog < 0.9:     # mid raise: past the abort limit
             roll[i] = math.radians(25.0)
+        if 1900 <= i < 2100 and st != 0 and prog >= 1.0:          # past keep (10 deg), short of the abort
+            roll[i] += math.radians(10.0)
     return phase, lift, roll, dt
 
 
@@ -64,18 +66,24 @@ def test_kernel_matches_firmware():
     out = (ctypes.c_float * 6)()
     worst = 0.0
     states = set()
+    residual_ticks = 0
+    peaks_past_keep = 0
     for i in range(len(phase)):
         # the firmware takes float32 inputs: feed the kernel the same values
         ph32, r32 = float(np.float32(phase[i] % (2 * math.pi))), float(np.float32(roll[i]))
         L.sil_trim_step(h, ph32, int(lift[i]), r32, dt, out)
         s, hl, hr = K.trim_step(s, r32, ph32, bool(lift[i]), dt)
         states.add(int(out[5]))
+        residual_ticks += int(float(s["res_side"]) != 0.0)
+        peaks_past_keep += int(float(s["peak"]) > K.DEFAULTS["keep"] and int(s["mode"]) == 5)
         assert int(out[5]) == int(s["mode"]), (i, out[5], s["mode"])
         for a, b in ((out[0], hl), (out[1], hr), (out[3], s["T_L"]), (out[4], s["T_R"])):
             worst = max(worst, abs(a - float(b)))
     L.sil_trim_free(h)
     assert worst < 2e-4, worst                   # rad: float32 vs float64 over 2400 ticks
     assert {0, 5, 6, 7, 8} <= states             # every path was taken
+    assert residual_ticks > 50                    # handovers inside a fade (the driver's residual)
+    assert peaks_past_keep > 0                    # chains that put T back
 
 
 def test_numpy_matches_jax():

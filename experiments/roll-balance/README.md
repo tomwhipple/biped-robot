@@ -314,3 +314,30 @@ Where the sim is wrong:
 For the track and the sway: the SIL grid above now uses the robot's working values (1.3 / 1.25, seeds
 5.2 / 3.4) and still holds everywhere. Because the sim is optimistic about right stance, the right-side
 amplitude should not go below 1.25 on the robot even where the sim would allow it.
+
+## B2: the provisional learned trim and the handover (`handover.py`)
+
+**The provisional T** (firmware `StanceTrim`, the Python twin, `sim/trim_kernel.py`). T integrates only
+while |e| ≤ 6 deg. A chain that ends with its peak |e| past 8 deg, with an abort, or with the hike at its
+clamp puts T back to its value at the chain's begin. Why: in the 2026-11-12 shuttle a lift with too
+little shift wound T L from 5.4 to the 14 deg limit, and the lifts after it failed from that T. In the
+SIL grid above (re-run with the rule) no step puts T back (0 of 1536). The predictions did not change:
+same falls, aborts, lifts and TS numbers.
+
+**The handover.** With the track's phase map a single support is the middle half of each step, so at a
+step time T the gap from one single support's end to the next one's begin is T / 2: 1 s at T = 2 s. The
+0.6 s fade is over 0.4 s before the next ramp starts. They overlap only below T = 1.2 s (and on a
+policy's faster clock, where the driver's residual carries the old hip's fade through the new chain's
+ramp). In the SIL, per handover at T = 2 / 2.5 / 3 s (march, forward, sidestep left × fit / hi, 72 runs):
+
+| variant | falls | lifts | old-hip jump at the handover | peak roll rate, median / max deg/s | roll excursion, median / max deg |
+|---|---|---|---|---|---|
+| residual, fade 0.6 s (the firmware) | 0 | 144 / 144 | 0 | 36.6 / 48.7 (T 2) · 29.6 / 34.2 (2.5) · 25.0 / 28.2 (3) | 3.62 / 4.03 · 2.62 / 3.36 · 2.18 / 2.41 |
+| old hip dropped at the begin | 0 | 144 / 144 | 0 | identical | identical |
+| residual, fade 0.4 s | 0 | 144 / 144 | 0 | 36.2 / 49.5 · 30.1 / 33.6 · 24.8 / 27.6 | 3.64 / 4.22 · 2.62 / 2.85 · 2.21 / 2.40 |
+| residual, fade 0.3 s | 0 | 144 / 144 | 0 | 37.1 / 50.3 · 30.6 / 34.4 · 24.9 / 29.1 | 3.70 / 4.43 · 2.62 / 2.82 · 2.22 / 2.40 |
+
+The roll rate around the handover is the sway's own; the fade length and the handover method do not
+change it at the track's step times. On the track the fade falls in the double support, while the sway
+is already carrying the pelvis to the other foot. That is where the stepper saw the fade roll the body;
+the SIL shows no extra roll from it at the next ramp-in.

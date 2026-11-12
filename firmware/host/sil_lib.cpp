@@ -483,6 +483,9 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
         balance::StepReport rep;
         g_trim_drv.step(sin_, roll, obs::kControlDt, &rep);
         if (g_trim.engaged()) angle[g_trim.side() == 'L' ? g_trim_il : g_trim_ir] += g_trim.hipJoint();
+        if (g_trim_drv.residualSide() != 0) {
+            angle[g_trim_drv.residualSide() == 'L' ? g_trim_il : g_trim_ir] += g_trim_drv.residualHip();
+        }
     }
     // -- limit: the mirror of ctrl_task's (seeded at the sensed q, at rest) --
     float lim_vel[obs::kNumJoints] = {};

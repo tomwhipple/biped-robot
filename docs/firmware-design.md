@@ -564,11 +564,22 @@ are in [experiments/roll-balance](../experiments/roll-balance/README.md)).
 first pose. On L stance s = +1, on R s = -1.
 
     hike = clip(r*T[side] + kp*s*e, +-lim)    (the stepper's hike: + lifts the other hip)
-    T[side] += ki*s*e*dt                      while closed and unsaturated, |T| <= tlim
+    T[side] += ki*s*e*dt                      while closed, unsaturated and |e| <= learn, |T| <= tlim
     stance hip roll target += s*hike          through the calibrated dir and the envelope clamp
 
 T is learned per stance side and kept from step to step. r ramps it in over
 the chain's first move's own min-jerk progress. Only the stance hip roll moves.
+
+**T is provisional within a chain.** A chain uses T as it integrates, but
+what it leaves for the next chain is committed only if the chain was clean.
+If the chain ends (release, abort, stop) with its peak |e| past `keep`, with
+an abort, or after the hike sat at its clamp, T of that side goes back to its
+value at the chain's begin. Defaults: learn 6 deg, keep 8 deg. Why: in the
+hardware shuttle on 2026-11-12 a lift with too little shift tipped 9-10 deg
+toward the lifted foot. T wound from 5.4 to the 14 deg limit, and the next
+lifts started from that and failed too. The trim cannot fix an inboard CoM,
+so it must not learn from one. `trim` prints the rule and whether the last
+chain kept or put back T; the TS line ends in ` Tback` when it put it back.
 
 The upper layer marks the phases on its poses:
 
@@ -618,9 +629,22 @@ Ticks are Catmull-Rom between frames, φ linear.
   single support (the middle half of each half cycle), the raise progress
   (its first 35 %) and the lowering (after 65 %). `balance::TrimDriver` turns
   that into the trim's begin / ramp / hold / fade, the same calls the S poses
-  make. A policy's gait clock will drive the same two functions.
+  make. A policy's gait clock drives the same two functions.
+- **Handover.** A single support can begin while the last one's correction
+  is still fading. That happens when half a step is shorter than the fade:
+  a policy's clock at 1.5 Hz, or the track below T = 1.2 s. The driver then
+  hands that correction to a residual, which finishes its fade on its own
+  hip while the new chain ramps in; it is never dropped in one tick. At the
+  track's step times (T ≥ 2 s) the fade is over 0.4 s before the next ramp
+  starts. The SIL shows the same handover roll rate and excursion with the
+  residual, with the correction dropped, and with fades of 0.3-0.6 s
+  (`experiments/roll-balance/handover.py`).
 - **Rolling append.** `track add` takes up to 4 frames a line (42 hex digits
-  each), during playback too. The queue holds 256 frames (25 s at 10 Hz).
+  each), during playback too. The queue holds 128 frames (12.8 s at 10 Hz;
+  the host stays two steps ahead, at most 81 frames at 4 s a step). It is
+  allocated from the heap at the first `track` command (4.7 KB), so an image
+  that never plays a track pays nothing. A static 256-frame queue took the
+  image to 99.8 % of static DRAM.
 - **Ending.** `track stop`, or a queue that runs dry AT a step end, finishes
   the step, drops the rest and moves to that step end's rest pose (min-jerk,
   `track rest <ms>`, default 1 s). A queue that runs dry mid-step holds the
@@ -630,7 +654,7 @@ Ticks are Catmull-Rom between frames, φ linear.
   on. Anything that ends the trim (move, home, STOP, a fall, torque, arming)
   ends the track; `pose` and `sweep` are refused while it plays.
 - **Telemetry.** One line per single support, printed when it ends:
-  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT` (peak
+  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT[ Tback]` (peak
   lean toward the swing foot and toward the stance side; e, T and hike at the
   end of the raise). `track steps` repeats the last 16. The flight record
   carries the trim per tick, as for S poses.
