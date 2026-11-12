@@ -203,7 +203,7 @@ def test_board_stops():
     with env() as d:                                                # one miss is tolerated, two stop
         run = make(d)
         ok = dict(left_mm=100.0, right_mm=100.0, ahead_px=300, mm_per_px=0.5, sep_mm=137.0, sole_l_mm=68.0, sole_r_mm=-69.0, conf=0.9)
-        board_stub(run, script=lambda n: None if n in (2, 4, 5) else ok)
+        board_stub(run, script=lambda n: None if n in (2, 3, 5, 6, 7, 8) else ok)      # (a miss is a failure of the overlapped AND the settled look)
         out = run.walk("L", 8, 0.02, 0.0, board=True)
         check_up(out, 4)
         assert "not seen" in run.stop_why, run.stop_why
@@ -848,6 +848,100 @@ def test_catch_reflex():
         assert low and low[0]["ms"] > int(1e3 * run.p["t_catch"]) - 1 or low[0]["ms"] == int(1e3 * run.p["t_land"]), low[:2]
         assert run.p["k_shift"]["R"] > 1.0
         run.finish(save=False)
+
+
+def test_look_second_try():
+    """A look taken right after a landing fails (the robot is still moving and leaning); the settled look a moment
+    later succeeds. The walk goes on, only a failure of the settled look counts as a miss, and the log says which try
+    worked."""
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with env() as d:
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0)
+        last = [clock[0] - 5.0]                                  # (standing still at the start)
+        go0 = run.go
+
+        def go(ms, tag):
+            go0(ms, tag)
+            last[0] = clock[0]
+        run.go = go
+        look0 = run.look
+
+        def look(tag):
+            if clock[0] - last[0] < 0.2:                       # moving: the frames are blurred and leaning: not seen
+                run.log("board", tag=tag, seen=False, why="moving")
+                return None
+            return look0(tag)
+        run.look = look
+        out = run.walk("L", 6, 0.0, 0.0, hold=0.0, board=True, march=True)
+        check_up(out, 6)
+        assert run.stop_why is None, run.stop_why
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        tries = [(r["which"], r["ok"]) for r in rows if r["ev"] == "look_try"]
+        assert tries[0] == ("still", True), tries
+        assert tries.count(("overlapped", False)) == 5 and tries.count(("settled", True)) == 5, tries
+        assert not any(("settled", False) == t for t in tries) and run.misses == 0
+        run.finish(save=False)
+    with env() as d:                                          # a look that fails after settling too still counts, twice stops
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0, script=lambda n: dict(left_mm=300.0, right_mm=300.0, ahead_px=300, mm_per_px=1.0,
+                   sole_l_mm=68.5, sole_r_mm=-68.5, sep_mm=137.0, conf=0.9) if n == 1 else None)
+        out = run.walk("L", 8, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert run.stop_why and "not seen" in run.stop_why and len(out) == 2, (len(out), run.stop_why)
+        run.finish(save=False)
+    with env() as d:                                          # every frame of a look is newer than the request
+        run = make(d)
+        reqs = []
+        run.latest = os.path.join(d, "latest.jpg")
+        import cv2
+        im = cv2.imread(os.path.join(HERE, "testdata", "frames", "dim_start.jpg"))
+
+        def nxt(after, tmax):
+            reqs.append(after)
+            return im, after + 0.1
+        run._next_frame = nxt
+        t_before = time.time()
+        run.look("t")
+        assert reqs and reqs[0] >= t_before - 1e-3, (reqs, t_before)
+        run.finish(save=False)
+
+
+def assert_plain(x, where="state"):
+    if isinstance(x, dict):
+        for k, v in x.items():
+            assert type(k) is str, (where, k)
+            assert_plain(v, f"{where}.{k}")
+    elif isinstance(x, (list, tuple)):
+        for i, v in enumerate(x):
+            assert_plain(v, f"{where}[{i}]")
+    else:
+        assert type(x) in (str, int, float, bool, type(None)), (where, type(x), x)
+
+
+def test_state_and_log_are_plain():
+    """No numpy scalar in the learned values, the bookkeeping, the state file, the log, or the RESULT line (np.float64 once
+    reached k_shift through the frame rotation of a turn)."""
+    import io
+    with env() as d:
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0, miss={"L": -15.0, "R": -20.0})
+        run.walk("L", 8, 0.02, 0.0, board=True, dyaw=7.5)          # a turn, with looks, landing learning, the reach checks
+        run.sanitize()
+        assert_plain({k: run.p[k] for k in S.LEARNED}, "learned")
+        assert_plain([run.feet, run.pel, run.hike, run.sole_r, run.sole_p], "bookkeeping")
+        run.finish(save=True)
+        assert_plain(json.load(open(S.STATE)), "state file")
+        for line in open(run.base + ".jsonl"):
+            row = json.loads(line)                                  # round-trips, and was written without numpy types
+            assert_plain(row, f"log {row['ev']}")
+            assert json.dumps(row) == json.dumps(json.loads(json.dumps(row)))
+            assert "np." not in line
+    with env() as d:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = S.main(["walk", "--steps", "6", "--dx", "0.02", "--dyaw", "7.5", "--hold", "0"], make_robot=FakeRobot, log_dir=d)
+        assert rc == 0 and "RESULT" in buf.getvalue() and "np." not in buf.getvalue(), buf.getvalue()[-400:]
 
 
 def test_shift_tip_guard():

@@ -168,6 +168,18 @@ def apply_pace(prm, pace):
     return prm
 
 
+def plain(v):
+    """v with every numpy scalar / array turned into a built-in float, int, list: what is written to the state, the log
+    and the RESULT line (a numpy scalar printed as np.float64(...) once reached k_shift through the frame rotation)."""
+    if isinstance(v, dict):
+        return {k: plain(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [plain(x) for x in v]
+    if type(v).__module__ == "numpy":
+        return plain(v.tolist())
+    return v
+
+
 def load_state():
     s = json.loads(json.dumps(DEFAULTS))
     if os.path.exists(STATE):
@@ -252,9 +264,16 @@ class Run:
 
     # -- records ----------------------------------------------------------
     def log(self, ev, **kw):
-        row = dict(t=round(time.monotonic() - self.t0, 3), ev=ev, **kw)
+        row = plain(dict(t=round(time.monotonic() - self.t0, 3), ev=ev, **kw))
         self.f.write(json.dumps(row) + "\n"); self.f.flush()
         return row
+
+    def sanitize(self):
+        """Plain floats everywhere that is kept: the learned values, the bookkeeping."""
+        for k in LEARNED:
+            self.p[k] = plain(self.p[k])
+        self.feet, self.pel = plain(self.feet), plain(self.pel)
+        self.hike, self.sole_r, self.sole_p = plain(self.hike), plain(self.sole_r), plain(self.sole_p)
 
     def say(self, *a):
         if not self.quiet:
@@ -416,8 +435,9 @@ class Run:
         c, s_ = math.cos(d), math.sin(d)
         base = {"L": self.k.k1.footL[:2], "R": self.k.k1.footR[:2]}
         for v, (bx, by) in ((self.feet["L"], base["L"]), (self.feet["R"], base["R"]), (self.pel, self.k.k1.pelvis[:2])):
+            bx, by = float(bx), float(by)
             x, y = bx + v[0], by + v[1]
-            v[0], v[1] = c * x + s_ * y - bx, -s_ * x + c * y - by
+            v[0], v[1] = float(c * x + s_ * y - bx), float(-s_ * x + c * y - by)
         self.psi_ref += d
         self.pending_d += d                    # the feet's line has turned by this since the swing foot was last placed
         self.log("rebase", d_deg=round(math.degrees(d), 2), psi_ref=round(math.degrees(self.psi_ref), 2))
@@ -670,7 +690,7 @@ class Run:
         new = min(k_off, old + 0.5 * P["k_step"])
         if not pushed and new > P["k_floor"]:
             new = max(P["k_floor"], new - 0.01)
-        P["k_shift"][stance] = round(max(P["k_min"], min(P["k_max"], new)), 3)
+        P["k_shift"][stance] = round(float(max(P["k_min"], min(P["k_max"], new))), 3)
         return P["k_shift"][stance]
 
     def lift(self, swing, hold=1.5, dx=0.0, y_to=None, air=None, yaw_to=None, corr_to=None, y_off=None):
@@ -726,7 +746,8 @@ class Run:
                 a = 0.5 if P["h_up"][stance] else 1.0
                 P["h_up"][stance] = round((1 - a) * P["h_up"][stance] + a * h, 4)
                 P["hike"][stance] = round((1 - a) * P["hike"][stance] + a * hike, 2)
-                self.learn_k(stance, k, pushed=self.n_push > getattr(self, "n_push0", 0))
+                self.learn_k(stance, float(k), pushed=self.n_push > getattr(self, "n_push0", 0))
+                self.sanitize()
                 self.lower_foot(swing)
                 if self.look_after:                                  # the board look in the time a settle would have taken
                     self.cached_look, self.has_cached = self.look(f"after {swing}"), True
@@ -767,7 +788,7 @@ class Run:
         import statistics
         self.n_look += 1
         P = self.p
-        res, mid, why, after = [], None, "no frame", 0.0
+        res, mid, why, after = [], None, "no frame", time.time()          # every frame must be newer than this request
         try:
             import board_view
             for i in range(3):
@@ -983,11 +1004,20 @@ class Run:
         yaw_step = max(-P["yaw_step_max"], min(P["yaw_step_max"], yaw_step))
         corr_step = yaw_step - share
         if board:
-            if self.has_cached:                                  # taken right after the last landing
+            if self.has_cached:                                  # the overlapped look, taken right after the last landing
                 m, self.has_cached, self.cached_look = self.cached_look, False, None
+                which = "overlapped"
+                if m is None:                                    # the frames were taken while the robot still moved and leaned:
+                    self.log("look_try", which="overlapped", ok=False)
+                    self.settle("look settle", tmax=2.0)         # not a miss yet: let it settle, one fresh frame period, look again
+                    time.sleep(0.15)
+                    m = self.look(f"step {self.n_steps - 1} settled")
+                    which = "settled"
             else:
-                m = self.look(f"step {self.n_steps - 1}")
-            self.misses = 0 if m else self.misses + 1
+                m = self.look(f"step {self.n_steps - 1}")        # standing still
+                which = "still"
+            self.log("look_try", which=which, ok=m is not None)
+            self.misses = 0 if m else self.misses + 1             # only a failure of the settled look is a miss
             if m is None:
                 if self.misses >= 2:
                     self.halt("the board was not seen twice in a row", "board_stop")
@@ -1205,13 +1235,14 @@ class Run:
         return False
 
     def finish(self, save=True):
+        self.sanitize()
         try:
             if not self.fell:
                 self.stand_down()
         finally:
             self.log("end", feet=json.loads(json.dumps(self.feet)), **{k: self.p[k] for k in LEARNED})
             if save:
-                json.dump({k: self.p[k] for k in LEARNED}, open(STATE, "w"))
+                json.dump(plain({k: self.p[k] for k in LEARNED}), open(STATE, "w"))
             for v in self.video:
                 v.wait()
             self.f.close()
@@ -1304,7 +1335,7 @@ def main(argv=None, make_robot=None, log_dir=None):
         run.finish()
         rob.close()
     out = out or getattr(run, "out", [])
-    print("RESULT", out, {k: prm[k] for k in LEARNED}, "fell" if run.fell else "", "log", run.base + ".jsonl")
+    print("RESULT", plain(out), plain({k: prm[k] for k in LEARNED}), "fell" if run.fell else "", "log", run.base + ".jsonl")
     return 1 if run.fell else 0
 
 
