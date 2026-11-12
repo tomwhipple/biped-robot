@@ -896,6 +896,9 @@ FRAMES = {
     # desk as saturated as the board): robot square and centred. By eye with the 450 mm board: right 105-115, left 100-110;
     # the plates are 115 px apart (99 px in dim_start, 122 mm) so about 140 mm: it stands wider than at the start
     "evening_square": ((100, 122), (95, 115), (130, 150), 150),
+    # 00:07, 20 minutes later: the left plate (picture right) in the robot's own shadow; a pale carpet patch beside the board
+    # (x 255-330, y 408-482) once passed for a plate. By eye on the 450 mm scale: right about 130, left about 85, sep about 137
+    "evening_misdetect": ((115, 145), (70, 100), (125, 150), 150),
     # the board (it lies as in the others, the camera has not moved) with the robot's right foot half off its
     # left edge: the sole's outer edge is 40, 34, 84, 71 mm outside it by eye
     "walk104632_offedge_t30": ((-60, -25), (200, 235), (150, 190), 100),
@@ -1178,6 +1181,36 @@ def test_track_tool():
             assert abs(float(r[2]) - (1.7e9 + 0.2 * i)) < 1e-3 and abs(float(r[1]) - 0.2 * i) < 1e-3, r
         assert good >= 2
         assert len(board_view.track(path, every=2, out=io.StringIO())) == 2
+
+
+def test_board_view_cannot_take_carpet_for_a_sole():
+    """A pale patch of carpet beside the board must never be a sole: it is not a wide low plate (square), it has no dark
+    robot structure above it, it is not on the board. And with a real sole missing the answer is None, not a pair."""
+    import cv2
+    import board_view
+    im = cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_misdetect.jpg"))
+    ref = board_view.margins(im)
+    assert ref is not None and ref["conf"] > 0.8
+    for box in ((255, 408, 330, 482), (230, 430, 330, 470), (240, 400, 340, 440)):        # square and flatter patches left of the board
+        x0, y0, x1, y1 = box
+        bad = im.copy()
+        bad[y0:y1, x0:x1] = (190, 205, 215)                                                # pale warm grey
+        m = board_view.margins(bad)
+        assert m is not None and all(abs(m[k] - ref[k]) < 2.0 for k in ("right_mm", "left_mm", "sep_mm")), (box, m and (m["right_mm"], m["left_mm"], m["sep_mm"]))
+    # a plate-shaped pale patch right beside the board, with a dark strap above it, is still not a sole of the pair under the robot
+    bad = im.copy()
+    bad[455:480, 230:320] = (190, 205, 215)
+    bad[420:455, 230:320] = (60, 40, 30)
+    m = board_view.margins(bad)
+    assert m is not None and abs(m["sep_mm"] - ref["sep_mm"]) < 2.0, m and m["sep_mm"]
+    # one real sole painted out: nothing to pair with but the patch: None
+    bad = im.copy()
+    bad[415:485, 405:505] = bad[560, 450]                                                  # the board's own colour
+    bad[408:482, 255:330] = (190, 205, 215)
+    assert board_view.margins(bad) is None
+    # the stages: a pair found by a fallback carries less confidence
+    m2 = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_square.jpg")))
+    assert m2 is not None and m2["conf"] < ref["conf"] - 0.1, (m2["conf"], ref["conf"])
 
 
 def test_look_median_of_frames():

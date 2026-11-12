@@ -39,7 +39,7 @@ import numpy as np
 
 BOARD_W_MM = 450.0    # mm: the board's width, the ONE scale of a run (positions = fraction across the board x this)
 SOLE_W_MM = 92.0      # mm: x-extent of a sole in the picture, calibrated on the nominal stance (see above)
-SEP_RANGE = (80.0, 220.0)   # mm, plausible centre-to-centre separation of the soles
+SEP_RANGE = (90.0, 190.0)   # mm, plausible centre-to-centre separation of the soles, on the board's scale
 
 
 def _prep(frame_bgr):
@@ -146,13 +146,70 @@ def edges(board, y_clean=None):
     return out[0], out[1]
 
 
+def _robot_column(val, board, fill):
+    """x of the robot's dark mass (legs, servos, torso) above the board: the median column of dark non-board
+    pixels in the 260 rows above the board's far edge, within the board's width there. None if there is none."""
+    ys = np.nonzero(board.any(1))[0]
+    if len(ys) == 0:
+        return None
+    y_top = int(ys[0])
+    cols = np.nonzero(fill[min(fill.shape[0] - 1, y_top + 5)])[0]
+    if len(cols) == 0:
+        return None
+    dark = (val[max(0, y_top - 260):y_top, cols[0]:cols[-1] + 1] < 75) & ~board[max(0, y_top - 260):y_top, cols[0]:cols[-1] + 1]
+    xs = np.nonzero(dark)[1]
+    return float(np.median(xs)) + cols[0] if len(xs) >= 200 else None
+
+
+def _pair(cands, fill, x_robot):
+    """The best pair of candidates: two plates of similar width, side by side on similar rows, a plausible
+    separation on the board's own scale (90-190 mm, a little slack for the estimate), and the pair under the robot
+    (the middle of the pair nearest the dark column above the board) preferred. [] if there is none."""
+    best, best_sc = [], -1e9
+    for i in range(len(cands)):
+        for j in range(i + 1, len(cands)):
+            p, q = sorted((cands[i], cands[j]), key=lambda t: t["xc"])
+            wp, wq = p["x1"] - p["x0"], q["x1"] - q["x0"]
+            if q["x0"] < p["x1"] - 0.3 * min(wp, wq) or max(wp, wq) > 1.6 * min(wp, wq) or abs(p["y1"] - q["y1"]) >= 60:
+                continue
+            ym = min(fill.shape[0] - 1, int(0.5 * (p["y1"] + q["y1"])))
+            cols = np.nonzero(fill[ym])[0]
+            if len(cols) < 50:
+                continue
+            sep = (q["xc"] - p["xc"]) * BOARD_W_MM / (cols[-1] - cols[0])
+            if not 85.0 <= sep <= 200.0:
+                continue
+            sc = min(wp, wq) / max(wp, wq) - abs(p["y1"] - q["y1"]) / 100.0 + 0.3 * (p["sup"] + q["sup"])
+            if x_robot is not None:
+                sc -= abs(0.5 * (p["xc"] + q["xc"]) - x_robot) / 100.0
+            if sc > best_sc:
+                best, best_sc = [p, q], sc
+    return best
+
+
 def soles(hue, sat, val, board, s_car):
-    """Grey plates first; if that does not give a pair, the not-board-not-dark rule inside the board's outline is added (evening light)."""
-    for bright, strict in ((False, True), (True, False), (False, False)):
-        out = _soles(hue, sat, val, board, s_car, bright, strict)
-        if len(out) == 2:
-            return out
-    return out
+    """(pair, stage): the two soles and how they were found. Stage 0: grey plates (strict sizes). Stage 1: also
+    whatever on the board is neither board-coloured nor dark (evening light). Stage 2: grey plates, relaxed
+    sizes. Every candidate is a wide, low plate with dark robot structure above it that stands on the board or
+    hangs off its edge; a pair must be a plausible pair (see _pair). A later stage must also be convincing: the
+    pair well inside the board and 100-175 mm apart, else nothing."""
+    pts = cv2.findNonZero(board.astype(np.uint8))
+    fill = np.zeros(board.shape, np.uint8)
+    if pts is not None:
+        cv2.fillConvexPoly(fill, cv2.convexHull(pts), 1)
+    x_robot = _robot_column(val, board, fill)
+    for stage, (bright, strict) in enumerate(((False, True), (True, False), (False, False))):
+        pair = _pair(_soles(hue, sat, val, board, s_car, bright, strict), fill, x_robot)
+        if pair:
+            if stage:
+                ym = min(fill.shape[0] - 1, int(0.5 * (pair[0]["y1"] + pair[1]["y1"])))
+                cols = np.nonzero(fill[ym])[0]
+                mm = BOARD_W_MM / max(1, cols[-1] - cols[0])
+                sep = (pair[1]["xc"] - pair[0]["xc"]) * mm
+                if not (100.0 <= sep <= 175.0 and min(p["inside"] for p in pair) >= 0.5):
+                    continue
+            return pair, stage
+    return [], 0
 
 
 def _soles(hue, sat, val, board, s_car, use_bright, strict):
@@ -206,30 +263,29 @@ def _soles(hue, sat, val, board, s_car, use_bright, strict):
         pm = m0[y0:y1 + 1]
         cx = np.nonzero(pm.any(0))[0]
         x0, x1 = int(cx.min()), int(cx.max())
+        hp = int(rows.max() - rows.min() + 1)                      # the plate's own height (without the bracket above it)
+        if (x1 - x0 + 1) < 1.2 * hp:
+            continue                                               # a square patch is not a plate seen from the front
         ym = min(H - 1, (y0 + y1) // 2)
         cols_in = np.nonzero(fill[ym])[0]                          # the board's outline at its row: a sole stands on the
-        if len(cols_in) and not (cols_in[0] - 0.5 * (x1 - x0) <= 0.5 * (x0 + x1) <= cols_in[-1] + 0.5 * (x1 - x0)):
-            continue                                               # board or hangs half off it; a strap beside it does not
+        inside = 1.0                                               # board or hangs off its edge; a patch of carpet
+        if len(cols_in):                                           # (or a strap) beside it overlaps it by next to nothing
+            inside = max(0, min(x1, cols_in[-1]) - max(x0, cols_in[0]) + 1) / (x1 - x0 + 1)
+            if inside < 0.15:
+                continue
+        band = max(40, int(1.5 * hp))                              # dark robot structure (servo, leg) directly above
+        dk = ((val[max(0, y0 - band):y0, x0:x1 + 1] < 75) & ~board[max(0, y0 - band):y0, x0:x1 + 1]).mean() if y0 > 0 else 0.0
+        if dk < 0.05:
+            continue
         sup = float(robot[max(0, y0 - 90):max(1, y0 - 8), x0:x1 + 1].mean())   # structure standing on it
         if sup < 0.08 or pm.sum() < 0.55 * (x1 - x0 + 1) * (y1 - y0 + 1):
             continue
-        b = dict(x0=x0, x1=x1, y0=y0, y1=y1, area=int(a), xc=0.5 * (x0 + x1), sup=round(sup, 2))
+        b = dict(x0=x0, x1=x1, y0=y0, y1=y1, area=int(a), xc=0.5 * (x0 + x1), sup=round(sup, 2), inside=round(inside, 2))
         for name, col in (("xl_row", 0), ("xr_row", pm.shape[1] - 1)):
             r = np.nonzero(pm[:, max(0, col - 2):col + 3].any(1))[0]
             b[name] = float(y0 + (r.mean() if len(r) else pm.shape[0] - 1))
         out.append(b)
-    # the pair: similar widths, feet at about the same row, a plausible gap between them
-    best, best_sc = [], -1.0
-    for i in range(len(out)):
-        for j in range(i + 1, len(out)):
-            p, q = sorted((out[i], out[j]), key=lambda t: t["xc"])
-            wp, wq = p["x1"] - p["x0"], q["x1"] - q["x0"]
-            if q["x0"] < p["x1"] - 0.3 * min(wp, wq):
-                continue
-            sc = min(wp, wq) / max(wp, wq) - abs(p["y1"] - q["y1"]) / 100.0 + 0.3 * (p["sup"] + q["sup"])
-            if abs(p["y1"] - q["y1"]) < 60 and sc > best_sc:
-                best, best_sc = [p, q], sc
-    return best
+    return sorted(out, key=lambda t: t["xc"])
 
 
 def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
@@ -244,7 +300,7 @@ def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
     if bm is None:
         return None
     board, stat = bm
-    ss = soles(hue, sat, val, board, stat["s_car"])
+    ss, stage = soles(hue, sat, val, board, stat["s_car"])
     if len(ss) != 2:
         return None
     a, b = ss                                                    # picture left = the robot's RIGHT foot
@@ -253,8 +309,6 @@ def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
         return None
     yb = 0.5 * (a["y1"] + b["y1"])
     mm_sole = SOLE_W_MM / (0.5 * (wa + wb))
-    if not SEP_RANGE[0] <= (b["xc"] - a["xc"]) * mm_sole <= SEP_RANGE[1] * 1.15:
-        return None
     EL, ER = edges(board, int(max(a["y1"], b["y1"])) + 4)
     if EL is None and ER is None:
         return None
@@ -284,7 +338,10 @@ def margins(frame_bgr, board_w_mm=BOARD_W_MM, taper=None):
     if max(a["y1"], b["y1"]) >= H - 2:                           # a sole cut off by the picture's bottom is not fully seen
         conf *= 0.5
     conf *= max(0.3, 1.0 - 0.8 * abs(wa - wb) / max(wa, wb))
+    conf *= (1.0, 0.8, 0.6)[stage]                               # a pair found only by a fallback is less sure
     conf *= 1.0 if stat["s_brd"] - stat["s_car"] > 60 else 0.7
+    if not SEP_RANGE[0] <= (b["xc"] - a["xc"]) * mmpp <= SEP_RANGE[1]:
+        return None                                              # not two soles of one robot: never a confident answer
     return dict(right_mm=float((a["x0"] - xl) * mmpp), left_mm=float((xr - b["x1"]) * mmpp), mm_per_px=float(mmpp),
                 ahead_px=int(H - max(a["y1"], b["y1"])), soles=ss, edge_l=[float(x) for x in L], edge_r=[float(x) for x in R],
                 sep_mm=float((b["xc"] - a["xc"]) * mmpp),
