@@ -42,8 +42,8 @@ ROBOT_SEED = (5.2, 3.4)
 # refused unless --below-floor
 MAX_AHEAD_S = 8.0     # the robot's queue holds 128 frames (12.8 s at 10 Hz): stay <= 8 s ahead
 PER_LINE = 4                  # frames per `track add` (42 hex + space each; the CLI line is <= 192 chars)
-TS_RE = re.compile(r"^TS (\d+) ([LR]) in ([-\d.]+) out ([-\d.]+) e ([-+\d.]+) T ([-+\d.]+) hike ([-+\d.]+) (ok|ABORT)",
-                   re.M)
+TS_RE = re.compile(r"^TS (\d+) ([LR]) in ([-\d.]+) out ([-\d.]+) e ([-+\d.]+) T ([-+\d.]+) hike ([-+\d.]+) (ok|ABORT)"
+                   r"( Tback)?", re.M)
 
 
 def lines_for(frames):
@@ -56,10 +56,11 @@ def lines_for(frames):
 
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="L", amp=ROBOT_AMP,
-         model="dwell", ds=None, h=None):
+         model="dwell", ds=None, h=None, yaw_trim=0.0):
     gkw = {}
     if model == "dwell":
-        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}))
+        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
+                   **({"yaw_trim": yaw_trim} if yaw_trim else {}))
     sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **G.DIRS[direction],
                     **gkw)
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
@@ -242,16 +243,21 @@ def live(pl, a):
     ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
 
     def scan(txt):
+        """Every new TS line in txt: record, print, and say whether one of them trips the stop rule. (2026-11-12:
+        it returned at the first tripping line, so the lines after it were never printed.)"""
+        trip = False
         for m in TS_RE.finditer(txt):
             s = dict(n=int(m.group(1)), stance=m.group(2), lean_in=float(m.group(3)), lean_out=float(m.group(4)),
-                     e=float(m.group(5)), T=float(m.group(6)), hike=float(m.group(7)), ok=m.group(8) == "ok")
+                     e=float(m.group(5)), T=float(m.group(6)), hike=float(m.group(7)), ok=m.group(8) == "ok",
+                     tback="Tback" in m.group(0))
             if all(x["n"] != s["n"] for x in steps):
                 steps.append(s)
                 print(f"  step {s['n']} {s['stance']}: in {s['lean_in']:.1f} out {s['lean_out']:.1f} e {s['e']:+.1f} "
-                      f"T {s['T']:+.1f} hike {s['hike']:+.1f} {'ok' if s['ok'] else 'ABORT'}")
+                      f"T {s['T']:+.1f} hike {s['hike']:+.1f} {'ok' if s['ok'] else 'ABORT'}"
+                      f"{' Tback' if s['tback'] else ''}", flush=True)
                 if not s["ok"] or s["lean_in"] > a.stop_lean:
-                    return True
-        return False
+                    trip = True
+        return trip
 
     def add(line):
         t = time.monotonic()
@@ -273,7 +279,11 @@ def live(pl, a):
             txt = r.cmd("track")
             m = re.search(r"play t (\d+) ms", txt)
             head = int(m.group(1)) if m else 0
-            stop = scan(txt) or stop
+            # the firmware's TS lines are async output: over Wi-Fi they never reach a command's reply (2026-11-12:
+            # 0 of 34 seen live, so the stop rule never ran). `track steps` repeats the last 16: poll it.
+            m2 = re.search(r"(\d+) single supports reported", txt)
+            if m2 and int(m2.group(1)) > len(steps):
+                stop = scan(r.cmd("track steps")) or stop
             if stop:
                 r.cmd("track stop")
                 print("  stop rule hit -> track stop")
@@ -323,6 +333,10 @@ def main(argv=None):
                          "by the pre-check)")
     ap.add_argument("--ds", type=float, default=None, help="dwell: double-support fraction of T (default per T)")
     ap.add_argument("--h", type=float, default=None, help="dwell: swing sole height, m (default 0.022)")
+    ap.add_argument("--yaw-trim", type=float, default=0.0,
+                    help="dwell: heading change per step, deg, + = to the robot's left (the stance hip turns the body "
+                         "about the planted foot, the swing foot lands square). In the sim 1 deg asked turns ~1.4-1.5 "
+                         "deg; calibrate on the robot. To cancel a leftward drift of d deg/step use -d")
     ap.add_argument("--lead", type=int, default=2500, help="ms from where it stands to the first frame")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
@@ -340,14 +354,14 @@ def main(argv=None):
         return 2
     amp = tuple(float(x) for x in a.amp.split(","))
     if not a.live:
-        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h), a)
+        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
         return 0
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
     import robot_io
     probe = robot_io.Robot(host=a.host)
     cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
     probe.close()
-    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h), a)
+    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
     return 0
 
 

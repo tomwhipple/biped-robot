@@ -69,7 +69,7 @@ def _update(s, roll, dt, ramp, P, xp):
     fading = (mode == FADE) | (mode == ABORT_TIP)
     e = roll - s["ref"]
     err = xp.where(closed | hold | fading, e, s["err"])
-    peak = xp.where(closed, xp.maximum(s["peak"], xp.abs(e)), s["peak"])
+    peak = xp.where(closed | hold, xp.maximum(s["peak"], xp.abs(e)), s["peak"])
     # fade / abort: linear to 0
     since = xp.where(fading, s["since"] + dt, s["since"])
     k = xp.maximum(0.0, 1.0 - since / P["fade_s"])

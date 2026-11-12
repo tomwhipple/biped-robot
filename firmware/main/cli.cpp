@@ -3298,6 +3298,15 @@ void cmdTrack(Sink out, int argc, char** argv) {
     say(out, "track trim %s, lead-in %ld ms, rest move %lu ms, envelope clamped %lu writes%s\r\n",
         s_track_trim ? "ON" : "OFF", s_track_lead_ms, static_cast<unsigned long>(s_trk->restMs()),
         static_cast<unsigned long>(s_track_clamps), s_track_dry_said ? ", queue DRY (holding)" : "");
+    if (s_track_nsteps > 0) {
+        // the last TS line again: the Wi-Fi host polls this reply (async lines never reach it), so its stop
+        // rule sees every single support
+        const balance::StepReport& r = s_track_log[(s_track_nsteps - 1) % kTrackStepLog];
+        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n", static_cast<unsigned long>(s_track_nsteps),
+            r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
+            static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
+            static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "");
+    }
 }
 
 constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),

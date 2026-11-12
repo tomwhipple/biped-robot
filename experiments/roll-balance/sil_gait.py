@@ -252,6 +252,8 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
             if t_ms - done_at >= 1000:          # 1 s standing at rest after the track is done
                 break
     learned = (L.sil_gait_learned(g, b"L"), L.sil_gait_learned(g, b"R"))
+    w, x, y, z = (float(v) for v in d.qpos[3:7])
+    yaw_end = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
     L.sil_gait_free(g)
     phs = [dict(stance=p["stance"], up_frac=ph_up[i][1] / max(ph_up[i][0], 1), clr_max_mm=1e3 * ph_up[i][2],
                 com_in_lo_mm=1e3 * com_at[(i, "lo")] if (i, "lo") in com_at else None,
@@ -260,7 +262,7 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     return dict(T=T_step, dir=direction, plant=plant, delay=extra_ms, fell=fell, fall_dir=fall_dir, t_fall=t_fall,
                 done=done_at is not None, n_steps=n_steps, lifts=sum(p["up_frac"] >= 0.5 for p in phs),
                 phases=phs, peak_tilt=round(peak_tilt, 1), reports=reports, aborts=sum(x["aborted"] for x in reports),
-                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]),
+                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]), yaw_end=yaw_end,
                 **(dict(trace=tr_rows) if trace else {}))
 
 

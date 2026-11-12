@@ -408,3 +408,26 @@ robot: it should stay near the seeds.
 after a green run at the step above; the host refuses T under 3.2 s unless `--below-floor`. With the
 128-frame queue the host stays at most 8 s ahead. The upload measured 29 ms per line (138 frames/s), so
 that is plenty.
+
+## Stage C dwell runs on hardware (2026-11-12 16:35-16:51) and the fixes (`replay_trim.py`)
+
+What the flight record shows (numbers from the record, not the sim):
+- **Floor.** T 6 and T 5 march clean: TS lean ≤ 2.4 deg. Below that, on right stance, the body rolls
+  toward the lifted left foot in mid/late single support. The roll starts at u ≈ 0.5 (u = 0 at lift-off,
+  1 at touchdown), reaches −6 to −8 deg e by the lower start and peaks at 9-10.6 deg (u 0.65-0.75). Count:
+  T 4 1 of 3 right steps, T 3.4 and 3.2 3 of 3, forward at T 5 1 of 4 (step 1); left stance never past 3.3.
+- **Not an unfinished shift.** The shift is complete at lift-off: right hip roll tracking −0.3 deg, e ≈ 0
+  through the raise. On the bad steps the right hip roll servo falls 3.5-7.5 deg behind its goal at u 0.5;
+  on the good ones 2.6-2.9 deg. Next test: k_static R 1.35.
+- **Stop rule.** The host's stop rule never saw a TS line during play: over Wi-Fi the firmware's async lines
+  do not reach a command's reply. `track` now repeats the last TS line, and the host also polls `track steps`.
+- **Learned-T hole.** The keep rule looked at the peak |e| while CLOSED only, and these tips grow in the
+  hold. So T R wound 3.40 → 5.24 → 6.31 on steps that tipped. Fixed: the whole single support counts.
+  Replayed through the twin, the right T stays at its 3.40 seed on every chain of both runs
+  (`results/replay_trim_1112.txt`).
+- **Heading.** The IMU yaw drifts at the gyro-z bias, −1.33 deg/s at rest. Bias-corrected, the forward
+  8-step run turned +5 ± 4 deg left.
+- **Turning.** The old turn pattern (the swing hip to ±yaw) does not turn: +2.9 deg on the robot over the
+  6-step turn, +2.4 in the sim. `Dwell(yaw_trim=deg per step)` turns about the planted foot: the stance hip
+  goes −c → +c, the swing hip +c → −c. In the sim, +4 → +34 deg and −1.5 → −14 deg over 6 steps, a gain of
+  ~1.4-1.5. `track_host.py --yaw-trim`; calibrate the gain on the robot.

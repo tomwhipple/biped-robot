@@ -411,6 +411,17 @@ void testProvisionalT() {
     CHECK(tr.lastReverted());
     CHECK_NEAR(tr.learned('L'), t_clean, 1e-9);     // what the bad chain learned is dropped
     CHECK_NEAR(tr.peakErr(), 9.0f * kDeg, 1e-6);
+    // a lean that grows only in the HOLD (the lowering) counts too (hw 2026-11-12 right-stance tips)
+    tr.begin('L', 0.0f);
+    for (int k = 0; k < 10; ++k) tr.update(4.0f * kDeg, 0.02f, 1.0f);      // learns below learn_lim
+    CHECK(tr.learned('L') > t_clean);
+    tr.hold();
+    for (int k = 0; k < 10; ++k) tr.update(9.5f * kDeg, 0.02f, 1.0f);      // tips in the hold
+    tr.release();
+    CHECK(tr.lastReverted());
+    CHECK_NEAR(tr.learned('L'), t_clean, 1e-9);
+    CHECK_NEAR(tr.peakErr(), 9.5f * kDeg, 1e-6);
+    for (int k = 0; k < 40; ++k) tr.update(0.0f, 0.02f, 1.0f);
     // the hike at its clamp: reverted even with a small peak
     StanceTrim sat;
     TrimConfig c;

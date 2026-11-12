@@ -42,6 +42,8 @@ K_STATIC = {"L": 1.3, "R": 1.25}      # x 62 mm, the robot's static requirement 
 # (raise 1.4 s, the stepper's pace).
 SCHEDULE = {6.0: (1.5, 0.5), 5.0: (1.4, 0.4), 4.0: (1.2, 0.4), 3.4: (1.2, 0.4), 3.2: (1.2, 0.2), 3.0: (1.0, 0.2)}
 T_FLOOR = 3.2
+# the hip yaw sign that turns the body to its LEFT about the stance foot (calibrated in the sim: see yaw_trim)
+YAW_SIGN = -1.0          # sim (sil_gait, T 5, fit): yaw_trim +4 deg/step with +1 turned the body -35 deg over 6 steps
 
 
 def _mj(u):
@@ -52,7 +54,7 @@ def _mj(u):
 class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=K_STATIC["R"], ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
-                 t_shift=None, t_settle=None):
+                 t_shift=None, t_settle=None, yaw_trim=0.0):
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         self.k = {"L": float(kL), "R": float(kR)}
@@ -98,6 +100,13 @@ class Dwell:
             y_from = dict(yq)
             y_to = dict(yq)
             y_to[sw] = (yaw if p["i"] % 2 == 0 else -yaw) if yaw else 0.0
+            if yaw_trim:
+                # a heading change of yaw_trim deg per step (+ = to the robot's left): over the middle of single
+                # support the stance hip yaw goes from -c to +c (the body turns about the planted foot) and the
+                # swing hip from +c to -c (the foot lands square to the new heading); c = half the step's turn
+                c = YAW_SIGN * math.radians(yaw_trim) / 2.0
+                y_to[st] = c                      # was -c, as the last step's swing (0 on the first step)
+                y_to[sw] = y_to[sw] - c
             goals.append((start, goal, y_from, y_to))
             f[sw] = goal
             yq = y_to
@@ -147,6 +156,8 @@ class Dwell:
                     m = _mj((u - 0.35) / 0.3)
                     fxy[sw] = [start[0] + m * (goal[0] - start[0]), start[1] + m * (goal[1] - start[1])]
                     yy[sw] = y_from[sw] + m * (y_to[sw] - y_from[sw])
+                    st_ = p["stance"]
+                    yy[st_] = y_from[st_] + m * (y_to[st_] - y_from[st_])
             else:
                 # after the last step: back to the centre between the feet
                 mid = 0.5 * (fe["L"][1] + fe["R"][1])
