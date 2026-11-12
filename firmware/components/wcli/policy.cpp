@@ -58,7 +58,9 @@ const char* const kBenchAny[] = {
     "stat", "ntp", "bno", "rec", "bench",
     // controller settings for the NEXT run, like shape / limit / obsfreeze (2026-11-06: the robot
     // runs on battery with no tether, and standclock resets to `run` at every boot)
-    "standclock", "heading", nullptr};
+    "standclock", "heading",
+    // the stance-hip trim (#297): status, gains and learned T are RAM only, like `balance`
+    "trim", nullptr};
 
 }  // namespace
 
