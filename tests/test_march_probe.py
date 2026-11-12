@@ -109,6 +109,15 @@ def test_march_metrics_reads_per_step_lift_and_shift():
     m2 = G.march_metrics(_rows(L, R2, f2, n), c4, X, Y, YW, sched, 0.75, fell=False)
     assert m2["march_pass"] is True and m2["march_shift_r"] == pytest.approx(0.7, abs=0.02)
     assert G.march_metrics(_rows(L, R2, f2, n), c4, X, Y, YW, sched, 0.75, fell=True)["march_pass"] is False
+    # torso roll (+ = left side down): sags 3 deg toward L while L is up, leans 2 deg left (away) while R is up
+    t = np.arange(n)
+    up_l = L(t) > G.UP_CM
+    up_r = R(t) > G.UP_CM
+    RL = np.where(up_l & ~up_r, 3.0, 0.0) + np.where(up_r & ~up_l, 2.0, 0.0)
+    m3 = G.march_metrics(ft, c4, X, Y, YW, sched, 0.75, fell=False, RL=RL)
+    assert m3["march_roll_l_deg"] == pytest.approx(3.0) and m3["march_roll_l_max"] == pytest.approx(3.0)
+    assert m3["march_roll_r_deg"] == pytest.approx(-2.0) and m3["march_roll_r_max"] == pytest.approx(2.0)
+    assert "march_roll_l_deg" not in m                # no roll trace, no roll keys
 
 
 def test_feet_metrics_is_the_planners_shift_when_up():

@@ -503,7 +503,7 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
     import mujoco
     GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
     Y = []; y0 = float(env.data.qpos[1])
-    FT, C4 = [], []
+    FT, C4, RL = [], [], []
     fell = False; ema = None
     for i in range(n + nh):
         holding = i >= n
@@ -549,13 +549,15 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
                    float(d.geom_xpos[env._sole_gids[1]][0]), float(d.geom_xpos[env._sole_gids[1]][1]),
                    float(d.subtree_com[env._torso_bid][0]), float(d.subtree_com[env._torso_bid][1])))
         C4.append(float(env._cmd[4]))
+        # torso roll, deg, + = left side down (the world-z component of the torso's y axis)
+        RL.append(-math.degrees(math.asin(max(-1.0, min(1.0, float(d.xmat[env._torso_bid][7]))))))
         YW.append(body_yaw(d.qpos[3:7])); QM.append(q_meas)
         QD.append(np.array(d.qvel[env._sqvel])); AC.append(np.array(a, float)); mujoco.mj_subtreeVel(env.model, d)
         LM.append(np.array(d.subtree_angmom[env._torso_bid]))
         if term:
             fell = True
             break
-    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC, Y=Y, FT=FT, C4=C4)
+    return GO, GY, PW, TL, SQ, X, fell, dict(YW=YW, QM=QM, QD=QD, LM=LM, AC=AC, Y=Y, FT=FT, C4=C4, RL=RL)
 
 
 def _shift_frac(ft):
@@ -596,7 +598,7 @@ MARCH_BAR_CM = 3.0     # Tom, #137, 2026-11-10: every step lifts the foot >= 3 c
 MARCH_SHIFT_BAR = 0.6
 
 
-def march_metrics(FT, C4, X, Y, YW, sched, hz, fell):
+def march_metrics(FT, C4, X, Y, YW, sched, hz, fell, RL=()):
     """The march probe: per step and per foot the peak lift, the weight transfer, the drift.
 
     A step is one run of the commanded lift channel (c4 -1 = L, +1 = R) inside the march window;
@@ -652,11 +654,21 @@ def march_metrics(FT, C4, X, Y, YW, sched, hz, fell):
     m["march_pass"] = bool(not fell and len(full) >= n_asked and m["march_steps_ok"] == len(full)
                            and m["march_shift_ok"])
     m["march_lifts_pass"] = bool(not fell and len(full) >= n_asked and m["march_steps_ok"] == len(full))
+    # level body (2026-11-12): torso roll while one foot is up (> UP_CM), toward the LIFTED side
+    # (+ = the body sags toward the swing foot), mean and worst per foot
+    rl = np.asarray(RL, float)
+    if len(rl) == len(ft):
+        rw = rl[win]
+        for k, sgn, nm in ((0, 1.0, "l"), (1, -1.0, "r")):
+            sel = up[:, k] & ~up[:, 1 - k]
+            if sel.any():
+                m[f"march_roll_{nm}_deg"] = round(float(np.mean(sgn * rw[sel])), 2)
+                m[f"march_roll_{nm}_max"] = round(float(np.max(np.abs(rw[sel]))), 2)
     return m
 
 
 def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, QV, WZ,
-                     v=None, hz=S.CLOCK_HZ, YW=(), QM=(), QD=(), LM=(), AC=(), Y=(), FT=(), C4=()):
+                     v=None, hz=S.CLOCK_HZ, YW=(), QM=(), QD=(), LM=(), AC=(), Y=(), FT=(), C4=(), RL=()):
     v = v or {}
     GO, GY, PW, TL, SQ = map(np.array, (GO, GY, PW, TL, SQ))
     # the training smoothness terms as graded (env_mjx w_qacc / w_action_acc): per-tick means of
@@ -674,7 +686,7 @@ def _episode_metrics(env, GO, GY, PW, TL, SQ, X, fell, fg, sched, n, nh, seed, Q
              if len(YW) > 1 else float("nan"))
     m.update(feet_metrics(FT))
     if v.get("march"):
-        m.update(march_metrics(FT, C4, X, Y, YW, list(v["cmd_schedule"]), hz, fell))   # the command asked for, before any pinning
+        m.update(march_metrics(FT, C4, X, Y, YW, list(v["cmd_schedule"]), hz, fell, RL))   # the command asked for, before any pinning
     # the written goals' own peak acceleration (what the limiter bounds), deg/s^2
     if len(GO) > 2:
         ga = np.abs(np.diff(GO, 2, axis=0)) / DT ** 2
@@ -797,7 +809,8 @@ def summarize(res, variants, probes):
                         "walk_yaw_max", "walk_gz_max", "walk_qdd_start", "walk_qdd_stop", "walk_decel_start",
                         "walk_decel_stop", "walk_wz_300ms", "walk_dL_300ms", "walk_dLz_300ms", "qacc_sq", "action_acc", "action_rate",
                         "march_min_cm", "march_min_l_cm", "march_min_r_cm", "march_shift_l", "march_shift_r",
-                        "march_drift_m", "march_yaw_deg", "march_steps_ok", "march_n"):
+                        "march_drift_m", "march_yaw_deg", "march_steps_ok", "march_n",
+                        "march_roll_l_deg", "march_roll_r_deg", "march_roll_l_max", "march_roll_r_max"):
                 vals = [r[key] for r in (ok if key != "tilt_max" else e) if key in r]
                 if vals:
                     row[pn][key] = float(np.nanmean(vals))
@@ -828,7 +841,8 @@ def table(rows, probes):
                 txt += (f" (pass {c.get('march_pass', 0)}/{c['n']}, lifts>=3cm {c.get('march_lifts_pass', 0)}/{c['n']}, "
                         f"min lift L/R {_f(c.get('march_min_l_cm'), 1)}/{_f(c.get('march_min_r_cm'), 1)} cm, "
                         f"shift L/R {_f(c.get('march_shift_l'), 2)}/{_f(c.get('march_shift_r'), 2)}, "
-                        f"drift {_f(c.get('march_drift_m'), 2)} m, yaw {_f(c.get('march_yaw_deg'), 0)} deg"
+                        f"drift {_f(c.get('march_drift_m'), 2)} m, yaw {_f(c.get('march_yaw_deg'), 0)} deg, "
+                        f"roll toward the lifted foot L/R {_f(c.get('march_roll_l_deg'), 1)}/{_f(c.get('march_roll_r_deg'), 1)} deg"
                         + (f", pinned c{list(c['frozen_cmd'][0])}" if c.get("frozen_cmd") and c["frozen_cmd"][0] else "")
                         + ")")
             if p.startswith("stride1") or p.startswith("walk"):
@@ -858,7 +872,7 @@ def table(rows, probes):
              "pass = no fall, every one of the 5 full steps lifts its foot >= 3 cm AND the CoM goes >= 0.6 "
              "of the way over the stance foot on both sides; min lift = the lowest step's peak per foot "
              "(cm, mean over seeds); shift L/R = CoM toward the stance foot while the L / R foot is up "
-             "(-1 = over R, +1 = over L); drift and yaw from the march's start to the end of the run; "
+             "(-1 = over R, +1 = over L); drift and yaw from the march's start to the end of the run; roll toward the lifted foot = the torso roll (deg, mean over the ticks with only that foot > 1 cm up; + = sagging toward the swing foot, - = leaning over the stance foot); "
              "pinned = the command channels the run never saw move, fed their trained value as the "
              "firmware does.")
     return "\n".join(L)
