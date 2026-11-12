@@ -8,7 +8,7 @@ well the plant reproduces the robot (#288, #277, #259).
 A stepper run is a jsonl under hw_sessions/2026-11-11/stepper/<HHMMSS>_<lift|march|walk>.jsonl. The
 file name is the host's LOCAL time (this box: MST, UTC-7) of the run's start; the run's own `t` is s
 since then. The robot's side comes from the flight record that covers it
-(hw_sessions/*/flight_20261111T*.frec): per tick the written goal (`goal_rad`, NaN on ticks without a
+(hw_sessions/*/flight_2026111[12]T*.frec; a run of another day is named '<day>/<stamp>'): per tick the written goal (`goal_rad`, NaN on ticks without a
 new goal: forward-filled), the encoders (`pos_rad`), the IMU (`up`, `gyro`). The run's clock is tied
 to the robot's UTC by the IMU reads: every `imu` row the stepper logged is the end of an `imu` CLI
 reply that the flight record also holds (event `out ... read`); the offset is their median, and the
@@ -90,10 +90,19 @@ CLEAR_M = 0.001
 # --------------------------------------------------------------------------------------------
 # the robot's side
 # --------------------------------------------------------------------------------------------
+def _split(stamp):
+    """'2026-11-12/121020_lift' -> (that day's stepper dir, '121020_lift'); a bare stamp is 2026-11-11's."""
+    if "/" in stamp:
+        day, st = stamp.split("/", 1)
+        return os.path.join(GC.HW, day, "stepper"), st
+    return STEP_DIR, stamp
+
+
 def run_path(stamp):
-    p = os.path.join(STEP_DIR, stamp + ".jsonl")
+    d, st = _split(stamp)
+    p = os.path.join(d, st + ".jsonl")
     if not os.path.exists(p):
-        g = sorted(glob.glob(os.path.join(STEP_DIR, stamp + "_*.jsonl")))
+        g = sorted(glob.glob(os.path.join(d, st + "_*.jsonl")))
         if not g:
             raise FileNotFoundError(stamp)
         p = g[0]
@@ -105,14 +114,19 @@ def load_log(stamp):
 
 
 def local_t0(stamp):
-    """The run's file-name time (host local, the box that ran the stepper) as a UTC epoch."""
+    """The run's file-name time (host local, the box that ran the stepper) as a UTC epoch. A run whose
+    `start` row carries `utc` (the stepper from 2026-11-11 evening on) gives it exactly."""
+    log = load_log(stamp)
+    if log and log[0].get("ev") == "start" and "utc" in log[0]:
+        return float(log[0]["utc"]) - float(log[0]["t"])
     hhmmss = os.path.basename(run_path(stamp))[:6]
-    return time.mktime(time.strptime("2026-11-11 " + hhmmss, "%Y-%m-%d %H%M%S"))
+    day = os.path.basename(os.path.dirname(os.path.dirname(run_path(stamp))))
+    return time.mktime(time.strptime(day + " " + hhmmss, "%Y-%m-%d %H%M%S"))
 
 
 def frecs():
     out = []
-    for p in glob.glob(os.path.join(GC.HW, "*", "flight_20261111T*.frec")):
+    for p in glob.glob(os.path.join(GC.HW, "*", "flight_2026111[12]T*.frec")):
         st = os.path.basename(p).split("_")[1]           # 20261111T171003Z
         out.append((time.mktime(time.strptime(st, "%Y%m%dT%H%M%SZ")) - time.timezone, p))
     return sorted(out)
@@ -127,7 +141,7 @@ def frec_for(t_utc):
 
 
 def _cache_path(stamp):
-    return os.path.join(CACHE, stamp + ".npz")
+    return os.path.join(CACHE, stamp.replace("/", "_") + ".npz")
 
 
 def extract(stamps):

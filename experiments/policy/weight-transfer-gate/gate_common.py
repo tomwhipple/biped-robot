@@ -43,6 +43,8 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               live at once and at every reset after; a run's own series spring is dropped
   play_L_hip=, play_R_hip=, play_L_ankle=, play_R_ankle=<deg>   the same for one side's joint,
               overriding play_hip / play_ankle there
+  floor_tc=<s>, floor_dr=, floor_d0=, floor_d1=, floor_w=<m>   the floor's contact softness (floor +
+              sole pads): solref time constant / damping ratio, solimp d0 / d1 / width
   fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
               hip-roll joints, replacing the plant's: it acts on the link, so under the play it
               holds the link inside its band
@@ -254,6 +256,21 @@ def apply_terms(env, terms):
                      W.roll_play_bounds(env.roll_play_deg, env._servo_names)[0])
         env._rp_off = np.zeros(env._n_servo)
         env._rp_dq = np.zeros(env._n_servo)
+    if any(k in terms for k in ("floor_tc", "floor_dr", "floor_d0", "floor_d1", "floor_w")):
+        # the floor's contact softness (the floor + every sole pad, as simh.apply_model's floor_tc):
+        # solref (time constant, damping ratio) and solimp (d0, d1, width m); an omitted one keeps
+        # the plant's value
+        import mujoco
+        nm = lambda g: mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        gs = [g for g in range(m.ngeom) if "_pad_" in nm(g)] + list(env._sole_gids) + [m.geom("floor").id]
+        for g in gs:
+            if "floor_tc" in terms:
+                m.geom_solref[g][0] = float(terms["floor_tc"])
+            if "floor_dr" in terms:
+                m.geom_solref[g][1] = float(terms["floor_dr"])
+            for i, k in enumerate(("floor_d0", "floor_d1", "floor_w")):
+                if k in terms:
+                    m.geom_solimp[g][i] = float(terms[k])
     for key, suf in (("fric_aroll", "ankle_roll"), ("fric_hroll", "hip_roll")):
         if key in terms:        # dry friction (N m) on the roll joints themselves: the link side
             for i, n in enumerate(env._servo_names):

@@ -52,7 +52,10 @@ FALL_MOTIONS = {0: "bench", 1: "policy"}
 FALL_EVENTS = {1: "fell", 2: "picked_up", 3: "cleared"}
 
 # balance::State (firmware/components/balance/include/balance/roll_pi.h)
-BAL_STATES = {0: "OFF", 1: "ACTIVE", 2: "ABORT_TIP", 3: "ABORT_IMU", 4: "ARMED"}
+BAL_STATES = {0: "OFF", 1: "ACTIVE", 2: "ABORT_TIP", 3: "ABORT_IMU", 4: "ARMED",
+              # the stance-hip trim (balance/stance_trim.h, `pose ... S<L|R>`) shares the block: integral = the
+              # learned trim T of the stance side, u = hike (rad), hip_* = the joint correction
+              5: "TRIM_CLOSED", 6: "TRIM_HOLD", 7: "TRIM_FADE", 8: "TRIM_ABORT_TIP", 9: "TRIM_ABORT_IMU"}
 
 MAX_JOINTS = 17
 MAX_TEXT = 180
