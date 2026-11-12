@@ -946,11 +946,10 @@ def test_state_and_log_are_plain():
 
 
 def test_gentle_outward_tip_and_shift_cost():
-    """The outward tip over the left stance foot starts GENTLY: beyond a threshold shift the lean toward the stance side grows
-    1 deg per 6 mm (and it rolls toward it at 8 deg/s), then it runs away if the pelvis keeps going. The slow final approach
-    must stop within one 6 mm move of the threshold with a lean under 3.5 deg, back off, lower k, and the lift then
-    completes. And a normal shift costs at most 4 extra moves."""
-    thr = 50.0                                                  # mm from the stance foot
+    """The outward tip over the left stance foot starts gently: beyond a threshold shift the lean toward the stance side
+    grows 1 deg per 2.5 mm. The LEAN-only guard in the 6 mm final approach stops it with a lean under 3.5 deg, no fall;
+    the lift then completes from the re-approach. And a normal shift costs at most 4 extra moves."""
+    thr = 75.0
     with env() as d:
         run = make(d)
         orig_read = run.read
@@ -958,23 +957,24 @@ def test_gentle_outward_tip_and_shift_cost():
 
         def read3(tag=""):
             s = dict(orig_read(tag))
-            y = 1e3 * run.pel[1]                                  # stance L: the pelvis y is + when it is over the left foot
-            over = max(0.0, y - thr)
-            toward = over / 6.0 + ((over - 12.0) ** 2 / 8.0 if over > 12.0 else 0.0)     # true lean toward L, deg
-            s["roll"] += 0.04 * y - toward                       # normally it leans AWAY (+, right) 0.04 deg per mm; L-ward is roll -
-            s["gyro"] = [-math.radians(8.0 if over > 0.0 else 0.0), s["gyro"][1], s["gyro"][2]]
+            over = max(0.0, 1e3 * run.pel[1] - thr)
+            toward = 3.0 if over > 0.0 else 0.0                  # (a lean that grew slowly would turn 0.5 deg first: shift_done_early)
+            if over > 12.0:
+                toward += (over - 12.0) ** 2 / 8.0               # then it runs away
+            s["roll"] -= toward                                  # toward L is roll -
             st["max_toward"] = max(st["max_toward"], toward)
             if toward > 10.0:
                 st["fell"] = True
             return s
         run.read = read3
+        run.p["k_shift"]["L"] = 1.25
         k0 = run.p["k_shift"]["L"]
         how, h = run.lift("R", hold=0.0)                         # lift R over L
         rows = [json.loads(line) for line in open(run.base + ".jsonl")]
         tips = [r for r in rows if r["ev"] == "shift_tip"]
         assert tips and tips[0]["stance"] == "L", tips
         t = tips[0]
-        assert t["shift_mm"] - thr <= 6.01 + 1e-6 and t["toward"] < 3.5, t
+        assert 2.5 < t["toward"] < 3.5, t
         assert not st["fell"] and st["max_toward"] < 3.5, st
         assert t["k"] < k0 and abs(t["k_old"] - k0) < 1e-9, (t, k0)
         assert how == "up", how
@@ -1018,8 +1018,157 @@ def test_gentle_outward_tip_and_shift_cost():
         run.finish(save=False)
 
 
+def test_guard_has_no_rate_test_and_never_lifts_from_a_short_shift():
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with env() as d:                                              # (a) a roll rate spike after every shift move, no lean: no trip
+        run = make(d)
+        orig = run.read
+        until = [0.0]
+        go0 = run.go
+
+        def go(ms, tag):
+            go0(ms, tag)
+            if tag.startswith("shift"):
+                until[0] = clock[0] + 0.2
+        run.go = go
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if clock[0] < until[0]:
+                s["gyro"] = [math.radians(10.0), s["gyro"][1], s["gyro"][2]]
+            return s
+        run.read = read
+        for sw in "RL":
+            how, h = run.lift(sw, hold=0.0)
+            assert how == "up", (sw, how)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert not any(r["ev"] == "shift_tip" for r in rows)
+        run.finish(save=False)
+    with env() as d:                                              # (b) a trip, and the pelvis ends under k_lift_min: no raise from there
+        run = make(d)
+        orig = run.read
+        st = dict(tripped=False, done=False)
+        sb0 = run.shift_back
+
+        def shift_back(stance, toward):
+            sb0(stance, toward)
+            st["tripped"] = True
+        run.shift_back = shift_back
+        lift0 = run.lift
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            y = 1e3 * run.pel[1]
+            if not st["done"]:
+                if not st["tripped"] and y > 60.0:
+                    s["roll"] -= 3.0                              # toward L: tips out (guard trips)
+                elif st["tripped"] and tag.startswith("shift L"):
+                    s["roll"] -= 0.1 * max(0.0, y - 45.0)         # after the trip: the lean turns 0.5 deg by ~51 mm: done early, short
+            return s
+        run.read = read
+        lg = []
+        log0 = run.log
+
+        def log(ev, **kw):
+            if ev == "lift" and kw.get("how") == "no_shift":
+                st["done"] = True                                  # the retry is clean
+            return log0(ev, **kw)
+        run.log = log
+        run.p["k_shift"]["L"] = 1.25
+        how, h = run.lift("R", hold=0.0)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        idx = {r["ev"]: i for i, r in enumerate(rows) if r["ev"] in ("shift_tip", "shift_retry")}
+        lifts = [(i, r) for i, r in enumerate(rows) if r["ev"] == "lift"]
+        assert lifts[0][1]["how"] == "no_shift" and lifts[-1][1]["how"] == "up" and how == "up", [r["how"] for _, r in lifts]
+        retry = [r for r in rows if r["ev"] == "shift_retry"]
+        assert retry[0]["no_shift"] and retry[0]["reached_mm"] < retry[0]["need_mm"], retry[0]
+        first_no = lifts[0][0]
+        assert not any(r["ev"] == "pose" and r["tag"].startswith("raise") for r in rows[idx["shift_tip"]:first_no]), "raised from a short shift"
+        assert sum(r["ev"] == "shift_tip" for r in rows) == 1
+        run.finish(save=False)
+    with env() as d:                                              # two trips in one lift end the run, cleanly, no exception
+        run = make(d)
+        orig = run.read
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if run.pel[1] > 0.060:
+                s["roll"] -= 3.0
+            return s
+        run.read = read
+        run.p["k_shift"]["L"] = 1.25
+        out = run.walk("R", 4, 0.0, 0.0, hold=0.0, march=True)
+        assert run.stop_why and "two shift tips" in run.stop_why, run.stop_why
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert sum(r["ev"] == "shift_tip" for r in rows) == 2 and not any(r["ev"] == "pose" and r["tag"].startswith("raise") for r in rows)
+        run.finish(save=False)
+    # k is lowered once per lift and never below k_floor
+    with env() as d:
+        run = make(d)
+        run.lift_tips = 0
+        run.p["k_shift"]["L"] = 1.12
+        run.shift_back("L", 3.0)
+        assert run.p["k_shift"]["L"] == 1.1, run.p["k_shift"]
+        run.shift_back("L", 3.0)
+        assert run.p["k_shift"]["L"] == 1.1
+        run.p["k_shift"]["L"] = 1.3
+        run.lift_tips = 0
+        run.shift_back("L", 3.0)
+        run.shift_back("L", 3.0)
+        assert abs(run.p["k_shift"]["L"] - 1.2) < 1e-9, run.p["k_shift"]            # not stacked
+        run.finish(save=False)
+
+
+def test_catch_hold_pitch_escape():
+    """While holding in the catch for a roll toward the stance side, a pitch deviation past pitch_lim (or its rate over
+    15 deg/s) ends the hold: the foot goes to the floor at once."""
+    with env() as d:
+        run = make(d)
+        orig = run.read
+        calls = []
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if tag.startswith("catch"):
+                calls.append(tag)
+                s["gyro"] = [-math.radians(20.0), s["gyro"][1], s["gyro"][2]]      # rolling toward the stance side (L swing: gyro x +)
+                s["gyro"][0] = math.radians(20.0)
+                s["pitch"] += 8.0                                                    # and pitching: past pitch_lim
+            return s
+        run.read = read
+        run.last_imu = dict(orig("x"))
+        run.last_tilt = 8.0
+        run.feet["L"][2] = 0.020
+        run.catch("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        cat = [r for r in rows if r["ev"] == "catch"][0]
+        assert cat["escaped"] and cat["holds"] <= 1, cat
+        poses = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("catch L")]
+        assert poses[-1]["feet"]["L"][2] == 0.0 and poses[-1]["ms"] == int(1e3 * run.p["t_catch"]), poses[-1]
+        run.finish(save=False)
+    with env() as d:                                              # without the pitch, it holds (up to its limit) and lowers by 5 mm moves
+        run = make(d)
+        orig = run.read
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if tag.startswith("catch"):
+                s["gyro"] = [math.radians(20.0), s["gyro"][1], s["gyro"][2]]
+            return s
+        run.read = read
+        run.last_imu = dict(orig("x"))
+        run.last_tilt = 8.0
+        run.feet["L"][2] = 0.020
+        run.catch("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        cat = [r for r in rows if r["ev"] == "catch"][0]
+        assert not cat["escaped"] and cat["holds"] > 3, cat
+        run.finish(save=False)
+
+
 def test_shift_tip_guard():
-    """Past 60 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
+    """Past 75 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
     the guard backs the pelvis off, lowers k, and the lift goes on from there."""
     with env() as d:
         run = make(d)
@@ -1029,9 +1178,10 @@ def test_shift_tip_guard():
             s = dict(orig(tag))
             y = 1e3 * run.pel[1]
             if y > 1:
-                s["roll"] += 0.03 * y - (0.6 * (y - 60.0) if y > 60.0 else 0.0)
+                s["roll"] += 0.03 * y - (6.0 if y > 75.0 else 0.0)
             return s
         run.read = read
+        run.p["k_shift"]["L"] = 1.25                              # (target 77.5 mm; one trip, k 1.15: 71 mm, under the threshold)
         how, h = run.lift("R", hold=0.0)
         assert how == "up", how
         rows = [json.loads(line) for line in open(run.base + ".jsonl")]

@@ -90,7 +90,7 @@ DEFAULTS = dict(
     shift_step=0.03,      # the pelvis crosses in moves of this size, IMU read between, m
     shift_final_mm=24.0,  # the last this much of a shift over a stance foot goes in small moves ...
     shift_final_step=6.0, # ... of this size, mm, a read (and the outward guard) after each
-    shift_out_rate=5.0,   # ... where a roll rate toward the stance side above this, deg/s, is tipping out too
+    k_lift_min=0.95,      # a foot is not raised from a shift under this x the model's, after a guard trip
     shift_done_deg=0.5,   # ... and a lean that has already turned this far toward the stance side means the weight is across: stop
     shift_out_lim=2.5,    # shifting over a stance foot: a lean TOWARD it this far (deg, from the start of the shift) = tipping out
     shift_back_mm=20.0,   # ... then the pelvis steps back toward the middle by this much, mm, and k_shift of that side drops a step
@@ -226,6 +226,8 @@ class Run:
         self.psi_p = 0.0                      # rad: the pelvis heading now
         self.yawf = {"L": 0.0, "R": 0.0}      # rad: the soles' world yaws (relative to that same zero)
         self.pending_d = 0.0
+        self.lift_tips = 0                    # guard trips in this lift
+        self.no_shift = False
         self.cautious = False                 # after a catch / an outward shift_tip: the next shift is settled first, half-size moves
         self.last_tilt = 0.0
         self.corr = {"L": 0.0, "R": 0.0}      # deg of each sole's yaw that are heading corrections, not the commanded turn
@@ -401,8 +403,8 @@ class Run:
         side the pelvis goes to, so a lean toward it (roll relative to roll0) past shift_out_lim is the stance
         foot tipping over its outer edge: the pelvis steps back toward the middle, k_shift[stance] drops a step
         and the move ends there (self.shift_tipped). The last shift_final_mm of such a shift go in shift_final_step
-        moves (all of it if `fine`: a turn, or right after a catch), and there the guard also tests the roll RATE toward
-        the stance side (shift_out_rate), and a lean that has already turned toward the stance side by shift_done_deg
+        moves (all of it if `fine`: a turn, or right after a catch). The guard tests the LEAN only (a roll rate
+        read right after a move says nothing about tipping: 17:3x), and in the last stretch, and a lean that has already turned toward the stance side by shift_done_deg
         ends the shift early (`shift_done_early`: the weight is across; the target is not chased)."""
         P = self.p
         a, k0 = list(self.pel), dict(self.hike)
@@ -437,8 +439,7 @@ class Run:
             if guard is not None:
                 sg = 1.0 if guard[0] == "R" else -1.0                  # roll + = leaning to the robot's right
                 toward = sg * (dr - guard[1])
-                rate_to = sg * math.degrees(s["gyro"][0])              # gyro x is the roll rate, the roll's sign
-                if toward > P["shift_out_lim"] or (final and rate_to > P["shift_out_rate"]):
+                if toward > P["shift_out_lim"]:
                     self.shift_back(guard[0], toward)
                     return s
                 if final and (1.0 - u) * dist <= 1e-3 * P["shift_final_mm"] + 1e-9 and toward > P["shift_done_deg"]:   # in the last stretch: the weight is across
@@ -475,7 +476,9 @@ class Run:
         self.pel[1] = mid + math.copysign(back, y - mid)
         self.go(int(1e3 * P["t_min"]), f"shift back {stance}")
         old = P["k_shift"][stance]
-        P["k_shift"][stance] = round(max(P["k_min"], old - P["k_step"]), 3)
+        if self.lift_tips == 0 and old > P["k_floor"]:               # lowered once per lift (no stacking), never below k_floor
+            P["k_shift"][stance] = round(max(P["k_floor"], old - P["k_step"]), 3)
+        self.lift_tips += 1
         self.shift_tipped = True
         self.cautious = True
         yst = self.fy(stance)
@@ -484,6 +487,7 @@ class Run:
         self.say(f"  shift over {stance} tipping out ({toward:+.1f} deg toward it): back to {1e3 * (self.pel[1] - yst):+.0f} mm from it, k now x{P['k_shift'][stance]:.2f}")
 
     def shift_over(self, stance):
+        P = self.p
         d = self.yawf[stance] - self.psi_ref
         if abs(d) > 1e-9:
             self.rebase(d)                                   # the new frame: the one this stance foot's yaw defines
@@ -494,7 +498,20 @@ class Run:
         if caut:                                                   # after a catch or an outward tip: let it come to rest first
             self.settle(f"pre-shift {stance}", tmax=3.0)
         fine = caut or abs(self.dyaw) > 1e-9                       # a turn, or right after a catch / tip: small moves all the way
+        self.no_shift = False
         self.move_pel(to, f"shift {stance}", guard=(stance, roll0), heading_to=self.yawf[stance], fine=fine)
+        if self.shift_tipped:
+            # a guard trip never leaves it lifting from too little shift: settle fully, re-approach (6 mm moves) to the
+            # reduced k's target; if it still ends under k_lift_min x the model's shift, the foot is not raised (no_shift)
+            self.settle(f"after tip {stance}", tmax=3.0)
+            if self.lift_tips < 2:
+                self.shift_tipped = False
+                roll1 = self.lean(self.read(f"shift {stance} again"))[0]
+                self.move_pel(self.stance_pel(stance), f"shift {stance} again", guard=(stance, roll1), heading_to=self.yawf[stance], fine=True)
+            reached = abs(self.pel[1] - self.fy(stance))
+            self.no_shift = reached < P["k_lift_min"] * abs(self.off[stance][1])
+            self.log("shift_retry", stance=stance, reached_mm=round(1e3 * reached, 1), need_mm=round(1e3 * P["k_lift_min"] * abs(self.off[stance][1]), 1),
+                     no_shift=bool(self.no_shift), trips=self.lift_tips)
         self.psi_p = self.yawf[stance]
         self.corr_p = self.corr[stance]
         time.sleep(self.p["settle_s"])
@@ -658,23 +675,31 @@ class Run:
         self.feet[swing][1], self.feet[swing][2] = y, z
         self.go(int(1e3 * P["t_catch"]), f"catch {swing}")
         holds = 0
+        escaped = False
         while z > 1e-9:
             s = self.read(f"catch {swing}")
             self.level_sole(swing, s, free=True)
             tries = 0
-            while -math.degrees(s["gyro"][0]) * sgn > P["catch_rate_out"] and tries < 30:      # going over the stance side: wait
+            while not escaped and -math.degrees(s["gyro"][0]) * sgn > P["catch_rate_out"] and tries < 30:      # going over the stance side: wait
                 time.sleep(0.1)
                 s = self.read(f"catch hold {swing}")
                 self.level_sole(swing, s, free=True)
                 tries += 1
                 holds += 1
+                if abs(self.lean(s)[1]) > P["pitch_lim"] or abs(math.degrees(s["gyro"][1])) > 15.0:
+                    escaped = True                                   # going over fore/aft too: both feet on the floor now
+            if escaped:
+                z = 0.0
+                self.feet[swing][2] = 0.0
+                self.go(int(1e3 * P["t_catch"]), f"catch {swing} 0")
+                break
             z = max(0.0, z - 0.005)
             self.feet[swing][2] = z
             self.go(int(1e3 * P["t_lower"]), f"catch {swing} {1e3 * z:.0f}")
         self.read(f"catch {swing} down")
         self.cautious = True
         self.log("catch", swing=swing, h_touch_mm=round(1e3 * h_touch, 1), tilt=round(tilt, 2), out_mm=round(1e3 * (y - y0), 1),
-                 sole_r=round(self.sole_r[swing], 2), sole_p=round(self.sole_p[swing], 2), holds=holds)
+                 sole_r=round(self.sole_r[swing], 2), sole_p=round(self.sole_p[swing], 2), holds=holds, escaped=escaped)
         self.say(f"  catch {swing}: to {1e3 * h_touch:.0f} mm (touch height at {tilt:.1f} deg), flat (trim {self.sole_r[swing]:+.1f}/{self.sole_p[swing]:+.1f}), "
                  f"{1e3 * (y - y0):+.0f} mm out, {holds} holds")
 
@@ -724,8 +749,19 @@ class Run:
         lift ends: no retry)."""
         stance = "L" if swing == "R" else "R"
         P = self.p
+        self.lift_tips = 0
         for attempt in range(4):
             self.shift_over(stance)
+            if self.lift_tips >= 2:                                  # the stance foot cannot take the shift: end cleanly
+                self.centre()
+                self.halt(f"two shift tips in one lift over {stance} (k x{P['k_shift'][stance]:.2f}): the stance foot cannot take the shift", "shift_stop")
+                return "gave_up", 0.0
+            if self.no_shift:                                        # it did not get the shift it needs: do not raise the foot
+                self.log("lift", utc=time.time(), swing=swing, attempt=attempt, how="no_shift", h=0.0, hike=round(self.hike[stance], 2), k=P["k_shift"][stance])
+                self.say(f"  no_shift: not raising {swing}; back to the middle and again")
+                self.centre()
+                self.settle("after no_shift", tmax=3.0)
+                continue
             how, h = self.raise_foot(swing)
             hike = self.hike[stance]
             self.log("lift", utc=time.time(), swing=swing, attempt=attempt, how=how, h=h, hike=round(hike, 2), k=P["k_shift"][stance])
