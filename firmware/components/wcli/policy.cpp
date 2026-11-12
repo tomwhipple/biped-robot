@@ -60,7 +60,9 @@ const char* const kBenchAny[] = {
     // runs on battery with no tether, and standclock resets to `run` at every boot)
     "standclock", "heading",
     // the stance-hip trim (#297): status, gains and learned T are RAM only, like `balance`
-    "trim", nullptr};
+    "trim",
+    // the gait track (#297 B2): frames, play / stop / halt; RAM only, behind the same gates as `pose`
+    "track", nullptr};
 
 }  // namespace
 

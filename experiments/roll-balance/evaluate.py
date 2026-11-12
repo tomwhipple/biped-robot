@@ -41,6 +41,8 @@ LAWS = {
     "t25-10c1": lambda: Lw.Trim(kp=0.25, ki=1.0, kt=0.1),
     "t25-10c3": lambda: Lw.Trim(kp=0.25, ki=1.0, kt=0.3),
     "t25-10c6": lambda: Lw.Trim(kp=0.25, ki=1.0, kt=0.6),
+    "b1": lambda: Lw.Trim(kp=0.25, ki=1.0),                                   # the B1 firmware defaults
+    "b1-seed": lambda: Lw.Trim(kp=0.25, ki=1.0, t0={"L": 8.0, "R": -3.0}),  # seeded: hike L 8, R 3
     "t25-10cm1": lambda: Lw.Trim(kp=0.25, ki=1.0, kt=-0.1),
     "t25-10cm3": lambda: Lw.Trim(kp=0.25, ki=1.0, kt=-0.3),
 }

@@ -62,6 +62,7 @@ CXXFLAGS  = -std=c++17 -O1 -g -ffp-contract=off \
             -I$(COMPONENTS)/imu/include \
             -I$(COMPONENTS)/battguard/include \
             -I$(COMPONENTS)/balance/include \
+            -I$(COMPONENTS)/gaitplay/include \
             -I$(COMPONENTS)/fallguard/include \
             -I$(COMPONENTS)/flailguard/include \
             -I$(COMPONENTS)/flightrec/include \
@@ -95,6 +96,7 @@ SRC_POL   = $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
 SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_TRIM  = $(COMPONENTS)/balance/stance_trim.cpp
+SRC_GAIT  = $(COMPONENTS)/gaitplay/track.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
 SRC_FLAIL = $(COMPONENTS)/flailguard/flailguard.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
@@ -103,7 +105,7 @@ SRC_WCLI  = $(COMPONENTS)/wcli/sha256.cpp $(COMPONENTS)/wcli/wcli.cpp \
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_fallguard test_flailguard \
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_gaitplay test_fallguard test_flailguard \
         test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec \
         test_wcli
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
@@ -114,9 +116,10 @@ WCLI_TWIN = $(BUILD)/wcli_twin
 # The software-in-the-loop library (docs/sil-harness.md): the same component
 # sources the tests use, plus the C boundary python loads with ctypes.
 SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
-SRC_SIL   = sil_lib.cpp sil_net.cpp
+SRC_SIL   = sil_lib.cpp sil_net.cpp sil_gait.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
-            $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
+            $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp \
+            $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/gaitplay/track.cpp
 
 .PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
@@ -299,6 +302,9 @@ $(BUILD)/test_roll_pi: test_roll_pi.cpp $(SRC_BAL) test_util.h $(COMP_HDRS) | $(
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_stance_trim: test_stance_trim.cpp $(SRC_TRIM) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_gaitplay: test_gaitplay.cpp $(SRC_GAIT) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_fallguard: test_fallguard.cpp $(SRC_FALL) test_util.h $(COMP_HDRS) | $(BUILD)

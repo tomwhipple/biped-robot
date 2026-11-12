@@ -175,6 +175,8 @@ firmware/
     battguard/          pack under-voltage guard
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>), and the
                         stance-hip trim through the lift (pose S<L|R>, `trim`)
+    gaitplay/           the gait track (`track`): keyframes appended while playing, the phase ->
+                        support state the stance trim runs on
     fallguard/          fall detection + pick-up recovery, one module for the armed loop and the bench
     flailguard/         the armed loop's judge of the policy (pose, rate, tilt, chatter) -> hold + disarm
     flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
