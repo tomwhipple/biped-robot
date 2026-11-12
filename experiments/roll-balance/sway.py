@@ -15,7 +15,9 @@ the middle of that foot's single support:
 
 LIPM gives the CoM amplitude for alternating support every T s as (w/2)(1 - sech(omega T / 2)),
 omega = sqrt(g / z0); with z0 0.213 m that is 0.93 of the static shift at T = 1 s and 0.65 at 0.5 s.
-`k=None` uses it; any other value overrides. The object has testbed.Traj's interface.
+`k=None` uses it; any other value overrides. wide=True adds the stance foot's offset from the feet's mid
+line to the amplitude (a side step widens the stance; B2 SIL: without it the slow side step leans into
+the swing). The object has testbed.Traj's interface.
 """
 from __future__ import annotations
 
@@ -44,13 +46,13 @@ def _mj(u):
 
 class Sway:
     def __init__(self, T=1.5, n_steps=8, k=None, ss=0.6, lead=0.0, h=0.025, dx=0.0, dy=0.0, yaw=0.0,
-                 first="L", drop=0.02, t_crouch=2.0, t_settle=1.0, dt=0.04, kL=None, kR=None):
+                 first="L", drop=0.02, t_crouch=2.0, t_settle=1.0, dt=0.04, kL=None, kR=None, wide=False):
         K = S.kin(drop)
         self.k = k_lipm(T) if k is None else k
         # per stance side (the robot needs more shift over its left foot); the amplitude switches where the
         # sine crosses zero (mid double support), so the pelvis path stays continuous
         kside = {"L": self.k if kL is None else kL, "R": self.k if kR is None else kR}
-        self.stamp = f"sway T{T:g} k{self.k:.2f}/{kL}/{kR} ss{ss:g} lead{lead:g} dx{dx:+g} dy{dy:+g} yaw{yaw:+g}"
+        self.stamp = f"sway T{T:g} k{self.k:.2f}/{kL}/{kR}{' wide' if wide else ''} ss{ss:g} lead{lead:g} dx{dx:+g} dy{dy:+g} yaw{yaw:+g}"
         self.r = None
         oy = abs(K.model_offset("L")[1])
         segs, phases = [], []
@@ -86,7 +88,14 @@ class Sway:
             stance = "R" if sw == "L" else "L"
             sgn_first = 1.0 if first == "R" else -1.0     # first swing L -> first stance R -> pelvis to -y
             y_sin = math.sin(math.pi * (t - t_c) / T + math.pi / 2) * sgn_first
-            y = kside["L" if y_sin > 0 else "R"] * oy * y_sin * min(env, tail)
+            side = "L" if y_sin > 0 else "R"
+            amp = kside[side] * oy
+            if wide:
+                # the stance foot's own offset from the feet's mid line (a side step widens the stance): the
+                # pelvis peaks that much further out (continuous: the side switches where the sine is 0)
+                ymid = 0.5 * (feet["L"][1] + feet["R"][1])
+                amp += (1.0 if side == "L" else -1.0) * (feet[side][1] - ymid)
+            y = amp * y_sin * min(env, tail)
             # feet
             for j, ph in enumerate(phases):
                 fsw = ph["swing"]
@@ -112,7 +121,9 @@ class Sway:
             if yaw:
                 qd["L_hip_yaw"] += yawq["L"]
                 qd["R_hip_yaw"] += yawq["R"]
-            segs.append(dict(t=t, ms=1e3 * dt, q=qd, row=None))
+            # pa: the pose's arguments without the sway (the centred stand for these feet: a stop's rest pose)
+            segs.append(dict(t=t, ms=1e3 * dt, q=qd, row=None,
+                             pa=dict(fwd=x_pel, shift=ybase, feet={s: list(feet[s]) for s in feet}, yaw=dict(yawq))))
             t += dt
         for p in phases:
             p.pop("_init", None)

@@ -104,4 +104,45 @@ class StanceTrim {
 
 const char* trimStateName(TrimState s);
 
+// What a stepping source tells the trim each tick when the phases are not marked pose by pose (the gait
+// track, a policy's gait clock): the stance leg in single support (0 in double support), the raise
+// progress 0..1 and whether the lowering has begun -- gaitplay::supportFromPhase gives it from the phase.
+struct SupportIn {
+    char stance = 0;
+    float progress = 1.0f;
+    bool lowering = false;
+};
+
+// The per-step numbers a host needs for its step-to-step corrections (the CLI prints one line per step).
+struct StepReport {
+    char stance = 0;
+    float lean_in = 0.0f;       // peak roll error toward the swing foot over the single support, rad (>= 0)
+    float lean_out = 0.0f;      // ... toward the stance side, rad (>= 0)
+    float e_mid = 0.0f;         // e at mid single support (the raise just done), rad
+    float t_mid = 0.0f;         // the learned T of the stance side there, rad (hike convention)
+    float hike_mid = 0.0f;      // the hike there, rad
+    bool aborted = false;
+};
+
+// Drives a StanceTrim from SupportIn tick by tick: single support begins a chain (reference = the roll
+// then), the raise ramps T in by its progress, the lowering holds, double support releases (the fade).
+// Identical for the gait track and the policy path. step() returns true on the tick a single support ended,
+// with its report.
+class TrimDriver {
+  public:
+    explicit TrimDriver(StanceTrim& trim) : trim_(trim) {}
+    // one tick: the support state, the torso roll (NaN = no attitude), dt
+    bool step(const SupportIn& in, float roll_rad, float dt_s, StepReport* done);
+    void reset() { cur_ = 0; rep_ = StepReport(); mid_taken_ = false; }
+    // true when this tick's step() will begin a new chain (the caller can first hand a still fading
+    // correction to its residual, which this class does not hold)
+    bool begins(const SupportIn& in) const { return in.stance != 0 && in.stance != cur_; }
+
+  private:
+    StanceTrim& trim_;
+    char cur_ = 0;
+    bool mid_taken_ = false;
+    StepReport rep_;
+};
+
 }  // namespace balance

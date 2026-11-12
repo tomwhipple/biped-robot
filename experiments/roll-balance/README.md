@@ -207,3 +207,49 @@ direction. That is 4-7 × the host stepper's pace.
   no time to learn it within one single support.
 - With a single amplitude of 1.2 on both sides, sidestepping left falls 4 / 8. So the per-side shift
   matters as soon as the robot steps sideways.
+
+## B2: the sway gait through the firmware's own track + trim (`sil_gait.py`, software in the loop)
+
+`sil_gait.py` plays the sway gait through the code the robot runs: `firmware/host/build/libctrl_sil.so`
+(`sil_gait.cpp` → `components/gaitplay/track` + `components/balance/stance_trim` with its `TrimDriver`).
+
+- **Host side.** The sway (above) is sampled every 100 ms into `track add` frames in the CLI's hex form,
+  with the phase, kLift while stepping, a kStepEnd frame at every mid double support and its kRest frame
+  (the centred stand on those feet). The timeline ends at the last step end, so the firmware rests on its
+  own when the queue runs dry there. The host appends rolling, 2 steps ahead of the play head.
+- **Robot side.** The track is sampled at 50 Hz. The support state comes from the phase, and the trim
+  runs from it (kp 0.25, ki 1.0, T seeded hike L 8, R 3). The 12 goals go through ticks and back
+  (calibration round trip) into the sim plant (grade.py servos + the per-side play). The roll comes
+  back one tick late, plus 0 / 60 ms.
+- **Grid.** 4 step times × 6 directions × 4 plants (fit, lo, hi, hard) × 2 delays = 192 runs of 8 steps
+  (`results/sil_gait.json`, summary `results/sil_gait.txt`).
+
+**Found on the way: the slow sidestep needs a width-aware sway.** With A2's sway as it was, sidestepping
+left at T = 4 s fell once and aborted 11 times (lean toward the swing foot up to 19.5 deg on left
+stance; `results/sil_gait_narrow.txt`). The Python testbed with `laws.Trim` shows the same thing (2 / 8
+lifts at 4 s), so it is the gait, not the firmware port. Left stance in a left sidestep stands on a foot
+15 mm further out; at 2 s the CoM's swing covers that, at 3-4 s (quasi-static) it does not. The fix,
+`Sway(wide=True)`, adds the stance foot's offset from the feet's mid line to the amplitude. A2's runs
+did not use it; everything below does.
+
+Predictions (`results/sil_gait.txt`; TS = the firmware's per-step line, deg):
+
+| T | runs | falls | trim aborts | lifts | TS lean toward swing, median / max | TS outward max | T at mid support L / R | hike L / R | swing sole peak clearance median | queue max (frames) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 4 s | 48 | 0 | 0 | 384 / 384 | 3.1 / 6.0 | 4.2 | 9.5 / 5.7 | 9.8 / 6.0 | 38 mm | 81 |
+| 3 s | 48 | 0 | 0 | 384 / 384 | 3.3 / 6.1 | 4.2 | 9.0 / 5.2 | 9.3 / 5.7 | 36 mm | 61 |
+| 2.5 s | 48 | 0 | 0 | 384 / 384 | 3.3 / 6.1 | 4.7 | 8.8 / 5.1 | 9.1 / 5.6 | 36 mm | 51 |
+| 2 s | 48 | 0 | 0 | 384 / 384 | 3.5 / 6.5 | 4.6 | 8.2 / 4.6 | 8.6 / 5.3 | 38 mm | 41 |
+
+Peak torso tilt is at most 7.0 deg in every direction and step time. On the robot, a TS line far outside
+these numbers (a lean toward the swing foot over ~10 deg, an ABORT, T running to its 14 deg limit)
+falsifies the model; `track_host.py` stops the track on the first one.
+
+`track_host.py` is the host for the robot. It is a dry run by default: it prints the CLI session, the
+upload sizing and the prediction above for the chosen gait. `--live` sends it over the Wi-Fi CLI, on the
+Stage C plan only. Sizing at 100 ms keyframes:
+- 4 frames per `track add` line (181 of the 192 chars).
+- 2.5 lines/s to keep pace while playing.
+- Before `track play`: 20 lines at T = 4 s, 10 at 2 s (2 steps ahead).
+- The per-line round trip and the frames/s it gives are measured on the first live run (`--live` prints
+  them); the 100 ms used above is the stepper's pose round trip, an assumption until then.

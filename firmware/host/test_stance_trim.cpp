@@ -271,6 +271,83 @@ void testStopAndValidate() {
     CHECK(strcmp(balance::trimStateName(TrimState::kClosed), "CLOSED") == 0);
 }
 
+// The driver behind the gait track and a policy's gait clock: single support begins a chain with the
+// roll then as the reference, the raise ramps T in, the lowering holds, double support fades and reports.
+void testDriverChainAndReport() {
+    StanceTrim tr;
+    balance::TrimDriver drv(tr);
+    balance::StepReport rep;
+    balance::SupportIn ds;                      // double support
+    CHECK(!drv.step(ds, 0.01f, 0.02f, &rep));
+    CHECK(tr.state() == TrimState::kOff);
+    balance::SupportIn ss;
+    ss.stance = 'L';
+    ss.progress = 0.0f;
+    CHECK(drv.begins(ss));
+    CHECK(!drv.step(ss, 0.02f, 0.02f, &rep));
+    CHECK(tr.state() == TrimState::kClosed);
+    CHECK_EQ(tr.side(), 'L');
+    CHECK_NEAR(tr.ref(), 0.02f, 1e-9);
+    CHECK(!drv.begins(ss));
+    // the raise: lean toward the swing (R) foot = + roll on L stance, then the end of the raise
+    for (int k = 1; k <= 10; ++k) {
+        ss.progress = static_cast<float>(k) / 10.0f;
+        drv.step(ss, 0.02f + 0.004f * static_cast<float>(k), 0.02f, &rep);
+    }
+    const float e_mid = tr.err(), h_mid = tr.hike(), t_mid = tr.learned('L');
+    ss.progress = 1.0f;
+    drv.step(ss, 0.02f - 0.03f, 0.02f, &rep);   // a lean to the stance side after the mid point
+    ss.lowering = true;
+    drv.step(ss, 0.0f, 0.02f, &rep);
+    CHECK(tr.state() == TrimState::kHold);
+    CHECK(drv.step(ds, 0.0f, 0.02f, &rep));     // the single support is over: report
+    CHECK(tr.state() == TrimState::kFade);
+    CHECK_EQ(rep.stance, 'L');
+    CHECK_NEAR(rep.lean_in, 0.04f, 1e-6);
+    CHECK_NEAR(rep.lean_out, 0.03f, 1e-6);
+    CHECK_NEAR(rep.e_mid, e_mid, 1e-9);
+    CHECK_NEAR(rep.hike_mid, h_mid, 1e-9);
+    CHECK_NEAR(rep.t_mid, t_mid, 1e-9);
+    CHECK(!rep.aborted);
+    for (int k = 0; k < 40; ++k) drv.step(ds, 0.0f, 0.02f, &rep);
+    CHECK(tr.state() == TrimState::kOff);       // the fade runs out in double support
+}
+
+void testDriverNoAttitudeNoChain() {
+    StanceTrim tr;
+    balance::TrimDriver drv(tr);
+    balance::StepReport rep;
+    balance::SupportIn ss;
+    ss.stance = 'R';
+    CHECK(!drv.step(ss, NAN, 0.02f, &rep));
+    CHECK(tr.state() == TrimState::kOff);        // no reference, no chain
+    CHECK(!drv.step(ss, 0.01f, 0.02f, &rep));    // the attitude is back mid support: the chain begins
+    CHECK(tr.state() == TrimState::kClosed);
+    CHECK_EQ(tr.side(), 'R');
+    drv.step(ss, NAN, 0.02f, &rep);
+    CHECK(tr.state() == TrimState::kAbortImu);   // lost inside a chain: the IMU abort
+    balance::SupportIn ds;
+    CHECK(drv.step(ds, 0.0f, 0.02f, &rep));
+    CHECK(rep.aborted);
+}
+
+void testDriverSideToSide() {
+    // straight from one stance to the other (no double support tick): report the first, begin the second
+    StanceTrim tr;
+    balance::TrimDriver drv(tr);
+    balance::StepReport rep;
+    balance::SupportIn l, r;
+    l.stance = 'L';
+    r.stance = 'R';
+    drv.step(l, 0.0f, 0.02f, &rep);
+    CHECK(drv.begins(r));
+    CHECK(drv.step(r, 0.01f, 0.02f, &rep));
+    CHECK_EQ(rep.stance, 'L');
+    CHECK_EQ(tr.side(), 'R');
+    CHECK(tr.state() == TrimState::kClosed);
+    CHECK_NEAR(tr.ref(), 0.01f, 1e-9);
+}
+
 }  // namespace
 
 int main() {
@@ -284,5 +361,8 @@ int main() {
     testAbortFreezesAndFadesNoLanding();
     testImuFault();
     testStopAndValidate();
+    testDriverChainAndReport();
+    testDriverNoAttitudeNoChain();
+    testDriverSideToSide();
     return testutil::report("stance_trim");
 }
