@@ -107,6 +107,7 @@ bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 bimo_test(test_stance_trim test_stance_trim.cpp ${COMPONENTS}/balance/stance_trim.cpp)
 
 bimo_test(test_gaitplay test_gaitplay.cpp ${COMPONENTS}/gaitplay/track.cpp)
+bimo_test(test_lift_gate test_lift_gate.cpp ${COMPONENTS}/gaitplay/lift_gate.cpp)
 
 bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
 
@@ -141,7 +142,8 @@ set(SIL_DEPS ${COMPONENTS}/obs/assembler.cpp
              ${COMPONENTS}/policy/q8.cpp
              ${COMPONENTS}/balance/stance_trim.cpp
              ${COMPONENTS}/balance/roll_pi.cpp
-             ${COMPONENTS}/gaitplay/track.cpp)
+             ${COMPONENTS}/gaitplay/track.cpp
+             ${COMPONENTS}/gaitplay/lift_gate.cpp)
 
 bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})
 bimo_test(test_sil_golden test_sil_golden.cpp

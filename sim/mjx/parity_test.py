@@ -46,6 +46,8 @@ Gates (float64, so precision is not the limiter):
       grounded stance, the encoder obs reading the servo shaft (link + offset)
   R17 the ungated march lift term (w_march_unload): airborne arithmetic, the term live,
       and paid on a grounded march stand (not gated on the foot being up)
+  R20 the two-foot (AND) march term (w_march_both): airborne arithmetic with the
+      per-foot latch state carried, the term live once both feet's swings latched
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -53,7 +55,9 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --robot-only  # R1-R4 only
       python parity_test.py --roll-series # R15 only
       python parity_test.py --roll-play   # R16 only
+      python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
+      python parity_test.py --march-both     # R20 only
 """
 import os
 import sys
@@ -97,6 +101,8 @@ def sync(state, cpu, gpu_env):
         air_time=jp.asarray(np.array(cpu._air_time)),
         last_air=jp.asarray(np.array(cpu._last_air)),
         swing_peak=jp.asarray(np.array(cpu._swing_peak)),
+        march_cur=jp.asarray(np.array(cpu._march_cur)),
+        march_last=jp.asarray(np.array(cpu._march_last)),
         cmd=jp.asarray(np.array(cpu._cmd)),
         traj=jp.asarray(np.array(cpu._traj)),
         traj_on=jp.asarray(float(cpu._traj_on)),
@@ -672,6 +678,41 @@ def march_unload_block():
     return ok
 
 
+# -- R20: the two-foot (AND) march term (w_march_both) ----------------------------
+#     per foot: cur = running max of 0.5 (u + h) over its commanded swing, latched into
+#     last when the command moves to the other foot; r = w * on * min(last_L, last_R)
+# (walker_env.march_both_update, shared by both engines). Airborne: every reward term
+# compared CPU vs MJX at arithmetic tolerance over 120 steps (> 3 march half cycles, so both
+# latches fire); the twin with the weight 0 must differ (the term is live).
+def march_both_block():
+    kw = rob_kw(w_knee_high=1.0, w_march_both=1.0, ext_mix=(0.0,) * 7, march_mix=1.0)
+    kw.pop("cmd_fixed")
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    ok = run_block("R20. two-foot march term (w_march_both, airborne)", 120,
+                   air_acts(c, 0.359), hoist, AIR_GATES, (c, g, s))
+    c0, _, _ = envs_for(dict(kw, w_march_both=0.0), solver_tol=ARITH_TOL)
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = mb_sum = 0.0
+    lasts = []
+    for _ in range(120):
+        _, r1, t1, tr1, info = c.step(z)
+        _, r0, t0, tr0, _ = c0.step(z)
+        if t1 or tr1 or t0 or tr0:
+            break
+        r_on += r1
+        r_off += r0
+        mb_sum += float(info.get("march_both", 0.0))
+        lasts.append(np.array(c._march_last))
+    live = abs((r_on - r_off) - mb_sum) < 1e-6 and mb_sum > 1e-3
+    both = bool(lasts) and float(np.max(np.min(np.array(lasts), axis=1))) > 0.0
+    ok = ok and live and both
+    print(f"   term live: {len(lasts)}-step reward with / without {r_on:.3f} / {r_off:.3f}, "
+          f"difference {r_on - r_off:.4f} = summed term {mb_sum:.4f}; both feet latched: {both}")
+    return ok
+
+
 # -- R14: torso-pitch hinge -----------------------------------------------------
 #     w * max(0, |pitch| - deadband)^2,   pitch = asin(2(qw*qy - qz*qx))
 # Pitch only (sidestep gaits legitimately roll), off while DOWN in a recovery
@@ -845,6 +886,38 @@ def roll_play_block():
     return ok_a and ok_b and ok_c
 
 
+# -- R19: the sole's inner support edge moved toward the ankle-roll axis ---------
+# sole_in_mm: every sole pad inboard of the line is moved onto it, in the MjModel,
+# before the MJX upload (walker_env.apply_sole_inset, shared), so both engines
+# carry the same sole. Grounded stance with the asymmetric calibration (L 8 mm
+# inboard, R 12 mm OUTBOARD of the axis); liveness: the inner pads sit on the
+# lines in both models, the outer pads where the plant put them.
+SOLE_IN_PARITY = "L=8,R=-12"
+
+
+def sole_inset_block():
+    over = dict(sole_in_mm=SOLE_IN_PARITY)
+    c, g, s = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n = c._nq_act
+    ok_b = run_block(
+        "R19. sole inset (L 8, R -12 mm), grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c, g, s), matched_only=True, min_frac=0.5)
+    import mujoco
+    from walker_env import sole_pad_nominal
+    ys = {}
+    for g_, y in sole_pad_nominal(c.model).items():
+        nm = mujoco.mj_id2name(c.model, mujoco.mjtObj.mjOBJ_GEOM, g_)
+        ys.setdefault(nm[0], []).append(y)
+    same = bool(np.array_equal(np.asarray(c.model.geom_pos), np.asarray(g.mj_model.geom_pos)))
+    ok_c = (same and abs(min(ys["L"]) + 0.008) < 1e-9 and abs(max(ys["R"]) + 0.012) < 1e-9
+            and max(ys["L"]) > 0.04 and min(ys["R"]) < -0.05)
+    print(f"== R19-c. sole inset liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   L pads y {np.round(1e3 * np.array(sorted(ys['L'])), 1).tolist()} mm, R "
+          f"{np.round(1e3 * np.array(sorted(ys['R'])), 1).tolist()} mm; CPU == MJX model pads: {same}")
+    return ok_b and ok_c
+
+
 # -- R18: the firmware stance trim on the gait clock (sim/trim_kernel.py) ---------
 def stance_trim_block():
     over = dict(stance_trim=True, stance_trim_T="5.2,3.4")
@@ -911,9 +984,17 @@ def main():
         ok = march_unload_block()
         print("\nPARITY (R17):", "PASS" if ok else "FAIL")
         return ok
+    if "--march-both" in sys.argv:
+        ok = march_both_block()
+        print("\nPARITY (R20):", "PASS" if ok else "FAIL")
+        return ok
     if "--stance-trim" in sys.argv:
         ok = stance_trim_block()
         print("\nPARITY (R18):", "PASS" if ok else "FAIL")
+        return ok
+    if "--sole-in" in sys.argv:
+        ok = sole_inset_block()
+        print("\nPARITY (R19):", "PASS" if ok else "FAIL")
         return ok
     if "--robot-only" in sys.argv:
         ok = robot_blocks()
@@ -922,7 +1003,8 @@ def main():
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
-               roll_play_block(), march_unload_block(), stance_trim_block()]
+               roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
+               march_both_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

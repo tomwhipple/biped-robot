@@ -466,3 +466,377 @@ deg/step asked, ~5-6 deg/step in the sim). The old pattern is `splay`.
 **`track steps`.** The firmware keeps the last 16 TS lines. The jsonl showed only 6 because the
 stepper's robot_io logs the last 300 characters of each reply. Every step the host parses is in the run's
 `summary` row.
+
+## Heading, turning and the first step (hw 2026-11-12 17:04-17:14, T 4-5, R 1.30)
+
+**Turns (`turnL` / `turnR`).** Turns are made about the planted foot. Drift-corrected heading for the
+deg/step asked:
+
+| run | heading |
+|---|---|
+| turnR 2 | −6.4 |
+| turnR 4 | −13.1 |
+| turnR 6 | −24.1 |
+| turnR 8 | −33.4 (−32 asked) |
+| turnL 4 | +28.7 |
+
+All runs had `--first R`, and every TS was ok. Fit: heading per step = 1.34 × asked + 1.9 deg (the sim
+said 1.4-1.5 ×).
+
+**The +1.9 deg/step to the left with nothing asked** is in every direction. It comes from the double
+support, during the lateral shift (bias-corrected gyro z by phase):
+- Each shift onto the right foot turns the robot left: +10.6 to +29.7 deg per run.
+- Each shift onto the left foot turns it right: −8.6 to −13.6 deg per run.
+- Single support contributes −6 to +3 deg.
+
+It is not a hip-yaw servo offset: the hip-yaw tracking errors are ≤ 0.25 deg and symmetric.
+`track_host.py` now adds −1.4 deg/step by default (`--yaw-trim`, added to the direction's own turn).
+Forward 8 at T 4 with it: +7 deg over the run. Without it, 30-40 deg built up over the day's runs (by
+camera). A counter-twist during the shift onto the right foot is the source-level option, kept in reserve.
+
+**The first right stance.** With the first swing L, the first right stance came straight out of the rest
+crouch and tipped in fwd T 5, turnR and back runs. Its lead-in, shift, T and lift-off state match the
+later right steps. The pre-lift roll rate is lower (~10 deg/s vs 20-30), because the first shift is half
+the distance. So it is the same mid-support hip yield, set off when step 1 also moves the swing foot.
+`--first R` (the first stance is the left) is now the default.
+
+**The spurious TS 1.** With the dwell gait, the first keyframe carried kLift at phase u = 0.75 of the
+half cycle before the first one. The firmware read that as a one-tick single support, which printed a
+TS line and shifted the numbering by one. In the forward run, "TS 9 R" was the 8th real step (the last
+right stance), not a closing step. kLift now starts at the first lift-off.
+
+## k R 1.35, the forward pitch, the heading hold (hw 17:45-17:58)
+
+**k_static R 1.35** is the default. At 1.30 the first right stance of back 12 at T 5 tipped (in 10.1-10.4)
+at servo P 32 and at P 64 alike, so the P gain is not the fix. At 1.35, back 12 (P 64) and back 8 (P 32)
+ran clean: right in 1.3-1.7 deg, out ≤ 1.5 deg, right hip lag at mid support 2.8-3.6 deg, the same as the
+clean marches.
+
+**Forward at T 3.4 still degrades on the right steps** (in 7.4 and 8.4 on the 3rd and 4th right stance,
+at 1.35):
+- The shift arrives: the right hip roll is at the same +15.4 deg at every lift-off, and the pre-lift roll
+  rate is no higher than on clean steps.
+- The heading jumps ~9 deg between steps 6 and 7.
+- In the record, the right stance pitches the body forward to +6.7 to +7.7 deg by u 0.8, while the
+  pelvis moves ahead of the stance foot as the swing foot travels. The left stance pitches only +2 to +4.
+- Plan-level option: `Dwell(pelvis_x="stance")` keeps the pelvis fore-aft over the stance foot through
+  single support and moves it only in the shift. It is not the default yet; it needs an A/B on the
+  robot.
+- A "do not lift until the roll is quiet" check would need a conditional hold in the firmware track
+  player: a frame flag that pauses the track clock until |gyro x| is under a threshold, about 40 lines
+  plus tests. The data does not point at it: the shift arrives, and the pre-lift rates are normal.
+
+**Heading hold** (`track_host.py --heading-hold on`, the default with `--live`):
+- After every reported single support the host reads the fused yaw (`imu` quat; the online gyro bias
+  keeps it from drifting). Steps not yet uploaded are asked `(dpsi_cmd + k × error − 1.9) / 1.34`
+  deg/step, from today's heading model; the plan for those steps is regenerated and the upload goes on.
+- `dpsi_cmd` is 0 for straight, ±5 deg/step for turnL / turnR, `--turn TOTAL / steps`, or
+  `--heading-rate × T`, so a commanded heading rate is the same loop.
+- k = 0.5: half the error is fixed per step. Asked turns are clipped to ±8 deg/step.
+- Locked steps keep their frames unchanged; tested offline (re-planned upload, pre-check still passes).
+
+## k R 1.30 at every T, the upper bound, the lean stop; what the tips are (hw 18:09-18:29)
+
+**k_static R 1.30 at every T** (`dwell.K_STATIC`, `dwell.k_static_R`). At T 4 with 1.35 the robot fell
+OUTWARD over the right foot in the settle, with both feet still down (18:09: roll +1 → +22 deg within 0.5 s of
+the pelvis arriving). An inward tip costs a step; an outward topple is a fall nothing catches.
+
+**The pre-check has an upper bound.** At every lift-off and touchdown the shift must lie between k_static and
+k_static + 0.05 (`track_host.UPPER`), both × 62 mm. A plan past the bound is refused; `--allow-over` lets an
+`--amp` A/B pass it.
+
+**`--stop-lean` defaults to 14 deg** (it was 10). At 18:2x, march 4 at T 5 with `--amp 1.3,1.20` tipped on
+both right steps (TS in 9.3 and 9.0). The walk went on through them and finished. The firmware's abort at
+15 deg stays the hard stop.
+
+**Correction: there is no hip-roll "lag" or "hip yield".**
+- The lags quoted above (3.2-7.5 deg) were nominal − measured. The nominal leaves out the trim's hike, so
+  that number was the hike itself, delivered.
+- Against the goal actually sent, the stance hip roll tracks within 1-2 deg at mid support. Median R tips
+  −0.4, R clean −0.9, L clean +0.9. Each tick the servo gets its gap ÷ 20 ms as goal speed, with acc 0.
+- Load stays at 3-25 % duty and current at 0.2-0.3 A, with no protection status bits.
+- What the tips are: the stance sole rolls onto its inner edge (video 18:2x).
+
+**Where the CoM is** (`plant FK on the recorded joints`; distances from the stance ankle-roll axis; model sole:
+84 mm wide, centreline 18.5 mm outboard, so the inner edge is 23.5 mm inboard):
+- k 1.30 puts the CoM 6-8 mm outboard of the ankle axis. The CoM moves ~37 mm per 1.0 k, because the legs
+  stay put.
+- At lift-off the measured joints put it within 1 mm of the plan, and the IMU agrees with the encoders to
+  within 1 deg.
+- After lift-off a rotation toward the swing foot builds that the encoders do not see. At 0.4 s it is R
+  +1.5 deg (IQR 1.4-1.7) and L +3.1 (2.8-3.9). The tips run away and start tipping at ~8 deg (median).
+- 1 deg at the foot or ankle moves the CoM 3.7 mm. 1 deg at the stance hip roll moves it 0.6 mm outward.
+  So the hike levels the torso, but it has almost no authority over the CoM.
+- By the model, k 1.30 leaves ~30 mm (8.5 deg about the edge) to the inner edge. Yet the robot tips there.
+  - The real CoM may sit further inboard than the model's.
+  - The load-bearing inner edge may be closer to the ankle axis than 23.5 mm.
+  - The ankle roll may yield.
+- The record cannot separate these. Two kitchen scales under the feet, read in double support at k 1.0 /
+  1.2 / 1.3, would measure the real CoM directly. A ruler gives the sole edges against the ankle axis.
+
+## The ankle feed-forward and the two-stage shift (host flags, for the 2026-11-13 A/B)
+
+The working explanation for the tips is the free play inside the roll servos (#277). Within the play the
+stance leg pivots at the ankle-roll axis, and the sole cannot help until the play is taken up. The play-drop
+after lift-off (R +1.5, L +3.1 deg at 0.4 s) moves the CoM inboard by about 3.7 mm per deg. Two plan-level
+answers, both host only (the frames carry them) and both off by default:
+
+- **`--ankle-ff L,R`** adds a fixed feed-forward in deg on the STANCE ankle roll. + = outward: the body
+  rolls toward the outside of the stance foot, and the CoM moves ~3.7 mm per deg in the plant FK (2 deg on R
+  stance at k 1.20 is 7.5 mm). It follows the swing foot's height profile: in over the raise, held, out over
+  the lower. It is separate from the hike, which acts on the hip roll and so has ~0 authority over the CoM.
+  The pre-check refuses a plan whose ankle rolls leave the plant's range less 2 deg.
+- **`--k-ds L,R`** is the two-stage shift. The double support goes only to k_ds × 62 mm. The pelvis then
+  travels the rest of the way to `--amp` over the raise (lift-off → raise end, min-jerk), so it reaches
+  k_static only once the swing foot is off. 0 means single-stage for that side. The pre-check wants k_ds at
+  lift-off and `--amp` at touchdown, both under k_static + 0.05. With `--amp 1.3,1.35 --k-ds 0,1.20` the CoM on
+  R stance goes from 2.4 to 8.0 mm outboard of the ankle axis over the raise.
+
+The A/B, mid-board, march 4 at T 5, two runs each, run from the repo root of this branch. R k 1.20 is the
+provoked case: 2 of 2 R steps tipped there at 18:2x.
+
+```
+# A  baseline (tips)
+python experiments/roll-balance/track_host.py --T 5 --dir march --steps 4 --stop-lean 14 --amp 1.3,1.20 --live --note "A1 mid-board"
+# B  ankle feed-forward 2 deg on R stance (predicted: R tips 0 of 2, torso roll toward swing ~2 deg lower at 0.4-0.6 s)
+python experiments/roll-balance/track_host.py --T 5 --dir march --steps 4 --stop-lean 14 --amp 1.3,1.20 --ankle-ff 0,2 --live --note "B1 mid-board"
+# C  two-stage R 1.20 -> 1.35
+python experiments/roll-balance/track_host.py --T 5 --dir march --steps 4 --stop-lean 14 --amp 1.3,1.35 --k-ds 0,1.20 --live --note "C1 mid-board"
+```
+
+Leave out `--live` for the dry run with the pre-check. Then take the winner at k R 1.30 to fwd/back 8 with
+`--pelvis-x stance` (`--dir fwd --steps 8 --amp 1.3,1.30 --pelvis-x stance ...`, likewise `--dir back`), and to
+L: `--ankle-ff 3,<R>` (L's play-drop is about twice R's), or `--amp 1.35,<R> --k-ds 1.20,<R k_ds>`. The
+upper bound for L is 1.35 as well.
+
+## The ankle feed-forward on the robot (hw 2026-11-12 19:10-19:28): the defaults, the outward stop
+
+All runs were mid-board on image b5e5ff2 with the heading hold on; k R 1.30 unless noted. The full table is
+on #297.
+
+| run | `--ankle-ff` L,R | result |
+|---|---|---|
+| march 4, T 5, k R 1.20 (provoked) | 0,0 | R tips on 4 of 4 (9.1-9.6 deg) |
+| the same | 0,2 | R clean on 4 of 6 (1.2-1.7) |
+| fwd 8, T 5 | 0,0 | R tips on 4 of 4 (10.3-12.1) |
+| fwd 8, T 5 | 0,2 | 9 of 9 clean |
+| back / fwd / back / fwd 8, T 5 | 2,2 | 35 of 36 clean (one first-R-stance tip); heading within 4 deg per walk |
+| fwd 8, back 8, T 4 | 2,2 | 9 of 9 and 9 of 9 clean, lean ≤ 4.8, outward ≤ 5.0 |
+| march 6, T 4 | 2,2 | the first R step tips 11.6, the rest clean |
+| fwd 8, back 8, T 3.4 | 2,2 | R tips on 4 of 4 and 3 of 4 (to 13.0) |
+| fwd 8, T 3.4 | 2,4 | clean inward (≤ 2.8), but R leans OUTWARD 5.1-7.0 |
+| back 8, T 3.4 | 2,4 | R outward 7.2 and 8.2, then fell (52 deg) |
+
+**Defaults now** (`track_host.ROBOT_ANKLE_FF`, `ROBOT_PELVIS_X`): `--ankle-ff 2,2` and `--pelvis-x stance`.
+`--ankle-ff 0,0 --pelvis-x mid` gives the old plan.
+
+**Outward stop.** `--stop-out 6.0` sends `track stop` on a TS line whose outward lean exceeds the limit, as
+`--stop-lean` (14) does for the inward side. Clean walks stay ≤ 5.0 outward. The fall came after R out 7.0 on
+one walk and 7.2 / 8.2 on the next.
+
+**Pace.** T 4 is the recommended pace. T 3.4 is not usable yet: 2 deg on R is too little there and 4 is too
+much, so a fixed feed-forward is the wrong tool at that pace.
+
+## By direction with ff 2,2 (hw 2026-11-12 19:30-20:00), and the learned ankle trim (host)
+
+All runs were on host fddfd18, mid-board, with the heading hold on. There were no falls and no stop-rule
+trips. The table is on #297.
+
+| direction | T 5 | T 4 |
+|---|---|---|
+| fwd 8 | 9 of 9 (from the far end) | the first two R steps 13.0 / 12.9, then clean |
+| sideL | 7 of 7 | 7 of 7 |
+| sideR | the first R step tipped | R tips 3 of 3 (10.5-10.9) at ff 2. With `--seed 5.2,2.0`: still 3 of 3, so the hike seed is not it. With `--ankle-ff 2,3`: 7 of 7, R in 2.2, out 3.9-4.9 |
+| turnR / turnL | −33.2 / +36.6 deg, clean | −36.4 / +32.6 deg, clean |
+
+The needed A on R depends on direction: 2 deg for most, 3 for sideR.
+
+**`--ankle-learn on`** (`AnkleLearner`; off by default) learns A[side] on the host at step rate.
+- At each TS line of that side:
+  - tip (in ≥ 7): A += 1.0;
+  - out > 4: A −= 0.5 × (out − 4), at most 1.5;
+  - out < 2 and in > 3: A += 0.5;
+  - otherwise hold.
+- A is clamped to 0..4.
+- Keep: a clean step (in < 5, out ≤ 4) keeps the A it ran with.
+- Revert: a step past 8 deg OUTWARD sets A back to the keep before the rule. Tips (9-13 deg inward) do not
+  revert, or two tips in a row could never climb past keep + 1.
+- The new A goes to that side's steps not yet uploaded. Use `--ahead 1`: with 2 steps ahead the side's next
+  step is often already queued.
+- The start comes from `results/ankle_trim_state.json` keyed by direction: seeds 2/2, sideR R 3.
+  `--ankle-seed L,R` starts from given values instead.
+- The state is saved at the run's end only if the run had no fall, no ABORT and no lost link.
+- Each step in the log carries `A_used` / `A_next` next to the firmware's T and hike. The summary row has
+  `ankle_learn`. The in-step outward guard stays with `--stop-out 6`.
+
+The A/B (mid-board, from the repo root):
+```
+# T 3.4, fixed 2,2 vs learned (start 2,2)
+python experiments/roll-balance/track_host.py --T 3.4 --dir fwd --steps 8 --ahead 1 --live --note "fwd34 learn off"
+python experiments/roll-balance/track_host.py --T 3.4 --dir fwd --steps 8 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "fwd34 learn on"
+python experiments/roll-balance/track_host.py --T 3.4 --dir back --steps 8 --ahead 1 --live --note "back34 learn off"
+python experiments/roll-balance/track_host.py --T 3.4 --dir back --steps 8 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "back34 learn on"
+# sideR at T 4 from seed 2 (it tipped 3 of 3 there), learning on
+python experiments/roll-balance/track_host.py --T 4 --dir sideR --steps 6 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "sideR4 learn from 2"
+```
+
+## The inset sole: a plant term for the robot's narrow single-support window (2026-11-12 night)
+
+The SIL holds single support down to a shift of ~0.5 × 62 mm. The robot tips inward below ~1.25-1.30 on both
+feet. Plant FK on the flight record puts the robot's load-bearing inner limit near the ankle-roll axis: within
+the play inside the roll servos (#277), the stance leg pivots there. The mass split cannot move the edge past
+k ~0.55.
+
+**The term.** It moves the sole's inner support edge: every sole pad inboard of a line `x` mm from the
+ankle-roll axis is moved onto that line, per foot. Outer pads stay put.
+- In training it is `--sole-in-mm L=8,R=-12` (both envs; the MjModel is edited before the MJX upload, parity
+  R19).
+- In grade.py / the SIL / the gate tools it is the `sole_in_L=`, `sole_in_R=` (`sole_in=`) terms.
+- The plant's pads reach ~22 mm inboard.
+
+The knob is chosen over a larger ankle play because it is static geometry: the same in CPU and MJX, no new
+dynamics, and the referee and grade.py inherit it through config.json / the gate terms.
+
+**Calibration (SIL, the fit plant = grade + per-side play, dwell gait as run on the robot, first R):**
+
+| robot fact (11-12) | plant (22 / 22 mm) | L 8 / R −12 |
+|---|---|---|
+| march T 5, k R 1.20, ff 0: R tips 4/4 | 0/3 (in ≤ 3.3) | **3/3 (10.4)** |
+| the same, ff R 2: R mostly clean | clean | **clean (in ≤ 4.2)** |
+| march T 5, k R 1.30: clean | clean | **clean (4.7)** |
+| march T 4, k R 1.25: R tips 7/12 (16:3x) | clean | clean (5.0) |
+| L needs ≥ 1.3 (B1); L at 1.30 clean | clean at 1.20 | **L edge 1.20-1.25 (1.20: 1/3, 7.7)** |
+| fwd T 5, k R 1.30, ff 0: R tips 4/4 | clean | not reproduced (in 4.6) |
+| fwd / back T 5, fwd T 4, ff 2,2: clean | clean | **clean** |
+| sideR T 4, ff 2,2: R tips 3/3; ff 2,3: clean | clean / clean | not reproduced (2.7) / clean |
+| fwd T 3.4, ff 2,2: R tips 4/4, L clean | clean | R not reproduced; L tips 4/5 (wrong side) |
+| fwd T 3.4, ff 2,4: R out 5.1-7.0 | out 2.8, then fell outward | out 2.7; L tips 4/5 |
+
+The static edge is reproduced: k R 1.20 tips, 1.30 holds, and ff 2 rescues 1.20 on R; L's edge is at 1.20-1.25.
+Not reproduced: the robot's dynamic tips at k 1.30 (forward without ff, sideR, T 3.4) and its outward overshoot
+with ff 4. The sim stays ~0.05-0.1 k more forgiving there. Symmetric insets do not work: the plant's left side
+already has more ankle play and a calibration zero error, so its L edge moves first (L tips everywhere at
+5 / 5 mm). Hence per side: L 8, R −12 (grids at L 10 / 7 and R −8 / −11 / −14 bracket it). Grids: `/tmp` scripts, not kept; the table is
+the record.
+
+## Step length, any step, and sequences (`track_host.py`; dry run by default)
+
+A step is a displacement of the swing foot from the stance foot: forward `dx`, left `dy`, heading change `dyaw`.
+The `--dir` presets are fixed ones (`fwd` 20 mm, `back` -20, `sideL` / `sideR` ±15, `turnL` / `turnR` ±4 deg asked
+≈ ±5 deg of heading); the flags below change them without changing a default.
+
+| flag | meaning |
+|---|---|
+| `--stride-mm X` | fwd / back step length (default 20) |
+| `--side-mm Y` | sideL / sideR step length (default 15) |
+| `--step "dx_mm,dy_mm,dyaw_deg"` | one arbitrary step per step instead of `--dir`: diagonal, curved. `dyaw` is the commanded heading change per step; the planner asks `dyaw / 1.34` (the robot's measured heading gain), the default `--yaw-trim -1.4` still cancels its drift |
+| `--seq "fwd:4,turnL:3,step(20,10,0):2"` | segments (a preset or `step(dx,dy,dyaw)`, a count) as one continuous track; `--steps` is ignored |
+| `--drop-mm D` | crouch depth (default 20) |
+| `--swing-tilt DEG` | toe-down tilt of the swing sole, in over the raise, flat at lift-off and touchdown (default 0) |
+
+**Pre-check.** On top of the static shift (pelvis over the stance foot at every lift-off and touchdown) it refuses a
+plan whose frames put any leg joint within 2 deg of the plant's joint range (knee, hip pitch / roll / yaw, ankle
+pitch and roll), or whose pelvis moves faster in the floor plane than 252 mm/s (161 mm in 1.2 s: the shift the SIL
+holds, `dwell.SCHEDULE`), or whose IK has no solution. It prints the tightest joint margin, the pelvis peak speed
+and the commanded speed (mm/s forward, mm/s sideways, deg/s; per segment for a sequence).
+
+**What bounds the stride.** The swing leg's ankle pitch. With the 20 mm crouch it stands at -24.6 deg and the swing
+foot, raised 22 mm and still one stride behind (fwd) or ahead (back) of the stance foot at the end of the raise, needs
+-36.2 deg at a 20 mm stride and about 0.23 deg more per mm; the model's range is ±40 (CAD design range; the
+firmware's bench clamp is ±45, `firmware/main/mech_envelope.h`, the robot's measured travel ±78). The pelvis shift
+is not the limit: the stance pelvis stays over the stance foot fore-aft in single support and moves one stride
+fore-aft inside the same 1.4 s min-jerk shift as the lateral 161 mm, so the speed goes 214 -> 223 mm/s from 20 to 50 mm.
+
+Pre-check and SIL by stride (fwd and back give the same margins; T 4 and T 5 the same pre-check; crouch 20 mm, h 22 mm,
+`first R`, k 1.3, ff 2,2, `pelvis-x stance`, the robot's trims; SIL = `sil_gait.run`, 6 steps, fit plant and the same
+with the inset sole `sole_in_L=8,sole_in_R=-12`; no extra delay):
+
+| stride | pre-check | tightest joint margin | pelvis peak | SIL T 4 (fit / inset) | SIL T 5 (fit / inset) |
+|---|---|---|---|---|---|
+| 20 mm | PASS | 3.8 deg (swing ankle pitch) | 214 mm/s | 0 falls, in ≤ 2.8 out ≤ 3.0 / out ≤ 4.0 | 0 falls, in ≤ 3.2 out ≤ 3.4 / out ≤ 4.7 |
+| 26 mm | PASS | 2.4 deg | 216 mm/s | 0 falls, in ≤ 3.0 out ≤ 3.1 / out ≤ 4.1 | 0 falls, in ≤ 3.1 out ≤ 3.5 / out ≤ 4.7 |
+| 30 mm | REFUSED (ankle pitch) | 1.5 deg | 217 mm/s | 0 falls, in ≤ 3.0 out ≤ 3.1 / out ≤ 4.0 | 0 falls, in ≤ 3.1 out ≤ 3.5 / out ≤ 4.7 |
+| 40 mm | REFUSED (ankle pitch) | -0.4 deg | 219 mm/s | 0 falls, in ≤ 3.1 out ≤ 3.1 / out ≤ 4.1 | 0 falls, in ≤ 3.1 out ≤ 3.4 / out ≤ 4.7 |
+| 50 mm | REFUSED (ankle pitch) | -2.0 deg | 223 mm/s | not run | not run |
+
+(Largest at 27 mm passes at 2.1 deg; 28 mm is refused at 1.9.) The SIL has no joint limit that bites inside a
+plan's 2 deg margin and its plant clips targets at the model range, so its 30 / 40 mm rows are a balance check of
+plans the pre-check would not send; the sim travelled 6 steps × stride (117 mm at 20, 237 mm at 40) and stays more
+forgiving than the robot.
+
+Where the cap moves (max passing stride, fwd at T 4, from the pre-check; the SIL ran tilt 3 deg at 20 and 40 mm and
+crouch 15 mm at 20 and 36 mm, T 4 / 5, fwd / back, fit / inset: 0 falls, 0 aborts, in ≤ 3.3, out ≤ 5.1):
+
+| crouch / swing height / tilt | max stride | limited by |
+|---|---|---|
+| 20 mm / 22 mm / 0 (default) | 27 mm | swing ankle pitch |
+| 20 mm / 15 mm / 0 | 54 mm | swing ankle pitch |
+| 20 mm / 22 mm / 3 deg | 43 mm | swing ankle pitch |
+| 20 mm / 22 mm / 5 deg | 58 mm | the static shift (pelvis reach) |
+| 15 mm / 22 mm / 0 | 36 mm | the static shift (margin 3.2 deg) |
+| 10 mm or 5 mm | none | IK out of reach: the straight leg cannot lift the foot |
+
+`--h`'s effect is by the sim's geometry only. The tilt costs toe clearance (SIL minimum swing clearance 11-14 mm
+with 3 deg); neither the tilt nor a shallower crouch has run on the robot.
+
+**Sequences.** `--seq` plans every step relative to the stance foot, so a segment's first step takes up the last one's
+stagger and hip yaw, and no closing step is added at a boundary. The one exception: when the feet are laterally
+apart at the boundary (a lateral segment ending on an odd step) and the next segment reverses the lateral direction,
+its first out-step would be a null step, so one explicit `close` step (no displacement, the segment keeps its count)
+is added. The final closing step is the gait's own, as for one direction. The heading hold's commanded heading
+per step follows the active segment (the reference is the running sum), and the ankle learner keeps one state per
+segment key (the preset name, or `step(dx,dy,dyaw)`, in `results/ankle_trim_state.json`), re-planning the
+not-uploaded steps with each step's own segment's trim. The per-step prints, the learner lines and the summary rows
+name the segment (`2:turnL`). The pre-check covers the whole sequence.
+
+SIL, T 5, k 1.3, fit plant / inset sole, 0 falls, 0 aborts: `fwd:4,turnL:3,fwd:4` (11 steps) in ≤ 3.0 out ≤ 3.4 /
+out ≤ 4.7, heading -5 deg; `fwd:4,turnL:3,fwd:4,sideR:4,back:4` (19 steps) the same leans, heading -24 deg (the sim
+drifts right with the default trim; the live heading hold is what holds the reference).
+
+```
+python track_host.py --T 5 --step "20,10,0" --steps 6                    # diagonal: 4 mm/s forward, 2 mm/s left
+python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one track, no closing step between segments
+python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
+```
+
+## The lift gate (2026-11-13): wait for a level, quiet body before a foot leaves the floor
+
+`gaitplay/lift_gate.h` (firmware), `sim/lift_gate.py` (its twin), `track_host.py --lift-gate on` (the default for the
+dwell gait; the frame flag), `lift_gate_replay.py` (the record check below). Design: `docs/firmware-design.md`, the
+gait track. Why: three falls on 2026-11-12/13 lifted a foot with the body already 5-10 deg off level; the trim zeroes
+its error at lift-off, so nothing objected.
+
+**Against the records** (`python lift_gate_replay.py <the four flight_20261112T2325..20261113T0050 .frec>`: 114 track
+plays, 747 lift-offs, 2026-11-12 16:30 - 2026-11-13 09:00 MST; the record is open loop, so this is what the gate would
+have SEEN). roll_ds: per-side slow reference seeded at the first tick (alpha 0.25).
+
+| the gate looks | clean lift-offs held (743) | \|roll - roll_ds\| p50 / p95 / max (deg) | \|rate\| p50 / p95 / max (deg/s) |
+|---|---|---|---|
+| at the lift-off tick | 0 | 0.43 / 1.58 / 2.51 | 0.4 / 2.2 / 8.5 |
+| 40 ms before | 1 (a 16.0 deg/s spike) | 0.47 / 1.60 / 2.51 | 0.4 / 2.6 / 16.0 |
+| 100 ms before | 0 | 0.45 / 1.60 / 2.59 | 0.5 / 2.5 / 11.3 |
+
+| fall (MST) | last lift-off | dev deg | rate deg/s | gate (0 / 40 / 100 ms before) |
+|---|---|---|---|---|
+| 11-13 08:40:21 | 08:40:20, 0.7 s before | -9.34 | -8.5 | HOLD / HOLD / HOLD (level only) |
+| 11-13 08:20:00 | 08:19:58, 2.5 s before | -4.95 | +13.3 | HOLD / HOLD / HOLD (level only) |
+| 11-12 19:27:57 | 19:27:54, 3.1 s before | -0.43 | +0.8 | pass: NOT a lift-off fall (see below) |
+| 11-12 18:09:44 (not asked for) | 18:09:44, 0.2 s before | +26.8 | +104.9 | HOLD, but already toppling |
+
+The 19:27 fall started in the double support after the touchdown of the step before it (roll +6.9 deg and -22 deg/s
+0.7 s before, -16 deg and -82 deg/s 0.3 s before), before the next lift-off: no lift gate sees that. The rate test caught
+neither of the other two (13.3 and -8.5 deg/s are under 15); the level test did.
+
+**Not built: a second gate at the first shift frame after the touchdown.** At that tick (balance state HOLD -> FADE)
+the clean steps are not separable from the falls: against a per-side reference seeded and updated as above,
+|roll - ref| p50 0.31 / p95 2.24 / p99 4.75 / max 7.56 deg and |rate| p50 3.5 / p95 21.5 / p99 47.4 / max 63.6 deg/s
+over 619 clean touchdowns; the 19:27 touchdowns before the fall read dev +2.67 / -2.18 deg, rate -48.6 / -43.7 deg/s,
+and the 08:19 ones dev <= 1.4 deg, rate <= 13.8 deg/s: inside the clean range. Thresholds that hold the clean ones
+<= 0.5 % do not hold those; at 3 deg / 15 deg/s 83 of 732 clean touchdowns (11 %) would be held, 22 (3 %) at 3 deg /
+30 deg/s. The body is normally still moving at touchdown.
+
+**SIL** (`sil_gait.run(..., lift_gate=True, dist=...)`, `sim/sil/test_lift_gate_sil.py`): dwell T 4 and T 5, fwd /
+back / march, 4 steps: every lift-off has a gate frame, zero holds, the per-step reports and the finish identical to
+the run without the gate. A roll-rate kick (200 deg/s at 1.56 s, in the double support before the first lift-off): the
+gate holds 360 ms and the walk goes on. A 290 deg/s kick at 1.62 s: the run without the gate falls (35 deg); with it
+the hold times out after 3000 ms, the track ends with both feet down, no fall, no foot lifted.

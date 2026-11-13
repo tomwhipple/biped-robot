@@ -75,7 +75,13 @@ hold the work. These rules change how you plan:
 - **Any plant change is checked with the stepper replay**
   (`experiments/policy/weight-transfer-gate/stepper_replay.py run --ref crouch --plants ...`); its tables are in the gate README.
 - **Grade tonight's arms on the refitted plant**: grade.py as is AND with
-  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on. Judge a march by
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on.
+  **From 2026-11-13 also a third grading, on the inset sole:**
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0,sole_in_L=8,sole_in_R=-12` (the sole's inner
+  support edge moved to the robot's: the 11-12 dwell runs put the robot's inward single-support edge at a shift of
+  ~1.2-1.3 x 62 mm on both feet, the plant's at ~0.5; SIL calibration in experiments/roll-balance/README.md, "The inset
+  sole"). Report all three, side by side; the inset-sole number is the one closest to the robot's lateral margin. The
+  `_ppsi` arms (11-12 night) trained on it (`--sole-in-mm L=8,R=-12`); compare them with their `_pp` twins. Judge a march by
   whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
 - **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
   4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2
@@ -150,8 +156,10 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
   student passes stride1 at refit μ 0.4 on the measured-sole plant **and** Tom
   has seen it. "Stride working" means that student also takes a stride on the
   robot.
-- Fill the whole night (22:00 – 05:00 starts) with legs jobs. A 300M legs teacher
-  takes ~38 min and a distil ~3 min, so about 8 – 9 teacher + distil pairs fit.
+- Fill the whole night (22:00 – 07:00; Tom 2026-11-12: "cutoff should be 07:00 MST") with legs jobs,
+  longest / most important first; a short job may go last. A job starts while it still fits: the
+  runner caps its --steps to (07:00 − now − 15 min) × rate and leaves it (and everything after it)
+  queued if that is under half its --steps. A 300M legs teacher takes ~38 min and a distil ~3 min.
 - **Latest from GitHub, before you queue:**
   1. `git fetch origin`, and fast-forward `~/code/robot`.
   2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
@@ -227,8 +235,8 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
 > running all night, every night, always pulling in the latest knowledge.
 
 Your job this morning: **evaluate last night, record what it taught, and queue
-tonight** — a full night of get-up training (22:00 – 05:00 starts, ~1.6 h per
-600M-step Warp job: queue 5 jobs).
+tonight** — a full night of get-up training (22:00 – 07:00, starts while a job still fits before
+the 07:00 stop; ~1.6 h per 600M-step Warp job).
 
 ## Two tracks (Tom, 2026-10-24): one-leg stands and short walks, and get-up
 
@@ -274,7 +282,7 @@ line must now produce policies that can actually run ON THE ESP32 (no PC-side 50
   zero-command stand first (the first hardware deploy is "stand under the policy"), then walk_steps L/R
   (>= 3 cm clearance) and turn_180. Close the teacher->student gap (students fell 50-55 % on the full
   scorecard vs teachers ~21 % on 10-31): try distillation settings and report the gap every morning.
-- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-05:00 starts
+- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-07:00 (the fit rule above)
   (~50 min per 400M legs job, ~30 min distill, ~1.6 h per 600M get-up job).
 
 ## FAST servo config (2026-11-02) -- supersedes the 60-80 ms STS3215 dead time
@@ -365,6 +373,40 @@ referee shows a phase failing is in scope every day.
 - Look at what is already queued (`ls queue/`): jobs left over from an earlier
   plan run tonight unless you move them to `queue/held/` with a
   `WHY-<job>.txt` note.
+
+## The queue may start running the moment you finish (Tom, 2026-11-13)
+
+`plan_morning.sh` restarts `night_run.sh` right after you report `PLAN_STATUS: QUEUED` (or
+`NEEDS_TOM` with jobs queued) if the night window is still open: after 22:00, or before 06:45
+(no job starts later; the hard stop is 07:00). Last night the plan finished at 03:50 and the GPU
+then idled for 3 h, which Tom did not want. So:
+
+- Write every queue file as if it runs in the next minute: **valid as written** (preflight passes,
+  every `BRANCH=` is pushed, merged and on `origin/main` where the job needs it, before you exit).
+  "Merge it before 21:30" is no longer enough.
+- **Order the queue most informative first.** A continued night may only get through the first
+  few jobs before 07:00; the rest wait for 22:00.
+- You do not start anything yourself; the wrapper does, and it takes the runner lock, so no
+  second runner can appear.
+
+### Later pass the same morning
+
+If the context below ends with "THIS IS AN ADDENDUM PASS", your own jobs already ran (the runner
+was restarted after your plan). Do not plan the night from scratch:
+
+- Grade only the runs listed there (their scorecards), and post an **ADDENDUM comment** on the
+  status issue (#137): each run's score vs its parent and the verdict, nothing already said.
+  Add a ledger entry only for what is new.
+- Adjust the remaining queue only if these results change the decision (move a job to
+  `queue/held/` with a `WHY-<job>.txt`, or add one named so it sorts where you want it). If
+  nothing changes, leave the queue alone. Re-run preflight if you touched it.
+- End with a `PLAN_STATUS:` line as usual (`QUEUED <n> jobs — ...` for the queue as it now stands).
+  If jobs remain and the window is still open, the runner is restarted again after this pass.
+
+### Deadline
+
+The user-facing results must be posted by **08:00**. The first plan counts for that; an addendum
+may come later (it is a bonus, never the thing the 08:00 report waits for).
 
 ## Hard limits
 

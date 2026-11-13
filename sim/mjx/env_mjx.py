@@ -244,6 +244,9 @@ class State(NamedTuple):
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     last_air: jax.Array       # (2,) last completed swing duration per foot
                               # (gait-symmetry penalty compares L vs R)
+    march_cur: jax.Array      # (2,) w_march_both: best score of the commanded swing
+                              # in progress, per foot (walker_env.march_both_update)
+    march_last: jax.Array     # (2,) w_march_both: best score of the last completed one
     swing_peak: jax.Array     # (2,) per-foot sole peak (m above standing) of
                               # the swing in progress (w_low_swing)
     since_move: jax.Array     # ()  seconds since the last moving command
@@ -675,6 +678,9 @@ class BimoMJXEnv:
         # ankle ROLL, where a plant has one, is always solved level.
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        sole_in_mm=None,     # the sole's INNER support edge at this many mm inboard of the ankle-roll
+        # axis ("X", "L,R", "L=X,R=Y"; walker_env.parse_sole_in / apply_sole_inset, shared by both
+        # envs); None = the plant's sole (bit-exact). 2026-11-12 (#297): the robot's inward edge is ~0
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
@@ -838,6 +844,9 @@ class BimoMJXEnv:
         # during a gait-clock march (traj mode 4) the COMMANDED swing foot's static
         # unloading (CoM from the swing sole toward the stance sole) and its sole
         # height, paid whether or not the foot is already up. 0 = off (bit-exact).
+        w_march_both: float = 0.0,    # TWO-FOOT (AND) march term (walker_env.march_both_update):
+        # min over the feet of each foot's best 0.5 (u + h) over its last completed
+        # commanded swing, during a gait-clock march; a one-legged march earns ~nothing. 0 = off
         w_knee_high: float = 0.0,     # knee-high clearance kernel weight: the
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
@@ -1204,6 +1213,9 @@ class BimoMJXEnv:
         from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
         apply_floor_contacts(self.mj_model, floor_contacts)
         self.floor_contacts = floor_contacts
+        from walker_env import apply_sole_inset, parse_sole_in   # jax-free, shared with the CPU env
+        self.sole_in_mm = parse_sole_in(sole_in_mm)
+        apply_sole_inset(self.mj_model, self.sole_in_mm)
         if gravity_scale != 1.0:
             self.mj_model.opt.gravity[:] = self.mj_model.opt.gravity * float(gravity_scale)
         self.gravity_scale = float(gravity_scale)
@@ -1583,6 +1595,7 @@ class BimoMJXEnv:
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.w_march_unload = float(w_march_unload)
+        self.w_march_both = float(w_march_both)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.w_feet_phase = w_feet_phase
@@ -2814,6 +2827,7 @@ class BimoMJXEnv:
                      last_target=last_target0,
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+                     march_cur=jp.zeros(2), march_last=jp.zeros(2),
                      since_move=jp.full((), 1e3),
                      gait_freq=gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist, cmd=cmd,
@@ -2908,6 +2922,7 @@ class BimoMJXEnv:
             prev_action=prev_action, prev_action2=prev_action,
             last_target=chain0, step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+            march_cur=jp.zeros(2), march_last=jp.zeros(2),
             since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
@@ -3261,6 +3276,8 @@ class BimoMJXEnv:
         head_err = jp.zeros(())
         knee_frac = jp.zeros(())
         march_unload = jp.zeros(())
+        march_both = jp.zeros(())
+        march_cur, march_last = state.march_cur, state.march_last
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
             # pattern (stance down, swing up, >= lift_clear clearance) and
@@ -3336,6 +3353,14 @@ class BimoMJXEnv:
                 march_unload = march_unload_term(
                     data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
                     self.lift_height + state.cmd[6],
+                    ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
+            if self.w_march_both:
+                from walker_env import march_unload_term, march_both_update
+                s_m = march_unload_term(
+                    data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
+                    self.lift_height + state.cmd[6], 1.0, jp)
+                march_cur, march_last, march_both = march_both_update(
+                    state.march_cur, state.march_last, s_m, is_r.astype(jp.float32),
                     ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
 
         if self.getup:
@@ -3679,6 +3704,8 @@ class BimoMJXEnv:
             reward += self.w_knee_high * knee_frac
         if self.w_march_unload and self.ext_cmd:
             reward += self.w_march_unload * march_unload
+        if self.w_march_both and self.ext_cmd:
+            reward += self.w_march_both * march_both
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
@@ -4003,6 +4030,7 @@ class BimoMJXEnv:
                      prev_action2=state.prev_action,
                      last_target=served_end, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
+                     march_cur=march_cur, march_last=march_last,
                      since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,

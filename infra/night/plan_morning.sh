@@ -13,6 +13,8 @@
 set -uo pipefail
 N=${NIGHT_DIR:-$HOME/code/robot-mjx/night}     # NIGHT_DIR etc.: for testing
 HERE=$(cd "$(dirname "$0")" && pwd)
+. "$HERE/night_window.sh"          # night_window_open, night_continue_decision, lock_free
+NIGHT_RUN=${NIGHT_RUN_CMD:-$N/night_run.sh}
 COLLECT_LOG=${COLLECT_LOG:-$HOME/code/robot/sim/runs/night_collect.log}
 WT=${PLAN_WT:-$HOME/code/robot-planner}
 RB=${PLAN_REPO:-$HOME/code/robot}
@@ -29,15 +31,28 @@ flock -n 8 || { echo "=== $(date) plan_morning: another planner holds the lock; 
 # idempotent: a plan that completed today (a "plan_morning done" line after a
 # "plan_morning" header, both dated today) is not redone. The planner is
 # started by cron at 05:30 and 07:30 and by the collector.
+# EXCEPTION, the ADDENDUM pass: when this script restarted the runner after
+# planning (see the end), it left $N/.continued. The next trigger (the
+# collector when that runner's queue empties, or the 07:30 cron) then runs once
+# more to grade the runs that continuation produced; it is not a new plan.
 TODAY=$(date '+%a %b %e')
+MODE=plan
 if awk -v t="=== $TODAY " '
      index($0, t) == 1 && $0 ~ / plan_morning ===$/ {h = 1}
      index($0, t) == 1 && $0 ~ / plan_morning done ===$/ && h {ok = 1}
      END {exit !ok}' "$N/planner.log"; then
-  echo "=== $(date) plan_morning: already planned today; exiting"
-  exit 0
+  if [[ -f $N/.continued ]]; then
+    MODE=addendum
+  else
+    echo "=== $(date) plan_morning: already planned today; exiting"
+    exit 0
+  fi
 fi
-echo "=== $(date) plan_morning ==="
+if [[ $MODE == addendum ]]; then
+  echo "=== $(date) plan_morning (addendum: the continued night's runs) ==="
+else
+  echo "=== $(date) plan_morning ==="
+fi
 
 notify() {
   # Tom 2026-11-02: status DMs OFF while Claude Code manages the sim
@@ -52,7 +67,6 @@ notify() {
 # (its lock is free), the collector has finished (ditto), no state.done.* is
 # left to collect, and no job is still training. The planner must read finished
 # scorecards.
-lock_free() { ( flock -n 3 ) 3> "$1"; }
 night_done() {
   lock_free "$N/.runner.lock" && lock_free "$N/.collect.lock" || return 1
   compgen -G "$N/state.done.*" > /dev/null && return 1
@@ -68,6 +82,13 @@ for _ in $(seq "$POLL_N"); do
   sleep "$POLL_S"
 done
 night_done || echo "!!! night's work not finished by $(date +%H:%M); planning on what is there"
+if [[ $MODE == addendum ]] && [[ -z $(find "$N/queue/done" -maxdepth 1 -type f -cnewer "$N/.continued" 2>/dev/null | head -1) ]]; then
+  # the restarted runner launched nothing (budget too small, pre-flight, GPU
+  # never free): nothing new to grade
+  echo "=== $(date) plan_morning: the continued runner launched no job; nothing to add; exiting"
+  rm -f "$N/.continued"
+  exit 0
+fi
 
 # the planner's own worktree, reset to origin/main every morning
 git -C "$RB" fetch -q origin
@@ -87,6 +108,13 @@ STAMP=$(date +%Y%m%d)
   awk '/^=== .* night_collect_local ===$/ {buf=""} {buf = buf $0 "\n"} END {printf "%s", buf}' "$COLLECT_LOG" | tail -80
   echo '```'; echo; echo "### Queue now"; echo '```'
   ls "$N/queue"; echo '```'
+  if [[ $MODE == addendum ]]; then
+    echo; echo "### THIS IS AN ADDENDUM PASS"; echo
+    echo "Today's plan is already done and posted. After it, night_run.sh was restarted"
+    echo "(window still open) and ran these jobs (queue/done/, launched after the plan):"; echo '```'
+    find "$N/queue/done" -maxdepth 1 -type f -cnewer "$N/.continued" -printf '%f\n' | sort
+    echo '```'; echo "Follow the section 'Later pass the same morning' of the instructions above."
+  fi
 } > "$OUTDIR/$STAMP.prompt.md"
 
 uid=$(id -u)
@@ -126,8 +154,29 @@ if [[ -z "$LAST" ]]; then
 else
   notify "${LAST#PLAN_STATUS: } ($QN jobs queued)"
 fi
+PLAN_OK=1
+[[ -z "$LAST" ]] && PLAN_OK=0
+[[ $LAST == "PLAN_STATUS: planned by the fixer"* ]] || (( RC == 0 )) || PLAN_OK=0
 if [[ -z "$LAST" ]]; then
   echo "=== $(date) plan_morning failed ==="    # not "done": the next trigger retries
 else
   echo "=== $(date) plan_morning done ==="
+  rm -f "$N/.continued"    # an addendum is consumed once it is graded
+fi
+
+# Keep the night going (Tom 2026-11-13: "why didn't the planner pick up the next
+# task at 03:49? that was plenty of time"): the queue is ready and the runner
+# exited when the previous queue ran dry, so restart it if a job could still
+# start before the 07:00 stop. Never by day (the decision checks the window),
+# never on a failed/empty plan, and never over a live runner (lock). The runner
+# takes its own flock, pre-flights, and consumes jobs one-shot as before; when
+# its queue ends it starts the collector, which triggers the addendum pass.
+if REASON=$(night_continue_decision "$N" "$PLAN_OK" "$LAST"); then
+  echo "$(date +%H:%M) $REASON"
+  echo "$(date) plan_morning: $REASON" >> "$N/night.log"
+  date +%s > "$N/.continued"
+  # no inherited lock fds: 8 = the planner lock, 9 = the runner's own
+  setsid nohup "$NIGHT_RUN" 8>&- 9>&- > /dev/null 2>&1 < /dev/null &
+else
+  echo "$(date +%H:%M) $REASON"
 fi

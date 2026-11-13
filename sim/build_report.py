@@ -434,6 +434,27 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-13 card: night 23 -- the walk on the play plant (arm W) and on the inset sole (ppsi), 3 seeds each, and
+# the last march replicates. W: side L back in 2/3, side R lost 3/3; ppsi: shifts more, both sidesteps lost 3/3.
+# All 20 marching seeds are one-legged; tonight the two-foot AND term (--w-march-both) gets one night, then the line parks.
+fig_1113 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec72_walk_pp_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_pp_s128r24_sidestep_L',
+                 'prec72, the walk retrained on the play plant (no march): sidestep left is back (dy +0.31 m; the '
+                 'march students had +0.01), in 2 of 3 seeds'),
+    video_figure('robot_legs_prec72_walk_pp_s128r24', ['sidestep_R'],
+                 'robot_legs_prec72_walk_pp_s128r24_sidestep_R',
+                 'the same student asked to sidestep right: it barely moves (dy -0.06 m; prec16 -0.49). Side R is lost '
+                 'on 3 of 3 seeds: the play plant takes it'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_walk_steps',
+                 'prec72_ppsi, the same walk on the robot-calibrated narrow (inset) sole: it shifts its weight much '
+                 'more per step (0.4-0.5 of the way to the stance foot vs 0.1-0.3), but loses both sidesteps (3/3 seeds)'),
+    video_figure('robot_legs_prec71_mir_pp_s2_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec71_mir_pp_s2_s128r24_walk_steps',
+                 'prec71_s2, the third seed of the mirror-loss march: R only again (5.4 cm), torso within 3 deg of level '
+                 'on that foot; 20 of 20 marching seeds are one-legged'),
+] if f)
 # 2026-11-12 card: night 22 -- the march on the play plant (the 11-11 stepper fit). 10 of 10 students march on ONE leg
 # (P1-P3 L, the warm start's side; the mirror loss flips it to R), lean 5-6 deg over the stance foot, and lost both sidesteps.
 # Rule 4: the line stops for Tom; tonight the walk on the play plant (arm W) + two replicates.
@@ -1085,6 +1106,23 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·13 · night 23: the walk on the robot's roll play and sole</span></p>
+    <p><b>The walk, retrained on the play plant, gets sidestep left back but not right.</b> Without the march, three seeds of
+    prec16's walk on the 11-11 roll-play fit recover sidestep left on 2 of 3 seeds and lose sidestep right on 3 of 3, and fall
+    2 of 8 at loop gain x1.5 (prec16 on that plant: 8 of 8). So the march took side L and the plant takes side R.
+    The same walk on the narrow inset sole (the robot's single-support window, #308) shifts its weight much more per step,
+    which the robot needs, but loses both sidesteps on all three seeds. No student lifts the right foot 3 cm on the stride probe.</p>
+    <p><b>The march:</b> the last two replicates kept their side (left-only and right-only). All 20 seeds that found a march
+    are one-legged. Every march reward pays each foot on its own and they add up, so one good leg earns half. Tonight's arm
+    pays only the weaker foot (the new --w-march-both term), on two plants; if it is one-legged again the march line parks.
+    The third arm trains the walk with the firmware's stance trim in the loop, as the robot will run it. Nothing is a robot
+    candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1113}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·12 · night 22: the march stays one-legged on the play plant</span></p>
