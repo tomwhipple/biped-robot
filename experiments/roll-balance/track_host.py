@@ -60,12 +60,13 @@ def lines_for(frames):
 
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
-         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM):
+         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x="mid"):
     """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
     dkw = dict(G.DIRS[direction])
     if model == "dwell":
-        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}))
+        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
+                   **({"pelvis_x": pelvis_x} if pelvis_x != "mid" else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         else:
@@ -75,7 +76,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
                 duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model,
                 args=dict(T_step=T_step, n_steps=n_steps, direction=direction, seeds=seeds, lead_ms=lead_ms, cal=cal,
-                          first=first, amp=amp, model=model, ds=ds, h=h))
+                          first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x))
 
 
 # The heading model the hold inverts (hw 2026-11-12, T 4-5, the turn about the planted foot): heading per step =
@@ -428,6 +429,9 @@ def main(argv=None):
     ap.add_argument("--heading-rate", type=float, default=None,
                     help="with the heading hold: a commanded heading rate instead, deg/s (+ = left)")
     ap.add_argument("--heading-k", type=float, default=0.5, help="heading hold: fraction of the error fixed per step")
+    ap.add_argument("--pelvis-x", choices=["mid", "stance"], default="mid",
+                    help="dwell: the pelvis fore-aft through single support -- over the feet's mid point (default) or "
+                         "over the stance foot, moving forward only in the shift (fwd T 3.4: right-stance pitch +7 deg)")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
@@ -444,7 +448,8 @@ def main(argv=None):
         return 2
     amp = tuple(float(x) for x in a.amp.split(","))
     if not a.live:
-        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
+        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim,
+                 pelvis_x=a.pelvis_x), a)
         return 0
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
     import robot_io
@@ -452,7 +457,7 @@ def main(argv=None):
     cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
     probe.close()
     pl = plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
-              yaw_trim=a.yaw_trim)
+              yaw_trim=a.yaw_trim, pelvis_x=a.pelvis_x)
     if a.model == "dwell" and a.heading_hold == "on":
         if a.heading_rate is not None:
             dpsi = a.heading_rate * a.T
