@@ -466,3 +466,41 @@ deg/step asked, ~5-6 deg/step in the sim). The old pattern is `splay`.
 **`track steps`.** The firmware keeps the last 16 TS lines. The jsonl showed only 6 because the
 stepper's robot_io logs the last 300 characters of each reply. Every step the host parses is in the run's
 `summary` row.
+
+## Heading, turning and the first step (hw 2026-11-12 17:04-17:14, T 4-5, R 1.30)
+
+**Turns (`turnL` / `turnR`).** Turns are made about the planted foot. Drift-corrected heading for the
+deg/step asked:
+
+| run | heading |
+|---|---|
+| turnR 2 | −6.4 |
+| turnR 4 | −13.1 |
+| turnR 6 | −24.1 |
+| turnR 8 | −33.4 (−32 asked) |
+| turnL 4 | +28.7 |
+
+All runs had `--first R`, and every TS was ok. Fit: heading per step = 1.34 × asked + 1.9 deg (the sim
+said 1.4-1.5 ×).
+
+**The +1.9 deg/step to the left with nothing asked** is in every direction. It comes from the double
+support, during the lateral shift (bias-corrected gyro z by phase):
+- Each shift onto the right foot turns the robot left: +10.6 to +29.7 deg per run.
+- Each shift onto the left foot turns it right: −8.6 to −13.6 deg per run.
+- Single support contributes −6 to +3 deg.
+
+It is not a hip-yaw servo offset: the hip-yaw tracking errors are ≤ 0.25 deg and symmetric.
+`track_host.py` now adds −1.4 deg/step by default (`--yaw-trim`, added to the direction's own turn).
+Forward 8 at T 4 with it: +7 deg over the run. Without it, 30-40 deg built up over the day's runs (by
+camera). A counter-twist during the shift onto the right foot is the source-level option, kept in reserve.
+
+**The first right stance.** With the first swing L, the first right stance came straight out of the rest
+crouch and tipped in fwd T 5, turnR and back runs. Its lead-in, shift, T and lift-off state match the
+later right steps. The pre-lift roll rate is lower (~10 deg/s vs 20-30), because the first shift is half
+the distance. So it is the same mid-support hip yield, set off when step 1 also moves the swing foot.
+`--first R` (the first stance is the left) is now the default.
+
+**The spurious TS 1.** With the dwell gait, the first keyframe carried kLift at phase u = 0.75 of the
+half cycle before the first one. The firmware read that as a one-tick single support, which printed a
+TS line and shifted the numbering by one. In the forward run, "TS 9 R" was the 8th real step (the last
+right stance), not a closing step. kLift now starts at the first lift-off.

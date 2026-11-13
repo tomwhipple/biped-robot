@@ -38,6 +38,10 @@ import sil_gait as G  # noqa: E402
 # with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
 ROBOT_AMP = (1.3, 1.30)          # k_static L, R (dwell.K_STATIC; R 1.30 since the 16:55 runs)
 ROBOT_SEED = (5.2, 3.4)
+# The robot's own heading drift: +1.9 deg/step to its LEFT with no turn asked (hw 2026-11-12, every direction),
+# and 1.34 deg of heading per deg asked. -1.4 deg/step cancels it (fwd 8 at T 4: +7 deg over the run with it,
+# 30-40 deg by camera over the day without). Added to every direction's own turn.
+YAW_TRIM = -1.4
 # the dwell gait's timing per step time is dwell.SCHEDULE (from the SIL: dwell_grid.py); T below dwell.T_FLOOR is
 # refused unless --below-floor
 MAX_AHEAD_S = 8.0     # the robot's queue holds 128 frames (12.8 s at 10 Hz): stay <= 8 s ahead
@@ -55,14 +59,15 @@ def lines_for(frames):
     return out
 
 
-def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="L", amp=ROBOT_AMP,
-         model="dwell", ds=None, h=None, yaw_trim=0.0):
+def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
+         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM):
+    """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
+    dkw = dict(G.DIRS[direction])
     if model == "dwell":
-        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
-                   **({"yaw_trim": yaw_trim} if yaw_trim else {}))
-    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **G.DIRS[direction],
-                    **gkw)
+        gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}))
+        dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
+    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **dkw, **gkw)
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
                 duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model)
@@ -324,7 +329,9 @@ def main(argv=None):
     ap.add_argument("--below-floor", action="store_true", help="allow T under dwell.T_FLOOR (the SIL says no)")
     ap.add_argument("--dir", default="march", choices=list(G.DIRS))
     ap.add_argument("--steps", type=int, default=6)
-    ap.add_argument("--first", default="L", choices=["L", "R"], help="the first swing foot")
+    ap.add_argument("--first", default="R", choices=["L", "R"],
+                    help="the first swing foot (R: the first stance is the left; the first right stance tipped in "
+                         "fwd / back / turn runs out of the rest crouch)")
     ap.add_argument("--seed", default=f"{ROBOT_SEED[0]:g},{ROBOT_SEED[1]:g}", help="trim T L,R (hike deg)")
     ap.add_argument("--amp", default=f"{ROBOT_AMP[0]:g},{ROBOT_AMP[1]:g}",
                     help="k_static L,R: the pelvis over the stance foot from before lift-off to touchdown (x 62 mm)")
@@ -333,10 +340,10 @@ def main(argv=None):
                          "by the pre-check)")
     ap.add_argument("--ds", type=float, default=None, help="dwell: double-support fraction of T (default per T)")
     ap.add_argument("--h", type=float, default=None, help="dwell: swing sole height, m (default 0.022)")
-    ap.add_argument("--yaw-trim", type=float, default=0.0,
-                    help="dwell: heading change per step, deg, + = to the robot's left (the stance hip turns the body "
-                         "about the planted foot, the swing foot lands square). In the sim 1 deg asked turns ~1.4-1.5 "
-                         "deg; calibrate on the robot. To cancel a leftward drift of d deg/step use -d")
+    ap.add_argument("--yaw-trim", type=float, default=YAW_TRIM,
+                    help="dwell: heading change per step asked, deg, + = to the robot's left, ADDED to the direction's "
+                         "own turn (turnL / turnR +-4). The robot turns 1.34 x asked + 1.9 deg/step left; the default "
+                         "-1.4 cancels the drift. 0 to see the bare drift")
     ap.add_argument("--lead", type=int, default=2500, help="ms from where it stands to the first frame")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
