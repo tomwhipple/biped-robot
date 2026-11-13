@@ -84,7 +84,10 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **
         import dwell as DW
         sw = DW.Dwell(T=T_step, n_steps=n_steps, dt=kf_s, first=first, **kw)
         ends = list(sw.step_ends)
-        t_lift0 = sw.phases[0]["t0"] - (sw.t_shift + sw.t_settle)
+        # kLift from the first lift-off on: the phase before it sits at u <= 0.25 of the first half cycle,
+        # but the very first frame is u = 0.75 of the one before (the boundary), and with kLift on there it
+        # read as a one-tick single support (the spurious TS 1 on the robot, 2026-11-12)
+        t_lift0 = sw.phases[0]["t0"]
         phi_of = sw.phi
     else:
         kw.setdefault("kL", 1.35)

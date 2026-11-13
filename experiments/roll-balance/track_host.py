@@ -36,8 +36,12 @@ import sil_gait as G  # noqa: E402
 # The robot's own working values on the hard panels, 2026-11-12 (B1 runs fwtrim_*): static shift 1.3x over
 # the left foot, 1.25x over the right (1.15x tipped in at foot-off), learned T L 5.2, R 3.4 deg. The SIL holds
 # with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
-ROBOT_AMP = (1.3, 1.30)          # k_static L, R (dwell.K_STATIC; R 1.30 since the 16:55 runs)
+ROBOT_AMP = (1.3, None)          # k_static L, R; R None = dwell.k_static_R(T): 1.30 at every T
 ROBOT_SEED = (5.2, 3.4)
+# The robot's own heading drift: +1.9 deg/step to its LEFT with no turn asked (hw 2026-11-12, every direction),
+# and 1.34 deg of heading per deg asked. -1.4 deg/step cancels it (fwd 8 at T 4: +7 deg over the run with it,
+# 30-40 deg by camera over the day without). Added to every direction's own turn.
+YAW_TRIM = -1.4
 # the dwell gait's timing per step time is dwell.SCHEDULE (from the SIL: dwell_grid.py); T below dwell.T_FLOOR is
 # refused unless --below-floor
 MAX_AHEAD_S = 8.0     # the robot's queue holds 128 frames (12.8 s at 10 Hz): stay <= 8 s ahead
@@ -55,17 +59,72 @@ def lines_for(frames):
     return out
 
 
-def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="L", amp=ROBOT_AMP,
-         model="dwell", ds=None, h=None, yaw_trim=0.0):
+def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
+         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x="mid", ankle_ff=(0.0, 0.0), k_ds=None):
+    """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
+    if amp[1] is None:
+        import dwell as DW
+        amp = (amp[0], DW.k_static_R(T_step))
+    dkw = dict(G.DIRS[direction])
     if model == "dwell":
         gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
-                   **({"yaw_trim": yaw_trim} if yaw_trim else {}))
-    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **G.DIRS[direction],
-                    **gkw)
+                   **({"pelvis_x": pelvis_x} if pelvis_x != "mid" else {}),
+                   **({"ankle_ff": tuple(ankle_ff)} if any(ankle_ff) else {}),
+                   **({"k_ds": tuple(k_ds)} if k_ds and any(k_ds) else {}))
+        if isinstance(yaw_trim, (list, tuple)):
+            dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
+        else:
+            dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
+    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **dkw, **gkw)
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
-                duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model)
+                duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model,
+                args=dict(T_step=T_step, n_steps=n_steps, direction=direction, seeds=seeds, lead_ms=lead_ms, cal=cal,
+                          first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
+                          k_ds=tuple(k_ds) if k_ds else None))
+
+
+# The heading model the hold inverts (hw 2026-11-12, T 4-5, the turn about the planted foot): heading per step =
+# YAW_GAIN x asked + YAW_DRIFT (deg; + = left).
+YAW_GAIN, YAW_DRIFT = 1.34, 1.9
+
+
+class HeadingHold:
+    """Per-step heading hold on the rolling queue (#297): at every reported single support the host reads the
+    fused yaw (`imu` quat; the firmware's online gyro bias keeps it from drifting at rest), compares it with the
+    reference -- a commanded heading change per step, so a commanded heading RATE is the same loop -- and asks
+    the steps not yet uploaded for asked = (dpsi_cmd + k x error - YAW_DRIFT) / YAW_GAIN deg each, clipped."""
+
+    def __init__(self, n_steps, dpsi_cmd, k=0.5, clip=8.0):
+        self.n, self.dpsi, self.k, self.clip = n_steps, dpsi_cmd, k, clip
+        ff = (dpsi_cmd - YAW_DRIFT) / YAW_GAIN
+        self.asked = [max(-clip, min(clip, ff))] * n_steps
+        self.log = []
+
+    def update(self, n_done, psi, first_free):
+        """n_done single supports reported, psi the heading (deg, from the start), first_free = the first step
+        whose frames are not uploaded yet. Returns True when the asked list changed."""
+        err = n_done * self.dpsi - psi
+        a = (self.dpsi + self.k * err - YAW_DRIFT) / YAW_GAIN
+        a = max(-self.clip, min(self.clip, a))
+        self.log.append(dict(n=n_done, psi=round(psi, 1), ref=round(n_done * self.dpsi, 1), err=round(err, 1),
+                             asked=round(a, 2), from_step=first_free + 1))
+        if first_free >= self.n or all(abs(x - a) < 0.05 for x in self.asked[first_free:]):
+            return False
+        self.asked = self.asked[:first_free] + [a] * (self.n - first_free)
+        return True
+
+
+def yaw_of_imu(txt):
+    m = re.search(r"^quat\s+([-+\d.]+)\s+([-+\d.]+)\s+([-+\d.]+)\s+([-+\d.]+)", txt, re.M)
+    if not m:
+        return None
+    w, x, y, z = (float(v) for v in m.groups())
+    return math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+
+
+UPPER = 0.05     # the shift must not exceed k_static by more than this (x 62 mm): 18:09 fell OUTWARD at 1.35
 
 
 def precheck(pl, tol=0.01):
@@ -78,6 +137,13 @@ def precheck(pl, tol=0.01):
     K = G.W.S.kin(0.02)
     oy = abs(K.model_offset("L")[1])
     need = {"L": pl["amp"][0], "R": pl["amp"][1]}
+    kds = pl["args"].get("k_ds") or (0.0, 0.0)
+    need_lo = {"L": kds[0] or need["L"], "R": kds[1] or need["R"]}     # the two-stage shift: k_ds at lift-off
+    # the upper bound is the ROBOT's requirement + UPPER (not the plan's): an --amp past it is refused
+    import dwell as DW
+    top = {"L": DW.K_STATIC["L"] + UPPER, "R": DW.k_static_R(pl["args"]["T_step"]) + UPPER}
+    if pl.get("allow_over"):
+        top = {"L": 9.0, "R": 9.0}
     kf = []                      # (track ms, decoded {joint: rad})
     for tm, hx, kind in fr:
         if kind != "kf":
@@ -135,11 +201,40 @@ def precheck(pl, tol=0.01):
             pa = seg_at(t)["pa"]
             sh = shift_of(q, pa, st)
             ratio = sg * (sh - pa["feet"][st][1]) / oy
-            good = ratio >= need[st] - tol
+            nd = need_lo[st] if what == "lift-off" else need[st]
+            good = nd - tol <= ratio <= top[st] + tol
             ok = ok and good
             rows.append(dict(step=k + 1, stance=st, at=what, t=round(t - sw.t_first, 2), ratio=round(ratio, 3),
-                             need=need[st], ok=good))
+                             need=nd, top=top[st], ok=good))
+    # every frame's ankle rolls inside the plant's joint range less ANKLE_MARGIN (the --ankle-ff feed-forward
+    # adds to the IK's ankle roll; the firmware also clamps to its calibrated range, which would bend the plan)
+    lim = ankle_limits()
+    for tm, q in kf:
+        for n in ("L_ankle_roll", "R_ankle_roll"):
+            lo, hi = lim[n]
+            if not lo + ANKLE_MARGIN <= q[n] <= hi - ANKLE_MARGIN:
+                ok = False
+                rows.append(dict(step=0, stance=n, at="ankle limit", t=round(tm / 1e3, 2), ratio=round(math.degrees(q[n]), 2),
+                                 need=round(math.degrees(lo + ANKLE_MARGIN), 2), top=round(math.degrees(hi - ANKLE_MARGIN), 2),
+                                 ok=False))
+                break
     return ok, rows
+
+
+ANKLE_MARGIN = math.radians(2.0)
+_ANKLE_LIM = {}
+
+
+def ankle_limits():
+    """{joint: (lo, hi) rad}: the ankle roll range of the plant the IK uses (sim/gen_plant_v6 via v6_kin)."""
+    if not _ANKLE_LIM:
+        import v6_kin as VK
+        from design_gates import JN
+        m, _ = VK.load(G.W.S.kin(0.02).p)
+        for n in ("L_ankle_roll", "R_ankle_roll"):
+            j = 1 + JN.index(n)
+            _ANKLE_LIM[n] = (float(m.jnt_range[j, 0]), float(m.jnt_range[j, 1]))
+    return _ANKLE_LIM
 
 
 def predicted_dwell(T_step, direction):
@@ -180,12 +275,20 @@ def predicted(T_step, direction):
 def report_precheck(pl):
     ok, rows = precheck(pl)
     bad = [r for r in rows if not r["ok"]]
-    worst = min(rows, key=lambda r: r["ratio"] - r["need"]) if rows else None
+    sh = [r for r in rows if r["at"] != "ankle limit"]
+    worst = min(sh, key=lambda r: r["ratio"] - r["need"]) if sh else None
     print(f"static-shift pre-check ({pl['model']}): {'PASS' if ok else 'REFUSED'} -- pelvis over the stance foot at "
           f"every lift-off and touchdown, from the frames, needs L >= {pl['amp'][0]:g} x, R >= {pl['amp'][1]:g} x 62 mm"
+          + (f" (lift-off: k_ds {pl['args']['k_ds']})" if pl["args"].get("k_ds") else "")
+          + ", ankle rolls inside the plant range less 2 deg"
           + (f"; tightest: step {worst['step']} {worst['stance']} {worst['at']} {worst['ratio']:.3f} x" if worst else ""))
     for r in bad[:8]:
-        print(f"   step {r['step']} {r['stance']} stance at {r['at']} (t {r['t']} s): {r['ratio']:.3f} x < {r['need']:g} x")
+        if r["at"] == "ankle limit":
+            print(f"   {r['stance']} at t {r['t']} s: {r['ratio']:.1f} deg outside [{r['need']:g}, {r['top']:g}] deg "
+                  f"(--ankle-ff too large for this pose)")
+            continue
+        print(f"   step {r['step']} {r['stance']} stance at {r['at']} (t {r['t']} s): {r['ratio']:.3f} x outside "
+              f"[{r['need']:g}, {r['top']:g}] x (the upper bound: k_static + {UPPER:g}; --allow-over to pass it)")
     return ok
 
 
@@ -240,6 +343,34 @@ def live(pl, a):
     r = robot_io.Robot(host=a.host, log=log)
     steps, sent, t_line = [], 0, []
     adds = pl["adds"]
+    hold = pl.get("hold")
+    yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
+    yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
+    if a.note:
+        print(f"  note: {a.note}")
+    if hold is not None and yaw_state["prev"] is None:
+        print("  heading hold: no `quat` in the imu reply -- holding off")
+        hold = None
+
+    def heading_step():
+        """After a new single support: read the heading, maybe re-plan the steps not uploaded yet."""
+        nonlocal adds
+        y = yaw_of_imu(r.cmd("imu"))
+        if y is None:
+            return
+        yaw_state["psi"] += (y - yaw_state["prev"] + 180.0) % 360.0 - 180.0
+        yaw_state["prev"] = y
+        psi = yaw_state["psi"]
+        last_t = adds[sent - 1][0] if sent else 0
+        sw = pl["sway"]
+        first_free = sum(1 for p_ in sw.phases if 1e3 * (p_["t0"] - sw.t_first) <= last_t)
+        if hold.update(len(steps), psi, first_free):
+            newp = plan(**{**pl["args"], "yaw_trim": hold.asked})
+            adds = newp["adds"]
+            pl["sway"], pl["frames"] = newp["sway"], newp["frames"]
+        h = hold.log[-1]
+        print(f"  heading {h['psi']:+.1f} (ref {h['ref']:+.1f}, err {h['err']:+.1f}) -> asked {h['asked']:+.2f} "
+              f"deg/step from step {h['from_step']}", flush=True)
     ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
 
     def scan(txt):
@@ -283,7 +414,10 @@ def live(pl, a):
             # 0 of 34 seen live, so the stop rule never ran). `track steps` repeats the last 16: poll it.
             m2 = re.search(r"(\d+) single supports reported", txt)
             if m2 and int(m2.group(1)) > len(steps):
+                n_before = len(steps)
                 stop = scan(r.cmd("track steps")) or stop
+                if hold is not None and len(steps) > n_before and not stop:
+                    heading_step()
             if stop:
                 r.cmd("track stop")
                 print("  stop rule hit -> track stop")
@@ -312,7 +446,20 @@ def live(pl, a):
             ts = sorted(t_line)
             print(f"upload: {len(t_line)} lines, round trip median {1e3 * ts[len(ts) // 2]:.0f} ms, max "
                   f"{1e3 * ts[-1]:.0f} ms -> {PER_LINE / ts[len(ts) // 2]:.0f} frames/s")
-        log(dict(summary=True, steps=steps, line_s=t_line))
+        y_end = None
+        try:
+            y_end = yaw_of_imu(r.cmd("imu"))
+        except Exception:  # noqa: BLE001
+            pass
+        d_head = None
+        if y_end is not None and yaw_state.get("start") is not None:
+            d_head = round((y_end - yaw_state["start"] + 180.0) % 360.0 - 180.0, 1)
+            print(f"heading over the run (fused yaw, start -> end): {d_head:+.1f} deg (+ = left)")
+        log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=a.dir, steps=a.steps, amp=list(pl["amp"]),
+                                                      model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
+                                                      ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"]),
+                 steps=steps, line_s=t_line, heading_change_deg=d_head,
+                 heading=(hold.log if hold is not None else None)))
         r.close()
         print(f"log: {log_path}")
 
@@ -324,25 +471,49 @@ def main(argv=None):
     ap.add_argument("--below-floor", action="store_true", help="allow T under dwell.T_FLOOR (the SIL says no)")
     ap.add_argument("--dir", default="march", choices=list(G.DIRS))
     ap.add_argument("--steps", type=int, default=6)
-    ap.add_argument("--first", default="L", choices=["L", "R"], help="the first swing foot")
+    ap.add_argument("--first", default="R", choices=["L", "R"],
+                    help="the first swing foot (R: the first stance is the left; the first right stance tipped in "
+                         "fwd / back / turn runs out of the rest crouch)")
     ap.add_argument("--seed", default=f"{ROBOT_SEED[0]:g},{ROBOT_SEED[1]:g}", help="trim T L,R (hike deg)")
-    ap.add_argument("--amp", default=f"{ROBOT_AMP[0]:g},{ROBOT_AMP[1]:g}",
+    ap.add_argument("--amp", default=None,
                     help="k_static L,R: the pelvis over the stance foot from before lift-off to touchdown (x 62 mm)")
     ap.add_argument("--model", default="dwell", choices=["dwell", "sway"],
                     help="dwell (default): the static requirement as a hard constraint; sway: A2's sine (refused "
                          "by the pre-check)")
     ap.add_argument("--ds", type=float, default=None, help="dwell: double-support fraction of T (default per T)")
     ap.add_argument("--h", type=float, default=None, help="dwell: swing sole height, m (default 0.022)")
-    ap.add_argument("--yaw-trim", type=float, default=0.0,
-                    help="dwell: heading change per step, deg, + = to the robot's left (the stance hip turns the body "
-                         "about the planted foot, the swing foot lands square). In the sim 1 deg asked turns ~1.4-1.5 "
-                         "deg; calibrate on the robot. To cancel a leftward drift of d deg/step use -d")
+    ap.add_argument("--yaw-trim", type=float, default=YAW_TRIM,
+                    help="dwell: heading change per step asked, deg, + = to the robot's left, ADDED to the direction's "
+                         "own turn (turnL / turnR +-4). The robot turns 1.34 x asked + 1.9 deg/step left; the default "
+                         "-1.4 cancels the drift. 0 to see the bare drift")
     ap.add_argument("--lead", type=int, default=2500, help="ms from where it stands to the first frame")
+    ap.add_argument("--heading-hold", choices=["on", "off"], default="on",
+                    help="dwell, live: read the fused yaw after every step and re-plan the asked turn of the steps not "
+                         "uploaded yet (replaces --yaw-trim with the heading model's feed-forward + feedback)")
+    ap.add_argument("--turn", type=float, default=None,
+                    help="with the heading hold: the total heading change to reach over the walk, deg, + = left "
+                         "(default: 0, or +-5 deg/step for turnL / turnR)")
+    ap.add_argument("--heading-rate", type=float, default=None,
+                    help="with the heading hold: a commanded heading rate instead, deg/s (+ = left)")
+    ap.add_argument("--heading-k", type=float, default=0.5, help="heading hold: fraction of the error fixed per step")
+    ap.add_argument("--pelvis-x", choices=["mid", "stance"], default="mid",
+                    help="dwell: the pelvis fore-aft through single support -- over the feet's mid point (default) or "
+                         "over the stance foot, moving forward only in the shift (fwd T 3.4: right-stance pitch +7 deg)")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
-    ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
+    ap.add_argument("--stop-lean", type=float, default=14.0,
+                    help="deg toward the swing foot -> track stop (inward tips to ~10 deg recover and the walk goes on, hw 2026-11-12 18:2x; the firmware aborts at 15)")
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
     ap.add_argument("--poll", type=float, default=0.25)
     ap.add_argument("--live", action="store_true", help="SEND to the robot (Stage C, a person at it)")
+    ap.add_argument("--note", default="", help="free text into the log's summary row, e.g. where the robot stands")
+    ap.add_argument("--ankle-ff", default="0,0",
+                    help="dwell: L,R deg, a fixed feed-forward on the STANCE ankle roll, + = outward (the CoM toward the "
+                         "stance foot's outside, ~3.7 mm/deg), ramped in over the raise, held, out over the lower")
+    ap.add_argument("--k-ds", default=None,
+                    help="dwell: L,R, the two-stage shift -- double support only to k_ds x 62 mm, the rest to --amp over "
+                         "the raise; 0 = single-stage for that side (default: single-stage both)")
+    ap.add_argument("--allow-over", action="store_true",
+                    help="let the pre-check pass a shift past k_static + 0.05 (an --amp A/B on the outward side)")
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
@@ -352,16 +523,36 @@ def main(argv=None):
         print(f"REFUSED: T {a.T:g} s is under the dwell gait's SIL floor ({DW.T_FLOOR:g} s): it falls or leans 11-14 deg "
               f"there (experiments/roll-balance/README.md); --below-floor to plan it anyway")
         return 2
-    amp = tuple(float(x) for x in a.amp.split(","))
+    amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
+    aff = tuple(float(x) for x in a.ankle_ff.split(","))
+    kds = tuple(float(x) for x in a.k_ds.split(",")) if a.k_ds else None
     if not a.live:
-        dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
+        pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
+                  yaw_trim=a.yaw_trim, pelvis_x=a.pelvis_x, ankle_ff=aff, k_ds=kds)
+        pd["allow_over"] = a.allow_over
+        dry(pd, a)
         return 0
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
     import robot_io
     probe = robot_io.Robot(host=a.host)
     cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
     probe.close()
-    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
+    pl = plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
+              yaw_trim=a.yaw_trim, pelvis_x=a.pelvis_x, ankle_ff=aff, k_ds=kds)
+    if a.model == "dwell" and a.heading_hold == "on":
+        if a.heading_rate is not None:
+            dpsi = a.heading_rate * a.T
+        elif a.turn is not None:
+            dpsi = a.turn / a.steps
+        else:
+            dpsi = {"turnL": 5.0, "turn": 5.0, "turnR": -5.0}.get(a.dir, 0.0)
+        hold = HeadingHold(a.steps, dpsi, k=a.heading_k)
+        pl = plan(**{**pl["args"], "yaw_trim": hold.asked})
+        pl["hold"] = hold
+        print(f"heading hold: {dpsi:+.1f} deg/step commanded, feed-forward {hold.asked[0]:+.2f} deg/step asked, "
+              f"k {a.heading_k:g}")
+    pl["allow_over"] = a.allow_over
+    live(pl, a)
     return 0
 
 
