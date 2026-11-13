@@ -100,7 +100,7 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **
         t_lift0 = c0 - 0.5 * T_step
         # the policy convention: L swings while sin(phi) > 0; single support = the middle half of each half cycle
         phi_of = (lambda t: math.pi * (t - c0) / T_step + math.pi / 2 + (0.0 if first == "L" else math.pi))
-    K = W.S.kin(0.02)
+    K = W.S.kin(kw.get("drop", 0.02))
     t_last = ends[-1]
     t_first = sw.segs[1]["t"]
     out, prev, end_i = [], 0, 0

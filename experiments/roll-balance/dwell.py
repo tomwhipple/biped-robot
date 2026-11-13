@@ -79,7 +79,7 @@ class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=None, ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
-                 ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None):
+                 ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0):
         """ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
         + = outward (the body rolls toward the stance foot's outside; 1 deg moves the CoM ~3.7 mm in the plant FK),
         ramped in over the raise, held, taken out over the lower (the swing foot's height profile).
@@ -92,7 +92,10 @@ class Dwell:
         dx_steps / dy_steps: per-step forward / left displacement, m (a list per step; steps past its end repeat
         the last value), overriding dx / dy: a sequence of segments in one track (track_host --seq). yaw_trim may
         be a list too. step_meta: a list of dicts (name, key) per step, kept as self.step_meta for the host's
-        prints and the ankle learner."""
+        prints and the ankle learner.
+        swing_tilt: deg, toe-down tilt of the SWING sole (its ankle pitch + tilt, + = plantarflexion), ramped in over the
+        raise, held, out over the lower like the ankle feed-forward: flat at lift-off and at touchdown. The swing leg's
+        ankle pitch is what bounds the stride (track_host's pre-check); the tilt gives it room."""
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         if kR is None:
@@ -269,6 +272,9 @@ class Dwell:
                     ank = {st_a: math.radians(ffv) * r_a}
             qd = K.pose(shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
                         footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
+            if swing_tilt and cur < len(steps) and h > 0:
+                sw_t = steps[cur]["swing"]
+                qd[f"{sw_t}_ankle"] += math.radians(swing_tilt) * fz[sw_t] / h
             qd["L_hip_yaw"] += yy["L"]
             qd["R_hip_yaw"] += yy["R"]
             segs.append(dict(t=tt, ms=1e3 * dt, q=qd, row=None,

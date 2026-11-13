@@ -154,7 +154,7 @@ def expand_seq(seq, first="R"):
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
-         k_ds=None, ankle_steps=None, cmd=None, seq=None):
+         k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0):
     """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4).
     cmd: one per-step command (step_cmd / preset_cmd) replacing the --dir preset's; seq: [(cmd, count)] segments
     in one continuous track (n_steps is then the expanded count). A yaw_trim LIST is the heading hold's asked turn
@@ -181,7 +181,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **({"ankle_ff": tuple(ankle_ff)} if any(ankle_ff) else {}),
                    **({"k_ds": tuple(k_ds)} if k_ds and any(k_ds) else {}),
                    **({"ankle_ff_steps": list(ankle_steps)} if ankle_steps is not None else {}),
-                   **({"step_meta": meta} if meta is not None else {}))
+                   **({"step_meta": meta} if meta is not None else {}),
+                   **({"drop": drop} if drop is not None else {}),
+                   **({"swing_tilt": swing_tilt} if swing_tilt else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         elif seq is not None:
@@ -202,7 +204,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
                           k_ds=tuple(k_ds) if k_ds else None,
                           ankle_steps=list(ankle_steps) if ankle_steps is not None else None,
-                          cmd=cmd, seq=seq))
+                          cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -387,7 +389,7 @@ def precheck(pl, tol=0.01):
     frames' stance hip roll goal (ticks -> rad through the calibration in use, interpolated at that instant)
     by inverting the IK with the plan's feet. -> (ok, rows)."""
     sw, fr, cal = pl["sway"], pl["frames"], pl["cal"]
-    K = G.W.S.kin(0.02)
+    K = G.W.S.kin(pl["args"].get("drop") or 0.02)
     oy = abs(K.model_offset("L")[1])
     need = {"L": pl["amp"][0], "R": pl["amp"][1]}
     kds = pl["args"].get("k_ds") or (0.0, 0.0)
@@ -620,12 +622,17 @@ def _label(a):
         + (f" (side {a.side_mm:g} mm)" if a.side_mm is not None else "")
 
 
+def _extra(a):
+    return "".join([f", crouch {a.drop_mm:g} mm" if a.drop_mm is not None else "",
+                    f", swing tilt {a.swing_tilt:g} deg" if a.swing_tilt else ""])
+
+
 def dry(pl, a):
     adds = pl["adds"]
     nb = sum(len(l) + 1 for _, l in adds)
     ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
     first = [l for t, l in adds if t <= ahead_ms]
-    print(f"gait: {pl['model']} T {a.T:g} s/step, {pl['args']['n_steps']} steps, {_label(a)}; {sum(1 for f in pl['frames'] if f[2] == 'kf')} "
+    print(f"gait: {pl['model']} T {a.T:g} s/step, {pl['args']['n_steps']} steps, {_label(a)}{_extra(a)}; {sum(1 for f in pl['frames'] if f[2] == 'kf')} "
           f"keyframes at {G.KF_S * 1e3:.0f} ms + {sum(1 for f in pl['frames'] if f[2] == 'rest')} rest frames; "
           f"track {pl['duration_s']:.1f} s after a {a.lead} ms lead-in")
     print(f"upload: {len(adds)} `track add` lines ({PER_LINE} frames each), {nb} bytes; longest line "
@@ -643,7 +650,8 @@ def dry(pl, a):
         if pl.get("cmds") is not None and pl["args"].get("seq") is not None:
             for nm, n_, vx, vy, vw in rows_:
                 print(f"   segment {nm} x{n_}: {vx:+.1f} mm/s fwd, {vy:+.1f} mm/s side, {vw:+.2f} deg/s")
-    pr = None if (a.seq or a.step or a.stride_mm is not None or a.side_mm is not None) else \
+    pr = None if (a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
+                  or a.swing_tilt) else \
         (predicted_dwell(a.T, a.dir) if pl["model"] == "dwell" else predicted(a.T, a.dir))
     if pr:
         print(f"SIL prediction ({pl['model']}, {pr['runs']} runs over plants x delay): falls {pr['falls']}, aborts "
@@ -879,6 +887,13 @@ def main(argv=None):
                     help="dwell: fwd / back step length, mm (default 20: the presets'); the pre-check refuses what the "
                          "kinematics or the shift's timing cannot do (README: the stride table)")
     ap.add_argument("--side-mm", type=float, default=None, help="dwell: sideL / sideR step length, mm (default 15)")
+    ap.add_argument("--drop-mm", type=float, default=None,
+                    help="dwell: the crouch depth, mm below the straight stand (default 20: the robot's). A shallower crouch "
+                         "leaves the swing leg more reach (README: the stride table by drop) but cannot lift the foot "
+                         "at all below ~15 mm (IK out of reach); not run on the robot")
+    ap.add_argument("--swing-tilt", type=float, default=0.0,
+                    help="dwell: deg, toe-down tilt of the swing sole (ankle pitch +), in over the raise, flat at lift-off "
+                         "and touchdown; relieves the swing ankle pitch that caps the stride. Not run on the robot")
     ap.add_argument("--step", default=None, metavar="DX,DY,DYAW",
                     help="dwell: one arbitrary per-step displacement instead of --dir: forward mm, left mm, heading "
                          "change deg per step (+ = left); diagonal and curved walking")
@@ -963,8 +978,9 @@ def main(argv=None):
     try:
         if sum(x is not None for x in (a.seq, a.step)) > 1:
             raise ValueError("--seq and --step are alternatives")
-        if (a.seq or a.step or a.stride_mm is not None or a.side_mm is not None) and a.model != "dwell":
-            raise ValueError("--stride-mm / --side-mm / --step / --seq need --model dwell")
+        if (a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
+                or a.swing_tilt) and a.model != "dwell":
+            raise ValueError("--stride-mm / --side-mm / --step / --seq / --drop-mm / --swing-tilt need --model dwell")
         if a.seq:
             seq = parse_seq(a.seq, a.stride_mm, a.side_mm)
             a.steps = len(expand_seq(seq, a.first))
@@ -984,7 +1000,7 @@ def main(argv=None):
         if seq and len(learn.by) > 1:
             print("ankle trim learning per segment key: " + ", ".join(f"{k} L {lr.A['L']:.2f} R {lr.A['R']:.2f}"
                                                                       for k, lr in learn.by.items()))
-    kw_cmd = dict(cmd=cmd, seq=seq)
+    kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt)
     if not a.live:
         try:
             pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,

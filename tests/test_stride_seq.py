@@ -256,3 +256,41 @@ def test_live_seq_rolls_across_segments_with_hold_and_learner(tmp_path, monkeypa
     assert all(re.match(r"track add ", l) for l in _Fake.sent if l.startswith("track add"))
     state = json.load(open(tmp_path / "state.json"))
     assert set(state) == {"fwd", "turnL", "back"}
+
+
+# ---- what bounds the stride: the swing ankle pitch; the crouch depth and the swing tilt move it
+
+def _max_stride(**kw):
+    best = None
+    for mm in range(20, 70, 2):
+        try:
+            p = H.plan(4.0, 8, "fwd", cmd=H.preset_cmd("fwd", stride_mm=mm), **kw)
+        except ValueError:
+            break
+        if not H.precheck(p)[0]:
+            break
+        best = mm
+    return best
+
+
+def test_defaults_with_drop_and_tilt_unset_are_the_old_plan():
+    assert _h(H.plan(4.0, 6, "fwd", drop=None, swing_tilt=0.0)) == GOLD["fwd@4"]
+    assert _h(H.plan(4.0, 6, "fwd", drop=0.02)) == GOLD["fwd@4"]
+
+
+def test_tilt_and_crouch_raise_the_cap():
+    base = _max_stride()
+    assert 26 <= base <= 28
+    assert _max_stride(swing_tilt=3.0) >= 42 > base
+    assert 34 <= _max_stride(drop=0.015) <= 38
+    with pytest.raises(ValueError):            # a 10 mm crouch cannot lift the foot 22 mm: IK out of reach
+        H.plan(4.0, 6, "fwd", cmd=H.preset_cmd("fwd", stride_mm=20), drop=0.01)
+
+
+def test_main_flags(capsys):
+    assert H.main(["--T", "4", "--dir", "fwd", "--steps", "8", "--stride-mm", "36", "--drop-mm", "15"]) == 0
+    out = capsys.readouterr().out
+    assert "crouch 15 mm" in out and "PASS" in out
+    assert H.main(["--T", "4", "--dir", "fwd", "--steps", "8", "--stride-mm", "40", "--swing-tilt", "3"]) == 0
+    assert "swing tilt 3 deg" in capsys.readouterr().out
+    assert H.main(["--T", "4", "--dir", "fwd", "--steps", "8", "--drop-mm", "10"]) == 2
