@@ -450,6 +450,33 @@ def march_unload_term(com, stance_w, swing_w, foot_clear, tgt_clear, on, xp=np):
     return on * 0.5 * (u + h)
 
 
+def march_both_update(cur, last, s, swing_r, on, xp=np):
+    """The two-foot (AND) march term (w_march_both), numpy or jax (the operators only).
+
+    Every march reward so far (w_lift, w_knee_high, the clearance-gated kernels, the ungated
+    w_march_unload) pays each foot's swing on its own and the two are added, so a policy that
+    marches well on one foot and keeps the other planted collects about half of everything:
+    all 20 seeds that found a march (11-10 .. 11-12) settled there, the warm start picking the side. This
+    term pays the WEAKER foot: per foot the best 0.5 (u + h) (march_unload_term's score) over
+    its last completed commanded swing, and r = on * min(L, R). A one-legged march earns at
+    most the planted foot's unloading; the gradient of the min flows to that foot.
+
+    cur, last: (2,) [L, R], the running best of the swing in progress and the latched best of
+    the last completed swing; s: this tick's score of the commanded swing foot (0..1);
+    swing_r: 1.0 when the commanded swing foot is R, else 0.0; on: 1.0 during a gait-clock
+    march (traj mode 4) with the lift channel set, else 0.0 (both reset to 0 when off).
+    Returns (cur, last, r)."""
+    sw = xp.stack([1.0 - swing_r, 0.0 * swing_r + swing_r])
+    run = xp.where(sw > 0.5, xp.maximum(cur, s), cur)
+    latch = (sw < 0.5) & (cur > 0.0)        # this foot's commanded swing has just ended
+    last = xp.where(latch, cur, last)
+    cur = xp.where(sw < 0.5, 0.0, run)
+    keep = on > 0.5
+    cur = xp.where(keep, cur, 0.0)
+    last = xp.where(keep, last, 0.0)
+    return cur, last, on * xp.minimum(last[0], last[1])
+
+
 def apply_floor_contacts(model, floor_contacts):
     """Training-only collision set. "all" (default): the plant as drawn.
     "feet": only the sole pads (contype 1) touch the floor -- the servo
@@ -952,6 +979,9 @@ class BimoWalkerEnv(gym.Env):
         # unloading (the CoM's progress from the swing sole to the stance sole) and
         # its sole height (fraction of lift_height + c6), whether or not the foot is
         # already off the floor. 0 = off (bit-exact).
+        w_march_both: float = 0.0,     # TWO-FOOT (AND) march term (mirrors sim/mjx,
+        # march_both_update): min over the feet of each foot's best 0.5 (u + h) over its
+        # last completed commanded swing; a one-legged march earns ~nothing. 0 = off.
         w_knee_high: float = 0.0,      # knee-high clearance kernel weight
         # (mirrors sim/mjx): pays the FRACTION of the commanded swing height
         # (lift_height + c6) the swing sole actually reaches, gated on the
@@ -1291,6 +1321,7 @@ class BimoWalkerEnv(gym.Env):
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.w_march_unload = float(w_march_unload)
+        self.w_march_both = float(w_march_both)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.gait_freq_range = (float(gait_freq_range[0]), float(gait_freq_range[1]))
@@ -1332,6 +1363,8 @@ class BimoWalkerEnv(gym.Env):
         if self.low_swing_clear <= 0.0:
             raise ValueError("low_swing_clear must be > 0")
         self._swing_peak = np.zeros(2)   # per-foot sole peak (m) of the swing in progress
+        self._march_cur = np.zeros(2)    # w_march_both: best score of the commanded swing in progress
+        self._march_last = np.zeros(2)   # w_march_both: best score of the last completed one
         self.w_com_stance = w_com_stance
         self.w_foot_under = w_foot_under
         self.w_up_vel = w_up_vel
@@ -2594,6 +2627,8 @@ class BimoWalkerEnv(gym.Env):
         self._air_time[:] = 0.0
         self._last_air[:] = 0.0
         self._swing_peak[:] = 0.0
+        self._march_cur[:] = 0.0
+        self._march_last[:] = 0.0
         self._servo_tau[:] = 0.0
         self._cross_t = None    # dash: time the torso first crossed dash_distance
         self._stand_t = None    # dash_stop: start of the current standstill
@@ -2948,6 +2983,7 @@ class BimoWalkerEnv(gym.Env):
             # Plausibly the root cause of "stands great, won't walk"
             # (found 2026-07-13 when even a pinned-command walk expert froze).
             march_unload = 0.0
+            march_both = 0.0
             if self.getup:
                 # recovery primary (matches sim/mjx): height + HEIGHT-GATED
                 # uprightness progress, standing bonus (half up, half still).
@@ -3048,6 +3084,14 @@ class BimoWalkerEnv(gym.Env):
                         com, d.geom_xpos[stance_gid], d.geom_xpos[gid], foot_clear,
                         self.lift_height + float(self._cmd[6]),
                         float(self._traj_on == 4.0 and lifted), np)
+                if self.w_march_both:
+                    s_m = float(march_unload_term(
+                        com, d.geom_xpos[stance_gid], d.geom_xpos[gid], foot_clear,
+                        self.lift_height + float(self._cmd[6]), 1.0, np))
+                    self._march_cur, self._march_last, march_both = march_both_update(
+                        self._march_cur, self._march_last, s_m, float(is_r),
+                        float(self._traj_on == 4.0 and lifted), np)
+                    march_both = float(march_both)
                 # skill-compliance gate (round 4, mirrors sim/mjx): under a
                 # skill command the velocity/yaw kernels pay in proportion
                 # to the skill being DONE (precision_v3 stood through them)
@@ -3187,6 +3231,8 @@ class BimoWalkerEnv(gym.Env):
                 reward += self.w_knee_high * knee_frac
             if self.w_march_unload:
                 reward += self.w_march_unload * march_unload
+            if self.w_march_both:
+                reward += self.w_march_both * march_both
         if self.w_single_support:
             if shaping_on:
                 reward += self.w_single_support * float(single_support)
@@ -3438,6 +3484,7 @@ class BimoWalkerEnv(gym.Env):
                                            + self._cmd[6]),
                             knee_frac=knee_frac,
                             **({"march_unload": march_unload} if self.w_march_unload else {}),
+                            **({"march_both": march_both} if self.w_march_both else {}),
                             recovered=float(self._recovered),
                             com_stance=float(lifted) * com_off,
                             head_err=abs(head_err))
