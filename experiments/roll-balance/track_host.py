@@ -36,7 +36,7 @@ import sil_gait as G  # noqa: E402
 # The robot's own working values on the hard panels, 2026-11-12 (B1 runs fwtrim_*): static shift 1.3x over
 # the left foot, 1.25x over the right (1.15x tipped in at foot-off), learned T L 5.2, R 3.4 deg. The SIL holds
 # with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
-ROBOT_AMP = (1.3, 1.25)
+ROBOT_AMP = (1.3, 1.30)          # k_static L, R (dwell.K_STATIC; R 1.30 since the 16:55 runs)
 ROBOT_SEED = (5.2, 3.4)
 # the dwell gait's timing per step time is dwell.SCHEDULE (from the SIL: dwell_grid.py); T below dwell.T_FLOOR is
 # refused unless --below-floor

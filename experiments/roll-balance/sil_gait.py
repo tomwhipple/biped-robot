@@ -48,8 +48,12 @@ PLANTS = {"fit": TB.BOARD,
           "lo": "grade+play_L_hip=4,play_R_hip=6,play_L_ankle=2,play_R_ankle=0",
           "hi": "grade+play_L_hip=10,play_R_hip=10,play_L_ankle=3,play_R_ankle=2",
           "hard": TB.BOARD + ",floor_tc=0.01"}
+# turn / turnL / turnR: the dwell gait's turn about the planted foot (yaw_trim, deg of heading per step asked;
+# + = left; ~1.4x that in the sim). "splay" is the old alternating swing-hip yaw, which does not turn (robot
+# +2.9, sim +2.4 deg over 6 steps); the sine sway only knows that one.
 DIRS = {"march": {}, "fwd": dict(dx=0.02), "back": dict(dx=-0.02), "sideL": dict(dy=0.015),
-        "sideR": dict(dy=-0.015), "turn": dict(yaw=0.15)}
+        "sideR": dict(dy=-0.015), "turn": dict(yaw_trim=4.0), "turnL": dict(yaw_trim=4.0),
+        "turnR": dict(yaw_trim=-4.0), "splay": dict(yaw=0.15)}
 SEED = (8.0, 3.0)          # `trim T L 8`, `trim T R 3` (hike deg; A2's seeds)
 KF_S = 0.1                 # keyframe spacing, s
 
@@ -85,6 +89,8 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **
     else:
         kw.setdefault("kL", 1.35)
         kw.setdefault("kR", 1.1)
+        if kw.pop("yaw_trim", 0.0):
+            raise ValueError("the sine sway has no turn about the planted foot: use model dwell (or dir splay)")
         sw = W.Sway(T=T_step, n_steps=n_steps, dt=kf_s, k=1.2, ss=0.5, h=0.04, wide=True, first=first, **kw)
         c0 = sw.phases[0]["t0"] + 0.25 * T_step              # the first single support's centre
         ends = [p["t1"] + 0.25 * T_step for p in sw.phases]   # mid double support after each step

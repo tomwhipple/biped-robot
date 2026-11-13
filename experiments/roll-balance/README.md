@@ -431,3 +431,38 @@ What the flight record shows (numbers from the record, not the sim):
   6-step turn, +2.4 in the sim. `Dwell(yaw_trim=deg per step)` turns about the planted foot: the stance hip
   goes −c → +c, the swing hip +c → −c. In the sim, +4 → +34 deg and −1.5 → −14 deg over 6 steps, a gain of
   ~1.4-1.5. `track_host.py --yaw-trim`; calibrate the gain on the robot.
+
+**k_static R 1.30** (the default since the 16:55 runs, `dwell.K_STATIC`, `track_host.ROBOT_AMP`):
+- With `--amp 1.3,1.30`, march at T 4 / 3.4 / 3.2 and forward 8 at T 4 run with no right step past 4 deg
+  (0 of 16; at 1.25: 7 of 12 at 9.2-10.6).
+- The right hip roll servo's lag at u 0.5 drops from 3.2-6.2 deg to 2.3-3.7. That is the hip-yield mechanism.
+
+**Forward at T 3.4 still tips** (17:00:05, R 1.30). All 4 right steps peak at 10.1-11.7 deg at u 0.59-0.76,
+with the hip lag at 3.5-6.7 deg. It is the same mid-support hip-yield tip, and it starts at u ≈ 0.5, while
+the swing foot and the pelvis move forward (u 0.35-0.65). It is not a touchdown event.
+
+**The next limiter is the shift.** On the robot at T 3.2 the double support is 1.4 s (shift 1.2 + settle
+0.2). The roll rings at 22-47 deg/s through the shift and is quiet (< 5 deg/s) for only 0.1-0.4 s before
+lift-off, so there is no slack there. The single support (1.8 s) shows leans ≤ 4 deg, so that is where the
+slack is.
+
+SIL, fit plant, k R 1.30, 6 directions, 6 steps:
+
+| T s | shift / settle / single support s | raise s | falls | lifts | lean max deg |
+|---|---|---|---|---|---|
+| 3.2 | 1.2 / 0.2 / 1.8 | 0.63 | 0 | 36 / 36 | 3.0 |
+| 2.8 | 1.2 / 0.2 / 1.4 | 0.49 | 0 | 36 / 36 | 3.3 |
+| 2.8 | 1.0 / 0.2 / 1.6 | 0.56 | 0 | 36 / 36 | 10.1 |
+| 2.5 | 1.0 / 0.2 / 1.3 | 0.45 | 0 | 36 / 36 | 6.6 |
+| 2.5 | 0.9 / 0.2 / 1.4 | 0.49 | 0 | 36 / 36 | 8.5 |
+
+So the faster step comes from a shorter single support with the 1.2 s shift kept. The schedule adds
+3.0 s (1.2 / 0.2 / 1.6) and 2.8 s (1.2 / 0.2 / 1.4); the host floor is now 2.8 s. On the robot the march
+reaches 3.2 s and forward only 4 s, so forward is limited by its own mid-support tip first.
+
+**Turning.** `--dir turn` / `turnL` / `turnR` are now the turn about the planted foot (`yaw_trim` ±4
+deg/step asked, ~5-6 deg/step in the sim). The old pattern is `splay`.
+
+**`track steps`.** The firmware keeps the last 16 TS lines. The jsonl showed only 6 because the
+stepper's robot_io logs the last 300 characters of each reply. Every step the host parses is in the run's
+`summary` row.

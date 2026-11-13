@@ -35,13 +35,22 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import synth as S  # noqa: E402
 
-K_STATIC = {"L": 1.3, "R": 1.25}      # x 62 mm, the robot's static requirement (hw 2026-11-12)
+# x 62 mm, the robot's static requirement (hw 2026-11-12). R 1.30: at 1.25 the right stance tipped toward the
+# lifted foot in mid single support at T <= 4 (in 9.2-10.6 deg on 7 of 12 right steps, the right hip roll
+# servo 3.5-7.5 deg behind its goal); at 1.30, T 4 / 3.4 / 3.2 / fwd 8 at T 4: 0 of 16 right steps past 4 deg,
+# hip roll error 2.3-3.7 deg.
+K_STATIC = {"L": 1.3, "R": 1.30}
 # (shift, settle) s per step time; single support = the rest. From the SIL (dwell_grid.py timing): the
 # shift (min-jerk, ~158 mm from 1.25 x over one foot to 1.3 x over the other) needs >= 1.2 s, single
 # support >= 1.8 s (raise 0.63 s); below T = 3.2 s it falls or leans 11-14 deg. 6 s is the gentle start
 # (raise 1.4 s, the stepper's pace).
-SCHEDULE = {6.0: (1.5, 0.5), 5.0: (1.4, 0.4), 4.0: (1.2, 0.4), 3.4: (1.2, 0.4), 3.2: (1.2, 0.2), 3.0: (1.0, 0.2)}
-T_FLOOR = 3.2
+# With R 1.30 the SIL (fit plant, 6 directions) also holds 3.0 and 2.8 with the 1.2 s shift kept and the single
+# support shortened (2.8: 1.4 s, raise 0.49 s, lean <= 3.3 deg); a shorter shift leans 6.6-10 deg. The shift is
+# the limiter (on the robot at 3.2 s the roll rings at 22-47 deg/s through it and is quiet only 0.1-0.4 s before
+# lift-off); the single support has slack.
+SCHEDULE = {6.0: (1.5, 0.5), 5.0: (1.4, 0.4), 4.0: (1.2, 0.4), 3.4: (1.2, 0.4), 3.2: (1.2, 0.2), 3.0: (1.2, 0.2),
+            2.8: (1.2, 0.2)}
+T_FLOOR = 2.8
 # the hip yaw sign that turns the body to its LEFT about the stance foot (calibrated in the sim: see yaw_trim)
 YAW_SIGN = -1.0          # sim (sil_gait, T 5, fit): yaw_trim +4 deg/step with +1 turned the body -35 deg over 6 steps
 
