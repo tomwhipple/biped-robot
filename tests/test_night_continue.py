@@ -17,7 +17,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NIGHT = os.path.join(ROOT, "infra", "night")
 LIB = os.path.join(NIGHT, "night_window.sh")
 PLAN = os.path.join(NIGHT, "plan_morning.sh")
-ENV = {**os.environ, "TZ": "UTC", "LC_ALL": "C"}
+# no GIT_* from a pre-push hook: the throwaway repo must not resolve to this one
+ENV = {**{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+       "TZ": "UTC", "LC_ALL": "C"}
+_GIT = {k: v for k, v in ENV.items()}
 
 
 def epoch(hhmm, day="2026-11-13"):
@@ -120,10 +123,10 @@ def rig(tmp_path):
     (n / "planner.log").touch()
     (n / "night.log").touch()
     repo = tmp_path / "repo"
-    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True, env=_GIT)
     subprocess.run(["git", "-C", str(repo), "-c", "user.email=a@b", "-c", "user.name=t",
-                    "commit", "-q", "--allow-empty", "-m", "i"], check=True)
-    subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", str(repo)], check=True)
+                    "commit", "-q", "--allow-empty", "-m", "i"], check=True, env=_GIT)
+    subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", str(repo)], check=True, env=_GIT)
     claude = tmp_path / "claude"
     claude.write_text(
         '#!/usr/bin/env bash\n'
