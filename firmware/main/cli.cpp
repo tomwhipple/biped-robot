@@ -13,6 +13,7 @@
 #include "fallguard/fallguard.h"
 #include "flailguard/flailguard.h"
 #include "flailguard/heading_hold.h"
+#include "gaitplay/lift_gate.h"
 #include "gaitplay/track.h"
 #include "linkproto/framing.h"
 #include "obs/actuation.h"
@@ -542,6 +543,11 @@ static int32_t s_tres_dt = 0;           // its current ticks
 // returns to a pre-lift pose. A trim abort freezes and fades the correction while the track goes on (the
 // upper layer owns the feet). Anything that ends the stream or the trim (move, home, STOP, FALL, torque,
 // arming) ends the track. One "TS" line per single support: the host's step-to-step telemetry.
+// The lift gate (gaitplay/lift_gate.h, `liftgate`): at a frame the host flagged kGate (the last double-support
+// frame before a lift-off) the clock is parked while the body is off level or moving, so no foot leaves the
+// floor on it. The TS line of a gated step ends with " G <ms held>"; a hold past the timeout ends the track from
+// that double support (both feet down: the rest pose of the last step end, or the pose as it is) and prints
+// "TS <n> <side> GATE-TIMEOUT ...", which the `track` reply repeats. No kGate frame: nothing changes.
 // Threading: housekeeping task only.
 static gaitplay::Track* s_trk = nullptr;    // heap, at the first `track` command (trackAlloc)
 static bool s_track_on = false;             // the pose stream belongs to the track (lead-in included)
@@ -558,6 +564,53 @@ static balance::TrimDriver s_track_drv{s_trim};
 constexpr int kTrackStepLog = 16;
 static balance::StepReport s_track_log[kTrackStepLog];
 static uint32_t s_track_nsteps = 0;         // single supports reported since `track play`
+static gaitplay::LiftGate s_gate;           // the lift gate; its config outlives a track, `liftgate set` / on / off
+static int32_t s_gate_g = -1;               // the hold before the last gate frame, ms (-1 = none since the last chain began)
+static int32_t s_gate_chain = -1;           // ... the one the single support in progress began after
+static int32_t s_track_g[kTrackStepLog];    // per reported single support: G ms (-1 = not gated)
+static bool s_gate_timed_out = false;       // the track ended at a gate timeout ...
+static uint32_t s_gate_to_n = 0, s_gate_to_held = 0;     // ... after this many single supports, a hold of this long ...
+static char s_gate_to_side = 0;
+static float s_gate_to_dev = 0.0f, s_gate_to_rate = 0.0f;    // ... looking at this (deg, deg/s)
+
+// " G <ms>" for a gated step (the hold before its lift-off), "" for one with no gate frame: old tracks print as before
+static const char* gSuffix(char* buf, size_t n, int32_t g) {
+    buf[0] = 0;
+    if (g >= 0) snprintf(buf, n, " G %ld", static_cast<long>(g));
+    return buf;
+}
+
+// The gate's events for the operator and the flight record (they ride the recorder as the CLI output lines)
+static void gateAnnounce(const gaitplay::GateOut& go, Sink out) {
+    const double d2r = 57.29578;
+    switch (go.ev) {
+        case gaitplay::GateEvt::kHoldStart:
+            say(out, "track GATE hold %c at %lu ms: roll %+.1f deg from its settled double support, rate %+.1f deg/s -- the clock is "
+                "parked, the joints hold\r\n", go.side, static_cast<unsigned long>(go.t_ms), static_cast<double>(go.dev_rad * d2r),
+                static_cast<double>(go.rate_rad_s * d2r));
+            break;
+        case gaitplay::GateEvt::kHoldEnd:
+            say(out, "track GATE released after %lu ms\r\n", static_cast<unsigned long>(go.hold_ms));
+            s_gate_g = static_cast<int32_t>(go.hold_ms);
+            break;
+        case gaitplay::GateEvt::kPass:
+            s_gate_g = 0;
+            break;
+        case gaitplay::GateEvt::kTimeout:
+            s_gate_timed_out = true;
+            s_gate_to_n = s_track_nsteps;
+            s_gate_to_side = go.side;
+            s_gate_to_held = go.hold_ms;
+            s_gate_to_dev = static_cast<float>(go.dev_rad * d2r);
+            s_gate_to_rate = static_cast<float>(go.rate_rad_s * d2r);
+            say(out, "TS %lu %c GATE-TIMEOUT held %lu ms dev %+.1f rate %+.1f -- the body did not settle: track ENDED, both feet "
+                "down (rest pose of the last step end, else the pose as it is)\r\n", static_cast<unsigned long>(s_track_nsteps + 1),
+                go.side, static_cast<unsigned long>(go.hold_ms), static_cast<double>(s_gate_to_dev), static_cast<double>(s_gate_to_rate));
+            break;
+        default:
+            break;
+    }
+}
 
 static void trackEnd(Sink out, const char* why) {
     if (!s_track_on) return;
@@ -567,6 +620,7 @@ static void trackEnd(Sink out, const char* why) {
     s_track_prev_t = 0;
     s_track_shown = gaitplay::State::kIdle;
     s_track_drv.reset();
+    s_gate.abandon();
     say(out, "track ended (%s) at %lu ms, %lu step ends; the joints hold their last goals\r\n", why,
         static_cast<unsigned long>(s_track_t), static_cast<unsigned long>(steps));
 }
@@ -768,7 +822,28 @@ static void trimAnnounce(Sink out, bool quiet_fade) {
 // s_track_want, the support state from the phase into the trim, a TS line when a single support ended.
 static void trackTick(TickType_t now, long el_ms, Sink out) {
     const float dt_s = trimDt(now);
-    const uint32_t t = s_trk->startTime() + static_cast<uint32_t>(el_ms - s_track_lead_ms);
+    const uint32_t t_raw = s_trk->startTime() + static_cast<uint32_t>(el_ms - s_track_lead_ms);
+    float roll = NAN, rate = NAN;
+    if (balReadRoll(&roll, &rate)) s_trim_roll = roll;
+    else { roll = NAN; rate = NAN; }
+    // the lift gate owns the clock: the track time with the holds so far, parked at a gate frame while holding
+    gaitplay::GateOut go;
+    go.t_ms = s_gate.naturalMs(t_raw);
+    if (s_trk->state() == gaitplay::State::kPlaying || s_trk->state() == gaitplay::State::kStopping) {
+        gaitplay::GateIn gi;
+        gi.wall_ms = static_cast<uint32_t>(el_ms);
+        gi.t_raw_ms = t_raw;
+        gi.roll_rad = roll;
+        gi.rate_rad_s = rate;
+        gi.have_gate = s_trk->gateAhead(s_gate.naturalMs(t_raw), &gi.t_gate_ms, &gi.side);
+        go = s_gate.tick(gi);
+        gateAnnounce(go, out);
+        if (go.ev == gaitplay::GateEvt::kTimeout) {
+            s_trk->abortToRest(go.t_ms);                // both feet down: the rest of the last step end, or hold
+            s_track_shown = gaitplay::State::kResting;  // (no "step end" message for this one)
+        }
+    }
+    const uint32_t t = go.t_ms;
     s_track_t = t;
     gaitplay::Sample smp;
     const gaitplay::State st = s_trk->sample(t, &smp);
@@ -797,14 +872,15 @@ static void trackTick(TickType_t now, long el_ms, Sink out) {
         s_track_shown = st;
     }
     if (!s_track_trim) return;
-    const gaitplay::Support sup = playing ? gaitplay::supportFromPhase(smp.phi, smp.lift) : gaitplay::Support{0, 0.0f, false};
+    const gaitplay::Support sup = playing ? gaitplay::supportFromPhase(smp.phi, smp.lift && !go.holding)   // parked: double support
+                                          : gaitplay::Support{0, 0.0f, false};
     balance::SupportIn in;
     in.stance = sup.stance;
     in.progress = sup.progress;
     in.lowering = sup.lowering;
-    float roll = NAN;
-    if (balReadRoll(&roll)) s_trim_roll = roll;
-    if (s_track_drv.begins(in) && isfinite(roll)) {
+    const bool begins = s_track_drv.begins(in) && isfinite(roll);
+    const int32_t g_next = s_gate_g;
+    if (begins) {
         char nm[24];
         snprintf(nm, sizeof nm, "%c_hip_roll", in.stance);
         s_trim_bh = obs::busIndexOfName(nm);
@@ -812,14 +888,20 @@ static void trackTick(TickType_t now, long el_ms, Sink out) {
     balance::StepReport rep;
     if (s_track_drv.step(in, roll, dt_s, &rep)) {
         s_track_log[s_track_nsteps % kTrackStepLog] = rep;
+        s_track_g[s_track_nsteps % kTrackStepLog] = s_gate_chain;
         ++s_track_nsteps;
         // TS <n> <stance> in <lean toward the swing foot> out <lean to the stance side> e <e> T <T> hike <hike>
         // (deg; e/T/hike at mid single support, the end of the raise) ok|ABORT
-        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n",
+        char gbuf[16];
+        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s%s\r\n",
             static_cast<unsigned long>(s_track_nsteps), rep.stance, static_cast<double>(rep.lean_in * 57.29578f),
             static_cast<double>(rep.lean_out * 57.29578f), static_cast<double>(rep.e_mid * 57.29578f),
             static_cast<double>(rep.t_mid * 57.29578f), static_cast<double>(rep.hike_mid * 57.29578f),
-            rep.aborted ? "ABORT" : "ok", rep.reverted ? " Tback" : "");
+            rep.aborted ? "ABORT" : "ok", rep.reverted ? " Tback" : "", gSuffix(gbuf, sizeof gbuf, s_gate_chain));
+    }
+    if (begins) {                          // the gate frame before the chain that just began
+        s_gate_chain = g_next;
+        s_gate_g = -1;
     }
     s_trim_dth = s_trim.engaged() ? balTicks(s_trim_bh, s_trim.hipJoint()) : 0;
     // the driver's residual (the last chain's fade, finishing on its own hip) rides the overlay's slot
@@ -3144,6 +3226,49 @@ static bool trackAlloc(Sink out) {
     return true;
 }
 
+// `liftgate [set <lvl_deg> <rate_deg_s> <dwell_ms> <timeout_ms> | on | off]` -- the lift gate (see s_gate above).
+// The thresholds and on / off live in RAM until reboot, like `trim`; they apply to the next gate frame.
+void cmdLiftgate(Sink out, int argc, char** argv) {
+    const double r2d = 57.29578;
+    const char* sub = argc >= 2 ? argv[1] : "";
+    gaitplay::LiftGateConfig c = s_gate.config();
+    if (!strcmp(sub, "on") || !strcmp(sub, "off")) {
+        c.enabled = !strcmp(sub, "on");
+        s_gate.configure(c);
+        say(out, "liftgate %s (frames flagged kGate are %s)\r\n", c.enabled ? "ON" : "OFF",
+            c.enabled ? "checked" : "ignored; the track plays as without a gate");
+        return;
+    }
+    if (!strcmp(sub, "set")) {
+        if (argc != 6 || !isNumber(argv[2]) || !isNumber(argv[3]) || !isNumber(argv[4]) || !isNumber(argv[5])) {
+            out("usage: liftgate set <lvl_deg> <rate_deg_s> <dwell_ms> <timeout_ms>\r\n");
+            return;
+        }
+        c.lvl_rad = strtof(argv[2], nullptr) / 57.29578f;
+        c.rate_rad_s = strtof(argv[3], nullptr) / 57.29578f;
+        const long dw = num(argv[4], -1), to = num(argv[5], -1);
+        if (dw < 0 || to < 0) { out("liftgate set: dwell and timeout are ms >= 0\r\n"); return; }
+        c.dwell_ms = static_cast<uint32_t>(dw);
+        c.timeout_ms = static_cast<uint32_t>(to);
+        const char* bad = gaitplay::validateGate(c);
+        if (bad) { say(out, "liftgate set: refused (%s)\r\n", bad); return; }
+        s_gate.configure(c);
+        say(out, "liftgate: lvl %.1f deg, rate %.0f deg/s, dwell %lu ms, timeout %lu ms\r\n", static_cast<double>(c.lvl_rad * 57.29578f),
+            static_cast<double>(c.rate_rad_s * 57.29578f), static_cast<unsigned long>(c.dwell_ms), static_cast<unsigned long>(c.timeout_ms));
+        return;
+    }
+    if (sub[0] != 0) { out("usage: liftgate [set <lvl_deg> <rate_deg_s> <dwell_ms> <timeout_ms> | on | off]\r\n"); return; }
+    const gaitplay::GateStats& st = s_gate.stats();
+    say(out, "liftgate %s: lvl %.1f deg, rate %.0f deg/s, dwell %lu ms, timeout %lu ms; roll_ds L %+.2f R %+.2f deg%s\r\n",
+        c.enabled ? "ON" : "OFF", static_cast<double>(c.lvl_rad * 57.29578f), static_cast<double>(c.rate_rad_s * 57.29578f),
+        static_cast<unsigned long>(c.dwell_ms), static_cast<unsigned long>(c.timeout_ms),
+        static_cast<double>(s_gate.ref('L') * r2d), static_cast<double>(s_gate.ref('R') * r2d),
+        s_gate.holding() ? "; HOLDING (clock parked)" : "");
+    say(out, "liftgate gates %lu holds %lu held %lu ms timeouts %lu (since the last `track play`)%s\r\n",
+        static_cast<unsigned long>(st.gates), static_cast<unsigned long>(st.holds), static_cast<unsigned long>(st.held_ms),
+        static_cast<unsigned long>(st.timeouts), s_gate_timed_out ? "; the last track ENDED at a gate timeout" : "");
+}
+
 void cmdTrack(Sink out, int argc, char** argv) {
     const char* sub = argc >= 2 ? argv[1] : "";
     if (!trackAlloc(out)) return;
@@ -3182,6 +3307,14 @@ void cmdTrack(Sink out, int argc, char** argv) {
     }
     if (!strcmp(sub, "stop")) {
         if (!s_track_on) { out("track stop: not playing\r\n"); return; }
+        if (s_gate.holding()) {
+            // parked at a gate frame, both feet down: the step end the stop would wait for is a lift-off away
+            s_gate.abandon();
+            s_trk->abortToRest(s_track_t);
+            say(out, "track: stopped in the lift gate's hold at %lu ms, both feet down, then the rest pose\r\n",
+                static_cast<unsigned long>(s_track_t));
+            return;
+        }
         s_trk->stop();
         say(out, "track: stopping at the next step end (now %lu ms), then the rest pose\r\n",
             static_cast<unsigned long>(s_track_t));
@@ -3196,6 +3329,7 @@ void cmdTrack(Sink out, int argc, char** argv) {
         s_traj_zv_ms = 0;
         s_traj_t0 = xTaskGetTickCount();
         s_track_on = false;
+        s_gate.abandon();
         if (s_trim.state() == balance::TrimState::kClosed || s_trim.state() == balance::TrimState::kHold) s_trim.release();
         s_track_drv.reset();
         const uint32_t steps = s_trk->steps();
@@ -3219,10 +3353,12 @@ void cmdTrack(Sink out, int argc, char** argv) {
             static_cast<unsigned long>(s_track_nsteps));
         for (uint32_t k = s_track_nsteps - n; k < s_track_nsteps; ++k) {
             const balance::StepReport& r = s_track_log[k % kTrackStepLog];
-            say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n", static_cast<unsigned long>(k + 1),
+            char gbuf[16];
+            say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s%s\r\n", static_cast<unsigned long>(k + 1),
                 r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
                 static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
-                static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "");
+                static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "",
+                gSuffix(gbuf, sizeof gbuf, s_track_g[k % kTrackStepLog]));
         }
         return;
     }
@@ -3278,6 +3414,9 @@ void cmdTrack(Sink out, int argc, char** argv) {
         s_track_shown = gaitplay::State::kPlaying;
         s_track_nsteps = 0;
         s_track_drv.reset();
+        s_gate.begin();
+        s_gate_g = s_gate_chain = -1;
+        s_gate_timed_out = false;
         s_trim.configure(s_trim_cfg);
         s_trim_last = xTaskGetTickCount();
         s_trim_clamps = 0;
@@ -3298,14 +3437,28 @@ void cmdTrack(Sink out, int argc, char** argv) {
     say(out, "track trim %s, lead-in %ld ms, rest move %lu ms, envelope clamped %lu writes%s\r\n",
         s_track_trim ? "ON" : "OFF", s_track_lead_ms, static_cast<unsigned long>(s_trk->restMs()),
         static_cast<unsigned long>(s_track_clamps), s_track_dry_said ? ", queue DRY (holding)" : "");
+    if (s_gate.holding() || s_gate.stats().gates > 0 || s_gate_timed_out) {
+        say(out, "track gate: %lu gate frames, %lu holds, %lu ms held, %lu timeouts%s%s\r\n",
+            static_cast<unsigned long>(s_gate.stats().gates), static_cast<unsigned long>(s_gate.stats().holds),
+            static_cast<unsigned long>(s_gate.stats().held_ms), static_cast<unsigned long>(s_gate.stats().timeouts),
+            s_gate.holding() ? ", HOLDING (clock parked)" : "", s_gate_timed_out ? ", end reason GATE-TIMEOUT" : "");
+    }
     if (s_track_nsteps > 0) {
         // the last TS line again: the Wi-Fi host polls this reply (async lines never reach it), so its stop
         // rule sees every single support
         const balance::StepReport& r = s_track_log[(s_track_nsteps - 1) % kTrackStepLog];
-        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n", static_cast<unsigned long>(s_track_nsteps),
+        char gbuf[16];
+        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s%s\r\n", static_cast<unsigned long>(s_track_nsteps),
             r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
             static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
-            static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "");
+            static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "",
+            gSuffix(gbuf, sizeof gbuf, s_track_g[(s_track_nsteps - 1) % kTrackStepLog]));
+    }
+    if (s_gate_timed_out) {
+        // the Wi-Fi host polls this reply: the timeout it must stop on (a stop, not a fall)
+        say(out, "TS %lu %c GATE-TIMEOUT held %lu ms dev %+.1f rate %+.1f\r\n", static_cast<unsigned long>(s_gate_to_n + 1),
+            s_gate_to_side, static_cast<unsigned long>(s_gate_to_held), static_cast<double>(s_gate_to_dev),
+            static_cast<double>(s_gate_to_rate));
     }
 }
 
@@ -4762,6 +4915,9 @@ void banner(Sink out) {
     out("  track [add <f> ..x4|play [lead_ms] [notrim]|stop|halt|clear|rest <ms>|steps]\r\n"
         "                       gait track: 12-leg keyframes (42 hex) appended while playing; the phase\r\n"
         "                       drives the trim; stop = at the next step end, then rest; halt = freeze\r\n");
+    out("  liftgate [set <lvl_deg> <rate_deg_s> <dwell_ms> <timeout_ms>|on|off]\r\n"
+        "                       the track's lift gate: before a gate-flagged lift-off the body must be level\r\n"
+        "                       (vs its settled double support) and quiet, else the clock waits; counters\r\n");
     out("  reg <id> <addr> [1|2]  READ a servo register (PID 21-23, deadzone 26/27, acc 41)\r\n");
     out("  gains [id [P D]]     position-loop P/D (21/22): check all vs expected,\r\n"
         "                       read one, or write one (torque OFF, EEPROM, verified)\r\n");
@@ -4868,6 +5024,7 @@ void execute(const char* line, Sink out, bool remote) {
     else if (!strcmp(c, "balance")) cmdBalance(out, argc, argv);
     else if (!strcmp(c, "trim")) cmdTrim(out, argc, argv);
     else if (!strcmp(c, "track")) cmdTrack(out, argc, argv);
+    else if (!strcmp(c, "liftgate")) cmdLiftgate(out, argc, argv);
     else if (!strcmp(c, "reg")) cmdReg(out, argc, argv);
     else if (!strcmp(c, "sread")) cmdSread(out, argc, argv);
     else if (!strcmp(c, "stepresp")) cmdStepResp(out, argc, argv);

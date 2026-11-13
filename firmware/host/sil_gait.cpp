@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "balance/stance_trim.h"
+#include "gaitplay/lift_gate.h"
 #include "gaitplay/track.h"
 
 namespace {
@@ -13,6 +14,7 @@ struct Gait {
     gaitplay::Track track;
     balance::StanceTrim trim;
     balance::TrimDriver driver{trim};
+    gaitplay::LiftGate gate;
     uint32_t prev_t = 0;
 };
 
@@ -56,24 +58,67 @@ int sil_gait_add(void* h, const char* hex) {
     return 0;
 }
 
-int sil_gait_start(void* h) { return static_cast<Gait*>(h)->track.start() ? 0 : -1; }
+int sil_gait_start(void* h) {
+    Gait* g = static_cast<Gait*>(h);
+    g->gate.begin();
+    return g->track.start() ? 0 : -1;
+}
+
+// The lift gate's thresholds (deg, deg/s, ms) and on/off; 0 = set, -1 = refused (bad values)
+int sil_gait_gate_cfg(void* h, float lvl_deg, float rate_deg_s, int dwell_ms, int timeout_ms, int enabled) {
+    Gait* g = static_cast<Gait*>(h);
+    gaitplay::LiftGateConfig c = g->gate.config();
+    c.lvl_rad = lvl_deg / 57.29578f;
+    c.rate_rad_s = rate_deg_s / 57.29578f;
+    c.dwell_ms = static_cast<uint32_t>(dwell_ms);
+    c.timeout_ms = static_cast<uint32_t>(timeout_ms);
+    c.enabled = enabled != 0;
+    if (gaitplay::validateGate(c) != nullptr) return -1;
+    g->gate.configure(c);
+    return 0;
+}
+
+// out4: gates evaluated, holds, total held ms, timeouts
+void sil_gait_gate_stats(void* h, uint32_t* out4) {
+    const gaitplay::GateStats& s = static_cast<Gait*>(h)->gate.stats();
+    out4[0] = s.gates;
+    out4[1] = s.holds;
+    out4[2] = s.held_ms;
+    out4[3] = s.timeouts;
+}
 void sil_gait_stop(void* h) { static_cast<Gait*>(h)->track.stop(); }
 uint32_t sil_gait_start_time(void* h) { return static_cast<Gait*>(h)->track.startTime(); }
 int sil_gait_queued(void* h) { return static_cast<Gait*>(h)->track.queued(); }
 
-// One 50 Hz tick at track time t_ms with the torso roll (rad; NaN = none). Out: the 12 goals (ticks,
+// One 50 Hz tick at raw track time t_ms with the torso roll (rad; NaN = none) and its rate (rad/s). Out: the 12 goals (ticks,
 // kLegJoints order) with the hip roll corrections NOT applied (hip_joint_rad[2] = L, R: the trim's and the
 // driver residual's, joint rad), the phase, the trim state; report[8] = stance, lean_in, lean_out, e_mid,
 // t_mid, hike_mid (rad), aborted, reverted, filled when a single support ended (return bit 1). Bit 0 of
-// the return: the track is done.
-int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float dt_s, int32_t* q12, float* phi,
-                  float* hip_joint_rad, int* stance, int* trim_state, float* report7) {
+// the return: the track is done. gate4 = the track time played at, holding, the gate event (GateEvt), the
+// hold's length (ms) on kHoldEnd / kTimeout.
+int sil_gait_tick(void* h, uint32_t t_ms, float roll_rad, float rate_rad_s, float dt_s, int32_t* q12, float* phi,
+                  float* hip_joint_rad, int* stance, int* trim_state, float* report7, float* gate4) {
     Gait* g = static_cast<Gait*>(h);
+    // the lift gate owns the clock: t_ms is the raw track time (no hold), the gate returns the one to play at
+    gaitplay::GateIn gi;
+    gi.wall_ms = t_ms;
+    gi.t_raw_ms = t_ms;
+    gi.roll_rad = roll_rad;
+    gi.rate_rad_s = rate_rad_s;
+    gi.have_gate = g->track.gateAhead(g->gate.naturalMs(t_ms), &gi.t_gate_ms, &gi.side);
+    const gaitplay::GateOut go = g->gate.tick(gi);
     gaitplay::Sample s;
-    const gaitplay::State st = g->track.sample(t_ms, &s);
+    if (go.ev == gaitplay::GateEvt::kTimeout) g->track.abortToRest(go.t_ms);     // both feet down: rest
+    const gaitplay::State st = g->track.sample(go.t_ms, &s);
+    if (gate4 != nullptr) {
+        gate4[0] = static_cast<float>(go.t_ms);
+        gate4[1] = go.holding ? 1.0f : 0.0f;
+        gate4[2] = static_cast<float>(static_cast<int>(go.ev));
+        gate4[3] = static_cast<float>(go.hold_ms);
+    }
     memcpy(q12, s.q, sizeof s.q);
     *phi = s.phi;
-    const gaitplay::Support sup = gaitplay::supportFromPhase(s.phi, s.lift);
+    const gaitplay::Support sup = gaitplay::supportFromPhase(s.phi, s.lift && !go.holding);
     balance::SupportIn in;
     in.stance = sup.stance;
     in.progress = sup.progress;

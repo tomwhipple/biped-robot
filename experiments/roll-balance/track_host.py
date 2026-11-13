@@ -15,6 +15,10 @@ The session:
 Stop rule: a TS line with ABORT, a lean toward the swing foot past --stop-lean deg, or an OUTWARD lean (away from
 the swing foot) past --stop-out deg -> `track stop`
 (finish the step, rest pose); a refused line or a lost link -> `track halt` (freeze, the trim fades).
+Lift gate (--lift-gate, default on for the dwell gait): the last frame before each lift-off carries kGate; the firmware
+parks the clock there until the body is level and quiet (a held clock stops `play t`: the upload is paced by the play
+head, so it pauses with it), and after a 3 s hold ends the track itself, both feet down -- `TS .. GATE-TIMEOUT`, which
+the host treats as a stop, not a fall. Each TS line of a gated step ends with ` G <ms held>`.
 
     python track_host.py --T 4 --dir march --steps 6              # dry run: what would be sent
     python track_host.py --T 4 --dir march --steps 6 --live       # on the robot (Stage C only)
@@ -54,7 +58,9 @@ ROBOT_PELVIS_X = "stance"
 MAX_AHEAD_S = 8.0     # the robot's queue holds 128 frames (12.8 s at 10 Hz): stay <= 8 s ahead
 PER_LINE = 4                  # frames per `track add` (42 hex + space each; the CLI line is <= 192 chars)
 TS_RE = re.compile(r"^TS (\d+) ([LR]) in ([-\d.]+) out ([-\d.]+) e ([-+\d.]+) T ([-+\d.]+) hike ([-+\d.]+) (ok|ABORT)"
-                   r"( Tback)?", re.M)
+                   r"( Tback)?(?: G (\d+))?", re.M)
+# the lift gate's timeout (gaitplay/lift_gate.h): the firmware ended the track itself, both feet down -- a stop, not a fall
+GATE_TO_RE = re.compile(r"^TS (\d+) ([LR]) GATE-TIMEOUT held (\d+) ms dev ([-+\d.]+) rate ([-+\d.]+)", re.M)
 
 
 def lines_for(frames):
@@ -154,8 +160,9 @@ def expand_seq(seq, first="R"):
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
-         k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0):
-    """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4).
+         k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False):
+    """lift_gate (dwell): kGate on the last frame before each lift-off (the firmware waits there for a level, quiet body).
+    yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4).
     cmd: one per-step command (step_cmd / preset_cmd) replacing the --dir preset's; seq: [(cmd, count)] segments
     in one continuous track (n_steps is then the expanded count). A yaw_trim LIST is the heading hold's asked turn
     per step, complete (it replaces the command's own turn)."""
@@ -192,7 +199,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
             dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
     elif seq is not None or cmd is not None:
         raise ValueError("--step / --seq / --stride-mm need the dwell model")
-    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **dkw, **gkw)
+    sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model,
+                    lift_gate=lift_gate and model == "dwell", **dkw, **gkw)
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     if cmds is not None:
         dpsi = [c["dpsi"] for c in cmds]
@@ -204,7 +212,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
                           k_ds=tuple(k_ds) if k_ds else None,
                           ankle_steps=list(ankle_steps) if ankle_steps is not None else None,
-                          cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt))
+                          cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt, lift_gate=lift_gate))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -643,6 +651,9 @@ def dry(pl, a):
           f"{(1e3 / (G.KF_S * 1e3) / PER_LINE) * a.ms_per_line / 10:.0f} % of the link at that rate")
     print(f"queue: at most ~{int(ahead_ms / (G.KF_S * 1e3)) + 2 * PER_LINE} of 128 frames held "
           f"({ahead_ms / 1e3:.1f} s ahead)")
+    n_gate = sum(1 for f in pl["frames"] if f[2] == "kf" and int(f[1][5], 16) & 8)
+    print(f"lift gate: {n_gate} gate frames (the last frame before each lift-off)" if n_gate
+          else "lift gate: no gate frames (--lift-gate off, or the sway model)")
     if pl["model"] == "dwell":
         tot, rows_ = speeds(pl)
         print(f"speed (commanded, one step per {a.T:g} s): {tot[0]:+.1f} mm/s forward, {tot[1]:+.1f} mm/s sideways (+ = left), "
@@ -689,7 +700,7 @@ def live(pl, a):
     adds = pl["adds"]
     hold = pl.get("hold")
     learn = pl.get("learn")
-    fell = {"v": False, "abort": False}
+    fell = {"v": False, "abort": False, "gate": None}
     yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
     yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
     if a.note:
@@ -761,7 +772,7 @@ def live(pl, a):
         for m in TS_RE.finditer(txt):
             s = dict(n=int(m.group(1)), stance=m.group(2), lean_in=float(m.group(3)), lean_out=float(m.group(4)),
                      e=float(m.group(5)), T=float(m.group(6)), hike=float(m.group(7)), ok=m.group(8) == "ok",
-                     tback="Tback" in m.group(0))
+                     tback="Tback" in m.group(0), gate_ms=int(m.group(10)) if m.group(10) else None)
             if all(x["n"] != s["n"] for x in steps):
                 sg = seg_of(s["n"])
                 if sg:
@@ -769,7 +780,8 @@ def live(pl, a):
                 steps.append(s)
                 print(f"  step {s['n']} {s['stance']}{' [' + sg['name'] + ']' if sg else ''}: in {s['lean_in']:.1f} out {s['lean_out']:.1f} e {s['e']:+.1f} "
                       f"T {s['T']:+.1f} hike {s['hike']:+.1f} {'ok' if s['ok'] else 'ABORT'}"
-                      f"{' Tback' if s['tback'] else ''}", flush=True)
+                      f"{' Tback' if s['tback'] else ''}"
+                      f"{'' if s['gate_ms'] is None else ' (gate held ' + str(s['gate_ms']) + ' ms)'}", flush=True)
                 if not s["ok"]:
                     fell["abort"] = True
                 if not s["ok"] or s["lean_in"] > a.stop_lean:
@@ -778,6 +790,16 @@ def live(pl, a):
                     # (19:27: R out 7.0 on one walk, 7.2 and 8.2 on the next, then the outward fall)
                     print(f"  OUTWARD lean {s['lean_out']:.1f} > --stop-out {a.stop_out:g} deg: stopping", flush=True)
                     trip = True
+        for m in GATE_TO_RE.finditer(txt):
+            # the lift gate waited for a level, quiet body and gave up: the firmware has ended the track itself with both
+            # feet down (rest pose of the last step end). A stop, not a fall: no more frames, nothing marked as a fall.
+            if not fell["gate"]:
+                fell["gate"] = dict(n=int(m.group(1)), stance=m.group(2), held_ms=int(m.group(3)), dev=float(m.group(4)),
+                                    rate=float(m.group(5)))
+                print(f"  LIFT GATE TIMEOUT before step {m.group(1)} ({m.group(2)} stance): held {m.group(3)} ms, roll "
+                      f"{m.group(4)} deg off its settled double support, rate {m.group(5)} deg/s -- track ended, feet down",
+                      flush=True)
+            trip = True
         return trip
 
     def add(line):
@@ -796,10 +818,22 @@ def live(pl, a):
             sent += 1
         r.cmd(pl["play"])
         stop = False
+        holding = False
         while True:
             txt = r.cmd("track")
             m = re.search(r"play t (\d+) ms", txt)
             head = int(m.group(1)) if m else 0
+            # A held clock (the lift gate parks it at a lift-off until the body is level and quiet) stops `play t`:
+            # nothing is wrong -- the upload below is paced by the head, so it just pauses (the queue cannot overflow),
+            # and the link is judged by the replies, not by the head moving.
+            if "HOLDING" in txt and not holding:
+                holding = True
+                print(f"  lift gate holding at play t {head} ms (the clock is parked; timeout 3 s)", flush=True)
+            elif "HOLDING" not in txt and holding:
+                holding = False
+                print("  lift gate released", flush=True)
+            if "GATE-TIMEOUT" in txt:
+                stop = scan(txt) or stop
             # the firmware's TS lines are async output: over Wi-Fi they never reach a command's reply (2026-11-12:
             # 0 of 34 seen live, so the stop rule never ran). `track steps` repeats the last 16: poll it.
             m2 = re.search(r"(\d+) single supports reported", txt)
@@ -812,7 +846,7 @@ def live(pl, a):
                     heading_step()
             if stop:
                 r.cmd("track stop")
-                print("  stop rule hit -> track stop")
+                print("  lift gate timeout -> the firmware ended the track" if fell["gate"] else "  stop rule hit -> track stop")
                 break
             while sent < len(adds) and adds[sent][0] <= head + ahead_ms:
                 stop = scan(add(adds[sent][1])) or stop
@@ -869,7 +903,9 @@ def live(pl, a):
                       f"{learn.A['R']:.2f}; {'saved to ' + learn.path if saved else 'NOT saved (fall / abort / link)'}")
         log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=pl["args"]["n_steps"], amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
-                                                      ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"]),
+                                                      ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"],
+                                                      lift_gate=pl["args"].get("lift_gate")),
+                 gate_timeout=fell["gate"],
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None)))
         r.close()
@@ -953,6 +989,12 @@ def main(argv=None):
     ap.add_argument("--k-ds", default=None,
                     help="dwell: L,R, the two-stage shift -- double support only to k_ds x 62 mm, the rest to --amp over "
                          "the raise; 0 = single-stage for that side (default: single-stage both)")
+    ap.add_argument("--lift-gate", choices=["on", "off"], default="on",
+                    help="dwell: kGate on the last frame before each lift-off; the firmware then waits there while the "
+                         "body is off level (|roll - its settled double support| > 3 deg) or moving (> 15 deg/s) and ends "
+                         "the track, feet down, after a 3 s hold (`liftgate`; sim/lift_gate.py). off = frames as before")
+    ap.add_argument("--gate", default=None, metavar="LVL,RATE,DWELL,TIMEOUT",
+                    help="send `liftgate set` first: deg, deg/s, ms, ms (firmware defaults 3,15,150,3000)")
     ap.add_argument("--allow-over", action="store_true",
                     help="let the pre-check pass a shift past k_static + 0.05 (an --amp A/B on the outward side)")
     ap.add_argument("--host", default="192.168.2.90")
@@ -1000,7 +1042,8 @@ def main(argv=None):
         if seq and len(learn.by) > 1:
             print("ankle trim learning per segment key: " + ", ".join(f"{k} L {lr.A['L']:.2f} R {lr.A['R']:.2f}"
                                                                       for k, lr in learn.by.items()))
-    kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt)
+    kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt,
+                  lift_gate=a.lift_gate == "on")
     if not a.live:
         try:
             pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
@@ -1043,6 +1086,8 @@ def main(argv=None):
                      **({"yaw_trim": hold_.asked} if hold_ is not None else {})})
         pl["hold"], pl["learn"] = hold_, learn
     pl["allow_over"] = a.allow_over
+    if a.gate:
+        pl["pre"] = [f"liftgate set {' '.join(x.strip() for x in a.gate.split(','))}"] + pl["pre"]
     live(pl, a)
     return 0
 
