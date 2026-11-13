@@ -3298,6 +3298,15 @@ void cmdTrack(Sink out, int argc, char** argv) {
     say(out, "track trim %s, lead-in %ld ms, rest move %lu ms, envelope clamped %lu writes%s\r\n",
         s_track_trim ? "ON" : "OFF", s_track_lead_ms, static_cast<unsigned long>(s_trk->restMs()),
         static_cast<unsigned long>(s_track_clamps), s_track_dry_said ? ", queue DRY (holding)" : "");
+    if (s_track_nsteps > 0) {
+        // the last TS line again: the Wi-Fi host polls this reply (async lines never reach it), so its stop
+        // rule sees every single support
+        const balance::StepReport& r = s_track_log[(s_track_nsteps - 1) % kTrackStepLog];
+        say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s\r\n", static_cast<unsigned long>(s_track_nsteps),
+            r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
+            static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
+            static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "");
+    }
 }
 
 constexpr int kSwRH = obs::busIndexOfName("R_hip_roll"), kSwLH = obs::busIndexOfName("L_hip_roll"),
@@ -3352,6 +3361,10 @@ void cmdSweep(Sink out, int argc, char** argv) {
 }
 
 void poseTick(Sink out) {
+    // the IMU's online bias may follow the gyro only while nothing commands motion
+    robot::g_imu_bias_allow.store(robot::g_imu_bias_online.load() && !s_traj_active && !s_track_on &&
+                                  !robot::g_ctrl_owns_bus.load() &&
+                                  robot::g_mode_request.load() != robot::Mode::kRun);
     if (!s_traj_active) {
         // trace tail after the stream: keep sampling until s_trace_until
         if (s_trace_on) {
@@ -4206,6 +4219,35 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
+    if (argc >= 3 && !strcmp(argv[1], "bias") && !strcmp(argv[2], "online")) {
+        // the online stand-still bias (fusion.h StillBias): status, on / off, save (NVS, tether only)
+        const imu::StillBias* sb = dev->onlineBias();
+        if (sb == nullptr) { out("imu bias online: not wired on this build\r\n"); return; }
+        if (argc >= 4 && (!strcmp(argv[3], "on") || !strcmp(argv[3], "off"))) {
+            robot::g_imu_bias_online.store(!strcmp(argv[3], "on"));
+        } else if (argc >= 4 && !strcmp(argv[3], "save")) {
+            if (tetherOnly(out, "`imu bias online save` writes NVS")) return;
+            float b[3], m[4];
+            sb->bias(b);
+            const imu::Mount& cur = dev->mount();
+            m[0] = cur.w; m[1] = cur.x; m[2] = cur.y; m[3] = cur.z;
+            if (!robot::imuCalSave(b, m)) { out("NVS SAVE FAILED\r\n"); return; }
+            robot::g_imu_cal_from_nvs = true;
+            out("imu bias online: saved to NVS\r\n");
+        } else if (argc >= 4) {
+            out("usage: imu bias online [on|off|save]\r\n");
+            return;
+        }
+        float b[3];
+        sb->bias(b);
+        say(out, "imu bias online %s (%s): bias % .3f % .3f % .3f deg/s (sensor frame); still %.1f s (learns after "
+            "%.1f s), learned %.0f s since boot\r\n", robot::g_imu_bias_online.load() ? "ON" : "OFF",
+            robot::g_imu_bias_allow.load() ? "allowed now" : "frozen: motion commanded or off",
+            static_cast<double>(b[0]) * 57.29578, static_cast<double>(b[1]) * 57.29578,
+            static_cast<double>(b[2]) * 57.29578, static_cast<double>(sb->stillFor()),
+            static_cast<double>(sb->config().hold_s), static_cast<double>(sb->learnedFor()));
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "bias")) {
         if (tetherOnly(out, "`imu bias` saves to NVS")) return;
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
@@ -4738,6 +4780,7 @@ void banner(Sink out) {
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
     out("  heading [on|off|k x] IMU heading hold while walking (on at boot)\r\n");
     out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
+    out("  imu bias online [on|off|save]  the gyro bias learned at stand-still (on at boot; save = NVS)\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
     out("  ntp                  wall clock: SNTP sync state (server from DHCP)\r\n");

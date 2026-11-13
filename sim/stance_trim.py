@@ -61,6 +61,7 @@ class StanceTrim:
         if self.state == HOLD:
             if math.isfinite(roll):
                 self.err = roll - self.ref
+                self.peak = max(self.peak, abs(self.err))     # the whole single support counts (as the C++)
             return self.state
         if self.state in (FADE, ABORT_TIP, ABORT_IMU):
             self.since += dt

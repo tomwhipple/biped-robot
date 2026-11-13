@@ -407,6 +407,42 @@ void testBiasEstimator() {
 
 }  // namespace
 
+// The online stand-still bias (StillBias): learns only after `hold_s` of stillness, converges with tau,
+// freezes on motion, a tilt or an accel bump, and when the caller does not allow it.
+void testStillBias() {
+    imu::StillBias sb;
+    const float b0[3] = {0.0f, 0.0f, 0.0f};
+    sb.reset(b0);
+    const float g_true[3] = {0.002f, -0.004f, -0.0232f};      // -1.33 deg/s on z, the 2026-11-12 robot
+    const float a_still[3] = {0.0f, 0.0f, kG};
+    float b[3];
+    // 1.9 s still: nothing yet (the hold)
+    for (int k = 0; k < 475; ++k) CHECK(!sb.update(g_true, a_still, 0.004f, true));
+    sb.bias(b);
+    CHECK_NEAR(b[2], 0.0f, 1e-9);
+    // 40 s more: converges (tau 10 s -> within e^-3.8 ~ 2 %)
+    for (int k = 0; k < 10000; ++k) sb.update(g_true, a_still, 0.004f, true);
+    sb.bias(b);
+    CHECK_NEAR(b[2], g_true[2], 0.03f * fabsf(g_true[2]));
+    CHECK_NEAR(b[0], g_true[0], 1e-3);
+    CHECK(sb.still());
+    // a turn (0.2 rad/s on z): frozen, and the hold restarts
+    const float turning[3] = {0.002f, -0.004f, 0.2f};
+    const float before = b[2];
+    for (int k = 0; k < 250; ++k) CHECK(!sb.update(turning, a_still, 0.004f, true));
+    sb.bias(b);
+    CHECK_NEAR(b[2], before, 1e-9);
+    CHECK(!sb.still());
+    // still gyro but an accel bump (a step landing): frozen
+    const float bump[3] = {0.0f, 1.0f, kG * 1.1f};
+    CHECK(!sb.update(g_true, bump, 0.004f, true));
+    // still but not allowed (a pose stream / armed): frozen
+    for (int k = 0; k < 1000; ++k) CHECK(!sb.update(g_true, a_still, 0.004f, false));
+    // a bad dt is ignored
+    CHECK(!sb.update(g_true, a_still, 0.0f, true));
+    CHECK(!sb.update(g_true, a_still, 1.0f, true));
+}
+
 int main() {
     testUpMatchesMujoco();
     testProjectedGravityIsTheTranspose();
@@ -421,5 +457,6 @@ int main() {
     testNinetyDegreeMount();
     testMountedAndLevel();
     testBiasEstimator();
+    testStillBias();
     return testutil::report("fusion");
 }

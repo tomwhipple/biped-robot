@@ -464,6 +464,7 @@ bool Qmi8658Imu::readRaw(float accel[3], float gyro[3]) {
 
 void Qmi8658Imu::setBias(const float b[3]) {
     for (int i = 0; i < 3; ++i) bias_[i] = b[i];
+    if (online_ != nullptr) online_->reset(b);
 }
 
 void Qmi8658Imu::bias(float out[3]) const {
@@ -508,18 +509,25 @@ bool Qmi8658Imu::read(Sample& out) {
     if (!ready_) return false;
 
     float accel_s[3], gyro_s[3];
-    if (!readRaw(accel_s, gyro_s)) return false;
+    if (!readRawUnbiased(accel_s, gyro_s)) return false;
+
+    const uint64_t now = static_cast<uint64_t>(esp_timer_get_time());
+    float dt = static_cast<float>(now - last_us_) * 1e-6f;
+    last_us_ = now;
+    if (dt <= 0.0f || dt > 0.5f) dt = 0.02f;   // first tick, or a stall
+
+    // The online stand-still bias, on the raw gyro, then the bias off it (what readRaw() does).
+    if (online_ != nullptr && online_allow_ != nullptr &&
+        online_->update(gyro_s, accel_s, dt, online_allow_->load(std::memory_order_relaxed))) {
+        online_->bias(bias_);
+    }
+    for (int i = 0; i < 3; ++i) gyro_s[i] -= bias_[i];
 
     // Sensor frame -> body frame. Everything downstream, the filter included,
     // is body frame; this is the only place the mounting rotation appears.
     float accel_b[3], gyro_b[3];
     applyMount(mount_, accel_s, accel_b);
     applyMount(mount_, gyro_s, gyro_b);
-
-    const uint64_t now = static_cast<uint64_t>(esp_timer_get_time());
-    float dt = static_cast<float>(now - last_us_) * 1e-6f;
-    last_us_ = now;
-    if (dt <= 0.0f || dt > 0.5f) dt = 0.02f;   // first tick, or a stall
 
     // First valid sample sets the attitude outright; see Fusion::alignTo.
     if (!aligned_) {

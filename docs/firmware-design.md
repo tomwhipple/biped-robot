@@ -685,6 +685,18 @@ envs' gate: vx, vy or wz past 0.05, or the lift channel past 0.5.
   holds CPU against MJX. The policy SIL (`sil_set_trim`, `host/test_sil`)
   runs it in the deployed control path.
 
+**Online gyro bias at stand-still** (`imu::StillBias`, `imu bias online`). The fused yaw dead-reckons the
+gyro, so any residual bias is heading drift. On 2026-11-12 it was −1.33 deg/s at rest, and it moved by
+~0.1 deg/s between runs.
+- **When it learns.** The driver feeds every raw read to a stand-still estimator. Still means every gyro
+  axis within 2.9 deg/s of the current bias and |a| within 3 % of g, for ≥ 2 s. Housekeeping must also
+  allow it: no pose stream, no track, not armed. While still, the bias follows the raw gyro with a 10 s
+  time constant. Any motion freezes it and restarts the hold.
+- **Seeding.** The NVS bias (and `imu bias`) seeds it.
+- **Commands.** `imu bias online` shows it, `on` / `off` (on at boot), and `save` writes it to NVS
+  (tether only). Nothing is written to NVS by itself.
+- **Tests.** `host/test_fusion` (hold, convergence, freeze on motion / an accel bump / not allowed).
+
 **Fall guard** (`components/fallguard`, `fall`). One module, one table of
 limits, used by both control paths (Tom 2026-11-01: work towards one
 policy-driven system, not a bench system and a policy system):

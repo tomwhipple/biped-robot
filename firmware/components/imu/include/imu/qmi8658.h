@@ -35,6 +35,8 @@
 #pragma once
 #include <stdint.h>
 
+#include <atomic>
+
 #include "driver/gpio.h"
 #include "imu/fusion.h"
 #include "imu/imu.h"
@@ -118,6 +120,13 @@ class Qmi8658Imu : public Imu {
     bool calibrateBias(float bias_out[3], float spread_out[3]);
     void setBias(const float bias[3]);
     void bias(float out[3]) const;
+    // The online stand-still bias (fusion.h StillBias): every read feeds it the raw gyro and takes its bias
+    // while `allow` says nothing commands motion. setBias() (NVS, `imu bias`) re-seeds it. nullptr = off.
+    void setOnlineBias(StillBias* sb, const std::atomic<bool>* allow) {
+        online_allow_ = allow;
+        online_ = sb;
+    }
+    const StillBias* onlineBias() const { return online_; }
 
     // Bench diagnostic: force the AttitudeEngine on and report what the dQ/dV
     // registers actually contain. This exists because the datasheet copy we
@@ -146,6 +155,8 @@ class Qmi8658Imu : public Imu {
     Fusion& fusion() { return fusion_; }
 
   private:
+    StillBias* online_ = nullptr;
+    const std::atomic<bool>* online_allow_ = nullptr;
     bool busInit();
     bool regRead(uint8_t reg, uint8_t* buf, size_t len);
     bool regWrite(uint8_t reg, uint8_t val);
