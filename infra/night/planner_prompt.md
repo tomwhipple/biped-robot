@@ -150,8 +150,10 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
   student passes stride1 at refit μ 0.4 on the measured-sole plant **and** Tom
   has seen it. "Stride working" means that student also takes a stride on the
   robot.
-- Fill the whole night (22:00 – 05:00 starts) with legs jobs. A 300M legs teacher
-  takes ~38 min and a distil ~3 min, so about 8 – 9 teacher + distil pairs fit.
+- Fill the whole night (22:00 – 07:00; Tom 2026-11-12: "cutoff should be 07:00 MST") with legs jobs,
+  longest / most important first; a short job may go last. A job starts while it still fits: the
+  runner caps its --steps to (07:00 − now − 15 min) × rate and leaves it (and everything after it)
+  queued if that is under half its --steps. A 300M legs teacher takes ~38 min and a distil ~3 min.
 - **Latest from GitHub, before you queue:**
   1. `git fetch origin`, and fast-forward `~/code/robot`.
   2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
@@ -227,8 +229,8 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
 > running all night, every night, always pulling in the latest knowledge.
 
 Your job this morning: **evaluate last night, record what it taught, and queue
-tonight** — a full night of get-up training (22:00 – 05:00 starts, ~1.6 h per
-600M-step Warp job: queue 5 jobs).
+tonight** — a full night of get-up training (22:00 – 07:00, starts while a job still fits before
+the 07:00 stop; ~1.6 h per 600M-step Warp job).
 
 ## Two tracks (Tom, 2026-10-24): one-leg stands and short walks, and get-up
 
@@ -274,7 +276,7 @@ line must now produce policies that can actually run ON THE ESP32 (no PC-side 50
   zero-command stand first (the first hardware deploy is "stand under the policy"), then walk_steps L/R
   (>= 3 cm clearance) and turn_180. Close the teacher->student gap (students fell 50-55 % on the full
   scorecard vs teachers ~21 % on 10-31): try distillation settings and report the gap every morning.
-- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-05:00 starts
+- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-07:00 (the fit rule above)
   (~50 min per 400M legs job, ~30 min distill, ~1.6 h per 600M get-up job).
 
 ## FAST servo config (2026-11-02) -- supersedes the 60-80 ms STS3215 dead time
