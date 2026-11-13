@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import random
 import sys
@@ -32,7 +33,7 @@ _orig_go = S.Run.go
 def _go(self, ms, tag):
     _orig_go(self, ms, tag)
     if hasattr(self.r, "tell"):
-        self.r.tell(self.feet, self.hike, self.ankle)    # the fake body follows the commanded feet and trims
+        self.r.tell(self.feet, self.hike, self.ankle, math.degrees(self.psi_p))    # the fake body follows the commanded feet, trims and heading
 
 
 _load_state = S.load_state
@@ -48,7 +49,10 @@ def _safe_state():
 def env():
     """No sleeping, state and logs in a temp dir, the fake body told where the feet are."""
     random.seed(1)
-    with tempfile.TemporaryDirectory() as d, mock.patch.object(time, "sleep", lambda s: None), \
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with tempfile.TemporaryDirectory() as d, mock.patch.object(time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s)), \
+            mock.patch.object(time, "monotonic", lambda: clock[0]), \
             mock.patch.object(S, "STATE", os.path.join(d, "state.json")), mock.patch.object(S.Run, "go", _go), mock.patch.object(S, "load_state", _safe_state):
         yield d
 
@@ -199,7 +203,7 @@ def test_board_stops():
     with env() as d:                                                # one miss is tolerated, two stop
         run = make(d)
         ok = dict(left_mm=100.0, right_mm=100.0, ahead_px=300, mm_per_px=0.5, sep_mm=137.0, sole_l_mm=68.0, sole_r_mm=-69.0, conf=0.9)
-        board_stub(run, script=lambda n: None if n in (2, 4, 5) else ok)
+        board_stub(run, script=lambda n: None if n in (2, 3, 5, 6, 7, 8) else ok)      # (a miss is a failure of the overlapped AND the settled look)
         out = run.walk("L", 8, 0.02, 0.0, board=True)
         check_up(out, 4)
         assert "not seen" in run.stop_why, run.stop_why
@@ -395,8 +399,776 @@ def test_wide_stance_and_reach_limit():
         run.finish(save=False)
 
 
+def test_link_drop_retry_and_stand_down():
+    import types
+    import robot_io
+    W = robot_io.W
+
+    class Flaky:                                          # a wcliproto.Client whose link drops `drops` times
+        def __init__(self, drops):
+            self.drops, self.lines, self.connects = drops, [], 0
+
+        def command(self, line, idle_timeout=0, **kw):
+            self.lines.append(line)
+            if line.startswith("pose") and self.drops > 0:
+                self.drops -= 1
+                raise W.LinkDown("robot not answering (command 257 outcome unknown)")
+            return types.SimpleNamespace(status="done", text="ok\r\n", refused=False, seq=1)
+
+        def connect(self, *a, **kw):
+            self.connects += 1
+
+        def close(self): pass
+        def idle(self, t): pass
+
+    def robot(drops, retries=3):
+        r = robot_io.Robot.__new__(robot_io.Robot)
+        r.c, r.link_retries, r.link_wait, r.log, r.t0 = Flaky(drops), retries, 2.0, None, 0.0
+        r.events = []
+        r.on_link = r.events.append
+        return r
+    with mock.patch.object(robot_io.time, "sleep", lambda s: None):
+        r = robot(2)
+        r.cmd("pose 1 2 3 s500")                              # two drops, then it gets through
+        assert r.c.lines.count("pose 1 2 3 s500") == 3 and r.c.lines.count("imu") == 2, r.c.lines     # re-read the IMU, re-sent the pose
+        assert [e["ev"] for e in r.events].count("down") == 2 and r.events[-1]["ev"] == "reconnected", r.events
+        assert r.c.connects == 2
+        r = robot(9)
+        try:
+            r.cmd("pose 1 2 3 s500")
+        except W.LinkDown:
+            assert r.c.lines.count("pose 1 2 3 s500") == 4                    # the first try and 3 retries
+        else:
+            raise AssertionError("a link that stays down must raise")
+        r = robot(0)
+        r.cmd("torque")
+        assert r.c.lines == ["torque"]
+    # the run: the stand-down gets a fresh connection; and says so plainly if there is none
+    class DownRobot(FakeRobot):
+        down = 0
+
+        def pose(self, q, ms, wait=True, margin=0.0):
+            if self.down > 0:
+                self.down -= 1
+                raise robot_io.LinkDown("robot not answering")
+            return super().pose(q, ms, wait, margin)
+
+        def fresh(self):
+            self.down = 0
+            self.fresh_calls = getattr(self, "fresh_calls", 0) + 1
+    import io
+    with env() as d:
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+        rob = DownRobot(kin)
+        run = S.Run("link", rob, kin, prm, quiet=QUIET, log_dir=d)
+        run.stand_up()
+        run.walk("L", 2, 0.02, 0.0)
+        rob.down = 1                                       # the link drops for the stand-down pose
+        run.finish(save=False)
+        assert rob.fresh_calls == 1
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert any(r["ev"] == "link" and r.get("what") == "fresh_connection" for r in rows) and any(r["ev"] == "link" and r.get("what") == "stand_down_failed" for r in rows)
+    with env() as d:
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+
+        class Dead(DownRobot):
+            def fresh(self):
+                pass
+        rob = Dead(kin)
+        run = S.Run("link2", rob, kin, prm, quiet=True, log_dir=d)
+        run.stand_up()
+        rob.down = 99
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            run.finish(save=False)
+        assert "torque is still ON" in buf.getvalue() and "LINK DOWN" in buf.getvalue(), buf.getvalue()
+        assert any('"left_torqued"' in line for line in open(run.base + ".jsonl"))
+
+
+def test_turning_kinematics():
+    """The facts the turning rests on (checked against design_gates / v6_kin, 2026-11-11)."""
+    import numpy as np
+    import design_gates as G
+    k = Kin(0.02)
+
+    def q(**kw):
+        key = k.k1.copy()
+        for a, b in kw.items():
+            setattr(key, a, b)
+        v = G.q_of(k.p, key)
+        return {n: float(v[G.JN.index(n)]) for n in G.JN}
+    q0 = q()
+    assert abs(q(yawL=0.1)["L_hip_yaw"] - q0["L_hip_yaw"] - 0.1) < 1e-9           # a sole yawed +a (CCW): hip_yaw +a
+    assert abs(q(heading=0.2)["L_hip_yaw"] - q0["L_hip_yaw"] + 0.2) < 1e-9        # a pelvis turned +a, feet fixed: hip_yaw -a
+    base = k.pose(shift=0.01, fwd=0.005, footL=(0.01, 0.002, 0.0), footR=(-0.01, 0.0, 0.0))
+    for ref in (0.3, -0.5):                                                       # rotating everything rigidly: no joint moves
+        turned = k.pose(shift=0.01, fwd=0.005, footL=(0.01, 0.002, 0.0), footR=(-0.01, 0.0, 0.0), ref=ref, heading=ref, yawL=ref, yawR=ref)
+        assert max(abs(turned[n] - base[n]) for n in base) < 1e-9, ref
+    plain = k.pose(shift=0.01)                                                    # with all of it 0 the pose is the old one
+    assert k.pose(shift=0.01, ref=0.0, heading=0.0, yawL=0.0, yawR=0.0) == plain
+    assert np.isfinite(list(k.pose(shift=0.02, ref=0.1, heading=0.15, yawL=0.2, yawR=0.2).values())).all()
+
+
+def heading_fake(d, slip_per_landing=0.0):
+    prm = S.load_state()
+    kin = Kin(prm["drop"])
+    rob = FakeRobot(kin)
+    run = S.Run("turn", rob, kin, prm, quiet=QUIET, log_dir=d)
+    run.stand_up()
+    lower0 = run.lower_foot
+
+    def lower(swing, fast=False):
+        r = lower0(swing, fast)
+        rob.slip += slip_per_landing                      # each landing yaws the body on its own
+        return r
+    run.lower_foot = lower
+    return run, rob
+
+
+def test_turn_and_hold_heading():
+    with env() as d:                                      # 30 deg over 4 pairs, the fused yaw drifting at -1 deg/s
+        run, rob = heading_fake(d)
+        out = run.walk("L", 8, 0.0, 0.0, hold=0.0, march=True, dyaw=7.5)
+        check_up(out, 8)
+        run.centre()
+        assert abs(rob.psi_deg + rob.slip - 30.0) < 3.0, (rob.psi_deg, rob.slip)
+        assert abs(run.heading_now() - (rob.psi_deg + rob.slip)) < 1.0, (run.heading_now(), rob.psi_deg)
+        assert max(abs(math.degrees(v)) for v in run.yawf.values()) <= 30.0 + 1e-6
+        run.finish(save=False)
+    with env() as d:                                      # a turn of 3 pairs to the right, walking
+        run, rob = heading_fake(d)
+        out = run.walk("L", 6, 0.02, 0.0, dyaw=-8.0)
+        check_up(out, 6)
+        run.centre()
+        assert abs(rob.psi_deg + rob.slip + 24.0) < 3.0, rob.psi_deg
+        run.finish(save=False)
+    with env() as d:                                      # a straight walk, the body yawing 2 deg on its own every step
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        trace = []
+        lift0 = run.lift
+
+        def lift(swing, **kw):
+            r = lift0(swing, **kw)
+            trace.append(rob.psi_deg + rob.slip)
+            return r
+        run.lift = lift
+        out = run.walk("L", 12, 0.02, 0.0)
+        check_up(out, 12)
+        assert all(abs(h) <= 5.0 for h in trace) and all(abs(h) <= 4.0 for h in trace[6:]), [round(h, 1) for h in trace]   # (24 without the loop)
+        run.finish(save=False)
+    with env() as d:                                      # the same with the loop off: the body walks away
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        run.p["yaw_gain"] = 0.0
+        run.walk("L", 12, 0.02, 0.0)
+        assert abs(rob.psi_deg + rob.slip) > 20.0
+        run.finish(save=False)
+    with env() as d:                                      # --board: a heading past yaw_board_max ends the run
+        run, rob = heading_fake(d, slip_per_landing=2.0)
+        run.p["yaw_gain"] = 0.0
+        board_stub(run, left0=300.0, right0=300.0)
+        out = run.walk("L", 20, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert run.stop_why and "heading" in run.stop_why and 8 <= len(out) <= 14, (len(out), run.stop_why)
+        run.finish(save=False)
+
+
+def test_step_budget():
+    """Where a step's time goes, on the fake's virtual clock (a round trip: IMU 94 ms, a pose 100 ms + its move +
+    the margin). Round 8 cut it from ~14.9 s per step at pace 1.0 (41 IMU reads, 13.5 poses at 0.15 s margin, settle
+    waits after every shift and landing)."""
+    import fake_robot
+    with env() as d:
+        run = make(d)
+        reads = [0]
+        imu0 = run.r.imu
+
+        def imu():
+            reads[0] += 1
+            return imu0()
+        run.r.imu = imu
+        t0, r0 = fake_robot.CLOCK[0], reads[0]
+        out = run.walk("L", 4, 0.02, 0.0)
+        check_up(out, 4)
+        per = (fake_robot.CLOCK[0] - t0) / 4
+        n = (reads[0] - r0) / 4
+        print(f"   step budget: {per:.1f} s per step, {n:.0f} IMU reads per step")
+        assert per < 15.5 and n < 32, (per, n)
+        run.finish(save=False)
+
+
+def test_turn_bookkeeping_invariants():
+    """A 90 deg turn in 12 pairs. Re-basing the frame is a change of coordinates: the pose sent must not change by a hair
+    (the round-8 code rotated the feet's OFFSETS, not their positions: its pose jumped by 0.0145 rad at each re-base,
+    cumulative, and the bookkeeping walked off: the 261 mm 'shift' of the 161649 fall). In the stance foot's own frame
+    the pelvis stays k_shift * oy from it and the swing foot where it was placed, at every heading."""
+    with env() as d:
+        run = make(d)
+        jumps, rels, shifts = [], [], []
+
+        def pose_now():
+            return run.k.pose(shift=run.pel[1], fwd=run.pel[0], footL=run.cmd("L"), footR=run.cmd("R"), drop=run.p["drop"],
+                              ref=run.psi_ref, heading=run.psi_p, yawL=run.yawf["L"], yawR=run.yawf["R"])
+        rb0, so0 = run.rebase, run.shift_over
+
+        def rebase(dd):
+            q1 = pose_now()
+            rb0(dd)
+            q2 = pose_now()
+            jumps.append(max(abs(q1[n] - q2[n]) for n in q1))
+        run.rebase = rebase
+
+        def shift_over(stance):
+            r = so0(stance)
+            sw = "R" if stance == "L" else "L"
+            base = {"L": run.k.k1.footL[:2], "R": run.k.k1.footR[:2]}
+            rels.append([base[sw][i] + run.feet[sw][i] - base[stance][i] - run.feet[stance][i] for i in (0, 1)])
+            shifts.append((run.pel[1] - run.fy(stance), run.p["k_shift"][stance] * run.off[stance][1]))
+            return r
+        run.shift_over = shift_over
+        out = run.walk("L", 24, 0.0, 0.0, hold=0.0, march=True, dyaw=7.5)
+        check_up(out, 24)
+        assert 80.0 < math.degrees(run.psi_ref) < 92.0, math.degrees(run.psi_ref)
+        assert len(jumps) >= 20 and max(jumps) < 1e-9, max(jumps)                            # (0.0145 before)
+        diffs = [abs(a - b) for a, b in shifts]                                             # the pelvis k * oy from the stance foot
+        assert max(diffs) < 0.03 and sum(x < 1e-3 for x in diffs) >= 0.7 * len(diffs), diffs   # (a shift may end early: the weight is across)
+        assert max(math.hypot(r[0], abs(r[1]) - 0.084) for r in rels) < 0.012, [round(1e3 * r[0], 1) for r in rels]   # the swing foot stays beside it
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert all(abs(r["shift"]) < 120 for r in rows if r["ev"] == "air"), [r["shift"] for r in rows if r["ev"] == "air"][:5]
+        run.finish(save=False)
+
+
+def test_sole_levelling_fk():
+    """The swing sole's world normal is vertical (within 0.5 deg) after the trims, whatever roll / pitch the body
+    hangs at: by forward kinematics on the MuJoCo model kin.py loads (signs derived there, not argued)."""
+    import numpy as np
+    import design_gates as G
+    import v6_kin as K
+    from kin import OL
+    k = Kin(0.02)
+    m, md = OL.K.load(k.p)
+
+    def quat(ax, a):
+        c, s = math.cos(a / 2), math.sin(a / 2)
+        return np.array([c] + [s * x for x in ax])
+
+    def qmul(a, b):
+        w1, x1, y1, z1 = a
+        w2, x2, y2, z2 = b
+        return np.array([w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                         w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2])
+
+    def normal(q, side, roll_deg, pitch_deg):
+        tq = qmul(quat((1, 0, 0), math.radians(roll_deg)), quat((0, 1, 0), math.radians(pitch_deg)))   # IMU roll + = right down, pitch + = forward
+        K.set_pose(m, md, np.array([q[n] for n in G.JN]), torso_pos=(0, 0, 1.0), torso_quat=tuple(tq))
+        return K.foot_frame(m, md, side)[1][:, 2]
+    with env() as d:
+        run = make(d)
+        run.ref0 = dict(roll=0.0, pitch=0.0)
+        run.p["sole_bias"] = {"L": 0.0, "R": 0.0}
+        for side in "LR":
+            for roll, pitch in ((5.0, -3.0), (-6.0, 2.0), (4.0, 4.0), (0.0, 0.0)):
+                run.sole_r = {"L": 0.0, "R": 0.0}
+                run.sole_p = {"L": 0.0, "R": 0.0}
+                for _ in range(6):                                            # sole_rate per update: converge
+                    run.level_sole(side, dict(roll=roll, pitch=pitch))
+                q = k.pose(ankle={f: math.radians(run.sole_r[f]) for f in "LR"}, ankle_p={f: math.radians(run.sole_p[f]) for f in "LR"})
+                n = normal(q, side, roll, pitch)
+                tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(n[2])))))
+                assert tilt < 0.5, (side, roll, pitch, tilt, run.sole_r[side], run.sole_p[side])
+                untrimmed = normal(k.pose(), side, roll, pitch)
+                assert roll == pitch == 0.0 or math.degrees(math.acos(float(untrimmed[2]))) > 2.0     # it was tilted before
+        # the bias: the OUTER edge of either sole up by 2 deg (n_y < 0 tips the left edge up, n_y > 0 the right)
+        run.p["sole_bias"] = {"L": 2.0, "R": 2.0}
+        for side, sgn in (("L", -1.0), ("R", 1.0)):
+            run.sole_r = {"L": 0.0, "R": 0.0}
+            run.sole_p = {"L": 0.0, "R": 0.0}
+            for _ in range(3):
+                run.level_sole(side, dict(roll=0.0, pitch=0.0))
+            q = k.pose(ankle={f: math.radians(run.sole_r[f]) for f in "LR"}, ankle_p={f: math.radians(run.sole_p[f]) for f in "LR"})
+            n = normal(q, side, 0.0, 0.0)
+            assert abs(sgn * float(n[1]) - math.sin(math.radians(2.0))) < 0.002, (side, n)
+        # clamped and rate-limited
+        run.sole_r = {"L": 0.0, "R": 0.0}
+        run.level_sole("L", dict(roll=-30.0, pitch=0.0))
+        assert abs(run.sole_r["L"]) <= run.p["sole_rate"] + 1e-9
+        for _ in range(10):
+            run.level_sole("L", dict(roll=-30.0, pitch=40.0))
+        assert abs(run.sole_r["L"]) <= run.p["sole_trim_max"] + 1e-9 and abs(run.sole_p["L"]) <= run.p["sole_trim_max"] + 1e-9
+        run.finish(save=False)
+
+
+def test_swing_room_and_soft_landing():
+    with env() as d:
+        run = make(d)
+        how, h = run.lift("L", hold=0.0, dx=0.02)
+        assert how == "up"
+        run.lift("R", hold=0.0, dx=0.04)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        poses = [r for r in rows if r["ev"] == "pose"]
+        assert all("sole_r" in r and "sole_p" in r for r in poses)
+        extra = [r for r in poses if r["tag"].startswith("extra L")]
+        swing = [r for r in poses if r["tag"].startswith("swing L")]
+        assert extra and swing
+        assert abs(swing[0]["feet"]["L"][2] - extra[0]["feet"]["L"][2]) < 1e-12 and extra[0]["feet"]["L"][2] >= h + run.p["swing_extra"] - 1e-9, (extra[0]["feet"]["L"], h)
+        low = [r for r in poses if r["tag"].startswith("lower L")]
+        assert low[-1]["tag"] == "lower L 0" and low[-1]["ms"] == int(1e3 * run.p["t_land"]), low[-1]
+        assert low[-2]["tag"] == "lower L 6", [r["tag"] for r in low]                       # the last 6 mm in one slow move
+        assert max(abs(v) for r in poses for v in list(r["sole_r"].values()) + list(r["sole_p"].values())) <= run.p["sole_trim_max"] + 1e-9
+        assert any(abs(r["sole_r"]["L"]) > 0.5 for r in poses if r["tag"].startswith(("raise L", "swing L")))      # it trims in the air
+        # the trims go as the next shift loads the foot
+        sh = [r for r in poses if r["tag"].startswith("shift L")]
+        assert sh and all(abs(v) < 1e-9 for v in sh[-1]["sole_r"].values()), sh[-1]["sole_r"]
+        run.finish(save=False)
+
+
+def catch_fake(d, old_catch=False):
+    """The robot starts to go over toward the lifted left foot when it is lifted at too small a shift (the tilt toward it
+    grows). A foot driven BELOW its touch height (lever * sin(tilt), where it already meets the floor) pushes the body over
+    the stance side: roll away proportional to the over-travel, and beyond 10 deg it falls. Returns (run, state)."""
+    import fake_robot
+    from nool import FOOT_SEP, SOLE_HALF
+    clock = fake_robot.CLOCK
+    run = make(d)
+    st = dict(t0=None, caught=False, push=0.0, fell_push=False, fell=None, verdict=None, touch=None, tilt=0.0, tilt_at=0.0, max_push=0.0)
+    sw, stn = "L", "R"
+    orig_read = run.read
+
+    def read(tag=""):
+        s = dict(orig_read(tag))
+        ratio = abs(run.pel[1] - run.fy(stn)) / abs(run.off[stn][1])
+        up = run.feet[sw][2] > 0.003
+        if up and ratio < 1.15 and not st["caught"]:
+            if st["t0"] is None:
+                st["t0"] = clock[0]
+            dt = clock[0] - st["t0"]
+            st["tilt"] = 0.5 * 12.0 * dt * dt
+            s["gyro"] = [-math.radians(12.0 * dt), s["gyro"][1], s["gyro"][2]]
+            s["rate"] = 12.0 * dt
+        elif not up:
+            st["t0"] = None
+            if not st["caught"]:
+                st["tilt"] = 0.0
+        if st["caught"]:
+            st["tilt"] = 0.0
+        s["roll"] += -st["tilt"] + st["push"]                  # toward the left foot is roll -; pushed over the stance side is +
+        s["gyro"] = [s["gyro"][0] + math.radians(4.0 * st["push"]), s["gyro"][1], s["gyro"][2]]     # (the rate away, while pushed)
+        st["push"] *= 0.8
+        run.last_imu = s
+        return s
+    run.read = read
+    raise0 = run.raise_foot
+
+    def raise_foot(swing):
+        r = raise0(swing)
+        if r[0] in ("tipping_in", "fell_in", "tipping"):
+            st["verdict"] = clock[0]
+            st["tilt_at"] = st["tilt"]
+        return r
+    run.raise_foot = raise_foot
+    go0 = run.go
+
+    def go(ms, tag):
+        go0(ms, tag)
+        z = run.feet[sw][2]
+        touch = (FOOT_SEP + SOLE_HALF) * math.sin(math.radians(st["tilt_at"] if tag == "catch L" else st["tilt"]))
+        if tag.startswith("catch") and st["touch"] is None:
+            st["touch"] = (z, run.sole_r[sw], st["tilt_at"], clock[0] - st["verdict"])
+            st["caught"] = True                                 # on the floor: it stops going over
+        if tag.startswith("catch") and z < touch - 1e-9:        # driven into the floor: the body is thrown over the stance foot
+            st["push"] += 500.0 * (touch - z)
+            st["max_push"] = max(st["max_push"], st["push"])
+            if st["push"] > 10.0:
+                st["fell_push"] = True
+        if st["verdict"] is not None and st["touch"] is None and clock[0] - st["verdict"] > 0.6 and z > 0.003 and st["fell"] is None:
+            st["fell"] = clock[0] - st["verdict"]
+    run.go = go
+    if old_catch:                                               # round 11's catch: straight to z = 0
+        def old(swing):
+            run.level_sole(swing, run.last_imu, free=True)
+            run.feet[swing][2] = 0.0
+            run.go(int(1e3 * run.p["t_catch"]), f"catch {swing}")
+        run.catch = old
+    return run, st
+
+
+def test_catch_reflex():
+    """The new catch lowers the foot only to where it meets the floor at the current tilt and then brings it to 0 in
+    monitored 5 mm moves: no fall. The round-11 catch (z = 0 in one move) drives the foot 23 mm into the floor at 8 deg of
+    tilt, throws the body over the stance foot, and falls in the same fake (regression guard)."""
+    with env() as d:
+        run, st = catch_fake(d, old_catch=True)
+        try:
+            run.lift("L", hold=0.0)
+        except (S.Abort, RuntimeError):                         # the lean limit stops it on the next shift
+            pass
+        assert st["fell_push"], st                              # the old catch falls
+    with env() as d:
+        run, st = catch_fake(d)
+        k0 = run.p["k_shift"]["R"]
+        how, h = run.lift("L", hold=0.0)
+        assert st["verdict"] is not None, "the fake never tipped"
+        assert st["fell"] is None and not st["fell_push"], st
+        z, trim, tilt, dt = st["touch"]
+        assert dt < 0.6, st
+        assert 0.005 < z <= (0.121 + 0.042) * math.sin(math.radians(tilt)) + 0.002, (z, tilt)           # not below where it meets the floor, not to 0
+        assert abs(trim - tilt) < 2.0, (trim, tilt)                            # flat from the IMU
+        assert how == "up", how
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        lifts = [r for r in rows if r["ev"] == "lift"]
+        assert lifts[1]["k"] >= k0 + run.p["k_step"] - 1e-9, [r["k"] for r in lifts]                  # k rose for the next attempt
+        assert lifts[0]["how"] == "tipping_in" and lifts[-1]["how"] == "up", [r["how"] for r in lifts]
+        cat = [r for r in rows if r["ev"] == "catch"]
+        assert cat and cat[0]["swing"] == "L" and cat[0]["out_mm"] > 0 and cat[0]["h_touch_mm"] > 5, cat
+        poses = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("catch L")]
+        assert poses[0]["ms"] == int(1e3 * run.p["t_catch"]) and poses[0]["feet"]["L"][2] > 0.005     # one fast move to the touch height
+        assert poses[-1]["tag"] == "catch L 0" and poses[-1]["feet"]["L"][2] == 0.0                   # then 5 mm moves to the floor
+        zs = [r["feet"]["L"][2] for r in poses]
+        assert all(a - b <= 0.005 + 1e-9 for a, b in zip(zs[1:], zs[2:])), zs
+        assert not any(r["tag"].startswith("catch back") for r in rows if r["ev"] == "pose")        # the pelvis is never moved
+        assert any(r["ev"] == "imu" and r["tag"] == "pre-shift R" for r in rows)                      # the next shift starts from a settle
+        run.finish(save=False)
+    assert S.DEFAULTS["k_floor"] == 1.1 and S.DEFAULTS["tip_in_margin"] == 2.5 and S.DEFAULTS["tip_in_rate"] == 12.0
+    assert S.DEFAULTS["catch_rate_out"] == 8.0
+    with env() as d:                                      # t_catch is not scaled by --pace
+        prm = S.apply_pace(S.load_state(), 0.6)
+        assert prm["t_catch"] == 0.2
+    with env() as d:                                      # fell_in: the foot is back on the floor: the ordinary slow lowering, no catch
+        run = make(d)
+        raise0 = run.raise_foot
+        calls = []
+
+        def raise_foot(swing):
+            calls.append(1)
+            return ("fell_in", 0.01) if len(calls) == 1 else raise0(swing)
+        run.raise_foot = raise_foot
+        how, h = run.lift("L", hold=0.0)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert how == "up" and not any(r["ev"] == "catch" for r in rows), [r["ev"] for r in rows if r["ev"] == "catch"]
+        low = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("lower L")]
+        assert low and low[0]["ms"] > int(1e3 * run.p["t_catch"]) - 1 or low[0]["ms"] == int(1e3 * run.p["t_land"]), low[:2]
+        assert run.p["k_shift"]["R"] > 1.0
+        run.finish(save=False)
+
+
+def test_look_second_try():
+    """A look taken right after a landing fails (the robot is still moving and leaning); the settled look a moment
+    later succeeds. The walk goes on, only a failure of the settled look counts as a miss, and the log says which try
+    worked."""
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with env() as d:
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0)
+        last = [clock[0] - 5.0]                                  # (standing still at the start)
+        go0 = run.go
+
+        def go(ms, tag):
+            go0(ms, tag)
+            last[0] = clock[0]
+        run.go = go
+        look0 = run.look
+
+        def look(tag):
+            if clock[0] - last[0] < 0.2:                       # moving: the frames are blurred and leaning: not seen
+                run.log("board", tag=tag, seen=False, why="moving")
+                return None
+            return look0(tag)
+        run.look = look
+        out = run.walk("L", 6, 0.0, 0.0, hold=0.0, board=True, march=True)
+        check_up(out, 6)
+        assert run.stop_why is None, run.stop_why
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        tries = [(r["which"], r["ok"]) for r in rows if r["ev"] == "look_try"]
+        assert tries[0] == ("still", True), tries
+        assert tries.count(("overlapped", False)) == 5 and tries.count(("settled", True)) == 5, tries
+        assert not any(("settled", False) == t for t in tries) and run.misses == 0
+        run.finish(save=False)
+    with env() as d:                                          # a look that fails after settling too still counts, twice stops
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0, script=lambda n: dict(left_mm=300.0, right_mm=300.0, ahead_px=300, mm_per_px=1.0,
+                   sole_l_mm=68.5, sole_r_mm=-68.5, sep_mm=137.0, conf=0.9) if n == 1 else None)
+        out = run.walk("L", 8, 0.0, 0.0, hold=0.0, board=True, march=True)
+        assert run.stop_why and "not seen" in run.stop_why and len(out) == 2, (len(out), run.stop_why)
+        run.finish(save=False)
+    with env() as d:                                          # every frame of a look is newer than the request
+        run = make(d)
+        reqs = []
+        run.latest = os.path.join(d, "latest.jpg")
+        import cv2
+        im = cv2.imread(os.path.join(HERE, "testdata", "frames", "dim_start.jpg"))
+
+        def nxt(after, tmax):
+            reqs.append(after)
+            return im, after + 0.1
+        run._next_frame = nxt
+        t_before = time.time()
+        run.look("t")
+        assert reqs and reqs[0] >= t_before - 1e-3, (reqs, t_before)
+        run.finish(save=False)
+
+
+def assert_plain(x, where="state"):
+    if isinstance(x, dict):
+        for k, v in x.items():
+            assert type(k) is str, (where, k)
+            assert_plain(v, f"{where}.{k}")
+    elif isinstance(x, (list, tuple)):
+        for i, v in enumerate(x):
+            assert_plain(v, f"{where}[{i}]")
+    else:
+        assert type(x) in (str, int, float, bool, type(None)), (where, type(x), x)
+
+
+def test_state_and_log_are_plain():
+    """No numpy scalar in the learned values, the bookkeeping, the state file, the log, or the RESULT line (np.float64 once
+    reached k_shift through the frame rotation of a turn)."""
+    import io
+    with env() as d:
+        run = make(d)
+        board_stub(run, left0=300.0, right0=300.0, miss={"L": -15.0, "R": -20.0})
+        run.walk("L", 8, 0.02, 0.0, board=True, dyaw=7.5)          # a turn, with looks, landing learning, the reach checks
+        run.sanitize()
+        assert_plain({k: run.p[k] for k in S.LEARNED}, "learned")
+        assert_plain([run.feet, run.pel, run.hike, run.sole_r, run.sole_p], "bookkeeping")
+        run.finish(save=True)
+        assert_plain(json.load(open(S.STATE)), "state file")
+        for line in open(run.base + ".jsonl"):
+            row = json.loads(line)                                  # round-trips, and was written without numpy types
+            assert_plain(row, f"log {row['ev']}")
+            assert json.dumps(row) == json.dumps(json.loads(json.dumps(row)))
+            assert "np." not in line
+    with env() as d:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = S.main(["walk", "--steps", "6", "--dx", "0.02", "--dyaw", "7.5", "--hold", "0"], make_robot=FakeRobot, log_dir=d)
+        assert rc == 0 and "RESULT" in buf.getvalue() and "np." not in buf.getvalue(), buf.getvalue()[-400:]
+
+
+def test_gentle_outward_tip_and_shift_cost():
+    """The outward tip over the left stance foot starts gently: beyond a threshold shift the lean toward the stance side
+    grows 1 deg per 2.5 mm. The LEAN-only guard in the 6 mm final approach stops it with a lean under 3.5 deg, no fall;
+    the lift then completes from the re-approach. And a normal shift costs at most 4 extra moves."""
+    thr = 75.0
+    with env() as d:
+        run = make(d)
+        orig_read = run.read
+        st = dict(fell=False, max_toward=0.0)
+
+        def read3(tag=""):
+            s = dict(orig_read(tag))
+            over = max(0.0, 1e3 * run.pel[1] - thr)
+            toward = 3.0 if over > 0.0 else 0.0                  # (a lean that grew slowly would turn 0.5 deg first: shift_done_early)
+            if over > 12.0:
+                toward += (over - 12.0) ** 2 / 8.0               # then it runs away
+            s["roll"] -= toward                                  # toward L is roll -
+            st["max_toward"] = max(st["max_toward"], toward)
+            if toward > 10.0:
+                st["fell"] = True
+            return s
+        run.read = read3
+        run.p["k_shift"]["L"] = 1.25
+        k0 = run.p["k_shift"]["L"]
+        how, h = run.lift("R", hold=0.0)                         # lift R over L
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        tips = [r for r in rows if r["ev"] == "shift_tip"]
+        assert tips and tips[0]["stance"] == "L", tips
+        t = tips[0]
+        assert 2.5 < t["toward"] < 3.5, t
+        assert not st["fell"] and st["max_toward"] < 3.5, st
+        assert t["k"] < k0 and abs(t["k_old"] - k0) < 1e-9, (t, k0)
+        assert how == "up", how
+        run.finish(save=False)
+    with env() as d:                                              # a normal shift: at most 4 extra moves over the old 30 mm steps
+        run = make(d)
+        run.shift_over("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        mv = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("shift L ")]
+        n = len(mv)
+        dist = abs(run.pel[1])
+        old = math.ceil(dist / 0.03)
+        assert n - old <= 4, (n, old, dist)
+        assert mv[0]["tag"].endswith(f"/{n}")
+        run.finish(save=False)
+    with env() as d:                                              # a shift with a turn in the step uses the small moves all the way
+        run = make(d)
+        run.dyaw = 7.5
+        run.yawf["L"] = math.radians(3.0)
+        run.shift_over("L")
+        mv = [json.loads(line) for line in open(run.base + ".jsonl")]
+        mv = [r for r in mv if r["ev"] == "pose" and r["tag"].startswith("shift L ")]
+        assert len(mv) >= math.ceil(abs(run.pel[1]) / 0.006) - 1, (len(mv), run.pel[1])
+        run.finish(save=False)
+    with env() as d:                                              # the weight is already across: stop early, no back-off, no k change
+        run = make(d)
+        orig = run.read
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if tag == "shift L" and run.pel[1] > 0.050:
+                s["roll"] -= 1.2                                  # toward L by 1.2 deg: past shift_done_deg, under shift_out_lim
+            return s
+        run.read = read
+        k0 = run.p["k_shift"]["L"]
+        run.shift_over("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        early = [r for r in rows if r["ev"] == "shift_done_early"]
+        assert early and early[0]["at_mm"] < 68.0 and run.p["k_shift"]["L"] == k0 and not any(r["ev"] == "shift_tip" for r in rows), early
+        assert run.pel[1] < 0.0681 - 1e-4
+        run.finish(save=False)
+
+
+def test_guard_has_no_rate_test_and_never_lifts_from_a_short_shift():
+    import fake_robot
+    clock = fake_robot.CLOCK
+    with env() as d:                                              # (a) a roll rate spike after every shift move, no lean: no trip
+        run = make(d)
+        orig = run.read
+        until = [0.0]
+        go0 = run.go
+
+        def go(ms, tag):
+            go0(ms, tag)
+            if tag.startswith("shift"):
+                until[0] = clock[0] + 0.2
+        run.go = go
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if clock[0] < until[0]:
+                s["gyro"] = [math.radians(10.0), s["gyro"][1], s["gyro"][2]]
+            return s
+        run.read = read
+        for sw in "RL":
+            how, h = run.lift(sw, hold=0.0)
+            assert how == "up", (sw, how)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert not any(r["ev"] == "shift_tip" for r in rows)
+        run.finish(save=False)
+    with env() as d:                                              # (b) a trip, and the pelvis ends under k_lift_min: no raise from there
+        run = make(d)
+        orig = run.read
+        st = dict(tripped=False, done=False)
+        sb0 = run.shift_back
+
+        def shift_back(stance, toward):
+            sb0(stance, toward)
+            st["tripped"] = True
+        run.shift_back = shift_back
+        lift0 = run.lift
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            y = 1e3 * run.pel[1]
+            if not st["done"]:
+                if not st["tripped"] and y > 60.0:
+                    s["roll"] -= 3.0                              # toward L: tips out (guard trips)
+                elif st["tripped"] and tag.startswith("shift L"):
+                    s["roll"] -= 0.1 * max(0.0, y - 45.0)         # after the trip: the lean turns 0.5 deg by ~51 mm: done early, short
+            return s
+        run.read = read
+        lg = []
+        log0 = run.log
+
+        def log(ev, **kw):
+            if ev == "lift" and kw.get("how") == "no_shift":
+                st["done"] = True                                  # the retry is clean
+            return log0(ev, **kw)
+        run.log = log
+        run.p["k_shift"]["L"] = 1.25
+        how, h = run.lift("R", hold=0.0)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        idx = {r["ev"]: i for i, r in enumerate(rows) if r["ev"] in ("shift_tip", "shift_retry")}
+        lifts = [(i, r) for i, r in enumerate(rows) if r["ev"] == "lift"]
+        assert lifts[0][1]["how"] == "no_shift" and lifts[-1][1]["how"] == "up" and how == "up", [r["how"] for _, r in lifts]
+        retry = [r for r in rows if r["ev"] == "shift_retry"]
+        assert retry[0]["no_shift"] and retry[0]["reached_mm"] < retry[0]["need_mm"], retry[0]
+        first_no = lifts[0][0]
+        assert not any(r["ev"] == "pose" and r["tag"].startswith("raise") for r in rows[idx["shift_tip"]:first_no]), "raised from a short shift"
+        assert sum(r["ev"] == "shift_tip" for r in rows) == 1
+        run.finish(save=False)
+    with env() as d:                                              # two trips in one lift end the run, cleanly, no exception
+        run = make(d)
+        orig = run.read
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if run.pel[1] > 0.060:
+                s["roll"] -= 3.0
+            return s
+        run.read = read
+        run.p["k_shift"]["L"] = 1.25
+        out = run.walk("R", 4, 0.0, 0.0, hold=0.0, march=True)
+        assert run.stop_why and "two shift tips" in run.stop_why, run.stop_why
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert sum(r["ev"] == "shift_tip" for r in rows) == 2 and not any(r["ev"] == "pose" and r["tag"].startswith("raise") for r in rows)
+        run.finish(save=False)
+    # k is lowered once per lift and never below k_floor
+    with env() as d:
+        run = make(d)
+        run.lift_tips = 0
+        run.p["k_shift"]["L"] = 1.12
+        run.shift_back("L", 3.0)
+        assert run.p["k_shift"]["L"] == 1.1, run.p["k_shift"]
+        run.shift_back("L", 3.0)
+        assert run.p["k_shift"]["L"] == 1.1
+        run.p["k_shift"]["L"] = 1.3
+        run.lift_tips = 0
+        run.shift_back("L", 3.0)
+        run.shift_back("L", 3.0)
+        assert abs(run.p["k_shift"]["L"] - 1.2) < 1e-9, run.p["k_shift"]            # not stacked
+        run.finish(save=False)
+
+
+def test_catch_hold_pitch_escape():
+    """While holding in the catch for a roll toward the stance side, a pitch deviation past pitch_lim (or its rate over
+    15 deg/s) ends the hold: the foot goes to the floor at once."""
+    with env() as d:
+        run = make(d)
+        orig = run.read
+        calls = []
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if tag.startswith("catch"):
+                calls.append(tag)
+                s["gyro"] = [-math.radians(20.0), s["gyro"][1], s["gyro"][2]]      # rolling toward the stance side (L swing: gyro x +)
+                s["gyro"][0] = math.radians(20.0)
+                s["pitch"] += 8.0                                                    # and pitching: past pitch_lim
+            return s
+        run.read = read
+        run.last_imu = dict(orig("x"))
+        run.last_tilt = 8.0
+        run.feet["L"][2] = 0.020
+        run.catch("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        cat = [r for r in rows if r["ev"] == "catch"][0]
+        assert cat["escaped"] and cat["holds"] <= 1, cat
+        poses = [r for r in rows if r["ev"] == "pose" and r["tag"].startswith("catch L")]
+        assert poses[-1]["feet"]["L"][2] == 0.0 and poses[-1]["ms"] == int(1e3 * run.p["t_catch"]), poses[-1]
+        run.finish(save=False)
+    with env() as d:                                              # without the pitch, it holds (up to its limit) and lowers by 5 mm moves
+        run = make(d)
+        orig = run.read
+
+        def read(tag=""):
+            s = dict(orig(tag))
+            if tag.startswith("catch"):
+                s["gyro"] = [math.radians(20.0), s["gyro"][1], s["gyro"][2]]
+            return s
+        run.read = read
+        run.last_imu = dict(orig("x"))
+        run.last_tilt = 8.0
+        run.feet["L"][2] = 0.020
+        run.catch("L")
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        cat = [r for r in rows if r["ev"] == "catch"][0]
+        assert not cat["escaped"] and cat["holds"] > 3, cat
+        run.finish(save=False)
+
+
 def test_shift_tip_guard():
-    """Past 60 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
+    """Past 75 mm of shift over the left foot the body leans TOWARD it (the foot is tipping over its outer edge):
     the guard backs the pelvis off, lowers k, and the lift goes on from there."""
     with env() as d:
         run = make(d)
@@ -406,9 +1178,10 @@ def test_shift_tip_guard():
             s = dict(orig(tag))
             y = 1e3 * run.pel[1]
             if y > 1:
-                s["roll"] += 0.03 * y - (0.6 * (y - 60.0) if y > 60.0 else 0.0)
+                s["roll"] += 0.03 * y - (6.0 if y > 75.0 else 0.0)
             return s
         run.read = read
+        run.p["k_shift"]["L"] = 1.25                              # (target 77.5 mm; one trip, k 1.15: 71 mm, under the threshold)
         how, h = run.lift("R", hold=0.0)
         assert how == "up", how
         rows = [json.loads(line) for line in open(run.base + ".jsonl")]
@@ -433,9 +1206,9 @@ def test_k_cannot_ratchet():
         assert max(ks) <= P["k_max"] + 1e-9 and ks[-1] == P["k_max"], ks
         # lift-off lower than the old value: it follows it down at once, not the push
         assert run.learn_k("L", 1.2, pushed=True) == 1.2
-        # no push needed: decays 0.02 per lift to the floor and stays
+        # no push needed: decays 0.01 per lift to the floor (1.1) and stays
         seq = [run.learn_k("L", P["k_shift"]["L"], pushed=False) for _ in range(15)]     # (lift-off is where k put it)
-        assert abs(seq[0] - 1.18) < 1e-9 and seq[-1] == P["k_floor"] and seq[-1] == seq[-2] == 1.0, seq
+        assert abs(seq[0] - 1.19) < 1e-9 and seq[-1] == P["k_floor"] and seq[-1] == seq[-2] == 1.1, seq
         assert min(seq) >= P["k_floor"]
         assert P["k_max"] == 1.4
         run.finish(save=False)
@@ -445,7 +1218,7 @@ def test_k_cannot_ratchet():
         run.balance = lambda swing, secs: "up"                  # a body that needs no push
         for _ in range(3):
             run.lift("L", hold=0.0)
-        assert abs(run.p["k_shift"]["R"] - 1.24) < 1e-9, run.p["k_shift"]
+        assert abs(run.p["k_shift"]["R"] - 1.27) < 1e-9, run.p["k_shift"]
         run.finish(save=False)
 
 
@@ -494,6 +1267,16 @@ FRAMES = {
     "walk110045_t61": ((55, 75), (125, 145), (150, 170), 120),               # eye: 61, 134, 156
     "walk110045_t74": ((55, 75), (140, 165), (132, 146), 110),               # eye: 68, 148, 140
     "walk110045_t88": ((30, 48), (142, 162), (158, 175), 100),               # eye: 35, 153, 165
+    # the evening light (2026-11-11 23:50, daylight gone, room light on: the carpet warm yellow-beige, the wall under the
+    # desk as saturated as the board): robot square and centred. By eye with the 450 mm board: right 105-115, left 100-110;
+    # the plates are 115 px apart (99 px in dim_start, 122 mm) so about 140 mm: it stands wider than at the start
+    "evening_square": ((100, 122), (95, 115), (130, 150), 150),
+    # 00:07, 20 minutes later: the left plate (picture right) in the robot's own shadow; a pale carpet patch beside the board
+    # (x 255-330, y 408-482) once passed for a plate. By eye on the 450 mm scale: right about 130, left about 85, sep about 137
+    "evening_misdetect": ((115, 145), (70, 100), (125, 150), 150),
+    # 01:32 (evening_crouch_notseen, the robot crouched, a red-check trouser leg in the picture) is not in this table: the full
+    # detection cannot read it, only a calibrated look can (test_board_calibration). Its calibration frame, 25 s earlier:
+    "evening_calib_good": ((105, 130), (100, 125), (120, 145), 150),               # right 117, left 113 by the coordinator's eye
     # the board (it lies as in the others, the camera has not moved) with the robot's right foot half off its
     # left edge: the sole's outer edge is 40, 34, 84, 71 mm outside it by eye
     "walk104632_offedge_t30": ((-60, -25), (200, 235), (150, 190), 100),
@@ -561,9 +1344,7 @@ def test_backward_and_shuttle():
         run = make(d)
         out = run.shuttle("L", 4, 2, 0.02, 0.0)
         check_up(out, 16)
-        assert all(abs(f[0]) < 1e-9 and abs(f[1]) < 1e-9 for f in run.feet.values()), run.feet
-        xs = [round(f[0], 6) for f in run.feet.values()]
-        assert xs == [0.0, 0.0], xs
+        assert all(abs(f[0]) < 1e-3 and abs(f[1]) < 1e-3 for f in run.feet.values()), run.feet    # (a heading correction may rotate it a hair)
         run.finish(save=False)
     with env() as d:                                               # a dx per cycle (a landing map)
         run = make(d)
@@ -572,8 +1353,8 @@ def test_backward_and_shuttle():
         run.lift = lambda swing, **kw: (seen.append(kw["dx"]), lift0(swing, **kw))[1]
         out = run.shuttle("R", 3, 3, 0.0, 0.0, dx_list=[0.02, 0.03])
         check_up(out, 18)
-        assert abs(max(abs(x) for x in seen) - 0.06) < 1e-9 and abs(min(abs(x) for x in seen if x) - 0.02) < 1e-9, seen
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert abs(max(abs(x) for x in seen) - 0.06) < 1e-3 and abs(min(abs(x) for x in seen if x) - 0.02) < 1e-3, seen
+        assert all(abs(f[0]) < 1e-3 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # the landing misses, learned away, over 2 cycles of 4
         run = make(d)
@@ -581,7 +1362,7 @@ def test_backward_and_shuttle():
         out = run.shuttle("L", 4, 2, 0.02, 0.0, board=True)
         check_up(out, 16)
         assert all(abs(run.true[f] - run.start[f]) < 15.0 for f in "LR"), run.true
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert all(abs(f[0]) < 1e-3 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # the board runs out ahead: turn round early, still home
         run = make(d)
@@ -589,7 +1370,7 @@ def test_backward_and_shuttle():
         out = run.shuttle("L", 6, 1, 0.03, 0.0, board=True)
         check_up(out, len(out))
         assert 0 < len(out) < 12 and run.stop_why is None, (len(out), run.stop_why)
-        assert all(abs(f[0]) < 1e-9 for f in run.feet.values()), run.feet
+        assert all(abs(f[0]) < 1e-3 for f in run.feet.values()), run.feet
         run.finish(save=False)
     with env() as d:                                               # an edge ends the run, forward or back
         run = make(d)
@@ -778,6 +1559,171 @@ def test_track_tool():
             assert abs(float(r[2]) - (1.7e9 + 0.2 * i)) < 1e-3 and abs(float(r[1]) - 0.2 * i) < 1e-3, r
         assert good >= 2
         assert len(board_view.track(path, every=2, out=io.StringIO())) == 2
+
+
+def test_board_view_cannot_take_carpet_for_a_sole():
+    """A pale patch of carpet beside the board must never be a sole: it is not a wide low plate (square), it has no dark
+    robot structure above it, it is not on the board. And with a real sole missing the answer is None, not a pair."""
+    import cv2
+    import board_view
+    im = cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_misdetect.jpg"))
+    ref = board_view.margins(im)
+    assert ref is not None and ref["conf"] > 0.8
+    for box in ((255, 408, 330, 482), (230, 430, 330, 470), (240, 400, 340, 440)):        # square and flatter patches left of the board
+        x0, y0, x1, y1 = box
+        bad = im.copy()
+        bad[y0:y1, x0:x1] = (190, 205, 215)                                                # pale warm grey
+        m = board_view.margins(bad)
+        assert m is not None and all(abs(m[k] - ref[k]) < 2.0 for k in ("right_mm", "left_mm", "sep_mm")), (box, m and (m["right_mm"], m["left_mm"], m["sep_mm"]))
+    # a plate-shaped pale patch right beside the board, with a dark strap above it, is still not a sole of the pair under the robot
+    bad = im.copy()
+    bad[455:480, 230:320] = (190, 205, 215)
+    bad[420:455, 230:320] = (60, 40, 30)
+    m = board_view.margins(bad)
+    assert m is not None and abs(m["sep_mm"] - ref["sep_mm"]) < 2.0, m and m["sep_mm"]
+    # one real sole painted out: nothing to pair with but the patch: None
+    bad = im.copy()
+    bad[415:485, 405:505] = bad[560, 450]                                                  # the board's own colour
+    bad[408:482, 255:330] = (190, 205, 215)
+    assert board_view.margins(bad) is None
+    # the stages: a pair found by a fallback carries less confidence
+    m2 = board_view.margins(cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_square.jpg")))
+    assert m2 is not None and m2["conf"] < ref["conf"] - 0.1, (m2["conf"], ref["conf"])
+
+
+def test_board_calibration():
+    """The board and the camera do not move during a session: find the board once (calibrate), then look for the soles only
+    inside the stored outline. Frames the full detection cannot read are read; a frame the calibration no longer fits is
+    None with a reason."""
+    import cv2
+    import numpy as np
+    import board_view
+    ld = lambda n: cv2.imread(os.path.join(HERE, "testdata", "frames", n + ".jpg"))          # noqa: E731
+    ce = board_view.calibrate([ld("evening_calib_good")])
+    assert ce and set(ce) >= {"edge_l", "edge_r", "y_top", "size", "board_w_mm", "t", "s_car", "s_brd"} and ce["size"] == [1024, 680]
+    assert 380 <= ce["y_top"] <= 410, ce["y_top"]
+    json.dumps(ce)                                                    # a plain dict: it goes in a file
+    assert board_view.margins(ld("evening_crouch_notseen")) is None   # the full detection loses it (the trouser leg, the crouch)
+    m, why = board_view.measure(ld("evening_crouch_notseen"), calib=ce)
+    assert m is not None and why == "" and m["calibrated"], why
+    assert 105 <= m["right_mm"] <= 130 and 100 <= m["left_mm"] <= 125 and 120 <= m["sep_mm"] <= 145 and m["conf"] >= 0.5, m["right_mm"]
+    # the same evening setup: the numbers hold within 6 mm
+    ref = {"evening_misdetect": (135.5, 88.5, 135.6), "evening_square": (112.2, 103.9, 140.9), "evening_calib_good": (117.2, 112.5, 130.5)}
+    for n, (r, l, sp) in ref.items():
+        m = board_view.margins(ld(n), calib=ce)
+        assert m is not None and abs(m["right_mm"] - r) < 6 and abs(m["left_mm"] - l) < 6 and abs(m["sep_mm"] - sp) < 6, (n, m and (m["right_mm"], m["left_mm"], m["sep_mm"]))
+    # each other setup: a calibration from one frame, the other frames of the same setup within 6 mm of their full detection
+    sets = {"dim_start": ["dim_shadow_right", "walk110045_t20", "walk110045_t34", "walk110045_t47", "walk110045_t61", "walk110045_t74", "walk110045_t88"],
+            "roomlight_wide_stance": [],
+            "walk104632_offedge_t45": ["walk104632_offedge_t30", "walk104632_offedge_t61.5"]}       # (t58: a sole 100 mm off the edge: None)
+    for base, others in sets.items():
+        c = board_view.calibrate([ld(base)])
+        assert c is not None, base
+        for n in [base] + others:
+            m, why = board_view.measure(ld(n), calib=c)
+            f = board_view.margins(ld(n))
+            assert m is not None and f is not None, (base, n, why)
+            for k in ("right_mm", "left_mm", "sep_mm"):
+                assert abs(m[k] - f[k]) < 8.0, (base, n, k, m[k], f[k])        # (a calibrated look reads the plates' silhouette: up to 7.3 mm off the full detection)
+    c = board_view.calibrate([ld("walk104632_offedge_t45")])
+    assert board_view.margins(ld("walk104632_offedge_t58"), calib=c) is None                    # not a wrong number
+    # the board moved (or the camera): the picture shifted sideways: no longer fits
+    im = ld("evening_misdetect")
+    for dx in (40, -25):
+        m, why = board_view.measure(np.roll(im, dx, axis=1), calib=ce)
+        assert m is None and why == "calibration no longer fits", (dx, why)
+    m, why = board_view.measure(cv2.resize(im, (800, 530)), calib=ce)
+    assert m is None and why == "picture size differs", why
+    # more frames: the median; a calibration from nothing is None
+    c2 = board_view.calibrate([ld("evening_calib_good"), ld("evening_misdetect"), ld("evening_square")])
+    assert c2["n"] == 3 and all(abs(c2["edge_l"][i] - ce["edge_l"][i]) < 2.0 for i in (0, 1))
+    assert board_view.calibrate([im * 0]) is None
+    # the tool
+    import subprocess
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "calib.json")
+        r = subprocess.run([sys.executable, os.path.join(HERE, "board_view.py"), "calibrate", os.path.join(HERE, "testdata", "frames", "evening_calib_good.jpg"), "--out", out],
+                           capture_output=True, text=True, env=dict(os.environ, JAX_PLATFORMS="cpu"))
+        assert r.returncode == 0, r.stderr[-300:]
+        back = json.load(open(out))
+        assert back["y_top"] == ce["y_top"] and abs(back["edge_l"][1] - ce["edge_l"][1]) < 1e-6
+
+
+# The 19 frames of 2026-11-11 16:00-18:45 on which a look returned nothing (testdata/frames_fail, JPEG q58; 172040_03 had the run's
+# overlay drawn on it: inpainted). Read with the evening calibration (evening_calib_good). Each was LOOKED AT, with the boxes
+# drawn on a crop: both plates are plainly visible in every one, so each must give numbers; the table holds what the boxes read
+# (right, left, sep in mm), agreeing with the plates' edges to about 8 px (10 mm); the test allows 15 mm.
+#   160059_02: robot turned ~25 deg, feet staggered ~40 px in depth and overlapping in x, centres 74 px apart: sep about 90 mm,
+#              right at the 90 mm floor of the pair rule: the uncompressed original returns None ("no soles"/"separation"), the
+#              q58 fixture reads 92. Borderline by the rule, kept as it is (the rule is not loosened).
+#   160059_04, _05: mid-step, right foot ahead (rows 50 px apart), yawed; 165040_*: standing, shadow on the right of the board;
+#   171013_01, 172040_*: turned 10-20 deg; 172927_*: standing at the far end, 183147_*: crouched / one foot lifted slightly;
+#   184341_*: 30 cm nearer, the robot's left foot at the right edge of the board (left margin 15-40 mm) with its long shadow.
+FRAMES_FAIL = {
+    "f160059_02": (136, 102, 92), "f160059_04": (88, 125, 106), "f160059_05": (79, 123, 115), "f165040_01": (112, 101, 143),
+    "f165040_02": (111, 99, 146), "f171013_01": (159, 63, 131), "f172040_03": (136, 98, 112), "f172040_04": (145, 74, 136),
+    "f172927_02": (121, 97, 138), "f172927_04": (135, 90, 128), "f172927_05": (135, 92, 126), "f172927_06": (138, 88, 131),
+    "f172927_07": (136, 88, 131), "f183147_01": (113, 111, 131), "f183147_02": (112, 93, 150), "f183147_03": (112, 90, 155),
+    "f184341_01": (188, 40, 125), "f184341_02": (186, 15, 156), "f184341_03": (186, 15, 157),
+}
+
+
+def test_board_view_failure_frames():
+    import cv2
+    import board_view
+    ce = board_view.calibrate([cv2.imread(os.path.join(HERE, "testdata", "frames", "evening_calib_good.jpg"))])
+    for n, (r, l, sp) in FRAMES_FAIL.items():
+        im = cv2.imread(os.path.join(HERE, "testdata", "frames_fail", n + ".jpg"))
+        m, why = board_view.measure(im, calib=ce)
+        assert m is not None, (n, why)
+        assert abs(m["right_mm"] - r) <= 15 and abs(m["left_mm"] - l) <= 15 and abs(m["sep_mm"] - sp) <= 15, (n, m["right_mm"], m["left_mm"], m["sep_mm"])
+        assert m["conf"] >= 0.5, (n, m["conf"])
+        # the fit check holds wherever the robot stands and whatever is beside the board; the same picture shifted does not fit
+        sh, why = board_view.measure(__import__("numpy").roll(im, 25, axis=1), calib=ce)
+        assert sh is None and why == "calibration no longer fits", (n, why)
+
+
+def test_run_calibrates_at_the_first_look():
+    import cv2
+    ld = lambda n: cv2.imread(os.path.join(HERE, "testdata", "frames", n + ".jpg"))          # noqa: E731
+    blank = ld("dim_start") * 0
+    good, crouch = ld("evening_calib_good"), ld("evening_crouch_notseen")
+
+    def run_with(d, frames, **kw):
+        prm = S.load_state()
+        kin = Kin(prm["drop"])
+        run = S.Run("cal", FakeRobot(kin), kin, prm, quiet=True, log_dir=d, board=True, **kw)
+        it = iter(frames)
+
+        def nxt(after, tmax):
+            try:
+                return next(it), after + 0.1
+            except StopIteration:
+                return None
+        run._next_frame = nxt
+        return run
+    with env() as d:
+        save = os.path.join(d, "saved_calib.json")
+        # the first look: two blank frames, then the good ones; the looks after it are the crouch frame the full detection loses
+        run = run_with(d, [blank, blank, good, good, good] + [good] * 3 + [crouch] * 6, save_calib=save)
+        assert run.calib is None and run.calib_auto
+        m = run.look("first")
+        assert m is not None and run.calib is not None and run.calib["n"] == 3 and os.path.exists(save)
+        rows = [json.loads(line) for line in open(run.base + ".jsonl")]
+        assert any(r["ev"] == "board_calib" and r.get("ok") for r in rows)
+        m2 = run.look("later")                                  # the crouch frames: only the calibration reads them
+        assert m2 is not None and 105 <= m2["right_mm"] <= 130 and 100 <= m2["left_mm"] <= 125, m2
+        run.f.close()
+        # a saved calibration is loaded instead: no frames are spent on finding the board
+        run2 = run_with(d, [crouch] * 4, board_calib=save)
+        assert run2.calib is not None and not run2.calib_auto
+        m3 = run2.look("loaded")
+        assert m3 is not None and 105 <= m3["right_mm"] <= 130
+        run2.f.close()
+        # no frame calibrates and no file: the looks go on without one (and fail as they did), no exception
+        run3 = run_with(d, [blank] * 12)
+        assert run3.look("none") is None and run3.calib is None
+        run3.f.close()
 
 
 def test_look_median_of_frames():
