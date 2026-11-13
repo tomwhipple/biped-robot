@@ -147,13 +147,16 @@ def _lib(path=LIB):
 
 
 def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, seed=SEED, gains=(0.25, 1.0),
-        lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False, model="sway", gkw=None):
-    """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports."""
+        lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False, model="sway", gkw=None,
+        step_kw=None):
+    """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports.
+    step_kw: gait() kwargs replacing the direction's preset (track_host's per-step commands: dx_steps / dy_steps /
+    yaw_trim lists, step_meta), so a stride or a --seq plan can be run; direction is then only the label."""
     import gate_common as GC
     import rec
     import simh
     L = _lib()
-    sw, fr = gait(T_step, n_steps, first=first, model=model, **DIRS[direction],
+    sw, fr = gait(T_step, n_steps, first=first, model=model, **(DIRS[direction] if step_kw is None else step_kw),
                   **(dict(kL=amp[0], kR=amp[1]) if amp else {}), **(gkw or {}))
     g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, fade, 15.0)
     L.sil_gait_set_learned(g, b"L", seed[0])
@@ -263,6 +266,7 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     learned = (L.sil_gait_learned(g, b"L"), L.sil_gait_learned(g, b"R"))
     w, x, y, z = (float(v) for v in d.qpos[3:7])
     yaw_end = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
+    xy_end = (float(d.qpos[0]), float(d.qpos[1]))
     L.sil_gait_free(g)
     phs = [dict(stance=p["stance"], up_frac=ph_up[i][1] / max(ph_up[i][0], 1), clr_max_mm=1e3 * ph_up[i][2],
                 com_in_lo_mm=1e3 * com_at[(i, "lo")] if (i, "lo") in com_at else None,
@@ -271,7 +275,7 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     return dict(T=T_step, dir=direction, plant=plant, delay=extra_ms, fell=fell, fall_dir=fall_dir, t_fall=t_fall,
                 done=done_at is not None, n_steps=n_steps, lifts=sum(p["up_frac"] >= 0.5 for p in phs),
                 phases=phs, peak_tilt=round(peak_tilt, 1), reports=reports, aborts=sum(x["aborted"] for x in reports),
-                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]), yaw_end=yaw_end,
+                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]), yaw_end=yaw_end, xy_end=xy_end,
                 **(dict(trace=tr_rows) if trace else {}))
 
 

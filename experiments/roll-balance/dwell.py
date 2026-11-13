@@ -79,7 +79,7 @@ class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=None, ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
-                 ankle_ff_steps=None):
+                 ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None):
         """ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
         + = outward (the body rolls toward the stance foot's outside; 1 deg moves the CoM ~3.7 mm in the plant FK),
         ramped in over the raise, held, taken out over the lower (the swing foot's height profile).
@@ -88,7 +88,11 @@ class Dwell:
         k_ds: {"L": k, "R": k} (or a pair; 0 / None = off for that side), the two-stage shift: the double support
         goes to k_ds x 62 mm over the stance foot, and the rest of the way to k_static is travelled over the raise
         (lift-off -> raise end, min-jerk), so the pelvis reaches k_static only once the swing foot is off.
-        (hw 2026-11-12: the outward topple came in double support at 1.35, the inward tips in single support.)"""
+        (hw 2026-11-12: the outward topple came in double support at 1.35, the inward tips in single support.)
+        dx_steps / dy_steps: per-step forward / left displacement, m (a list per step; steps past its end repeat
+        the last value), overriding dx / dy: a sequence of segments in one track (track_host --seq). yaw_trim may
+        be a list too. step_meta: a list of dicts (name, key) per step, kept as self.step_meta for the host's
+        prints and the ankle learner."""
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         if kR is None:
@@ -104,6 +108,10 @@ class Dwell:
         self.ankle_ff = per_side(ankle_ff)
         self.ankle_ff_steps = list(ankle_ff_steps) if ankle_ff_steps is not None else None
         self.k_ds = {s_: (v if v > 0 else None) for s_, v in per_side(k_ds).items()}
+        self.step_meta = list(step_meta) if step_meta is not None else None
+
+        def _at(lst, i, default):
+            return default if lst is None else (lst[i] if i < len(lst) else lst[-1])
         t_ds = ds * T                         # shift + settle
         t_set = settle_frac * t_ds
         t_sh = t_ds - t_set
@@ -139,9 +147,10 @@ class Dwell:
         yq = dict(yawq)
         for p in steps:
             sw, st = p["swing"], p["stance"]
-            out = (dy > 0 and sw == "L") or (dy < 0 and sw == "R")
+            dx_i, dy_i = _at(dx_steps, p["i"], dx), _at(dy_steps, p["i"], dy)
+            out = (dy_i > 0 and sw == "L") or (dy_i < 0 and sw == "R")
             start = list(f[sw])
-            goal = [f[st][0] + dx, f[st][1] + (dy if out else 0.0)]
+            goal = [f[st][0] + dx_i, f[st][1] + (dy_i if out else 0.0)]
             y_from = dict(yq)
             y_to = dict(yq)
             y_to[sw] = (yaw if p["i"] % 2 == 0 else -yaw) if yaw else 0.0
