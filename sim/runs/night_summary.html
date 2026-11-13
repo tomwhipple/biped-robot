@@ -104,6 +104,46 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·13 · night 23: the walk on the robot's roll play and sole</span></p>
+    <p><b>The walk, retrained on the play plant, gets sidestep left back but not right.</b> Without the march, three seeds of
+    prec16's walk on the 11-11 roll-play fit recover sidestep left on 2 of 3 seeds and lose sidestep right on 3 of 3, and fall
+    2 of 8 at loop gain x1.5 (prec16 on that plant: 8 of 8). So the march took side L and the plant takes side R.
+    The same walk on the narrow inset sole (the robot's single-support window, #308) shifts its weight much more per step,
+    which the robot needs, but loses both sidesteps on all three seeds. No student lifts the right foot 3 cm on the stride probe.</p>
+    <p><b>The march:</b> the last two replicates kept their side (left-only and right-only). All 20 seeds that found a march
+    are one-legged. Every march reward pays each foot on its own and they add up, so one good leg earns half. Tonight's arm
+    pays only the weaker foot (the new --w-march-both term), on two plants; if it is one-legged again the march line parks.
+    The third arm trains the walk with the firmware's stance trim in the loop, as the robot will run it. Nothing is a robot
+    candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec72_walk_pp_s128r24_sidestep_L.jpg" src="_clips/robot_legs_prec72_walk_pp_s128r24_sidestep_L.mp4"></video>
+      <figcaption><b>robot_legs_prec72_walk_pp_s128r24</b> · prec72, the walk retrained on the play plant (no march): sidestep left is back (dy +0.31 m; the march students had +0.01), in 2 of 3 seeds<br>sidestep_L 0/8
+        · seed 1/8 takes, verdict burned in · 10s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec72_walk_pp_s128r24_sidestep_R.jpg" src="_clips/robot_legs_prec72_walk_pp_s128r24_sidestep_R.mp4"></video>
+      <figcaption><b>robot_legs_prec72_walk_pp_s128r24</b> · the same student asked to sidestep right: it barely moves (dy -0.06 m; prec16 -0.49). Side R is lost on 3 of 3 seeds: the play plant takes it<br>sidestep_R 0/8
+        · seed 1/8 takes, verdict burned in · 10s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec72_walk_ppsi_s128r24_walk_steps.jpg" src="_clips/robot_legs_prec72_walk_ppsi_s128r24_walk_steps.mp4"></video>
+      <figcaption><b>robot_legs_prec72_walk_ppsi_s128r24</b> · prec72_ppsi, the same walk on the robot-calibrated narrow (inset) sole: it shifts its weight much more per step (0.4-0.5 of the way to the stance foot vs 0.1-0.3), but loses both sidesteps (3/3 seeds)<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 6s</figcaption>
+    </figure>
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec71_mir_pp_s2_s128r24_walk_steps.jpg" src="_clips/robot_legs_prec71_mir_pp_s2_s128r24_walk_steps.mp4"></video>
+      <figcaption><b>robot_legs_prec71_mir_pp_s2_s128r24</b> · prec71_s2, the third seed of the mirror-loss march: R only again (5.4 cm), torso within 3 deg of level on that foot; 20 of 20 marching seeds are one-legged<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 6s</figcaption>
+    </figure>
+    </div>
+  </div>
+
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·12 · night 22: the march stays one-legged on the play plant</span></p>
     <p><b>The new roll model did not bring up the second foot.</b> Last night's ten runs trained the march on the plant fitted to
     the 11-11 stepper session (play in the hip and ankle rolls beyond the encoders, different per side). All ten still march on
