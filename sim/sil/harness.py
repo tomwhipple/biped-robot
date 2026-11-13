@@ -83,13 +83,39 @@ def run_dir(run=DEFAULT_RUN):
     return os.path.join(RUNS_DIR, run)
 
 
+def run_config_path(run=DEFAULT_RUN):
+    """The run's config.json: sim/runs/<run>/'s, else the copy tracked beside
+    its weights (sim/sil/run_config.py; the deployed run's is tracked)."""
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    import run_config
+    return run_config.config_path(run, run_dir(run))
+
+
+def builtin_weights_run(profile=None):
+    """policy::kWeightsRun of the weights compiled into a library of this
+    profile (policy/weights.h), or None when they are placeholders or the
+    header is unreadable. sil_init("") runs exactly these."""
+    try:
+        txt = open(policy_profile.files(profile)["weights_h"]).read()
+    except OSError:
+        return None
+    if re.search(r"kWeightsArePlaceholder\s*=\s*true", txt):
+        return None
+    m = re.search(r'kWeightsRun\s*=\s*"([^"]+)"', txt)
+    return m.group(1) if m else None
+
+
 def missing_run_artifacts(run=DEFAULT_RUN, need=("config.json",)):
     """The gitignored run files this machine lacks, as a skip reason, or None.
 
     sim/runs/ is a local-artifact directory (AGENTS.md): a clean clone has
     none of it, so a test that needs the run's plant config, params or
-    exported blob must SKIP and say what to fetch, never fail."""
-    gone = [f for f in need if not os.path.exists(os.path.join(run_dir(run), f))]
+    exported blob must SKIP and say what to fetch, never fail. config.json
+    also counts as present when its tracked copy is (run_config_path)."""
+    gone = [f for f in need
+            if not os.path.exists(run_config_path(run) if f == "config.json"
+                                  else os.path.join(run_dir(run), f))]
     if not gone:
         return None
     return (f"run artifacts absent on this machine: sim/runs/{run}/"
@@ -1018,7 +1044,7 @@ def open_lib(run=DEFAULT_RUN, cal="nominal", gait_hz=None,
         write_cal_files()
     if gait_hz is None:
         gait_hz = DEFAULT_GAIT_HZ
-        cfg_path = os.path.join(RUNS_DIR, run, "config.json")
+        cfg_path = run_config_path(run)
         if os.path.exists(cfg_path):
             if SIM not in sys.path:
                 sys.path.insert(0, SIM)

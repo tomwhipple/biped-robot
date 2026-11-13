@@ -130,14 +130,18 @@ void Ext::reset() {
 
 // -- Link -------------------------------------------------------------------
 bool Link::open(const char* host, int cmd_port, int tlm_port) {
-    readonly = false;
+    // Read-only until the very end: a failure anywhere below leaves NO
+    // transmit socket and no destination (fail()), never a half-open link
+    // still pointed at whatever `to` held before -- after a failed relink,
+    // that would be the old robot.
+    readonly = true;
+    has_dest = false;
     tx = socket(AF_INET, SOCK_DGRAM, 0);
     rx = socket(AF_INET, SOCK_DGRAM, 0);
-    if (tx < 0 || rx < 0) return false;
+    if (tx < 0 || rx < 0) return fail();
     to.sin_family = AF_INET;
     to.sin_port = htons(static_cast<uint16_t>(cmd_port));
-    if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
-    has_dest = true;
+    if (host == nullptr || inet_pton(AF_INET, host, &to.sin_addr) != 1) return fail();
     int one = 1;
     setsockopt(rx, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
     sockaddr_in bind_addr = {};
@@ -145,11 +149,22 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
     bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     bind_addr.sin_port = htons(static_cast<uint16_t>(tlm_port));
     if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr), sizeof bind_addr) < 0) {
-        return false;
+        return fail();
     }
     timeval tv = {0, 0};
     setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    has_dest = true;
+    readonly = false;      // last, and only with a real socket and address
     return true;
+}
+
+bool Link::fail() {
+    close();
+    readonly = true;
+    has_dest = false;
+    memset(&to, 0, sizeof to);
+    last_len = 0;
+    return false;
 }
 
 // The observer's open(). Deliberately NOT `open(nullptr, ...)`: a mode that
@@ -157,18 +172,20 @@ bool Link::open(const char* host, int cmd_port, int tlm_port) {
 // difference an operator's safety rests on should be visible at the call site.
 bool Link::listen(int tlm_port, const char* host, int cmd_port) {
     readonly = true;
+    if (tx >= 0) ::close(tx);
     tx = -1;                      // no transmit socket exists yet
+    has_dest = false;
     // Resolved but not connected: `to` is where takeControl() would send, and
     // resolving it now means a bad --host is a startup error rather than a
     // button that fails at the moment it is finally needed.
     if (host != nullptr) {
         to.sin_family = AF_INET;
         to.sin_port = htons(static_cast<uint16_t>(cmd_port));
-        if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return false;
+        if (inet_pton(AF_INET, host, &to.sin_addr) != 1) return fail();
         has_dest = true;
     }
     rx = socket(AF_INET, SOCK_DGRAM, 0);
-    if (rx < 0) return false;
+    if (rx < 0) return fail();
     int one = 1;
     // SO_REUSEADDR because the whole point is to sit alongside something
     // else: a driver on this same machine, or a previous observer still
@@ -181,7 +198,7 @@ bool Link::listen(int tlm_port, const char* host, int cmd_port) {
     bind_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     bind_addr.sin_port = htons(static_cast<uint16_t>(tlm_port));
     if (bind(rx, reinterpret_cast<sockaddr*>(&bind_addr), sizeof bind_addr) < 0) {
-        return false;
+        return fail();
     }
     timeval tv = {0, 0};
     setsockopt(rx, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
@@ -235,6 +252,17 @@ bool Link::setWatch(const char* host, int port) {
     return true;
 }
 
+bool Link::setTee(const char* host, int port) {
+    tee_to.sin_family = AF_INET;
+    tee_to.sin_port = htons(static_cast<uint16_t>(port));
+    if (inet_pton(AF_INET, host, &tee_to.sin_addr) != 1) {
+        tee_on = false;
+        return false;
+    }
+    tee_on = true;
+    return true;
+}
+
 void Link::close() {
     if (tx >= 0) ::close(tx);
     if (rx >= 0) ::close(rx);
@@ -252,6 +280,11 @@ void Link::emit(const uint8_t* wire, size_t n) {
     if (sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&to), sizeof to) ==
         static_cast<ssize_t>(n)) {
         ++sent;
+    }
+    if (tee_on &&
+        sendto(tx, wire, n, 0, reinterpret_cast<sockaddr*>(&tee_to),
+               sizeof tee_to) == static_cast<ssize_t>(n)) {
+        ++teed;
     }
 }
 
@@ -345,10 +378,22 @@ bool Link::linkLost(double now_ms) const {
 }
 
 long Link::lag() const {
+    // Benched, seq_echo carries the diagnostic byte (protocol.h kDiag*), not
+    // an echo of our sequence: there is no lag to measure, and seq minus the
+    // diag would be a large, growing number that means nothing. 0 for every
+    // client; a front end that can draw "none" checks the state itself.
+    if (tlm.state == LinkState::kBench) return 0;
     return static_cast<long>(seq) - 1 - static_cast<long>(tlm.seq_echo);
 }
 
 // -- Intent -----------------------------------------------------------------
+namespace {
+// Intent::arm's note, and the one syncToRobot replaces once the beacon has
+// left BENCH: a green LIVE beside "waiting for the robot to leave BENCH" is
+// two answers to one question.
+const char kArmSentNote[] = "arm sent: waiting for the robot to leave BENCH";
+}  // namespace
+
 void Intent::say(const char* s) {
     strncpy(note, s, sizeof note - 1);
     note[sizeof note - 1] = 0;
@@ -376,9 +421,10 @@ void Intent::releaseAll() {
 // this did not.
 bool Intent::refuseReadonly() {
     if (!readonly) return false;
-    say("OBSERVER: this console only watches -- it has no transmit socket. "
-        "The session driving the robot owns every control; restart without "
-        "--readonly to take over.");
+    say("OBSERVER: this console only watches -- it has no transmit socket, "
+        "so the session driving the robot owns every control. Take control "
+        "first: TAKE CONTROL in bimo_console; bimo_gui, restart without "
+        "--readonly.");
     return true;
 }
 
@@ -408,7 +454,7 @@ void Intent::arm(double now_ms) {
     armed = true;
     estop = false;
     armed_at_ms = now_ms;
-    say("arm sent: waiting for the robot to leave BENCH");
+    say(kArmSentNote);
 }
 
 void Intent::disarm() {
@@ -432,7 +478,11 @@ void Intent::stand(const char* why) {
     if (refuseReadonly()) return;
     if (estop) {
         estop = false;
-        say("E-stop cleared: standing");
+        // The console's ESTOP latch is cleared; the ROBOT is another matter.
+        // An operator stop has benched it (torque off, or held then homed),
+        // and a stand frame does not re-arm it (design record section 17).
+        say("E-stop latch cleared: a running robot stands; a benched one "
+            "stays benched until you arm it");
     } else if (why) {
         say(why);
     }
@@ -544,15 +594,47 @@ bool Intent::checkHome(const Link& link, double now_ms) {
 
 bool Intent::syncToRobot(const Link& link, double now_ms) {
     if (!armed || link.linkLost(now_ms)) return false;
-    if (link.tlm.state != LinkState::kBench) return false;
+    if (link.tlm.state != LinkState::kBench) {
+        // The arm landed: the wait the note describes is over. Only that
+        // note -- anything said since is newer news.
+        if (strcmp(note, kArmSentNote) == 0) {
+            sayf2("armed: the robot left BENCH, now %s", stateName(link.tlm.state));
+        }
+        return false;
+    }
     if (now_ms - armed_at_ms <= kArmSyncMs) return false;
     armed = false;
     releaseAll();
     estop = false;
     // The robot now says WHY (protocol.h kDiag*), so quote it instead of
-    // guessing at "no calibration?" the way this used to.
-    sayf2("robot stayed BENCH after arm: %s",
-          diagReason(telemetryDiag(link.tlm)));
+    // guessing at "no calibration?" the way this used to. An operator stop
+    // (HOLD / E-STOP, anyone's) or the flail guard ending the run is not a
+    // refused arm, so it is not worded as one.
+    const uint8_t diag = telemetryDiag(link.tlm);
+    const ArmResult r = diagArmResult(diag);
+    if (r == ArmResult::kDisarmedStop || r == ArmResult::kDisarmedFlail) {
+        sayf2("run ended by HOLD/E-STOP (%s): this console disarmed",
+              diagReason(diag));
+    } else {
+        sayf2("robot stayed BENCH after arm: %s", diagReason(diag));
+    }
+    return true;
+}
+
+bool Intent::watchLink(const Link& link, double now_ms) {
+    const bool up = link.have_tlm && !link.linkLost(now_ms);
+    const bool edge = link_was_up && !up;
+    link_was_up = up;
+    if (!edge) return false;
+    // linkproto::Watchdog: STAND after kStaleMs (250 ms) with no valid frame,
+    // RELAX (torque off) after kRelaxMs (5 s); docs/control-channel.md.
+    if (readonly) {
+        say("link lost: no beacon for 1 s (watching: what the robot does "
+            "depends on the driving console's frames)");
+    } else {
+        say("link lost: no beacon for 1 s -- if our frames are not arriving "
+            "either, the robot stands after 250 ms and goes limp after 5 s");
+    }
     return true;
 }
 
@@ -575,6 +657,65 @@ void sendIntent(Link& link, Intent& in, const Speeds& s, float& vx,
     // PUT ON THE WIRE, so a request cannot expire in a console that is not
     // sending (a window that lost focus, a paused test).
     if (in.home_frames > 0) --in.home_frames;
+}
+
+bool toggleControl(Link& link, Intent& in, const char* host, double now_ms,
+                   char* msg, size_t cap) {
+    if (!link.readonly) {
+        link.goReadonly();
+        in.readonly = true;
+        in.releaseAll();
+        // NOT disarmed on the way out -- see Link::goReadonly. The arm level
+        // this console was holding is simply no longer this console's to
+        // hold; whoever is still driving holds theirs, and if nobody is, the
+        // robot's watchdog stands it in kStaleMs.
+        snprintf(msg, cap,
+                 "WATCHING: transmit socket closed. The robot is left exactly "
+                 "as it is -- no parting disarm, so a console still driving "
+                 "it keeps it.");
+        return true;
+    }
+    if (!link.takeControl()) {
+        snprintf(msg, cap,
+                 "cannot take control: started without --host, so there is no "
+                 "robot address to command. (The beacon's sender is the "
+                 "console forwarding it, not the robot.)");
+        return false;
+    }
+    in.adopt(link, now_ms);
+    snprintf(msg, cap, "DRIVING %s -- this console is now a commander, and "
+             "the robot beacons here instead", host != nullptr ? host : "?");
+    return true;
+}
+
+bool relinkDisarming(Link& link, Intent& in, const char* host, int cmd_port,
+                     int tlm_port, bool observe) {
+    if (!link.readonly && in.armed) {
+        in.disarm();
+        for (int i = 0; i < 5; ++i) {
+            link.send(0.0f, 0.0f, 0);
+            usleep(10 * 1000);
+        }
+    }
+    in.releaseAll();
+    in.armed = false;
+    in.estop = false;
+    in.home_frames = 0;
+    in.readonly = observe;
+    in.link_was_up = false;      // a new conversation: no "lost" edge for the old one
+    if (link.relink(host, cmd_port, tlm_port, observe)) return true;
+    // Failed: Link::relink has failed closed (no socket, no destination),
+    // and the intent follows it -- nothing here may claim to drive.
+    in.readonly = true;
+    return false;
+}
+
+void leaveDisarmed(Link& link, int frames, int gap_ms) {
+    if (link.readonly) return;
+    for (int i = 0; i < frames; ++i) {
+        link.send(0.0f, 0.0f, 0);
+        usleep(static_cast<useconds_t>(gap_ms) * 1000u);
+    }
 }
 
 }  // namespace bimo

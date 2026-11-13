@@ -421,6 +421,7 @@ void pumpLog(App& a) {
 // One tick of the link, identical windowed or headless.
 void tick(App& a, double now_ms) {
     a.link.poll(now_ms);
+    a.in.watchLink(a.link, now_ms);
     a.in.syncToRobot(a.link, now_ms);
     a.in.checkHome(a.link, now_ms);
     bimo::sendIntent(a.link, a.in, a.o.speeds, a.vx, a.vy, a.wz, a.ext_sent,
@@ -523,8 +524,10 @@ void simViewUrl(const App& a, char* out, size_t cap, bool ours) {
 void startSim(App& a) {
     if (a.runs.n == 0) {
         snprintf(a.status, sizeof a.status,
-                 "no runnable sim runs under %s/sim/runs (each needs a "
-                 "config.json AND sim/sil/weights/<run>.silw.json)", a.repo);
+                 "no runnable sim runs in %s (each needs "
+                 "sim/sil/weights/<run>.silw.json AND a config.json: "
+                 "sim/runs/<run>/'s or sim/sil/weights/<run>.config.json)",
+                 a.repo);
         return;
     }
     // In mirror mode the robot owns the primary ports, so the sim gets its
@@ -639,36 +642,17 @@ void setMirror(App& a, bool on) {
     }
 }
 
-// WATCHING <-> DRIVING. The socket is what changes; everything else follows.
+// WATCHING <-> DRIVING. The socket is what changes; everything else follows
+// (bimo::toggleControl, client.h).
 void toggleControl(App& a, double now_ms) {
-    if (!a.link.readonly) {
-        a.link.goReadonly();
-        a.in.readonly = true;
-        a.in.releaseAll();
-        // NOT disarmed on the way out -- see Link::goReadonly. The arm level
-        // this console was holding is simply no longer this console's to
-        // hold; whoever is still driving holds theirs, and if nobody is, the
-        // robot's watchdog stands it in kStaleMs.
-        snprintf(a.status, sizeof a.status,
-                 "WATCHING: transmit socket closed. The robot is left exactly "
-                 "as it is -- no parting disarm, so a console still driving "
-                 "it keeps it.");
-        logEvent(a, "readonly", "%s", a.status);
-        setMirror(a, a.mirror);          // the mode's meaning changed under it
+    const bool was_readonly = a.link.readonly;
+    if (!bimo::toggleControl(a.link, a.in, a.o.host, now_ms, a.status,
+                             sizeof a.status)) {
         return;
     }
-    if (!a.link.takeControl()) {
-        snprintf(a.status, sizeof a.status,
-                 "cannot take control: started without --host, so there is no "
-                 "robot address to command. (The beacon's sender is the "
-                 "console forwarding it, not the robot.)");
-        return;
-    }
-    a.in.adopt(a.link, now_ms);
-    snprintf(a.status, sizeof a.status, "DRIVING %s -- this console is now a "
-             "commander, and the robot beacons here instead", a.o.host);
-    logEvent(a, "control", "%s | %s", a.status, a.in.note);
-    setMirror(a, a.mirror);
+    if (was_readonly) logEvent(a, "control", "%s | %s", a.status, a.in.note);
+    else logEvent(a, "readonly", "%s", a.status);
+    setMirror(a, a.mirror);              // the mode's meaning changed under it
 }
 
 // Actions that are not a held axis.
@@ -684,6 +668,12 @@ void fireAction(App& a, int action, double now_ms) {
         case bimo::kActResetExt:
             a.in.ext.reset();
             a.in.say("extended channels back to defaults (14 B frames)");
+            break;
+        case bimo::kActHold:
+            // The soft operator stop is the Qt console's (link/console/); this
+            // one has only the classic E-stop.
+            a.in.say("HOLD is not in bimo_gui: use tools/estop.py --soft, or "
+                     "link/bimo_console.py");
             break;
         default: break;
     }
@@ -1038,7 +1028,7 @@ void drawHeader(App& a, double now_ms) {
         // Ages and counters are clamped to their field, so a long session or a
         // stalled beacon cannot widen the line either.
         const double age = a.link.tlmAgeMs(now_ms);
-        const long lag = a.link.tlm.state == LinkState::kBench ? 0 : a.link.lag();
+        const long lag = a.link.lag();     // 0 in BENCH (Link::lag)
         if (a.link.readonly) {
             // seq and lag both measure OUR frames against the robot's echo.
             // A watcher has sent none, so lag would be a large negative
@@ -1351,7 +1341,7 @@ void drawSim(App& a, double now_ms, float panel_w) {
                 ImGui::EndCombo();
             }
         } else {
-            ImGui::TextDisabled("no runs with SIL weights under %s/sim/runs",
+            ImGui::TextDisabled("no runs with SIL weights and a config in %s",
                                 a.repo);
         }
         ImGui::TextDisabled("the trained brain the sim will run "
@@ -1585,24 +1575,10 @@ void drawSession(App& a, double now_ms) {
 // a watcher who has just asked to see it.
 
 void applyLink(App& a, double now_ms) {
-    const bool observe = a.link.readonly;
-    // Disarm the robot we are LEAVING, if this console is what is holding it
-    // up. Unlike releasing control (where somebody else keeps flying it),
-    // re-pointing means nobody is left commanding this one, so the explicit
-    // 1 -> 0 edge is better than waiting out the watchdog -- and repeated,
-    // since any single datagram may vanish.
-    if (!observe && a.in.armed) {
-        a.in.disarm();
-        for (int i = 0; i < 5; ++i) {
-            a.link.send(0.0f, 0.0f, 0);
-            usleep(10 * 1000);
-        }
-    }
-    a.in.releaseAll();
-    a.in.armed = false;
-    a.in.estop = false;
-    a.in.home_frames = 0;
-    if (!a.link.relink(a.ed_host, a.ed_cmd_port, a.ed_tlm_port, observe)) {
+    // Disarms the robot we are LEAVING first, if this console is what is
+    // holding it up (bimo::relinkDisarming, client.h).
+    if (!bimo::relinkDisarming(a.link, a.in, a.ed_host, a.ed_cmd_port,
+                               a.ed_tlm_port, a.link.readonly)) {
         snprintf(a.status, sizeof a.status,
                  "relink to %s:%d failed: %s (the old link is closed; fix the "
                  "address and apply again)", a.ed_host, a.ed_cmd_port,
@@ -1627,7 +1603,7 @@ void applyLink(App& a, double now_ms) {
     setMirror(a, a.mirror);
     snprintf(a.status, sizeof a.status,
              "%s %s:%d (telemetry :%d) -- disarmed by the move",
-             observe ? "watching" : "driving", a.o.host, a.o.cmd_port,
+             a.link.readonly ? "watching" : "driving", a.o.host, a.o.cmd_port,
              a.o.tlm_port);
     logEvent(a, "relink", "%s", a.status);
     (void)now_ms;
@@ -1808,7 +1784,22 @@ void drawSettings(App& a, double now_ms) {
     ImGui::EndChild();
 }
 
-void drawKeymap(App& a) {
+// The stops come first (the Qt console's rule): the HOLD and E-STOP keys are
+// never rebound from the window, and nothing is rebound while the robot could
+// be moving -- armed, or a fresh beacon says LIVE. nullptr: allowed.
+const char* rebindRefusal(const App& a, int action, double now_ms) {
+    if (action == bimo::kActHold || action == bimo::kActEstop) {
+        return "the HOLD and E-STOP keys are not rebound here; edit the keymap "
+               "file with bimo_gui closed";
+    }
+    if (a.in.armed || (a.link.have_tlm && !a.link.linkLost(now_ms) &&
+                       a.link.tlm.state == LinkState::kLive)) {
+        return "not while armed or the robot is LIVE -- disarm first";
+    }
+    return nullptr;
+}
+
+void drawKeymap(App& a, double now_ms) {
     ImGui::SeparatorText("KEYMAP");
     ImGui::TextDisabled("%s -- click a binding, then press a key",
                         a.keymap_path[0] ? a.keymap_path : "(no file)");
@@ -1820,7 +1811,17 @@ void drawKeymap(App& a) {
         char btn[64];
         snprintf(btn, sizeof btn, "%-10s##bind%d",
                  a.rebind == i ? "press a key" : (kn[0] ? kn : "none"), i);
-        if (ImGui::Button(btn, ImVec2(120, 0))) a.rebind = (a.rebind == i) ? -1 : i;
+        if (ImGui::Button(btn, ImVec2(120, 0))) {
+            const char* why = rebindRefusal(a, i, now_ms);
+            if (a.rebind == i) {
+                a.rebind = -1;
+            } else if (why != nullptr) {
+                snprintf(a.status, sizeof a.status, "rebind %s refused: %s",
+                         bimo::actionLabel(i), why);
+            } else {
+                a.rebind = i;
+            }
+        }
     }
     if (ImGui::Button("restore defaults")) {
         a.keys.reset();
@@ -1847,11 +1848,31 @@ void pumpKeys(App& a, GLFWwindow* win, double now_ms) {
     const bool focused = glfwGetWindowAttrib(win, GLFW_FOCUSED) != 0;
 
     if (a.rebind >= 0) {
+        // Armed or LIVE since the click: give up rather than rebind.
+        const char* why = rebindRefusal(a, a.rebind, now_ms);
+        if (why != nullptr) {
+            snprintf(a.status, sizeof a.status, "rebind %s cancelled: %s",
+                     bimo::actionLabel(a.rebind), why);
+            a.rebind = -1;
+        }
+    }
+    if (a.rebind >= 0) {
         for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
             const ImGuiKey key = static_cast<ImGuiKey>(k);
             if (!ImGui::IsKeyPressed(key, false)) continue;
             const int code = toKeyCode(key);
             if (code == bimo::kKeyNone) continue;
+            // A stop key stops, rebind or not (as below: not for an
+            // observer) -- and stays the stop's.
+            if (code == a.keys.key[bimo::kActHold] ||
+                code == a.keys.key[bimo::kActEstop]) {
+                const int stop = code == a.keys.key[bimo::kActEstop]
+                                     ? bimo::kActEstop
+                                     : bimo::kActHold;
+                a.rebind = -1;
+                if (!a.link.readonly) fireAction(a, stop, now_ms);
+                break;
+            }
             a.keys.bind(a.rebind, code);
             snprintf(a.status, sizeof a.status, "%s -> %s",
                      bimo::actionLabel(a.rebind), bimo::keyName(code));
@@ -2272,7 +2293,7 @@ int runWindow(App& a) {
             ImGui::EndChild();
 
             if (a.show_keymap) {
-                drawKeymap(a);
+                drawKeymap(a, now_ms);
             } else if (a.show_settings) {
                 drawSettings(a, now_ms);
             } else {
@@ -2528,12 +2549,7 @@ int main(int argc, char** argv) {
     // armed -- the whole mode is that closing this window changes nothing on
     // the robot. Link::emit would drop these anyway; not composing them is
     // what says why.
-    if (!a.link.readonly) {
-        for (int i = 0; i < 10; ++i) {
-            a.link.send(0.0f, 0.0f, 0);
-            usleep(20 * 1000);
-        }
-    }
+    bimo::leaveDisarmed(a.link, 10, 20);
     if (a.rec.active()) {
         logEvent(a, "rec", "%u cmd / %u tlm -> %s", a.rec.n_cmd, a.rec.n_tlm,
                  a.rec.path);

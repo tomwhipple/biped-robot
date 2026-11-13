@@ -76,6 +76,7 @@ bimo_test(test_client test_client.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/mjpeg.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/bench.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/../../link/recorder.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/../../link/console_api.cpp
           ${COMPONENTS}/linkproto/protocol.cpp
           ${COMPONENTS}/linkproto/watchdog.cpp
           ${COMPONENTS}/linkproto/framing.cpp)
@@ -175,6 +176,17 @@ set(LINK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../link)
 set(LINKPROTO_SRC ${COMPONENTS}/linkproto/protocol.cpp
                   ${COMPONENTS}/linkproto/watchdog.cpp
                   ${COMPONENTS}/linkproto/framing.cpp)
+
+# The same core as a C library, for the Qt console (link/console/, ctypes);
+# no sanitizers, like ctrl_sil. test_client links the same sources with them.
+add_library(bimo_console SHARED ${LINK_DIR}/console_api.cpp
+            ${LINK_DIR}/client.cpp ${LINK_DIR}/keymap.cpp
+            ${LINK_DIR}/recorder.cpp ${LINKPROTO_SRC})
+target_include_directories(bimo_console PRIVATE ${LINK_DIR})
+set_target_properties(bimo_console PROPERTIES
+                      POSITION_INDEPENDENT_CODE ON
+                      OUTPUT_NAME bimo_console)
+add_custom_target(console DEPENDS bimo_console)
 
 find_package(Curses QUIET)
 if(CURSES_FOUND)

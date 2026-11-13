@@ -195,6 +195,162 @@ def test_collector_over_udp(tmp_path):
     assert summ["by_type"]["tick"] == 49 and summ["by_type"]["event"] == 1
 
 
+# -- collector --forward ----------------------------------------------------------
+def free_udp_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def listener():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 20)
+    s.bind(("127.0.0.1", 0))
+    s.settimeout(0.5)
+    return s
+
+
+def drain(sock):
+    got = []
+    while True:
+        try:
+            got.append(sock.recvfrom(4096)[0])
+        except socket.timeout:
+            return got
+
+
+def frec_packets(path):
+    """The packets of a .frec file, in file order (rx stamps dropped)."""
+    raw = open(path, "rb").read()
+    assert raw.startswith(C.FILE_MAGIC)
+    off = raw.index(b"\n", len(C.FILE_MAGIC)) + 1
+    out = []
+    while off < len(raw):
+        n, _rx = C.REC.unpack_from(raw, off)
+        off += C.REC.size
+        out.append(raw[off:off + n])
+        off += n
+    return out
+
+
+class RaisingSock:
+    def __init__(self):
+        self.calls = []
+
+    def sendto(self, data, addr):
+        self.calls.append((data, addr))
+        raise OSError(101, "Network is unreachable")
+
+    def close(self):
+        pass
+
+
+def test_forward_spec_parsing():
+    assert F.parse_hostport("laptop:4221") == ("laptop", 4221)
+    assert F.parse_hostport("192.168.2.105:4220") == ("192.168.2.105", 4220)
+    for bad in ("laptop", ":4221", "laptop:", "laptop:0", "laptop:70000", "laptop:42x"):
+        with pytest.raises(ValueError):
+            F.parse_hostport(bad)
+    # rejected at argument parsing, before any socket exists
+    with pytest.raises(SystemExit) as e:
+        C.main(["--forward", "laptop", "--duration", "0.01"])
+    assert e.value.code == 2
+
+
+def test_forward_unresolvable_host_fails_at_start(capsys):
+    assert C.main(["--forward", "no-such-host.invalid:4221", "--port", str(free_udp_port()),
+                   "--bind", "127.0.0.1", "--duration", "0.01"]) == 2
+    assert "cannot resolve" in capsys.readouterr().err
+
+
+def test_forward_file_unchanged_and_errors_counted(tmp_path):
+    """Same datagrams, same receive times: the .frec is byte-identical with and
+    without --forward, even when every forward send fails."""
+    pkts = [hello(0)] + [tick(k, k) for k in range(1, 30)] + [b"garbage", event(30, "x")]
+    rx = listener()
+    dests = [("ok", rx.getsockname()), ("bcast", ("255.255.255.255", 9)),
+             ("refused", ("127.0.0.1", free_udp_port()))]
+    files = {}
+    for name, fwd in (("plain", None), ("fwd", C.Forwarder(dests)),
+                      ("broken", C.Forwarder([("x", ("10.0.0.1", 9))], sock=RaisingSock()))):
+        d = tmp_path / name
+        col = C.Collector(str(d), log=lambda m: None, forward=fwd)
+        for i, p in enumerate(pkts):
+            col.handle(p, T0 + 20_000 * i, "127.0.0.1")
+        summ = col.rotate("end")
+        files[name] = open(os.path.join(str(d), summ["file"]), "rb").read()
+        if name == "fwd":
+            f = summ["forward"]
+            assert f["ok"]["sent"] == len(pkts) and f["ok"]["errors"] == 0
+            # sendto 255.255.255.255 without SO_BROADCAST is refused locally
+            assert f["bcast"]["errors"] == len(pkts) and f["bcast"]["sent"] == 0
+            assert "PermissionError" in f["bcast"]["last_error"]
+            assert "fwd bcast 0 sent %d err" % len(pkts) in fwd.status()
+        if name == "broken":
+            assert summ["forward"]["x"]["errors"] == len(pkts)
+            assert len(fwd.sock.calls) == len(pkts)
+        else:
+            assert ("forward" in summ) == (fwd is not None)
+    assert files["fwd"] == files["plain"] == files["broken"]
+    assert drain(rx) == pkts                      # verbatim, in order, garbage included
+
+
+def test_forward_never_toward_the_sender():
+    sock = RaisingSock()
+    fwd = C.Forwarder([("robot", ("192.168.2.50", 4220))], sock=sock)
+    fwd.send(tick(0, 0), "192.168.2.50")
+    assert sock.calls == [] and fwd.skipped["robot"] == 1
+    fwd.send(tick(1, 1), "192.168.2.51")
+    assert len(sock.calls) == 1 and fwd.errors["robot"] == 1
+
+
+def test_collector_forward_over_udp(tmp_path):
+    """The real service: --forward to a listener, a refused port and a send
+    that fails; the listener gets every datagram byte for byte, in order, the
+    file is complete, and the failures are in the summary."""
+    port = free_udp_port()
+    rx = listener()
+    ok = "127.0.0.1:%d" % rx.getsockname()[1]
+    refused = "127.0.0.1:%d" % free_udp_port()
+    proc = subprocess.Popen([sys.executable, os.path.join(ROOT, "tools", "flight_collector.py"),
+                             "--port", str(port), "--bind", "127.0.0.1", "--out", str(tmp_path),
+                             "--status-every", "0.2", "--forward", ok, "--forward", refused,
+                             "--forward", "255.255.255.255:9"],
+                            stdout=subprocess.PIPE, text=True)
+    try:
+        tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        deadline = time.time() + 10
+        while time.time() < deadline and not list(tmp_path.glob("*.frec")):
+            tx.sendto(hello(0), ("127.0.0.1", port))
+            time.sleep(0.1)
+        for k in range(1, 61):
+            tx.sendto(tick(k, k), ("127.0.0.1", port))
+            if k % 20 == 0:
+                time.sleep(0.05)
+        tx.sendto(event(61, "balance ABORT (tip)", code=F.EV_OUT, k=60), ("127.0.0.1", port))
+        time.sleep(0.5)
+    finally:
+        proc.terminate()
+        out, _ = proc.communicate(timeout=10)
+    got = drain(rx)
+    frec = next(tmp_path.glob("*.frec"))
+    written = frec_packets(str(frec))
+    assert got == written
+    assert written[-61:] == [tick(k, k) for k in range(1, 61)] + [
+        event(61, "balance ABORT (tip)", code=F.EV_OUT, k=60)]
+    summ = json.load(open(next(tmp_path.glob("*.summary.json"))))
+    assert summ["packets"] == len(written)
+    f = summ["forward"]
+    assert f[ok]["sent"] == len(written) and f[ok]["errors"] == 0
+    # unconnected UDP usually hears nothing back; either way every send is counted
+    assert f[refused]["sent"] + f[refused]["errors"] == len(written)
+    assert f["255.255.255.255:9"]["errors"] == len(written)
+    assert "status:" in out and "fwd %s" % ok in out
+    assert "forward totals:" in out
+
+
 # -- reader -------------------------------------------------------------------------
 def make_session(tmp_path, utc=True):
     col = C.Collector(str(tmp_path), log=lambda m: None)

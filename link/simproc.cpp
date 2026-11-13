@@ -29,18 +29,29 @@ int cmpName(const void* a, const void* b) {
 void RunList::scan(const char* repo) {
     n = 0;
     char dir[512];
-    snprintf(dir, sizeof dir, "%s/sim/runs", repo);
+    snprintf(dir, sizeof dir, "%s/sim/sil/weights", repo);
     DIR* d = opendir(dir);
     if (d == nullptr) return;
+    static constexpr char kSidecar[] = ".silw.json";
+    constexpr size_t kSidecarLen = sizeof kSidecar - 1;
     dirent* e;
     while ((e = readdir(d)) != nullptr && n < kMaxRuns) {
-        if (e->d_name[0] == '.') continue;
-        char cfg[768], weights[768];
-        snprintf(cfg, sizeof cfg, "%s/sim/runs/%s/config.json", repo, e->d_name);
-        snprintf(weights, sizeof weights, "%s/sim/sil/weights/%s.silw.json",
-                 repo, e->d_name);
-        if (!exists(cfg) || !exists(weights)) continue;
-        snprintf(name[n], sizeof name[0], "%s", e->d_name);
+        const size_t len = strlen(e->d_name);
+        if (e->d_name[0] == '.' || len <= kSidecarLen ||
+            strcmp(&e->d_name[len - kSidecarLen], kSidecar) != 0) {
+            continue;
+        }
+        char run[256];
+        snprintf(run, sizeof run, "%.*s", static_cast<int>(len - kSidecarLen),
+                 e->d_name);
+        // The run's own config, else the copy tracked beside its weights
+        // (sim/sil/run_config.py: the deployed run's, for a clean clone).
+        char cfg[1024], tracked[1024];
+        snprintf(cfg, sizeof cfg, "%s/sim/runs/%s/config.json", repo, run);
+        snprintf(tracked, sizeof tracked, "%s/sim/sil/weights/%s.config.json",
+                 repo, run);
+        if (!exists(cfg) && !exists(tracked)) continue;
+        snprintf(name[n], sizeof name[0], "%s", run);
         ++n;
     }
     closedir(d);

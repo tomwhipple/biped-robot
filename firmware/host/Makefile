@@ -116,14 +116,17 @@ WCLI_TWIN = $(BUILD)/wcli_twin
 # The software-in-the-loop library (docs/sil-harness.md): the same component
 # sources the tests use, plus the C boundary python loads with ctypes.
 SIL_LIB   = $(BUILD)/libctrl_sil.$(SIL_EXT)
+# The Qt console's core library (its rule is further down). Defined here,
+# before `all:` names it: make expands a prerequisite list when it reads it.
+CONSOLE_LIB = $(BUILD)/libbimo_console.$(SIL_EXT)
 SRC_SIL   = sil_lib.cpp sil_net.cpp sil_gait.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp \
             $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/balance/roll_pi.cpp \
             $(COMPONENTS)/gaitplay/track.cpp
 
-.PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
-all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
+.PHONY: all test test-profiles clean vectors deploy-headers sil tui gui console deps check check-gui
+all: $(BINS) $(SIL_LIB) $(WCLI_TWIN) $(CONSOLE_LIB)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
 # 7-wide intent, the arm-sync rule and the short-vs-long frame decision. Only
@@ -242,6 +245,18 @@ $(BUILD)/imgui/stb_impl.o: ../../link/stb_impl.cpp ../../link/jpeg.h \
 	$(CXX) -std=c++17 -O1 -w -fno-exceptions -fno-rtti $(GUI_INC) $(GUI_DEFS) \
 	       -c $< -o $@
 
+# The same core as a C library, for the Qt console (link/console/, Python
+# ctypes): link/console_api.cpp flattens client.h's objects into C calls and
+# decides nothing itself. No sanitizers, for the reason the SIL library has
+# none: an ASan dylib dlopen()ed into a stock python aborts. test_client links
+# the same sources WITH both sanitizers.
+console: $(CONSOLE_LIB)
+$(CONSOLE_LIB): ../../link/console_api.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
+                ../../link/recorder.cpp $(SRC_LINK) ../../link/console_api.h \
+                $(GUI_HDRS) $(ENV_H) $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(CXXFLAGS_NOSAN) -fPIC -fvisibility=default -I../../link \
+	       $(SIL_SHARED) $(filter %.cpp,$^) -o $@
+
 GUI = $(BUILD)/bimo_gui
 gui: $(GUI)
 $(GUI): ../../link/gui.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
@@ -276,7 +291,8 @@ $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
 # the tools that link the same sources.
 $(BUILD)/test_client: test_client.cpp $(SRC_CLIENT) ../../link/keymap.cpp \
                       ../../link/mjpeg.cpp ../../link/recorder.cpp \
-                      ../../link/bench.cpp $(SRC_LINK) $(GUI_HDRS) \
+                      ../../link/bench.cpp ../../link/console_api.cpp \
+                      ../../link/console_api.h $(SRC_LINK) $(GUI_HDRS) \
                       $(ENV_H) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) -I../../link $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
@@ -396,7 +412,7 @@ $(SIL_LIB): $(SRC_SIL) $(SRC_SILDEP) $(SIL_HDRS) $(SPEC_H) $(WEIGHTS_H) \
 $(BUILD):
 	mkdir -p $(BUILD)
 
-test: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
+test: $(BINS) $(SIL_LIB) $(WCLI_TWIN) $(CONSOLE_LIB)
 	@rc=0; for t in $(BINS); do $(GOLDEN_ENV) ./$$t || rc=1; done; \
 	 if [ $$rc -eq 0 ]; then echo "ALL GREEN$(if $(POLICY), (policy profile $(POLICY)))"; \
 	 else echo "FAILURES$(if $(POLICY), (policy profile $(POLICY)))"; fi; \

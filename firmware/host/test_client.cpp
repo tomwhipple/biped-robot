@@ -11,6 +11,7 @@
 // piece of the console that eats bytes from the network.
 #include "bench.h"
 #include "client.h"
+#include "console_api.h"
 #include "keymap.h"
 #include "mjpeg.h"
 #include "recorder.h"
@@ -198,6 +199,43 @@ void test_arm_sync_ignores_a_dead_link() {
     // conclude the arm was refused.
     CHECK(!in.syncToRobot(link, 10000.0));
     CHECK(in.armed);
+}
+
+// The arm's "waiting for the robot to leave BENCH" goes once it has (#239);
+// a note said after it is left alone.
+void test_arm_note_clears_when_the_robot_leaves_bench() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm_at_ms = 0.0;
+    in.arm(0.0);
+    CHECK(strstr(in.note, "waiting for the robot to leave BENCH") != nullptr);
+    CHECK(!in.syncToRobot(link, 50.0));       // still BENCH: still waiting
+    CHECK(strstr(in.note, "waiting") != nullptr);
+    link.tlm.state = LinkState::kLive;
+    link.tlm_at_ms = 100.0;
+    CHECK(!in.syncToRobot(link, 100.0));
+    CHECK(in.armed);
+    CHECK(strstr(in.note, "waiting") == nullptr);
+    CHECK(strstr(in.note, "LIVE") != nullptr);
+    in.say("E-stop cleared: standing");       // newer news stays
+    CHECK(!in.syncToRobot(link, 150.0));
+    CHECK(strcmp(in.note, "E-stop cleared: standing") == 0);
+}
+
+// Benched, seq_echo carries the diagnostic byte, not an echo: a lag computed
+// from it is a large, growing number that means nothing (#237).
+void test_lag_is_zero_while_benched() {
+    Link link;
+    link.have_tlm = true;
+    link.seq = 1000;
+    link.tlm.state = LinkState::kBench;
+    link.tlm.seq_echo = 66;                   // the diag byte
+    CHECK_EQ(link.lag(), 0L);
+    link.tlm.state = LinkState::kLive;
+    link.tlm.seq_echo = 996;
+    CHECK_EQ(link.lag(), 3L);                 // seq - 1 - echo
 }
 
 // -- reset the servos -------------------------------------------------------
@@ -856,6 +894,128 @@ void test_poll_reads_the_longest_beacon_whole() {
     link.close();
 }
 
+// -- the C boundary the Qt console loads (link/console_api.h) ---------------
+// A UDP socket on loopback standing in for the robot: what the boundary puts
+// on the wire is decoded with the firmware's own decoder.
+int robotSocket(int* port) {
+    const int s = socket(AF_INET, SOCK_DGRAM, 0);
+    CHECK(s >= 0);
+    sockaddr_in at = {};
+    at.sin_family = AF_INET;
+    at.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    CHECK(bind(s, reinterpret_cast<sockaddr*>(&at), sizeof at) == 0);
+    socklen_t len = sizeof at;
+    CHECK(getsockname(s, reinterpret_cast<sockaddr*>(&at), &len) == 0);
+    *port = ntohs(at.sin_port);
+    return s;
+}
+
+// Frames waiting on `s`; the last one decoded into `last`.
+int drainCommands(int s, linkproto::Command* last) {
+    int n = 0;
+    for (;;) {
+        pollfd pfd = {s, POLLIN, 0};
+        if (::poll(&pfd, 1, 50) != 1) return n;
+        uint8_t buf[64];
+        const ssize_t got = recvfrom(s, buf, sizeof buf, 0, nullptr, nullptr);
+        if (got <= 0) return n;
+        CHECK(linkproto::decodeCommand(buf, static_cast<size_t>(got), *last) ==
+              linkproto::Err::kOk);
+        ++n;
+    }
+}
+
+void test_c_boundary_drives_and_watches_like_the_core() {
+    CHECK_EQ(bimo_api_version(), BIMO_API_VERSION);
+    CHECK_EQ(bimo_status_size(), sizeof(BimoStatus));
+    int port = 0;
+    const int robot = robotSocket(&port);
+    linkproto::Command cmd = {};
+
+    // An observer pointed straight at the robot: every control refuses, and
+    // nothing reaches the socket.
+    BimoConsole* w = bimo_new();
+    CHECK(bimo_listen(w, 0, "127.0.0.1", port));
+    bimo_toggle_arm(w, 0.0);
+    CHECK(bimo_press(w, kAxForward, 0.0) == 0);
+    CHECK(strstr(bimo_note(w), "only watches") != nullptr);
+    bimo_tick(w, 10.0);
+    bimo_poll(w, 11.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 0);
+    BimoStatus st;
+    bimo_status(w, 10.0, &st);
+    CHECK(st.readonly && !st.armed && st.sent == 0);
+
+    // Taking control adopts the robot's level: with no beacon that is
+    // disarmed, and the message says so.
+    char msg[256];
+    CHECK(bimo_toggle_control(w, "127.0.0.1", 20.0, msg, sizeof msg));
+    CHECK(strstr(msg, "DRIVING") != nullptr);
+    CHECK(strstr(bimo_note(w), "NO beacon") != nullptr);
+    bimo_toggle_arm(w, 30.0);
+    CHECK(bimo_press(w, kAxForward, 30.0));
+    bimo_tick(w, 40.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK(cmd.arm() && cmd.enabled());
+    CHECK_NEAR(cmd.vx, kDefaultVx, 1e-3);
+    bimo_status(w, 40.0, &st);
+    CHECK(!st.readonly && st.armed && st.held[kAxForward]);
+    CHECK_NEAR(st.vx, kDefaultVx, 1e-6);
+    CHECK_EQ(st.last_len, linkproto::kCmdLen);
+
+    // Handing back sends no parting disarm: nothing at all goes out.
+    CHECK(bimo_toggle_control(w, "127.0.0.1", 50.0, msg, sizeof msg));
+    CHECK(strstr(msg, "no parting disarm") != nullptr);
+    bimo_tick(w, 60.0);
+    bimo_leave_disarmed(w, 3, 0);
+    CHECK_EQ(drainCommands(robot, &cmd), 0);
+    bimo_free(w);
+
+    // A driver's way out drops ARM, repeated.
+    BimoConsole* d = bimo_new();
+    CHECK(bimo_open(d, "127.0.0.1", port, 0));
+    bimo_toggle_arm(d, 0.0);
+    // A foot offset, not a crouch: bimo_set_ext clamps into the generated
+    // envelope, and a run trained at crouch 1 only holds crouch at 1.
+    bimo_set_ext(d, 1.0f, 0.0f, 0.03f, 0.0f);
+    bimo_tick(d, 10.0);
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK_NEAR(cmd.foot_dx, 0.03, 1e-3);
+    bimo_status(d, 10.0, &st);
+    CHECK_EQ(st.last_len, linkproto::kCmdLenExt);
+    bimo_leave_disarmed(d, 3, 0);
+    CHECK_EQ(drainCommands(robot, &cmd), 3);
+    CHECK(!cmd.arm() && !cmd.enabled());
+
+    // Twin-in-the-loop: the same frames, byte for byte, to the sim too.
+    int sim_port = 0;
+    const int sim = robotSocket(&sim_port);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    CHECK(!bimo_set_tee(d, "not-an-ip", sim_port) && true);
+    CHECK(bimo_set_tee(d, "127.0.0.1", sim_port));
+    bimo_tick(d, 20.0);
+    linkproto::Command teed = {};
+    CHECK_EQ(drainCommands(robot, &cmd), 1);
+    CHECK_EQ(drainCommands(sim, &teed), 1);
+    CHECK_EQ(teed.seq, cmd.seq);
+    bimo_status(d, 20.0, &st);
+    CHECK(st.tee_on && st.teed == 1);
+    bimo_clear_tee(d);
+    bimo_tick(d, 30.0);
+    CHECK_EQ(drainCommands(sim, &teed), 0);
+    ::close(sim);
+
+    // The keymap is the shared one, HOLD included.
+    const int hold = bimo_action_from_name("hold");
+    CHECK(hold >= 0 && hold < bimo_action_count());
+    CHECK_EQ(bimo_keymap_key(d, hold), 'f');
+    CHECK_EQ(bimo_keymap_action_for(d, 'f'), hold);
+    CHECK(strcmp(bimo_state_name(static_cast<int>(LinkState::kBench)),
+                 "BENCH (loop not armed)") == 0);
+    bimo_free(d);
+    ::close(robot);
+}
+
 }  // namespace
 
 // The fault field is a u32 over the 17-servo bus (bit b = bus joint b); the
@@ -1138,6 +1298,93 @@ void test_recorder_keeps_bench_rows_and_sink() {
     close(srv);
 }
 
+// A relink that fails anywhere -- a bad address after both sockets exist, or
+// a telemetry port that will not bind -- fails CLOSED: no transmit socket, no
+// destination, read-only, in the link AND the intent. Never a link that goes
+// on sending to the previous robot.
+void test_failed_relink_fails_closed() {
+    Link link;
+    Intent in;
+    CHECK(link.open("127.0.0.1", 4210, 0));
+    in.readonly = false;
+    in.arm(0.0);
+    CHECK(!link.readonly && link.tx >= 0 && link.has_dest);
+
+    CHECK(!relinkDisarming(link, in, "not-an-address", 4210, 0, false));
+    CHECK(link.readonly && link.tx < 0 && link.rx < 0 && !link.has_dest);
+    CHECK(in.readonly && !in.armed);
+    CHECK(!link.takeControl());              // and nothing to take control OF
+    Speeds s;
+    float vx = 0.0f, vy = 0.0f, wz = 0.0f;
+    Ext ext;
+    uint8_t flags = 0;
+    sendIntent(link, in, s, vx, vy, wz, ext, flags);
+    CHECK(link.sent == 0);
+
+    // A telemetry port somebody else holds (no SO_REUSEADDR on theirs).
+    const int blocker = socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in a = {};
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_ANY);
+    a.sin_port = 0;
+    CHECK(bind(blocker, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0);
+    socklen_t len = sizeof a;
+    getsockname(blocker, reinterpret_cast<sockaddr*>(&a), &len);
+    const int busy = ntohs(a.sin_port);
+    CHECK(link.open("127.0.0.1", 4210, 0));
+    in.readonly = false;
+    CHECK(!relinkDisarming(link, in, "127.0.0.2", 4210, busy, false));
+    CHECK(link.readonly && link.tx < 0 && link.rx < 0 && !link.has_dest);
+    CHECK(in.readonly);
+    CHECK(!relinkDisarming(link, in, "127.0.0.2", 4210, busy, true));
+    CHECK(link.readonly && link.tx < 0 && !link.has_dest);
+    ::close(blocker);
+    link.close();
+}
+
+// After HOLD / E-STOP the robot benches with DISARMED_STOP; the console that
+// was armed says the run was ENDED, not that an arm was refused.
+void test_stop_ended_run_is_not_a_refused_arm() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm.state = LinkState::kBench;
+    link.tlm.seq_echo = linkproto::packDiag(false, true,
+                                            linkproto::ArmResult::kDisarmedStop);
+    in.arm(0.0);
+    link.tlm_at_ms = kArmSyncMs + 100.0;
+    CHECK(in.syncToRobot(link, kArmSyncMs + 100.0));
+    CHECK(!in.armed);
+    CHECK(strstr(in.note, "run ended by HOLD/E-STOP") != nullptr);
+    CHECK(strstr(in.note, "stayed BENCH") == nullptr);
+}
+
+// The link-lost edge says what the robot's watchdog does, once.
+void test_link_lost_edge_is_noted_once() {
+    Intent in;
+    Link link;
+    link.have_tlm = true;
+    link.tlm_at_ms = 0.0;
+    CHECK(!in.watchLink(link, 10.0));          // up: nothing to say
+    CHECK(in.watchLink(link, kTlmLostMs + 50.0));
+    CHECK(strstr(in.note, "250 ms") != nullptr && strstr(in.note, "5 s") != nullptr);
+    CHECK(!in.watchLink(link, kTlmLostMs + 100.0));   // once per edge
+    link.tlm_at_ms = 5000.0;
+    CHECK(!in.watchLink(link, 5000.0));        // back up
+    CHECK(in.watchLink(link, 5000.0 + kTlmLostMs + 1.0));
+}
+
+// The E-STOP latch clearing does not claim the robot is standing.
+void test_estop_clear_note_tells_the_truth() {
+    Intent in;
+    in.arm(0.0);
+    in.estop = true;
+    in.stand("stand");
+    CHECK(!in.estop);
+    CHECK(strstr(in.note, "standing") == nullptr);
+    CHECK(strstr(in.note, "benched one stays benched") != nullptr);
+}
+
 int main() {
     test_fault_ids_name_the_servos();
     test_frame_length_rule();
@@ -1149,6 +1396,8 @@ int main() {
     test_extras_alone_set_enable();
     test_arm_sync_gives_up_and_quotes_the_robot();
     test_arm_sync_ignores_a_dead_link();
+    test_lag_is_zero_while_benched();
+    test_arm_note_clears_when_the_robot_leaves_bench();
     test_home_is_sent_disarmed_and_estopped();
     test_home_note_agrees_with_the_robots_verdict();
     test_home_level_is_held_then_released();
@@ -1162,6 +1411,7 @@ int main() {
     test_control_needs_a_destination();
     test_taking_control_adopts_the_robots_arm_level();
     test_poll_reads_the_longest_beacon_whole();
+    test_c_boundary_drives_and_watches_like_the_core();
     test_keymap_names_round_trip();
     test_keymap_bind_is_exclusive();
     test_keymap_file_round_trip();
@@ -1178,5 +1428,9 @@ int main() {
     test_timeseries_resample();
     test_beacon_servo_outranks_bridge_then_yields();
     test_bench_link_subscribes_and_receives();
+    test_failed_relink_fails_closed();
+    test_stop_ended_run_is_not_a_refused_arm();
+    test_link_lost_edge_is_noted_once();
+    test_estop_clear_note_tells_the_truth();
     return testutil::report("client");
 }

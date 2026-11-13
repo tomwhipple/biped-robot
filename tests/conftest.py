@@ -10,6 +10,13 @@ covers the ones that do not. Set JAX_PLATFORMS explicitly to override.
 import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
+# MuJoCo's GL likewise: on Linux an EGL context lands on the NVIDIA card even
+# with CUDA hidden (CUDA_VISIBLE_DEVICES does not reach EGL). A CPU-only run
+# (CUDA_VISIBLE_DEVICES unset or empty, which the line below makes the
+# default) gets no GL at all, and the 3D-view tests skip. Set MUJOCO_GL
+# (osmesa, or egl with MUJOCO_EGL_DEVICE_ID on a software device) to render.
+if not os.environ.get("CUDA_VISIBLE_DEVICES") and "MUJOCO_GL" not in os.environ:
+    os.environ["MUJOCO_GL"] = "disabled"
 # torch too (test_mac_train): its trainer runs on the CPU, but torch.accelerator
 # still opens a CUDA context, which OOMs whenever ollama holds the 12 GB card
 # (2026-11-03: 11.6 GB, all three mac_train tests errored at setup). The gates

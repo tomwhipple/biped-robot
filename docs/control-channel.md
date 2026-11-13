@@ -467,6 +467,16 @@ new commander is a class in `link/sources.py` or a front end on
   window, taking `press forward` / `release forward` / `set crouch 0.8` on
   stdin; the end-to-end tests drive it that way, and it makes any figure
   reproducible from a command line. Sessions record to `hw_sessions/*.jsonl`.
+- **`bimo_console`** (`link/bimo_console.py`, Qt; `make -C firmware/host
+  console`, then PyQt6 + pyqtgraph): the same core as a C library
+  (`link/console_api.h`, loaded with ctypes), so it puts the same bytes on the
+  wire as `bimo_gui` for the same keys. It **starts as an observer**; its
+  **HOLD** (`f`) and **E-STOP** (`e`) are the out-of-band operator stops
+  (`kFlagStop`, `tools/estop.py`'s frames) and work in every role. It adds a
+  3D view of the measured pose with commanded and sim ghosts, goal vs measured
+  for every joint from the flight recorder, a pre-arm Checks tab and a
+  gamepad. `--headless` takes the same stdin verbs as `bimo_gui --headless`.
+  See [console.md](console.md).
 - **`bimo_gui --readonly`**: an observer that cannot touch the robot.
   - **It has no transmit socket.** The socket is closed entering readonly
     and created leaving it, so the promise is enforced by the file
@@ -525,8 +535,9 @@ new commander is a class in `link/sources.py` or a front end on
   gamepad` reads sticks through pygame with a **held** dead-man (right
   shoulder; letting go must stop the robot) and B/circle as E-stop. Sticks
   (SDL2 Xbox/PS layout): left Y is vx through `stick_to_speed` (up =
-  forward), left X is vy (left = +vy), right X is wz (left = +wz); vy and wz
-  share one dead zone (0.15) and a linear map to `VY_MAX` and `W_MAX`.
+  forward), left X is vy through `stick_to_lateral` (left = +vy), right X is
+  wz (left = +wz); all three share one dead zone (0.15), and wz is a linear
+  map to `W_MAX`.
   Every source's `poll(t)` returns `(vx, wz, flags, ext)`; `ext` is a dict of
   the extended channels (`vy`, `crouch`, `lift`, `foot_dx`, `foot_dz`; a key
   left out rides at its default), which `commander.py` passes to
@@ -569,8 +580,9 @@ console can be exercised on a laptop.
 - **`sim/sil_twin.py`**: the firmware's own control code (`libctrl_sil`:
   observation, gait clock, network, actuation) driving the CPU plant behind
   the real link, so a console drives the same control law the robot runs.
-  `--run-name` picks the policy (it needs `sim/runs/<run>/config.json` and
-  `sim/sil/weights/<run>.silw.json`), `--hang` welds the torso at stand
+  `--run-name` picks the policy (it needs `sim/sil/weights/<run>.silw.json`
+  and a config: `sim/runs/<run>/config.json`, else the tracked
+  `sim/sil/weights/<run>.config.json`, which the deployed run has), `--hang` welds the torso at stand
   height (the test-stand analogue), `--stream-port` serves the rendered view
   that `bimo_gui`'s SIM panel draws, `--record` writes an mp4, `--obs-csv`
   writes the fed observations in `obsdump` format, and `--plant`,
@@ -579,7 +591,13 @@ console can be exercised on a laptop.
   the robot's fall guard (`fallguard::kPolicyLimits`, read from the
   header): a fall ends the run, torque off, and benches it with
   `DISARMED_FALL` ([sil-harness.md](sil-harness.md#the-twin-behind-the-link)).
-  With `--hang` the torso cannot tip, so it never trips.
+  With `--hang` the torso cannot tip, so it never trips. `--flight
+  HOST:PORT` sends the robot's flight-recorder stream from the sim
+  (goal, nominal and measured position per joint, IMU, command, events;
+  [flight-recorder.md](flight-recorder.md#the-sil-twin-as-a-source)). Its
+  beacon follows the firmware's rules: the joint block for a commander
+  asking with `POSE`, `up_x`/`up_y` for one asking with `ATT`, from the
+  same sample as `up_z`.
 
 ```sh
 .venv/bin/python link/link_twin.py                       # plant-free robot

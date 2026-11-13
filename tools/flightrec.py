@@ -16,6 +16,7 @@ Stdlib only: the collector imports this on a box with no numpy.
 from __future__ import annotations
 
 import math
+import socket
 import struct
 
 MAGIC = b"FR"
@@ -227,3 +228,19 @@ def decode(buf: bytes) -> dict:
 def steps_to_rad(steps: float, zero: int, direction: int) -> float:
     """obs::busStepsToAngle: (steps - zero) * 2 pi / 4096 * dir."""
     return (steps - zero) * (2.0 * math.pi / STEPS_PER_REV) * direction
+
+
+# -- destinations (flight_collector.py --forward, sim/sil_twin.py --flight) --
+def parse_hostport(spec: str) -> tuple[str, int]:
+    """"HOST:PORT" -> (host, port); ValueError for anything else."""
+    host, sep, port = spec.rpartition(":")
+    if not sep or not host or not port.isdigit() or not 0 < int(port) < 65536:
+        raise ValueError(f"want HOST:PORT (port 1-65535), got {spec!r}")
+    return host, int(port)
+
+
+def resolve_ipv4(host: str, port: int) -> tuple[str, int]:
+    """One IPv4 (address, port) for a destination. Callers resolve once, at
+    start: a per-packet lookup would put DNS inside the send path."""
+    info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_DGRAM)
+    return info[0][4][0], info[0][4][1]

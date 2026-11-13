@@ -45,7 +45,7 @@ def cfg():
     why = H.missing_run_artifacts(RUN, ("config.json",))
     if why:
         pytest.skip(why)
-    with open(os.path.join(H.run_dir(RUN), "config.json")) as f:
+    with open(H.run_config_path(RUN)) as f:
         return json.load(f)
 
 
