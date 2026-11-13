@@ -675,6 +675,9 @@ class BimoMJXEnv:
         # ankle ROLL, where a plant has one, is always solved level.
         mimic_sole_level: bool = False,
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        sole_in_mm=None,     # the sole's INNER support edge at this many mm inboard of the ankle-roll
+        # axis ("X", "L,R", "L=X,R=Y"; walker_env.parse_sole_in / apply_sole_inset, shared by both
+        # envs); None = the plant's sole (bit-exact). 2026-11-12 (#297): the robot's inward edge is ~0
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
@@ -1204,6 +1207,9 @@ class BimoMJXEnv:
         from walker_env import apply_floor_contacts   # jax-free, shared with the CPU env
         apply_floor_contacts(self.mj_model, floor_contacts)
         self.floor_contacts = floor_contacts
+        from walker_env import apply_sole_inset, parse_sole_in   # jax-free, shared with the CPU env
+        self.sole_in_mm = parse_sole_in(sole_in_mm)
+        apply_sole_inset(self.mj_model, self.sole_in_mm)
         if gravity_scale != 1.0:
             self.mj_model.opt.gravity[:] = self.mj_model.opt.gravity * float(gravity_scale)
         self.gravity_scale = float(gravity_scale)

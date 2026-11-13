@@ -53,6 +53,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --robot-only  # R1-R4 only
       python parity_test.py --roll-series # R15 only
       python parity_test.py --roll-play   # R16 only
+      python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
 """
 import os
@@ -845,6 +846,38 @@ def roll_play_block():
     return ok_a and ok_b and ok_c
 
 
+# -- R19: the sole's inner support edge moved toward the ankle-roll axis ---------
+# sole_in_mm: every sole pad inboard of the line is moved onto it, in the MjModel,
+# before the MJX upload (walker_env.apply_sole_inset, shared), so both engines
+# carry the same sole. Grounded stance with the asymmetric calibration (L 8 mm
+# inboard, R 12 mm OUTBOARD of the axis); liveness: the inner pads sit on the
+# lines in both models, the outer pads where the plant put them.
+SOLE_IN_PARITY = "L=8,R=-12"
+
+
+def sole_inset_block():
+    over = dict(sole_in_mm=SOLE_IN_PARITY)
+    c, g, s = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n = c._nq_act
+    ok_b = run_block(
+        "R19. sole inset (L 8, R -12 mm), grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c, g, s), matched_only=True, min_frac=0.5)
+    import mujoco
+    from walker_env import sole_pad_nominal
+    ys = {}
+    for g_, y in sole_pad_nominal(c.model).items():
+        nm = mujoco.mj_id2name(c.model, mujoco.mjtObj.mjOBJ_GEOM, g_)
+        ys.setdefault(nm[0], []).append(y)
+    same = bool(np.array_equal(np.asarray(c.model.geom_pos), np.asarray(g.mj_model.geom_pos)))
+    ok_c = (same and abs(min(ys["L"]) + 0.008) < 1e-9 and abs(max(ys["R"]) + 0.012) < 1e-9
+            and max(ys["L"]) > 0.04 and min(ys["R"]) < -0.05)
+    print(f"== R19-c. sole inset liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   L pads y {np.round(1e3 * np.array(sorted(ys['L'])), 1).tolist()} mm, R "
+          f"{np.round(1e3 * np.array(sorted(ys['R'])), 1).tolist()} mm; CPU == MJX model pads: {same}")
+    return ok_b and ok_c
+
+
 # -- R18: the firmware stance trim on the gait clock (sim/trim_kernel.py) ---------
 def stance_trim_block():
     over = dict(stance_trim=True, stance_trim_T="5.2,3.4")
@@ -915,6 +948,10 @@ def main():
         ok = stance_trim_block()
         print("\nPARITY (R18):", "PASS" if ok else "FAIL")
         return ok
+    if "--sole-in" in sys.argv:
+        ok = sole_inset_block()
+        print("\nPARITY (R19):", "PASS" if ok else "FAIL")
+        return ok
     if "--robot-only" in sys.argv:
         ok = robot_blocks()
         print("\nPARITY (R1-R4):", "PASS" if ok else "FAIL")
@@ -922,7 +959,7 @@ def main():
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
-               roll_play_block(), march_unload_block(), stance_trim_block()]
+               roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
