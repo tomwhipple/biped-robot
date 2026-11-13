@@ -78,10 +78,13 @@ def _mj(u):
 class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=None, ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
-                 t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None):
+                 t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
+                 ankle_ff_steps=None):
         """ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
         + = outward (the body rolls toward the stance foot's outside; 1 deg moves the CoM ~3.7 mm in the plant FK),
         ramped in over the raise, held, taken out over the lower (the swing foot's height profile).
+        ankle_ff_steps: a list, deg per step (step i's stance ankle), overriding ankle_ff where given (the host's
+        learned ankle trim re-plans the steps not uploaded yet; steps past the list's end use ankle_ff).
         k_ds: {"L": k, "R": k} (or a pair; 0 / None = off for that side), the two-stage shift: the double support
         goes to k_ds x 62 mm over the stance foot, and the rest of the way to k_static is travelled over the raise
         (lift-off -> raise end, min-jerk), so the pelvis reaches k_static only once the swing foot is off.
@@ -99,6 +102,7 @@ class Dwell:
                 return {"L": float(v.get("L") or 0.0), "R": float(v.get("R") or 0.0)}
             return {"L": float(v[0] or 0.0), "R": float(v[1] or 0.0)}
         self.ankle_ff = per_side(ankle_ff)
+        self.ankle_ff_steps = list(ankle_ff_steps) if ankle_ff_steps is not None else None
         self.k_ds = {s_: (v if v > 0 else None) for s_, v in per_side(k_ds).items()}
         t_ds = ds * T                         # shift + settle
         t_set = settle_frac * t_ds
@@ -248,8 +252,12 @@ class Dwell:
             if cur < len(steps) and h > 0:
                 st_a = steps[cur]["stance"]
                 r_a = fz[steps[cur]["swing"]] / h
-                if self.ankle_ff[st_a] and r_a > 0:
-                    ank = {st_a: math.radians(self.ankle_ff[st_a]) * r_a}
+                ffv = self.ankle_ff[st_a]
+                if self.ankle_ff_steps is not None and cur < len(self.ankle_ff_steps) and \
+                        self.ankle_ff_steps[cur] is not None:
+                    ffv = float(self.ankle_ff_steps[cur])
+                if ffv and r_a > 0:
+                    ank = {st_a: math.radians(ffv) * r_a}
             qd = K.pose(shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
                         footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
             qd["L_hip_yaw"] += yy["L"]

@@ -68,7 +68,7 @@ def lines_for(frames):
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
-         k_ds=None):
+         k_ds=None, ankle_steps=None):
     """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
     if amp[1] is None:
@@ -79,7 +79,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
         gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
                    **({"pelvis_x": pelvis_x} if pelvis_x != "mid" else {}),
                    **({"ankle_ff": tuple(ankle_ff)} if any(ankle_ff) else {}),
-                   **({"k_ds": tuple(k_ds)} if k_ds and any(k_ds) else {}))
+                   **({"k_ds": tuple(k_ds)} if k_ds and any(k_ds) else {}),
+                   **({"ankle_ff_steps": list(ankle_steps)} if ankle_steps is not None else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         else:
@@ -90,7 +91,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                 duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model,
                 args=dict(T_step=T_step, n_steps=n_steps, direction=direction, seeds=seeds, lead_ms=lead_ms, cal=cal,
                           first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
-                          k_ds=tuple(k_ds) if k_ds else None))
+                          k_ds=tuple(k_ds) if k_ds else None,
+                          ankle_steps=list(ankle_steps) if ankle_steps is not None else None))
 
 
 # The heading model the hold inverts (hw 2026-11-12, T 4-5, the turn about the planted foot): heading per step =
@@ -122,6 +124,96 @@ class HeadingHold:
             return False
         self.asked = self.asked[:first_free] + [a] * (self.n - first_free)
         return True
+
+
+ANKLE_STATE = os.path.join(HERE, "results", "ankle_trim_state.json")
+ANKLE_SEED = {"L": 2.0, "R": 2.0}
+ANKLE_SEED_DIR = {"sideR": {"R": 3.0}}     # hw 2026-11-12: sideR at T 4 tipped 3/3 at R 2, ran 7/7 clean at R 3
+ANKLE_MIN, ANKLE_MAX = 0.0, 4.0            # 4 on R at T 3.4: outward 5-8 deg, then the fall
+
+
+class AnkleLearner:
+    """The stance-ankle trim A[side] (deg, + = outward), learned at step rate on the host (#297 B2, 2026-11-12):
+    at every TS line of that side
+
+        tip (in >= 7):            A += 1.0
+        out > 4:                  A -= 0.5 x (out - 4), at most 1.5
+        out < 2 and in > 3:       A += 0.5
+        else                      hold
+
+    clamped to [ANKLE_MIN, ANKLE_MAX]. Keep / revert, as the firmware's T: a clean step (in < 5, out <= 4) keeps
+    the A it ran with (A_keep); a step past 8 deg OUTWARD puts A back to A_keep before the rule. The steps not
+    uploaded yet of that side get the new A. The state is keyed by (direction, side) in ANKLE_STATE; it is saved
+    by the caller only after a run with no fall and no ABORT."""
+
+    def __init__(self, direction, path=None, start=None):
+        self.dir, self.path = direction, (path or ANKLE_STATE)
+        seed = dict(ANKLE_SEED, **ANKLE_SEED_DIR.get(direction, {}))
+        if start is not None:                      # an explicit start (--ankle-seed): the state file is not read
+            seed = {"L": float(start[0]), "R": float(start[1])}
+        else:
+            seed.update(self._stored(direction))
+        self.A = {k: self._clamp(v) for k, v in seed.items()}
+        self.start = dict(self.A)
+        self.keep = dict(self.A)
+        self.log = []
+
+    def _stored(self, direction):
+        try:
+            with open(self.path) as f:
+                st = json.load(f).get(direction, {})
+            return {k: float(v) for k, v in st.items() if k in ("L", "R")}
+        except (OSError, ValueError):
+            return {}
+
+    @staticmethod
+    def _clamp(x):
+        return max(ANKLE_MIN, min(ANKLE_MAX, float(x)))
+
+    def update(self, side, lean_in, lean_out, used=None):
+        """One reported single support of `side` (TS in / out, deg; `used` = the A that step ran with). Returns
+        the new A of that side."""
+        used = self.A[side] if used is None else used
+        if lean_in < 5.0 and lean_out <= 4.0:
+            self.keep[side] = used
+        # revert on an OUTWARD step past 8 only: tips are 9-13 deg inward, and reverting on them would hold A at
+        # A_keep + 1 for good (two tips in a row could never climb past it)
+        base = self.keep[side] if lean_out > 8.0 else self.A[side]
+        if lean_in >= 7.0:
+            d, why = 1.0, "tip"
+        elif lean_out > 4.0:
+            d, why = -min(1.5, 0.5 * (lean_out - 4.0)), "out"
+        elif lean_out < 2.0 and lean_in > 3.0:
+            d, why = 0.5, "in"
+        else:
+            d, why = 0.0, "hold"
+        new = self._clamp(base + d)
+        self.log.append(dict(side=side, used=round(used, 2), lean_in=lean_in, lean_out=lean_out, rule=why,
+                             reverted=base != self.A[side], new=round(new, 2)))
+        self.A[side] = new
+        return new
+
+    def save(self):
+        try:
+            with open(self.path) as f:
+                st = json.load(f)
+        except (OSError, ValueError):
+            st = {}
+        st[self.dir] = {k: round(v, 2) for k, v in self.A.items()}
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, "w") as f:
+            json.dump(st, f, indent=1, sort_keys=True)
+
+
+def ankle_steps_for(sw, A, locked=None, first_free=0):
+    """Per-step stance-ankle values: the locked list's values for steps < first_free, A[stance] after."""
+    out = []
+    for i, p_ in enumerate(sw.phases):
+        if locked is not None and i < first_free and i < len(locked):
+            out.append(locked[i])
+        else:
+            out.append(A[p_["stance"]])
+    return out
 
 
 def yaw_of_imu(txt):
@@ -352,6 +444,8 @@ def live(pl, a):
     steps, sent, t_line = [], 0, []
     adds = pl["adds"]
     hold = pl.get("hold")
+    learn = pl.get("learn")
+    fell = {"v": False, "abort": False}
     yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
     yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
     if a.note:
@@ -360,22 +454,48 @@ def live(pl, a):
         print("  heading hold: no `quat` in the imu reply -- holding off")
         hold = None
 
+    def first_free_step():
+        last_t = adds[sent - 1][0] if sent else 0
+        sw = pl["sway"]
+        return sum(1 for p_ in sw.phases if 1e3 * (p_["t0"] - sw.t_first) <= last_t)
+
+    def replan():
+        """Re-plan the steps not uploaded yet with the heading hold's asked turns and the learned ankle trim."""
+        nonlocal adds
+        kw = dict(pl["args"])
+        if hold is not None:
+            kw["yaw_trim"] = hold.asked
+        newp = plan(**kw)
+        adds = newp["adds"]
+        pl["sway"], pl["frames"] = newp["sway"], newp["frames"]
+
+    def ankle_step(new_steps):
+        """After new single supports: the learned ankle trim's update, the not-uploaded steps re-planned."""
+        changed = False
+        for s_ in new_steps:
+            used = (pl["args"].get("ankle_steps") or [None] * 999)[s_["n"] - 1] if s_["n"] >= 1 else None
+            old = learn.A[s_["stance"]]
+            new = learn.update(s_["stance"], s_["lean_in"], s_["lean_out"], used=used)
+            s_["A_used"], s_["A_next"] = used, round(new, 2)
+            print(f"  ankle trim {s_['stance']}: ran {used if used is not None else old:.2f} -> {new:.2f} "
+                  f"({learn.log[-1]['rule']}{', reverted' if learn.log[-1]['reverted'] else ''})", flush=True)
+            changed = changed or abs(new - old) > 1e-6
+        if changed:
+            ff = first_free_step()
+            pl["args"]["ankle_steps"] = ankle_steps_for(pl["sway"], learn.A, pl["args"].get("ankle_steps"), ff)
+            replan()
+
     def heading_step():
         """After a new single support: read the heading, maybe re-plan the steps not uploaded yet."""
-        nonlocal adds
         y = yaw_of_imu(r.cmd("imu"))
         if y is None:
             return
         yaw_state["psi"] += (y - yaw_state["prev"] + 180.0) % 360.0 - 180.0
         yaw_state["prev"] = y
         psi = yaw_state["psi"]
-        last_t = adds[sent - 1][0] if sent else 0
-        sw = pl["sway"]
-        first_free = sum(1 for p_ in sw.phases if 1e3 * (p_["t0"] - sw.t_first) <= last_t)
+        first_free = first_free_step()
         if hold.update(len(steps), psi, first_free):
-            newp = plan(**{**pl["args"], "yaw_trim": hold.asked})
-            adds = newp["adds"]
-            pl["sway"], pl["frames"] = newp["sway"], newp["frames"]
+            replan()
         h = hold.log[-1]
         print(f"  heading {h['psi']:+.1f} (ref {h['ref']:+.1f}, err {h['err']:+.1f}) -> asked {h['asked']:+.2f} "
               f"deg/step from step {h['from_step']}", flush=True)
@@ -394,6 +514,8 @@ def live(pl, a):
                 print(f"  step {s['n']} {s['stance']}: in {s['lean_in']:.1f} out {s['lean_out']:.1f} e {s['e']:+.1f} "
                       f"T {s['T']:+.1f} hike {s['hike']:+.1f} {'ok' if s['ok'] else 'ABORT'}"
                       f"{' Tback' if s['tback'] else ''}", flush=True)
+                if not s["ok"]:
+                    fell["abort"] = True
                 if not s["ok"] or s["lean_in"] > a.stop_lean:
                     trip = True
                 if s["lean_out"] > a.stop_out:
@@ -428,6 +550,8 @@ def live(pl, a):
             if m2 and int(m2.group(1)) > len(steps):
                 n_before = len(steps)
                 stop = scan(r.cmd("track steps")) or stop
+                if learn is not None and len(steps) > n_before and not stop:
+                    ankle_step(steps[n_before:])
                 if hold is not None and len(steps) > n_before and not stop:
                     heading_step()
             if stop:
@@ -442,6 +566,7 @@ def live(pl, a):
             time.sleep(a.poll)
     except Exception as e:  # noqa: BLE001 -- any failure: freeze, the trim fades
         print(f"  {e!r} -> track halt")
+        fell["abort"] = True
         try:
             r.cmd("track halt")
         except Exception:  # noqa: BLE001
@@ -467,10 +592,22 @@ def live(pl, a):
         if y_end is not None and yaw_state.get("start") is not None:
             d_head = round((y_end - yaw_state["start"] + 180.0) % 360.0 - 180.0, 1)
             print(f"heading over the run (fused yaw, start -> end): {d_head:+.1f} deg (+ = left)")
+        ankle = None
+        if learn is not None:
+            try:
+                fell["v"] = r.fallen()
+            except Exception:  # noqa: BLE001 -- unknown: do not save
+                fell["v"] = True
+            saved = not fell["v"] and not fell["abort"]
+            if saved:
+                learn.save()
+            ankle = dict(dir=learn.dir, start=learn.start, end=learn.A, keep=learn.keep, log=learn.log, saved=saved)
+            print(f"ankle trim ({learn.dir}): L {learn.start['L']:.2f} -> {learn.A['L']:.2f}, R {learn.start['R']:.2f} -> "
+                  f"{learn.A['R']:.2f}; {'saved to ' + learn.path if saved else 'NOT saved (fall / abort / link)'}")
         log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=a.dir, steps=a.steps, amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
                                                       ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"]),
-                 steps=steps, line_s=t_line, heading_change_deg=d_head,
+                 steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None)))
         r.close()
         print(f"log: {log_path}")
@@ -526,6 +663,12 @@ def main(argv=None):
                     help="dwell: L,R deg, a fixed feed-forward on the STANCE ankle roll, + = outward (the CoM toward the "
                          "stance foot's outside, ~3.7 mm/deg), ramped in over the raise, held, out over the lower "
                          "(default 2,2: hw 2026-11-12 19:10-19:28; 0,0 = off)")
+    ap.add_argument("--ankle-learn", choices=["on", "off"], default="off",
+                    help="dwell: learn the stance-ankle trim per side at step rate (AnkleLearner): starts from "
+                         "results/ankle_trim_state.json for this --dir (seeds 2/2, sideR R 3), replaces --ankle-ff, "
+                         "re-plans the steps not uploaded yet (use --ahead 1), saved after a run with no fall / abort")
+    ap.add_argument("--ankle-seed", default=None,
+                    help="with --ankle-learn on: start from these L,R deg instead of the state file")
     ap.add_argument("--k-ds", default=None,
                     help="dwell: L,R, the two-stage shift -- double support only to k_ds x 62 mm, the rest to --amp over "
                          "the raise; 0 = single-stage for that side (default: single-stage both)")
@@ -542,6 +685,13 @@ def main(argv=None):
         return 2
     amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     aff = tuple(float(x) for x in a.ankle_ff.split(","))
+    learn = None
+    if a.ankle_learn == "on" and a.model == "dwell":
+        learn = AnkleLearner(a.dir, start=(tuple(float(x) for x in a.ankle_seed.split(","))
+                                           if a.ankle_seed else None))
+        aff = (learn.A["L"], learn.A["R"])
+        print(f"ankle trim learning ({a.dir}): starts L {aff[0]:.2f}, R {aff[1]:.2f} deg (--ankle-ff ignored)"
+              + ("; --ahead > 1: an update reaches the side's next step only if it is not uploaded yet" if a.ahead > 1.0 else ""))
     kds = tuple(float(x) for x in a.k_ds.split(",")) if a.k_ds else None
     if not a.live:
         pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
@@ -568,6 +718,11 @@ def main(argv=None):
         pl["hold"] = hold
         print(f"heading hold: {dpsi:+.1f} deg/step commanded, feed-forward {hold.asked[0]:+.2f} deg/step asked, "
               f"k {a.heading_k:g}")
+    if learn is not None:
+        hold_ = pl.get("hold")
+        pl = plan(**{**pl["args"], "ankle_steps": ankle_steps_for(pl["sway"], learn.A),
+                     **({"yaw_trim": hold_.asked} if hold_ is not None else {})})
+        pl["hold"], pl["learn"] = hold_, learn
     pl["allow_over"] = a.allow_over
     live(pl, a)
     return 0
