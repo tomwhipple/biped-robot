@@ -601,6 +601,14 @@ Training runs **at night only**; days belong to the box's owner.
   record (today the get-up, [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md)),
   improves the references on the CPU if a phase is failing, queues the next
   night, refreshes the results page and reports on the campaign's issue.
+  When the plan succeeds with jobs queued and a job could still start (after
+  22:00, or before 06:45, the runner's last start; `infra/night/night_window.sh`),
+  it starts `night_run.sh` again, detached; the runner takes its own lock. It
+  leaves `night/.continued`: the next trigger (the collector when that runner's
+  queue ends, or the 07:30 cron) then runs one **addendum** pass that grades
+  only the continued runs, and starts the runner again if jobs remain and the
+  window is still open. A failed or empty plan, a held runner lock, or the day
+  (07:00 to 22:00) starts nothing. Tests: `tests/test_night_continue.py`.
   `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
   from `night/fallback.job` with fresh seeds if the planner left it short.
   Installed copies of both live beside the runner in `night/`.
