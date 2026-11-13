@@ -470,6 +470,74 @@ def apply_floor_contacts(model, floor_contacts):
     model.geom_conaffinity[f] &= 1
     return model
 
+def parse_sole_in(spec):
+    """sole_in_mm -> {"L": mm | None, "R": mm | None}, or None (off). "X" (both feet), "L,R",
+    "L=X,R=Y", a number, or a dict. mm = the inner support edge's distance INBOARD of that foot's
+    ankle-roll axis (the plant's pads reach ~22 mm; the robot's inward edge sits near the axis:
+    2026-11-12 dwell runs, #297); negative = outboard of the axis."""
+    if spec is None or spec == "" or spec is False:
+        return None
+    if isinstance(spec, dict):
+        out = {s_: (None if spec.get(s_) is None else float(spec[s_])) for s_ in "LR"}
+    elif isinstance(spec, (int, float)):
+        out = {"L": float(spec), "R": float(spec)}
+    else:
+        toks = [t.strip() for t in str(spec).split(",") if t.strip()]
+        if len(toks) == 1 and "=" not in toks[0]:
+            out = {"L": float(toks[0]), "R": float(toks[0])}
+        elif all("=" in t for t in toks):
+            out = {"L": None, "R": None}
+            for t in toks:
+                k, _, v = t.partition("=")
+                if k not in ("L", "R"):
+                    raise ValueError(f"sole_in_mm {spec!r}: key {k!r} not L / R")
+                out[k] = float(v)
+        elif len(toks) == 2:
+            out = {"L": float(toks[0]), "R": float(toks[1])}
+        else:
+            raise ValueError(f"sole_in_mm {spec!r}: want X, L,R or L=X,R=Y (mm)")
+    for k, v in out.items():
+        if v is not None and not -30.0 <= v <= 30.0:
+            raise ValueError(f"sole_in_mm {k}={v}: need -30..30 mm")
+    return out if any(v is not None for v in out.values()) else None
+
+
+def sole_pad_nominal(model):
+    """{geom id: y (m, foot frame)} of every sole pad (geoms named <side>_pad_*)."""
+    import mujoco
+    out = {}
+    for g in range(model.ngeom):
+        n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        if n[:2] in ("L_", "R_") and n[2:].startswith("pad_"):
+            out[g] = float(model.geom_pos[g][1])
+    return out
+
+
+def apply_sole_inset(model, sole_in, nominal=None):
+    """Move every sole pad inboard of the line `sole_in[side]` mm from the ankle-roll axis onto it
+    (laterally, in the foot frame; inboard = -y on the left foot, +y on the right). Pads outboard of
+    the line keep their place. jax-free, shared with env_mjx (applied to the MjModel before upload),
+    so CPU and MJX train and grade on the same sole. `nominal` ({gid: y}) makes it idempotent."""
+    spec = parse_sole_in(sole_in)
+    if spec is None:
+        return model
+    import mujoco
+    nom = nominal if nominal is not None else sole_pad_nominal(model)
+    for g, y0 in nom.items():
+        n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        side = n[0]
+        mm = spec.get(side)
+        if mm is None:
+            model.geom_pos[g][1] = y0
+            continue
+        edge = 1e-3 * mm
+        if side == "L":
+            model.geom_pos[g][1] = max(y0, -edge)
+        else:
+            model.geom_pos[g][1] = min(y0, edge)
+    return model
+
+
 SERVO_KP_PRESETS = {
     "stock": {},
     "planb": {"hip_roll": 4.0, "ankle_roll": 4.0, "knee": 4.0},
@@ -714,6 +782,9 @@ class BimoWalkerEnv(gym.Env):
         # (the robot's neck and arms while walking; mirror of env_mjx)
         mimic_sole_level: bool = False,  # imitation ankle pitch solved level
         floor_contacts: str = "all",     # "feet": only the sole pads touch the floor (training-only)
+        sole_in_mm=None,     # the sole's INNER support edge at this many mm inboard of the ankle-roll
+        # axis ("X", "L,R", "L=X,R=Y"; walker_env.parse_sole_in / apply_sole_inset, shared by both
+        # envs); None = the plant's sole (bit-exact). 2026-11-12 (#297): the robot's inward edge is ~0
         mimic_lift: float = 0.0,         # m: imitation swing lifts the sole this high (IK), 0 = knee-bend reference
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
@@ -1369,6 +1440,8 @@ class BimoWalkerEnv(gym.Env):
             self.model = mujoco.MjModel.from_xml_path(xml_path)
         apply_floor_contacts(self.model, floor_contacts)
         self.floor_contacts = floor_contacts
+        self.sole_in_mm = parse_sole_in(sole_in_mm)
+        apply_sole_inset(self.model, self.sole_in_mm)
         self.data = mujoco.MjData(self.model)
         self._payload_bid = (self.model.body("payload").id
                              if (payload_mass > 0 or payload_max) else None)

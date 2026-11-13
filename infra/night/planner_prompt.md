@@ -75,7 +75,13 @@ hold the work. These rules change how you plan:
 - **Any plant change is checked with the stepper replay**
   (`experiments/policy/weight-transfer-gate/stepper_replay.py run --ref crouch --plants ...`); its tables are in the gate README.
 - **Grade tonight's arms on the refitted plant**: grade.py as is AND with
-  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on. Judge a march by
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on.
+  **From 2026-11-13 also a third grading, on the inset sole:**
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0,sole_in_L=8,sole_in_R=-12` (the sole's inner
+  support edge moved to the robot's: the 11-12 dwell runs put the robot's inward single-support edge at a shift of
+  ~1.2-1.3 x 62 mm on both feet, the plant's at ~0.5; SIL calibration in experiments/roll-balance/README.md, "The inset
+  sole"). Report all three, side by side; the inset-sole number is the one closest to the robot's lateral margin. The
+  `_ppsi` arms (11-12 night) trained on it (`--sole-in-mm L=8,R=-12`); compare them with their `_pp` twins. Judge a march by
   whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
 - **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
   4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2

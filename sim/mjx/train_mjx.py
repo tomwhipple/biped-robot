@@ -773,6 +773,13 @@ def make_parser():
     p.add_argument("--stance-trim-T", default="2:9,1:6",
                    help="--stance-trim's learned trims, drawn per episode: 'Llo:Lhi,Rlo:Rhi' deg "
                         "(hike convention; the robot learned L 5.2, R 3.4 on 2026-11-12)")
+    p.add_argument("--sole-in-mm", default=None,
+                   help="the sole's INNER support edge at this many mm inboard of the ankle-roll "
+                        "axis, per foot: 'X' (both), 'L,R' or 'L=X,R=Y' (negative = outboard of the "
+                        "axis); the pads inboard of the line move onto it (walker_env.apply_sole_inset, "
+                        "both envs, before the MJX upload). The plant's pads reach ~22 mm; the robot's "
+                        "inward edge sits near the axis (2026-11-12 dwell runs, #297; SIL fit L=8,R=-12). "
+                        "config.json records it; the referee, grade.py and the distil inherit it")
     p.add_argument("--roll-play-deg", default=None,
                    help="free play (deg peak to peak) inside the hip / ankle roll servos "
                         "BEYOND the encoder: the shaft is position-controlled and is what the "
@@ -1115,6 +1122,11 @@ def build_env_kw(args):
             env_kw["roll_series_k"] = {k: list(v) for k, v in rs.items()}
     if getattr(args, "stance_trim", False):
         env_kw.update(stance_trim=True, stance_trim_T=args.stance_trim_T)
+    if getattr(args, "sole_in_mm", None):
+        from walker_env import parse_sole_in   # jax-free, shared with both envs
+        si = parse_sole_in(args.sole_in_mm)
+        if si is not None:
+            env_kw["sole_in_mm"] = si
     if getattr(args, "roll_play_deg", None):
         from walker_env import parse_roll_play_deg   # jax-free, shared with both envs
         rp = parse_roll_play_deg(args.roll_play_deg)

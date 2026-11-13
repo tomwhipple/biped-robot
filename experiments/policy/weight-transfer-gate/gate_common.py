@@ -45,6 +45,9 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               overriding play_hip / play_ankle there
   floor_tc=<s>, floor_dr=, floor_d0=, floor_d1=, floor_w=<m>   the floor's contact softness (floor +
               sole pads): solref time constant / damping ratio, solimp d0 / d1 / width
+  sole_in=<mm>, sole_in_L=, sole_in_R=<mm>   the sole's INNER support edge moved to this distance
+              inboard of the ankle-roll axis (the pads inboard of it are moved onto it; the plant's is
+              ~22 mm): the robot's inward edge sits near the axis (2026-11-12 dwell runs, #297)
   fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
               hip-roll joints, replacing the plant's: it acts on the link, so under the play it
               holds the link inside its band
@@ -229,6 +232,8 @@ def apply_terms(env, terms):
         add_box_to_body(m, b, float(terms["pack"]), PACK_POS, PACK_HALF)
     if "sole_sym" in terms:
         sole_symmetric(env)
+    if any(k in terms for k in ("sole_in", "sole_in_L", "sole_in_R")):
+        sole_inset(env, {s_: terms.get("sole_in_" + s_, terms.get("sole_in")) for s_ in "LR"})
     if "zoff_La" in terms:      # the L ankle-roll calibration zero error (deg); grade's fit carries -2.12
         env._gate_zoff_La = float(terms["zoff_La"])
         if env._zero_off is not None:
@@ -372,6 +377,16 @@ def sole_symmetric(env, sole_w=0.0814):
         for g in ps:
             y = p0[nm(m, g)][1]
             m.geom_pos[g][1] = yc + (y - yc) * (0.5 * sole_w) / half
+
+
+def sole_inset(env, mm):
+    """The `sole_in` terms: per side, every sole pad inboard of `mm` (mm from the ankle-roll axis, in the
+    foot frame; None = unchanged) is moved laterally onto that line. Inboard is -y on the left foot, +y on
+    the right. Idempotent: from the pads' positions as the env was built."""
+    import walker_env as W
+    if not hasattr(env, "_sole_in_nom"):
+        env._sole_in_nom = W.sole_pad_nominal(env.model)
+    W.apply_sole_inset(env.model, mm, nominal=env._sole_in_nom)
 
 
 def set_series_view(env, alpha):

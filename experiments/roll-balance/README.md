@@ -679,3 +679,42 @@ python experiments/roll-balance/track_host.py --T 3.4 --dir back --steps 8 --ahe
 # sideR at T 4 from seed 2 (it tipped 3 of 3 there), learning on
 python experiments/roll-balance/track_host.py --T 4 --dir sideR --steps 6 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "sideR4 learn from 2"
 ```
+
+## The inset sole: a plant term for the robot's narrow single-support window (2026-11-12 night)
+
+The SIL holds single support down to a shift of ~0.5 × 62 mm. The robot tips inward below ~1.25-1.30 on both
+feet. Plant FK on the flight record puts the robot's load-bearing inner limit near the ankle-roll axis: within
+the play inside the roll servos (#277), the stance leg pivots there. The mass split cannot move the edge past
+k ~0.55.
+
+**The term.** It moves the sole's inner support edge: every sole pad inboard of a line `x` mm from the
+ankle-roll axis is moved onto that line, per foot. Outer pads stay put.
+- In training it is `--sole-in-mm L=8,R=-12` (both envs; the MjModel is edited before the MJX upload, parity
+  R19).
+- In grade.py / the SIL / the gate tools it is the `sole_in_L=`, `sole_in_R=` (`sole_in=`) terms.
+- The plant's pads reach ~22 mm inboard.
+
+The knob is chosen over a larger ankle play because it is static geometry: the same in CPU and MJX, no new
+dynamics, and the referee and grade.py inherit it through config.json / the gate terms.
+
+**Calibration (SIL, the fit plant = grade + per-side play, dwell gait as run on the robot, first R):**
+
+| robot fact (11-12) | plant (22 / 22 mm) | L 8 / R −12 |
+|---|---|---|
+| march T 5, k R 1.20, ff 0: R tips 4/4 | 0/3 (in ≤ 3.3) | **3/3 (10.4)** |
+| the same, ff R 2: R mostly clean | clean | **clean (in ≤ 4.2)** |
+| march T 5, k R 1.30: clean | clean | **clean (4.7)** |
+| march T 4, k R 1.25: R tips 7/12 (16:3x) | clean | clean (5.0) |
+| L needs ≥ 1.3 (B1); L at 1.30 clean | clean at 1.20 | **L edge 1.20-1.25 (1.20: 1/3, 7.7)** |
+| fwd T 5, k R 1.30, ff 0: R tips 4/4 | clean | not reproduced (in 4.6) |
+| fwd / back T 5, fwd T 4, ff 2,2: clean | clean | **clean** |
+| sideR T 4, ff 2,2: R tips 3/3; ff 2,3: clean | clean / clean | not reproduced (2.7) / clean |
+| fwd T 3.4, ff 2,2: R tips 4/4, L clean | clean | R not reproduced; L tips 4/5 (wrong side) |
+| fwd T 3.4, ff 2,4: R out 5.1-7.0 | out 2.8, then fell outward | out 2.7; L tips 4/5 |
+
+The static edge is reproduced: k R 1.20 tips, 1.30 holds, and ff 2 rescues 1.20 on R; L's edge is at 1.20-1.25.
+Not reproduced: the robot's dynamic tips at k 1.30 (forward without ff, sideR, T 3.4) and its outward overshoot
+with ff 4. The sim stays ~0.05-0.1 k more forgiving there. Symmetric insets do not work: the plant's left side
+already has more ankle play and a calibration zero error, so its L edge moves first (L tips everywhere at
+5 / 5 mm). Hence per side: L 8, R −12 (grids at L 10 / 7 and R −8 / −11 / −14 bracket it). Grids: `/tmp` scripts, not kept; the table is
+the record.
