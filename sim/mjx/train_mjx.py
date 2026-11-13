@@ -693,6 +693,12 @@ def make_parser():
                         "is up: u = its static unloading (the CoM's progress from the swing "
                         "sole to the stance sole, 0..1), h = its sole height / (lift_height "
                         "+ c6), clipped to 1 (walker_env.march_unload_term)")
+    p.add_argument("--w-march-both", type=float, default=None,
+                   help="TWO-FOOT (AND) march term weight (default off): during a gait-clock "
+                        "march, min over the two feet of each foot's best 0.5 (u + h) (the "
+                        "--w-march-unload score) over its last completed commanded swing, so a "
+                        "one-legged march earns only the planted foot's unloading "
+                        "(walker_env.march_both_update; #137, 2026-11-13)")
     p.add_argument("--w-knee-high", type=float, default=None,
                    help="knee-high clearance kernel weight: fraction of the "
                         "commanded swing height (lift_height + c6) the swing "
@@ -1327,6 +1333,8 @@ def build_env_kw(args):
         env_kw["w_knee_high"] = args.w_knee_high
     if args.w_march_unload is not None:
         env_kw["w_march_unload"] = args.w_march_unload
+    if args.w_march_both is not None:
+        env_kw["w_march_both"] = args.w_march_both
     for _k in ("w_foot_cross", "foot_cross_sep", "swing_height", "w_feet_phase",
                "feet_phase_s2"):
         if getattr(args, _k) is not None:
