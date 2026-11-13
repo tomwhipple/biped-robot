@@ -39,7 +39,10 @@ import synth as S  # noqa: E402
 # lifted foot in mid single support at T <= 4 (in 9.2-10.6 deg on 7 of 12 right steps, the right hip roll
 # servo 3.5-7.5 deg behind its goal); at 1.30, T 4 / 3.4 / 3.2 / fwd 8 at T 4: 0 of 16 right steps past 4 deg,
 # hip roll error 2.3-3.7 deg.
-K_STATIC = {"L": 1.3, "R": 1.30}
+# R 1.35 (hw 17:47-17:51): at 1.30 the first right stance of back 12 at T 5 still tipped (in 10.1-10.4, P 32 and
+# P 64 alike); at 1.35 back 12 and back 8 ran clean (right in 1.3-1.7, out <= 1.5, hip lag at mid support
+# 2.8-3.6 deg, as the clean marches).
+K_STATIC = {"L": 1.3, "R": 1.35}
 # (shift, settle) s per step time; single support = the rest. From the SIL (dwell_grid.py timing): the
 # shift (min-jerk, ~158 mm from 1.25 x over one foot to 1.3 x over the other) needs >= 1.2 s, single
 # support >= 1.8 s (raise 0.63 s); below T = 3.2 s it falls or leans 11-14 deg. 6 s is the gentle start
@@ -63,7 +66,7 @@ def _mj(u):
 class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=K_STATIC["R"], ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
-                 t_shift=None, t_settle=None, yaw_trim=0.0):
+                 t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid"):
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         self.k = {"L": float(kL), "R": float(kR)}
@@ -109,11 +112,14 @@ class Dwell:
             y_from = dict(yq)
             y_to = dict(yq)
             y_to[sw] = (yaw if p["i"] % 2 == 0 else -yaw) if yaw else 0.0
-            if yaw_trim:
-                # a heading change of yaw_trim deg per step (+ = to the robot's left): over the middle of single
-                # support the stance hip yaw goes from -c to +c (the body turns about the planted foot) and the
-                # swing hip from +c to -c (the foot lands square to the new heading); c = half the step's turn
-                c = YAW_SIGN * math.radians(yaw_trim) / 2.0
+            per_step = isinstance(yaw_trim, (list, tuple))
+            yt = (yaw_trim[p["i"]] if p["i"] < len(yaw_trim) else yaw_trim[-1]) if per_step else yaw_trim
+            if per_step or yt:
+                # a heading change of yaw_trim deg per step (+ = to the robot's left; a list = one per step, the
+                # host's heading hold): over the middle of single support the stance hip yaw goes from -c to +c
+                # (the body turns about the planted foot) and the swing hip from +c to -c (the foot lands square to
+                # the new heading); c = half the step's turn
+                c = YAW_SIGN * math.radians(yt) / 2.0
                 y_to[st] = c                      # was -c, as the last step's swing (0 on the first step)
                 y_to[sw] = y_to[sw] - c
             goals.append((start, goal, y_from, y_to))
@@ -132,6 +138,7 @@ class Dwell:
         fe = {s: list(v) for s, v in feet.items()}
         yq = {"L": 0.0, "R": 0.0}
         pel_from = 0.0
+        px_from = 0.0
         tt = t0
         cur = 0
         while tt <= self.t_end + 1e-9:
@@ -141,14 +148,19 @@ class Dwell:
                 fe[steps[cur]["swing"]] = list(goal)
                 yq = dict(y_to)
                 pel_from = stance_target(cur, fe)
+                px_from = fe[steps[cur]["stance"]][0]
                 cur += 1
             if cur < len(steps):
                 p = steps[cur]
                 tgt = stance_target(cur, fe)
+                px_tgt = fe[p["stance"]][0]
                 if tt <= p["b"]:
-                    pel = pel_from + _mj((tt - p["a"]) / max(t_sh, 1e-6)) * (tgt - pel_from)
+                    m_sh = _mj((tt - p["a"]) / max(t_sh, 1e-6))
+                    pel = pel_from + m_sh * (tgt - pel_from)
+                    px = px_from + m_sh * (px_tgt - px_from)
                 else:
                     pel = tgt
+                    px = px_tgt
                 fz = {"L": 0.0, "R": 0.0}
                 fxy = {s: list(v) for s, v in fe.items()}
                 yy = dict(yq)
@@ -170,11 +182,16 @@ class Dwell:
             else:
                 # after the last step: back to the centre between the feet
                 mid = 0.5 * (fe["L"][1] + fe["R"][1])
-                pel = pel_from + _mj((tt - t_end_steps) / max(t_sh, 1e-6)) * (mid - pel_from)
+                m_sh = _mj((tt - t_end_steps) / max(t_sh, 1e-6))
+                pel = pel_from + m_sh * (mid - pel_from)
+                px = px_from + m_sh * (0.5 * (fe["L"][0] + fe["R"][0]) - px_from)
                 fz = {"L": 0.0, "R": 0.0}
                 fxy = {s: list(v) for s, v in fe.items()}
                 yy = dict(yq)
-            x_pel = 0.5 * (fxy["L"][0] + fxy["R"][0])
+            # pelvis_x "mid": over the feet's mid point (moves forward with the swing foot); "stance": over the stance
+            # foot through single support, moving fore-aft only in the shift (fwd at T 3.4 on 11-12: the right stance
+            # pitched to +7 deg as the pelvis went ahead of its foot, then tipped toward the swing foot)
+            x_pel = px if pelvis_x == "stance" else 0.5 * (fxy["L"][0] + fxy["R"][0])
             qd = K.pose(shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
                         footR=(fxy["R"][0], fxy["R"][1], fz["R"]))
             qd["L_hip_yaw"] += yy["L"]

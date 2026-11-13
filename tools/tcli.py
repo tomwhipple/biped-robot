@@ -2,9 +2,12 @@
 """Send CLI lines to the robot over the USB tether WITHOUT resetting the ESP32, print the replies, exit.
 
 For the tether-only commands the Wi-Fi CLI refuses (`gains <id> <P> <D>`, `imu bias online save`, ...).
-The board's auto-reset circuit pulls EN / IO0 from DTR / RTS, and a plain `serial.Serial(port)` drives
-both on open. This opens the port with DTR and RTS held de-asserted from the start (set before open(),
-as idf.py monitor does), so the running firmware keeps running.
+The port is opened with DTR and RTS held de-asserted from the start (set before open(), as idf.py monitor
+does). ON THIS ROBOT THE ESP32 STILL RESETS ON OPEN (2026-11-12: boot log, trims zeroed): whatever lives in
+RAM -- the learned trim T, a queued track, the online gyro bias -- is gone, and the robot is in its boot
+state when the lines arrive. So by default the tool waits for the boot to finish (--boot-wait: the boot log
+has gone quiet for 1 s, at most N s) before sending. EEPROM writes (`gains`) are unaffected by the reset.
+Re-seed the trims (`trim T L/R`) afterwards; track_host.py does that at every run.
 
     python tools/tcli.py "gains 52"                       # read the R hip roll's P / D
     python tools/tcli.py "gains 52 64 32" "gains 52"      # several lines, one after the other
@@ -67,6 +70,9 @@ def main(argv=None):
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--timeout", type=float, default=4.0, help="s per line at most")
     ap.add_argument("--idle", type=float, default=0.4, help="s of quiet that ends a reply")
+    ap.add_argument("--boot-wait", type=float, default=8.0,
+                    help="after opening, wait up to this long for the (reset) boot log to go quiet for 1 s before "
+                         "sending; 0 = do not wait (a board that does not reset)")
     ap.add_argument("--no-sg", action="store_true", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
     try:
@@ -78,6 +84,20 @@ def main(argv=None):
         os.execvp("sg", ["sg", "dialout", "-c", cmd])
     ok = True
     try:
+        if a.boot_wait > 0:
+            t0 = time.monotonic()
+            got = 0
+            last = t0
+            while time.monotonic() - t0 < a.boot_wait:
+                chunk = s.read(4096)
+                if chunk:
+                    got += len(chunk)
+                    last = time.monotonic()
+                elif got and time.monotonic() - last >= 1.0:
+                    break
+            print(f"(boot wait: {got} bytes in {time.monotonic() - t0:.1f} s)")
+            s.write(b"\r\n")              # a throwaway line: the CLI's first read after boot
+            time.sleep(0.2)
         drain(s)
         for line in a.lines:
             reply = command(s, line, a.timeout, a.idle)

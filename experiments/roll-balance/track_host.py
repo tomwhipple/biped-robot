@@ -36,7 +36,7 @@ import sil_gait as G  # noqa: E402
 # The robot's own working values on the hard panels, 2026-11-12 (B1 runs fwtrim_*): static shift 1.3x over
 # the left foot, 1.25x over the right (1.15x tipped in at foot-off), learned T L 5.2, R 3.4 deg. The SIL holds
 # with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
-ROBOT_AMP = (1.3, 1.30)          # k_static L, R (dwell.K_STATIC; R 1.30 since the 16:55 runs)
+ROBOT_AMP = (1.3, 1.35)          # k_static L, R (dwell.K_STATIC; R 1.35 since the 17:47-17:51 runs)
 ROBOT_SEED = (5.2, 3.4)
 # The robot's own heading drift: +1.9 deg/step to its LEFT with no turn asked (hw 2026-11-12, every direction),
 # and 1.34 deg of heading per deg asked. -1.4 deg/step cancels it (fwd 8 at T 4: +7 deg over the run with it,
@@ -66,11 +66,55 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
     dkw = dict(G.DIRS[direction])
     if model == "dwell":
         gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}))
-        dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
+        if isinstance(yaw_trim, (list, tuple)):
+            dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
+        else:
+            dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
     sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model, **dkw, **gkw)
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
-                duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model)
+                duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model,
+                args=dict(T_step=T_step, n_steps=n_steps, direction=direction, seeds=seeds, lead_ms=lead_ms, cal=cal,
+                          first=first, amp=amp, model=model, ds=ds, h=h))
+
+
+# The heading model the hold inverts (hw 2026-11-12, T 4-5, the turn about the planted foot): heading per step =
+# YAW_GAIN x asked + YAW_DRIFT (deg; + = left).
+YAW_GAIN, YAW_DRIFT = 1.34, 1.9
+
+
+class HeadingHold:
+    """Per-step heading hold on the rolling queue (#297): at every reported single support the host reads the
+    fused yaw (`imu` quat; the firmware's online gyro bias keeps it from drifting at rest), compares it with the
+    reference -- a commanded heading change per step, so a commanded heading RATE is the same loop -- and asks
+    the steps not yet uploaded for asked = (dpsi_cmd + k x error - YAW_DRIFT) / YAW_GAIN deg each, clipped."""
+
+    def __init__(self, n_steps, dpsi_cmd, k=0.5, clip=8.0):
+        self.n, self.dpsi, self.k, self.clip = n_steps, dpsi_cmd, k, clip
+        ff = (dpsi_cmd - YAW_DRIFT) / YAW_GAIN
+        self.asked = [max(-clip, min(clip, ff))] * n_steps
+        self.log = []
+
+    def update(self, n_done, psi, first_free):
+        """n_done single supports reported, psi the heading (deg, from the start), first_free = the first step
+        whose frames are not uploaded yet. Returns True when the asked list changed."""
+        err = n_done * self.dpsi - psi
+        a = (self.dpsi + self.k * err - YAW_DRIFT) / YAW_GAIN
+        a = max(-self.clip, min(self.clip, a))
+        self.log.append(dict(n=n_done, psi=round(psi, 1), ref=round(n_done * self.dpsi, 1), err=round(err, 1),
+                             asked=round(a, 2), from_step=first_free + 1))
+        if first_free >= self.n or all(abs(x - a) < 0.05 for x in self.asked[first_free:]):
+            return False
+        self.asked = self.asked[:first_free] + [a] * (self.n - first_free)
+        return True
+
+
+def yaw_of_imu(txt):
+    m = re.search(r"^quat\s+([-+\d.]+)\s+([-+\d.]+)\s+([-+\d.]+)\s+([-+\d.]+)", txt, re.M)
+    if not m:
+        return None
+    w, x, y, z = (float(v) for v in m.groups())
+    return math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
 
 
 def precheck(pl, tol=0.01):
@@ -245,6 +289,33 @@ def live(pl, a):
     r = robot_io.Robot(host=a.host, log=log)
     steps, sent, t_line = [], 0, []
     adds = pl["adds"]
+    hold = pl.get("hold")
+    yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
+    if hold is not None:
+        yaw_state["prev"] = yaw_of_imu(r.cmd("imu"))
+        if yaw_state["prev"] is None:
+            print("  heading hold: no `quat` in the imu reply -- holding off")
+            hold = None
+
+    def heading_step():
+        """After a new single support: read the heading, maybe re-plan the steps not uploaded yet."""
+        nonlocal adds
+        y = yaw_of_imu(r.cmd("imu"))
+        if y is None:
+            return
+        yaw_state["psi"] += (y - yaw_state["prev"] + 180.0) % 360.0 - 180.0
+        yaw_state["prev"] = y
+        psi = yaw_state["psi"]
+        last_t = adds[sent - 1][0] if sent else 0
+        sw = pl["sway"]
+        first_free = sum(1 for p_ in sw.phases if 1e3 * (p_["t0"] - sw.t_first) <= last_t)
+        if hold.update(len(steps), psi, first_free):
+            newp = plan(**{**pl["args"], "yaw_trim": hold.asked})
+            adds = newp["adds"]
+            pl["sway"], pl["frames"] = newp["sway"], newp["frames"]
+        h = hold.log[-1]
+        print(f"  heading {h['psi']:+.1f} (ref {h['ref']:+.1f}, err {h['err']:+.1f}) -> asked {h['asked']:+.2f} "
+              f"deg/step from step {h['from_step']}", flush=True)
     ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
 
     def scan(txt):
@@ -288,7 +359,10 @@ def live(pl, a):
             # 0 of 34 seen live, so the stop rule never ran). `track steps` repeats the last 16: poll it.
             m2 = re.search(r"(\d+) single supports reported", txt)
             if m2 and int(m2.group(1)) > len(steps):
+                n_before = len(steps)
                 stop = scan(r.cmd("track steps")) or stop
+                if hold is not None and len(steps) > n_before and not stop:
+                    heading_step()
             if stop:
                 r.cmd("track stop")
                 print("  stop rule hit -> track stop")
@@ -317,7 +391,7 @@ def live(pl, a):
             ts = sorted(t_line)
             print(f"upload: {len(t_line)} lines, round trip median {1e3 * ts[len(ts) // 2]:.0f} ms, max "
                   f"{1e3 * ts[-1]:.0f} ms -> {PER_LINE / ts[len(ts) // 2]:.0f} frames/s")
-        log(dict(summary=True, steps=steps, line_s=t_line))
+        log(dict(summary=True, steps=steps, line_s=t_line, heading=(hold.log if hold is not None else None)))
         r.close()
         print(f"log: {log_path}")
 
@@ -345,6 +419,15 @@ def main(argv=None):
                          "own turn (turnL / turnR +-4). The robot turns 1.34 x asked + 1.9 deg/step left; the default "
                          "-1.4 cancels the drift. 0 to see the bare drift")
     ap.add_argument("--lead", type=int, default=2500, help="ms from where it stands to the first frame")
+    ap.add_argument("--heading-hold", choices=["on", "off"], default="on",
+                    help="dwell, live: read the fused yaw after every step and re-plan the asked turn of the steps not "
+                         "uploaded yet (replaces --yaw-trim with the heading model's feed-forward + feedback)")
+    ap.add_argument("--turn", type=float, default=None,
+                    help="with the heading hold: the total heading change to reach over the walk, deg, + = left "
+                         "(default: 0, or +-5 deg/step for turnL / turnR)")
+    ap.add_argument("--heading-rate", type=float, default=None,
+                    help="with the heading hold: a commanded heading rate instead, deg/s (+ = left)")
+    ap.add_argument("--heading-k", type=float, default=0.5, help="heading hold: fraction of the error fixed per step")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=10.0, help="deg toward the swing foot -> track stop")
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
@@ -368,7 +451,21 @@ def main(argv=None):
     probe = robot_io.Robot(host=a.host)
     cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
     probe.close()
-    live(plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim), a)
+    pl = plan(a.T, a.steps, a.dir, seeds, a.lead, cal=cal, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
+              yaw_trim=a.yaw_trim)
+    if a.model == "dwell" and a.heading_hold == "on":
+        if a.heading_rate is not None:
+            dpsi = a.heading_rate * a.T
+        elif a.turn is not None:
+            dpsi = a.turn / a.steps
+        else:
+            dpsi = {"turnL": 5.0, "turn": 5.0, "turnR": -5.0}.get(a.dir, 0.0)
+        hold = HeadingHold(a.steps, dpsi, k=a.heading_k)
+        pl = plan(**{**pl["args"], "yaw_trim": hold.asked})
+        pl["hold"] = hold
+        print(f"heading hold: {dpsi:+.1f} deg/step commanded, feed-forward {hold.asked[0]:+.2f} deg/step asked, "
+              f"k {a.heading_k:g}")
+    live(pl, a)
     return 0
 
 

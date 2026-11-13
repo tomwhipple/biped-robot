@@ -504,3 +504,33 @@ the distance. So it is the same mid-support hip yield, set off when step 1 also 
 half cycle before the first one. The firmware read that as a one-tick single support, which printed a
 TS line and shifted the numbering by one. In the forward run, "TS 9 R" was the 8th real step (the last
 right stance), not a closing step. kLift now starts at the first lift-off.
+
+## k R 1.35, the forward pitch, the heading hold (hw 17:45-17:58)
+
+**k_static R 1.35** is the default. At 1.30 the first right stance of back 12 at T 5 tipped (in 10.1-10.4)
+at servo P 32 and at P 64 alike, so the P gain is not the fix. At 1.35, back 12 (P 64) and back 8 (P 32)
+ran clean: right in 1.3-1.7 deg, out ≤ 1.5 deg, right hip lag at mid support 2.8-3.6 deg, the same as the
+clean marches.
+
+**Forward at T 3.4 still degrades on the right steps** (in 7.4 and 8.4 on the 3rd and 4th right stance,
+at 1.35):
+- The shift arrives: the right hip roll is at the same +15.4 deg at every lift-off, and the pre-lift roll
+  rate is no higher than on clean steps.
+- The heading jumps ~9 deg between steps 6 and 7.
+- In the record, the right stance pitches the body forward to +6.7 to +7.7 deg by u 0.8, while the
+  pelvis moves ahead of the stance foot as the swing foot travels. The left stance pitches only +2 to +4.
+- Plan-level option: `Dwell(pelvis_x="stance")` keeps the pelvis fore-aft over the stance foot through
+  single support and moves it only in the shift. It is not the default yet; it needs an A/B on the
+  robot.
+- A "do not lift until the roll is quiet" check would need a conditional hold in the firmware track
+  player: a frame flag that pauses the track clock until |gyro x| is under a threshold, about 40 lines
+  plus tests. The data does not point at it: the shift arrives, and the pre-lift rates are normal.
+
+**Heading hold** (`track_host.py --heading-hold on`, the default with `--live`):
+- After every reported single support the host reads the fused yaw (`imu` quat; the online gyro bias
+  keeps it from drifting). Steps not yet uploaded are asked `(dpsi_cmd + k × error − 1.9) / 1.34`
+  deg/step, from today's heading model; the plan for those steps is regenerated and the upload goes on.
+- `dpsi_cmd` is 0 for straight, ±5 deg/step for turnL / turnR, `--turn TOTAL / steps`, or
+  `--heading-rate × T`, so a commanded heading rate is the same loop.
+- k = 0.5: half the error is fixed per step. Asked turns are clipped to ±8 deg/step.
+- Locked steps keep their frames unchanged; tested offline (re-planned upload, pre-check still passes).
