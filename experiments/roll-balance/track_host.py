@@ -12,7 +12,8 @@ The session:
     track play <lead_ms>                  min-jerk to the first frame (the crouch), then play
     ... track add as the play head moves (the host stays `--ahead` steps in front; `track` reads the head)
     the timeline ends at the last step end: the queue runs dry there, the firmware rests (= track stop)
-Stop rule: a TS line with ABORT, or a lean toward the swing foot past --stop-lean deg -> `track stop`
+Stop rule: a TS line with ABORT, a lean toward the swing foot past --stop-lean deg, or an OUTWARD lean (away from
+the swing foot) past --stop-out deg -> `track stop`
 (finish the step, rest pose); a refused line or a lost link -> `track halt` (freeze, the trim fades).
 
     python track_host.py --T 4 --dir march --steps 6              # dry run: what would be sent
@@ -42,6 +43,12 @@ ROBOT_SEED = (5.2, 3.4)
 # and 1.34 deg of heading per deg asked. -1.4 deg/step cancels it (fwd 8 at T 4: +7 deg over the run with it,
 # 30-40 deg by camera over the day without). Added to every direction's own turn.
 YAW_TRIM = -1.4
+# The dwell gait's stance-ankle feed-forward and pelvis fore-aft (hw 2026-11-12 19:10-19:28, PR #304): 2 deg outward
+# on each stance ankle turned fwd / back at T 5 and T 4 from "tips most right steps" into clean walks (T 5: 35 of
+# 36 steps clean; T 4: 18 of 18); 4 deg on R at T 3.4 leaned OUTWARD 5-8 deg and fell. pelvis_x "stance" ran
+# every one of those walks.
+ROBOT_ANKLE_FF = (2.0, 2.0)
+ROBOT_PELVIS_X = "stance"
 # the dwell gait's timing per step time is dwell.SCHEDULE (from the SIL: dwell_grid.py); T below dwell.T_FLOOR is
 # refused unless --below-floor
 MAX_AHEAD_S = 8.0     # the robot's queue holds 128 frames (12.8 s at 10 Hz): stay <= 8 s ahead
@@ -60,7 +67,8 @@ def lines_for(frames):
 
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
-         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x="mid", ankle_ff=(0.0, 0.0), k_ds=None):
+         model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
+         k_ds=None):
     """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
     if amp[1] is None:
@@ -388,6 +396,10 @@ def live(pl, a):
                       f"{' Tback' if s['tback'] else ''}", flush=True)
                 if not s["ok"] or s["lean_in"] > a.stop_lean:
                     trip = True
+                if s["lean_out"] > a.stop_out:
+                    # (19:27: R out 7.0 on one walk, 7.2 and 8.2 on the next, then the outward fall)
+                    print(f"  OUTWARD lean {s['lean_out']:.1f} > --stop-out {a.stop_out:g} deg: stopping", flush=True)
+                    trip = True
         return trip
 
     def add(line):
@@ -496,19 +508,24 @@ def main(argv=None):
     ap.add_argument("--heading-rate", type=float, default=None,
                     help="with the heading hold: a commanded heading rate instead, deg/s (+ = left)")
     ap.add_argument("--heading-k", type=float, default=0.5, help="heading hold: fraction of the error fixed per step")
-    ap.add_argument("--pelvis-x", choices=["mid", "stance"], default="mid",
-                    help="dwell: the pelvis fore-aft through single support -- over the feet's mid point (default) or "
-                         "over the stance foot, moving forward only in the shift (fwd T 3.4: right-stance pitch +7 deg)")
+    ap.add_argument("--pelvis-x", choices=["mid", "stance"], default=ROBOT_PELVIS_X,
+                    help="dwell: the pelvis fore-aft through single support -- over the stance foot, moving forward only "
+                         "in the shift (the default; fwd T 3.4 with mid: right-stance pitch +7 deg), or over the feet's "
+                         "mid point")
     ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
     ap.add_argument("--stop-lean", type=float, default=14.0,
                     help="deg toward the swing foot -> track stop (inward tips to ~10 deg recover and the walk goes on, hw 2026-11-12 18:2x; the firmware aborts at 15)")
+    ap.add_argument("--stop-out", type=float, default=6.0,
+                    help="deg AWAY from the swing foot (outward over the stance foot) -> track stop. hw 2026-11-12: "
+                         "clean walks stay <= 5.0; the 19:27 fall came after R out 7.0, 7.2, 8.2")
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
     ap.add_argument("--poll", type=float, default=0.25)
     ap.add_argument("--live", action="store_true", help="SEND to the robot (Stage C, a person at it)")
     ap.add_argument("--note", default="", help="free text into the log's summary row, e.g. where the robot stands")
-    ap.add_argument("--ankle-ff", default="0,0",
+    ap.add_argument("--ankle-ff", default=",".join(f"{x:g}" for x in ROBOT_ANKLE_FF),
                     help="dwell: L,R deg, a fixed feed-forward on the STANCE ankle roll, + = outward (the CoM toward the "
-                         "stance foot's outside, ~3.7 mm/deg), ramped in over the raise, held, out over the lower")
+                         "stance foot's outside, ~3.7 mm/deg), ramped in over the raise, held, out over the lower "
+                         "(default 2,2: hw 2026-11-12 19:10-19:28; 0,0 = off)")
     ap.add_argument("--k-ds", default=None,
                     help="dwell: L,R, the two-stage shift -- double support only to k_ds x 62 mm, the rest to --amp over "
                          "the raise; 0 = single-stage for that side (default: single-stage both)")

@@ -608,3 +608,31 @@ Leave out `--live` for the dry run with the pre-check. Then take the winner at k
 `--pelvis-x stance` (`--dir fwd --steps 8 --amp 1.3,1.30 --pelvis-x stance ...`, likewise `--dir back`), and to
 L: `--ankle-ff 3,<R>` (L's play-drop is about twice R's), or `--amp 1.35,<R> --k-ds 1.20,<R k_ds>`. The
 upper bound for L is 1.35 as well.
+
+## The ankle feed-forward on the robot (hw 2026-11-12 19:10-19:28): the defaults, the outward stop
+
+All runs were mid-board on image b5e5ff2 with the heading hold on; k R 1.30 unless noted. The full table is
+on #297.
+
+| run | `--ankle-ff` L,R | result |
+|---|---|---|
+| march 4, T 5, k R 1.20 (provoked) | 0,0 | R tips on 4 of 4 (9.1-9.6 deg) |
+| the same | 0,2 | R clean on 4 of 6 (1.2-1.7) |
+| fwd 8, T 5 | 0,0 | R tips on 4 of 4 (10.3-12.1) |
+| fwd 8, T 5 | 0,2 | 9 of 9 clean |
+| back / fwd / back / fwd 8, T 5 | 2,2 | 35 of 36 clean (one first-R-stance tip); heading within 4 deg per walk |
+| fwd 8, back 8, T 4 | 2,2 | 9 of 9 and 9 of 9 clean, lean ≤ 4.8, outward ≤ 5.0 |
+| march 6, T 4 | 2,2 | the first R step tips 11.6, the rest clean |
+| fwd 8, back 8, T 3.4 | 2,2 | R tips on 4 of 4 and 3 of 4 (to 13.0) |
+| fwd 8, T 3.4 | 2,4 | clean inward (≤ 2.8), but R leans OUTWARD 5.1-7.0 |
+| back 8, T 3.4 | 2,4 | R outward 7.2 and 8.2, then fell (52 deg) |
+
+**Defaults now** (`track_host.ROBOT_ANKLE_FF`, `ROBOT_PELVIS_X`): `--ankle-ff 2,2` and `--pelvis-x stance`.
+`--ankle-ff 0,0 --pelvis-x mid` gives the old plan.
+
+**Outward stop.** `--stop-out 6.0` sends `track stop` on a TS line whose outward lean exceeds the limit, as
+`--stop-lean` (14) does for the inward side. Clean walks stay ≤ 5.0 outward. The fall came after R out 7.0 on
+one walk and 7.2 / 8.2 on the next.
+
+**Pace.** T 4 is the recommended pace. T 3.4 is not usable yet: 2 deg on R is too little there and 4 is too
+much, so a fixed feed-forward is the wrong tool at that pace.
