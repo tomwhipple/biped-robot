@@ -636,3 +636,46 @@ one walk and 7.2 / 8.2 on the next.
 
 **Pace.** T 4 is the recommended pace. T 3.4 is not usable yet: 2 deg on R is too little there and 4 is too
 much, so a fixed feed-forward is the wrong tool at that pace.
+
+## By direction with ff 2,2 (hw 2026-11-12 19:30-20:00), and the learned ankle trim (host)
+
+All runs were on host fddfd18, mid-board, with the heading hold on. There were no falls and no stop-rule
+trips. The table is on #297.
+
+| direction | T 5 | T 4 |
+|---|---|---|
+| fwd 8 | 9 of 9 (from the far end) | the first two R steps 13.0 / 12.9, then clean |
+| sideL | 7 of 7 | 7 of 7 |
+| sideR | the first R step tipped | R tips 3 of 3 (10.5-10.9) at ff 2. With `--seed 5.2,2.0`: still 3 of 3, so the hike seed is not it. With `--ankle-ff 2,3`: 7 of 7, R in 2.2, out 3.9-4.9 |
+| turnR / turnL | −33.2 / +36.6 deg, clean | −36.4 / +32.6 deg, clean |
+
+The needed A on R depends on direction: 2 deg for most, 3 for sideR.
+
+**`--ankle-learn on`** (`AnkleLearner`; off by default) learns A[side] on the host at step rate.
+- At each TS line of that side:
+  - tip (in ≥ 7): A += 1.0;
+  - out > 4: A −= 0.5 × (out − 4), at most 1.5;
+  - out < 2 and in > 3: A += 0.5;
+  - otherwise hold.
+- A is clamped to 0..4.
+- Keep: a clean step (in < 5, out ≤ 4) keeps the A it ran with.
+- Revert: a step past 8 deg OUTWARD sets A back to the keep before the rule. Tips (9-13 deg inward) do not
+  revert, or two tips in a row could never climb past keep + 1.
+- The new A goes to that side's steps not yet uploaded. Use `--ahead 1`: with 2 steps ahead the side's next
+  step is often already queued.
+- The start comes from `results/ankle_trim_state.json` keyed by direction: seeds 2/2, sideR R 3.
+  `--ankle-seed L,R` starts from given values instead.
+- The state is saved at the run's end only if the run had no fall, no ABORT and no lost link.
+- Each step in the log carries `A_used` / `A_next` next to the firmware's T and hike. The summary row has
+  `ankle_learn`. The in-step outward guard stays with `--stop-out 6`.
+
+The A/B (mid-board, from the repo root):
+```
+# T 3.4, fixed 2,2 vs learned (start 2,2)
+python experiments/roll-balance/track_host.py --T 3.4 --dir fwd --steps 8 --ahead 1 --live --note "fwd34 learn off"
+python experiments/roll-balance/track_host.py --T 3.4 --dir fwd --steps 8 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "fwd34 learn on"
+python experiments/roll-balance/track_host.py --T 3.4 --dir back --steps 8 --ahead 1 --live --note "back34 learn off"
+python experiments/roll-balance/track_host.py --T 3.4 --dir back --steps 8 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "back34 learn on"
+# sideR at T 4 from seed 2 (it tipped 3 of 3 there), learning on
+python experiments/roll-balance/track_host.py --T 4 --dir sideR --steps 6 --ahead 1 --ankle-learn on --ankle-seed 2,2 --live --note "sideR4 learn from 2"
+```
