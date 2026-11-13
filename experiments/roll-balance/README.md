@@ -749,7 +749,7 @@ fore-aft inside the same 1.4 s min-jerk shift as the lateral 161 mm, so the spee
 
 Pre-check and SIL by stride (fwd and back give the same margins; T 4 and T 5 the same pre-check; crouch 20 mm, h 22 mm,
 `first R`, k 1.3, ff 2,2, `pelvis-x stance`, the robot's trims; SIL = `sil_gait.run`, 6 steps, fit plant and the same
-with the inset sole `sole_in_L=8,sole_in_R=-12`, 0 and no extra delay):
+with the inset sole `sole_in_L=8,sole_in_R=-12`; no extra delay):
 
 | stride | pre-check | tightest joint margin | pelvis peak | SIL T 4 (fit / inset) | SIL T 5 (fit / inset) |
 |---|---|---|---|---|---|
@@ -764,8 +764,8 @@ plan's 2 deg margin and its plant clips targets at the model range, so its 30 / 
 plans the pre-check would not send; the sim travelled 6 steps × stride (117 mm at 20, 237 mm at 40) and stays more
 forgiving than the robot.
 
-Where the cap moves (max passing stride, fwd at T 4, from the pre-check; SIL 0 falls / 0 aborts for each row's top
-stride):
+Where the cap moves (max passing stride, fwd at T 4, from the pre-check; the SIL ran tilt 3 deg at 20 and 40 mm and
+crouch 15 mm at 20 and 36 mm, T 4 / 5, fwd / back, fit / inset: 0 falls, 0 aborts, in ≤ 3.3, out ≤ 5.1):
 
 | crouch / swing height / tilt | max stride | limited by |
 |---|---|---|
