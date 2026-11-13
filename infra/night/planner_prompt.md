@@ -374,6 +374,40 @@ referee shows a phase failing is in scope every day.
   plan run tonight unless you move them to `queue/held/` with a
   `WHY-<job>.txt` note.
 
+## The queue may start running the moment you finish (Tom, 2026-11-13)
+
+`plan_morning.sh` restarts `night_run.sh` right after you report `PLAN_STATUS: QUEUED` (or
+`NEEDS_TOM` with jobs queued) if the night window is still open: after 22:00, or before 06:45
+(no job starts later; the hard stop is 07:00). Last night the plan finished at 03:50 and the GPU
+then idled for 3 h, which Tom did not want. So:
+
+- Write every queue file as if it runs in the next minute: **valid as written** (preflight passes,
+  every `BRANCH=` is pushed, merged and on `origin/main` where the job needs it, before you exit).
+  "Merge it before 21:30" is no longer enough.
+- **Order the queue most informative first.** A continued night may only get through the first
+  few jobs before 07:00; the rest wait for 22:00.
+- You do not start anything yourself; the wrapper does, and it takes the runner lock, so no
+  second runner can appear.
+
+### Later pass the same morning
+
+If the context below ends with "THIS IS AN ADDENDUM PASS", your own jobs already ran (the runner
+was restarted after your plan). Do not plan the night from scratch:
+
+- Grade only the runs listed there (their scorecards), and post an **ADDENDUM comment** on the
+  status issue (#137): each run's score vs its parent and the verdict, nothing already said.
+  Add a ledger entry only for what is new.
+- Adjust the remaining queue only if these results change the decision (move a job to
+  `queue/held/` with a `WHY-<job>.txt`, or add one named so it sorts where you want it). If
+  nothing changes, leave the queue alone. Re-run preflight if you touched it.
+- End with a `PLAN_STATUS:` line as usual (`QUEUED <n> jobs — ...` for the queue as it now stands).
+  If jobs remain and the window is still open, the runner is restarted again after this pass.
+
+### Deadline
+
+The user-facing results must be posted by **08:00**. The first plan counts for that; an addendum
+may come later (it is a bonus, never the thing the 08:00 report waits for).
+
 ## Hard limits
 
 - **GPU: none by day.** Training only through the queue (22:00 – 07:00). Never
