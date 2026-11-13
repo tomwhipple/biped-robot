@@ -718,3 +718,83 @@ with ff 4. The sim stays ~0.05-0.1 k more forgiving there. Symmetric insets do n
 already has more ankle play and a calibration zero error, so its L edge moves first (L tips everywhere at
 5 / 5 mm). Hence per side: L 8, R −12 (grids at L 10 / 7 and R −8 / −11 / −14 bracket it). Grids: `/tmp` scripts, not kept; the table is
 the record.
+
+## Step length, any step, and sequences (`track_host.py`; dry run by default)
+
+A step is a displacement of the swing foot from the stance foot: forward `dx`, left `dy`, heading change `dyaw`.
+The `--dir` presets are fixed ones (`fwd` 20 mm, `back` -20, `sideL` / `sideR` ±15, `turnL` / `turnR` ±4 deg asked
+≈ ±5 deg of heading); the flags below change them without changing a default.
+
+| flag | meaning |
+|---|---|
+| `--stride-mm X` | fwd / back step length (default 20) |
+| `--side-mm Y` | sideL / sideR step length (default 15) |
+| `--step "dx_mm,dy_mm,dyaw_deg"` | one arbitrary step per step instead of `--dir`: diagonal, curved. `dyaw` is the commanded heading change per step; the planner asks `dyaw / 1.34` (the robot's measured heading gain), the default `--yaw-trim -1.4` still cancels its drift |
+| `--seq "fwd:4,turnL:3,step(20,10,0):2"` | segments (a preset or `step(dx,dy,dyaw)`, a count) as one continuous track; `--steps` is ignored |
+| `--drop-mm D` | crouch depth (default 20) |
+| `--swing-tilt DEG` | toe-down tilt of the swing sole, in over the raise, flat at lift-off and touchdown (default 0) |
+
+**Pre-check.** On top of the static shift (pelvis over the stance foot at every lift-off and touchdown) it refuses a
+plan whose frames put any leg joint within 2 deg of the plant's joint range (knee, hip pitch / roll / yaw, ankle
+pitch and roll), or whose pelvis moves faster in the floor plane than 252 mm/s (161 mm in 1.2 s: the shift the SIL
+holds, `dwell.SCHEDULE`), or whose IK has no solution. It prints the tightest joint margin, the pelvis peak speed
+and the commanded speed (mm/s forward, mm/s sideways, deg/s; per segment for a sequence).
+
+**What bounds the stride.** The swing leg's ankle pitch. With the 20 mm crouch it stands at -24.6 deg and the swing
+foot, raised 22 mm and still one stride behind (fwd) or ahead (back) of the stance foot at the end of the raise, needs
+-36.2 deg at a 20 mm stride and about 0.23 deg more per mm; the model's range is ±40 (CAD design range; the
+firmware's bench clamp is ±45, `firmware/main/mech_envelope.h`, the robot's measured travel ±78). The pelvis shift
+is not the limit: the stance pelvis stays over the stance foot fore-aft in single support and moves one stride
+fore-aft inside the same 1.4 s min-jerk shift as the lateral 161 mm, so the speed goes 214 -> 223 mm/s from 20 to 50 mm.
+
+Pre-check and SIL by stride (fwd and back give the same margins; T 4 and T 5 the same pre-check; crouch 20 mm, h 22 mm,
+`first R`, k 1.3, ff 2,2, `pelvis-x stance`, the robot's trims; SIL = `sil_gait.run`, 6 steps, fit plant and the same
+with the inset sole `sole_in_L=8,sole_in_R=-12`; no extra delay):
+
+| stride | pre-check | tightest joint margin | pelvis peak | SIL T 4 (fit / inset) | SIL T 5 (fit / inset) |
+|---|---|---|---|---|---|
+| 20 mm | PASS | 3.8 deg (swing ankle pitch) | 214 mm/s | 0 falls, in ≤ 2.8 out ≤ 3.0 / out ≤ 4.0 | 0 falls, in ≤ 3.2 out ≤ 3.4 / out ≤ 4.7 |
+| 26 mm | PASS | 2.4 deg | 216 mm/s | 0 falls, in ≤ 3.0 out ≤ 3.1 / out ≤ 4.1 | 0 falls, in ≤ 3.1 out ≤ 3.5 / out ≤ 4.7 |
+| 30 mm | REFUSED (ankle pitch) | 1.5 deg | 217 mm/s | 0 falls, in ≤ 3.0 out ≤ 3.1 / out ≤ 4.0 | 0 falls, in ≤ 3.1 out ≤ 3.5 / out ≤ 4.7 |
+| 40 mm | REFUSED (ankle pitch) | -0.4 deg | 219 mm/s | 0 falls, in ≤ 3.1 out ≤ 3.1 / out ≤ 4.1 | 0 falls, in ≤ 3.1 out ≤ 3.4 / out ≤ 4.7 |
+| 50 mm | REFUSED (ankle pitch) | -2.0 deg | 223 mm/s | not run | not run |
+
+(Largest at 27 mm passes at 2.1 deg; 28 mm is refused at 1.9.) The SIL has no joint limit that bites inside a
+plan's 2 deg margin and its plant clips targets at the model range, so its 30 / 40 mm rows are a balance check of
+plans the pre-check would not send; the sim travelled 6 steps × stride (117 mm at 20, 237 mm at 40) and stays more
+forgiving than the robot.
+
+Where the cap moves (max passing stride, fwd at T 4, from the pre-check; the SIL ran tilt 3 deg at 20 and 40 mm and
+crouch 15 mm at 20 and 36 mm, T 4 / 5, fwd / back, fit / inset: 0 falls, 0 aborts, in ≤ 3.3, out ≤ 5.1):
+
+| crouch / swing height / tilt | max stride | limited by |
+|---|---|---|
+| 20 mm / 22 mm / 0 (default) | 27 mm | swing ankle pitch |
+| 20 mm / 15 mm / 0 | 54 mm | swing ankle pitch |
+| 20 mm / 22 mm / 3 deg | 43 mm | swing ankle pitch |
+| 20 mm / 22 mm / 5 deg | 58 mm | the static shift (pelvis reach) |
+| 15 mm / 22 mm / 0 | 36 mm | the static shift (margin 3.2 deg) |
+| 10 mm or 5 mm | none | IK out of reach: the straight leg cannot lift the foot |
+
+`--h`'s effect is by the sim's geometry only. The tilt costs toe clearance (SIL minimum swing clearance 11-14 mm
+with 3 deg); neither the tilt nor a shallower crouch has run on the robot.
+
+**Sequences.** `--seq` plans every step relative to the stance foot, so a segment's first step takes up the last one's
+stagger and hip yaw, and no closing step is added at a boundary. The one exception: when the feet are laterally
+apart at the boundary (a lateral segment ending on an odd step) and the next segment reverses the lateral direction,
+its first out-step would be a null step, so one explicit `close` step (no displacement, the segment keeps its count)
+is added. The final closing step is the gait's own, as for one direction. The heading hold's commanded heading
+per step follows the active segment (the reference is the running sum), and the ankle learner keeps one state per
+segment key (the preset name, or `step(dx,dy,dyaw)`, in `results/ankle_trim_state.json`), re-planning the
+not-uploaded steps with each step's own segment's trim. The per-step prints, the learner lines and the summary rows
+name the segment (`2:turnL`). The pre-check covers the whole sequence.
+
+SIL, T 5, k 1.3, fit plant / inset sole, 0 falls, 0 aborts: `fwd:4,turnL:3,fwd:4` (11 steps) in ≤ 3.0 out ≤ 3.4 /
+out ≤ 4.7, heading -5 deg; `fwd:4,turnL:3,fwd:4,sideR:4,back:4` (19 steps) the same leans, heading -24 deg (the sim
+drifts right with the default trim; the live heading hold is what holds the reference).
+
+```
+python track_host.py --T 5 --step "20,10,0" --steps 6                    # diagonal: 4 mm/s forward, 2 mm/s left
+python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one track, no closing step between segments
+python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
+```
