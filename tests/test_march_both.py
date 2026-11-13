@@ -1,6 +1,6 @@
 """--w-march-both: the two-foot (AND) march term (#137, planner 2026-11-13).
 
-23 of 23 march seeds (11-10 .. 11-12: the reference march, the play plant, the mirror loss, the
+All 20 seeds that found a march (11-10 .. 11-12: the reference march, the play plant, the mirror loss, the
 ungated --w-march-unload) marched on ONE foot. Every march reward pays each foot's swing on its
 own and the two are added, so a one-legged march collects about half of everything and the warm
 start picks the side. This term pays the weaker foot:

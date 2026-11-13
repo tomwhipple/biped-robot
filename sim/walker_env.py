@@ -456,7 +456,7 @@ def march_both_update(cur, last, s, swing_r, on, xp=np):
     Every march reward so far (w_lift, w_knee_high, the clearance-gated kernels, the ungated
     w_march_unload) pays each foot's swing on its own and the two are added, so a policy that
     marches well on one foot and keeps the other planted collects about half of everything:
-    23 of 23 march seeds (11-10 .. 11-12) settled there, the warm start picking the side. This
+    all 20 seeds that found a march (11-10 .. 11-12) settled there, the warm start picking the side. This
     term pays the WEAKER foot: per foot the best 0.5 (u + h) (march_unload_term's score) over
     its last completed commanded swing, and r = on * min(L, R). A one-legged march earns at
     most the planted foot's unloading; the gradient of the min flows to that foot.
