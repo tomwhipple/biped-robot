@@ -16,8 +16,9 @@
 // 9-10 deg toward the lifted foot, T wound from 5.4 to the 14 deg limit, and the next lifts started from
 // that and failed too -- the trim cannot fix an inboard CoM, so it must not learn from one). It is used
 // as it integrates, but what the chain leaves for the next one is committed only if the chain was clean:
-// when it ends (release, abort, stop) with its peak |e| (CLOSED) past keep_lim, or an abort, or the hike
-// at its clamp at any tick, T of that side goes back to its value at the chain's begin.
+// when it ends (release, abort, stop) with its peak |e| (CLOSED and HOLD: the whole single support) past
+// keep_lim, or an abort, or the hike at its clamp at any tick, T of that side goes back to its value at the
+// chain's begin.
 //   stance hip roll joint += s * hike                     (the sim / firmware joint frame)
 //
 // r ramps the learned trim in: the caller passes the raise move's own min-jerk progress (0 -> 1) on the
@@ -100,7 +101,7 @@ class StanceTrim {
     float learned(char side) const { return side == 'L' ? t_[0] : t_[1]; }
     // The last ended chain put T back (peak |e| past keep_lim, an abort, or the hike at its clamp).
     bool lastReverted() const { return reverted_; }
-    float peakErr() const { return peak_; }               // this chain's peak |e| while CLOSED, rad
+    float peakErr() const { return peak_; }               // this chain's peak |e| (CLOSED + HOLD), rad
     // false for a bad side or a non-finite value; clipped to +-t_lim.
     bool setLearned(char side, float t_rad);
     void clearLearned() { t_[0] = t_[1] = 0.0f; }

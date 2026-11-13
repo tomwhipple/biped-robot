@@ -56,7 +56,12 @@ TrimState StanceTrim::update(float roll_rad, float dt_s, float ramp) {
         case TrimState::kOff:
             return state_;
         case TrimState::kHold:
-            if (isfinite(roll_rad)) err_ = roll_rad - ref_;
+            if (isfinite(roll_rad)) {
+                err_ = roll_rad - ref_;
+                // the whole single support counts for the keep decision (hw 2026-11-12: the right-stance
+                // tips grew in the hold, past the CLOSED part, and T was kept from them)
+                if (fabsf(err_) > peak_) peak_ = fabsf(err_);
+            }
             return state_;
         case TrimState::kFade:
         case TrimState::kAbortTip:

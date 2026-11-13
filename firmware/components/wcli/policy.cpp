@@ -147,6 +147,10 @@ Decision classify(const char* line, bool armed) {
             return tether("`imu mount <w> <x> <y> <z>` saves the IMU mount to NVS");
         }
         if (is(sub, "bias")) {
+            // the online stand-still bias: status and on / off are RAM; `save` writes NVS
+            if (argc >= 3 && is(t.argv[2], "online") && (argc == 3 || (argc == 4 && !is(t.argv[3], "save")))) {
+                return allow();
+            }
             return tether("`imu bias` calibrates and saves the gyro bias (NVS)");
         }
         if (is(sub, "forget")) {

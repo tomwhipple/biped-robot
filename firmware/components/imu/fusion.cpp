@@ -216,4 +216,38 @@ void BiasEstimator::spread(float out[3]) const {
     for (int i = 0; i < 3; ++i) out[i] = max_[i] - min_[i];
 }
 
+// -- StillBias ---------------------------------------------------------------
+
+void StillBias::reset(const float bias[3]) {
+    for (int i = 0; i < 3; ++i) b_[i] = bias[i];
+    still_s_ = 0.0f;
+}
+
+bool StillBias::update(const float gyro_raw[3], const float accel[3], float dt_s, bool allowed) {
+    if (!(dt_s > 0.0f) || dt_s > 0.5f) return false;
+    bool quiet = allowed;
+    for (int i = 0; i < 3 && quiet; ++i) {
+        if (!(fabsf(gyro_raw[i] - b_[i]) < cfg_.gyro_still)) quiet = false;
+    }
+    if (quiet) {
+        const float an = sqrtf(accel[0] * accel[0] + accel[1] * accel[1] + accel[2] * accel[2]);
+        constexpr float kG = 9.80665f;
+        if (!(fabsf(an - kG) < cfg_.accel_tol * kG)) quiet = false;
+    }
+    if (!quiet) {
+        still_s_ = 0.0f;
+        return false;
+    }
+    still_s_ += dt_s;
+    if (still_s_ < cfg_.hold_s) return false;
+    const float k = dt_s >= cfg_.tau_s ? 1.0f : dt_s / cfg_.tau_s;
+    for (int i = 0; i < 3; ++i) b_[i] += k * (gyro_raw[i] - b_[i]);
+    learned_s_ += dt_s;
+    return true;
+}
+
+void StillBias::bias(float out[3]) const {
+    for (int i = 0; i < 3; ++i) out[i] = b_[i];
+}
+
 }  // namespace imu

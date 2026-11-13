@@ -132,7 +132,7 @@ purpose (`firmware/components/wcli/policy.cpp`).
 | `rec ...` -- **RAM only**: over Wi-Fi a change is not saved to NVS | `middle` -- servo EEPROM |
 | `gains`, `gains <id>` (reads) | `gains <id> <P> <D>` -- servo EEPROM |
 | `cal`, `cal show` | every other `cal` form -- the calibration (live or NVS) |
-| `imu`, `imu scan/raw/ring/avg/ae/reinit`, `imu gscale`, `imu mount` (reads) | `imu bias`, `imu gscale x y z`, `imu mount w x y z`, `imu forget` -- NVS |
+| `imu`, `imu scan/raw/ring/avg/ae/reinit`, `imu gscale`, `imu mount` (reads), `imu bias online [on/off]` (RAM) | `imu bias`, `imu bias online save`, `imu gscale x y z`, `imu mount w x y z`, `imu forget` -- NVS |
 | `wifi` (status) | `wifi <ssid> <psk>`, `wifi clear` -- credentials (NVS) |
 | `wcli` (status) | `wcli key ...` -- the key itself; `wcli drop` -- ends the Wi-Fi session: not sensitive, kept on the tether with the other `wcli` controls |
 | `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot) |

@@ -111,6 +111,11 @@ extern std::atomic<bool> g_flail_on;
 // stance_trim). Off at boot. The gains and the learned T are copied in at `trim policy on` and taken
 // at each arm; ctrl publishes T, the hike and the state back for `trim`.
 extern std::atomic<bool> g_ptrim_on;
+// The IMU's online stand-still gyro bias (imu::StillBias in the driver): `imu bias online on|off` (CLI writes;
+// on at boot), and whether nothing commands motion right now (housekeeping writes every loop: no pose stream,
+// no track, not armed). The IMU task reads both.
+extern std::atomic<bool> g_imu_bias_online;
+extern std::atomic<bool> g_imu_bias_allow;
 extern std::atomic<float> g_ptrim_kp, g_ptrim_ki;
 extern std::atomic<float> g_ptrim_tl, g_ptrim_tr;     // rad, hike convention (ctrl writes back)
 extern std::atomic<float> g_ptrim_hike;               // rad
