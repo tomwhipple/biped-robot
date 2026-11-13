@@ -1,0 +1,5375 @@
+[
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.299577911794897,
+  "peak_rate": 0.9499911029777897,
+  "tilt_cmd": [
+   3.544912080274396,
+   7.331844909351643,
+   6.860186484228693
+  ],
+  "lift_cm": [
+   3.0612382443729422,
+   2.028943073556206
+  ],
+  "shift_when_up": [
+   -0.21943149952705887,
+   0.14852349518080052
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.567727789237907,
+  "peak_rate": 0.9577919743918837,
+  "tilt_cmd": [
+   3.4488027763875593,
+   7.16873472177605,
+   7.232113100661518
+  ],
+  "lift_cm": [
+   3.1444210506423347,
+   1.915049872535286
+  ],
+  "shift_when_up": [
+   -0.2124110891547506,
+   0.15009667333544363
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.641152204128339,
+  "peak_rate": 0.8982462728637108,
+  "tilt_cmd": [
+   2.8712660940423307,
+   6.685181399859305,
+   6.8367524932249575
+  ],
+  "lift_cm": [
+   3.2447466360826556,
+   1.9785987078862348
+  ],
+  "shift_when_up": [
+   -0.213973560411398,
+   0.15987832281392356
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.33619839426825,
+  "peak_rate": 0.8908192700806696,
+  "tilt_cmd": [
+   3.2835364671727927,
+   7.044357854306284,
+   6.623586508380996
+  ],
+  "lift_cm": [
+   3.1666941563277593,
+   2.242222003159125
+  ],
+  "shift_when_up": [
+   -0.21191514402160264,
+   0.15817964375207394
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.412015929290433,
+  "peak_rate": 0.905856205459946,
+  "tilt_cmd": [
+   3.232917741845627,
+   7.004261744300116,
+   6.759880154601906
+  ],
+  "lift_cm": [
+   3.0426443559187213,
+   1.9748919621796135
+  ],
+  "shift_when_up": [
+   -0.2159055186209756,
+   0.1619343771993101
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.591415226160953,
+  "peak_rate": 0.8992320163787781,
+  "tilt_cmd": [
+   3.408570937246331,
+   6.941067106601963,
+   6.467601908144538
+  ],
+  "lift_cm": [
+   3.1568707336514326,
+   2.109263757945071
+  ],
+  "shift_when_up": [
+   -0.21999326336408723,
+   0.1593388270955231
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.068433663979006,
+  "peak_rate": 0.93266925201706,
+  "tilt_cmd": [
+   3.009744354003682,
+   6.642300969361616,
+   5.778819774732976
+  ],
+  "lift_cm": [
+   3.195257253770793,
+   2.1612969293147306
+  ],
+  "shift_when_up": [
+   -0.21807276060431538,
+   0.15834311493714184
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   18.744
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    18.744
+   ]
+  },
+  "tilt_max": 9.710514530470846,
+  "peak_rate": 0.8990713916953952,
+  "tilt_cmd": [
+   3.4104717441864074,
+   7.064081520472421,
+   6.265663312852448
+  ],
+  "lift_cm": [
+   2.953875225424365,
+   2.0133821876871756
+  ],
+  "shift_when_up": [
+   -0.2121601594035673,
+   0.1599880641214185
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0787099790853203,
+  "peak_rate": 0.019504065684610678,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.052721911249360015,
+   0.053538607302222166
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.106686114332762,
+  "peak_rate": 0.027067609823478285,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.051691429973653016,
+   0.04969900944615333
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0415706164653116,
+  "peak_rate": 0.020985650546595798,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.051072792011908494,
+   0.047453060648292716
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.9907467979179988,
+  "peak_rate": 0.02216618530203794,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.051173098347693804,
+   0.04683897794022871
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.037991004967201,
+  "peak_rate": 0.021285317753112758,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.05128559452488406,
+   0.04822749340239862
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.9816925865198268,
+  "peak_rate": 0.023102243932787325,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.05215284673077457,
+   0.04870323514864086
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0858765427880104,
+  "peak_rate": 0.026263091385291985,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.05072374456742282,
+   0.03721646124331514
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0091340944177485,
+  "peak_rate": 0.01780152367234566,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0505803312066842,
+   0.06219680013539808
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.3
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.3
+   ]
+  },
+  "tilt_max": 9.914045456936853,
+  "peak_rate": 1.1338549367638766,
+  "tilt_cmd": [
+   3.10039665785068,
+   7.312861118982718,
+   6.227773544587501
+  ],
+  "lift_cm": [
+   2.7433333553170276,
+   1.8163172643135623
+  ],
+  "shift_when_up": [
+   -0.15483937161800396,
+   0.1511591427639378
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.39
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.39
+   ]
+  },
+  "tilt_max": 10.703307012484103,
+  "peak_rate": 1.3029483572570886,
+  "tilt_cmd": [
+   3.214374560593694,
+   7.206604755496479,
+   6.566187581867114
+  ],
+  "lift_cm": [
+   2.965072176365928,
+   1.706572821356122
+  ],
+  "shift_when_up": [
+   -0.20371685797720468,
+   0.14000325326717114
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.257980432436987,
+  "peak_rate": 1.2323899165744534,
+  "tilt_cmd": [
+   2.7171429917645886,
+   6.801491675815052,
+   6.283143101693259
+  ],
+  "lift_cm": [
+   2.90892527182549,
+   1.9568837105966792
+  ],
+  "shift_when_up": [
+   -0.1877034750283537,
+   0.16722186822286633
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   15.98
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    15.98
+   ]
+  },
+  "tilt_max": 10.387416576562503,
+  "peak_rate": 1.3108559185586055,
+  "tilt_cmd": [
+   2.8508048671154396,
+   6.9112173728326285,
+   5.861794478149564
+  ],
+  "lift_cm": [
+   2.892327040109037,
+   2.196463333315378
+  ],
+  "shift_when_up": [
+   -0.21430951933414516,
+   0.18219970532193605
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.381
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.381
+   ]
+  },
+  "tilt_max": 9.625595812485264,
+  "peak_rate": 1.1772039807451011,
+  "tilt_cmd": [
+   2.932430683471578,
+   7.0873769357586465,
+   6.0947187949755195
+  ],
+  "lift_cm": [
+   2.794787379435071,
+   1.8211599269955692
+  ],
+  "shift_when_up": [
+   -0.16864333995034722,
+   0.15294437176920106
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   15.947
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    15.947
+   ]
+  },
+  "tilt_max": 10.708426565771779,
+  "peak_rate": 1.1058389974041558,
+  "tilt_cmd": [
+   2.966209897341564,
+   6.853492521952371,
+   5.919126632601528
+  ],
+  "lift_cm": [
+   2.78699893356129,
+   1.9419988407226891
+  ],
+  "shift_when_up": [
+   -0.16272916344202448,
+   0.15728726201780865
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.16
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.16
+   ]
+  },
+  "tilt_max": 9.220070502452128,
+  "peak_rate": 1.1995567345688647,
+  "tilt_cmd": [
+   2.6459927914946557,
+   6.51919803821972,
+   5.094685191253783
+  ],
+  "lift_cm": [
+   2.9658260421600757,
+   2.019911146206034
+  ],
+  "shift_when_up": [
+   -0.22520892710673102,
+   0.16295189369368804
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.86,
+   28.822
+  ],
+  "trips_by": {
+   "pose": [
+    3.86,
+    28.822
+   ]
+  },
+  "tilt_max": 9.977937172009028,
+  "peak_rate": 1.1093295353551382,
+  "tilt_cmd": [
+   3.1595668513461415,
+   7.023579894982108,
+   5.68255440361293
+  ],
+  "lift_cm": [
+   2.6219171883476147,
+   1.9033753146764834
+  ],
+  "shift_when_up": [
+   -0.1655523474353526,
+   0.16870214415093623
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0099625002087766,
+  "peak_rate": 0.024956885869645107,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04435332871422738,
+   0.00036535744076153856
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.1232617926289115,
+  "peak_rate": 0.025663406157838096,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04586217005305106,
+   0.00036602770373895047
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.005604552108332,
+  "peak_rate": 0.025085723871657282,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.044128956743421946,
+   0.0004371464597985493
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.8320178412088203,
+  "peak_rate": 0.023065614792285655,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04398666732572118,
+   0.0002208587308837051
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.9412225829414489,
+  "peak_rate": 0.02589469991118258,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0437071616584568,
+   0.0007249908939353442
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.850183374197633,
+  "peak_rate": 0.027342641660019186,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04431614293622975,
+   0.0007319390431070709
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.9012523342020767,
+  "peak_rate": 0.025995744918170825,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04526145859920609,
+   0.00029669618000337933
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.1046155150412882,
+  "peak_rate": 0.02563743166524092,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.04415244554630288,
+   0.0006558785241215191
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.546984523793261,
+  "peak_rate": 0.8319456118982446,
+  "tilt_cmd": [
+   3.516411921961525,
+   7.601631570952271,
+   7.501118614053205
+  ],
+  "lift_cm": [
+   3.152097305159497,
+   2.309439136204149
+  ],
+  "shift_when_up": [
+   -0.5335365102526471,
+   0.25329677441772264
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.908350741987553,
+  "peak_rate": 0.91056983939141,
+  "tilt_cmd": [
+   3.257838388416911,
+   7.412940601683964,
+   7.812478934804409
+  ],
+  "lift_cm": [
+   3.27237085481369,
+   2.1792035684932776
+  ],
+  "shift_when_up": [
+   -0.5666849532240285,
+   0.23727600115153719
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.02,
+   24.089
+  ],
+  "trips_by": {
+   "pose": [
+    4.02,
+    24.089
+   ]
+  },
+  "tilt_max": 9.31220752602433,
+  "peak_rate": 0.8840969652665684,
+  "tilt_cmd": [
+   2.77245905080859,
+   6.955968786148757,
+   7.343196058886891
+  ],
+  "lift_cm": [
+   3.2809220570540254,
+   2.246636368636401
+  ],
+  "shift_when_up": [
+   -0.561588011637409,
+   0.2536681129545011
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.02,
+   25.301
+  ],
+  "trips_by": {
+   "pose": [
+    4.02,
+    25.301
+   ]
+  },
+  "tilt_max": 8.948704876609723,
+  "peak_rate": 0.8071638676936872,
+  "tilt_cmd": [
+   3.04972742880831,
+   7.254273735719493,
+   7.091158541688313
+  ],
+  "lift_cm": [
+   3.185024310974845,
+   2.511208525378185
+  ],
+  "shift_when_up": [
+   -0.5346102080707666,
+   0.3546566024862925
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   21.409
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    21.409
+   ]
+  },
+  "tilt_max": 9.036196335505187,
+  "peak_rate": 0.7975836404713361,
+  "tilt_cmd": [
+   3.1399606959724666,
+   7.134084458719709,
+   7.087417837944924
+  ],
+  "lift_cm": [
+   3.1590485533511057,
+   2.271636405511802
+  ],
+  "shift_when_up": [
+   -0.5515703514514708,
+   0.24542469026858255
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.311071701166771,
+  "peak_rate": 0.8597762371560568,
+  "tilt_cmd": [
+   3.2766638820982625,
+   7.162662989214595,
+   7.110120865146981
+  ],
+  "lift_cm": [
+   3.281493485036914,
+   2.4126688842363153
+  ],
+  "shift_when_up": [
+   -0.575435902189534,
+   0.2543639458043103
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   4.0,
+   29.318
+  ],
+  "trips_by": {
+   "pose": [
+    4.0,
+    29.318
+   ]
+  },
+  "tilt_max": 8.612312809802612,
+  "peak_rate": 0.9047607453228883,
+  "tilt_cmd": [
+   2.878080942949028,
+   6.758461159940781,
+   6.30219687510959
+  ],
+  "lift_cm": [
+   3.204744147721371,
+   2.4328227472683595
+  ],
+  "shift_when_up": [
+   -0.557337853440313,
+   0.38602558979613844
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   23.879
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    23.879
+   ]
+  },
+  "tilt_max": 9.358000471665408,
+  "peak_rate": 0.921519029316433,
+  "tilt_cmd": [
+   3.3558817305350686,
+   7.317361844985315,
+   6.977464715423642
+  ],
+  "lift_cm": [
+   3.133290044099234,
+   2.3351956593467555
+  ],
+  "shift_when_up": [
+   -0.5650771692527226,
+   0.26638285485117563
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.6357334164893713,
+  "peak_rate": 0.018927527945822885,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.030586871339017933,
+   0.011184597554459927
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.6590652901407674,
+  "peak_rate": 0.026148142835660432,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.030139571966093272,
+   0.012458215634424813
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.5671765774220431,
+  "peak_rate": 0.01991844022420617,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.029515971127008853,
+   0.007254566128187326
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.46848860394659836,
+  "peak_rate": 0.01872705440614172,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.02871224490643351,
+   0.008367070489347875
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.5907322352076586,
+  "peak_rate": 0.02240673645128355,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.030401906294669906,
+   0.011882826632611445
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.5198047301988202,
+  "peak_rate": 0.023133088032401477,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.03145835154822994,
+   0.01322810634063823
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.6150353484206516,
+  "peak_rate": 0.022359653845150065,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.030567950670715768,
+   0.004730630849764973
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.6060608540127689,
+  "peak_rate": 0.01910491934751299,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.03050448616709143,
+   0.020975916513456868
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   25.308
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    25.308
+   ]
+  },
+  "tilt_max": 11.146244830380068,
+  "peak_rate": 0.8907928655434035,
+  "tilt_cmd": [
+   3.195852787420829,
+   6.868081453926614,
+   6.339371843905484
+  ],
+  "lift_cm": [
+   2.7790879871362124,
+   1.7146238254970452
+  ],
+  "shift_when_up": [
+   -0.4777489886197916,
+   0.1334178651426172
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   30.711
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    30.711
+   ]
+  },
+  "tilt_max": 10.843449614476345,
+  "peak_rate": 0.9871066982062722,
+  "tilt_cmd": [
+   3.198523734646679,
+   6.846110901582389,
+   6.751820656461011
+  ],
+  "lift_cm": [
+   2.912547925443513,
+   1.6103255012428916
+  ],
+  "shift_when_up": [
+   -0.5192499797323158,
+   0.4346540153208939
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   27.721
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    27.721
+   ]
+  },
+  "tilt_max": 10.601324754211113,
+  "peak_rate": 0.9428624156242741,
+  "tilt_cmd": [
+   2.8326258335142254,
+   6.655943489968573,
+   6.386183491210674
+  ],
+  "lift_cm": [
+   2.9187258279239354,
+   1.6930059422181971
+  ],
+  "shift_when_up": [
+   -0.5047037442171651,
+   0.13683551767950103
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.106
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.106
+   ]
+  },
+  "tilt_max": 10.67392955275154,
+  "peak_rate": 0.9555071233856236,
+  "tilt_cmd": [
+   2.902357409191652,
+   6.793601969665929,
+   6.070093978400321
+  ],
+  "lift_cm": [
+   2.8936082617463157,
+   1.944135651803513
+  ],
+  "shift_when_up": [
+   -0.5165267482453252,
+   0.43899208490422803
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   27.559
+  ],
+  "trips_by": {
+   "pose": [
+    3.9,
+    27.559
+   ]
+  },
+  "tilt_max": 10.970862539875274,
+  "peak_rate": 0.9224440706837261,
+  "tilt_cmd": [
+   2.913813565278102,
+   6.797677040935041,
+   6.212856394188903
+  ],
+  "lift_cm": [
+   2.6747921476056318,
+   1.7613878842583732
+  ],
+  "shift_when_up": [
+   -0.4504797718740891,
+   0.15319638695367188
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   27.785
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    27.785
+   ]
+  },
+  "tilt_max": 11.227514441390053,
+  "peak_rate": 0.9730471618682054,
+  "tilt_cmd": [
+   3.0370068925558678,
+   6.72229302075841,
+   5.977244347344643
+  ],
+  "lift_cm": [
+   2.779914453404123,
+   1.8408698829777432
+  ],
+  "shift_when_up": [
+   -0.5006766112536349,
+   0.4307671580659439
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.002
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.002
+   ]
+  },
+  "tilt_max": 10.51929122197018,
+  "peak_rate": 0.9703556699974155,
+  "tilt_cmd": [
+   2.71950304658372,
+   6.193055009694285,
+   5.087572912602596
+  ],
+  "lift_cm": [
+   2.9099866912351646,
+   1.863395398409852
+  ],
+  "shift_when_up": [
+   -0.5260540854936242,
+   0.12217090159293886
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.248
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.248
+   ]
+  },
+  "tilt_max": 11.226677081412385,
+  "peak_rate": 0.8609533066361923,
+  "tilt_cmd": [
+   3.2998480953107996,
+   6.724317249630184,
+   5.901198780497506
+  ],
+  "lift_cm": [
+   2.6105141426881353,
+   1.758871603697867
+  ],
+  "shift_when_up": [
+   -0.47123330242152145,
+   0.439735136593071
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0190882043965293,
+  "peak_rate": 0.01611905124747686,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0019447518440476874,
+   -0.00027964719921539163
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.0824874640908575,
+  "peak_rate": 0.022568862154666882,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.002092023627404179,
+   -0.0003094172453435573
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.8659094308364099,
+  "peak_rate": 0.015542626864647163,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.002155916622130754,
+   -0.0003029752273770066
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.6326567592810901,
+  "peak_rate": 0.016118751924743824,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.002211744712347398,
+   -0.0003203470520261008
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.8988636173482386,
+  "peak_rate": 0.01651168293250125,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.002538021603736354,
+   -0.00010644123410443948
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.7228603531434545,
+  "peak_rate": 0.018323916906163674,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0028513848966244502,
+   -0.0001689894369655623
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 0.7208177524518397,
+  "peak_rate": 0.015293782287832817,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0023568216411045187,
+   -0.00038446607706615205
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec16_f075_js20_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 1.1399339621037856,
+  "peak_rate": 0.020918504417372908,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0018842196531082024,
+   -0.00020994830523587277
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.479
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.479
+   ]
+  },
+  "tilt_max": 13.509874650843045,
+  "peak_rate": 1.1906227013588295,
+  "tilt_cmd": [
+   7.634958467430872,
+   11.342643850347764,
+   12.51039576262638
+  ],
+  "lift_cm": [
+   2.8769319107606073,
+   2.2811727284668666
+  ],
+  "shift_when_up": [
+   -0.267212184717579,
+   0.3143737266710098
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.114
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.114
+   ]
+  },
+  "tilt_max": 13.923170580472297,
+  "peak_rate": 1.0921296565133203,
+  "tilt_cmd": [
+   7.031492873164822,
+   11.292493473591202,
+   12.73637643111745
+  ],
+  "lift_cm": [
+   2.776423451099018,
+   2.1523478639151645
+  ],
+  "shift_when_up": [
+   -0.2701748957273356,
+   0.3281142935115204
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.428
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.428
+   ]
+  },
+  "tilt_max": 13.085233523688544,
+  "peak_rate": 1.2397469866097661,
+  "tilt_cmd": [
+   6.290588630119863,
+   10.823289118579739,
+   12.04877048067535
+  ],
+  "lift_cm": [
+   3.0222549811192345,
+   2.204134944558813
+  ],
+  "shift_when_up": [
+   -0.25430326045159096,
+   0.32981423748737243
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.788
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.788
+   ]
+  },
+  "tilt_max": 12.783896277885336,
+  "peak_rate": 1.0596734988143524,
+  "tilt_cmd": [
+   6.912966813324099,
+   10.88041268930993,
+   11.85106202145143
+  ],
+  "lift_cm": [
+   2.8916509659542533,
+   2.233055145741882
+  ],
+  "shift_when_up": [
+   -0.27511462813796206,
+   0.3214714234481748
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.489
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.489
+   ]
+  },
+  "tilt_max": 13.128751839953967,
+  "peak_rate": 1.1230142253861375,
+  "tilt_cmd": [
+   6.891563098202479,
+   11.237562203014502,
+   12.280169267519021
+  ],
+  "lift_cm": [
+   3.043297600018149,
+   2.2921510332811805
+  ],
+  "shift_when_up": [
+   -0.2588562429216286,
+   0.32257867332118245
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.835
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.835
+   ]
+  },
+  "tilt_max": 13.365746182166829,
+  "peak_rate": 1.1839589165915505,
+  "tilt_cmd": [
+   7.227185967614927,
+   11.032574450924093,
+   12.100675282339319
+  ],
+  "lift_cm": [
+   3.045041135344303,
+   2.376371097594905
+  ],
+  "shift_when_up": [
+   -0.2794163196551196,
+   0.31666456087862477
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.191
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.191
+   ]
+  },
+  "tilt_max": 12.491632230741665,
+  "peak_rate": 1.1295109154845921,
+  "tilt_cmd": [
+   6.956261800643137,
+   10.686946362463217,
+   11.183554520956072
+  ],
+  "lift_cm": [
+   3.088247670379297,
+   2.180506577338237
+  ],
+  "shift_when_up": [
+   -0.27277502861710634,
+   0.315030266690426
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.754
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.754
+   ]
+  },
+  "tilt_max": 13.670833726168134,
+  "peak_rate": 1.168802012665516,
+  "tilt_cmd": [
+   7.176422683146517,
+   11.492051348927799,
+   12.612855873613936
+  ],
+  "lift_cm": [
+   2.541931207461732,
+   2.3205720248006356
+  ],
+  "shift_when_up": [
+   -0.2407247305447446,
+   0.3244805667663437
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.04586160034598,
+  "peak_rate": 0.8924235768471304,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.707157901110499,
+   6.338377646134876
+  ],
+  "shift_when_up": [
+   null,
+   0.6234816467990048
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.069622909754495,
+  "peak_rate": 0.8968695031806111,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.7498580661525994,
+   6.350505020015265
+  ],
+  "shift_when_up": [
+   null,
+   0.6335219633692342
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.075079942335279,
+  "peak_rate": 0.8629596380910923,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.7025115291709034,
+   6.31736597505435
+  ],
+  "shift_when_up": [
+   null,
+   0.6281719449427472
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.343481400928361,
+  "peak_rate": 0.8175075480799914,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6972671686476728,
+   6.479685151648007
+  ],
+  "shift_when_up": [
+   null,
+   0.6124449536962466
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.750407004279502,
+  "peak_rate": 0.8492934679507878,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.7151584596793508,
+   6.295828861613731
+  ],
+  "shift_when_up": [
+   null,
+   0.6288963067184629
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.171604284209085,
+  "peak_rate": 0.8512897480146062,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.8115050249574249,
+   6.511291630250095
+  ],
+  "shift_when_up": [
+   null,
+   0.6365738528265533
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 9.591413790633698,
+  "peak_rate": 0.7584128367097631,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6069835616443034,
+   6.269498763755138
+  ],
+  "shift_when_up": [
+   null,
+   0.6148032534841149
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.492799532067783,
+  "peak_rate": 0.7305180439544341,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6236943512062663,
+   6.444045328204703
+  ],
+  "shift_when_up": [
+   null,
+   0.6188462904725102
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.907
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.907
+   ]
+  },
+  "tilt_max": 14.154687160911653,
+  "peak_rate": 1.0175570502352411,
+  "tilt_cmd": [
+   7.398631266030813,
+   11.444602736587383,
+   12.311463623274967
+  ],
+  "lift_cm": [
+   2.2736674670611046,
+   1.920207175610096
+  ],
+  "shift_when_up": [
+   -0.20803104744840878,
+   0.2775103793105112
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.009
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.009
+   ]
+  },
+  "tilt_max": 14.617424595807105,
+  "peak_rate": 1.0655816416306059,
+  "tilt_cmd": [
+   6.870369529152964,
+   11.389269182597376,
+   12.593006805209322
+  ],
+  "lift_cm": [
+   2.0168767616508934,
+   1.8792102462310654
+  ],
+  "shift_when_up": [
+   -0.17543798553123427,
+   0.2835649216795799
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.546
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.546
+   ]
+  },
+  "tilt_max": 14.16340977578714,
+  "peak_rate": 1.2849723599991818,
+  "tilt_cmd": [
+   6.108226438745488,
+   10.813235611634102,
+   12.10913207766823
+  ],
+  "lift_cm": [
+   2.845753391615978,
+   1.9530050157419363
+  ],
+  "shift_when_up": [
+   -0.26218824371821664,
+   0.27321144627732646
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.992
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.992
+   ]
+  },
+  "tilt_max": 13.72936543851798,
+  "peak_rate": 0.9855175889869842,
+  "tilt_cmd": [
+   6.744574308999708,
+   11.078489857445227,
+   11.785621093153411
+  ],
+  "lift_cm": [
+   2.188380463925469,
+   2.011230799584221
+  ],
+  "shift_when_up": [
+   -0.18670998080246232,
+   0.2725818387965746
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.501
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.501
+   ]
+  },
+  "tilt_max": 13.884166561836158,
+  "peak_rate": 1.1257679654303618,
+  "tilt_cmd": [
+   6.702647729049674,
+   11.318343201904398,
+   12.296465134603617
+  ],
+  "lift_cm": [
+   2.618634620491676,
+   1.9478746163682645
+  ],
+  "shift_when_up": [
+   -0.17789055383841265,
+   0.29481536902491245
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.537
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.537
+   ]
+  },
+  "tilt_max": 14.06208358889113,
+  "peak_rate": 1.185190121591933,
+  "tilt_cmd": [
+   7.097321617923059,
+   11.13209887027117,
+   12.0590156478288
+  ],
+  "lift_cm": [
+   2.3800789174443775,
+   2.057714130332954
+  ],
+  "shift_when_up": [
+   -0.20215119144058294,
+   0.2806899310167458
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.243
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.243
+   ]
+  },
+  "tilt_max": 13.49578332348816,
+  "peak_rate": 1.1023943865583061,
+  "tilt_cmd": [
+   6.764561435019862,
+   10.94782820056365,
+   11.370263025859296
+  ],
+  "lift_cm": [
+   2.5468358181201394,
+   1.972994217510466
+  ],
+  "shift_when_up": [
+   -0.16221713889752243,
+   0.2794690102792017
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   17.073
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    17.073
+   ]
+  },
+  "tilt_max": 14.298914449065203,
+  "peak_rate": 1.06638379991767,
+  "tilt_cmd": [
+   6.989816671901005,
+   11.40040719169962,
+   12.416294939753307
+  ],
+  "lift_cm": [
+   2.0602611815591354,
+   1.9699829313342694
+  ],
+  "shift_when_up": [
+   -0.1589142603169442,
+   0.2795832412268192
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 6.918197597184007,
+  "peak_rate": 0.5955117928201459,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6301008336826731,
+   5.249913402486113
+  ],
+  "shift_when_up": [
+   null,
+   0.49074614168132935
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 7.149547836802777,
+  "peak_rate": 0.5769355565325788,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.5294889762703614,
+   5.309061254339728
+  ],
+  "shift_when_up": [
+   null,
+   0.48429444450704
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.94532472940349,
+  "peak_rate": 0.6164583041924002,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6431358063335617,
+   5.1556544949328025
+  ],
+  "shift_when_up": [
+   null,
+   0.5244037629463322
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 7.559569900651999,
+  "peak_rate": 0.5834025797296969,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6076370106853829,
+   5.378713773152312
+  ],
+  "shift_when_up": [
+   null,
+   0.49217877532798954
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 6.660993511498633,
+  "peak_rate": 0.5750806582839105,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6183640890480362,
+   5.206202104086765
+  ],
+  "shift_when_up": [
+   null,
+   0.4960512015036774
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 7.455023536930228,
+  "peak_rate": 0.608333920901387,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6567513918792215,
+   5.4722075695789085
+  ],
+  "shift_when_up": [
+   null,
+   0.4926529765317466
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 6.382579027205181,
+  "peak_rate": 0.6054824268413951,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6013059191558956,
+   5.217683187680033
+  ],
+  "shift_when_up": [
+   null,
+   0.4915863554135846
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 6.702576025538561,
+  "peak_rate": 0.5978195397223245,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.6430097777998546,
+   5.2561401928212295
+  ],
+  "shift_when_up": [
+   null,
+   0.5435383273798684
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.455
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.455
+   ]
+  },
+  "tilt_max": 14.917168062915072,
+  "peak_rate": 0.90875693679649,
+  "tilt_cmd": [
+   7.510403376160817,
+   12.190555923067596,
+   13.71086310892953
+  ],
+  "lift_cm": [
+   2.6768766192281426,
+   2.3721498257066638
+  ],
+  "shift_when_up": [
+   -0.5691907801062518,
+   0.5669979331132127
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.103
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.103
+   ]
+  },
+  "tilt_max": 15.241132366153547,
+  "peak_rate": 0.8313307607594173,
+  "tilt_cmd": [
+   7.055510023815863,
+   12.10812458800917,
+   13.833633189323336
+  ],
+  "lift_cm": [
+   2.62320722347306,
+   2.329880544763231
+  ],
+  "shift_when_up": [
+   -0.5585678373270225,
+   0.5516002204363605
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.998
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.998
+   ]
+  },
+  "tilt_max": 14.191499464192468,
+  "peak_rate": 0.9796256745411273,
+  "tilt_cmd": [
+   6.29040251076024,
+   11.534159578243068,
+   13.025965676597666
+  ],
+  "lift_cm": [
+   2.9653643290584624,
+   2.3296929841585126
+  ],
+  "shift_when_up": [
+   -0.5710881390597681,
+   0.5598412907982401
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.038
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.038
+   ]
+  },
+  "tilt_max": 13.874052028774386,
+  "peak_rate": 0.9000907239439818,
+  "tilt_cmd": [
+   6.7753776159235635,
+   11.685854783572744,
+   12.843864268034334
+  ],
+  "lift_cm": [
+   2.668716126467737,
+   2.4215105674610324
+  ],
+  "shift_when_up": [
+   -0.5475220575292477,
+   0.552771994970876
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.425
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.425
+   ]
+  },
+  "tilt_max": 14.501858580293844,
+  "peak_rate": 0.879234654897954,
+  "tilt_cmd": [
+   6.879965887938475,
+   11.979661662455383,
+   13.502634215062393
+  ],
+  "lift_cm": [
+   2.8353315692416343,
+   2.435789575089848
+  ],
+  "shift_when_up": [
+   -0.586653592227003,
+   0.5683546438787791
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.559
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.559
+   ]
+  },
+  "tilt_max": 14.392310292139053,
+  "peak_rate": 0.892114707695364,
+  "tilt_cmd": [
+   7.070467840684187,
+   11.794674805495742,
+   13.189701564327445
+  ],
+  "lift_cm": [
+   2.8203183082684538,
+   2.5699863781056576
+  ],
+  "shift_when_up": [
+   -0.5779400379605764,
+   0.5749002367907401
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   15.988
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    15.988
+   ]
+  },
+  "tilt_max": 13.643521341868409,
+  "peak_rate": 0.8679730031039762,
+  "tilt_cmd": [
+   6.868428635985036,
+   11.388740505218587,
+   12.3169161137588
+  ],
+  "lift_cm": [
+   2.850198184557003,
+   2.3539019437283826
+  ],
+  "shift_when_up": [
+   -0.5640851098868724,
+   0.5432811995045701
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.194
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.194
+   ]
+  },
+  "tilt_max": 14.965450092975878,
+  "peak_rate": 0.8966985736344901,
+  "tilt_cmd": [
+   7.136899868378082,
+   12.309587650687966,
+   13.87612791288947
+  ],
+  "lift_cm": [
+   2.4096079859605317,
+   2.464760413983855
+  ],
+  "shift_when_up": [
+   -0.573623336899821,
+   0.5754127674518503
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.87913244388312,
+  "peak_rate": 0.7828021033555627,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.13484290533177373,
+   6.856467424674478
+  ],
+  "shift_when_up": [
+   null,
+   0.8481154778800797
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.818713183773196,
+  "peak_rate": 0.7640968329278799,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.10762244066240545,
+   6.86256374246056
+  ],
+  "shift_when_up": [
+   null,
+   0.8548819458835044
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.912391338231586,
+  "peak_rate": 0.8138734704368997,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1680233583023564,
+   6.779404660489854
+  ],
+  "shift_when_up": [
+   null,
+   0.8491220224637699
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.894140750433772,
+  "peak_rate": 0.7870021062933041,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.10446466529145806,
+   6.849150083246203
+  ],
+  "shift_when_up": [
+   null,
+   0.8487872181290504
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.694594358961695,
+  "peak_rate": 0.7666333513586342,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1042190769533548,
+   6.932793547880066
+  ],
+  "shift_when_up": [
+   null,
+   0.8470298768830832
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.894749348488787,
+  "peak_rate": 0.7743920757207386,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.12985352236513753,
+   6.936626613215388
+  ],
+  "shift_when_up": [
+   null,
+   0.8672597353645116
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.657050207683383,
+  "peak_rate": 0.7888390279588523,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.10207040306606198,
+   6.785896477938724
+  ],
+  "shift_when_up": [
+   null,
+   0.8520025078383543
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 12.164117546138806,
+  "peak_rate": 0.8243187482870682,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.11117470237904632,
+   6.998767379054251
+  ],
+  "shift_when_up": [
+   null,
+   0.8450146650853813
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.298
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.298
+   ]
+  },
+  "tilt_max": 14.733581804581904,
+  "peak_rate": 1.146102808748653,
+  "tilt_cmd": [
+   7.305064662506196,
+   11.593781043665867,
+   12.734961712730215
+  ],
+  "lift_cm": [
+   2.349538512132262,
+   1.9904007602794231
+  ],
+  "shift_when_up": [
+   -0.42522910147745274,
+   0.5442184226284733
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.689
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.689
+   ]
+  },
+  "tilt_max": 14.856333995566269,
+  "peak_rate": 1.0495438618800277,
+  "tilt_cmd": [
+   6.7377337894871205,
+   11.341259434612583,
+   12.6863376587198
+  ],
+  "lift_cm": [
+   2.553398249979908,
+   1.8785672184413214
+  ],
+  "shift_when_up": [
+   -0.4468793637718539,
+   0.4861946886183362
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.453
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.453
+   ]
+  },
+  "tilt_max": 14.207476017582064,
+  "peak_rate": 1.0347260365138773,
+  "tilt_cmd": [
+   6.073032615808968,
+   10.998290047041744,
+   12.315132909422758
+  ],
+  "lift_cm": [
+   2.7617028068764466,
+   2.0010261092464487
+  ],
+  "shift_when_up": [
+   -0.45660415264006166,
+   0.5531458111435237
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.483
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.483
+   ]
+  },
+  "tilt_max": 13.838010182343078,
+  "peak_rate": 0.9549053615659474,
+  "tilt_cmd": [
+   6.632394144994738,
+   11.047047250771309,
+   11.741742445289145
+  ],
+  "lift_cm": [
+   2.549047797325794,
+   2.0084309508273157
+  ],
+  "shift_when_up": [
+   -0.447812045217905,
+   0.5369687160682277
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.588
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.588
+   ]
+  },
+  "tilt_max": 14.236537157435594,
+  "peak_rate": 1.0545001459034824,
+  "tilt_cmd": [
+   6.650847033329837,
+   11.353326832110184,
+   12.434085292379203
+  ],
+  "lift_cm": [
+   2.4389940116278983,
+   2.0611392310783416
+  ],
+  "shift_when_up": [
+   -0.4499776018042553,
+   0.5734600834728126
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.604
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.604
+   ]
+  },
+  "tilt_max": 14.398292481246637,
+  "peak_rate": 1.1248505569965253,
+  "tilt_cmd": [
+   6.997398949808906,
+   11.259075908919343,
+   12.193850541909296
+  ],
+  "lift_cm": [
+   2.679008684262606,
+   2.222293137783822
+  ],
+  "shift_when_up": [
+   -0.4590166871332933,
+   0.5773245085948935
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.21
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.21
+   ]
+  },
+  "tilt_max": 13.531193412033433,
+  "peak_rate": 1.0573733410964088,
+  "tilt_cmd": [
+   6.766759425963986,
+   10.948646162988531,
+   11.62408688261039
+  ],
+  "lift_cm": [
+   2.9431403606880107,
+   2.012142241047571
+  ],
+  "shift_when_up": [
+   -0.47579435119319213,
+   0.5487291584507397
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.6,
+   16.759
+  ],
+  "trips_by": {
+   "pose": [
+    3.6,
+    16.759
+   ]
+  },
+  "tilt_max": 14.93258297794378,
+  "peak_rate": 1.0334195877736252,
+  "tilt_cmd": [
+   6.937313492289908,
+   11.71152350832947,
+   12.83119904083253
+  ],
+  "lift_cm": [
+   2.2513971292239474,
+   2.005512679883834
+  ],
+  "shift_when_up": [
+   -0.4686758786447602,
+   0.5280844046995996
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.515919690686072,
+  "peak_rate": 0.8466004518189294,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1538810042462953,
+   5.899517889011601
+  ],
+  "shift_when_up": [
+   null,
+   0.7246025322034444
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.849896953457355,
+  "peak_rate": 0.8522341460340387,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1364714289689763,
+   5.885991016978654
+  ],
+  "shift_when_up": [
+   null,
+   0.6973884150292583
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 10.863748198522453,
+  "peak_rate": 0.8581278518668857,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.145590966956252,
+   5.85913457351754
+  ],
+  "shift_when_up": [
+   null,
+   0.6800446220203643
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.291071349723698,
+  "peak_rate": 0.7936647169880064,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.16712372260597125,
+   5.898128027627561
+  ],
+  "shift_when_up": [
+   null,
+   0.7191565371483283
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.106885663163562,
+  "peak_rate": 0.7985319824967955,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.15309783918417186,
+   5.945205454393343
+  ],
+  "shift_when_up": [
+   null,
+   0.7012778396685205
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.178027559811015,
+  "peak_rate": 0.7762424945747656,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.15878216083946503,
+   5.959937021198003
+  ],
+  "shift_when_up": [
+   null,
+   0.6946867673214054
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.078514009965238,
+  "peak_rate": 0.8129081661269563,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.16848972459228284,
+   5.950662415850607
+  ],
+  "shift_when_up": [
+   null,
+   0.7064513385325133
+  ]
+ },
+ {
+  "run": "robot_legs_prec52_march_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 11.82626776314981,
+  "peak_rate": 0.7607644486085087,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.10750101911127892,
+   6.050266224319076
+  ],
+  "shift_when_up": [
+   null,
+   0.7280522981712119
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   28.973
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    28.973
+   ]
+  },
+  "tilt_max": 13.172295559138634,
+  "peak_rate": 1.0682911474881682,
+  "tilt_cmd": [
+   4.5463231388035865,
+   10.293982942288581,
+   11.011048243055509
+  ],
+  "lift_cm": [
+   2.571257518174522,
+   2.1702147429271297
+  ],
+  "shift_when_up": [
+   -0.2513318929022853,
+   0.19763071720791683
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   30.191
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    30.191
+   ]
+  },
+  "tilt_max": 13.265776131337311,
+  "peak_rate": 1.2662187803884053,
+  "tilt_cmd": [
+   4.617599076429103,
+   10.520571550888668,
+   11.37870589731945
+  ],
+  "lift_cm": [
+   2.725732313420163,
+   2.087298573146729
+  ],
+  "shift_when_up": [
+   -0.2573343682059338,
+   0.19729594364082909
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   31.376
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    31.376
+   ]
+  },
+  "tilt_max": 13.135017642446595,
+  "peak_rate": 1.20676864297693,
+  "tilt_cmd": [
+   4.534909217343671,
+   10.43665194956065,
+   11.473150515268113
+  ],
+  "lift_cm": [
+   2.874451421845131,
+   2.0424645412977624
+  ],
+  "shift_when_up": [
+   -0.26671190388884075,
+   0.18722229609687985
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   30.83
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    30.83
+   ]
+  },
+  "tilt_max": 12.538878776246577,
+  "peak_rate": 1.1505028810960403,
+  "tilt_cmd": [
+   4.303219563328686,
+   10.207358651451116,
+   11.315189221251831
+  ],
+  "lift_cm": [
+   2.8101052856974102,
+   2.419067674333725
+  ],
+  "shift_when_up": [
+   -0.26924243100640716,
+   0.22142347658917116
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   31.463
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    31.463
+   ]
+  },
+  "tilt_max": 12.135164368401934,
+  "peak_rate": 1.0025276011230038,
+  "tilt_cmd": [
+   4.534993905199937,
+   10.269881313410977,
+   11.39091020166411
+  ],
+  "lift_cm": [
+   2.6167041422221917,
+   2.3988199892478375
+  ],
+  "shift_when_up": [
+   -0.24509346238208135,
+   0.20983491282943068
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   31.881
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    31.881
+   ]
+  },
+  "tilt_max": 12.683038342060378,
+  "peak_rate": 1.1102880468832144,
+  "tilt_cmd": [
+   4.418277528098806,
+   9.882819069890902,
+   10.679651220295138
+  ],
+  "lift_cm": [
+   2.7417393285033977,
+   2.042664175061425
+  ],
+  "shift_when_up": [
+   -0.25455428401278196,
+   0.1970968429171678
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.038
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.038
+   ]
+  },
+  "tilt_max": 12.977690093048743,
+  "peak_rate": 1.1001387231346484,
+  "tilt_cmd": [
+   4.266396415520052,
+   10.296703773676413,
+   11.40125590200824
+  ],
+  "lift_cm": [
+   2.7074844767540407,
+   2.0964372302396996
+  ],
+  "shift_when_up": [
+   -0.25161570243095227,
+   0.20743197498876526
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   31.764
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    31.764
+   ]
+  },
+  "tilt_max": 12.665639622250058,
+  "peak_rate": 1.0524523788453939,
+  "tilt_cmd": [
+   4.3901134679621014,
+   10.615228312555544,
+   11.70267315960659
+  ],
+  "lift_cm": [
+   2.7161984024349533,
+   2.138795911123672
+  ],
+  "shift_when_up": [
+   -0.2510665759544088,
+   0.2062074346892302
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.577710635889951,
+  "peak_rate": 0.14266323585040877,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.19391774609676402,
+   0.20935603330410196
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.4700337333734055,
+  "peak_rate": 0.13142569587703776,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1978780333498193,
+   0.20930014711567063
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.299526253519039,
+  "peak_rate": 0.13192372620288753,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.19140283732367852,
+   0.21190744974079623
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.6128257609449985,
+  "peak_rate": 0.13398511495957016,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1672131453602008,
+   0.2042278748944028
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.558290470003337,
+  "peak_rate": 0.13714067676724523,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.17404489613048113,
+   0.19815809472715296
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.684045493184422,
+  "peak_rate": 0.13458103128984014,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.2050163900316408,
+   0.23863800578109048
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.300631289493745,
+  "peak_rate": 0.12248364005478568,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.14951531137667295,
+   0.18937437187319367
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "grade as is",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.5333280238028015,
+  "peak_rate": 0.13614178414508243,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.17386497583190993,
+   0.21237073365838233
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   31.351
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    31.351
+   ]
+  },
+  "tilt_max": 11.413516105975246,
+  "peak_rate": 1.2391481635936397,
+  "tilt_cmd": [
+   4.373265567485019,
+   9.197483060387246,
+   10.193385673690075
+  ],
+  "lift_cm": [
+   2.5125158682386117,
+   1.3595250235505805
+  ],
+  "shift_when_up": [
+   -0.22456876714804214,
+   0.0893974395953173
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   32.187
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    32.187
+   ]
+  },
+  "tilt_max": 11.745945264999083,
+  "peak_rate": 1.2937674197631162,
+  "tilt_cmd": [
+   4.375385626981527,
+   9.635987176259402,
+   10.643142697419632
+  ],
+  "lift_cm": [
+   2.679660237090169,
+   1.2972584300692136
+  ],
+  "shift_when_up": [
+   -0.23299463070225626,
+   0.08622693226316426
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   32.033
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    32.033
+   ]
+  },
+  "tilt_max": 11.592928128234034,
+  "peak_rate": 1.323190424923119,
+  "tilt_cmd": [
+   4.312388970816746,
+   9.323206049191798,
+   10.457269444354363
+  ],
+  "lift_cm": [
+   2.7816880982379693,
+   1.463262284856614
+  ],
+  "shift_when_up": [
+   -0.24746737339198357,
+   0.07175245608079271
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   30.862
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    30.862
+   ]
+  },
+  "tilt_max": 11.403774087888305,
+  "peak_rate": 1.2679779189097347,
+  "tilt_cmd": [
+   4.1926138131546296,
+   8.963765592367798,
+   10.456061427402872
+  ],
+  "lift_cm": [
+   3.188462057715977,
+   1.4695048916076616
+  ],
+  "shift_when_up": [
+   -0.2882555912302637,
+   0.13954237913226877
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   32.814
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    32.814
+   ]
+  },
+  "tilt_max": 11.497149332262012,
+  "peak_rate": 1.153266780081135,
+  "tilt_cmd": [
+   4.199976155254926,
+   9.15031150037567,
+   10.493047903506167
+  ],
+  "lift_cm": [
+   2.963443587705374,
+   1.3758545227610701
+  ],
+  "shift_when_up": [
+   -0.2571271379113917,
+   0.10689253651209801
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   33.273
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    33.273
+   ]
+  },
+  "tilt_max": 11.670891628112678,
+  "peak_rate": 1.215947164905044,
+  "tilt_cmd": [
+   4.158307239291982,
+   8.8691419591556,
+   10.321583115401767
+  ],
+  "lift_cm": [
+   2.7097105757197357,
+   1.3866461052746457
+  ],
+  "shift_when_up": [
+   -0.24745494636557067,
+   0.14956950080334996
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   32.434
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    32.434
+   ]
+  },
+  "tilt_max": 11.368639834808699,
+  "peak_rate": 1.2253674540456856,
+  "tilt_cmd": [
+   4.012463232947965,
+   9.112378809802701,
+   10.443415618434807
+  ],
+  "lift_cm": [
+   2.6022294808843713,
+   1.2363293888056073
+  ],
+  "shift_when_up": [
+   -0.2437962879164659,
+   0.11306718288670688
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   34.303
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    34.303
+   ]
+  },
+  "tilt_max": 11.889552789066364,
+  "peak_rate": 1.3011977434995265,
+  "tilt_cmd": [
+   4.2115559991227265,
+   9.313881102938883,
+   10.585641307640119
+  ],
+  "lift_cm": [
+   2.4507139871826955,
+   1.421608976695916
+  ],
+  "shift_when_up": [
+   -0.2171518258710895,
+   0.10514074820675082
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.1842616323925395,
+  "peak_rate": 0.1628891177363639,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.19605833099770492,
+   0.14114875188158935
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.165713820343058,
+  "peak_rate": 0.15513122023654405,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.18766739603893295,
+   0.14569846022007388
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.014526939020596,
+  "peak_rate": 0.14889361876232496,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.18580659122727122,
+   0.1555736327631942
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.307337216984924,
+  "peak_rate": 0.1620337503801873,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.24114813047794326,
+   0.16047215625719402
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.181252451373934,
+  "peak_rate": 0.16984888587056224,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.181565668658062,
+   0.13614718486712968
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.313587619784571,
+  "peak_rate": 0.1569090025416005,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.19527810829571982,
+   0.1586826546866085
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.051725719844996,
+  "peak_rate": 0.14264325873652756,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.16734205801877564,
+   0.1459236773728785
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.287290864752541,
+  "peak_rate": 0.16553981580818644,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.19781707584419111,
+   0.1604000831452384
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   31.308
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    31.308
+   ]
+  },
+  "tilt_max": 13.615150905356783,
+  "peak_rate": 0.9688114710541557,
+  "tilt_cmd": [
+   4.225377467460648,
+   10.771646571583782,
+   12.224657992930176
+  ],
+  "lift_cm": [
+   2.5800314125950283,
+   2.4619056164684903
+  ],
+  "shift_when_up": [
+   -0.6967426852443814,
+   0.5984208928647534
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   31.978
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    31.978
+   ]
+  },
+  "tilt_max": 14.216810210501144,
+  "peak_rate": 1.2341780828234346,
+  "tilt_cmd": [
+   4.485839016162903,
+   11.224323651633657,
+   12.994720345169661
+  ],
+  "lift_cm": [
+   2.55542499813757,
+   2.4120132355468984
+  ],
+  "shift_when_up": [
+   -0.6459146098575062,
+   0.6725454819727628
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   33.258
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    33.258
+   ]
+  },
+  "tilt_max": 14.149406844665883,
+  "peak_rate": 1.1641337682363397,
+  "tilt_cmd": [
+   4.313274915237297,
+   10.943324370670462,
+   12.839693065159935
+  ],
+  "lift_cm": [
+   2.709865774847322,
+   2.52804629463226
+  ],
+  "shift_when_up": [
+   -0.6209927150032257,
+   0.7793082672189399
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   33.201
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    33.201
+   ]
+  },
+  "tilt_max": 13.456775177967813,
+  "peak_rate": 0.9509720830688115,
+  "tilt_cmd": [
+   3.9661717604450972,
+   10.815372803652977,
+   12.511647912250565
+  ],
+  "lift_cm": [
+   2.925253386836,
+   2.7758412292262364
+  ],
+  "shift_when_up": [
+   -0.7230387116360154,
+   0.6812546616499305
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.407
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.407
+   ]
+  },
+  "tilt_max": 13.276506706955399,
+  "peak_rate": 0.9839767073703771,
+  "tilt_cmd": [
+   4.22957463083125,
+   10.7237258235002,
+   12.557549667431632
+  ],
+  "lift_cm": [
+   2.5201871034080696,
+   2.600844650633312
+  ],
+  "shift_when_up": [
+   -0.70355140252197,
+   0.6550022726339548
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.526
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.526
+   ]
+  },
+  "tilt_max": 13.455558590839765,
+  "peak_rate": 1.0549210508457656,
+  "tilt_cmd": [
+   4.227809476635235,
+   10.752975752713725,
+   12.193642252907129
+  ],
+  "lift_cm": [
+   2.5137893168790884,
+   2.352838702577937
+  ],
+  "shift_when_up": [
+   -0.6535502281080497,
+   0.6623342309785223
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.98,
+   32.74
+  ],
+  "trips_by": {
+   "pose": [
+    3.98,
+    32.74
+   ]
+  },
+  "tilt_max": 13.325279900535351,
+  "peak_rate": 1.0554178306793436,
+  "tilt_cmd": [
+   3.810746500510383,
+   10.813549972747053,
+   12.573993485272123
+  ],
+  "lift_cm": [
+   2.958878949953026,
+   2.3936043950857444
+  ],
+  "shift_when_up": [
+   -0.7347769987546401,
+   0.6402847058431587
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.92,
+   32.784
+  ],
+  "trips_by": {
+   "pose": [
+    3.92,
+    32.784
+   ]
+  },
+  "tilt_max": 13.796043536566492,
+  "peak_rate": 1.0192420872394443,
+  "tilt_cmd": [
+   4.093878246604358,
+   11.003689950419,
+   12.798914449412758
+  ],
+  "lift_cm": [
+   2.8979403316786634,
+   2.418380513155803
+  ],
+  "shift_when_up": [
+   -0.7461652720643286,
+   0.6685870720588278
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.299793025573543,
+  "peak_rate": 0.14000705133983044,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.14162336737818917,
+   0.14200823190455092
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.344108416400981,
+  "peak_rate": 0.12814619074565115,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.14476800408136206,
+   0.14780244446220298
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.221852890753967,
+  "peak_rate": 0.1283813819091777,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.14301979787328434,
+   0.14983380924220016
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.570631083025102,
+  "peak_rate": 0.12774103196868702,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1116266138205495,
+   0.15074404894715887
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.34123454952114,
+  "peak_rate": 0.13524746458941792,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.12351188269724284,
+   0.14661966726200945
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.54457036378816,
+  "peak_rate": 0.13276759361807847,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.15189985966214298,
+   0.16861603554604934
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.165356067999979,
+  "peak_rate": 0.12249695736584432,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.0965647996614677,
+   0.13781862119874058
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.542913424319323,
+  "peak_rate": 0.1357235888833252,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1219180676917171,
+   0.16802425826097298
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   31.583
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    31.583
+   ]
+  },
+  "tilt_max": 13.531248118998109,
+  "peak_rate": 1.3640802197201345,
+  "tilt_cmd": [
+   4.281542668636143,
+   9.31497369695629,
+   10.846777180343869
+  ],
+  "lift_cm": [
+   2.5475307331427834,
+   1.608438943050324
+  ],
+  "shift_when_up": [
+   -0.6151884337022753,
+   0.47264218571182437
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   32.482
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    32.482
+   ]
+  },
+  "tilt_max": 13.236612096275257,
+  "peak_rate": 1.3918183044221855,
+  "tilt_cmd": [
+   4.231109635110467,
+   9.434091581853131,
+   11.12929215518278
+  ],
+  "lift_cm": [
+   2.549656242440899,
+   1.5590052631756175
+  ],
+  "shift_when_up": [
+   -0.5968582216470136,
+   0.44365060633240033
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   31.337
+  ],
+  "trips_by": {
+   "pose": [
+    3.9,
+    31.337
+   ]
+  },
+  "tilt_max": 12.52947832480787,
+  "peak_rate": 1.2706908419203826,
+  "tilt_cmd": [
+   4.238106140200527,
+   9.336364700162106,
+   11.150229653714218
+  ],
+  "lift_cm": [
+   2.7506927097807905,
+   1.5985520679504504
+  ],
+  "shift_when_up": [
+   -0.6173091041361877,
+   0.5421685302239808
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.94,
+   33.709
+  ],
+  "trips_by": {
+   "pose": [
+    3.94,
+    33.709
+   ]
+  },
+  "tilt_max": 12.150024258553891,
+  "peak_rate": 1.2199781994652519,
+  "tilt_cmd": [
+   4.048427482253264,
+   8.919373404967766,
+   10.837208559472055
+  ],
+  "lift_cm": [
+   2.852658264493762,
+   1.7651068546785702
+  ],
+  "shift_when_up": [
+   -0.6547220784158851,
+   0.5997051307970226
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   33.37
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    33.37
+   ]
+  },
+  "tilt_max": 12.914385960203843,
+  "peak_rate": 1.3557155809976993,
+  "tilt_cmd": [
+   4.282583461432289,
+   9.331685102510002,
+   11.023398405128265
+  ],
+  "lift_cm": [
+   2.9430679686737,
+   1.7227981508704089
+  ],
+  "shift_when_up": [
+   -0.6991532818630841,
+   0.6468246549116141
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   34.4
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    34.4
+   ]
+  },
+  "tilt_max": 13.231429779620072,
+  "peak_rate": 1.2822587761263942,
+  "tilt_cmd": [
+   4.1312321644190595,
+   8.974430436173083,
+   10.687562237541187
+  ],
+  "lift_cm": [
+   2.798992370994733,
+   1.550778453569283
+  ],
+  "shift_when_up": [
+   -0.6617854375241574,
+   0.6803441754315162
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.96,
+   31.759
+  ],
+  "trips_by": {
+   "pose": [
+    3.96,
+    31.759
+   ]
+  },
+  "tilt_max": 13.206062923226495,
+  "peak_rate": 1.397895183556986,
+  "tilt_cmd": [
+   4.102862507477365,
+   8.945931546809033,
+   10.694916305217166
+  ],
+  "lift_cm": [
+   2.507446722916952,
+   1.4987101805246525
+  ],
+  "shift_when_up": [
+   -0.5953059682146075,
+   0.4268342078232269
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "stride1 0.3 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": [
+   "pose",
+   3.9,
+   32.78
+  ],
+  "trips_by": {
+   "pose": [
+    3.9,
+    32.78
+   ]
+  },
+  "tilt_max": 12.987098804568593,
+  "peak_rate": 1.0887080305919543,
+  "tilt_cmd": [
+   4.303692540064044,
+   9.354360134809255,
+   11.03242869140312
+  ],
+  "lift_cm": [
+   2.5215458366553714,
+   1.5208745083116897
+  ],
+  "shift_when_up": [
+   -0.6067983657701812,
+   0.5080521942511301
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 0,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 4.961169413320493,
+  "peak_rate": 0.16000167205601187,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1158575630717548,
+   0.10864995057037968
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 1,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 4.945192295599202,
+  "peak_rate": 0.16228530541182604,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1134110481530044,
+   0.1041597240187016
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 2,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 4.846897662589701,
+  "peak_rate": 0.16205554466234756,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.10648465359793143,
+   0.11633997715493616
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 3,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.278257503812804,
+  "peak_rate": 0.1769806651422383,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1612082818076621,
+   0.11729657764957468
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 4,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 4.95038504271364,
+  "peak_rate": 0.17904514100962518,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.11334456303251492,
+   0.09888207050262159
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 5,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.16023550699788,
+  "peak_rate": 0.17090170010187253,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.117196871591252,
+   0.1235012576364089
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 6,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 4.842477021314014,
+  "peak_rate": 0.16094514670537766,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.1003930735333525,
+   0.11516410871970943
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ },
+ {
+  "run": "robot_legs_prec57_march_rs_s128r24",
+  "variant": "MASS_SYM + play 4/5",
+  "probe": "march5 robot",
+  "seed": 7,
+  "fell": false,
+  "trip": null,
+  "trips_by": {},
+  "tilt_max": 5.139556778016134,
+  "peak_rate": 0.1772823252864764,
+  "tilt_cmd": [
+   null,
+   null,
+   null
+  ],
+  "lift_cm": [
+   0.11856964725682519,
+   0.11922216254824543
+  ],
+  "shift_when_up": [
+   null,
+   null
+  ]
+ }
+]

@@ -109,11 +109,12 @@ Around the PD loop:
 | gear backlash | a deadzone of ±lash/2 on the PD error; 0.5–1.0° per episode | `--backlash-deg lo,hi` |
 | roll play | an EXTRA deadzone on the four roll joints (hip roll, ankle roll) only, on top of the backlash: the play downstream of the encoders. Calibrated on the legs-only body so a 30 mm one-foot lift tilts the torso ~5° with the stance encoders moving ~1° (`sim/roll_compliance.py`, [roll-compliance-2026-10-24](design-v6/roll-compliance-2026-10-24.md)); total roll deadzone ≈ 2.6°. 1.0–2.6° extra per episode in the legs-only runs, MJX and CPU | `--roll-lash-deg lo,hi` (`roll_lash_deg`, `roll_lash_deg_max`) |
 | roll series spring | a spring in series with the hip-roll and ankle-roll servos, beyond the encoder: the compliance the 2026-11-10 clamp test measured (30 mm one-foot lift, stance foot clamped: torso 9.4°, stance roll encoders 1.5° ankle / 0.4–0.7° hip; [the record](../experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md), #277). Quasi-static, massless shaft: the link sees the roll PD in series with k (kp, kd × 1/(1 + kp/k)), and every encoder reading (the q and q̇ observations, the `--dq-obs-window` history, the `--fw-goal-speed` feedback) is the servo shaft, link + τ/k. k drawn per episode per role, uniform in k, L and R sharing it; one value = fixed; a role left out is rigid. The weight-transfer gate's Round 3 clamp fit (hip 11.0, ankle 17.75 N m/rad, no roll play) gives 9.2–9.3° on the training plant's clamp test (`tests/test_roll_series.py`); the rigid plant gives 2.8° (no play) to 4.2° (1.25°). The same springs over-unload the stance foot on the both-feet-down foot-load ladder (Round 3), so the recipes draw `hip=10:25,ankle=16:40` (the fit at the soft end, about 2.3× stiffer at the other): with `--roll-lash-deg 0.5,2.0` the clamp tilt spans 6.2–12.7° (L lifted), 7.5–9.2° at the range's centre. Off by default. MJX and CPU; config.json records it, so the referee and `grade.py` grade a run on its own spring | `--roll-series-k hip=LO:HI,ankle=LO:HI` (`roll_series_k`, N m/rad) |
+| roll play beyond the encoder | free play inside the hip-roll and ankle-roll servos, between the position sensor and the output horn: the 2026-11-11 clamp session (`hw_sessions/2026-11-11/m277/NOTES.md`; the fit and its numbers are in [the weight-transfer gate](../experiments/policy/weight-transfer-gate/README.md), #277). The servo shaft is position-controlled and is what every encoder reading is (the q and q̇ observations, the `--dq-obs-window` history, the `--fw-goal-speed` feedback); the link floats inside ±play/2 of the shaft with no torque between them, and the servo's PD reaches it only at a band edge, through a contact that pushes only. A free shaft runs to the set point at up to the no-load speed. Drawn per episode per joint, uniform; `LO:HI` sets all four rolls, `hip=LO:HI,ankle=LO:HI` each role, and `L_hip=`, `R_hip=`, `L_ankle=`, `R_ankle=` one side's joint (overriding its role there); one value = fixed. The clamp fit (`fit_rollplay.py`, the robot's own poses, R foot welded, grade plant with the measured mass, no roll lash) is hip 4°, ankle 5° peak to peak: 30 mm lift 7.9° (robot 8.45–8.7°) with the stance encoders 1.9° / 0.8° (robot 1.1–1.5° / 0.35–0.45°), a hand-pushed swing of 9.4° with 5.7° of it beyond the encoders (robot ~6.1°), and 2.5° after an 81 mm shift (robot 2.7°); the rigid plant tilts 2.7°. With the roll lash on as well the encoders move about twice the robot's and the fit is worse, so a recipe with this flag drops `--roll-lash-deg`; the recipes draw `hip=3:5,ankle=4:6`. The play breaks the both-feet-down foot-load ladder at its far rungs (the plant falls off the 80.6 and 86.8 mm shifts toward L at the fit; the robot stands on them), which the model does not yet explain. Exclusive with `--roll-series-k`. Off by default. MJX and CPU; config.json records it, so the referee, `grade.py` and the distil rebuild a run on its own play | `--roll-play-deg LO:HI` or `hip=LO:HI,ankle=LO:HI`, per side `L_hip=LO:HI,R_hip=...,L_ankle=...,R_ankle=...` (`roll_play_deg`, degrees peak to peak) |
 | actuation lag | three cascaded first-order stages on the commanded target (the firmware command shaper's structure), pole drawn per episode | `--act-lag lo,hi` (Hz) |
 | dead time | the servo serves the target from 0–N control ticks ago | `--act-delay-max N` |
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
 | joint-velocity observation | the robot's q̇ is the STS3215 speed register 58: the mean joint velocity over the last ~40 ms (~20 ms late) in 50 steps/s (4.4°/s) steps (the 2026-11-05 kick analysis, `hw_sessions/2026-11-05/kick_analysis.md` §3, not in git). The observed q̇ becomes (q_t − q_t−N) / (N · 20 ms), N fixed or drawn per episode, then rounded to Q steps/s (replacing `--quantize`'s 1-step q̇ rounding). The robot's model is N 2, Q 50. Off by default (the instantaneous q̇). MJX and CPU; `grade.py` probes `… dqlag` and `DQ_OBS_WINDOW` apply it to a trained policy | `--dq-obs-window N` or `lo,hi`, `--dq-obs-quantum Q` |
-| free play | the link floats inside ±play/2 of the shaft and is driven only at the band edges — hysteresis, where backlash is a deadzone. **CPU plant only** (`walker_env.py`): the SIL twin and the design gates use it, MJX training does not (it gets the same steady-state effect from the roll-play deadzone above) | `play_deg`, `play_joints` |
+| free play | the roll play beyond the encoders is `--roll-play-deg` (the encoders reading the servo shaft, the link free inside the band), fitted per role to the 2026-11-11 clamp session; `--roll-lash-deg` (a deadzone on the servo error, the encoders reading the link) and `--roll-series-k` (a spring, the encoders reading the shaft) are the other two forms. The referee inherits each from `config.json`. Still open: the both-feet-down ladder, where the fitted play falls off the far rungs the robot stands on; the double-stance hysteresis the robot shows (the same shifted pose 4.2° apart by direction; the sim 0.7°); and the stance encoders moving more under load than the robot's (1.9° / 0.8° against 1.1–1.5° / 0.35–0.45°) |
 | rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
 The bench numbers behind these knobs: the servo's dead time measures ≈ 85 ms
@@ -379,6 +380,17 @@ stance sole, σ 4 cm, gated by the swing clearance): the only one of them that
 pays for lateral weight transfer, and zero in the `loco` family unless set.
 `tests/test_mimic_march.py` pins the reference, the gate, the defaults and the
 CPU/MJX agreement; parity block R13b runs the step.
+Each of those is paid only once the commanded foot is off the floor (or, for
+`w_track_foot`, through a 6 cm kernel that is flat at the floor), so a foot that
+has never lifted earns nothing for starting to. `--w-march-unload W` (default
+off) is the ungated term: during a gait-clock march it pays
+`W · ½(u + h)` for the COMMANDED swing foot whether or not it is up, with
+u = clip(((c − p_sw)·e)/|e|², 0, 1), e = p_st − p_sw (the swing foot's static
+unloading by the lever rule: the whole-robot CoM c moving horizontally from the
+swing sole p_sw toward the stance sole p_st) and h = clip(clearance /
+(lift_height + c6), 0, 1). Both feet planted under a centred CoM it pays ¼W.
+`walker_env.march_unload_term` is shared by both engines;
+`tests/test_march_unload.py` and parity block R17 pin it.
 A warm start from a run that drew no march needs `--init-norm-march`: that run's
 observation normaliser holds std 1e-6 on the lift and foot-dz slots (the channels
 never moved), so a march reads as ~1e6 σ. The flag re-seats those slots to the
@@ -498,6 +510,7 @@ freeze them.
 | `--cmd-crouch-range lo,hi` | crouch-channel draw | the firmware battery guard lowers c3 on a sagging pack; a frozen channel also collapses its normalizer |
 | `--roll-lash-deg lo,hi` | extra roll-joint deadzone, degrees | the play downstream of the roll encoders (§2) |
 | `--roll-series-k hip=lo:hi,ankle=lo:hi` | spring in series with the roll servos beyond the encoder, N m/rad | the stance leg's 2026-11-10 clamp compliance (§2) |
+| `--roll-play-deg lo:hi`, `hip=lo:hi,ankle=lo:hi` or per side `L_hip=lo:hi,...` | free play inside the roll servos beyond the encoder, degrees peak to peak | the stance leg's 2026-11-11 clamp play (§2) |
 | `--terrain`, `--quantize` | rough floor; tick quantization | §2 |
 
 `--discovery` strips DR, payload, latency, backlash and pushes: a clean-physics
@@ -543,6 +556,12 @@ Training runs **at night only**; days belong to the box's owner.
 - **Window.** cron starts `infra/night/night_run.sh` at 22:00. No new job starts
   after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00, and
   the last eval checkpoint stands.
+- **GPU handover.** The daytime GPU owner is the camera-watcher classifier
+  (`llama3.2-vision` via ollama). The runners call `infra/night/vision_pause.sh
+  pause` before training, which pauses the classifier container and unloads
+  the model (the backlog waits in redis), and `resume` when the night ends or
+  is stopped. While paused, a `CLASSIFIER_PAUSED` sentinel tells mira's camera
+  watchdog that the lag is intentional.
 - **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
   branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
@@ -563,15 +582,21 @@ Training runs **at night only**; days belong to the box's owner.
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
   back to CPU is moved back onto the GPU.
-- **Morning.** `infra/night_collect_local.sh` (cron 07:15 on mira) copies each
-  finished run into the working checkout and referees it: the python column
-  with `--render`, and the SIL column. The lag column is run by hand (§8). It
+- **Collection.** `infra/night_collect_local.sh` copies each finished run into
+  the working checkout and referees it: the python column with `--render`, and
+  the SIL column. The runner starts it, detached, when its queue loop ends and a
+  run is waiting (never while a job is still training); cron 07:15 on mira is the
+  safety net. `COLLECT_JOBS` (default 6) runs are collected at once, each into
+  its own log that is appended to `night_collect.log` in a stable order; a
+  second collector exits at once on `night/.collect.lock`. The lag column is run by hand (§8). It
   fast-forwards the checkout to `origin/main` first, so the references and
   plants a run trained against are there to referee it. If uncommitted files
   block the fast-forward, it stashes only the paths upstream also changed, under
   a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
-- **Re-planning.** `infra/night/plan_morning.sh` (cron 07:30) waits for the
-  collection, then runs a headless Claude Code session on
+- **Re-planning.** `infra/night/plan_morning.sh` (cron 05:30 and 07:30; also
+  started by a collector that finishes between 00:00 and 07:30) waits until the
+  runner and collector locks are free and no `state.done.*` is left (3 h cap),
+  skips itself if a plan already completed today, then runs a headless Claude Code session on
   `infra/night/planner_prompt.md`: it evaluates the night against the campaign
   record (today the get-up, [getup-campaign-2026-10.md](design-v6/getup-campaign-2026-10.md)),
   improves the references on the CPU if a phase is failing, queues the next

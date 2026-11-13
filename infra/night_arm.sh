@@ -66,6 +66,6 @@ QN="$(date +%m%d%H%M%S)-$OUT"
 echo "=== queueing $QN [branch $BRANCH]: ${ARGS[*]} ==="
 { echo "BRANCH=$BRANCH"; printf '%s\n' "${ARGS[*]}"; } \
   | ssh mira "mkdir -p code/robot-mjx/night/queue && cat > code/robot-mjx/night/queue/$QN"
-echo ">>> tonight's queue (runs in this order from 22:00; no starts after"
-echo ">>> 05:00, hard stop 07:00; collect with infra/night_collect.sh):"
+echo ">>> tonight's queue (runs in this order from 22:00 while each job fits"
+echo ">>> before the 07:00 hard stop; collect with infra/night_collect.sh):"
 ssh mira 'ls code/robot-mjx/night/queue | grep -v "^done$"'

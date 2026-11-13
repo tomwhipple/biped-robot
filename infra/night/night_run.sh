@@ -4,8 +4,12 @@
 # sequentially. POLICY (user, 2026-07-20): training happens at NIGHT ONLY;
 # days are reserved for the user's other work on this box (and we're
 # waiting on printed parts anyway).
-# Window: starts 22:00; no new job starts after 05:00; hard stop 07:00
-# (night_stop.sh cron). Never evicts ACTIVE ollama inference; unloads IDLE
+# Window: starts 22:00; hard stop 07:00 (night_stop.sh cron). A job starts
+# whenever it fits before the hard stop (Tom 2026-11-12: "cutoff should be
+# 07:00 MST" -- there is no separate 05:00 start cutoff any more): the --steps
+# budget (END_HARD - now - 15 min) x RATE caps it, a budget under 5M or under
+# half the job's --steps leaves the rest of the queue for tomorrow, and the
+# 06:55 guard bounds whatever runs. Never evicts ACTIVE ollama inference; unloads IDLE
 # resident models after ~10 min of 0% GPU (they auto-reload on demand).
 # One-shot semantics: a job file moves to queue/done/ at LAUNCH, so an
 # 07:00-interrupted job does not re-run the next night (its checkpoint is
@@ -107,10 +111,10 @@ fi
 # legacy single-args file becomes the first queue item
 [[ -f "$N/args" ]] && mv "$N/args" "$N/queue/00-legacy"
 
-START_DEADLINE=$(date -d '05:00' +%s)
-(( START_DEADLINE <= $(date +%s) )) && START_DEADLINE=$((START_DEADLINE + 86400))
 END_HARD=$(date -d '07:00' +%s)
 (( END_HARD <= $(date +%s) )) && END_HARD=$((END_HARD + 86400))
+# the last start: 15 min before the hard stop (the budget below is 0 there anyway)
+START_DEADLINE=$((END_HARD - 900))
 
 
 restore_ollama() {
@@ -181,11 +185,11 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   JF="$N/queue/$JOB"
   [[ -f "$JF" ]] || break   # vanished mid-scan; a continue would spin forever
   if (( $(date +%s) > START_DEADLINE )); then
-    echo "no starts after 05:00; $JOB stays queued for tomorrow"
+    echo "no starts after $(date -d @"$START_DEADLINE" +%H:%M) (hard stop 07:00); $JOB stays queued for tomorrow"
     break
   fi
   if ! wait_gpu; then
-    echo "gpu never freed before 05:00; $JOB stays queued"
+    echo "gpu never freed before $(date -d @"$START_DEADLINE" +%H:%M); $JOB stays queued"
     break
   fi
   BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
@@ -254,6 +258,13 @@ EOF
     echo "window too small for $JOB; stays queued"
     break
   fi
+  # a run capped below half its --steps is not comparable with its siblings
+  # (or with the recipe it repeats): leave it, and the rest of the queue in
+  # order (a distill behind it needs its teacher), for tomorrow (2026-11-12)
+  if [[ -n "$REQ" ]] && (( BUDGET * 2 < REQ )); then
+    echo "window fits $BUDGET of $JOB's --steps $REQ (< 50 %); it stays queued for tomorrow"
+    break
+  fi
   if [[ -n "$REQ" ]] && (( REQ > BUDGET )); then
     ARGS=${ARGS/--steps $REQ/--steps $BUDGET}
     echo "capped --steps $REQ -> $BUDGET for $JOB"
@@ -295,8 +306,8 @@ The state is in $N/state.done.$OUT, and the log is
 $BASE/sim/runs/train_${OUT}_rc${RC}.log. Find the cause and fix it. If it crashed
 early and the job is still worth a slot tonight, re-queue it (copy the job file
 back to $N/queue/; rename its --out if a partial run dir would collide). The
-runner picks up the queue again as soon as you exit. The night's start
-deadline is 05:00.
+runner picks up the queue again as soon as you exit. A job starts while it
+still fits before the 07:00 hard stop (budget rule; at least half its --steps).
 EOF
   fi
   restore_ollama
@@ -305,3 +316,19 @@ done
 # leave the tree on main so a branch job never strands the clone
 [[ -n "${BR:-}" && "${BR:-main}" != main ]] && sync_repo main
 echo "$(date) night_run loop done"
+
+# The night's training is over: collect it NOW rather than at 07:15, so the
+# morning planner is not held up by a long collection (2026-11-11: 31 runs,
+# serial, done at ~10:00). Detached, with its own log, and without this
+# runner's lock (9>&-) so the collector never looks like a running runner.
+# Not while a job is still training (the 06:55 guard `break` leaves one
+# running until night_stop): the EGL renders would share the GPU with it, and
+# the 07:15 cron collects then.
+CPID=$(sed -n 's/^PID=//p' "$N/state" 2>/dev/null | head -1)
+if [[ -n $CPID ]] && kill -0 "$CPID" 2>/dev/null; then
+  echo "$(date +%H:%M) collector not started: $CPID still training; the 07:15 cron collects"
+elif compgen -G "$N/state.done.*" > /dev/null; then
+  echo "$(date +%H:%M) starting the collector for $(ls "$N"/state.done.* | wc -l) finished run(s)"
+  setsid nohup "${COLLECT_SCRIPT:-$HOME/code/robot/infra/night_collect_local.sh}" \
+    9>&- > /dev/null 2>&1 < /dev/null &
+fi

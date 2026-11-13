@@ -37,6 +37,20 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               servo angle, not the link (set_series_view: the quasi-static form; walker_env cannot
               take an extra joint inside the leg chain). The bare-plant joints replay uses a real
               sprung joint (add_series_joint)
+  play_hip=<deg>, play_ankle=<deg>   free play (peak to peak) inside each hip roll / ankle roll
+              servo BEYOND its encoder: walker_env roll_play_deg (the shaft is position-controlled
+              and is what the encoder reads; the link floats inside +/-play/2 of it), fixed values,
+              live at once and at every reset after; a run's own series spring is dropped
+  play_L_hip=, play_R_hip=, play_L_ankle=, play_R_ankle=<deg>   the same for one side's joint,
+              overriding play_hip / play_ankle there
+  floor_tc=<s>, floor_dr=, floor_d0=, floor_d1=, floor_w=<m>   the floor's contact softness (floor +
+              sole pads): solref time constant / damping ratio, solimp d0 / d1 / width
+  sole_in=<mm>, sole_in_L=, sole_in_R=<mm>   the sole's INNER support edge moved to this distance
+              inboard of the ankle-roll axis (the pads inboard of it are moved onto it; the plant's is
+              ~22 mm): the robot's inward edge sits near the axis (2026-11-12 dwell runs, #297)
+  fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
+              hip-roll joints, replacing the plant's: it acts on the link, so under the play it
+              holds the link inside its band
 """
 from __future__ import annotations
 
@@ -218,6 +232,8 @@ def apply_terms(env, terms):
         add_box_to_body(m, b, float(terms["pack"]), PACK_POS, PACK_HALF)
     if "sole_sym" in terms:
         sole_symmetric(env)
+    if any(k in terms for k in ("sole_in", "sole_in_L", "sole_in_R")):
+        sole_inset(env, {s_: terms.get("sole_in_" + s_, terms.get("sole_in")) for s_ in "LR"})
     if "zoff_La" in terms:      # the L ankle-roll calibration zero error (deg); grade's fit carries -2.12
         env._gate_zoff_La = float(terms["zoff_La"])
         if env._zero_off is not None:
@@ -231,6 +247,40 @@ def apply_terms(env, terms):
         env._kp_prof = nom["kp"] * s * x
         env._kd_prof = nom["kd"] * s * x
         set_series_view(env, 1.0 - x)
+    if any(k.startswith("play_") for k in terms):
+        import walker_env as W
+        # the play replaces a run's own series spring (the env takes one or the other)
+        env.roll_series_k = None
+        env._ser_c = env._ser_defl = env._ser_dq = None
+        spec = {r: float(terms.get("play_" + r, 0.0)) for r in W.ROLL_SERIES_ROLES}
+        spec.update({k: float(terms["play_" + k]) for k in W.ROLL_PLAY_KEYS
+                     if k not in W.ROLL_SERIES_ROLES and "play_" + k in terms})
+        env.roll_play_deg = W.parse_roll_play_deg(spec)
+        # live now too (a Replay places the robot without a reset): fixed widths, shaft on the link
+        env._rp_h = (None if env.roll_play_deg is None else
+                     W.roll_play_bounds(env.roll_play_deg, env._servo_names)[0])
+        env._rp_off = np.zeros(env._n_servo)
+        env._rp_dq = np.zeros(env._n_servo)
+    if any(k in terms for k in ("floor_tc", "floor_dr", "floor_d0", "floor_d1", "floor_w")):
+        # the floor's contact softness (the floor + every sole pad, as simh.apply_model's floor_tc):
+        # solref (time constant, damping ratio) and solimp (d0, d1, width m); an omitted one keeps
+        # the plant's value
+        import mujoco
+        nm = lambda g: mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, g) or ""
+        gs = [g for g in range(m.ngeom) if "_pad_" in nm(g)] + list(env._sole_gids) + [m.geom("floor").id]
+        for g in gs:
+            if "floor_tc" in terms:
+                m.geom_solref[g][0] = float(terms["floor_tc"])
+            if "floor_dr" in terms:
+                m.geom_solref[g][1] = float(terms["floor_dr"])
+            for i, k in enumerate(("floor_d0", "floor_d1", "floor_w")):
+                if k in terms:
+                    m.geom_solimp[g][i] = float(terms[k])
+    for key, suf in (("fric_aroll", "ankle_roll"), ("fric_hroll", "hip_roll")):
+        if key in terms:        # dry friction (N m) on the roll joints themselves: the link side
+            for i, n in enumerate(env._servo_names):
+                if n.endswith(suf):
+                    m.dof_frictionloss[env._jv0 + i] = float(terms[key])
     if "dead" in terms:
         ch = getattr(env, "_gate_chain", None)
         add = float(terms["dead"])
@@ -329,6 +379,16 @@ def sole_symmetric(env, sole_w=0.0814):
             m.geom_pos[g][1] = yc + (y - yc) * (0.5 * sole_w) / half
 
 
+def sole_inset(env, mm):
+    """The `sole_in` terms: per side, every sole pad inboard of `mm` (mm from the ankle-roll axis, in the
+    foot frame; None = unchanged) is moved laterally onto that line. Inboard is -y on the left foot, +y on
+    the right. Idempotent: from the pads' positions as the env was built."""
+    import walker_env as W
+    if not hasattr(env, "_sole_in_nom"):
+        env._sole_in_nom = W.sole_pad_nominal(env.model)
+    W.apply_sole_inset(env.model, mm, nominal=env._sole_in_nom)
+
+
 def set_series_view(env, alpha):
     """The `ser_hip` / `ser_ankle` terms: a spring k_s in series with the servo, on its output
     side, in its quasi-static form. The link sees k_eff = kp k_s / (kp + k_s) (the env's PD on
@@ -360,6 +420,8 @@ def encoder_err(env, i):
     the link error minus the deadzones, times (1 - alpha) under a series spring."""
     a = float(getattr(env, "_gate_alpha", np.zeros(env._n_servo))[i])
     e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]))
+    if getattr(env, "_rp_h", None) is not None:      # roll play: the encoder reads the shaft
+        e = abs(float(env.data.ctrl[i]) - float(env.data.qpos[env._jq0 + i]) - float(env._rp_off[i]))
     half = 0.5 * (env._lash_rad + env._roll_lash_rad * env._roll_mask[i])
     return max(0.0, (1.0 - a) * max(e - half, 0.0) if a > 0 else e - half)
 

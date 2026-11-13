@@ -1,7 +1,7 @@
 # Morning planner: the get-up campaign
 
-You were launched headless by `night/plan_morning.sh` (cron 07:30 on mira, as
-claw) after the morning collection. No human is watching. Tom has
+You were launched headless by `night/plan_morning.sh` (cron 05:30/07:30 on mira, or
+started by the collector, as claw) once the night's collection is done. No human is watching. Tom has
 pre-authorized the work below; do it without asking.
 
 ## PROJECT REVIEW 2026-11-10 -- OVERRIDES EVERYTHING BELOW (Tom approved it the same day)
@@ -11,6 +11,14 @@ The review found that the simulation has mispredicted every hardware walking ses
 clearance and yaw, prec24's x1.5 margin, prec16's zero robot-probe trips, prec20's falls). Issues #259 - #267
 hold the work. These rules change how you plan:
 
+0. **Sim-only decisions are yours (Tom, 2026-11-12, #137).** His words, after the planner asked him to
+   choose between sim options: "go with option 1. begin now. In the future, just pick up and run this kind
+   of thing in the night... don't wait for my OK." Where a rule below would have you ask Tom to choose
+   between sim-only options, choose yourself instead. That covers a new training variable, parking or
+   continuing a line, which arms to run, or a one-night test. Pick your own recommendation, queue it that
+   night, and in the morning comment say what you chose and why. Do not @-mention him, assign him or end
+   `NEEDS_TOM` for any of that. Ask him (rule 5) only for what he alone can give: robot time or a hardware
+   session, purchases, anything destructive, or a change of the project's goal.
 1. **Milestone order.** (a) March in place on the robot with full weight transfer (#261); (b) a stride;
    (c) the full vx / vy / wz command volume (#263); then goal-conditioned locomotion (#88). The six-direction
    requirement below stays for stride candidates, but a lost direction does not veto a march candidate.
@@ -25,13 +33,16 @@ hold the work. These rules change how you plan:
    plus one control re-grade. Not eight or nine single-seed variables. A result "holds" only when at least
    two of its three seeds show it; write the spread, not the best seed. "One variable per run" below still
    applies within an arm.
-4. **Stop and escalate.** Count the nights a line (one hypothesis family, e.g. "sway in the reference") has
-   run since its last hardware-confirmed gain. At three, stop adding variables to it: write what the line has
-   and has not shown, queue replicates or the fallback, and ask Tom (rule 5) what to do. A hardware-confirmed
-   gain is a number from a robot run that moved the way the sim said it would.
-5. **Getting Tom's attention.** Tom does not read comments that do not mention him (the 3 cm question sat
-   unanswered on #137 for four mornings). Any question or decision for Tom carries `@tomwhipple` once, next
-   to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
+4. **Stop and decide.** Count the nights a line (one hypothesis family, e.g. "sway in the reference") has
+   run since its last hardware-confirmed gain. At three, stop adding variables to it by default. Write what
+   the line has and has not shown, and then decide yourself (rule 0): park it, pivot it, or give it one
+   more night to test a stated cause. In the morning comment, say which you chose and why. Ask Tom (rule 5)
+   only when the next useful step needs the robot. A hardware-confirmed gain is a number from a robot run
+   that moved the way the sim said it would.
+5. **Getting Tom's attention** (only for what rule 0 leaves to him: robot time or a hardware session,
+   purchases, anything destructive, a change of the project's goal). Tom does not read comments that do not
+   mention him (the 3 cm question sat unanswered on #137 for four mornings). Such a question carries
+   `@tomwhipple` once, next to the ask, in the GitHub comment, and the run ends `PLAN_STATUS: NEEDS_TOM`. Do not @-mention him in
    routine status. Also assign him the issue the ask lives on (`gh issue edit <n> --add-assignee tomwhipple`),
    and remove the assignment (`--remove-assignee tomwhipple`) the morning you act on his answer: his assigned
    list is his to-do list (Tom, 2026-11-10).
@@ -42,6 +53,41 @@ hold the work. These rules change how you plan:
 7. **March (#261).** When #261's PR is on main, give one arm a march slice on the slow-gait recipe (its
    issue comment lists parsed recipes) and grade every student on the `march` probe. Size `--mimic-sway`
    from #260's robot measurement once it exists; until then keep testing the model's sizes as now.
+
+### Hardware session 2026-11-11 (record: experiments/policy/weight-transfer-gate/README.md Round 5; #288, PR #290) -- supersedes the 11-10 roll-spring item below
+
+- **The robot walks with the host-side stepper, not a policy.** `experiments/stepper/` on branch `hw/stepper` is quasi-static and
+  closes the loop on the IMU: shift over the stance foot, raise the other foot a few mm at a time, move it, lower it. It has taken 9
+  forward steps holding the board's centre line with front-camera feedback. A step takes ~14 s.
+- **The stance hip must trim against the sag, and the foot clears only beyond the trim.** Shorten one leg and the pelvis sags after
+  that foot. The stance hip roll has to be trimmed: ~11 deg on L stance (R foot up), 2-3 deg on R stance. With the trim the body comes
+  level and the foot clears. The R foot needs ~20-25 mm commanded and the L foot ~12-17 mm. Pelvis shift: ~1.26-1.32 x the model's
+  62 mm on L stance, ~1.05-1.1 x on R.
+- **Both feet land ~25 mm to the robot's right of the IK aim**, on either stance (front-camera track of 4 runs).
+- **The roll chain is per-side PLAY beyond the encoders, not a spring.** `stepper_replay.py` replays the robot's written goals in the
+  plant. Fit to the shift / play sweeps, it gives L hip 6, R hip 8, L ankle 3, R ankle 0 deg peak to peak (hip upper end not pinned).
+  The training flag is `--roll-play-deg L_hip=4:10,R_hip=6:10,L_ankle=2:3,R_ankle=0:2` with no `--roll-lash-deg`, on main.
+  - Held-out walks, roll RMS: grade 4.4 deg, the 4/5 play 4.2, the per-side play 2.5.
+  - The roll spring (`--roll-series-k`) gets the single-support trim response too soft, so new arms use the play and not the spring.
+  - The play does NOT explain three things: the level body on L stance under ~11 deg of trim (still ~4.6 deg off); the
+    double-support lean (the robot rolls 0.03-0.05 deg per mm of pelvis shift, away from the shift; every plant at most 0.02); and 2
+    of the robot's 3 falls.
+- **Any plant change is checked with the stepper replay**
+  (`experiments/policy/weight-transfer-gate/stepper_replay.py run --ref crouch --plants ...`); its tables are in the gate README.
+- **Grade tonight's arms on the refitted plant**: grade.py as is AND with
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`, and say which plant each number is on.
+  **From 2026-11-13 also a third grading, on the inset sole:**
+  `GRADE_PLANT_TERMS=play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0,sole_in_L=8,sole_in_R=-12` (the sole's inner
+  support edge moved to the robot's: the 11-12 dwell runs put the robot's inward single-support edge at a shift of
+  ~1.2-1.3 x 62 mm on both feet, the plant's at ~0.5; SIL calibration in experiments/roll-balance/README.md, "The inset
+  sole"). Report all three, side by side; the inset-sole number is the one closest to the robot's lateral margin. The
+  `_ppsi` arms (11-12 night) trained on it (`--sole-in-mm L=8,R=-12`); compare them with their `_pp` twins. Judge a march by
+  whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
+- **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
+  4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2
+  + mimic-march 0.05, swing-height 0.035) and P4 prec71_mir_pp (P1 + mirror loss).
+- **The owner's direction:** hardware iteration leads and training follows it. Results by 08:00. Fall recovery lives in firmware:
+  the pick-up autohome fires at 25 deg, 1 rad/s, 1 s (PR #287).
 
 ### Hardware session 2026-11-10 (record: experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md; #271, #277, #259)
 
@@ -110,8 +156,10 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
   student passes stride1 at refit μ 0.4 on the measured-sole plant **and** Tom
   has seen it. "Stride working" means that student also takes a stride on the
   robot.
-- Fill the whole night (22:00 – 05:00 starts) with legs jobs. A 300M legs teacher
-  takes ~38 min and a distil ~3 min, so about 8 – 9 teacher + distil pairs fit.
+- Fill the whole night (22:00 – 07:00; Tom 2026-11-12: "cutoff should be 07:00 MST") with legs jobs,
+  longest / most important first; a short job may go last. A job starts while it still fits: the
+  runner caps its --steps to (07:00 − now − 15 min) × rate and leaves it (and everything after it)
+  queued if that is under half its --steps. A 300M legs teacher takes ~38 min and a distil ~3 min.
 - **Latest from GitHub, before you queue:**
   1. `git fetch origin`, and fast-forward `~/code/robot`.
   2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
@@ -187,8 +235,8 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
 > running all night, every night, always pulling in the latest knowledge.
 
 Your job this morning: **evaluate last night, record what it taught, and queue
-tonight** — a full night of get-up training (22:00 – 05:00 starts, ~1.6 h per
-600M-step Warp job: queue 5 jobs).
+tonight** — a full night of get-up training (22:00 – 07:00, starts while a job still fits before
+the 07:00 stop; ~1.6 h per 600M-step Warp job).
 
 ## Two tracks (Tom, 2026-10-24): one-leg stands and short walks, and get-up
 
@@ -234,7 +282,7 @@ line must now produce policies that can actually run ON THE ESP32 (no PC-side 50
   zero-command stand first (the first hardware deploy is "stand under the policy"), then walk_steps L/R
   (>= 3 cm clearance) and turn_180. Close the teacher->student gap (students fell 50-55 % on the full
   scorecard vs teachers ~21 % on 10-31): try distillation settings and report the gap every morning.
-- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-05:00 starts
+- Order: legs teacher(s) + distill first, then get-up. The whole queue must fit 22:00-07:00 (the fit rule above)
   (~50 min per 400M legs job, ~30 min distill, ~1.6 h per 600M get-up job).
 
 ## FAST servo config (2026-11-02) -- supersedes the 60-80 ms STS3215 dead time
@@ -346,12 +394,13 @@ referee shows a phase failing is in scope every day.
 2. Push the ledger update.
 3. Comment on the status issue: last night (each run: score vs parent, verdict),
    what was learned, tonight's queue (each job: parent, variable, hypothesis),
-   anything Tom should decide.
+   the sim-only decisions you made and why (rule 0), and only rule-5 questions for Tom.
 4. End your reply with exactly one line:
    `PLAN_STATUS: QUEUED <n> jobs — <one-line summary of last night and tonight>`
    or, if you could not queue a full night, `PLAN_STATUS: FAILED — <why>`, or,
-   if a decision or hardware action of Tom's blocks the campaign,
-   `PLAN_STATUS: NEEDS_TOM — <what>` (queue the best available night anyway).
+   if something only Tom can give blocks the campaign (rule 5: robot time, hardware, purchases,
+   anything destructive, the project's goal), `PLAN_STATUS: NEEDS_TOM — <what>` (queue the best
+   available night anyway). A sim-only choice is never NEEDS_TOM (rule 0).
    The wrapper sends that line to Tom; do not post to Mattermost/Slack yourself.
 
 ## Actuator dynamics (2026-11-01 RCA) -- every legs job, from now on

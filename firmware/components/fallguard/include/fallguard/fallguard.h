@@ -15,11 +15,18 @@
 //             meant to recover from past these lines.
 //   recover   while latched: within kPickupTiltDeg of upright AND
 //             |gyro| < kPickupGyroRadS, continuously for kPickupHoldMs
-//             -> Event::kPickedUp (being carried, or upright for a moment
-//             mid-tumble, does not count). The caller homes the servos (slow,
+//             (25 deg, 1.0 rad/s, 1 s) -> Event::kPickedUp (upright for a
+//             moment mid-tumble does not count). The caller homes the servos (slow,
 //             ends released) and the latch clears with clear(). An operator
 //             can turn that off (autohome off); the latch then waits for a
 //             typed `home`.
+//
+// Why the pick-up rule is loose (Tom 2026-11-11: "once the robot returns to
+// upright for 1 sec, it automatically homes"): the flight record of three bench
+// falls showed a robot held in the hand is never still to 0.35 rad/s for 2 s
+// (|gyro| 1-3 rad/s at 0-15 deg), and one set down limp at 21.7 deg, perfectly
+// still, never met the old 10 deg line, so it never homed. 25 deg stays below
+// the 30 deg bench fall line, so a robot lying on its side never qualifies.
 //
 // THE LIMITS (one table, documented once):
 //
@@ -68,10 +75,10 @@ struct Limits {
 
 constexpr Limits kPolicyLimits = {0.70711f, 200u};   // cos 45 deg, 200 ms
 constexpr Limits kBenchLimits = {0.86603f, 100u};    // cos 30 deg, 100 ms
-constexpr float kPickupTiltDeg = 10.0f;
-constexpr float kPickupUpZ = 0.98481f;               // cos 10 deg
-constexpr float kPickupGyroRadS = 0.35f;             // |w|, rad/s
-constexpr uint32_t kPickupHoldMs = 2000u;
+constexpr float kPickupTiltDeg = 25.0f;
+constexpr float kPickupUpZ = 0.90631f;               // cos 25 deg
+constexpr float kPickupGyroRadS = 1.0f;              // |w|, rad/s
+constexpr uint32_t kPickupHoldMs = 1000u;
 
 constexpr Limits limits(Motion m) { return m == Motion::kPolicy ? kPolicyLimits : kBenchLimits; }
 

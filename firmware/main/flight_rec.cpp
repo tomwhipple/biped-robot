@@ -448,7 +448,7 @@ uint32_t recordBench(scsbus::Bus* bus, const BenchView& v) {
     if (v.wrote) t.flags |= flightrec::kTfWrote;
     t.ctrl.home_stage = v.home_stage;
     t.bal = v.bal;
-    t.ctrl.vbat_mv = g_telemetry.vbat_mv.load();
+    t.ctrl.vbat_mv = g_telemetry.vbat_mv.load();   // the sync read below refines it
     {
         imu::Sample s{};
         uint32_t age_ms = 0;
@@ -478,6 +478,16 @@ uint32_t recordBench(scsbus::Bus* bus, const BenchView& v) {
         g_bench_reads.fetch_add(1, std::memory_order_relaxed);
         bool all = true;
         for (int k = 0; k < nfit; ++k) all = all && ok[k];
+        // This tick's own pack: the first servo that answered (ctrl_task's
+        // rule; 0 = none did, keep the beacon's). Published to the beacon as
+        // well, which no armed loop is updating while benched.
+        for (int k = 0; k < nfit; ++k) {
+            if (ok[k] && fb[k].voltage_dv != 0) {
+                t.ctrl.vbat_mv = static_cast<uint16_t>(fb[k].voltage_dv * 100u);
+                g_telemetry.vbat_mv.store(t.ctrl.vbat_mv);
+                break;
+            }
+        }
         g_slow_missing = (spent > kBenchReadSlowUs && !all) ? g_slow_missing + 1 : 0;
         if (g_slow_missing >= kSlowReadsToBackoff) {
             g_slow_missing = 0;

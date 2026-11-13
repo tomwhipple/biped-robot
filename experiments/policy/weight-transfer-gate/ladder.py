@@ -90,8 +90,10 @@ def one(job):
     w = tt >= tt[-1] - 0.5
     sw = "L" if side == "R" else "R"
     F = {side: float(np.mean(np.array(r["fz_st"])[w])), sw: float(np.mean(np.array(r["fz_sw"])[w]))}
-    return spec, side, label, dict(L=F["L"], R=F["R"], share=F["L"] / (F["L"] + F["R"]),
-                                   mass=float(env.model.body_mass.sum()))
+    # no foot on the floor at the end: the plant fell off the rung (reported, not a share)
+    fell = F["L"] + F["R"] <= 0.0 or abs(math.degrees(np.array(r["roll"])[-1])) > 25.0
+    return spec, side, label, dict(L=F["L"], R=F["R"], share=None if fell else F["L"] / (F["L"] + F["R"]),
+                                   fell=bool(fell), mass=float(env.model.body_mass.sum()))
 
 
 def run(plants, workers=24):
@@ -122,9 +124,13 @@ def table(out, plants):
         for k, x in enumerate(MULTS):
             rows.append((f"{tag} {62 * x:.1f} mm", f"{side}x{x}", ROBOT[side][k]))
     for lab, key, rob in rows:
-        L.append(f"| {lab} | {rob:.3f} | " + " | ".join(f"{out[p][key]['share']:.3f}" for p in plants) + " |")
-    err = {p: [out[p][key]["share"] - rob for _, key, rob in rows] for p in plants}
-    L.append("| rms vs robot | | " + " | ".join(f"{math.sqrt(np.mean(np.square(err[p]))):.3f}" for p in plants) + " |")
+        L.append(f"| {lab} | {rob:.3f} | " + " | ".join(
+            "FELL" if out[p][key]["share"] is None else f"{out[p][key]['share']:.3f}" for p in plants) + " |")
+    err = {p: [out[p][key]["share"] - rob for _, key, rob in rows if out[p][key]["share"] is not None]
+           for p in plants}
+    nf = {p: sum(out[p][key]["share"] is None for _, key, _ in rows) for p in plants}
+    L.append("| rms vs robot (rungs that stood) | | " + " | ".join(
+        f"{math.sqrt(np.mean(np.square(err[p]))):.3f}" + (f" ({nf[p]} fell)" if nf[p] else "") for p in plants) + " |")
     return "\n".join(L)
 
 

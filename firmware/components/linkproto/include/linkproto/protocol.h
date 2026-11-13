@@ -259,6 +259,22 @@ inline bool isHomeResult(ArmResult r) {
            r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached;
 }
 
+// The verdict an operator stop leaves while BENCHED (firmware cli.cpp
+// flailTickImpl), given the one standing and whether a servo reset was
+// still under way. A stop during a reset ends the reset where it is: no
+// readback follows, so the kHomePending it reported would stand until the
+// next arm or reset, and every client reads that as bench motion still in
+// progress -- a soft stop (HOLD) would never confirm and would escalate to a
+// hard one. The stop is what happened, so it says kDisarmedStop, the verdict
+// tools/estop.py and the consoles confirm a stop on. kHomeNotReached would
+// not do: it reports a reset whose readback failed (an operator sent to
+// `scan` for a fault that is not there), and estop.py does not confirm a
+// soft stop on it. With no reset under way the standing verdict is kept: the
+// stop changed nothing it reports.
+inline ArmResult benchStopResult(ArmResult current, bool reset_pending) {
+    return reset_pending ? ArmResult::kDisarmedStop : current;
+}
+
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result);
 ArmResult diagArmResult(uint8_t diag);
 // One line an operator can act on. Never null, and safe for a diag byte from

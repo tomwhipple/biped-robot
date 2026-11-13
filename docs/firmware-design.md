@@ -236,7 +236,8 @@ graph LR
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
 | `components/battguard/` | pack under-voltage guard | yes |
-| `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>` (§5.6) | yes, pinned to the sim twin |
+| `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>`, and the stance-hip trim behind `pose ... S<L\|R>` (§5.6) | yes, pinned to the sim twins |
+| `components/gaitplay/` | the gait track behind `track`: rolling keyframe queue, interpolation, stop/rest, the phase → support-state map (§5.6) | yes, plus the SIL harness `host/sil_gait.cpp` |
 | `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
 | `components/flailguard/` | the armed loop's judge of the POLICY: pose / rate / tilt / chatter (§5.6 "Flail guard") | yes, incl. a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`) |
 | `main/` | everything that touches ESP-IDF: tasks, UART/WiFi/NVS/SNTP, the CLI (file list in [firmware/README.md](../firmware/README.md)) | the plain-data halves of `cal_store` and `obs_dump` |
@@ -556,6 +557,146 @@ past a few rad/s at 12 deg falls under any policy; the sequence is for the
 controller-caused and sensor-caused aborts. The sim twin and the gain sweep are in
 [experiments/one-leg-stand](../experiments/one-leg-stand/README.md).
 
+**Stance trim through the lift** (`pose ... S<L|R>[h]`, `trim`). The stepper's
+own pelvis levelling on the 50 Hz tick (#297; the design and its sim evidence
+are in [experiments/roll-balance](../experiments/roll-balance/README.md)).
+`S` names the stance leg. Each tick it takes e = roll - the roll at the chain's
+first pose. On L stance s = +1, on R s = -1.
+
+    hike = clip(r*T[side] + kp*s*e, +-lim)    (the stepper's hike: + lifts the other hip)
+    T[side] += ki*s*e*dt                      while closed, unsaturated and |e| <= learn, |T| <= tlim
+    stance hip roll target += s*hike          through the calibrated dir and the envelope clamp
+
+T is learned per stance side and kept from step to step. r ramps it in over
+the chain's first move's own min-jerk progress. Only the stance hip roll moves.
+
+**T is provisional within a chain.** A chain uses T as it integrates, but
+what it leaves for the next chain is committed only if the chain was clean.
+If the chain ends (release, abort, stop) with its peak |e| past `keep`, with
+an abort, or after the hike sat at its clamp, T of that side goes back to its
+value at the chain's begin. Defaults: learn 6 deg, keep 8 deg. Why: in the
+hardware shuttle on 2026-11-12 a lift with too little shift tipped 9-10 deg
+toward the lifted foot. T wound from 5.4 to the 14 deg limit, and the next
+lifts started from that and failed too. The trim cannot fix an inboard CoM,
+so it must not learn from one. `trim` prints the rule and whether the last
+chain kept or put back T; the TS line ends in ` Tback` when it put it back.
+
+The upper layer marks the phases on its poses:
+
+| pose flag | phase | state | what the trim does |
+|---|---|---|---|
+| `S<L\|R>` | raise, swing | CLOSED | the law above; the first S pose takes the reference |
+| `S<L\|R>h` | lowering | HOLD | the correction is frozen |
+| no `S` | the next pose | FADE | linear to 0 over `fade`, then off |
+
+- **Continuity.** While a correction is live every pose starts from the
+  stream's nominal targets, so it is never counted twice. A new chain, on
+  either side, leaves the previous chain's correction fading on its own hip.
+- **Abort.** |e| past `abort`, or no usable attitude, freezes the correction
+  and fades it. Nothing returns to a pre-lift pose and no other joint moves,
+  so in a walking sequence the upper layer owns the foot. Torque stays on.
+  The abort prints a `trim ABORT <side> ...` line at once, and stays latched
+  until the next `trim` read reports it (`ABORTED since the last read`), so a
+  later chain cannot hide it.
+- **Holds without a chain.** `S<L|R>h` with no live chain on that side means
+  no trim: no fresh reference, no T ramp; the pose runs plain.
+- **All 12 leg joints.** An S pose must carry all 12 leg joints (the 17-target
+  form); otherwise it is refused.
+- **Stops.** `move`, `home`, `release`/`torque`, a fall, `STOP`, arming the
+  loop or a single-frame pose stop it at once.
+- **CLI.** `trim` prints the gains, the learned T, the state, e, hike and the
+  joint correction. `trim set <kp> <ki> [lim] [tlim] [fade_s] [abort]` sets the
+  gains; the defaults are kp 0.25, ki 1.0, lim 15 deg, tlim 14 deg, fade
+  0.6 s, abort 15 deg. `trim T <L|R> <deg>` seeds T, `trim T clear` zeroes it,
+  and `trim off` fades now.
+- **Flight record.** The balance block carries the trim: states 5-9
+  (`balance::TrimState`), integral = T, u = hike, hip_* = the correction.
+- **Not combined.** `B<L|R>` and `S<L|R>` are refused in one pose.
+- **Tests.** `components/balance/stance_trim` is host-tested and pinned to
+  the Python twin `sim/stance_trim.py`.
+
+**Gait track** (`components/gaitplay`, `track`; #297 B2). A queue of
+time-stamped 12-leg keyframes the host appends WHILE it plays, sampled at the
+50 Hz pose tick on the robot's own clock. It exists because the host has no
+50 Hz joint-target path (a CLI pose costs ~100 ms), and a continuous sway needs
+a target every tick. Each frame carries the gait phase φ and flags: kLift (a
+foot lifts in this half cycle), kStepEnd (both feet down: a stop may end
+here) and kRest (not on the timeline: the centred stand for that step end).
+Ticks are Catmull-Rom between frames, φ linear.
+
+- **Support state from the phase.** `gaitplay::supportFromPhase` maps φ
+  (the policy convention: L swings while sin φ > 0) to the stance leg in
+  single support (the middle half of each half cycle), the raise progress
+  (its first 35 %) and the lowering (after 65 %). `balance::TrimDriver` turns
+  that into the trim's begin / ramp / hold / fade, the same calls the S poses
+  make. A policy's gait clock drives the same two functions.
+- **Handover.** A single support can begin while the last one's correction
+  is still fading. That happens when half a step is shorter than the fade:
+  a policy's clock at 1.5 Hz, or the track below T = 1.2 s. The driver then
+  hands that correction to a residual, which finishes its fade on its own
+  hip while the new chain ramps in; it is never dropped in one tick. At the
+  track's step times (T ≥ 2 s) the fade is over 0.4 s before the next ramp
+  starts. The SIL shows the same handover roll rate and excursion with the
+  residual, with the correction dropped, and with fades of 0.3-0.6 s
+  (`experiments/roll-balance/handover.py`).
+- **Rolling append.** `track add` takes up to 4 frames a line (42 hex digits
+  each), during playback too. The queue holds 128 frames (12.8 s at 10 Hz;
+  the host stays two steps ahead, at most 81 frames at 4 s a step). It is
+  allocated from the heap at the first `track` command (4.7 KB), so an image
+  that never plays a track pays nothing. A static 256-frame queue took the
+  image to 99.8 % of static DRAM.
+- **Ending.** `track stop`, or a queue that runs dry AT a step end, finishes
+  the step, drops the rest and moves to that step end's rest pose (min-jerk,
+  `track rest <ms>`, default 1 s). A queue that runs dry mid-step holds the
+  last frame and says so. `track halt` is the walking-safe abort: the targets
+  freeze where they are and the trim fades; nothing returns to a pre-lift
+  pose. A trim abort freezes and fades only the correction; the track goes
+  on. Anything that ends the trim (move, home, STOP, a fall, torque, arming)
+  ends the track; `pose` and `sweep` are refused while it plays.
+- **Telemetry.** One line per single support, printed when it ends:
+  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT[ Tback]` (peak
+  lean toward the swing foot and toward the stance side; e, T and hike at the
+  end of the raise). `track steps` repeats the last 16. The flight record
+  carries the trim per tick, as for S poses.
+- **Tests.** `host/test_gaitplay` (parse, rolling append, interpolation,
+  stop / dry / rest, the phase map) and the TrimDriver cases in
+  `host/test_stance_trim`. `host/sil_gait.cpp` exposes the track + trim to
+  Python: `experiments/roll-balance/sil_gait.py` plays the sway gait through
+  them against the sim plant.
+
+**Stance trim on the policy's gait clock** (`trim policy on|off`; #297 B2).
+The same trim, armed: `ctrl_task` runs `balance::TrimDriver` on
+`gaitplay::supportFromPhase(phase, clockWalking(cmd))` every control tick. It
+sits after the shaper and the takeover ramp, before the motion limiter, and adds
+the correction to the stance hip roll target. `clockWalking` is the training
+envs' gate: vx, vy or wz past 0.05, or the lift channel past 0.5.
+
+- **Off by default.** `trim policy on` copies the bench trim's kp, ki and
+  learned T; the loop takes them at the next arm and never switches
+  mid-run. It starts once the takeover ramp is over.
+- **Status.** `trim policy` prints the state, the hike and T as the loop
+  publishes them.
+- **Training.** The same law runs in training: `walker_env` / `env_mjx`
+  `stance_trim=True`, with `sim/trim_kernel.py` (numpy / jax) at the same
+  point of the chain and the learned T drawn per episode
+  (`stance_trim_T`).
+- **Parity.** `sim/sil/test_trim_kernel.py` pins the kernel to the C++
+  (`sil_trim_*`) and numpy to jax. `parity_test.py --stance-trim` (R18)
+  holds CPU against MJX. The policy SIL (`sil_set_trim`, `host/test_sil`)
+  runs it in the deployed control path.
+
+**Online gyro bias at stand-still** (`imu::StillBias`, `imu bias online`). The fused yaw dead-reckons the
+gyro, so any residual bias is heading drift. On 2026-11-12 it was −1.33 deg/s at rest, and it moved by
+~0.1 deg/s between runs.
+- **When it learns.** The driver feeds every raw read to a stand-still estimator. Still means every gyro
+  axis within 2.9 deg/s of the current bias and |a| within 3 % of g, for ≥ 2 s. Housekeeping must also
+  allow it: no pose stream, no track, not armed. While still, the bias follows the raw gyro with a 10 s
+  time constant. Any motion freezes it and restarts the hold.
+- **Seeding.** The NVS bias (and `imu bias`) seeds it.
+- **Commands.** `imu bias online` shows it, `on` / `off` (on at boot), and `save` writes it to NVS
+  (tether only). Nothing is written to NVS by itself.
+- **Tests.** `host/test_fusion` (hold, convergence, freeze on motion / an accel bump / not allowed).
+
 **Fall guard** (`components/fallguard`, `fall`). One module, one table of
 limits, used by both control paths (Tom 2026-11-01: work towards one
 policy-driven system, not a bench system and a policy system):
@@ -570,8 +711,9 @@ longer used on the robot. The bench line is tighter because scripted motion
 never leans on purpose (one-leg stands peak at the 12 deg balance abort).
 
 Recovery is the same whichever path fell: while latched, `pose`/`move` are
-refused; within 10 deg of upright **and** |gyro| < 0.35 rad/s continuously for
-2 s (carried, or upright for a moment mid-tumble, does not count) runs `home`
+refused; within 25 deg of upright **and** |gyro| < 1.0 rad/s continuously for
+1 s (upright for a moment mid-tumble does not count; the line sits below the
+30 deg bench fall line) runs `home`
 by itself (2.5 s smooth, hip play take-up, readback, torque **released**) and
 clears the latch. It never arms. An armed fall reaches the bench guard through
 `g_armed_falls` (ctrl stores the tilt, then bumps the counter; housekeeping

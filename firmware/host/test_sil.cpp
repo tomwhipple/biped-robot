@@ -636,6 +636,62 @@ void testShaping() {
     CHECK(2 * sum_d3 < sum_d1);    // and two ticks closed most of it
 }
 
+// -- 5b'. the stance trim on the gait clock (sil_set_trim, ctrl_task `trim policy on`) ---------
+// Downstream of the policy: the actions are bit-identical with it on or off, only the two hip rolls
+// move (each while its leg is the stance leg, and while its fade finishes as the driver's residual), and
+// by the learned T once the raise has ramped it in (a level, still torso: e = 0, so hike = T).
+void testTrimOnClock() {
+    const std::string nom = g_tmp_prefix + "cal_nominal.json";
+    const std::string wpath = g_tmp_prefix + "net.silw";
+    CHECK_EQ(sil_init(wpath.c_str(), nom.c_str(), 1.5f), 0);
+    sil_set_shaper(0.0f);
+    SilSensors in{};
+    for (int s = 0; s < obs::kNumJoints; ++s) in.pos_ticks[s] = 2048;
+    in.up[2] = 1.0f;
+    in.cmd[0] = 0.3f;                   // walking: the clock runs and the trim's gate is open
+    in.cmd[3] = 1.0f;
+    constexpr int kN = 150;
+    static SilTargets off[kN], on[kN];
+    CHECK_EQ(sil_set_trim(0, 0.25f, 1.0f, 0.0f, 0.0f), 0);
+    sil_reset();
+    for (int t = 0; t < kN; ++t) CHECK_EQ(sil_tick(&in, &off[t]), 0);
+    sil_reset();
+    CHECK_EQ(sil_set_trim(1, 0.25f, 1.0f, 0.10f, 0.06f), 0);
+    int il = -1, ir = -1;
+    for (int j = 0; j < obs::kNumJoints; ++j) {
+        if (!strcmp(obs::kJointNames[j], "L_hip_roll")) il = j;
+        if (!strcmp(obs::kJointNames[j], "R_hip_roll")) ir = j;
+    }
+    CHECK(il >= 0 && ir >= 0);
+    int moved_l = 0, moved_r = 0, both = 0;
+    float hike_max = 0.0f;
+    for (int t = 0; t < kN; ++t) {
+        CHECK_EQ(sil_tick(&in, &on[t]), 0);
+        float st[4];
+        sil_trim_state(st);
+        if (st[0] > hike_max) hike_max = st[0];
+        for (int j = 0; j < obs::kActDim; ++j) CHECK_NEAR(on[t].action[j], off[t].action[j], 0.0);
+        for (int j = 0; j < obs::kNumJoints; ++j) {
+            if (j == il || j == ir) continue;
+            CHECK_EQ(on[t].goal_ticks[slotOf(j)], off[t].goal_ticks[slotOf(j)]);
+        }
+        const bool dl = on[t].goal_ticks[slotOf(il)] != off[t].goal_ticks[slotOf(il)];
+        const bool dr = on[t].goal_ticks[slotOf(ir)] != off[t].goal_ticks[slotOf(ir)];
+        moved_l += dl;
+        moved_r += dr;
+        both += dl && dr;
+    }
+    CHECK(moved_l > 5 && moved_r > 5);  // each hip, in its own stance
+    CHECK(both > 0);                    // the last chain's fade overlaps the next (the driver's residual)
+    CHECK(hike_max > 0.095f && hike_max <= 0.1f + 1e-6f);   // T_L ramped in fully, e = 0
+    float st[4];
+    sil_trim_state(st);
+    CHECK_NEAR(st[1], 0.10f, 1e-6);     // e = 0: T does not learn
+    CHECK_NEAR(st[2], 0.06f, 1e-6);
+    CHECK_EQ(sil_set_trim(0, 0.25f, 1.0f, 0.0f, 0.0f), 0);
+    sil_reset();
+}
+
 // -- 5c. motion limiting (sil_abi 4) ----------------------------------------
 
 void testLimiting() {
@@ -982,7 +1038,8 @@ int main(int argc, char** argv) {
     testExportedWeights();
     testZeroedSmoke();
     testSequencingAndReset();
-    testShaping();             // needs testExportedWeights' net.silw fixture
+    testShaping();
+    testTrimOnClock();             // needs testExportedWeights' net.silw fixture
     testLimiting();            // the same fixture
     testSpec();
     testBusSlots();

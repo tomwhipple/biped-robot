@@ -54,7 +54,10 @@ its servo-read instant, with the offset) and `S_timeline.csv` (robot events
 and serial-log lines on one UTC axis). In Python, `flight_reader.load()` →
 `tick_rows()` gives per tick `<joint>.nom_rad / .goal_rad / .pos_rad /
 .err_rad` in the joint frame (steps converted with the calibration the robot
-itself sent in its HELLO), the IMU block and the balance block.
+itself sent in its HELLO), the IMU block and the balance block. The balance
+block carries the `B<L|R>` PI (states 0-4) or, while it runs, the stance trim
+of `pose ... S<L|R>` (states 5-9, `TRIM_*`: `integral` = the learned trim T of
+the stance side, `u` = hike, `hip_rad` / `hip_ticks` = the joint correction).
 
 ### Forwarding
 
@@ -83,7 +86,7 @@ same with or without forwarding.
 | producer | when | one record per | feedback read |
 |---|---|---|---|
 | `ctrl` (core 1) | armed (`run` / wireless ARM), every tick incl. RELAX / ESTOP / FALLEN | 50 Hz tick | the tick's own SYNC READ — no extra bus traffic |
-| `housekeeping`, source `pose` | a bench smooth stream: `pose ... s<ms>`, `pose ... B<L\|R>` (and its hold), `home` and its play take-up | stream tick (`poseTick`) | one SYNC READ of the fitted servos, **after** the goal write |
+| `housekeeping`, source `pose` | a bench smooth stream: `pose ... s<ms>`, `pose ... B<L\|R>` (and its hold), `pose ... S<L\|R>` (and its fade), `home` and its play take-up | stream tick (`poseTick`) | one SYNC READ of the fitted servos, **after** the goal write |
 | `housekeeping`, source `idle` | benched, nothing streaming | `rec idle` Hz (default 10) | one SYNC READ |
 | `housekeeping`, events | always (while `rec` is on) | event | — |
 

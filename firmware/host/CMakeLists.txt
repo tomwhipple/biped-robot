@@ -48,6 +48,7 @@ include_directories(
     ${COMPONENTS}/fallguard/include
     ${COMPONENTS}/flailguard/include
     ${COMPONENTS}/balance/include
+    ${COMPONENTS}/gaitplay/include
     ${COMPONENTS}/flightrec/include
     ${COMPONENTS}/wcli/include)
 
@@ -104,6 +105,10 @@ bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 
+bimo_test(test_stance_trim test_stance_trim.cpp ${COMPONENTS}/balance/stance_trim.cpp)
+
+bimo_test(test_gaitplay test_gaitplay.cpp ${COMPONENTS}/gaitplay/track.cpp)
+
 bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
 
 bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)
@@ -129,11 +134,15 @@ bimo_test(test_obsdump test_obsdump.cpp
 
 # -- software in the loop (docs/sil-harness.md) -----------------------------
 set(SIL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/sil_lib.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp)
+            ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/sil_gait.cpp)
 set(SIL_DEPS ${COMPONENTS}/obs/assembler.cpp
              ${COMPONENTS}/obs/actuation.cpp
              ${COMPONENTS}/policy/mlp.cpp
-             ${COMPONENTS}/policy/q8.cpp)
+             ${COMPONENTS}/policy/q8.cpp
+             ${COMPONENTS}/balance/stance_trim.cpp
+             ${COMPONENTS}/balance/roll_pi.cpp
+             ${COMPONENTS}/gaitplay/track.cpp)
 
 bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})
 bimo_test(test_sil_golden test_sil_golden.cpp

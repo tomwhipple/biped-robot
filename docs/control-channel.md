@@ -70,7 +70,7 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 2 | 1 | version | 2 |
 | 3 | 1 | state | `LinkState`, wire value below |
 | 4 | 4 | seq_echo | u32, the last command seq applied; the [bench diagnostic](#saying-why-the-bench-diagnostic) while `BENCH` |
-| 8 | 2 | vbat | u16 mV |
+| 8 | 2 | vbat | u16 mV, pack voltage off the servos (register 62): every armed tick; benched, once a second from one fitted servo (`cli.cpp benchVbatTick`) and on each bench flight-recorder read. 0 until a servo has answered |
 | 10 | 2 | up_z | i16 milli; torso up-vector z, 1.0 = upright |
 | 12 | 2 | vx_est | i16 mm/s; the firmware does not estimate it and sends 0 |
 | 14 | 2 | wz_est | i16 mrad/s; likewise 0 |
@@ -170,7 +170,7 @@ One line of reason per rule:
   benches the loop on the same tick, so on the wire a fall reads as `BENCH`
   with `DISARMED_FALL` in the diagnostic byte. Once the robot
   is benched, the bench fall guard holds the latch and, when the robot is
-  picked up (upright < 10 deg and still for 2 s), runs a slow `home` that
+  picked up (upright < 25 deg and still for 1 s), runs a slow `home` that
   ends with torque released.
 - **A misbehaving policy ends the run holding.** The armed loop's flail guard
   (`components/flailguard`: targets far from the stand at a stand command,
@@ -203,6 +203,11 @@ watchdog**:
   position with torque on, the run ends (`DISARMED_STOP`) and the bench homes
   the robot once it is upright and still, exactly as after a flail-guard
   trip; benched, bench motion stops where it is.
+
+Benched, a stop leaves the reported verdict as it was, except during a servo
+reset: the reset ends where it is with no readback, so the robot reports
+`DISARMED_STOP` in place of `HOME_PENDING` (`linkproto::benchStopResult`),
+and a soft stop pressed mid-slew confirms with torque still on.
 
 Out of band is the point. A second sender's ordinary frames interleaved with
 a running commander's would fight it: its `ARM` level against the
@@ -283,7 +288,7 @@ a false fault.)
 | 10 `REFUSED_GAINS` | arm refused: a servo's position-loop P/D (registers 21/22) is not its expected value, or did not read back ([servo-map.md §4](servo-map.md#4-registers)) |
 | 11 `REFUSED_POLICY` | arm refused: the compiled-in net is a placeholder or an untrained test net, not a policy (a policy profile's, [training.md §9](training.md)) |
 | 12 `DISARMED_FLAIL` | the flail guard stopped the policy; joints held stiff, run over, homes when upright and still |
-| 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop) |
+| 13 `DISARMED_STOP` | an operator `STOP` ended the run (torque released, or held for a soft stop), or ended a servo reset on the bench |
 
 The layout is **append-only**, like `LinkState`: reserved bits are sent zero
 and ignored, the upper 24 bits of `seq_echo` are reserved zero, and a value a
@@ -523,7 +528,10 @@ new commander is a class in `link/sources.py` or a front end on
 - **`link/commander.py`**: streams a `link/sources.py` source at 20 Hz and
   never sets `ARM`. `--source script --script <name>` runs a timed sequence
   (`stand`, `walk`, `dash_stop`, `line_1m`, `turn`, `pivot`, `square`,
-  `march`, `stride1`, `sidestep1`, `crouch1`, `rom_feet`); `--source
+  `march`, `march5`, `stride1`, `stride1_03e`, `sidestep1`, `crouch1`,
+  `rom_feet`; for the policies on the 0.75 Hz gait clock, `stride1_02s`,
+  `steps5_02s` and `back3_02s`: one stride, five steps and three steps back
+  at 0.2 m/s, each ending 50 ms before its cycle boundary); `--source
   gamepad` reads sticks through pygame with a **held** dead-man (right
   shoulder; letting go must stop the robot) and B/circle as E-stop. Sticks
   (SDL2 Xbox/PS layout): left Y is vx through `stick_to_speed` (up =

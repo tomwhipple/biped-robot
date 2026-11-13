@@ -58,7 +58,11 @@ const char* const kBenchAny[] = {
     "stat", "ntp", "bno", "rec", "bench",
     // controller settings for the NEXT run, like shape / limit / obsfreeze (2026-11-06: the robot
     // runs on battery with no tether, and standclock resets to `run` at every boot)
-    "standclock", "heading", nullptr};
+    "standclock", "heading",
+    // the stance-hip trim (#297): status, gains and learned T are RAM only, like `balance`
+    "trim",
+    // the gait track (#297 B2): frames, play / stop / halt; RAM only, behind the same gates as `pose`
+    "track", nullptr};
 
 }  // namespace
 
@@ -143,6 +147,10 @@ Decision classify(const char* line, bool armed) {
             return tether("`imu mount <w> <x> <y> <z>` saves the IMU mount to NVS");
         }
         if (is(sub, "bias")) {
+            // the online stand-still bias: status and on / off are RAM; `save` writes NVS
+            if (argc >= 3 && is(t.argv[2], "online") && (argc == 3 || (argc == 4 && !is(t.argv[3], "save")))) {
+                return allow();
+            }
             return tether("`imu bias` calibrates and saves the gyro bias (NVS)");
         }
         if (is(sub, "forget")) {

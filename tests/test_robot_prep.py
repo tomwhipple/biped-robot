@@ -57,7 +57,10 @@ def env(tmp_path):
     stub = tmp_path / "wcli_stub"
     stub.write_text(STUB.format(py=sys.executable))
     stub.chmod(0o755)
-    e = dict(os.environ, WCLI=str(stub), STUB_STATE=str(tmp_path / "state"))
+    # PYTHON: robot_prep.sh defaults to $ROOT/.venv/bin/python, which a fresh
+    # worktree does not have; use the interpreter running the tests.
+    e = dict(os.environ, WCLI=str(stub), STUB_STATE=str(tmp_path / "state"),
+             PYTHON=sys.executable)
     e.pop("STUCK", None)
     return e
 

@@ -47,6 +47,14 @@ std::atomic<int> g_armed_hold_joint{-1};
 std::atomic<bool> g_armed_hold_torque{false};
 std::atomic<bool> g_flail_on{true};
 std::atomic<bool> g_heading_on{true};
+std::atomic<bool> g_ptrim_on{false};
+std::atomic<bool> g_imu_bias_online{true};
+std::atomic<bool> g_imu_bias_allow{false};
+std::atomic<float> g_ptrim_kp{0.25f}, g_ptrim_ki{1.0f};
+std::atomic<float> g_ptrim_tl{0.0f}, g_ptrim_tr{0.0f};
+std::atomic<float> g_ptrim_hike{0.0f};
+std::atomic<uint8_t> g_ptrim_state{0};
+std::atomic<char> g_ptrim_side{0};
 std::atomic<float> g_heading_k{1.0f};
 std::atomic<float> g_heading_err{0.0f};
 std::atomic<float> g_heading_corr{0.0f};
@@ -100,6 +108,8 @@ imu::Qmi8658Imu g_qmi(imu::Qmi8658Imu::Config{
     board::kImuAddr, true, 8, 1024});
 imu::StubImu g_stub;
 imu::Imu* g_imu = nullptr;
+// The online stand-still gyro bias (fusion.h StillBias), fed by the driver on every read.
+imu::StillBias g_still_bias;
 
 }  // namespace
 
@@ -188,6 +198,8 @@ extern "C" void app_main(void) {
     }
     g_bus = &g_bus_obj;
 
+    // before the NVS bias goes on: setBias() re-seeds the online estimate from it
+    g_qmi.setOnlineBias(&g_still_bias, &g_imu_bias_allow);
     const bool imu_ok = g_qmi.init();
     g_imu = imu_ok ? static_cast<imu::Imu*>(&g_qmi)
                    : static_cast<imu::Imu*>(&g_stub);

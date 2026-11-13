@@ -1,0 +1,29 @@
+192 runs, 0 errors
+T 4 s: 48 runs, falls 0, aborts 0, lifts 384/384 (100%), swing sole peak clearance median 36 mm (10th pct 31); lean toward swing median 3.0 max 6.9 deg, outward median 1.7 max 4.0; at mid support T L 8.2 R 5.7 deg, hike L 8.5 R 5.9 deg; queue max 81
+    back   falls 0 lifts 64/64 peak tilt max 5.7 deg
+    fwd    falls 0 lifts 64/64 peak tilt max 5.7 deg
+    march  falls 0 lifts 64/64 peak tilt max 5.8 deg
+    sideL  falls 0 lifts 64/64 peak tilt max 6.2 deg
+    sideR  falls 0 lifts 64/64 peak tilt max 5.6 deg
+    turn   falls 0 lifts 64/64 peak tilt max 5.7 deg
+T 3 s: 48 runs, falls 0, aborts 0, lifts 384/384 (100%), swing sole peak clearance median 35 mm (10th pct 30); lean toward swing median 3.1 max 7.4 deg, outward median 1.4 max 3.7; at mid support T L 7.5 R 5.4 deg, hike L 7.8 R 5.7 deg; queue max 61
+    back   falls 0 lifts 64/64 peak tilt max 5.8 deg
+    fwd    falls 0 lifts 64/64 peak tilt max 5.6 deg
+    march  falls 0 lifts 64/64 peak tilt max 5.6 deg
+    sideL  falls 0 lifts 64/64 peak tilt max 5.8 deg
+    sideR  falls 0 lifts 64/64 peak tilt max 5.6 deg
+    turn   falls 0 lifts 64/64 peak tilt max 6.2 deg
+T 2.5 s: 48 runs, falls 0, aborts 0, lifts 384/384 (100%), swing sole peak clearance median 34 mm (10th pct 29); lean toward swing median 3.4 max 7.3 deg, outward median 1.4 max 4.0; at mid support T L 7.2 R 5.1 deg, hike L 7.5 R 5.6 deg; queue max 51
+    back   falls 0 lifts 64/64 peak tilt max 5.7 deg
+    fwd    falls 0 lifts 64/64 peak tilt max 5.6 deg
+    march  falls 0 lifts 64/64 peak tilt max 5.6 deg
+    sideL  falls 0 lifts 64/64 peak tilt max 5.9 deg
+    sideR  falls 0 lifts 64/64 peak tilt max 5.6 deg
+    turn   falls 0 lifts 64/64 peak tilt max 5.7 deg
+T 2 s: 48 runs, falls 0, aborts 0, lifts 384/384 (100%), swing sole peak clearance median 36 mm (10th pct 30); lean toward swing median 3.5 max 7.2 deg, outward median 1.0 max 3.5; at mid support T L 6.4 R 4.6 deg, hike L 7.0 R 5.4 deg; queue max 41
+    back   falls 0 lifts 64/64 peak tilt max 6.3 deg
+    fwd    falls 0 lifts 64/64 peak tilt max 6.3 deg
+    march  falls 0 lifts 64/64 peak tilt max 6.3 deg
+    sideL  falls 0 lifts 64/64 peak tilt max 5.2 deg
+    sideR  falls 0 lifts 64/64 peak tilt max 6.2 deg
+    turn   falls 0 lifts 64/64 peak tilt max 6.3 deg
