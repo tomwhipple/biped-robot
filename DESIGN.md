@@ -797,35 +797,7 @@ and a 17-servo policy are open work (#81, #86).
 
 ## 12. Open decisions and open work
 
-Everything open is a GitHub issue.
-
-| decision | issue |
-|---|---|
-| head: mono camera, or the stereo periscope | PR #71, #87 |
-
-| work | issue |
-|---|---|
-| servo ID map, wiring, current budget | #77 |
-| non-servo parts order | #78 |
-| first print and fit check | #79 |
-| assembly guide with figures | #80 |
-| firmware port to 17 joints | #81 |
-| measured plant, then the floor work: system-identification rungs, then the policy milestones | #82 |
-| shoulder overload margin | #83 |
-| scripted get-up on hardware | #84 |
-| training stack port (Gate E) | #86 |
-| Pi and head camera integration | #87 |
-| goal-conditioned locomotion | #88 |
-| servo model: overload cutoff, sag, thermal | #6 |
-| sim-reproduces-hardware gate for weight transfer | #259 |
-| open-loop sway probe on the robot (system identification) | #260 |
-| march in place: training slice, grade probe, first hardware walking milestone | #261 |
-| nightly planner: seed replicates, stop-and-escalate rule, @-mention on decisions | #262 |
-| full vx/vy/wz command volume: combinations, no dead bands, compass probes | #263 |
-| firmware and link command envelope generated from the deployed run | #264 |
-| vy from a stick: gamepad source and commander send the lateral channel | #265 |
-| slew-limit the operator command | #266 |
-| floor-test fall protection (catch line) and the hip yoke as fitted | #267 |
+See [GitHub issues](https://github.com/tomwhipple/biped-robot/issues)
 
 ## 13. Build sequence
 
