@@ -51,9 +51,11 @@ K_STATIC = {"L": 1.3, "R": 1.35}
 # support shortened (2.8: 1.4 s, raise 0.49 s, lean <= 3.3 deg); a shorter shift leans 6.6-10 deg. The shift is
 # the limiter (on the robot at 3.2 s the roll rings at 22-47 deg/s through it and is quiet only 0.1-0.4 s before
 # lift-off); the single support has slack.
-SCHEDULE = {6.0: (1.5, 0.5), 5.0: (1.4, 0.4), 4.0: (1.2, 0.4), 3.4: (1.2, 0.4), 3.2: (1.2, 0.2), 3.0: (1.2, 0.2),
-            2.8: (1.2, 0.2)}
-T_FLOOR = 2.8
+SCHEDULE = {6.0: (1.5, 0.5), 5.0: (1.4, 0.4), 4.0: (1.4, 0.4), 3.4: (1.4, 0.4), 3.2: (1.4, 0.2), 3.0: (1.4, 0.2)}
+# k R 1.35 (hw 17:56-17:58): the shift onto the right foot grew to ~165 mm, and with the 1.2 s shift at T 4 the
+# roll was still ringing at lift-off (pre-lift roll rate 22-52 deg/s on the two steps that tipped, 5-10 on the clean
+# ones). Every schedule entry now shifts for >= 1.4 s; the single support gives way (SIL: >= 1.4 s holds).
+T_FLOOR = 3.0
 # the hip yaw sign that turns the body to its LEFT about the stance foot (calibrated in the sim: see yaw_trim)
 YAW_SIGN = -1.0          # sim (sil_gait, T 5, fit): yaw_trim +4 deg/step with +1 turned the body -35 deg over 6 steps
 
@@ -66,7 +68,7 @@ def _mj(u):
 class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=K_STATIC["R"], ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
-                 t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid"):
+                 t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True):
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         self.k = {"L": float(kL), "R": float(kR)}
@@ -97,9 +99,6 @@ class Dwell:
             st = "R" if sw == "L" else "L"
             steps.append(dict(i=i, swing=sw, stance=st, a=t, b=t + t_sh, lo=t + t_ds, td=t + T))
             t += T
-        t_end_steps = t
-        t_back = t_end_steps + t_sh            # back to the centre, both feet down
-        self.t_end = t_back + 1.0
         # the feet's goals per step (the stepper's convention: the leading foot steps out, the other follows)
         goals = []
         f = {s: list(v) for s, v in feet.items()}
@@ -125,6 +124,23 @@ class Dwell:
             goals.append((start, goal, y_from, y_to))
             f[sw] = goal
             yq = y_to
+        # the closing step (hw 2026-11-12): a run that ends with the feet staggered or the hips yawed leaves them
+        # so, and the next run's lead-in drags them back together under load (4-6 deg of twist before its first
+        # step). One more step brings the trailing foot alongside the last stance foot and both hip yaws to 0.
+        last_sw = steps[-1]["swing"] if steps else None
+        if close and steps:
+            st_c = last_sw
+            sw_c = "R" if st_c == "L" else "L"
+            staggered = abs(f[sw_c][0] - f[st_c][0]) > 1e-4 or abs(f[sw_c][1] - f[st_c][1]) > 1e-4
+            if staggered or abs(yq["L"]) > 1e-4 or abs(yq["R"]) > 1e-4:
+                i = len(steps)
+                steps.append(dict(i=i, swing=sw_c, stance=st_c, a=t, b=t + t_sh, lo=t + t_ds, td=t + T, closing=True))
+                t += T
+                goals.append((list(f[sw_c]), [f[st_c][0], f[st_c][1]], dict(yq), {"L": 0.0, "R": 0.0}))
+                f[sw_c] = [f[st_c][0], f[st_c][1]]
+        t_end_steps = t
+        t_back = t_end_steps + t_sh            # back to the centre, both feet down
+        self.t_end = t_back + 1.0
         self._steps, self._goals = steps, goals
 
         def stance_target(i, fe):
