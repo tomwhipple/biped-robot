@@ -798,3 +798,45 @@ python track_host.py --T 5 --step "20,10,0" --steps 6                    # diago
 python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one track, no closing step between segments
 python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
 ```
+
+## The lift gate (2026-11-13): wait for a level, quiet body before a foot leaves the floor
+
+`gaitplay/lift_gate.h` (firmware), `sim/lift_gate.py` (its twin), `track_host.py --lift-gate on` (the default for the
+dwell gait; the frame flag), `lift_gate_replay.py` (the record check below). Design: `docs/firmware-design.md`, the
+gait track. Why: three falls on 2026-11-12/13 lifted a foot with the body already 5-10 deg off level; the trim zeroes
+its error at lift-off, so nothing objected.
+
+**Against the records** (`python lift_gate_replay.py <the four flight_20261112T2325..20261113T0050 .frec>`: 114 track
+plays, 747 lift-offs, 2026-11-12 16:30 - 2026-11-13 09:00 MST; the record is open loop, so this is what the gate would
+have SEEN). roll_ds: per-side slow reference seeded at the first tick (alpha 0.25).
+
+| the gate looks | clean lift-offs held (743) | \|roll - roll_ds\| p50 / p95 / max (deg) | \|rate\| p50 / p95 / max (deg/s) |
+|---|---|---|---|
+| at the lift-off tick | 0 | 0.43 / 1.58 / 2.51 | 0.4 / 2.2 / 8.5 |
+| 40 ms before | 1 (a 16.0 deg/s spike) | 0.47 / 1.60 / 2.51 | 0.4 / 2.6 / 16.0 |
+| 100 ms before | 0 | 0.45 / 1.60 / 2.59 | 0.5 / 2.5 / 11.3 |
+
+| fall (MST) | last lift-off | dev deg | rate deg/s | gate (0 / 40 / 100 ms before) |
+|---|---|---|---|---|
+| 11-13 08:40:21 | 08:40:20, 0.7 s before | -9.34 | -8.5 | HOLD / HOLD / HOLD (level only) |
+| 11-13 08:20:00 | 08:19:58, 2.5 s before | -4.95 | +13.3 | HOLD / HOLD / HOLD (level only) |
+| 11-12 19:27:57 | 19:27:54, 3.1 s before | -0.43 | +0.8 | pass: NOT a lift-off fall (see below) |
+| 11-12 18:09:44 (not asked for) | 18:09:44, 0.2 s before | +26.8 | +104.9 | HOLD, but already toppling |
+
+The 19:27 fall started in the double support after the touchdown of the step before it (roll +6.9 deg and -22 deg/s
+0.7 s before, -16 deg and -82 deg/s 0.3 s before), before the next lift-off: no lift gate sees that. The rate test caught
+neither of the other two (13.3 and -8.5 deg/s are under 15); the level test did.
+
+**Not built: a second gate at the first shift frame after the touchdown.** At that tick (balance state HOLD -> FADE)
+the clean steps are not separable from the falls: against a per-side reference seeded and updated as above,
+|roll - ref| p50 0.31 / p95 2.24 / p99 4.75 / max 7.56 deg and |rate| p50 3.5 / p95 21.5 / p99 47.4 / max 63.6 deg/s
+over 619 clean touchdowns; the 19:27 touchdowns before the fall read dev +2.67 / -2.18 deg, rate -48.6 / -43.7 deg/s,
+and the 08:19 ones dev <= 1.4 deg, rate <= 13.8 deg/s: inside the clean range. Thresholds that hold the clean ones
+<= 0.5 % do not hold those; at 3 deg / 15 deg/s 83 of 732 clean touchdowns (11 %) would be held, 22 (3 %) at 3 deg /
+30 deg/s. The body is normally still moving at touchdown.
+
+**SIL** (`sil_gait.run(..., lift_gate=True, dist=...)`, `sim/sil/test_lift_gate_sil.py`): dwell T 4 and T 5, fwd /
+back / march, 4 steps: every lift-off has a gate frame, zero holds, the per-step reports and the finish identical to
+the run without the gate. A roll-rate kick (200 deg/s at 1.56 s, in the double support before the first lift-off): the
+gate holds 360 ms and the walk goes on. A 290 deg/s kick at 1.62 s: the run without the gate falls (35 deg); with it
+the hold times out after 3000 ms, the track ends with both feet down, no fall, no foot lifted.

@@ -128,7 +128,7 @@ purpose (`firmware/components/wcli/policy.cpp`).
 
 | allowed (benched) | refused over Wi-Fi (tether only), and why |
 |---|---|
-| `help` `scan` `ping` `pos` `move` `release` `torque` `pose` `balance` (incl. `set`, `log`, `off`) `trim` (incl. `set`, `T`, `off`; RAM only) `track` (incl. `add`, `play`, `stop`, `halt`) `reg` `sread` `trace` `home` `shape` `obsfreeze` `standclock` `heading` `volt` `stat` `ntp` `bno` `bench` | `id` -- servo EEPROM |
+| `help` `scan` `ping` `pos` `move` `release` `torque` `pose` `balance` (incl. `set`, `log`, `off`) `trim` (incl. `set`, `T`, `off`; RAM only) `track` (incl. `add`, `play`, `stop`, `halt`) `liftgate` (incl. `set`, `on`, `off`; RAM only) `reg` `sread` `trace` `home` `shape` `obsfreeze` `standclock` `heading` `volt` `stat` `ntp` `bno` `bench` | `id` -- servo EEPROM |
 | `rec ...` -- **RAM only**: over Wi-Fi a change is not saved to NVS | `middle` -- servo EEPROM |
 | `gains`, `gains <id>` (reads) | `gains <id> <P> <D>` -- servo EEPROM |
 | `cal`, `cal show` | every other `cal` form -- the calibration (live or NVS) |

@@ -97,6 +97,7 @@ SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_TRIM  = $(COMPONENTS)/balance/stance_trim.cpp
 SRC_GAIT  = $(COMPONENTS)/gaitplay/track.cpp
+SRC_GATE  = $(COMPONENTS)/gaitplay/lift_gate.cpp
 SRC_FALL  = $(COMPONENTS)/fallguard/fallguard.cpp
 SRC_FLAIL = $(COMPONENTS)/flailguard/flailguard.cpp
 SRC_FREC  = $(COMPONENTS)/flightrec/record.cpp
@@ -105,7 +106,7 @@ SRC_WCLI  = $(COMPONENTS)/wcli/sha256.cpp $(COMPONENTS)/wcli/wcli.cpp \
 
 SRC_FUSION= $(COMPONENTS)/imu/imu.cpp $(COMPONENTS)/imu/fusion.cpp
 
-TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_gaitplay test_fallguard test_flailguard \
+TESTS = test_protocol test_scsbus test_obs test_policy test_battguard test_roll_pi test_stance_trim test_gaitplay test_lift_gate test_fallguard test_flailguard \
         test_fusion test_obsdump test_sil test_sil_golden test_client test_flightrec \
         test_wcli
 BINS  = $(addprefix $(BUILD)/,$(TESTS))
@@ -120,7 +121,7 @@ SRC_SIL   = sil_lib.cpp sil_net.cpp sil_gait.cpp
 SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp \
             $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/balance/roll_pi.cpp \
-            $(COMPONENTS)/gaitplay/track.cpp
+            $(COMPONENTS)/gaitplay/track.cpp $(COMPONENTS)/gaitplay/lift_gate.cpp
 
 .PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
@@ -306,6 +307,9 @@ $(BUILD)/test_stance_trim: test_stance_trim.cpp $(SRC_TRIM) test_util.h $(COMP_H
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_gaitplay: test_gaitplay.cpp $(SRC_GAIT) test_util.h $(COMP_HDRS) | $(BUILD)
+	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
+
+$(BUILD)/test_lift_gate: test_lift_gate.cpp $(SRC_GATE) test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 $(BUILD)/test_fallguard: test_fallguard.cpp $(SRC_FALL) test_util.h $(COMP_HDRS) | $(BUILD)

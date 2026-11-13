@@ -237,6 +237,35 @@ State Track::sample(uint32_t t_ms, Sample* s) {
     return state_;
 }
 
+bool Track::gateAhead(uint32_t t_ms, uint32_t* t_gate, char* stance) const {
+    for (int k = 0; k < n_; ++k) {
+        const Frame& f = at(k);
+        if (f.t_ms > t_ms) break;
+        if (f.flags & kGate) {
+            *t_gate = f.t_ms;
+            *stance = liftStance(f.phi);
+            return true;
+        }
+    }
+    return false;
+}
+
+State Track::abortToRest(uint32_t t_ms) {
+    if (state_ != State::kPlaying && state_ != State::kStopping) return state_;
+    const Frame* r = restFor(t_ms);
+    have_rest_ = r != nullptr;
+    if (have_rest_) rest_ = *r;
+    int32_t from[kJoints];
+    for (int j = 0; j < kJoints; ++j) from[j] = last_q_[j];
+    beginRest(from, t_ms);
+    return state_;
+}
+
+char liftStance(float phi) {
+    if (!isfinite(phi)) return 0;
+    return wrap2pi(phi) < kPi ? 'R' : 'L';
+}
+
 Support supportFromPhase(float phi, bool lift) {
     Support out{0, 0.0f, false};
     if (!lift || !isfinite(phi)) return out;

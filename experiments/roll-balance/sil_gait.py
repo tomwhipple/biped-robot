@@ -43,7 +43,7 @@ LEG = ["L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "L_ankle_r
 CAL = {"R_hip_roll": (2082, -1), "R_hip_pitch": (1997, 1), "R_knee": (2125, -1), "R_ankle": (2045, 1),
        "L_hip_roll": (1991, -1), "L_hip_pitch": (2058, 1), "L_knee": (1977, -1), "L_ankle": (2091, 1),
        "R_hip_yaw": (2184, 1), "L_hip_yaw": (2153, 1), "R_ankle_roll": (2108, 1), "L_ankle_roll": (1997, 1)}
-LIFT, STEP_END, REST = 1, 2, 4
+LIFT, STEP_END, REST, GATE = 1, 2, 4, 8
 PLANTS = {"fit": TB.BOARD,
           "lo": "grade+play_L_hip=4,play_R_hip=6,play_L_ankle=2,play_R_ankle=0",
           "hi": "grade+play_L_hip=10,play_R_hip=10,play_L_ankle=3,play_R_ankle=2",
@@ -75,11 +75,13 @@ def hex_frame(dt_ms, phi, flags, q, cal=None):
     return s + "".join(f"{max(0, min(4095, to_ticks(n, q[n], cal))):03x}" for n in LEG)
 
 
-def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **kw):
+def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", lift_gate=False, **kw):
     """A gait and its keyframes: (gait, [(t_ms, hex, kind)]), kind 'kf' | 'rest'. Track time 0 = the first
     keyframe (the crouched, centred stand after the crouch and settle).
     model 'sway': A2's sine sway (+ the width-aware amplitude), kw kL / kR its amplitudes.
-    model 'dwell': dwell.Dwell, the robot's static shift as a hard constraint (kw kL / kR = k_static, ds, h)."""
+    model 'dwell': dwell.Dwell, the robot's static shift as a hard constraint (kw kL / kR = k_static, ds, h).
+    lift_gate (dwell only): kGate on the last frame at or before each lift-off (gaitplay/lift_gate.h: the firmware
+    checks the body there and parks the clock while it is off level or moving); off = frames as before."""
     if model == "dwell":
         import dwell as DW
         sw = DW.Dwell(T=T_step, n_steps=n_steps, dt=kf_s, first=first, **kw)
@@ -103,6 +105,13 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **
     K = W.S.kin(kw.get("drop", 0.02))
     t_last = ends[-1]
     t_first = sw.segs[1]["t"]
+    gate_ts = set()
+    if lift_gate and model == "dwell":
+        seg_t = [sg["t"] for sg in sw.segs[1:]]
+        for p_ in sw.phases:
+            below = [t for t in seg_t if t <= p_["t0"] + 1e-9]
+            if below:
+                gate_ts.add(max(below))
     out, prev, end_i = [], 0, 0
     for seg in sw.segs[1:]:
         t = seg["t"]
@@ -111,6 +120,8 @@ def gait(T_step=2.0, n_steps=8, kf_s=KF_S, first="L", cal=None, model="sway", **
         tm = int(round(1e3 * (t - t_first)))
         phi = phi_of(t)
         flags = LIFT if t_lift0 - 0.5 * kf_s <= t <= t_last + 0.5 * kf_s else 0
+        if t in gate_ts:
+            flags |= GATE
         is_end = end_i < len(ends) and t >= ends[end_i] - 0.5 * kf_s
         if is_end:
             flags |= STEP_END
@@ -139,34 +150,50 @@ def _lib(path=LIB):
     L.sil_gait_learned.argtypes = [ctypes.c_void_p, ctypes.c_char]
     L.sil_gait_learned.restype = ctypes.c_float
     L.sil_gait_add.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-    L.sil_gait_tick.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_float, ctypes.c_float,
+    L.sil_gait_tick.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_float, ctypes.c_float, ctypes.c_float,
                                 ctypes.POINTER(ctypes.c_int32), ctypes.POINTER(ctypes.c_float),
                                 ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_int),
-                                ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float)]
+                                ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
+                                ctypes.POINTER(ctypes.c_float)]
+    L.sil_gait_gate_cfg.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int]
+    L.sil_gait_gate_stats.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
     return L
 
 
 def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, seed=SEED, gains=(0.25, 1.0),
         lead_steps=2.0, first="L", amp=None, fade=0.6, drop_residual=False, trace=False, model="sway", gkw=None,
-        step_kw=None):
+        step_kw=None, lift_gate=False, gate_cfg=None, dist=None):
     """One sway gait through the firmware's track + trim in the sim plant: metrics + the per-step reports.
     step_kw: gait() kwargs replacing the direction's preset (track_host's per-step commands: dx_steps / dy_steps /
-    yaw_trim lists, step_meta), so a stride or a --seq plan can be run; direction is then only the label."""
+    yaw_trim lists, step_meta), so a stride or a --seq plan can be run; direction is then only the label.
+    lift_gate: the gait carries kGate frames (dwell); the firmware's gate acts on them. gate_cfg = (lvl deg,
+    rate deg/s, dwell ms, timeout ms, enabled 0/1) overrides the defaults (sil_gait_gate_cfg).
+    dist = (t0 s, t1 s, deg/s, period s): from t0 to t1 (seconds of the run's own clock, which a hold does not stop) the
+    torso's roll rate gets a kick of deg/s every period, alternating in sign: a body rocking in double support, to
+    test the gate against a body the ungated run lifts a foot on."""
     import gate_common as GC
     import rec
     import simh
     L = _lib()
-    sw, fr = gait(T_step, n_steps, first=first, model=model, **(DIRS[direction] if step_kw is None else step_kw),
+    sw, fr = gait(T_step, n_steps, first=first, model=model, lift_gate=lift_gate,
+                  **(DIRS[direction] if step_kw is None else step_kw),
                   **(dict(kL=amp[0], kR=amp[1]) if amp else {}), **(gkw or {}))
     g = L.sil_gait_new(gains[0], gains[1], 15.0, 14.0, fade, 15.0)
     L.sil_gait_set_learned(g, b"L", seed[0])
     L.sil_gait_set_learned(g, b"R", seed[1])
+    if gate_cfg is not None:
+        assert L.sil_gait_gate_cfg(g, *gate_cfg) == 0, "gate config refused"
     lead_ms = 1e3 * min(lead_steps * T_step, 8.0)       # the 128-frame queue: <= 8 s ahead
     pend = deque(fr)
     max_q = 0
+    timed_out = False
 
     def feed(t_ms):
+        """Upload up to lead_ms ahead of the PLAY head (the host reads it from `track`: it stops while parked)."""
         nonlocal max_q
+        if timed_out:                                   # the track ended at a gate timeout: the host stops uploading
+            pend.clear()
         while pend and pend[0][0] <= t_ms + lead_ms:
             tm, hx, _ = pend.popleft()
             rc = L.sil_gait_add(g, hx.encode())
@@ -191,8 +218,9 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     d = env.data
     pads = GC.pad_gids(env)
     # the crouch (a 2 s pose move to the first keyframe) and 1 s settle: the stepper's start, before `track play`
-    L.sil_gait_tick(g, 0, float("nan"), 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
-                    ctypes.byref(tstate), rep)
+    gate4 = (ctypes.c_float * 4)()
+    L.sil_gait_tick(g, 0, float("nan"), 0.0, 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
+                    ctypes.byref(tstate), rep, gate4)
     q_first = {n: from_ticks(n, q12[i]) for i, n in enumerate(LEG)}
     for k in range(150):
         u = TB._minjerk(min(1.0, (k + 1) / 100))
@@ -200,6 +228,8 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
         env.step(a0)
     lag = 1 + int(round(extra_ms / 20.0))
     buf = deque(maxlen=lag + 1)
+    rbuf = deque(maxlen=lag + 1)
+    head_ms, gate_ev, kick = 0.0, [], 0
     reports, fell, fall_dir, t_fall, peak_tilt = [], False, None, None, 0.0
     ph_up = {i: [0, 0, -1.0] for i in range(len(sw.phases))}      # n_hold, n_up, max clearance
     com_at = {}                                                   # (phase, 'lo'|'mid') -> CoM inboard of the stance sole, m
@@ -215,14 +245,19 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
         return (ys - yc) if stance == "L" else (yc - ys)
     done_at = None
     tr_rows = []
-    for k in range(int(t_track_end * 50)):
+    for k in range(int((t_track_end + (8.0 if lift_gate else 0.0)) * 50)):
         t_ms = 20 * k
-        feed(t_ms)
+        feed(head_ms)
         up = GC.up_of(d.qpos[3:7])
         roll = -math.asin(max(-1.0, min(1.0, up[1])))
         buf.append(roll)
-        r = L.sil_gait_tick(g, t_ms, buf[0], 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
-                            ctypes.byref(tstate), rep)
+        rbuf.append(float(d.qvel[3]))             # the gyro about the body x axis, rad/s (the same delay as the roll)
+        r = L.sil_gait_tick(g, t_ms, buf[0], rbuf[0], 0.02, q12, ctypes.byref(phi), hipj, ctypes.byref(stance),
+                            ctypes.byref(tstate), rep, gate4)
+        head_ms = float(gate4[0])
+        if int(gate4[2]):
+            gate_ev.append((t_ms / 1e3, int(gate4[2]), float(gate4[3])))
+            timed_out = timed_out or int(gate4[2]) == 4      # gaitplay::GateEvt::kTimeout
         if r & 2:
             reports.append(dict(stance=chr(int(rep[0])), t=t_ms / 1e3, lean_in=math.degrees(rep[1]),
                                 lean_out=math.degrees(rep[2]), e_mid=math.degrees(rep[3]), T_mid=math.degrees(rep[4]),
@@ -238,10 +273,13 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
             tr_rows.append((t_ms / 1e3, math.degrees(roll), math.degrees(float(d.qvel[3])), stance.value,
                             math.degrees(tgt["L_hip_roll"] - from_ticks("L_hip_roll", q12[1])),
                             math.degrees(tgt["R_hip_roll"] - from_ticks("R_hip_roll", q12[7]))))
+        if dist and dist[0] <= t_ms / 1e3 < dist[1] and int(round((t_ms / 1e3 - dist[0]) * 50)) % max(1, int(round(dist[3] * 50))) == 0:
+            kick += 1                         # a roll-rate kick, alternating in sign: the body rocks
+            d.qvel[3] += math.radians(dist[2]) * (1.0 if kick % 2 else -1.0)
         cur["t"] = np.clip(np.array([tgt[n] for n in pol]), env._lo, env._hi)
         env.step(a0)
         # the lift, as testbed/A2: the swing sole's lowest pad > 5 mm over the hold (raise end -> lower start)
-        ts = sw.t_first + t_ms / 1e3
+        ts = sw.t_first + head_ms / 1e3
         for i, p in enumerate(sw.phases):
             for key, tk in (("lo", p["t0"]), ("mid", 0.5 * (p["t0"] + p["t1"]))):
                 if (i, key) not in com_at and ts >= tk:
@@ -267,6 +305,8 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     w, x, y, z = (float(v) for v in d.qpos[3:7])
     yaw_end = math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
     xy_end = (float(d.qpos[0]), float(d.qpos[1]))
+    gst = (ctypes.c_uint32 * 4)()
+    L.sil_gait_gate_stats(g, gst)
     L.sil_gait_free(g)
     phs = [dict(stance=p["stance"], up_frac=ph_up[i][1] / max(ph_up[i][0], 1), clr_max_mm=1e3 * ph_up[i][2],
                 com_in_lo_mm=1e3 * com_at[(i, "lo")] if (i, "lo") in com_at else None,
@@ -275,7 +315,9 @@ def run(T_step=2.0, direction="march", plant="fit", extra_ms=0.0, n_steps=8, see
     return dict(T=T_step, dir=direction, plant=plant, delay=extra_ms, fell=fell, fall_dir=fall_dir, t_fall=t_fall,
                 done=done_at is not None, n_steps=n_steps, lifts=sum(p["up_frac"] >= 0.5 for p in phs),
                 phases=phs, peak_tilt=round(peak_tilt, 1), reports=reports, aborts=sum(x["aborted"] for x in reports),
-                learned=learned, max_queued=max_q, frames=len([f for f in fr if f[2] == "kf"]), yaw_end=yaw_end, xy_end=xy_end,
+                learned=learned, max_queued=max_q, gate=dict(gates=gst[0], holds=gst[1], held_ms=gst[2], timeouts=gst[3],
+                                                                events=gate_ev),
+                frames=len([f for f in fr if f[2] == "kf"]), yaw_end=yaw_end, xy_end=xy_end,
                 **(dict(trace=tr_rows) if trace else {}))
 
 
