@@ -36,7 +36,7 @@ import sil_gait as G  # noqa: E402
 # The robot's own working values on the hard panels, 2026-11-12 (B1 runs fwtrim_*): static shift 1.3x over
 # the left foot, 1.25x over the right (1.15x tipped in at foot-off), learned T L 5.2, R 3.4 deg. The SIL holds
 # with them at T = 4 and 2 s in every direction (results/sil_gait_robotamp.json).
-ROBOT_AMP = (1.3, 1.35)          # k_static L, R (dwell.K_STATIC; R 1.35 since the 17:47-17:51 runs)
+ROBOT_AMP = (1.3, None)          # k_static L, R; R None = dwell.k_static_R(T): 1.30 below T 5, 1.35 at T >= 5
 ROBOT_SEED = (5.2, 3.4)
 # The robot's own heading drift: +1.9 deg/step to its LEFT with no turn asked (hw 2026-11-12, every direction),
 # and 1.34 deg of heading per deg asked. -1.4 deg/step cancels it (fwd 8 at T 4: +7 deg over the run with it,
@@ -63,6 +63,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x="mid"):
     """yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4)."""
     gkw = {}
+    if amp[1] is None:
+        import dwell as DW
+        amp = (amp[0], DW.k_static_R(T_step))
     dkw = dict(G.DIRS[direction])
     if model == "dwell":
         gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
@@ -292,11 +295,12 @@ def live(pl, a):
     adds = pl["adds"]
     hold = pl.get("hold")
     yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
-    if hold is not None:
-        yaw_state["prev"] = yaw_of_imu(r.cmd("imu"))
-        if yaw_state["prev"] is None:
-            print("  heading hold: no `quat` in the imu reply -- holding off")
-            hold = None
+    yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
+    if a.note:
+        print(f"  note: {a.note}")
+    if hold is not None and yaw_state["prev"] is None:
+        print("  heading hold: no `quat` in the imu reply -- holding off")
+        hold = None
 
     def heading_step():
         """After a new single support: read the heading, maybe re-plan the steps not uploaded yet."""
@@ -392,7 +396,19 @@ def live(pl, a):
             ts = sorted(t_line)
             print(f"upload: {len(t_line)} lines, round trip median {1e3 * ts[len(ts) // 2]:.0f} ms, max "
                   f"{1e3 * ts[-1]:.0f} ms -> {PER_LINE / ts[len(ts) // 2]:.0f} frames/s")
-        log(dict(summary=True, steps=steps, line_s=t_line, heading=(hold.log if hold is not None else None)))
+        y_end = None
+        try:
+            y_end = yaw_of_imu(r.cmd("imu"))
+        except Exception:  # noqa: BLE001
+            pass
+        d_head = None
+        if y_end is not None and yaw_state.get("start") is not None:
+            d_head = round((y_end - yaw_state["start"] + 180.0) % 360.0 - 180.0, 1)
+            print(f"heading over the run (fused yaw, start -> end): {d_head:+.1f} deg (+ = left)")
+        log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=a.dir, steps=a.steps, amp=list(pl["amp"]),
+                                                      model=pl["model"], first=a.first),
+                 steps=steps, line_s=t_line, heading_change_deg=d_head,
+                 heading=(hold.log if hold is not None else None)))
         r.close()
         print(f"log: {log_path}")
 
@@ -408,7 +424,7 @@ def main(argv=None):
                     help="the first swing foot (R: the first stance is the left; the first right stance tipped in "
                          "fwd / back / turn runs out of the rest crouch)")
     ap.add_argument("--seed", default=f"{ROBOT_SEED[0]:g},{ROBOT_SEED[1]:g}", help="trim T L,R (hike deg)")
-    ap.add_argument("--amp", default=f"{ROBOT_AMP[0]:g},{ROBOT_AMP[1]:g}",
+    ap.add_argument("--amp", default=None,
                     help="k_static L,R: the pelvis over the stance foot from before lift-off to touchdown (x 62 mm)")
     ap.add_argument("--model", default="dwell", choices=["dwell", "sway"],
                     help="dwell (default): the static requirement as a hard constraint; sway: A2's sine (refused "
@@ -437,6 +453,7 @@ def main(argv=None):
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
     ap.add_argument("--poll", type=float, default=0.25)
     ap.add_argument("--live", action="store_true", help="SEND to the robot (Stage C, a person at it)")
+    ap.add_argument("--note", default="", help="free text into the log's summary row, e.g. where the robot stands")
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
@@ -446,7 +463,7 @@ def main(argv=None):
         print(f"REFUSED: T {a.T:g} s is under the dwell gait's SIL floor ({DW.T_FLOOR:g} s): it falls or leans 11-14 deg "
               f"there (experiments/roll-balance/README.md); --below-floor to plan it anyway")
         return 2
-    amp = tuple(float(x) for x in a.amp.split(","))
+    amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     if not a.live:
         dry(plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h, yaw_trim=a.yaw_trim,
                  pelvis_x=a.pelvis_x), a)

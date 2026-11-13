@@ -43,6 +43,14 @@ import synth as S  # noqa: E402
 # P 64 alike); at 1.35 back 12 and back 8 ran clean (right in 1.3-1.7, out <= 1.5, hip lag at mid support
 # 2.8-3.6 deg, as the clean marches).
 K_STATIC = {"L": 1.3, "R": 1.35}
+
+
+def k_static_R(T):
+    """The right-stance requirement by step time (hw 2026-11-12 18:09): at T 4 with 1.35 the robot fell OUTWARD over
+    the right foot in the settle, both feet still down (roll +1 -> +22 deg in 0.5 s after the pelvis arrived): 1.35 x
+    62 = 84 mm is the edge of the static range. 1.30 for T < 5 (clean marches T 4 / 3.4 / 3.2 and two fwd 8 at T 4,
+    mid-board); 1.35 at T >= 5 (back 12 / back 8 / pelvis-x stance runs clean, mid-board)."""
+    return 1.35 if T >= 5.0 else 1.30
 # (shift, settle) s per step time; single support = the rest. From the SIL (dwell_grid.py timing): the
 # shift (min-jerk, ~158 mm from 1.25 x over one foot to 1.3 x over the other) needs >= 1.2 s, single
 # support >= 1.8 s (raise 0.63 s); below T = 3.2 s it falls or leans 11-14 deg. 6 s is the gentle start
@@ -66,11 +74,13 @@ def _mj(u):
 
 
 class Dwell:
-    def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=K_STATIC["R"], ds=0.4, settle_frac=0.25, h=0.022,
+    def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=None, ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True):
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
+        if kR is None:
+            kR = k_static_R(T)
         self.k = {"L": float(kL), "R": float(kR)}
         t_ds = ds * T                         # shift + settle
         t_set = settle_frac * t_ds
