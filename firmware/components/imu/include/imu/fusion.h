@@ -153,4 +153,35 @@ class BiasEstimator {
     int n_;
 };
 
+// Online gyro bias at stand-still (#297, 2026-11-12: the fused yaw drifted at the residual gyro-z bias,
+// -1.33 deg/s at rest, and the bias moved ~0.1 deg/s between runs -- heading was unusable). While the robot
+// stands still -- every axis within `gyro_still` of the current bias, |accel| within `accel_tol` of g, and the
+// caller allowing it (no pose stream, no track, not armed) -- for at least `hold_s`, the bias follows the raw
+// gyro with a first-order lag of `tau_s`. Any motion freezes it and restarts the hold. Pure: the driver feeds
+// it the raw sensor-frame gyro (no bias) and applies what it returns; NVS only on an explicit command.
+struct StillBiasConfig {
+    float gyro_still = 0.05f;     // rad/s (2.9 deg/s) about the current bias, every axis
+    float accel_tol = 0.03f;      // | |a| - g | / g
+    float hold_s = 2.0f;          // still this long before the bias moves
+    float tau_s = 10.0f;          // the bias's time constant while still
+};
+
+class StillBias {
+  public:
+    void configure(const StillBiasConfig& c) { cfg_ = c; }
+    const StillBiasConfig& config() const { return cfg_; }
+    void reset(const float bias[3]);
+    // One sample. Returns true when the bias moved.
+    bool update(const float gyro_raw[3], const float accel[3], float dt_s, bool allowed);
+    void bias(float out[3]) const;
+    bool still() const { return still_s_ >= cfg_.hold_s; }
+    float stillFor() const { return still_s_; }
+    float learnedFor() const { return learned_s_; }     // total time the bias has been following, s
+
+  private:
+    StillBiasConfig cfg_;
+    float b_[3] = {0.0f, 0.0f, 0.0f};
+    float still_s_ = 0.0f, learned_s_ = 0.0f;
+};
+
 }  // namespace imu
