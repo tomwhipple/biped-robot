@@ -434,6 +434,26 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-14 card: night 24 -- the two-foot (AND) march term is one-sided again (0/3 seeds), so the march RL line parks;
+# the firmware stance trim in the training loop costs backward walking on 3/3 seeds. Tonight: the walk on the robot's sole.
+fig_1114 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec74_march_both_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec74_march_both_s128r24_walk_steps',
+                 'prec74, the march with the two-foot term (pays only the weaker foot): it still marches on the RIGHT '
+                 'foot only (5.7 cm; left 0.1 cm)'),
+    video_figure('robot_legs_prec74_march_both_s2_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec74_march_both_s2_s128r24_walk_steps',
+                 'the same recipe, third seed: LEFT foot only (6.3 cm). 23 of 23 marching seeds are one-legged; the '
+                 'march RL line parks'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['backward_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_backward_1m',
+                 'control: prec72_ppsi, the walk on the narrow (inset) sole without the stance trim, walking backward '
+                 '(dx -0.73 m on the direction probe)'),
+    video_figure('robot_legs_prec76_walk_ppsi_trim_s128r24', ['backward_1m'],
+                 'robot_legs_prec76_walk_ppsi_trim_s128r24_backward_1m',
+                 'prec76, the same walk trained with the firmware stance trim in the loop: asked to walk backward it '
+                 'stays put (dx -0.01 m), on 3 of 3 seeds'),
+] if f)
 # 2026-11-13 card: night 23 -- the walk on the play plant (arm W) and on the inset sole (ppsi), 3 seeds each, and
 # the last march replicates. W: side L back in 2/3, side R lost 3/3; ppsi: shifts more, both sidesteps lost 3/3.
 # All 20 marching seeds are one-legged; tonight the two-foot AND term (--w-march-both) gets one night, then the line parks.
@@ -1107,6 +1127,23 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·14 · night 24: the march line parks</span></p>
+    <p><b>Paying only the weaker foot did not make the march two-legged.</b> The new two-foot term rewards a march by its
+    worse foot, so a one-legged march should earn nothing for lifting. Three seeds: one marches on the right foot only, one on
+    the left only, one stopped marching. On the narrow sole it was worse (two of three never march). Across six nights, 23
+    seeds found a march and every one is one-legged: the rewards, the mirror loss, the warm start and the seed only pick the
+    side. As decided yesterday, <b>the march RL line parks</b>; the robot marches and walks on the scripted dwell gait meanwhile.</p>
+    <p><b>The firmware's stance trim in the training loop costs backward walking.</b> The right foot lifts a little more
+    (about 2.2 cm against 1.6) but the torso tilts more (12-13 deg against 10) and none of the three seeds walks backward any
+    more. Tonight all three arms are the walk on the robot's narrow sole, each with one change against its three faults:
+    a 3 cm lift reference (the right foot is under 3 cm everywhere), more sidestep practice (both sidesteps are lost), and a
+    slower gait clock (closer to the slow gait that works on the robot). Nothing is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1114}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·13 · night 23: the walk on the robot's roll play and sole</span></p>
     <p><b>The walk, retrained on the play plant, gets sidestep left back but not right.</b> Without the march, three seeds of
