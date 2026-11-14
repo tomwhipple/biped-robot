@@ -343,9 +343,12 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec72_walk_pp (+ _s1, _s2) | 11-12 | prec16_f075_js20 | roll chain only: `--roll-play-deg` (per side) for `--roll-lash-deg 0.5,2.0`, no march | six directions kept and x1.5 0/0 on the play grade plant (prec16 there: 8/8 falls) | | | | | **not held**: x1.5 2/8, 2/2, 2/2 falls/trips (prec16 8/8 on play); side L +0.31/+0.13/+0.31, **side R lost 3/3** (−0.06/−0.12/−0.26): the plant takes side R, the march took side L |
 | robot_legs_prec68_march_pp_s2 / prec71_mir_pp_s2 | 11-12 | prec59_march_rs_s1 | seed 16 (replicates of P1 / P4) | P1 stays L-only; P4 stays R-only | | | | | **held** both: P1 3/3 L only (5.8 cm, roll −8.2), P4 3/3 flips to R only (5.4 cm, roll −2.9 / max 4.2, the levellest yet) |
 | robot_legs_prec72_walk_ppsi (+ _s1, _s2) | 11-12 | prec72_walk_pp (same warm start prec16) | `--sole-in-mm L=8,R=-12` (the inset sole, #308; added by the B2 session) | keeps its lateral margin on the inset-sole grade plant where the _pp twin loses it | | | | | **not held**: x1.5 on the inset plant 5/5, 1/1, 2/3 (pp 4/8, 2/2, 2/3); walking shift larger 3/3 (steps5 −0.43..−0.52 / +0.37..+0.51 vs pp −0.16..−0.26 / +0.12..+0.34); **both sidesteps lost 3/3**, back lost or falling in 2/3 |
-| robot_legs_prec74_march_both (+ _s1, _s2) | 11-13 | prec16_f075_js20 (prec73 recipe) | `--w-march-both 2.0` (the two-foot AND term, min over the feet) | both feet ≥ 3 cm on every march5 step in ≥ 2 of 3 seeds (prec73 0/3) | | | | | |
-| robot_legs_prec75_mboth_si (+ _s1, _s2) | 11-13 | prec74 recipe | `--sole-in-mm L=8,R=-12` | the AND march survives the robot's narrow single-support window, shift ≥ 0.6 both feet, torso within 3 deg | | | | | |
-| robot_legs_prec76_walk_ppsi_trim (+ _s1, _s2) | 11-13 | prec72_walk_ppsi recipe | `--stance-trim` (the firmware trim on the gait clock in the loop, #300) | stride1 0.3 robot R lift ≥ 3 cm and less torso tilt in ≥ 2 of 3 seeds, no new falls on the inset plant | | | | | |
+| robot_legs_prec74_march_both (+ _s1, _s2) | 11-13 | prec16_f075_js20 (prec73 recipe) | `--w-march-both 2.0` (the two-foot AND term, min over the feet) | both feet ≥ 3 cm on every march5 step in ≥ 2 of 3 seeds (prec73 0/3) | | | | | **not held**: 0/3 two-sided: s14 **R only** (5.7 cm, L 0.1), s2 **L only** (6.3 cm, R 0.1), s1 never marches (trips 8/8). **March RL line parked** (11-14) |
+| robot_legs_prec75_mboth_si (+ _s1, _s2) | 11-13 | prec74 recipe | `--sole-in-mm L=8,R=-12` | the AND march survives the robot's narrow single-support window, shift ≥ 0.6 both feet, torso within 3 deg | | | | | **not held**: 2/3 never march (trips 8/8), s2 R only (5.9 cm, roll max 11.5 deg) |
+| robot_legs_prec76_walk_ppsi_trim (+ _s1, _s2) | 11-13 | prec72_walk_ppsi recipe | `--stance-trim` (the firmware trim on the gait clock in the loop, #300) | stride1 0.3 robot R lift ≥ 3 cm and less torso tilt in ≥ 2 of 3 seeds, no new falls on the inset plant | | | | | **not held**: R lift up a little (stride1 0.3 robot 2.0 / 2.3 / 2.6 cm vs ppsi 1.6; min seed 1.4–2.0, < 3 cm) but torso tilt WORSE (12.3–13.7 vs 10.3 deg) and **backward lost 3/3** (dx −0.01..−0.03); x1.5 1/1, 0/0, 8/8 |
+| robot_legs_prec77_walk_si_l3 (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | the 3 cm reference lift (`--mimic-lift 0.03 --swing-height 0.035`) | stride1/steps5 0.3 robot lift ≥ 3 cm on both feet in ≥ 2 of 3 seeds, x1.5 no worse than ppsi on the inset plant | | | | | |
+| robot_legs_prec78_walk_si_side (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--walk-submix 0.25,0.40` (sidestep share 25 → 40 %) | side L/R \|dy\| ≥ 0.15 on the inset plant in ≥ 2 of 3 seeds, backward kept | | | | | |
+| robot_legs_prec79_walk_si_slow (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--gait-freq 0.55,0.65` (was 0.7,0.8) | larger walking shift, R lift up, sidesteps \|dy\| ≥ 0.1 on the inset plant, ≥ 2 of 3 seeds, no new falls / pose trips | | | | | |
 
 ## Nights
 
@@ -3062,3 +3065,84 @@ are the next walk variable once T is graded. **Fallback:** arm M's recipe (`fall
 
 Tomorrow: march5 robot both feet first (per-foot minimum step, shift both sides, roll), on all three plants, spread over
 the three seeds; apply the park rule above; T against ppsi on C (R lift, tilt, sidesteps, x1.5).
+
+### Night of 2026-11-13 (evaluated 2026-11-14)
+
+**The two-foot march term, the march on the inset sole, and the stance trim in the loop. Night 6 of the weight-transfer /
+march line, and its last: the march RL line parks.** Stride only; get-up stays parked. Nothing in this entry needs Tom.
+
+**The runner.** `night_run.sh` 22:00 – 04:25: 9 teachers + 9 distils, all exit 0, every job on main c651437 with origin
+verified. Pre-flight 18/18. **Fixers:** one, at collection (04:25, `collect-sync`): `~/code/robot/.git/config` had
+`core.bare=true` (config mtime 11-13 10:16, around the fw/lift-gate worktree creation; writer unknown), so every git command
+there failed. The fixer set it back to false; no reset or stash was needed and the dirty CAD paths were left alone. That is the
+whole fix (a config value), but the writer is unknown: if it recurs, look at what creates worktrees from `~/code/robot`.
+
+**Merged / branched:** nothing this morning. Since the last plan main gained the lift gate in the track player (#312), the
+planner restart (#311) and track_host step length / sequences (#310): firmware and host, none touches the plant, env or
+grade, so last night's comparisons stand. Open PRs #293, #229, #206, #71 do not touch training.
+
+**Grading** (`/tmp/plan1114/grade{A,B,C}.*`, grade.py on main, 8 seeds, SHAPE_HZ=8; `summ.py` there): A as is (each run on its
+own trained plant, 22 probes), B the play plant, C play + inset sole (14 probes). Controls prec16, prec73_march_ul, prec72_walk_ppsi
+reproduce 11-13. All students WALK except prec75_mboth_si (s14), all are 0/0 on push 0.4, 0 falls on every robot probe.
+
+| student | x1.5 A / C | fwd / back / side L / side R / turn L / R (C) | stride1 0.3 robot lift L / R (min), C | tilt max (C) | march5 robot (A): foot, min step L / R cm, roll mean / max |
+|---|---|---|---|---|---|
+| prec16 (control) | 0/0 / 8/8 | +0.47 −0.60 +0.27 −0.28 +77 −31 | 2.6 / 2.2 (2.0) | 10.0 | stands |
+| prec73_march_ul (control) | 0/0 / 0/0 | +0.67 −0.45(8) +0.01 −0.21 +94 −86 | 2.3 / 2.0 (1.9) | 11.0 | R only, 0.0 / 5.3, −3.3 / 6.8 |
+| prec72_walk_ppsi (control) | 4/4 / 5/5 | +0.76 −0.73 +0.02 −0.06 +73 −56 | 3.3 / 1.6 (1.5) | 10.1 | stands |
+| M prec74_march_both | 5/5 / 5/5 | +0.54 −0.72 +0.02 −0.04 +83 −78 | 2.6 / 1.6 (1.6) | 10.4 | **R only**, 0.1 / 5.7, −4.6 / 7.7 |
+| M prec74_march_both_s1 | 0/0 / 0/0 | +0.65 −0.47(6) +0.00 −0.19 +97 −87 | 2.8 / 1.5 (1.4) | 10.9 | **never marches** (trips 8/8) |
+| M prec74_march_both_s2 | 0/0 / 1/1 | +0.65 −0.82(1) +0.14 −0.22 +87 −104 | 2.2 / 1.6 (1.5) | 8.9 | **L only**, 6.3 / 0.1, −5.4 / 8.6 |
+| MS prec75_mboth_si | 0/0 / 0/0 | +0.42 **+0.00** +0.05 −0.06 +100 −79 | 3.8 / 1.8 (1.8) | 10.1 | never marches (trips 8/8); does NOT walk |
+| MS prec75_mboth_si_s1 | 0/0 / 0/0 | +0.78 −0.77 +0.01 −0.01 +70 −52 | 3.2 / 1.3 (1.3) | 12.2 | never marches (trips 8/8) |
+| MS prec75_mboth_si_s2 | 0/0 / 0/0 | +0.75 −0.71 +0.01 −0.04 +93 −62 | 3.0 / 1.8 (1.6) | 11.2 | **R only**, 0.1 / 5.9, −6.2 / 11.5 |
+| T prec76_walk_ppsi_trim | 1/1 / 1/1 | +0.69 **−0.01** +0.03 −0.05 +74 −44 | 3.8 / 1.9 (1.4) | 12.2 | stands |
+| T prec76_walk_ppsi_trim_s1 | 0/0 / 0/0 | +0.76 **−0.03** +0.02 −0.09 +88 −74 | 3.5 / 2.2 (1.8) | 13.0 | stands |
+| T prec76_walk_ppsi_trim_s2 | 8/8 / 8/8 | +0.60 **−0.01** +0.02 −0.03 +97 −31 | 3.0 / 2.5 (1.9) | 13.3 | stands |
+
+(x1.5 as falls/trips of 8; "(n)" after a direction = falls of 8. On plant C prec74 s14 shows 1.1 cm on L, still one-sided.)
+
+**Hypotheses:**
+- **M, the two-foot AND term: not held (0 of 3).** s14 marches on R only, s2 on L only, s1 never marches. The min over the
+  feet did not remove the one-legged plateau; it only made one seed give up the march. Walking unchanged (sides lost as in prec73).
+- **MS, M on the inset sole: not held**, as the hypothesis said it would if M failed: two seeds never march, one is R only
+  with roll up to 11.5 deg.
+- **T, the stance trim in the loop: not held.** The R foot lifts a little more on stride1 0.3 robot (mean 1.9–2.5 cm against
+  ppsi's 1.6, on C; still below 3 cm on every seed), but the torso tilts MORE (12.2–13.3 deg max against 10.1) and **backward
+  walking is gone on 3 of 3 seeds** (dx −0.01 to −0.03 for −0.25 asked; ppsi −0.73). Grading caveat (11-13): grade.py applies
+  the trim after its servo model, not before the servo as the firmware does, so the numbers are close, not exact. The
+  firmware's `trim policy on` is not something tonight's policies should be graded or flown with.
+- **Distil gap** (card seed-passes teacher → student): M 20→21, 17→22, 26→29; T 16→18, 21→14, 17→19; MS 23→15, 21→21, 23→18.
+  Median +1 on M / T; MS −5 (its students march less than its teachers). Not the limit.
+
+**Ranking:** no march candidate, no walk candidate (no student lifts the R foot 3 cm on stride1 robot; every inset-sole
+student has lost both sidesteps). #259 has not passed. **No robot candidate.** The robot meanwhile walks 40–50 mm steps at
+4 s/step in every direction on the scripted dwell gait + the lift gate (#297, 11-13): 65 gated lift-offs, no falls.
+
+**Stop and decide (rule 4): the march RL line PARKS (my choice, rule 0, pre-committed on 11-13).** Six nights (11-09 to
+11-13), no hardware-confirmed gain. What it showed: the reference finds a march; every one of 23 marching seeds is (9 more never marched)
+one-legged; additive (prec57–70), ungated (prec73) and AND-shaped (prec74) lift rewards, the mirror loss (prec71), the warm
+start and the seed only pick the side; the inset sole makes it worse. What it did not show: why the second foot never
+unloads in this plant (a candidate cause, untested: the per-side play is asymmetric, L hip 6 / R hip 8 deg, so one side's
+lift is always cheaper). Held note: `queue/held/WHY-1114-march-line-parked.txt`. Re-open when the hardware side asks for a
+march policy; the robot marches and walks on the scripted gait meanwhile. **The stance trim (T) is parked as a training
+variable too** (it costs backward 3/3 and adds tilt).
+
+**Tonight (2026-11-14): the walk on the robot's sole (play + inset sole), three arms × three seeds, 9 teacher + distil
+pairs, BRANCH=main, 300M each (~43 min a pair, ~6.5 h).** All three have parent prec72_walk_ppsi's recipe (from prec16) and
+change one thing; seeds interleaved (L, S, F per seed), the 3 cm arm first because the 3 cm rule is a veto.
+
+| arm | runs (seeds 14/15/16) | variable | hypothesis |
+|---|---|---|---|
+| L | prec77_walk_si_l3, _s1, _s2 | the 3 cm reference lift (`--mimic-lift 0.03 --swing-height 0.035`, prec22's variable) | stride1 / steps5 0.3 robot lift ≥ 3 cm on BOTH feet (per-seed mean) in ≥ 2 of 3 seeds, x1.5 on C no worse than ppsi (prec22 on the old plant lost x1.5) |
+| S | prec78_walk_si_side, _s1, _s2 | `--walk-submix 0.25,0.40` (sidestep share 25 → 40 %) | side L / R \|dy\| ≥ 0.15 on C in ≥ 2 of 3 seeds (ppsi ≤ 0.08; prec16 0.27/0.28 there), backward kept |
+| F | prec79_walk_si_slow, _s1, _s2 | `--gait-freq 0.55,0.65` (was 0.7,0.8) | the robot only steps cleanly on its narrow window slowly; a slower clock gives a larger walking shift, more R lift and sidesteps \|dy\| ≥ 0.1 on C, ≥ 2 of 3 seeds, no new falls or pose trips |
+
+Why these three: on plant C (the one closest to the robot's lateral margin) the walk line has three open faults, each one a
+veto: the R foot under 3 cm, both sidesteps lost, and x1.5 margin. L and S attack the first two directly; F is the one
+change that moves the policy toward the gait that works on the robot. **Fallback:** arm L's recipe (`fallback.job`; the
+previous one is `fallback.job.prec74-20261114`).
+
+Tomorrow: on C first, per arm and spread over seeds: R and L lift (stride1 / steps5 robot), dir side L/R, back, x1.5; then
+A and B. If none of the three holds on ≥ 2 seeds, the walk-on-the-inset-sole line has run three nights (11-12, 11-13, 11-14)
+and rule 4 applies to it too.
