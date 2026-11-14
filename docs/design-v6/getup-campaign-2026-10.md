@@ -346,7 +346,7 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec74_march_both (+ _s1, _s2) | 11-13 | prec16_f075_js20 (prec73 recipe) | `--w-march-both 2.0` (the two-foot AND term, min over the feet) | both feet ≥ 3 cm on every march5 step in ≥ 2 of 3 seeds (prec73 0/3) | | | | | **not held**: 0/3 two-sided: s14 **R only** (5.7 cm, L 0.1), s2 **L only** (6.3 cm, R 0.1), s1 never marches (trips 8/8). **March RL line parked** (11-14) |
 | robot_legs_prec75_mboth_si (+ _s1, _s2) | 11-13 | prec74 recipe | `--sole-in-mm L=8,R=-12` | the AND march survives the robot's narrow single-support window, shift ≥ 0.6 both feet, torso within 3 deg | | | | | **not held**: 2/3 never march (trips 8/8), s2 R only (5.9 cm, roll max 11.5 deg) |
 | robot_legs_prec76_walk_ppsi_trim (+ _s1, _s2) | 11-13 | prec72_walk_ppsi recipe | `--stance-trim` (the firmware trim on the gait clock in the loop, #300) | stride1 0.3 robot R lift ≥ 3 cm and less torso tilt in ≥ 2 of 3 seeds, no new falls on the inset plant | | | | | **not held**: R lift up a little (stride1 0.3 robot 2.0 / 2.3 / 2.6 cm vs ppsi 1.6; min seed 1.4–2.0, < 3 cm) but torso tilt WORSE (12.3–13.7 vs 10.3 deg) and **backward lost 3/3** (dx −0.01..−0.03); x1.5 1/1, 0/0, 8/8 |
-| robot_legs_prec77_walk_si_l3 (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | the 3 cm reference lift (`--mimic-lift 0.03 --swing-height 0.035`) | stride1/steps5 0.3 robot lift ≥ 3 cm on both feet in ≥ 2 of 3 seeds, x1.5 no worse than ppsi on the inset plant | | | | | |
+| robot_legs_prec77_walk_si_l3 (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | the 3 cm reference lift (`--mimic-lift 0.03 --swing-height 0.035`) | stride1/steps5 0.3 robot lift ≥ 3 cm on both feet in ≥ 2 of 3 seeds, x1.5 no worse than ppsi on the inset plant | | | | | seed 14 (224M of 300M, capped by the window): lift even but under 3 cm (stride1 0.3 robot 2.7 / 2.7 cm on C, ppsi 3.3 / 1.6), **x1.5 8/8** (ppsi 5/5), stride1 0.3 robot trips 8/8 (ppsi 0); s1, s2 and a full-length s14 (`_full`) run 11-14 |
 | robot_legs_prec78_walk_si_side (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--walk-submix 0.25,0.40` (sidestep share 25 → 40 %) | side L/R \|dy\| ≥ 0.15 on the inset plant in ≥ 2 of 3 seeds, backward kept | | | | | |
 | robot_legs_prec79_walk_si_slow (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--gait-freq 0.55,0.65` (was 0.7,0.8) | larger walking shift, R lift up, sidesteps \|dy\| ≥ 0.1 on the inset plant, ≥ 2 of 3 seeds, no new falls / pose trips | | | | | |
 
@@ -3146,3 +3146,24 @@ previous one is `fallback.job.prec74-20261114`).
 Tomorrow: on C first, per arm and spread over seeds: R and L lift (stride1 / steps5 robot), dir side L/R, back, x1.5; then
 A and B. If none of the three holds on ≥ 2 seeds, the walk-on-the-inset-sole line has run three nights (11-12, 11-13, 11-14)
 and rule 4 applies to it too.
+
+**Addendum, same morning (06:20): arm L seed 14, `prec77_walk_si_l3`.** The runner continued after the plan (05:42) and trained
+the first teacher **capped at 224M of its 300M** by the 07:00 window (the next teacher did not fit and stays for 22:00), then its
+distil. grade.py on main, 8 seeds, SHAPE_HZ=8, A / B / C as above (`/tmp/plan1114b/`); its parent prec72_walk_ppsi from
+`/tmp/plan1114/`.
+
+| plant | student | x1.5 | stride1 0.3 robot falls / trips, lift L / R (min) | steps5 0.3 robot lift L / R | tilt max | fwd / back / side L / R / turn L / R |
+|---|---|---|---|---|---|---|
+| C | prec72_walk_ppsi | 5/5 | 0/0, 3.3 / 1.6 (1.5) | 3.4 / 2.1 | 10.1 | +0.76 −0.73 +0.02 −0.06 +73 −56 |
+| C | **prec77_walk_si_l3** | **8/8** | **0/8**, 2.7 / 2.7 (2.6) | 2.7 / 2.7 | 11.8 | +0.86 −0.67(1) +0.02 −0.05 +113 −42 |
+| A | prec77_walk_si_l3 | 8/8 | 0/8, 2.8 / 2.6 (2.3) | 2.8 / 2.6 | 11.8 | +0.85 −0.79(3) +0.02 −0.05 +116 −40 |
+| B | prec77_walk_si_l3 | 8/8 | 0/8, 2.7 / 2.7 (2.6) | 2.7 / 2.7 | 11.8 | +0.85 −0.72(2) +0.02 −0.05 +118 −46 |
+
+Card (CPU referee): teacher 24/160 (ppsi teacher 21), student 20/160 (ppsi student 24), falls 56 % (38 %). Distil −4.
+
+**Seed 14 does not hold the hypothesis (1 seed of 3, undertrained):** the 3 cm reference evens the two feet (R +1.1 cm, L −0.6)
+but neither reaches 3 cm, and it costs margin, as prec22 did on the old plant: x1.5 falls 8/8 on every plant (ppsi 4/4–5/5),
+stride1 0.3 robot trips 8/8 (ppsi 0), back falls 1–3/8, torso tilt +1.7 deg. Sidesteps stay lost. March5: stands, as ppsi.
+**Queue change:** one pair appended LAST (`1114220019-robot_legs_prec77_walk_si_l3_full` + distil): the same recipe and seed at
+the full 300M, so arm L's three seeds compare at equal length with s1 / s2 and the capped run says whether the x1.5 loss is
+undertraining. It fits after the 8 queued pairs (~22:00–04:30). Nothing else changes; pre-flight PASS 18/18.
