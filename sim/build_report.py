@@ -434,6 +434,25 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-15 card: night 25 -- the 3 cm reference, more sidestep practice and a slower clock on the robot's narrow sole:
+# none holds on 2 of 3 seeds, so the warm-started walk line pivots to training from scratch.
+fig_1115 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec78_walk_si_side_s128r24', ['sidestep_L'],
+                 'robot_legs_prec78_walk_si_side_s128r24_sidestep_L',
+                 'prec78, trained with 40 % sidestep commands (was 25 %) on the narrow sole: asked to step left it '
+                 'barely moves (dy +0.02 m on the direction probe), on 3 of 3 seeds'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_sidestep_L',
+                 'control: prec72_ppsi, its parent, on the same command (dy +0.02 m): more practice changed nothing'),
+    video_figure('robot_legs_prec77_walk_si_l3_full_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec77_walk_si_l3_full_s128r24_walk_steps_R',
+                 'prec77, the 3 cm lift reference (full length): the right foot rises 2.0-2.2 cm on the one-stride robot '
+                 'probe (parent 1.6), still under 3 cm on every seed'),
+    video_figure('robot_legs_prec79_walk_si_slow_s128r24', ['line_1m'],
+                 'robot_legs_prec79_walk_si_slow_s128r24_line_1m',
+                 'prec79, the slower gait clock (0.55-0.65 Hz): no larger weight shift, slower forward (2 of 3 seeds '
+                 'fail the walk test), but the x1.5 servo-speed probe on the narrow-sole plant is clean on 3 of 3'),
+] if f)
 # 2026-11-14 card: night 24 -- the two-foot (AND) march term is one-sided again (0/3 seeds), so the march RL line parks;
 # the firmware stance trim in the training loop costs backward walking on 3/3 seeds. Tonight: the walk on the robot's sole.
 fig_1114 = "\n    ".join(f for f in [
@@ -1127,6 +1146,23 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·15 · night 25: the walk line starts over from scratch</span></p>
+    <p><b>Three changes against the narrow-sole walk's three faults, three seeds each: none holds.</b> A 3 cm lift reference raises
+    the right foot by about half a centimetre (to 2.0-2.2 cm on the one-stride robot probe) but not to 3 cm, and costs falls on
+    the fast one-stride probe on 3 of 3 seeds. Doubling the share of sidestep commands leaves both sidesteps lost (2-10 cm of
+    the 15 asked) and adds backward falls. A slower gait clock does not shift the weight further and walks slower, though on the
+    narrow-sole plant it is clean on the x1.5 servo-speed probe on all three seeds.</p>
+    <p><b>Decision: start the walk over from scratch.</b> This line has now run three nights with no change moving the weight
+    shift, the right-foot lift or the sidesteps. Every walk policy since late October is fine-tuned from the one before, back
+    through plants with a wider sole and stiffer joints, and none was ever trained from scratch on the plant that matches the
+    robot. Tonight: the same two recipes (3 cm and 2 cm lift) with no warm start, a longer run (500M steps), three seeds each.
+    Nothing is a robot candidate; the robot walks on the scripted dwell gait meanwhile.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1115}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·14 · night 24: the march line parks</span></p>
     <p><b>Paying only the weaker foot did not make the march two-legged.</b> The new two-foot term rewards a march by its
