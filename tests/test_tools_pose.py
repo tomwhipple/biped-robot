@@ -117,8 +117,9 @@ def test_bus_and_policy_forms_agree_on_the_prototype(cal):
 
 
 def test_pos_ticks_round_trip_through_ticks_to_deg(cal):
-    """busStepsToAngle in firmware/actuation.h: the same linear map inverted.
-    A script's readback path uses ticks_to_deg; pin it against deg_to_ticks.
+    """busStepsToAngle in firmware/components/obs/include/obs/actuation.h:
+    the same linear map inverted. A script's readback path uses ticks_to_deg;
+    pin it against deg_to_ticks.
     """
     for j in cal.joints[:10]:   # fitted only
         for deg in (-12.0, 0.0, 7.5):
