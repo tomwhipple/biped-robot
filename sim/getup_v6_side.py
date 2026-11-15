@@ -617,20 +617,6 @@ def kneel_run_all(tasks, workers=MAX_WORKERS):
     return results
 
 
-def kneel_run(label, p, xml, seq, start, render=None, cam=(1.3, -15, 90)):
-    """single, non-pooled run -- used for renders (a Renderer/EGL context is
-    not fork-safe to share) and one-off checks."""
-    cap = (lambda lab, t: f"stock kneel-rise  {label}   {lab}   t={t:4.1f}s") if render else None
-    r = G.run_sequence(p, xml, seq, start=start, play_deg=3.0, per_joint=G.PJ_DEFAULT, verbose=False,
-                        render=render, cam=cam, size=(540, 720), label_fn=cap)
-    pk = max(L[4] for L in r["log"])
-    margin_note = _kneel_margin_note(r)
-    print(f"{label:60s} {'STANDING' if r['ok'] else 'no      '} up {r['up']:+.2f} z {r['pelvis_z']:.3f} |tau|max {pk:.2f} N-m  [{margin_note}]", flush=True)
-    if r["ok"]:
-        hits.append(label)
-    return r
-
-
 def _kneelsearch_restart(args):
     """one hill-climb restart, picklable (module-level) worker body. Each
     restart gets its OWN independent RNG seeded by its restart index (NOT a
