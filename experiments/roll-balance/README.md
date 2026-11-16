@@ -820,11 +820,12 @@ asked, what was applied (mm/s, mm/s, deg/s), the per-step displacement, the note
 
 | per step | default | flag | why |
 |---|---|---|---|
-| forward dx | 40 mm | `--max-fwd-mm` | proven at T 4 with tilt 3 (10 mm/s); the pre-check passes it with 2.6 deg of ankle margin |
-| backward dx | 32 mm | `--max-back-mm` | a fall happened at 40 back before the lift gate: the conservative cap stays |
+| forward dx | 50 mm | `--max-fwd-mm` | hw 2026-11-16, T 4, tilt 5 deg (auto above 43 mm): three fixed 50 mm walks 7/7 clean each and one steered walk through 50 mm, lean <= 3.8 deg |
+| backward dx | 40 mm | `--max-back-mm` | hw 2026-11-16, T 4, tilt 3, since the lift gate was flashed: 8 walks clean at 40 mm (the fall at 40 back was before the gate) |
 | sideways dy | 15 mm | `--max-side-mm` | proven side step |
 | heading dyaw | 5 deg | `--max-turn-deg` | proven (turns ~5 deg per step) |
 | slew, change of (dx, dy, dyaw) from one step to the next | 20 mm, 10 mm, 3 deg | `--slew DX,DY,DYAW` | below |
+| stance ankle ff on a sideways step, first-step boost, heading drift by step type | 2,3 deg; +1 deg; 0.94,1.9 deg/step | `--ankle-ff-side`, `--first-ankle-boost`, `--heading-drift-side` | [By step type](#by-step-type-hw-2026-11-16) below |
 | swing tilt | from the larger of this and the last step's \|dx\|: 0 to 26 mm, 3 deg to 43 mm, 5 deg beyond | `--swing-tilt X` fixes it | the swing foot starts at -dx of the last step, so that sets the reach; the table above has the caps (27 mm without tilt, 43 with 3 deg) |
 | pre-check | static-shift window (k 1.30 to 1.35 over the stance foot at lift-off and touchdown), every leg joint 2 deg inside its range, IK reachable, pelvis speed <= 252 mm/s | | the whole-plan pre-check, run on the one step |
 
@@ -836,12 +837,12 @@ fails, the largest fraction of the way from the last step that passes is used (f
 longer passes; none at all ends the walk). A step that fails is never uploaded.
 
 **Why a slew of 20 mm / 10 mm / 3 deg.** In step j the swing foot starts at -dx(j-1) from the stance foot and lands at
-+dx(j): it travels dx(j) + dx(j-1), and the double support after it has the feet dx(j) apart. A steady 40 mm walk
-travels 80 mm per step (proven); the same-size reversal 40 -> -32 travels only 8 mm, so the swing foot's reach is not the
-danger. What a jump changes is the stagger the next shift and touchdown start from (40 mm one way to 32 mm the other in
++dx(j): it travels dx(j) + dx(j-1), and the double support after it has the feet dx(j) apart. A steady 50 mm walk
+travels 100 mm per step (proven); the same-size reversal 50 -> -40 travels only 10 mm, so the swing foot's reach is not the
+danger. What a jump changes is the stagger the next shift and touchdown start from (50 mm one way to 40 mm the other in
 one step: the feet and the pelvis (it moves dx(j-1) fore-aft in the shift) change direction between two steps with no
-step in which both feet are squared). 20 mm is half the stride cap, so full forward to full backward takes five steps and
-passes through zero (the march step, feet squared): 40, 20, 0, -20, -32. Sideways 10 mm (two steps from 15 to -5) and
+step in which both feet are squared). 20 mm is under half the stride caps, so full forward to full backward takes five steps (the march step,
+feet squared, is passed when the steps are 20 mm apart: 40, 20, 0, -20, -40; from 50: 30, 10, -10, -30, -40). Sideways 10 mm (two steps from 15 to -5) and
 turn 3 deg (the hip yaw swing 2c is c = dyaw / 1.34 / 2: a 5 -> -5 jump reverses the asked turn by 7.5 deg between two steps). These are
 a proposal from the geometry and the SIL, not measured on the robot.
 
@@ -852,9 +853,66 @@ swing foot would travel AGAINST the commanded direction, one closing step (no di
 waits a step. A full reversal (15 mm right after 15 mm left) is a null out-step, not a wrong-way one, and needs none.
 `expand_seq` is unchanged.
 
-**Heading.** With wz = 0 the reference heading is held as before; with wz != 0 the reference advances by the applied
+**Heading.** (The feed-forward the hold cancels depends on the step type: below.) With wz = 0 the reference heading is held as before; with wz != 0 the reference advances by the applied
 dyaw (wz T, after the clamps) per step, the same loop as `--heading-rate`. The ankle learner stays off unless
 `--ankle-learn on` (then one state, key `cmd`, in `results/ankle_trim_state.json`).
+
+**By step type (hw 2026-11-16).** Three feed-forwards that depend on the step, on by default in `--cmd`, off elsewhere
+(`--seq` / `--step` / `--dir` plans stay byte-identical unless the flag is given; `--ankle-ff-side 2,2`,
+`--first-ankle-boost 0`, `--heading-drift-side 1.9,1.9` restore the old `--cmd` plans):
+
+1. `--ankle-ff-side L,R` (`--cmd` default 2,3). On a step with dy < 0 the RIGHT stance ankle gets
+   `(R - 2) x min(1, |dy| / 15 mm)` deg more than its `--ankle-ff` (or the learner's) value; on dy > 0 the LEFT stance gets
+   `(L - 2) x min(1, |dy| / 15 mm)`. The default adds 1 deg on the right stance of a full right step (2 -> 3) and nothing
+   elsewhere. Evidence: sideways RIGHT at 15 mm tips the right stance inward (~11 deg, benign) at ff 2,2: 3 of 3 on
+   11-12, 1 of 3 on 11-16 in `--cmd` mode; clean 7/7 with `--ankle-ff 2,3` on 11-12; sideways left is clean at 2,2.
+   The learner is not touched: it keeps learning from its own list (`args["ankle_steps"]`), the extra is added in the plan
+   only. The pre-check's joint rule judges the frames, so the ankle-roll range (+-23 deg less 2) covers it (tested).
+2. `--first-ankle-boost DEG` (`--cmd` default 1, 0 elsewhere). DEG is added to the first stance step on each side (steps 1
+   and 2 of the walk). Provisional: the first right-stance step tips inward more than later ones (3 of 12 first R steps
+   vs 1 of 29 later ones at T >= 4 on 11-12; 13.2 deg on a 3.4 s march on 11-16). The size, 1 deg, is the step that
+   cured the right stance's sideways tip (2 -> 3), taken here as the first-step amount: a guess, not a fit. The left
+   first step has no evidence of tipping (the numbers above are right-stance only), it gets the same 1 deg because the
+   option is per walk, not per side. The first R step of a right walk runs 2 + 1 (side) + 1 (boost) = 4 deg, the top of
+   the learner's range (4 on R at T 3.4 leaned outward 5-8 deg, but that was every step at T 3.4, not the first step
+   at T 4; `--stop-out` still guards it). Not run on the robot; to be re-fitted from `--cmd` runs.
+3. `--heading-drift-side L,R` (`--cmd` default 0.94,1.9). The heading model is heading per step = 1.34 x asked + drift,
+   drift = 1.9 deg/step to the left on forward walking (the feed-forward asked = -drift / 1.34 = -1.42). Per step the
+   drift is `(1 - f) x 1.9 + f x side` with the lateral share `f = |dy| / (|dx| + |dy|)` and `side` = L for dy > 0, R for
+   dy < 0; a step in place has 1.9. The hold's feed-forward, its feedback and `--yaw-trim` (scaled by drift / 1.9) all
+   follow it.
+
+   Derivation of the drift per segment, from the logs of 2026-11-16 (the `heading` rows of the summary: the fused yaw
+   after each single support, and the asked turn the hold wrote for the step; per segment
+   `drift = (sum of d psi - 1.34 x sum of asked) / steps`, `ff = -drift / 1.34`):
+
+   | run (log) | segment, steps | n | sum d psi | sum asked | drift /step | ff asked |
+   |---|---|---|---|---|---|---|
+   | seq a (T092701) | fwd 3-4 | 2 | +2.9 | -1.50 | +2.46 | -1.83 |
+   | seq b (T092858) | fwd 3-4 | 2 | +1.2 | -2.57 | +2.32 | -1.73 |
+   | cmd a, b, c, d | fwd, 4-10 / 4-6 / 4-7 / 4-10 | 21 | | | +1.99 / +1.48 / +1.77 / +1.20 | -1.49 / -1.10 / -1.32 / -0.90 |
+   | forward, pooled | | 26 | | | **+1.76** | **-1.32** (the calibration: 1.9 / -1.42) |
+   | seq a | sideL 19-22 | 4 | -1.6 | -3.85 | +0.89 | -0.66 |
+   | seq b | sideL 19-22 | 4 | -9.6 | -2.08 | -1.70 | +1.27 |
+   | cmd b (T094732) | sideL 7-13 | 7 | +0.5 | -11.78 | +2.33 | -1.74 |
+   | cmd c (T095353) | sideL 10-12 / 25 | 3 / 1 | -4.9 / -1.2 | -10.01 / -0.21 | +2.84 / -0.92 | -2.12 / +0.69 |
+   | cmd d (T103920) | sideL 11-13 | 3 | -11.5 | -8.57 | -0.01 | 0.00 |
+   | sideL, pooled | | 22 | | | **+0.94** | **-0.70** |
+   | seq a | sideR 8-11 | 4 | +7.0 | -3.22 | +2.83 | -2.11 |
+   | seq b | sideR 8-11 | 4 | +3.4 | -4.17 | +2.25 | -1.68 |
+   | repos_sideR (T093818, fixed sideR x6) | sideR 3-6 | 4 | +1.5 | -4.47 | +1.87 | -1.40 |
+   | cmd a | sideR 13-15 | 3 | +6.8 | +6.67 | -0.71 | +0.53 |
+   | cmd c | sideR 20-23 / 27-28 | 4 / 2 | +3.2 / +3.8 | +2.72 / -0.43 | -0.11 / +2.19 | +0.08 / -1.63 |
+   | sideR, fixed runs only / `--cmd` only | | 12 / 9 | | | +2.32 / +0.20 | -1.73 / -0.15 |
+
+   The method gives the forward drift back (1.76 against the 1.9 calibration, 26 steps), so it is sound on average, but a
+   segment of 3-4 steps is noisy (the yaw read after one step swings several degrees, and the `--cmd` asked values are the
+   hold's at the last report, not necessarily the ones the step was decided with). sideL: the two `--seq` segments
+   disagree (+0.89, -1.70); pooled with the `--cmd` ones, 22 steps, the drift is 0.94 deg/step, about 1 deg/step less than
+   forward walking, which is the 5-7 deg of rightward drift over 4-5 steps seen with 1.9 applied: the sideL value is
+   0.94 (ff asked -0.70), with a standard error of about 0.7 deg/step. sideR: the fixed runs (12 steps, drift 1.9-2.8) and
+   the `--cmd` runs (9 steps, -0.7 to +2.2) point opposite ways, so the data are too thin to move it: sideR stays at
+   1.9 (ff -1.42). The feedback (k 0.5) closes the rest. Provisional until `--cmd` sideways runs with the new value are logged.
 
 **Pause.** `pause` (and `0 0 0`) marches in place: zero-displacement steps, the `march` gait. Marching in place is the
 gait's own steady state with the feet squared, but how long the robot can hold it is not measured: the longest
@@ -879,14 +937,14 @@ python experiments/roll-balance/track_host.py --T 4 --ahead 1 --cmd file:/tmp/wa
 ```
 
 `walk_keys.py` (stdlib: termios, no robot access, it only writes the file atomically): W / S forward / back, A / D left /
-right, Q / E turn left / right (one press = 5 mm or 1 deg per step; clamped to the default envelope), X zeroes the
+right, Q / E turn left / right (one press = 5 mm or 1 deg per step; clamped to the default envelope, 50 / 40 / 15 mm, 5 deg), X zeroes the
 command, SPACE or ESC writes `stop` and exits (Ctrl-C exits WITHOUT a stop). Its status line shows the command and the
 host's `PATH.status` (state, step, applied, what scaled it).
 
 **Dry run.** `python track_host.py --T 4 --cmd file:/tmp/walk_cmd --dry-steps 6` rehearses six steps from the command read
 now (each step re-reads the file live), prints each decision and the plan's usual dry-run report. It sends nothing.
 
-**Tests** (`tests/test_cmd_walk.py`, fake robot): command changes take effect on the next decided step; uniform
+**Tests** (`tests/test_cmd_walk.py`, fake robot; `tests/test_cmd_bystep.py`: the by-step feed-forwards, frame level -- the ankle-roll goals of the affected steps differ by the expected amount and nothing else does): command changes take effect on the next decided step; uniform
 scaling; slew; stop = closing step and a clean end; unparseable keeps the last; reversal; max-steps / pause / max-time;
 the frames of a constant command equal the `--step` run's (20 mm, and 40 / -30 mm with tilt 3); frames up to a step's
 lift-off do not depend on the step; every frame the live loop uploads is exactly the final plan's.

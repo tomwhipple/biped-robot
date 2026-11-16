@@ -25,11 +25,11 @@ import select
 import time
 
 # ---- the envelope (README: the table) -------------------------------------------------------------------------
-FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 40.0, 32.0, 15.0, 5.0       # per step; the proven strides (README, step length)
+FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 40.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
 SLEW = (20.0, 10.0, 3.0)         # max change of (dx mm, dy mm, dyaw deg) from one step to the next
 PAUSE_STEPS = 15                 # marching in place longer than this many steps in a row ends the walk
 # swing tilt from the farther of this step's |dx| and the last one's (the swing foot starts at -dx of the last step):
-# 0 up to 26 mm (27 passes the pre-check at 2.1 deg), 3 deg up to 43, 5 deg beyond (proven once at 50 mm)
+# 0 up to 26 mm (27 passes the pre-check at 2.1 deg), 3 deg up to 43, 5 deg beyond (proven to 50 mm)
 TILT = ((26.0, 0.0), (43.0, 3.0), (1e9, 5.0))
 
 
@@ -160,9 +160,13 @@ class CmdWalk:
     running: its plan / precheck, so a test's spy sees every plan)."""
 
     def __init__(self, host, source, base, first="R", hold=None, limits=None, max_steps=120, max_time=None,
-                 status=None, say=print, clock=time.monotonic, fixed_tilt=0.0, yaw_trim=None, allow_over=False):
+                 status=None, say=print, clock=time.monotonic, fixed_tilt=0.0, yaw_trim=None, allow_over=False,
+                 ankle_side=None, first_boost=0.0, drift_side=None):
         """base: the plan() keyword arguments shared by every plan of the walk (T_step, seeds, lead_ms, cal, amp, model,
-        ds, h, pelvis_x, ankle_ff, k_ds, drop, lift_gate; direction, n_steps and first are set here)."""
+        ds, h, pelvis_x, ankle_ff, k_ds, drop, lift_gate; direction, n_steps and first are set here).
+        ankle_side, first_boost, drift_side: the by-step feed-forwards (track_host.ankle_extra / step_drift); None / 0 =
+        off. Each step's ankle extra is decided here from its absolute index (a command's "aff_x"), so the two-step
+        check window sees exactly what the walk's plan will."""
         self.H, self.src, self.hold, self.say, self.clock = host, source, hold, say, clock
         self.base = dict(base)
         self.T = float(base["T_step"])
@@ -184,6 +188,7 @@ class CmdWalk:
         self.t_begin = None
         self.sway = None
         self.allow_over = allow_over
+        self.ankle_side, self.first_boost, self.drift_side = ankle_side, float(first_boost or 0.0), drift_side
         self.fail = None
         if self.hold is not None:
             self.hold.set_step(0, 0.0)                   # the provisional step 0
@@ -204,10 +209,19 @@ class CmdWalk:
         return dict(name=name or f"cmd({dx:g},{dy:g},{dyaw:g})", key="cmd", dx=dx / 1e3, dy=dy / 1e3,
                     yt=dyaw / self.H.YAW_GAIN, dpsi=float(dyaw), seg=0, tilt=tilt, **kw)
 
+    def _aff(self, i, c):
+        """Step i's command with its ankle extra (deg on its stance ankle)."""
+        return dict(c, aff_x=self.H.ankle_extra(i, c["dy"], self.first, self.ankle_side, self.first_boost))
+
+    def _drift(self, c):
+        return self.H.step_drift(c, self.drift_side)
+
     def plan_kwargs(self):
         """plan()'s keywords for the whole walk so far: the decided steps and, until it is over, the provisional one."""
         cmds = list(self.steps) + ([] if self.finished else [self.provisional()])
-        kw = dict(self.base, direction="march", n_steps=len(cmds), step_cmds=cmds, first=self.first)
+        cmds = [self._aff(i, c) for i, c in enumerate(cmds)]
+        kw = dict(self.base, direction="march", n_steps=len(cmds), step_cmds=cmds, first=self.first,
+                  drift_side=self.drift_side)
         kw["yaw_trim"] = list(self.hold.asked[:len(cmds)]) if self.hold is not None else self.yaw_trim
         return kw
 
@@ -225,14 +239,16 @@ class CmdWalk:
     def _yaw_of(self, i, c):
         if self.hold is not None:
             return self.hold.asked[i] if i < len(self.hold.asked) and i < len(self.steps) else \
-                (0.0 if c.get("yaw_free") else self.hold.asked_for(c["dpsi"]))
-        return c["yt"] + (0.0 if c.get("yaw_free") else self.yaw_trim)
+                (0.0 if c.get("yaw_free") else self.hold.asked_for(c["dpsi"], self._drift(c)))
+        if self.drift_side is None:
+            return c["yt"] + (0.0 if c.get("yaw_free") else self.yaw_trim)
+        return c["yt"] + (0.0 if c.get("yaw_free") else self.yaw_trim * self._drift(c) / self.H.YAW_DRIFT)
 
     def check(self, cand):
         """(ok, why): the pre-check's rules on the candidate step after the last decided one."""
         j = len(self.steps)
         prev = self.steps[-1] if self.steps else None
-        cmds = ([prev] if prev else []) + [cand]
+        cmds = ([self._aff(j - 1, prev)] if prev else []) + [self._aff(j, cand)]
         kw = dict(self.base, direction="march", n_steps=len(cmds), step_cmds=cmds, cal=None, lift_gate=False,
                   first=self.swing_of(j - 1) if prev else self.first,
                   yaw_trim=([self._yaw_of(j - 1, prev)] if prev else []) + [self._yaw_of(j, cand)])
@@ -393,8 +409,8 @@ class CmdWalk:
         self.last = (c["dx"] * 1e3, c["dy"] * 1e3, c["dpsi"])
         self._lateral(j, c["dy"] * 1e3)
         if self.hold is not None:
-            self.hold.set_step(j, c["dpsi"])
-            self.hold.set_step(j + 1, c["dpsi"])         # the provisional step
+            self.hold.set_step(j, c["dpsi"], drift=self._drift(c))
+            self.hold.set_step(j + 1, c["dpsi"], drift=self._drift(c))         # the provisional step
         return self._record(j, self.last, req, notes, "marching" if all(abs(x) < 1e-9 for x in self.last) else "walking")
 
     def _record(self, j, applied_step, req, notes, state):
