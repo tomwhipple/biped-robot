@@ -44,11 +44,12 @@ def read_pts(path):
 
 
 def find_segments(directory, name, t0, t1):
-    """[(mp4, pts_times)] overlapping [t0, t1], sorted. Segment times come from the .pts."""
+    """[(mp4, pts_times)] overlapping [t0, t1], sorted. Segment times come from the .pts.
+    name=None: every <anything>.pts in the directory (hand-recorded sessions, no stamp in the name)."""
     segs = []
-    for pts in sorted(glob.glob(os.path.join(directory, f"{name}_*.pts"))):
+    for pts in sorted(glob.glob(os.path.join(directory, f"{name}_*.pts" if name else "*.pts"))):
         st = parse_stamp(pts)
-        if st is None or st > t1 or st < t0 - 3600:
+        if name and (st is None or st > t1 or st < t0 - 3600):
             continue
         ts = read_pts(pts)
         mp4 = pts[:-4] + ".mp4"

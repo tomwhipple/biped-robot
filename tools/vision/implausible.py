@@ -138,17 +138,29 @@ def find_excursions(d, events, exceed=EXCEED_DEG, back=RETURN_DEG, max_s=MAX_REC
     return out
 
 
-def check_run(track_path, frec=None, frec_dir=None, pad=10.0):
+def exact_start(events, t0):
+    """The run's first command is `cal show`: its host-rx time in the flight record's events is
+    the run's t=0 to ~10 ms (the file name only has the second, in local time)."""
+    c = [e["t"] for e in events if e["kind"] == "cmd" and e["text"].startswith("cal show") and abs(e["t"] - t0) < 5]
+    return min(c, key=lambda t: abs(t - t0)) if c else t0
+
+
+def check_run(track_path, frec=None, frec_dir=None, pad=10.0, data=False):
     t0, t1 = run_window(track_path)
     frec = frec or find_frec(frec_dir or "hw_sessions", t0, t1)
     if frec is None:
         return dict(source=None, window_utc=[t0, t1], excursions=[], implausible_recovery=None,
                     note="no flight record covers this run")
     d, events = read_window(frec, t0 - pad, t1 + pad)
+    t0x = exact_start(events, t0)
+    t0, t1 = t0x, t1 + (t0x - t0)
     ex = find_excursions(d, events)
-    return dict(source=frec, window_utc=[t0, t1], n_ticks=int(len(d["t"])),
+    r = dict(source=frec, window_utc=[t0, t1], n_ticks=int(len(d["t"])),
                 max_tip_deg=float(np.max(np.maximum(np.abs(d["roll_deg"]), np.abs(d["pitch_deg"])))) if len(d["t"]) else None,
                 excursions=ex, implausible_recovery=[e for e in ex if e["implausible"]])
+    if data:
+        r["_imu"], r["_events"] = d, events
+    return r
 
 
 def _iso(t):

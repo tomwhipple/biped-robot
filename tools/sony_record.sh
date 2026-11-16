@@ -26,8 +26,8 @@
 # stream, and then camera_init fails. This script therefore REFUSES (exit 3,
 # nothing written) when the camera is held -- by tools/vision/camd.py (its
 # flock), or by any other liveview.py -- and removes its files and exits 1 if
-# no frame arrives within 15 s. The checks use a flock and a anchored, bracketed pgrep
-# pattern, neither of which can match this script's own command line.
+# no frame arrives within 15 s. The checks use a flock and an anchored pgrep
+# pattern (^ + the liveview path); neither can match this script's own command line.
 set -uo pipefail
 OUT=${1:?usage: sony_record.sh <out_base> [seconds] [label]}
 SECS=${2:-0}
@@ -40,7 +40,7 @@ if [[ -e "$CAMD_LOCK" ]] && ! flock -n "$CAMD_LOCK" true; then
   echo "sony_record: camd owns the camera (lock $CAMD_LOCK, pid $(cat "$CAMD_LOCK" 2>/dev/null)); cut a clip with tools/vision/clip.py instead. Not recording." >&2
   exit 3
 fi
-if HOLDERS=$(pgrep -af '^/usr/bin/python3 -u .*[l]iveview\.py'); then
+if HOLDERS=$(pgrep -af "^/usr/bin/python3 -u $LIVEVIEW"); then
   echo "sony_record: the camera is busy, another liveview reader is running:" >&2
   echo "$HOLDERS" >&2
   echo "sony_record: not recording (no file written)." >&2
