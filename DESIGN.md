@@ -616,9 +616,12 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
   TTL bus. Bus timing is not expected to bind: 12 servos take ≈ 3.4 ms of the
   20 ms tick; the 17-servo figure has not been computed.
 - **Current is open**: the board's servo power path is rated 5 A continuous,
-  and the servos can draw more than that in transients. The fuse, the bulk
-  capacitor and a current budget from simulated walk and get-up traces are
-  required before the first powered floor run.
+  and the servos can draw more than that in transients. The simulated budget
+  per power-lite branch ([wiring.md](docs/wiring.md#current-measured-budget-issue-77))
+  has the dwell walk inside 5 A on the bus and 3 A on every lead. The get-ups
+  peak at 10–14 A on the bus (5.5–8.2 A in the lower current model), and the
+  prone get-up at 7.3–8.5 A on one leg's lead. The fuse and the bulk capacitor
+  are required before the first powered floor run.
 - **Power path**: pack → protection board (≥ 15 A, over-discharge cut-off) →
   10–15 A fuse → switch → board inlet; bulk capacitor (1000 µF, ≥ 25 V) at the
   board; the Pi powered from the General Driver's 5 V buck through the 40-pin

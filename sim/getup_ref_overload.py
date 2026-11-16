@@ -106,9 +106,13 @@ def make_env(cond, envelope):
     return env, p, names, volts
 
 
-def run(ref, cond, envelope, time_scale=1.0, enforce=None):
+def run(ref, cond, envelope, time_scale=1.0, enforce=None, trace=False):
     """replay ref's recorded targets open loop (time_scale > 1: slower);
-    enforce None = measure only, else the reading the cutoff acts on"""
+    enforce None = measure only, else the reading the cutoff acts on.
+    trace: also return every control tick's servo torque and joint speed
+    (tau, qd: (ticks, joints), the replay and the 2 s hold), with the
+    joint names, each servo's effective no-load speed w0 and the bus volts
+    (sim/current_budget.py --trace refs sums them per power-lite branch)"""
     start, npz = REFS[ref]
     z = np.load(os.path.join(HERE, npz))
     env, p, names, volts = make_env(cond, envelope)
@@ -123,9 +127,16 @@ def run(ref, cond, envelope, time_scale=1.0, enforce=None):
     prot = SM.STSProtection(env, names, enforce=enforce is not None, load=enforce or "duty",
                             overcurrent_a=SM.OVERCURRENT_A_DS, volts=volts)
     stood_t = None
+    taus, qds = [], []
+
+    def _rec():
+        if trace:
+            taus.append(np.array(env._servo_tau[:len(names)], dtype=float))
+            qds.append(np.array(d.qvel[env._jqvel][:len(names)], dtype=float))
     for k in range(n):
         env.step(inv(q_seq[k]))
         prot.tick(env, dt)
+        _rec()
         if stood_t is None:
             up, _ = R.torso_axes(env)
             if up > 0.9 and d.qpos[2] > 0.8 * p.z_yaw_above_sole:
@@ -133,10 +144,14 @@ def run(ref, cond, envelope, time_scale=1.0, enforce=None):
     for _ in range(int(2.0 / dt)):     # 2 s more at the last target: still standing?
         env.step(inv(q_seq[-1]))
         prot.tick(env, dt)
+        _rec()
     up, front = R.torso_axes(env)
     ok = bool(up > 0.9 and d.qpos[2] > 0.8 * p.z_yaw_above_sole)
     stall_eff = dict(zip(names, prot.stall0))
-    return dict(ok=ok, up=up, z=float(d.qpos[2]), stood_t=stood_t, prot=prot.report(), stall=stall_eff)
+    out = dict(ok=ok, up=up, z=float(d.qpos[2]), stood_t=stood_t, prot=prot.report(), stall=stall_eff)
+    if trace:
+        out.update(names=list(names), tau=np.array(taus), qd=np.array(qds), w0=np.array(prot.w0), volts=volts)
+    return out
 
 
 def _job(a):

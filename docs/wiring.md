@@ -122,55 +122,132 @@ This was checked against the schematic and the firmware.
 
 The Waveshare wiki FAQ says the bus-servo current "is controlled by a switch, with
 a maximum current of 5A for long-term operation". For ST3215s that means "up to 5
-servos (ensuring that these 5 servos are not stalled simultaneously)". All of the
-servo current crosses H1 (3 A per contact), the AO4407 and SW1.
+servos (ensuring that these 5 servos are not stalled simultaneously)". Fed from
+the General Driver, all of the servo current crosses H1 (3 A per contact), the
+AO4407 and SW1, and its ports H5 and H6 carry one side each.
 
+- **Where the current goes on power lite** ([#207](../pcb/power-lite/README.md)).
+  The servo rail leaves through F1 (15 A) and K1 to four branch connectors, each a
+  Molex 22-03-5035 that carries its whole chain
+  ([servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)):
+  - J4, the right leg: 10, 52, 6, 7, 8, 11;
+  - J5, the right upper body: 13, 14, 15;
+  - J6, the left leg: 9, 51, 2, 3, 4, 12;
+  - J7, the left upper body: 16, 17.
 - **Per servo** (ST-3215-C018 sheet):
   - 2.7 A at stall.
   - 180 mA running with no load.
   - 30 mA idle.
   - Over-current protection turns the output off after more than 2 A for 2 s.
-- **The per-port budget is computed from the sim's electrical model**, on the
-  committed plant under the deploy servo model, for the two scripted motions
-  the design uses: the Gate D walk and the seat-push get-up. Sim figure, not a
-  measurement; the bench number with a watt meter on the pack lead is still owed
+- **The STS3250 hip rolls** (51, 52): 50 kg·cm, and 4.2 A at stall at 12 V from
+  retailer listings only. No Feetech document gives it, so it is unverified.
+- **The per-branch budget is computed from the sim's electrical model**, on the
+  robot's servo set, for the motions the robot runs now: the get-up references
+  and the track player's dwell walk. Sim figure, not a measurement; the bench
+  number with a watt meter on the pack lead is still owed
   ([bringup.md §6](bringup.md#6-staged-hardware-gates)).
 - The bus timing is open. Twelve servos take ≈ 3.4 ms of the 20 ms tick ([design record](design-v6/2026-09-13-design-record.md) §4.5); nobody has computed the figure for 17.
 
-The method (`sim/current_budget.py`):
+The method (`sim/current_budget.py --trace refs | dwell`):
 
-- `walker_env` prices each joint's electrical power as P = max(τω, 0) + K_CU·τ², with `_K_CU` = 3.75 W/(N·m)².
-- K_CU is calibrated so that the 2.94 N·m stall draws ~32 W, i.e. 2.7 A at 12 V. Bus current is then ΣP / V per tick, summed per port under the proposed ID map (issue #77).
-- `--trace walk` drives the Gate D open-loop walk (8 steps, 1.6 s swing) on `sim/bimo_biped_v6ar.xml`.
-- `--trace getup` drives the scripted seat-push (`getup_v6_shoulder.py` config `r5_asdrawn_rom120`, the design's chosen get-up: shoulder 90 → 0°, elbow (0, 0), tuck at hip −120 / knee −130). The variant stands (up_z +1.00, pelvis 0.387 m).
-- `--run <run>` drives a trained policy through the referee's six command scenarios, for use once a policy exists for this plant.
+- Every 20 ms tick takes each servo's torque and speed from the plant's servo
+  model. Two supply-current models from `sim/sts_servo_model.py` bracket the truth:
+  - **upper** (the motor's current): 30 mA + 150 mA × |ω|/ω₀ + |τ|/Kt, capped at
+    the stall current × V/12;
+  - **lower** (a lossless bridge): 30 mA + (max(τω, 0) + K_CU·τ²)/V.
+- Each servo is priced with its own type's constants:
+  - the STS3215 with its datasheet (Kt 1.08 N·m/A) and the fitted
+    K_CU = 3.75 W/(N·m)², which puts the 2.94 N·m stall at 2.7 A at 12 V;
+  - the STS3250 with Kt and K_CU fitted the same way to 4.90 N·m at 4.2 A, and
+    the STS3215's idle and no-load currents.
+- The currents are summed per branch, per General Driver port (H5 = J4 + J5,
+  H6 = J6 + J7) and over the bus. A servo the plant lacks (the neck and arms on
+  the legs-only plant) counts at its 30 mA idle.
+- **`--trace refs`, the get-ups.** The campaign references
+  `sim/getup_ref_v6ar_prone_ikc.npz` (the one the get-up candidate tracks) and
+  `sim/getup_ref_v6ar_ik.npz` (the supine seat push) are replayed open loop as
+  `sim/getup_ref_overload.py` replays them:
+  - on `sim/bimo_biped_v6ar_meas.xml` (17 servos, CAD inertials, measured stops,
+    sole pads);
+  - with the get-up's deploy servo model, kp as built, at the 11.1 V training
+    envelope;
+  - nominal, and with `--all-conds` in that study's nine robustness conditions:
+    friction, μ, play, servos at 85 % and 65 %, mass 110 %. Both references stand
+    in all of them.
+- **`--trace dwell`, the walk.** The dwell gait (`experiments/roll-balance/dwell.py`)
+  runs through the firmware's track player and trim in the SIL (`sil_gait.run`,
+  lift gate on).
+  - The plant is the legs-only `fit` plant the gait was tuned on: per-side roll
+    play, 12 V, 12 servos, as built.
+  - It runs at T = 6, 4 and 3.2 s a step (track_host's start, the robot's walks,
+    the SIL's floor): march, forward, back, both sides and both turns, 6 steps
+    each. None of the 21 runs falls.
 
-Per-port figures (amps at an 11.1 V bus; the 10.5 V landing-floor figures are in the JSON):
+The figures are in amps, upper / lower model:
 
-| trace | measure | peak | p99 | RMS | mean |
+- **Peak** is the worst 20 ms tick.
+- **Worst 2 s** is the largest 2 s mean: the servo's protection timer, and
+  roughly what a fuse or a contact sees.
+- **Over** is the time above 5 A on the bus, or above 3 A on a lead.
+
+| motion | lead | peak | worst 2 s | RMS | over (s) |
 |---|---|---|---|---|---|
-| **Gate D walk** (8 steps) | total | 3.34 | 2.53 | 0.54 | 0.36 |
-| | port A (9 servos: R leg, neck, R arm) | 2.28 | 0.87 | 0.22 | 0.17 |
-| | port B (8 servos: L leg, L arm) | 2.46 | 1.77 | 0.35 | 0.20 |
-| | worst joint | 2.46 | 0.65 | 0.22 | 0.17 |
-| **Seat-push get-up** | total | 4.54 | 2.13 | 0.64 | 0.37 |
-| | port A | 2.27 | 1.07 | 0.32 | 0.18 |
-| | port B | 2.27 | 1.07 | 0.32 | 0.18 |
-| | worst joint | 1.16 | 0.74 | 0.21 | 0.12 |
-
-The get-up's per-port figures are equal because the chosen script is left/right
-symmetric: each port carries one leg plus one arm, and the two legs do the same
-work on the symmetric pose.
+| **Prone get-up** (`prone_ikc`, 41.6 s), nominal | bus | 13.2 / 7.2 | 8.4 / 3.9 | 4.9 / 2.0 | 11.6 / 1.4 |
+| | J4 R leg | 7.5 / 5.1 | 4.2 / 1.8 | 2.0 / 0.85 | 3.2 / 0.4 |
+| | J5 R upper | 3.5 / 2.6 | 1.9 / 0.86 | 0.75 / 0.36 | 0.08 / 0 |
+| | J6 L leg | 7.3 / 4.6 | 3.7 / 1.6 | 1.9 / 0.74 | 2.9 / 0.08 |
+| | J7 L upper | 3.4 / 2.5 | 1.8 / 0.83 | 0.71 / 0.32 | 0.06 / 0 |
+| | worst of 10 conditions: bus | 14.1 / 8.1 | 11.4 / 6.4 | 5.7 / 2.6 | 17.0 / 3.1 |
+| | worst of 10: a leg branch | 8.5 / 5.7 | 4.4 / 2.3 | 2.2 / 0.98 | 5.2 / 0.94 |
+| | worst of 10: an upper branch | 3.6 / 2.8 | 2.6 / 1.6 | 0.98 / 0.55 | 0.08 / 0 |
+| **Supine get-up** (`supine_ik`, 30.3 s), nominal | bus | 10.3 / 5.5 | 8.5 / 4.0 | 4.2 / 1.7 | 4.4 / 0.86 |
+| | J4, J6 legs | 3.0 / 1.7 | 2.4 / 1.2 | 1.5 / 0.55 | 0.02 / 0 |
+| | J5, J7 upper | 3.5 / 2.6 | 1.95 / 0.93 | 0.79 / 0.38 | 0.06 / 0 |
+| | worst of 10 conditions: bus | 13.2 / 8.2 | 12.0 / 7.0 | 5.2 / 2.5 | 8.0 / 2.0 |
+| | worst of 10: any branch | 3.6 / 2.8 | 3.3 / 1.8 | 1.7 / 0.70 | 1.8 / 0 |
+| **Dwell walk**, worst of 21 runs | bus | 3.8 / 1.2 | 2.6 / 0.77 | 2.2 / 0.70 | 0 / 0 |
+| | J4, J6 legs | 2.3 / 0.72 | 1.6 / 0.39 | 1.1 / 0.30 | 0 / 0 |
+| | J5, J7 upper | idle: 0.09 A (J5), 0.06 A (J7) | | | |
 
 How to read the numbers:
 
-- **RMS** sizes copper and contacts. Per-port RMS stays under 0.4 A on both traces.
-- **The peak** sizes the fuse and the brown-out margin. Neither trace exceeds 3 A on any port, or 5 A on the whole bus. The FAQ's "not stalled simultaneously" is about peaks, and the scripted motions do not stall a servo.
-- The shoulder is an STS3215 in both designs; at 79–83 % of stall in the current get-up references, torque-limited for 0.4–1.0 s of each push ([getup-overload-2026-11-10.md](design-v6/getup-overload-2026-11-10.md)), it sits close to the servo's overload protection (> 80 % for 2 s, registers 34–36) and briefly crosses the datasheet's 2 A over-current line, and the in-sim 0.22 A per-joint RMS is consistent with being far from trip on the chosen script. **Watch on the bench.**
+- **The walk fits.** It clears the 5 A board rating on the bus and ~3 A on every
+  branch in both models.
+- **The get-ups do not fit the 5 A board rating.**
+  - The bus peaks at 10–14 A (upper) or 5.5–8.2 A (lower), and its worst 2 s is
+    8.4–12 A or 3.9–7.0 A.
+  - It sits above 5 A for 4–17 s of a get-up (upper) or 0.9–3 s (lower).
+  - Fed from the General Driver, its ports would carry up to 9.5 / 6.1 A peak and
+    5.7 / 3.2 A over 2 s (H5, prone).
+  - Power lite's F1 (15 A) sits above every figure in both models. The upper
+    model's worst tick (14.1 A) is within 1 A of it.
+- **The prone get-up loads one leg's lead.**
+  - J4 and J6 peak at 7.3–8.5 A (upper) or 4.6–5.7 A (lower), and stay above 3 A
+    for 2.9–5.2 s or 0.1–0.9 s.
+  - The peak is one leg's hip yaw, hip roll, hip pitch and knee pushing together.
+    At t ≈ 7.4 s, J4 carries hip pitch 2.3 A, knee 1.9 A, hip roll 1.5 A and hip
+    yaw 1.1 A (upper model).
+  - The worst single servo is the left hip roll (the STS3250), 3.1–3.3 A upper or
+    2.5–2.9 A lower.
+- **The supine get-up loads the arms.** The upper branches (shoulder and elbow)
+  peak at 3.5 A upper or 2.6 A lower, above 3 A for under 0.5 s and in the upper
+  model only. The legs' leads peak near 3 A.
+- **RMS** sizes copper and contacts. Every branch stays at or under 2.2 A
+  (upper) or 1.0 A (lower).
+- **The peak** sizes the fuse and the brown-out margin. Whether a ~3 A-class KK
+  contact takes 4–8 A for a few seconds is a datasheet question. No connector
+  datasheet is mirrored here (see the Servo bus section below).
+- The shoulder is an STS3215 in both designs. At 79–83 % of stall in the current get-up references, it is torque-limited for 0.4–1.0 s of each push ([getup-overload-2026-11-10.md](design-v6/getup-overload-2026-11-10.md)). That puts it close to the servo's overload protection (> 80 % for 2 s, registers 34–36). It peaks at 2.1 A in the upper model, just past the datasheet's 2 A over-current line, briefly. **Watch on the bench.**
+- **Not in the budget.** The 12 V refit envelope (#214) doubles the hip pitch's
+  and knee's stall torque, which neither current model covers: the upper caps at
+  the datasheet stall current, and the lower grows past it with τ². Its figures
+  are in the log only. Also left out: pack sag (each trace runs at a fixed bus
+  voltage), servo heating, the Pi's ≈ 1.4 A from its own buck, and the arms and
+  neck on the walk.
 
-These figures are from the scripted motions only. A trained walking policy can
-load the bus differently — for scale, the same method on the 10-servo
-prototype's learned walk (`--run`, never measured on hardware):
+A trained walking policy can load the bus differently. For scale, the same
+method on the 10-servo prototype's learned walk (`--run`, never measured on
+hardware, bridge model):
 
 | | peak | p99 | RMS | mean |
 |---|---|---|---|---|
@@ -178,19 +255,29 @@ prototype's learned walk (`--run`, never measured on hardware):
 | worst leg | 4.0 A | — | ~0.7 A | — |
 | worst joint | 3.0 A | — | — | — |
 
-Two implications, both unset:
+What follows is unset; the choice of inlet, fuse and bulk capacitor stays with
+the owner:
 
-- The scripted figures clear both the 5 A board limit and the ~3 A-class per-port connector under the proposed ID map, at the deploy servo model. The trained-policy row does not. Whether the eventual trained walk fits the same envelope is an open question, which is why the budget is per-port and re-runnable: `--run <run>` once a policy for `bimo_biped_v6ar.xml` exists.
-- If a later trace puts a port over ~3 A, two options have been named so far. The first is to feed `DC_IN` directly, bypassing the XH inlet and SW1. The second is to keep the scripted motions from loading many servos at once. Neither is chosen — and the choice of inlet, fuse and bulk capacitor stays with the owner.
+- **The get-up's leg leads** are the one place the budget does not fit, in both
+  models. Three options have been named:
+  - a contact rated for the peak, which needs the KK datasheet;
+  - a second lead per leg;
+  - a get-up that loads fewer of one leg's servos at once.
+- **A trained walk** gets re-checked with `--run <run>` once a policy for the
+  robot exists.
 
-Reproduce:
+Reproduce (logs: [refs](design-v6/current_budget_2026-11-16_refs.txt),
+[dwell](design-v6/current_budget_2026-11-16_dwell.txt)):
 
 ```bash
-.venv/bin/python sim/current_budget.py --trace walk  --volts 11.1 --out sim/runs/current_budget_walk.json
-.venv/bin/python sim/current_budget.py --trace getup --volts 11.1 --out sim/runs/current_budget_getup.json
+make -C firmware/host sil        # the SIL library sil_gait loads
+.venv/bin/python sim/current_budget.py --trace refs --all-conds
+.venv/bin/python sim/current_budget.py --trace dwell
 ```
 
-(`sim/runs/` is gitignored; the JSON is a build artifact, not a deliverable.)
+- `--trace dwell` also needs the grade plant's run (`sim/runs/robot_legs_prec16_f075_js20_s128r24`, gitignored), as `sil_gait.py` does.
+- `--trace walk` and `--trace getup` replay the 2026-09 scripted Gate D walk and seat push. The robot no longer runs either motion.
+- The JSON goes to `sim/runs/`, which is gitignored: it is a build artifact, not a deliverable.
 
 ## Servo bus
 

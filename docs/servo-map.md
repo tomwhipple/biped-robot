@@ -119,9 +119,11 @@ Open (issue #77):
 
 - **The splitter** is not selected. It must be a passive 3-way part for the
   servo's 3-pin lead with manufacturer documentation, like every other part.
-- **Current.** Each board port and its splitter carry that side's whole
-  current: 9 servos on A, 8 on B, on a ~3 A-class connector
-  ([wiring.md](wiring.md#servo-bus)); the budget is open.
+- **Current.** Each branch lead carries its whole chain on a ~3 A-class
+  connector ([wiring.md](wiring.md#servo-bus)). The simulated budget is in
+  [wiring.md](wiring.md#current-measured-budget-issue-77). The walk fits it.
+  The prone get-up puts 7–8.5 A peaks on one leg's lead, and how to carry
+  that is open.
 - **Lead lengths** per hop are measured in
   [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1): every hop
   fits the stock 150 mm lead with the fold loop folded in **except the

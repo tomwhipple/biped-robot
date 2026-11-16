@@ -61,6 +61,7 @@ leans on:
 | `getup_search_r6_asdrawn*.txt`, `getup_search_r5_asdrawn*.txt`, `getup_search_shoulder_*.txt`, `getup_search_girdle_*.txt`, `getup_search_hipplane_*.txt`, `getup_search_legroll*.txt` | the get-up on the as-drawn robot, the arm choice, the prone roll |
 | `cad_rom_check.txt`, `girdle_check_assembly.txt`, `yaw_bearing_check*.txt`, `yaw_bearing_options_2026-09-29.txt` | the CAD interference gates (`make check-cad` writes each run's output to `build/v6/reports/cad_rom_check.txt`); the A / C / E comparison for #75 (A selected) |
 | `getup_overload.txt`, `getup_overload_search.txt`, `getup_overload_r5_2026-11-10.txt`, `getup_overload_2026-11-10.txt` | the get-up against the STS overload cutoff (the two overload records) |
+| `current_budget_2026-11-16_refs.txt`, `current_budget_2026-11-16_dwell.txt` | the bus-current budget per power-lite branch: the get-up references and the dwell walk on the robot's servo set (`docs/wiring.md`, #77) |
 | `deep_flexion_sweep.txt` | knee 130° / hip flexion limits |
 
 The part masses and the print rollup are written by `make cad` to
