@@ -160,6 +160,15 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
   longest / most important first; a short job may go last. A job starts while it still fits: the
   runner caps its --steps to (07:00 − now − 15 min) × rate and leaves it (and everything after it)
   queued if that is under half its --steps. A 300M legs teacher takes ~38 min and a distil ~3 min.
+- **Size the queue to reach 07:00: twelve teacher + distil pairs at 300M** (Tom 2026-11-16: "have
+  the planner queue twelve pairs"). Nine pairs ran dry at 04:25 – 05:02 on 11-13, 11-14 and 11-15,
+  and the GPU then idled about two hours before the stop each night, because the next plan is not
+  ready until ~06:20 and nothing new fits after that. For longer or shorter jobs size by time
+  (about 9 h ÷ the pair's measured duration, rounded up; e.g. 500M pairs ran ~65 min, so nine).
+  The last pair may be left queued by the fit rule; it then runs first the next night, which is fine.
+  If the night's test needs fewer pairs than that, fill the rest with a further seed of the same
+  arms (or the control at the same seeds), commented as extra replicates, and say in the plan
+  whether they count toward a pre-committed criterion. Do not pad with new variables.
 - **Latest from GitHub, before you queue:**
   1. `git fetch origin`, and fast-forward `~/code/robot`.
   2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
