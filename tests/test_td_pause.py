@@ -194,3 +194,56 @@ def test_cli(capsys):
         assert "REFUSED" in capsys.readouterr().out
     f = os.path.join(os.path.dirname(__file__), "..", "README.md")
     assert H.main(["--T", "4", "--steps", "4"]) == 0 and "timeline: shift 1.40 + settle 0.40" in capsys.readouterr().out
+
+
+# ---- placement: the options must not change WHERE a foot lands (sidesteps, turns, diagonals)
+
+PLACE = {"sideL": dict(dy_steps=[0.015] * N), "sideR": dict(dy_steps=[-0.015] * N),
+         "turnL": dict(yaw_trim=[5.0 / 1.34] * N), "turnR": dict(yaw_trim=[-5.0 / 1.34] * N),
+         "diag": dict(dx_steps=[0.03] * N, dy_steps=[0.01] * N, yaw_trim=[2.0] * N)}
+OPTS = {"pause": dict(td_pause=0.32), "pause+settle": dict(td_pause=0.3, settle=0.2),
+        "lower": dict(lower_frac=0.45), "press": dict(land_early=3.0),
+        "all": dict(td_pause=0.3, settle=0.2, lower_frac=0.4, land_early=2.0)}
+
+
+def touchdowns(sw):
+    """Per step: the swing foot's (x, y) relative to the stance foot and the two hip yaws, from the model's own
+    keyframes at the touchdown frame (the foot z may differ: a press)."""
+    out = []
+    for p in sw.phases:
+        g = min(sw.segs[1:], key=lambda s: abs(s["t"] - p["t1"]))
+        f = g["pa"]["feet"]
+        sx, sy = f[p["swing"]][0] - f[p["stance"]][0], f[p["swing"]][1] - f[p["stance"]][1]
+        out.append((sx, sy, g["pa"]["yaw"]["L"], g["pa"]["yaw"]["R"]))
+    return out
+
+
+@pytest.mark.parametrize("opt", list(OPTS))
+@pytest.mark.parametrize("kind", list(PLACE))
+def test_touchdown_placement_is_the_same_with_and_without_the_options(kind, opt):
+    kw = {**KW, **{"dx_steps": None}, **PLACE[kind]}
+    a, b = D.Dwell(**kw), D.Dwell(**kw, **OPTS[opt])
+    assert [p["swing"] for p in a.phases] == [p["swing"] for p in b.phases]
+    for x, y in zip(touchdowns(a), touchdowns(b)):
+        assert y == pytest.approx(x, abs=1e-12)
+    # and the feet's goals at the end of every step (the stance foot of the next one)
+    assert a._goals == b._goals
+
+
+@pytest.mark.parametrize("kind", list(PLACE))
+def test_the_pause_plan_is_the_plain_plan_with_holds_for_lateral_and_turning_steps(kind):
+    """Every joint of every keyframe: the plain plan's value at time t is the pause plan's at t + i P (i = steps already
+    done, the first step has no pause), and in each pause nothing moves from the touchdown frame."""
+    kw = {**KW, **{"dx_steps": None}, **PLACE[kind]}
+    a, b = D.Dwell(**kw), D.Dwell(**kw, td_pause=P)
+    k = round(P / 0.04)
+    ib = {round(s["t"], 6): s for s in b.segs[1:]}
+    for sa in a.segs[1:]:
+        i = sum(1 for p in a.phases if sa["t"] > p["t1"] + 1e-9)            # steps finished before this frame
+        t_b = round(sa["t"] + i * P, 6)
+        assert ib[t_b]["q"] == pytest.approx(sa["q"], abs=1e-12), (kind, sa["t"])
+    for i in range(1, N):
+        td = b.phases[i - 1]["t1"]
+        ref = ib[round(td, 6)]
+        for j in range(1, k + 1):
+            assert ib[round(td + 0.04 * j, 6)]["q"] == pytest.approx(ref["q"], abs=1e-12)
