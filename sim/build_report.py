@@ -434,6 +434,24 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-16 card: night 26 -- the walk on the robot's narrow sole trained from scratch (two recipes, three seeds each):
+# no student walks at all, so the scratch pivot parks; tonight a sway reference sized from the robot's own weight shift.
+fig_1116 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec81_walk_si_scratch_s1_s128r24', ['line_1m'],
+                 'robot_legs_prec81_walk_si_scratch_s1_s128r24_line_1m',
+                 'prec81, the 2 cm recipe trained from scratch (500M steps): asked to walk forward it stays where it is '
+                 '(0.09 m in 4 s), the feet barely leave the floor; 0 of 7 scratch students walk'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['line_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_line_1m',
+                 'control: prec72_ppsi, the same recipe fine-tuned from the older walk policy, on the same command: it walks'),
+    video_figure('robot_legs_prec80_walk_si_l3_scratch_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec80_walk_si_l3_scratch_s128r24_walk_steps_R',
+                 'prec80, the 3 cm recipe from scratch: the right foot is asked to step and rises well under a centimetre'),
+    video_figure('robot_legs_prec81_walk_si_scratch_s128r24', ['sidestep_L'],
+                 'robot_legs_prec81_walk_si_scratch_s128r24_sidestep_L',
+                 'prec81 seed 14, the one scratch student that moves sideways (0.44 m left on the direction probe), and it '
+                 'falls doing it, 8 of 8'),
+] if f)
 # 2026-11-15 card: night 25 -- the 3 cm reference, more sidestep practice and a slower clock on the robot's narrow sole:
 # none holds on 2 of 3 seeds, so the warm-started walk line pivots to training from scratch.
 fig_1115 = "\n    ".join(f for f in [
@@ -1146,6 +1164,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·16 · night 26: from scratch, the walk does not appear; next, a robot-sized weight shift</span></p>
+    <p><b>Two walk recipes on the robot's narrow sole, trained from scratch for 500M steps, three seeds each, plus a short
+    pilot: not one of the seven policies walks.</b> They learn to stand and turn on the spot. Asked to walk at 0.3 m/s they
+    move 0-9 cm in four seconds, and the feet rise less than a centimetre. The fine-tuned parent walks 0.7 m on the same
+    probe. So the warm start is what makes these recipes walk at all; starting over does not fix the weight shift.</p>
+    <p><b>Decision: the from-scratch line parks, and the narrow-sole walk gets one more night, on the reference.</b> The
+    imitation reference keeps the hip and ankle rolls at the standing pose, so it never asks the body to move over the stance
+    foot. On the robot's narrow sole the body has to move about 75 mm (1.2 times the model's 62 mm, measured on the robot by
+    the stepper and the dwell walks), and every narrow-sole policy so far moves only 20-35 mm and lifts the right foot 1.4-2.3 cm.
+    An earlier sway test (35 and 50 mm) ran on the old wide-sole plant, which never needed the shift. Tonight: a 75 mm sway in
+    the reference on three parents (2 cm lift, 3 cm lift, slower clock), three seeds each. If none moves the shift, the RL walk
+    on this sole parks until the simulation reproduces the robot. Nothing is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1116}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·15 · night 25: the walk line starts over from scratch</span></p>
     <p><b>Three changes against the narrow-sole walk's three faults, three seeds each: none holds.</b> A 3 cm lift reference raises
