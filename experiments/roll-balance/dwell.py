@@ -90,11 +90,85 @@ def split_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None):
     return t_sh, t_set, t_ds, T - t_ds
 
 
+PARTS = (0.35, 0.30, 0.35)     # the single support's raise / move / lower shares
+
+
+def resolve_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None, settle=None, ss_s=None, shift_s=None,
+                  raise_s=None, move_s=None, lower_s=None, lower_frac=None):
+    """The step's timing from T (the SCHEDULE / fractions) and the explicit options, s:
+    dict(t_sh, t_set, t_ss, period (a step without the pause), parts (raise, move, lower shares of the single support),
+    custom (the shares are not today's), explicit (any of ss_s / shift_s / raise_s / move_s / lower_s was given: the
+    step is then shift + settle + ss and T only supplies what was not given)).
+    settle replaces the settle (the step is that much longer / shorter). ss_s: the single support, s; raise_s / move_s /
+    lower_s: the parts, s -- those given are fixed and the others share what is left in today's proportions
+    (0.35 : 0.30 : 0.35) -- with the move not given, the move takes what the raise and the lowering leave and the one
+    not given keeps its 0.35 share; all three given and no ss_s: the single support is their sum. lower_frac: the lowering as a
+    share of the single support (the same as lower_s = lower_frac x ss)."""
+    t_sh, t_set, t_ds, t_ss = split_times(T, ds, settle_frac, t_shift, t_settle)
+    period = T
+    if settle is not None:
+        if not 0.0 <= settle <= 2.0:
+            raise ValueError(f"settle {settle:g} s: want 0 to 2")
+        period = T + (float(settle) - t_set)
+        t_set = float(settle)
+    explicit = any(v is not None for v in (ss_s, shift_s, raise_s, move_s, lower_s))
+    given = [raise_s, move_s, lower_s]
+    if explicit:
+        if shift_s is not None:
+            if shift_s <= 0:
+                raise ValueError(f"shift {shift_s:g} s: want > 0")
+            t_sh = float(shift_s)
+        if ss_s is not None:
+            if ss_s <= 0:
+                raise ValueError(f"single support {ss_s:g} s: want > 0")
+            t_ss = float(ss_s)
+        elif all(v is not None for v in given):
+            t_ss = float(sum(given))
+        if any(v is not None and v <= 0 for v in given):
+            raise ValueError("--raise-s / --move-s / --lower-s want > 0")
+        period = t_sh + t_set + t_ss
+    if lower_frac is not None:
+        if lower_s is not None:
+            raise ValueError("lower_frac and lower_s are alternatives")
+        lower_s = float(lower_frac) * t_ss
+        given[2] = lower_s
+    parts = PARTS
+    custom = any(v is not None for v in given)
+    if custom:
+        if given[1] is None and (given[0] is not None or given[2] is not None):
+            # the move takes what the raise and the lowering leave; the one not given keeps its 0.35 share
+            sec = [given[0] if given[0] is not None else PARTS[0] * t_ss, None,
+                   given[2] if given[2] is not None else PARTS[2] * t_ss]
+            sec[1] = t_ss - sec[0] - sec[2]
+            if sec[1] <= 1e-9:
+                raise ValueError(f"the given raise / lower leave nothing of the {t_ss:g} s single support")
+        else:
+            fixed = sum(v for v in given if v is not None)
+            free = [i for i, v in enumerate(given) if v is None]
+            rest = t_ss - fixed
+            if free:
+                if rest <= 1e-9:
+                    raise ValueError(f"the given raise / move / lower leave nothing of the {t_ss:g} s single support")
+                wsum = sum(PARTS[i] for i in free)
+                sec = [v if v is not None else rest * PARTS[i] / wsum for i, v in enumerate(given)]
+            else:
+                if abs(rest) > 1e-6:
+                    raise ValueError(f"raise + move + lower = {fixed:g} s is not the single support {t_ss:g} s")
+                sec = list(given)
+        parts = tuple(x / t_ss for x in sec)
+        if parts[0] < 0.1 or parts[2] < 0.1 or parts[1] < 0.08:
+            raise ValueError(f"raise / move / lower shares {parts[0]:.2f} / {parts[1]:.2f} / {parts[2]:.2f} of the single "
+                             f"support: raise and lower want >= 0.10, move >= 0.08")
+        if parts == PARTS:
+            custom = False
+    return dict(t_sh=t_sh, t_set=t_set, t_ss=t_ss, period=period, parts=parts, custom=custom, explicit=explicit)
+
+
 def effective_step_s(T, td_pause=0.0, settle=None, **kw):
-    """The step time with --td-pause and --settle: T + pause (every step but the first) + (settle - the schedule's
-    settle) when a settle is given; the single support and the shift keep the schedule's lengths."""
-    t_sh, t_set, t_ds, t_ss = split_times(T, **kw)
-    return T + (td_pause or 0.0) + ((settle - t_set) if settle is not None else 0.0)
+    """The step time (without the first step's missing pause): T, or shift + settle + single support when a phase time
+    was given, plus the pause and the settle change."""
+    r = resolve_times(T, settle=settle, **kw)
+    return r["period"] + (td_pause or 0.0)
 
 
 def _mj(u):
@@ -107,14 +181,17 @@ class Dwell:
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
                  ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0,
-                 td_pause=0.0, settle=None, lower_frac=None, land_early=0.0):
+                 td_pause=0.0, settle=None, lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None,
+                 move_s=None, lower_s=None):
         """td_pause: s, the next step's lateral shift (all pelvis / hip roll / ankle roll motion of the shift, and the
         fore-aft pelvis move with it) starts this long AFTER the planned touchdown of the swing foot: the lowering, the
         ankle feed-forward's and the swing tilt's ramp-out are complete first (they follow the foot's height, 0 at
         touchdown). Every step but the first has it, and so does the final shift back to the centre; each step is
         that much longer. settle: s, the pre-lift settle (default per schedule); a shorter one shortens the step
         (the single support and the shift keep their lengths). lower_frac: the lowering's share of the single
-        support (default 0.35; the move takes what the raise and the lowering leave). land_early: mm, the swing sole is
+        support (default 0.35; the move takes what the raise and the lowering leave). ss_s / shift_s / raise_s / move_s /
+        lower_s: s, the single support, the lateral shift and the three parts of the single support given directly
+        (resolve_times: the step is then shift + settle + single support, T only supplies what was not given). land_early: mm, the swing sole is
         commanded this far BELOW the floor at touchdown (min-jerk with the lowering; a slight press), held through the
         pause and released over the next shift, 0..4.
         ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
@@ -154,29 +231,25 @@ class Dwell:
 
         def _at(lst, i, default):
             return default if lst is None else (lst[i] if i < len(lst) else lst[-1])
-        t_sh, t_set, t_ds, t_ss = split_times(T, ds, settle_frac, t_shift, t_settle)
+        rt = resolve_times(T, ds, settle_frac, t_shift, t_settle, settle, ss_s, shift_s, raise_s, move_s, lower_s,
+                           None if lower_frac == LOWER_FRAC else lower_frac)
+        t_sh, t_set, t_ss, period, custom = rt["t_sh"], rt["t_set"], rt["t_ss"], rt["period"], rt["custom"]
+        t_ds = t_sh + t_set
+        R_, M_, F_ = rt["parts"]                 # the raise / move / lower shares of the single support
+        u_l = 0.65 if not custom else 1.0 - F_   # where the lowering starts
+        self.explicit = rt["explicit"]
         t_pause = float(td_pause or 0.0)
         if t_pause < 0.0 or t_pause > 2.0:
             raise ValueError(f"td_pause {t_pause:g} s: want 0 to 2")
-        period = T                            # the step time: T, longer by a settle change (the pause is per step, below)
-        if settle is not None:
-            if not 0.0 <= settle <= 2.0:
-                raise ValueError(f"settle {settle:g} s: want 0 to 2")
-            period = T + (float(settle) - t_set)
-            t_set = float(settle)
-            t_ds = t_sh + t_set
         land = float(land_early or 0.0)
         if not 0.0 <= land <= LAND_EARLY_MAX_MM + 1e-9:
             raise ValueError(f"land_early {land:g} mm: want 0 to {LAND_EARLY_MAX_MM:g}")
         land /= 1e3
         if lower_frac is not None and not LOWER_FRAC_RANGE[0] <= lower_frac <= LOWER_FRAC_RANGE[1]:
             raise ValueError(f"lower_frac {lower_frac:g}: want {LOWER_FRAC_RANGE[0]:g} to {LOWER_FRAC_RANGE[1]:g}")
-        if lower_frac == LOWER_FRAC:
-            lower_frac = None                  # the default written out is the default
-        F_ = LOWER_FRAC if lower_frac is None else float(lower_frac)       # the lowering's share of the single support
-        u_l = 0.65 if lower_frac is None else 1.0 - F_                     # where it starts
         self.T, self.t_shift, self.t_settle, self.t_ss, self.h = T, t_sh, t_set, t_ss, h
         self.td_pause, self.lower_frac, self.land_early = t_pause, F_, land
+        self.raise_frac, self.parts_custom = R_, custom
         self.step_time = period + t_pause
         self.stamp = (f"dwell T{T:g} ds{ds:g} (shift {t_sh:.2f} settle {t_set:.2f} ss {t_ss:.2f} s) "
                       f"kL{kL:g} kR{kR:g} h{1e3 * h:.0f}mm dx{dx:+g} dy{dy:+g} yaw{yaw:+g}"
@@ -294,17 +367,17 @@ class Dwell:
                     fz[press[0]] = press[1]
                 if tt > p["lo"]:
                     u = (tt - p["lo"]) / t_ss
-                    pel = tgt + _mj(u / 0.35) * (tgt_ss - tgt)     # the two-stage shift's second stage (else 0)
+                    pel = tgt + _mj(u / R_) * (tgt_ss - tgt)     # the two-stage shift's second stage (else 0)
                     sw = p["swing"]
                     start, goal, y_from, y_to = goals[cur]
-                    if u < 0.35:
-                        fz[sw] = h * _mj(u / 0.35)
+                    if u < R_:
+                        fz[sw] = h * _mj(u / R_)
                     elif u < u_l:
                         fz[sw] = h
                     else:
                         v_ = _mj((u - u_l) / F_)
                         fz[sw] = h * (1.0 - v_) - land * v_ if land else h * (1.0 - v_)
-                    m = _mj((u - 0.35) / (0.3 if lower_frac is None else u_l - 0.35))
+                    m = _mj((u - R_) / (0.3 if not custom else u_l - R_))
                     fxy[sw] = [start[0] + m * (goal[0] - start[0]), start[1] + m * (goal[1] - start[1])]
                     yy[sw] = y_from[sw] + m * (y_to[sw] - y_from[sw])
                     st_ = p["stance"]
@@ -351,7 +424,7 @@ class Dwell:
             tt += dt
         for i, p in enumerate(steps):
             lo, td = p["lo"], p["td"]
-            phases.append(dict(t0=lo, raise_end=lo + 0.35 * t_ss, hold_from=lo + 0.35 * t_ss,
+            phases.append(dict(t0=lo, raise_end=lo + R_ * t_ss, hold_from=lo + R_ * t_ss,
                                lower_start=lo + u_l * t_ss, t1=td, swing=p["swing"], stance=p["stance"],
                                ss_a=lo, ss_b=td))
             self.step_ends.append(td + min(0.1, 0.5 * t_sh))     # both feet down: a stop may end here
@@ -385,12 +458,12 @@ class Dwell:
         for k, p in enumerate(ps):
             if p["t0"] <= t <= p["t1"]:
                 w = (t - p["t0"]) / (p["t1"] - p["t0"])
-                if self.lower_frac != LOWER_FRAC:
-                    # a lowering longer or shorter than 0.35: the firmware's raise end (0.35) and lowering start (0.65)
+                if self.parts_custom:
+                    # a raise / lowering of another length: the firmware's raise end (0.35) and lowering start (0.65)
                     # still land on this gait's, the phase is warped piecewise-linearly between them
-                    u_l = 1.0 - self.lower_frac
-                    w = w if w < 0.35 else (0.35 + 0.3 * (w - 0.35) / (u_l - 0.35) if w < u_l
-                                            else 0.65 + 0.35 * (w - u_l) / (1.0 - u_l))
+                    R_, u_l = self.raise_frac, 1.0 - self.lower_frac
+                    w = (0.35 * w / R_ if w < R_ else
+                         (0.35 + 0.3 * (w - R_) / (u_l - R_) if w < u_l else 0.65 + 0.35 * (w - u_l) / (1.0 - u_l)))
                     return math.pi * (k + 0.25 + 0.5 * w) + off
                 u = 0.25 + 0.5 * (t - p["t0"]) / (p["t1"] - p["t0"])
                 return math.pi * (k + u) + off

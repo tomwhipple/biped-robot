@@ -857,6 +857,142 @@ python experiments/roll-balance/track_host.py $F $B --land-early-mm 2           
 
 Without `--live` each prints the plan (the timeline, the pre-check) and sends nothing.
 
+## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
+
+The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving
+any of `--ss-s S` (the single support), `--shift-s S` (the lateral shift), `--raise-s` / `--move-s` / `--lower-s`
+(the three parts of the single support) lays the step out from the given values, and `--settle S` and `--td-pause S` add
+to it as above. `--T` is then not the step time: it only supplies the shift (1.4 s) and settle (0.4 s) that were not given
+(`track_host.py` prints a note, the `timeline:` line and the effective step time, and the commanded speeds use it). The parts not
+given split what is left in today's proportions (raise 0.35 : move 0.30 : lower 0.35); with the move not given, the move
+takes what the given raise / lowering leave and the other keeps its 0.35 share; all three given and no `--ss-s`: the
+single support is their sum. A raise or lowering under 0.10 of the single support, or a move under 0.08, is refused (the
+keyframes are 100 ms apart: a raise of 0.21 s is two keyframes and the min-jerk profile is sampled that coarsely, which is
+what the firmware interpolates between). The firmware's phase (raise end at 0.35, lowering start at 0.65 of the single
+support) is warped piecewise onto the plan's, as for `--lower-frac`.
+
+**Guards.** A single support under 1.8 s, a shift under 1.4 s or a step under the SIL floor (3 s) is no longer refused when
+it was given explicitly: a `WARNING:` line is printed instead (without an explicit phase time the T floor still refuses).
+The pre-check's other rules stay refusals: IK reach, every joint 2 deg inside its range, the pelvis speed in the shift (<= 252
+mm/s: a shift of 1.0 s at k 1.3 is 260 mm/s and is refused; 1.2 s passes), and a new one, the swing leg's joint speed.
+
+**Swing joint speed.** The peak |d q / d t| of the swing leg's six joints between consecutive keyframes over every single
+support must stay under 0.8 x the STS3215's no-load speed: 4.04 rad/s at 12 V, measured (`tools/measure_servo_speed.py`,
+`docs/servo-map.md`, `docs/training.md`) = 231 deg/s, so 185 deg/s. The plans of today (T 4, T 3.4, fwd 40 mm with tilt 3)
+peak at 72 and 98 deg/s (R knee); fwd 20 mm at `--ss-s` 2.2 / 1.2 / 0.8 / 0.6: 67 / 113 / 162 / 148 deg/s (the
+0.6 s plan is lower than the 0.8 s one because its raise is two keyframes: the coarse sampling hides part of the peak
+the servo would be asked for, so read the 0.6 s figure as a lower bound). The plan summary prints the peak.
+
+**`--allow-under`.** The static-shift pre-check does not refuse a short `--amp` today: its lower bound is the plan's OWN k (a plan at
+`--amp 1.15,1.15` passes at 1.15 x), and the robot's requirement (L 1.30, R 1.30) is only the upper bound's base. So
+`--amp 1.15,1.15` runs without the flag. What the flag changes: a lift-off or touchdown whose pelvis is short of the plan's own k
+(a timing that cannot reach it) is a warning, not a refusal; and the pre-check prints a `WARNING:` line whenever the plan's k is under
+the robot's requirement, saying whether `--allow-under` was given. IK, joint range, pelvis speed and swing joint speed stay refusals.
+
+**SIL** (fit plant and inset-sole plant `sole_in_L=8,sole_in_R=-12`; six steps of march / fwd 20 mm, no swing tilt, T 4's
+shift 1.4 and settle 0.4, k 1.3 unless stated, lift gate on; ankle ff 2,2, `--pelvis-x stance`; `sil_gait.run`; `(a)` the single
+support at k 1.3, `(b)` k at the two shortest single supports). "clean" = no fall, the 7 lifts of 6 steps plus the closing
+step; "gate timeout" = the firmware's lift gate waited 3 s for a level, quiet body and ended the track with both feet down
+(a stop, not a fall); clearance = the swing sole's peak height per step.
+
+(a)
+
+| plant | walk | k | single support | result | lean in / out max (deg) | swing clearance min / mean (mm) |
+|---|---|---|---|---|---|---|
+| fit | march | 1.3 | 2.2 s | clean | 2.8 / 2.8 | 14.2 / 18.7 |
+| fit | march | 1.3 | 1.2 s | gate timeout, track ended (2/6) | 3.1 / 2.9 | 4.3 / 14.3 |
+| fit | march | 1.3 | 0.8 s | clean | 3.0 / 3.5 | 16.4 / 21.0 |
+| fit | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 3.1 / 4.4 | 3.1 / 16.8 |
+| fit | fwd20 | 1.3 | 2.2 s | clean | 2.7 / 2.8 | 14.5 / 18.7 |
+| fit | fwd20 | 1.3 | 1.2 s | gate timeout, track ended (2/6) | 3.1 / 2.9 | 5.8 / 14.5 |
+| fit | fwd20 | 1.3 | 0.8 s | gate timeout, track ended (2/6) | 3.0 / 3.5 | 4.7 / 16.3 |
+| fit | fwd20 | 1.3 | 0.6 s | FELL out | 3.1 / 4.4 | 17.7 / 23.6 |
+| inset | march | 1.3 | 2.2 s | clean | 2.9 / 3.8 | 15.7 / 18.0 |
+| inset | march | 1.3 | 1.2 s | clean | 9.5 / 0.9 | 13.6 / 15.5 |
+| inset | march | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.3 / 20.3 |
+| inset | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 4.2 / 3.3 | 2.5 / 13.3 |
+| inset | fwd20 | 1.3 | 2.2 s | clean | 2.8 / 3.8 | 15.2 / 17.7 |
+| inset | fwd20 | 1.3 | 1.2 s | clean | 10.0 / 0.9 | 13.2 / 15.5 |
+| inset | fwd20 | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.4 / 20.4 |
+| inset | fwd20 | 1.3 | 0.6 s | FELL in | 5.9 / 3.3 | 12.2 / 17.1 |
+
+(b)
+
+| plant | walk | k | single support | result | lean in / out max (deg) | swing clearance min / mean (mm) |
+|---|---|---|---|---|---|---|
+| fit | march | 1.3 | 0.8 s | clean | 3.0 / 3.5 | 16.4 / 21.0 |
+| fit | march | 1.15 | 0.8 s | clean | 3.1 / 3.8 | 17.4 / 21.1 |
+| fit | march | 1 | 0.8 s | clean | 3.2 / 3.9 | 18.2 / 24.3 |
+| fit | march | 0.85 | 0.8 s | clean | 3.3 / 3.3 | 18.6 / 24.8 |
+| fit | march | 0.7 | 0.8 s | clean | 10.4 / 2.3 | 17.2 / 25.1 |
+| fit | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 3.1 / 4.4 | 3.1 / 16.8 |
+| fit | march | 1.15 | 0.6 s | clean | 3.3 / 4.7 | 18.8 / 22.2 |
+| fit | march | 1 | 0.6 s | clean | 3.6 / 4.5 | 20.1 / 24.1 |
+| fit | march | 0.85 | 0.6 s | clean | 3.9 / 4.2 | 20.6 / 26.5 |
+| fit | march | 0.7 | 0.6 s | clean | 10.6 / 2.7 | 17.1 / 23.8 |
+| fit | fwd20 | 1.3 | 0.8 s | gate timeout, track ended (2/6) | 3.0 / 3.5 | 4.7 / 16.3 |
+| fit | fwd20 | 1.15 | 0.8 s | clean | 3.1 / 3.8 | 16.9 / 20.7 |
+| fit | fwd20 | 1 | 0.8 s | clean | 3.1 / 3.9 | 17.6 / 24.1 |
+| fit | fwd20 | 0.85 | 0.8 s | clean | 4.0 / 3.3 | 18.5 / 24.6 |
+| fit | fwd20 | 0.7 | 0.8 s | clean | 10.5 / 2.4 | 18.9 / 25.4 |
+| fit | fwd20 | 1.3 | 0.6 s | FELL out | 3.1 / 4.4 | 17.7 / 23.6 |
+| fit | fwd20 | 1.15 | 0.6 s | clean | 3.3 / 4.7 | 19.0 / 22.3 |
+| fit | fwd20 | 1 | 0.6 s | clean | 3.5 / 4.5 | 19.6 / 22.9 |
+| fit | fwd20 | 0.85 | 0.6 s | clean | 3.7 / 4.2 | 20.1 / 26.2 |
+| fit | fwd20 | 0.7 | 0.6 s | clean | 7.1 / 2.6 | 17.9 / 25.6 |
+| inset | march | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.3 / 20.3 |
+| inset | march | 1.15 | 0.8 s | FELL in | 9.9 / 2.6 | 9.0 / 17.6 |
+| inset | march | 1 | 0.8 s | FELL out | 6.4 / 2.9 | 27.6 / 27.6 |
+| inset | march | 0.85 | 0.8 s | FELL in | 11.4 / 2.5 | 8.3 / 17.4 |
+| inset | march | 0.7 | 0.8 s | clean | 12.5 / 0.0 | 8.9 / 15.6 |
+| inset | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 4.2 / 3.3 | 2.5 / 13.3 |
+| inset | march | 1.15 | 0.6 s | FELL out | 5.0 / 3.7 | 15.0 / 22.0 |
+| inset | march | 1 | 0.6 s | FELL out | 2.7 / 3.9 | 29.7 / 29.7 |
+| inset | march | 0.85 | 0.6 s | FELL out | 6.8 / 3.3 | 28.4 / 28.4 |
+| inset | march | 0.7 | 0.6 s | FELL in | 12.0 / 0.5 | 8.8 / 15.1 |
+| inset | fwd20 | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.4 / 20.4 |
+| inset | fwd20 | 1.15 | 0.8 s | clean | 4.3 / 2.6 | 12.3 / 20.3 |
+| inset | fwd20 | 1 | 0.8 s | FELL out | 6.3 / 2.9 | 27.6 / 27.6 |
+| inset | fwd20 | 0.85 | 0.8 s | FELL in | 11.6 / 2.5 | 7.1 / 16.8 |
+| inset | fwd20 | 0.7 | 0.8 s | clean | 12.8 / 0.3 | 8.8 / 15.0 |
+| inset | fwd20 | 1.3 | 0.6 s | FELL in | 5.9 / 3.3 | 12.2 / 17.1 |
+| inset | fwd20 | 1.15 | 0.6 s | FELL out | 4.9 / 3.7 | 14.8 / 21.2 |
+| inset | fwd20 | 1 | 0.6 s | FELL in | 11.0 / 3.9 | 11.9 / 20.8 |
+| inset | fwd20 | 0.85 | 0.6 s | FELL out | 6.8 / 3.3 | 28.5 / 28.5 |
+| inset | fwd20 | 0.7 | 0.6 s | FELL in | 12.5 / 0.5 | 8.7 / 15.0 |
+
+**Where the sim stops being credible.** It is known to be far more forgiving than the robot in single support, and these numbers show
+it is also not smooth: on the fit plant k 1.3 gate-times-out at 1.2 and 0.6 s but runs clean at 0.8 s, and k 1.15 / 1.0 / 0.85 run clean at
+0.6 s where k 1.3 does not; on the inset plant k 1.3 falls at 0.8 s but runs at 1.2 s, and every k at 0.6 s falls or ends. With six steps per cell and one
+seed these are single draws of a chaotic system, not a trend. What they do say: no short single support is a fall everywhere (the fit plant is clean
+in 19 of 22 cells at k >= 0.85), the lean stays under 5 deg except at k 0.7 and on the inset plant, and a clearance of 15-20 mm at
+0.6 s means the 100 ms keyframes still lift the foot. What they cannot say: whether the real single support survives a lift with the
+pelvis at 0.85-1.15 x (on the robot a lift at 1.15 x tipped in; README 'k R 1.35...'), how the servos follow a 0.2 s raise (the swing speed check is the
+only model of that), or any friction / sole effect. Treat the sim as a filter for plans that cannot work, not as evidence that one will.
+
+**Robot test lines** (fixed walks, T 4, `--ahead 1`, lift gate on (the default); part 1 at k 1.3, part 2 at the shortest single support of part 1):
+
+```
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 1.2 --live --note "ss 1.2 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 1.2 --live --note "ss 1.2 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.8 --live --note "ss 0.8 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.8 --live --note "ss 0.8 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --live --note "ss 0.6 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.6 --live --note "ss 0.6 fwd20"
+
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 1.15,1.15 --allow-under --live --note "ss 0.6 k 1.15 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.6 --amp 1.15,1.15 --allow-under --live --note "ss 0.6 k 1.15 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 1.0,1.0 --allow-under --live --note "ss 0.6 k 1.0 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --swing-tilt 3 --ss-s 0.6 --amp 1.0,1.0 --allow-under --live --note "ss 0.6 k 1.0 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 0.85,0.85 --allow-under --live --note "ss 0.6 k 0.85 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --swing-tilt 3 --ss-s 0.6 --amp 0.85,0.85 --allow-under --live --note "ss 0.6 k 0.85 fwd20"
+```
+
+Without `--live` each prints the note, the timeline, the warnings and the pre-check and sends nothing.
+The two fwd lines at k 1.0 and 0.85 carry `--swing-tilt 3`: without it the plan is REFUSED (the swing foot's ankle pitch reaches -38.6 /
+-39.5 deg, outside the plant's 38 deg less 2 deg margin: with the pelvis nearer the centre the swing foot has more reach to cover). With it the
+margin is 4.4 / 3.4 deg. At k 1.15 no tilt is needed (2.5 deg).
+
 ## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
 
 A walk with no fixed length: every step the host reads the CURRENT command, `vx vy wz` (mm/s forward, mm/s left, deg/s

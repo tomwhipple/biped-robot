@@ -247,3 +247,100 @@ def test_the_pause_plan_is_the_plain_plan_with_holds_for_lateral_and_turning_ste
         ref = ib[round(td, 6)]
         for j in range(1, k + 1):
             assert ib[round(td + 0.04 * j, 6)]["q"] == pytest.approx(ref["q"], abs=1e-12)
+
+
+# ---- explicit phase times (--ss-s / --shift-s / --raise-s / --move-s / --lower-s), --allow-under, the swing joint speed
+
+def test_resolve_times():
+    r = D.resolve_times(4.0)
+    assert (r["t_sh"], r["t_set"], r["t_ss"], r["period"], r["custom"], r["explicit"]) == (1.4, 0.4, 2.2, 4.0, False, False)
+    r = D.resolve_times(4.0, ss_s=0.8)
+    assert r["explicit"] and r["t_ss"] == 0.8 and r["period"] == pytest.approx(1.4 + 0.4 + 0.8) and not r["custom"]
+    assert r["parts"] == D.PARTS                                    # today's proportions
+    r = D.resolve_times(4.0, ss_s=0.8, shift_s=1.0, settle=0.2)
+    assert r["period"] == pytest.approx(2.0) and r["t_set"] == 0.2
+    r = D.resolve_times(4.0, ss_s=1.0, raise_s=0.2, lower_s=0.3)       # the move takes the rest
+    assert [x * 1.0 for x in r["parts"]] == pytest.approx([0.2, 0.5, 0.3]) and r["custom"]
+    r = D.resolve_times(4.0, ss_s=1.0, move_s=0.4)                     # raise and lower share the rest evenly
+    assert r["parts"] == pytest.approx((0.3, 0.4, 0.3))
+    r = D.resolve_times(4.0, raise_s=0.3, move_s=0.2, lower_s=0.3)      # all three: their sum is the single support
+    assert r["t_ss"] == pytest.approx(0.8) and r["explicit"]
+    r = D.resolve_times(4.0, lower_s=1.0)                              # today's --lower-s: T's single support, the raise keeps 0.35
+    assert r["t_ss"] == 2.2 and r["parts"][0] == pytest.approx(0.35) and r["parts"][2] == pytest.approx(1.0 / 2.2)
+    for bad in (dict(ss_s=1.0, raise_s=0.5, move_s=0.4, lower_s=0.4), dict(ss_s=0.5, raise_s=0.5), dict(ss_s=-1.0),
+                dict(shift_s=0.0), dict(ss_s=1.0, raise_s=0.05)):
+        with pytest.raises(ValueError):
+            D.resolve_times(4.0, **bad)
+
+
+def test_explicit_times_lay_out_the_step_as_given():
+    for ss in (1.2, 0.8, 0.6):
+        sw = dw(ss_s=ss)
+        assert (sw.t_shift, sw.t_settle, sw.t_ss) == pytest.approx((1.4, 0.4, ss)) and sw.step_time == pytest.approx(1.8 + ss)
+        for p0, p1 in zip(sw.phases, sw.phases[1:]):
+            assert p0["t1"] - p0["t0"] == pytest.approx(ss)
+            assert p1["t0"] - p0["t0"] == pytest.approx(1.8 + ss)
+            assert p0["raise_end"] - p0["t0"] == pytest.approx(0.35 * ss)
+            assert p0["lower_start"] - p0["t0"] == pytest.approx(0.65 * ss)
+    sw = dw(ss_s=1.0, shift_s=1.0, raise_s=0.2, lower_s=0.3, td_pause=0.2)
+    assert sw.step_time == pytest.approx(0.2 + 1.0 + 0.4 + 1.0)
+    p = sw.phases[0]
+    assert (p["raise_end"] - p["t0"], p["lower_start"] - p["t0"], p["t1"] - p["t0"]) == pytest.approx((0.2, 0.7, 1.0))
+    # the foot is at h from the raise end to the lowering start, 0 at lift-off and touchdown
+    z = lambda t: min(sw.segs[1:], key=lambda s: abs(s["t"] - t))["pa"]["feet"][p["swing"]][2]    # noqa: E731
+    assert z(p["t0"]) == pytest.approx(0.0, abs=1e-12) and z(p["t1"]) == pytest.approx(0.0, abs=1e-12)
+    assert z(0.5 * (p["raise_end"] + p["lower_start"])) == pytest.approx(0.022, abs=1e-9)
+    # the firmware's phase: raise end 0.35 and lowering start 0.65 land on this gait's
+    ph = lambda t: (sw.phi(t) / math.pi - 1.0 - 0.25) / 0.5                                  # noqa: E731
+    assert ph(p["raise_end"] + 1e-9) == pytest.approx(0.35, abs=1e-3) and ph(p["lower_start"] + 1e-9) == pytest.approx(0.65, abs=1e-3)
+
+
+def test_explicit_times_keep_the_placement_and_the_shift():
+    kw = {**KW, "dx_steps": None, **PLACE["sideL"]}
+    a, b = D.Dwell(**kw), D.Dwell(**kw, ss_s=0.8, shift_s=1.2)
+    assert a._goals == b._goals
+    for x, y in zip(touchdowns(a), touchdowns(b)):
+        assert y == pytest.approx(x, abs=1e-12)
+    # the first shift: the same min-jerk shape over 1.2 s instead of 1.4 s, to the same pelvis
+    assert b.liftoff[0]["ratio"] == pytest.approx(a.liftoff[0]["ratio"], abs=1e-6)
+
+
+def test_the_precheck_swing_joint_speed_and_allow_under():
+    base = dict(cmd=H.step_cmd(20, 0, 0), lift_gate=True)
+    ok, rows = H.precheck(H.plan(4.0, 6, "fwd", **base, ss_s=1.2))
+    sj = next(r for r in rows if r["at"] == "swing joint speed")
+    assert ok and 0 < sj["ratio"] < sj["top"] == pytest.approx(0.8 * math.degrees(4.04), abs=0.1)
+    ok, rows = H.precheck(H.plan(4.0, 6, "fwd", **base, ss_s=0.3))              # the swing too fast for the servo
+    assert not ok and any(r["at"] == "swing joint speed" and not r["ok"] for r in rows)
+    # the default plan's peak is far under the limit
+    ok, rows = H.precheck(H.plan(4.0, 6, "fwd", **base))
+    assert next(r for r in rows if r["at"] == "swing joint speed")["ratio"] < 100
+    # --allow-under: a lift-off short of the plan's own requirement is a warning
+    pl = H.plan(4.0, 6, "march", lift_gate=True)
+    pl["amp"] = (1.45, 1.45)
+    assert not H.precheck(pl)[0]
+    ok, rows = H.precheck(dict(pl, allow_under=True))
+    assert ok and any(r.get("warn") for r in rows)
+    # a joint-range or pelvis-speed failure stays a refusal under --allow-under
+    pl2 = H.plan(4.0, 6, "fwd", cmd=H.step_cmd(45, 0, 0), lift_gate=True)
+    assert not H.precheck(dict(pl2, allow_under=True))[0]
+
+
+def test_cli_explicit_times(capsys):
+    assert H.main(["--T", "4", "--dir", "fwd", "--steps", "6", "--stride-mm", "20", "--ss-s", "0.6"]) == 0
+    out = capsys.readouterr().out
+    assert "note: explicit phase times: the step is shift 1.40 + settle 0.40 + single support 0.60 = 2.40 s" in out
+    assert "WARNING: single support 0.60 s is under 1.8 s" in out and "WARNING: step 2.40 s is under 3 s" in out
+    assert "raise 0.21 + move 0.18 + lower 0.21 = 2.40 s per step" in out and "one step per 2.4 s" in out and "PASS" in out
+    assert "swing joint speed: peak" in out
+    assert H.main(["--T", "4", "--dir", "march", "--steps", "6", "--ss-s", "1.2", "--shift-s", "1.2", "--amp", "1.15,1.15",
+                   "--allow-under"]) == 0
+    out = capsys.readouterr().out
+    assert "under the robot's static requirement" in out and "PASS" in out
+    assert H.main(["--T", "4", "--dir", "march", "--steps", "6", "--ss-s", "0.3"]) == 0
+    assert "REFUSED" in capsys.readouterr().out
+    for args in (["--ss-s", "1", "--raise-s", "0.5", "--move-s", "0.4", "--lower-s", "0.4"], ["--ss-s", "-1"], ["--shift-s", "0"]):
+        assert H.main(["--T", "4", "--dir", "march", "--steps", "4", *args]) == 2
+        assert "REFUSED" in capsys.readouterr().out
+    # without an explicit time the T floor still refuses
+    assert H.main(["--T", "2.5", "--dir", "march", "--steps", "4"]) == 2 and "REFUSED" in capsys.readouterr().out

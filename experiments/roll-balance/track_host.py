@@ -209,7 +209,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
          step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None, td_pause=0.0, settle=None,
-         lower_frac=None, land_early=0.0):
+         lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None, move_s=None, lower_s=None):
     """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
     stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
     decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
@@ -273,6 +273,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **({"td_pause": td_pause} if td_pause else {}), **({"settle": settle} if settle is not None else {}),
                    **({"lower_frac": lower_frac} if lower_frac is not None else {}),
                    **({"land_early": land_early} if land_early else {}),
+                   **{k_: v_ for k_, v_ in (("ss_s", ss_s), ("shift_s", shift_s), ("raise_s", raise_s), ("move_s", move_s),
+                                           ("lower_s", lower_s)) if v_ is not None},
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
@@ -302,7 +304,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           step_cmds=list(step_cmds) if step_cmds is not None else None,
                           ankle_side=tuple(ankle_side) if ankle_side is not None else None,
                           first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None,
-                          td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early))
+                          td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early,
+                          ss_s=ss_s, shift_s=shift_s, raise_s=raise_s, move_s=move_s, lower_s=lower_s))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -587,9 +590,12 @@ def precheck(pl, tol=0.01, only_step=None):
             ratio = sg * (sh - pa["feet"][st][1]) / oy
             nd = need_lo[st] if what == "lift-off" else need[st]
             good = nd - tol <= ratio <= top[st] + tol
+            warn = False
+            if not good and ratio < nd - tol and pl.get("allow_under"):
+                good, warn = True, True          # --allow-under: short of the plan's own requirement is a warning
             ok = ok and good
             rows.append(dict(step=k + 1, stance=st, at=what, t=round(t - sw.t_first, 2), ratio=round(ratio, 3),
-                             need=nd, top=top[st], ok=good))
+                             need=nd, top=top[st], ok=good, **({"warn": True} if warn else {})))
     # every frame's joints inside the plant's joint range less JOINT_MARGIN (the knee, hip pitch / roll / yaw, ankle
     # pitch and roll; the --ankle-ff feed-forward adds to the IK's ankle roll; the firmware also clamps to its
     # calibrated range, which would bend the plan). The tightest margin over the plan is the last row.
@@ -611,6 +617,26 @@ def precheck(pl, tol=0.01, only_step=None):
     if tight is not None:
         rows.append(dict(step=0, stance=tight[1], at="tightest joint", t=round(tight[2], 2), ratio=round(tight[0] * 180 / math.pi, 2),
                          need=round(math.degrees(JOINT_MARGIN), 2), top=round(tight[3], 2), ok=True))
+    # the swing leg's joint speed over each single support (the keyframes are what the firmware interpolates between):
+    # short single supports mean fast swings; the servo's no-load speed (4.04 rad/s at 12 V, measured) less a margin
+    kf_all = [(tm, q) for tm, q in kf]
+    sp_pk, sp_at = 0.0, None
+    for k, p in enumerate(sw.phases):
+        if only_step is not None and k != only_step:
+            continue
+        a_, b_ = 1e3 * (p["t0"] - sw.t_first), 1e3 * (p["t1"] - sw.t_first)
+        seq_ = [(tm, q) for tm, q in kf_all if a_ - 1e-6 <= tm <= b_ + 1e-6]
+        for (ta, qa), (tb, qb) in zip(seq_, seq_[1:]):
+            for n in G.LEG:
+                if n.startswith(p["swing"] + "_") and tb > ta:
+                    v = abs(math.degrees(qb[n] - qa[n])) / ((tb - ta) / 1e3)
+                    if v > sp_pk:
+                        sp_pk, sp_at = v, (k + 1, n, round(tb / 1e3, 2))
+    if sp_at is not None:
+        oks = sp_pk <= SWING_SPEED_LIMIT
+        ok = ok and oks
+        rows.append(dict(step=sp_at[0], stance=sp_at[1], at="swing joint speed", t=sp_at[2], ratio=round(sp_pk, 1), need=0.0,
+                         top=round(SWING_SPEED_LIMIT, 1), ok=oks))
     # the pelvis (x, y) speed through the shift: the double-support shift's min-jerk timing (dwell.SCHEDULE) was validated for
     # a lateral move of ~161 mm in >= 1.2 s; a longer stride adds fore-aft travel to the same time. Sampled at the keyframes.
     v = pelvis_speed(sw, None if only_step is None else (win[0] / 1e3 + sw.t_first, win[1] / 1e3 + sw.t_first))
@@ -635,6 +661,10 @@ def pelvis_speed(sw, window=None):
 
 
 JOINT_MARGIN = math.radians(2.0)
+# the swing leg's joint speed limit: the STS3215's no-load speed, 4.04 rad/s at 12 V (measured, docs/servo-map.md §
+# no-load speed, tools/measure_servo_speed.py) = 231 deg/s, less 20 % for the load and the supply
+SERVO_NOLOAD_DEG_S = math.degrees(4.04)
+SWING_SPEED_LIMIT = 0.8 * SERVO_NOLOAD_DEG_S
 ANKLE_MARGIN = JOINT_MARGIN
 _JLIM = {}
 
@@ -704,13 +734,30 @@ def report_precheck(pl):
           + ", joints inside the plant range less 2 deg, pelvis speed in the shift <= "
           + f"{1e3 * PELVIS_V_MAX:.0f} mm/s"
           + (f"; tightest: step {worst['step']} {worst['stance']} {worst['at']} {worst['ratio']:.3f} x" if worst else ""))
+    sj = next((r for r in rows if r["at"] == "swing joint speed"), None)
+    if sj:
+        print(f"   swing joint speed: peak {sj['ratio']:.0f} deg/s ({sj['stance']}, step {sj['step']}; refused above {sj['top']:.0f})")
     if tj:
         print(f"   tightest joint margin: {tj['ratio']:.1f} deg ({tj['stance']} at {tj['top']:.1f} deg, t {tj['t']} s; "
               f"refused below {tj['need']:g}); pelvis peak speed {pv['ratio']:.0f} mm/s (limit {pv['top']:.0f})")
+    for r in rows:
+        if r.get("warn"):
+            print(f"   WARNING (--allow-under): step {r['step']} {r['stance']} {r['at']} (t {r['t']} s): {r['ratio']:.3f} x, under "
+                  f"the plan's {r['need']:g} x -- the pelvis is short of the static requirement")
+    import dwell as DW_
+    req = {"L": DW_.K_STATIC["L"], "R": DW_.k_static_R(pl["args"]["T_step"])}
+    if pl["amp"][0] < req["L"] - 1e-9 or pl["amp"][1] < req["R"] - 1e-9:
+        print(f"   WARNING: the plan lifts at k L {pl['amp'][0]:g} / R {pl['amp'][1]:g}, under the robot's static requirement "
+              f"(L {req['L']:g}, R {req['R']:g}) -- an under-requirement test"
+              + ("" if pl.get("allow_under") else " (--allow-under says it is meant)"))
     for r in bad[:8]:
         if r["at"] == "joint limit":
             print(f"   {r['stance']} at t {r['t']} s: {r['ratio']:.1f} deg outside [{r['need']:g}, {r['top']:g}] deg "
                   f"(the step is too long / the --ankle-ff too large for the kinematics)")
+            continue
+        if r["at"] == "swing joint speed":
+            print(f"   step {r['step']}: {r['stance']} moves {r['ratio']:.0f} deg/s in the swing, over the {r['top']:.0f} deg/s "
+                  f"(80 % of the servo's no-load {SERVO_NOLOAD_DEG_S:.0f} deg/s): the single support is too short for this step")
             continue
         if r["at"] == "pelvis speed":
             print(f"   the pelvis moves {r['ratio']:.0f} mm/s in the shift, over the {r['top']:.0f} mm/s its min-jerk "
@@ -761,12 +808,13 @@ def _extra(a):
 
 def timeline(sw):
     """One line: the per-step timeline of a dwell plan and its effective step time."""
-    ss, F = sw.t_ss, sw.lower_frac
+    ss, F, R = sw.t_ss, sw.lower_frac, sw.raise_frac
     tl = [("pause", sw.td_pause)] if sw.td_pause else []
-    tl += [("shift", sw.t_shift), ("settle", sw.t_settle), ("raise", 0.35 * ss), ("move", (1.0 - 0.35 - F) * ss),
+    tl += [("shift", sw.t_shift), ("settle", sw.t_settle), ("raise", R * ss), ("move", (1.0 - R - F) * ss),
            ("lower", F * ss)]
-    return (" + ".join(f"{n} {v:.2f}" for n, v in tl) + f" = {sum(v for _, v in tl):.2f} s per step (nominal T {sw.T:g}; "
-            f"single support {ss:.2f} s, the next shift starts {sw.td_pause:.2f} s after the touchdown"
+    return (" + ".join(f"{n} {v:.2f}" for n, v in tl) + f" = {sum(v for _, v in tl):.2f} s per step "
+            + (f"(explicit phase times; --T {sw.T:g} only supplied what was not given; " if sw.explicit else f"(nominal T {sw.T:g}; ")
+            + f"single support {ss:.2f} s, the next shift starts {sw.td_pause:.2f} s after the touchdown"
             + (f"; sole {1e3 * sw.land_early:g} mm below the floor at touchdown" if sw.land_early else "") + ")")
 
 
@@ -1107,7 +1155,8 @@ def live(pl, a):
 
 def timing_kw(a):
     """plan()'s keywords for the step-timing flags (empty = today's frames)."""
-    return dict(td_pause=a.td_pause, settle=a.settle, lower_frac=a.lower_frac, land_early=a.land_early_mm)
+    return dict(td_pause=a.td_pause, settle=a.settle, lower_frac=a.lower_frac, land_early=a.land_early_mm,
+                ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s)
 
 
 def main_cmd(a, seeds, amp, aff, by_step):
@@ -1186,6 +1235,7 @@ def main_cmd(a, seeds, amp, aff, by_step):
             print(f"REFUSED: the kinematics cannot do this plan ({e})")
             return 2
         pd["allow_over"] = a.allow_over
+        pd["allow_under"] = a.allow_under
         print(f"\ndry run: the first {a.dry_steps} steps from the command read now ({cw.log[0]['requested']}), each step "
               f"re-reads SOURCE live; then a stop (the stop step is the last one below)")
         dry(pd, a)
@@ -1203,6 +1253,7 @@ def main_cmd(a, seeds, amp, aff, by_step):
         print(f"REFUSED: the kinematics cannot do this plan ({e}) -- nothing sent")
         return 2
     pl["allow_over"] = a.allow_over
+    pl["allow_under"] = a.allow_under
     pl["hold"], pl["learn"], pl["cmdwalk"] = hold, learn, cw
     if hold is not None:
         print(f"heading hold: the commanded heading rate is wz x T per step, feed-forward + feedback k {a.heading_k:g}")
@@ -1326,7 +1377,20 @@ def main(argv=None):
                     help="dwell: the swing foot's lowering as a share of the single support (default 0.35; 0.20 to 0.45); "
                          "the move takes what the raise (0.35) and the lowering leave. The step time does not change")
     ap.add_argument("--lower-s", type=float, default=None, metavar="S3",
-                    help="dwell: the same, as the lowering's duration in s (= F x the single support at this T)")
+                    help="dwell: the same, as the lowering's duration in s")
+    ap.add_argument("--ss-s", type=float, default=None, metavar="S",
+                    help="dwell: the single support, s (raise + move + lower, split 0.35 : 0.30 : 0.35 unless --raise-s / "
+                         "--move-s / --lower-s are given). With --shift-s the step is shift + settle + this (+ --td-pause): "
+                         "--T then only supplies what is not given, and the T floor / shift >= 1.4 s guards print a warning "
+                         "instead of refusing")
+    ap.add_argument("--shift-s", type=float, default=None, metavar="S",
+                    help="dwell: the lateral shift's duration, s (default per T: 1.4 at T 3.4-6); see --ss-s")
+    ap.add_argument("--raise-s", type=float, default=None, metavar="S", help="dwell: the swing foot's raise, s; see --ss-s")
+    ap.add_argument("--move-s", type=float, default=None, metavar="S", help="dwell: the swing foot's move, s; see --ss-s")
+    ap.add_argument("--allow-under", action="store_true",
+                    help="dwell: the static-shift pre-check's lower bound (the plan's own k_static) is a WARNING, not a refusal "
+                         "(an --amp / timing test that lifts with the pelvis short of the requirement); the joint-range, "
+                         "IK, pelvis-speed and swing-joint-speed checks stay refusals")
     ap.add_argument("--land-early-mm", type=float, default=0.0, metavar="D",
                     help="dwell: 0 to 4 mm: the swing sole is commanded D mm BELOW the floor at touchdown (a slight press: "
                          "the foot reaches the floor early in height terms), held through the pause and let up over the "
@@ -1355,10 +1419,6 @@ def main(argv=None):
         a.ahead = 1.0 if a.cmd else 2.0
     seeds = tuple(float(x) for x in a.seed.split(","))
     import dwell as DW
-    if a.model == "dwell" and a.T < DW.T_FLOOR and not a.below_floor:
-        print(f"REFUSED: T {a.T:g} s is under the dwell gait's SIL floor ({DW.T_FLOOR:g} s): it falls or leans 11-14 deg "
-              f"there (experiments/roll-balance/README.md); --below-floor to plan it anyway")
-        return 2
     amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     aff = tuple(float(x) for x in a.ankle_ff.split(","))
     try:
@@ -1372,25 +1432,43 @@ def main(argv=None):
     except ValueError as e:
         print(f"REFUSED: {e}")
         return 2
+    explicit = any(v is not None for v in (a.ss_s, a.shift_s, a.raise_s, a.move_s))
     try:
-        if a.lower_s is not None:
-            if a.lower_frac is not None:
-                raise ValueError("--lower-frac and --lower-s are alternatives")
-            t_ss = DW.split_times(a.T, *(() if a.ds is None else (a.ds,)))[3]
-            a.lower_frac = a.lower_s / t_ss
-        if a.model != "dwell" and (a.td_pause or a.settle is not None or a.lower_frac is not None or a.land_early_mm):
-            raise ValueError("--td-pause / --settle / --lower-frac / --lower-s / --land-early-mm need --model dwell")
-        DW.Dwell  # (the ranges are checked by the plan: a ValueError is printed as REFUSED below)
+        if a.lower_s is not None and a.lower_frac is not None:
+            raise ValueError("--lower-frac and --lower-s are alternatives")
+        if a.model != "dwell" and (a.td_pause or a.settle is not None or a.lower_frac is not None or a.land_early_mm
+                                   or a.lower_s is not None or explicit):
+            raise ValueError("--td-pause / --settle / --lower-frac / --lower-s / --ss-s / --shift-s / --raise-s / --move-s / "
+                             "--land-early-mm need --model dwell")
         for nm, v, lo, hi in (("--td-pause", a.td_pause, 0.0, 2.0), ("--settle", a.settle, 0.0, 2.0),
                               ("--lower-frac", a.lower_frac, DW.LOWER_FRAC_RANGE[0], DW.LOWER_FRAC_RANGE[1]),
                               ("--land-early-mm", a.land_early_mm, 0.0, DW.LAND_EARLY_MAX_MM)):
             if v is not None and not lo - 1e-9 <= v <= hi + 1e-9:
                 raise ValueError(f"{nm} {v:g}: want {lo:g} to {hi:g}")
+        tk = timing_kw(a)
+        DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), settle=a.settle, ss_s=a.ss_s, shift_s=a.shift_s,
+                         raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac)
     except ValueError as e:
         print(f"REFUSED: {e}")
         return 2
-    a.Teff = DW.effective_step_s(a.T, a.td_pause, a.settle, **({} if a.ds is None else {"ds": a.ds})) \
-        if a.model == "dwell" else a.T
+    if explicit and a.model == "dwell":
+        rt = DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), settle=a.settle, ss_s=a.ss_s, shift_s=a.shift_s,
+                              raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac)
+        print(f"note: explicit phase times: the step is shift {rt['t_sh']:.2f} + settle {rt['t_set']:.2f} + single support "
+              f"{rt['t_ss']:.2f}" + (f" + pause {a.td_pause:g}" if a.td_pause else "") + f" = {rt['period'] + a.td_pause:.2f} s; "
+              f"--T {a.T:g} is not the step time (it only supplies what was not given)")
+        for nm, v, lim, why in (("single support", rt["t_ss"], 1.8, "the SIL-validated schedule needs >= 1.8 s"),
+                                ("shift", rt["t_sh"], 1.4, "the schedule's shift is >= 1.4 s: a shorter one rings through lift-off"),
+                                ("step", rt["period"], DW.T_FLOOR, f"the dwell gait's SIL floor T is {DW.T_FLOOR:g} s")):
+            if v < lim - 1e-9:
+                print(f"WARNING: {nm} {v:.2f} s is under {lim:g} s ({why}); planned anyway because it was given")
+    elif a.model == "dwell" and a.T < DW.T_FLOOR and not a.below_floor:
+        print(f"REFUSED: T {a.T:g} s is under the dwell gait's SIL floor ({DW.T_FLOOR:g} s): it falls or leans 11-14 deg "
+              f"there (experiments/roll-balance/README.md); --below-floor to plan it anyway")
+        return 2
+    a.Teff = DW.effective_step_s(a.T, a.td_pause, a.settle, **({} if a.ds is None else {"ds": a.ds}),
+                                 ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s,
+                                 lower_frac=a.lower_frac) if a.model == "dwell" else a.T
     if a.cmd:
         return main_cmd(a, seeds, amp, aff, by_step)
     learn = None
@@ -1438,6 +1516,7 @@ def main(argv=None):
             print(f"REFUSED: the kinematics cannot do this plan ({e})")
             return 2
         pd["allow_over"] = a.allow_over
+        pd["allow_under"] = a.allow_under
         dry(pd, a)
         return 0
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
@@ -1474,6 +1553,7 @@ def main(argv=None):
                      **({"yaw_trim": hold_.asked} if hold_ is not None else {})})
         pl["hold"], pl["learn"] = hold_, learn
     pl["allow_over"] = a.allow_over
+    pl["allow_under"] = a.allow_under
     if a.gate:
         pl["pre"] = [f"liftgate set {' '.join(x.strip() for x in a.gate.split(','))}"] + pl["pre"]
     live(pl, a)
