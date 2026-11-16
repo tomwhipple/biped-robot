@@ -12,9 +12,9 @@ TAGS = {
     3: (80, "board near-right corner"),
     4: (80, "board mid-edge, left side (optional)"),
     5: (80, "board mid-edge, right side (optional)"),
-    10: (40, "torso front"),
-    11: (40, "torso back"),
-    12: (40, "torso top (faces up)"),
+    10: (60, "torso front"),
+    11: (60, "torso back"),
+    12: (60, "torso top (faces up)"),
     13: (25, "left foot top (optional)"),
     14: (25, "right foot top (optional)"),
 }

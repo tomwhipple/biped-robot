@@ -3,7 +3,7 @@
 
     tools/vision/make_tags.py [-o OUTDIR]
 
-Writes apriltags_letter.pdf (3 pages: board tags, robot tags, placement guide)
+Writes apriltags_letter.pdf (4 pages: board tags, board mid-edge + torso, torso top/feet/spares, placement guide)
 and apriltags_letter_p<N>.png (300 dpi) into OUTDIR (default
 hw_sessions/2026-11-16/vision). Needs only OpenCV + PIL.
 """
@@ -42,20 +42,21 @@ BOARD TAGS (80 mm), lying flat on the board, quiet zone left white:
   paper or matte tape over it (glare kills detection). Tags on two panels:
   do not straddle the seam.
 
-ROBOT TAGS (40 mm; the robot is small, tags are the same size on each):
+ROBOT TAGS (60 mm on the torso; 40 mm spares of 10-12 are on page 3):
   ID 10 torso FRONT: on the front face of the torso box, arrow up.
   ID 11 torso BACK : on the back face, arrow up.
   ID 12 torso TOP  : on the top face, facing up; arrow pointing to the
                      robot's FRONT.
+  If a 60 mm tag does not fit its face (torso is ~90 mm wide), use the 40 mm
+  spare of the same ID and tell Claude which size is mounted: the size goes
+  into the tracker's calibration.
   Optional 25 mm: ID 13 left foot top, ID 14 right foot top, arrow forward.
   Each tag flat to its face (stiff card, no wrinkles), upright edge parallel
   to the torso edge to within 1 degree; measure and record the offset from
-  the torso centre. White quiet zone of at least one module (5 mm for 40 mm
-  tags, 3 mm for 25 mm) must stay free: do not mount over a seam or screw.
+  the torso centre. White quiet zone of at least one module (7.5 mm for
+  60 mm tags, 5 mm for 40 mm, 3 mm for 25 mm) must stay free: do not mount over a seam or screw.
 
-AFTER PLACING: run tools/vision/tag_track.py --calibrate on a short capture
-with the robot standing still (board tag positions and robot tag mount
-offsets go in the calibration JSON).
+AFTER PLACING: tell Claude, who will take a calibration capture.
 """
 
 
@@ -75,13 +76,16 @@ def scale_bar(d, x, y):
     d.text((x + mm(50) + 15, y - 14), "50 mm - must measure 50 mm", fill=0, font=font(28))
 
 
-def place(page, d, tag_id, cx, top):
+def place(page, d, tag_id, cx, top, size=None):
     """Draw tag centred horizontally at cx; label above; returns y below the cell."""
-    size, role = TAGS[tag_id]
+    size0, role = TAGS[tag_id]
+    size = size or size0
     px = mm(size)
     q = mm(size / 8)  # quiet zone: one module
-    d.text((cx, top), f"ID {tag_id}: {role} - {size} mm", fill=0, font=font(30, True), anchor="mt")
-    ty = top + 50
+    spare = " (SPARE)" if size != size0 else ""
+    d.text((cx, top), f"ID {tag_id} - {size} mm{spare}", fill=0, font=font(32, True), anchor="mt")
+    d.text((cx, top + 42), role, fill=0, font=font(24), anchor="mt")
+    ty = top + 90
     cell = (cx - px // 2 - q, ty, cx + px // 2 + q, ty + px + 2 * q)
     d.rectangle(cell, outline=170, width=2)  # cut line, outside the quiet zone
     img = Image.fromarray(tag_image(tag_id, px))
@@ -115,23 +119,32 @@ def build(outdir):
         y = bottom + mm(14)
     scale_bar(d, mm(20), H - mm(18))
     pages.append(page)
-    # page 2: 4,5 + robot tags
-    page, d = sheet_page("Mid-edge board tags + robot tags")
+    # page 2: mid-edge board tags + torso front/back
+    page, d = sheet_page("Mid-edge board tags + torso front / back")
     y = mm(22)
     bottom = y
     for cx, tid in zip(cols, (4, 5)):
         bottom = place(page, d, tid, cx, y)
     y = bottom + mm(14)
-    rx = [W // 6, W // 2, 5 * W // 6]
-    bottom = y
-    for cx, tid in zip(rx, (10, 11, 12)):
-        bottom = place(page, d, tid, cx, y)
-    y = bottom + mm(12)
-    for cx, tid in zip(rx[:2], (13, 14)):
+    for cx, tid in zip(cols, (10, 11)):
         bottom = place(page, d, tid, cx, y)
     scale_bar(d, mm(20), H - mm(18))
     pages.append(page)
-    # page 3: guide
+    # page 3: torso top, feet, spare 40 mm torso tags
+    page, d = sheet_page("Torso top, foot tags, spare 40 mm torso tags")
+    y = mm(22)
+    bottom = y
+    for cx, tid in zip((W // 4, int(W * 0.58), int(W * 0.84)), (12, 13, 14)):
+        bottom = max(bottom, place(page, d, tid, cx, y))
+    y = bottom + mm(14)
+    d.text((mm(12), y), "Spares, in case 60 mm does not fit the real torso (same IDs):",
+           fill=0, font=font(30, True))
+    y += 50
+    for cx, tid in zip((W // 6, W // 2, 5 * W // 6), (10, 11, 12)):
+        place(page, d, tid, cx, y, size=40)
+    scale_bar(d, mm(20), H - mm(18))
+    pages.append(page)
+    # page 4: guide
     page, d = sheet_page("Placement guide")
     y = mm(22)
     for line in GUIDE.splitlines():
