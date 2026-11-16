@@ -10,6 +10,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools", "vision"))
+import run_report  # noqa: E402,F401
 import synth  # noqa: E402
 import tag_track as T  # noqa: E402
 import vgeom as G  # noqa: E402
@@ -99,3 +100,25 @@ def test_board_scale_is_not_observable_but_shows_in_the_camera_position():
 def test_config_override_merges():
     cfg = G.load_config()
     assert cfg["board"]["tags"]["0"]["size"] == 80.0 and cfg["robot"]["tags"]["10"]["size"] == 60.0
+
+
+def test_video_end_to_end_with_wall_clock_and_report_flags(tmp_path):
+    import cv2
+    path = str(tmp_path / "v.mp4")
+    w = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), 25.0, SIZE)
+    base = 1.8e9
+    with open(str(tmp_path / "v.pts"), "w") as f:
+        f.write("# timecode format v2\n")
+        for k in range(30):
+            y = 400 + 15 * k
+            w.write(cv2.cvtColor(render(CFG, 5, 2, -3, 450, y, seed=k), cv2.COLOR_GRAY2BGR))
+            f.write(f"{(base + k * 0.04) * 1000:.3f}\n")
+    w.release()
+    rows, cal = T.track_video(path, CFG, stride=3, calib_frames=6)
+    assert cal is not None and abs(cal["f_px"] - F_TRUE) / F_TRUE < 0.05
+    good = [r for r in rows if r.get("stale") is False]
+    assert len(good) >= 8 and abs(good[0]["t"] - base) < 1e-3
+    assert abs(good[-1]["y_mm"] - (400 + 15 * good[-1]["frame"])) < 40       # mp4v compression adds error
+    import run_report as RR
+    flags = RR.tag_flags(rows, None)
+    assert flags["edge_margin_min_mm"] > 0 and flags["position_end"][1] > flags["position_start"][1]
