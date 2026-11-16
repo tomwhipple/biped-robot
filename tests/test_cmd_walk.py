@@ -420,3 +420,31 @@ def test_default_plans_are_untouched_by_the_per_step_tilt():
     e = H.plan(4.0, 6, "fwd", cmd=H.step_cmd(20, 0, 0), swing_tilt=3.0)
     f = H.plan(4.0, 6, "fwd", step_cmds=[dict(H.step_cmd(20, 0, 0), seg=0, tilt=3.0)] * 6)
     assert _h(d) == _h(e) == _h(f)
+
+
+# ---- the key controller (no tty needed)
+
+def test_walk_keys_controller_and_atomic_file(tmp_path):
+    import walk_keys as K
+    ctl = K.Controller(T=4.0)
+    for k in "wwA":
+        assert ctl.key(k)
+    assert ctl.v == [10.0, 5.0, 0.0] and C.parse_command(ctl.line()) == ("vel", (2.5, 1.25, 0.0))
+    for k in "eeee":
+        ctl.key(k)
+    assert ctl.v[2] == -4.0
+    for _ in range(20):
+        ctl.key("w")
+    assert ctl.v[0] == 40.0                            # never past the envelope
+    for _ in range(20):
+        ctl.key("s")
+    assert ctl.v[0] == -32.0
+    assert not ctl.key("z") and ctl.key("x") and ctl.line() == "0 0 0\n"
+    assert ctl.key("\x1b") and ctl.line() == "stop\n"
+    f = tmp_path / "cmd"
+    K.write_atomic(str(f), "1 2 3\n")
+    K.write_atomic(str(f), "stop\n")
+    assert f.read_text() == "stop\n" and [p.name for p in tmp_path.iterdir()] == ["cmd"]
+    assert K.read_status(str(f)) is None
+    (tmp_path / "cmd.status").write_text(json.dumps(dict(state="walking", step=3, applied=[5.0, 0, 0], notes=["slew"])))
+    assert "walking step 3 applied +5.00" in K.render(ctl, K.read_status(str(f)))
