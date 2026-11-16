@@ -209,7 +209,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
          step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None, td_pause=0.0, settle=None,
-         lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None, move_s=None, lower_s=None):
+         lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None, move_s=None, lower_s=None, pre_hike=None,
+         pre_hike_frac=1.0):
     """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
     stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
     decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
@@ -273,6 +274,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **({"td_pause": td_pause} if td_pause else {}), **({"settle": settle} if settle is not None else {}),
                    **({"lower_frac": lower_frac} if lower_frac is not None else {}),
                    **({"land_early": land_early} if land_early else {}),
+                   **({"pre_hike": tuple(pre_hike), "pre_hike_frac": pre_hike_frac}
+                      if pre_hike is not None and any(pre_hike) else {}),
                    **{k_: v_ for k_, v_ in (("ss_s", ss_s), ("shift_s", shift_s), ("raise_s", raise_s), ("move_s", move_s),
                                            ("lower_s", lower_s)) if v_ is not None},
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
@@ -289,6 +292,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
         raise ValueError("--step / --seq / --stride-mm need the dwell model")
     sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model,
                     lift_gate=lift_gate and model == "dwell", **dkw, **gkw)
+    if pre_hike is not None and any(pre_hike):
+        seeds = tuple(0.0 if h_ else v_ for v_, h_ in zip(seeds, pre_hike))        # the plan carries the hike: T there is 0
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
     if cmds is not None:
         dpsi = [c["dpsi"] for c in cmds]
@@ -305,7 +310,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           ankle_side=tuple(ankle_side) if ankle_side is not None else None,
                           first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None,
                           td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early,
-                          ss_s=ss_s, shift_s=shift_s, raise_s=raise_s, move_s=move_s, lower_s=lower_s))
+                          ss_s=ss_s, shift_s=shift_s, raise_s=raise_s, move_s=move_s, lower_s=lower_s,
+                          pre_hike=tuple(pre_hike) if pre_hike is not None else None, pre_hike_frac=pre_hike_frac))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -586,6 +592,9 @@ def precheck(pl, tol=0.01, only_step=None):
             if q is None:
                 continue
             pa = seg_at(t)["pa"]
+            hk = sw.hike_at(t) if hasattr(sw, "hike_at") else None
+            if hk is not None and hk[0] == st:                    # the plan's pre-hike is in the stance hip roll goal
+                q = dict(q, **{f"{st}_hip_roll": q[f"{st}_hip_roll"] - sg * hk[1]})
             sh = shift_of(q, pa, st)
             ratio = sg * (sh - pa["feet"][st][1]) / oy
             nd = need_lo[st] if what == "lift-off" else need[st]
@@ -1156,6 +1165,7 @@ def live(pl, a):
 def timing_kw(a):
     """plan()'s keywords for the step-timing flags (empty = today's frames)."""
     return dict(td_pause=a.td_pause, settle=a.settle, lower_frac=a.lower_frac, land_early=a.land_early_mm,
+                pre_hike=a.pre_hike, pre_hike_frac=a.pre_hike_frac,
                 ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s)
 
 
@@ -1387,6 +1397,15 @@ def main(argv=None):
                     help="dwell: the lateral shift's duration, s (default per T: 1.4 at T 3.4-6); see --ss-s")
     ap.add_argument("--raise-s", type=float, default=None, metavar="S", help="dwell: the swing foot's raise, s; see --ss-s")
     ap.add_argument("--move-s", type=float, default=None, metavar="S", help="dwell: the swing foot's move, s; see --ss-s")
+    ap.add_argument("--pre-hike", default=None, metavar="L,R",
+                    help="dwell: deg per stance side, a stance hip-roll hike IN THE PLAN (the firmware trim's convention: + "
+                         "raises the swing-side hip): min-jerk in over the settle (both feet down), held through the single "
+                         "support, out over the start of the next step (over --td-pause if given, else half the shift). The "
+                         "swing leg is solved for the rolled pelvis so its sole stays where the plan has it. The firmware's "
+                         "learned trim T of a side with a pre-hike is seeded 0 (printed) so the two do not add. Seeds to try: "
+                         "the trims the robot learns, 5.2,3.4. Default off")
+    ap.add_argument("--pre-hike-frac", type=float, default=1.0, metavar="F",
+                    help="dwell: the pre-hike's ramp-in takes this share of the settle (default 1: all of it; 0.05 to 1)")
     ap.add_argument("--allow-under", action="store_true",
                     help="dwell: the static-shift pre-check's lower bound (the plan's own k_static) is a WARNING, not a refusal "
                          "(an --amp / timing test that lifts with the pelvis short of the requirement); the joint-range, "
@@ -1418,6 +1437,22 @@ def main(argv=None):
     if a.ahead is None:
         a.ahead = 1.0 if a.cmd else 2.0
     seeds = tuple(float(x) for x in a.seed.split(","))
+    try:
+        if a.pre_hike is not None:
+            a.pre_hike = parse_pair(a.pre_hike, "--pre-hike", 0.0, 12.0)
+            if a.model != "dwell":
+                raise ValueError("--pre-hike needs --model dwell")
+            if not 0.05 <= a.pre_hike_frac <= 1.0:
+                raise ValueError("--pre-hike-frac wants 0.05 to 1")
+    except ValueError as e:
+        print(f"REFUSED: {e}")
+        return 2
+    if a.pre_hike is not None and any(a.pre_hike):
+        print(f"pre-hike: L {a.pre_hike[0]:g} / R {a.pre_hike[1]:g} deg on the stance hip roll in the plan (in over "
+              f"{a.pre_hike_frac:g} of the settle, held through the single support, out over the start of the next step); "
+              f"the firmware's learned trim T is seeded "
+              + ", ".join(f"{n} {0.0 if h_ else v_:g}" for n, v_, h_ in zip("LR", seeds, a.pre_hike)) + f" (was {seeds[0]:g},{seeds[1]:g}); "
+              "its closed loop stays on")
     import dwell as DW
     amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     aff = tuple(float(x) for x in a.ankle_ff.split(","))

@@ -993,6 +993,56 @@ The two fwd lines at k 1.0 and 0.85 carry `--swing-tilt 3`: without it the plan 
 -39.5 deg, outside the plant's 38 deg less 2 deg margin: with the pelvis nearer the centre the swing foot has more reach to cover). With it the
 margin is 4.4 / 3.4 deg. At k 1.15 no tilt is needed (2.5 deg).
 
+## Taking up the hip-roll play before the foot leaves: `--pre-hike L,R`, `--pre-hike-frac F` (host only; default off)
+
+Why (the flight records of 2026-11-17, from the coordinator): with `--ss-s 1.2` the first R-stance step fell, and with only the raise
+shortened (`--raise-s 0.42 --move-s 0.66 --lower-s 0.77`) 3 of 7 steps tipped 11-12 deg inward on both sides: a fast lift is the
+disturbance. The hypothesis under test: at foot-off the pelvis sags through the hip-roll play (6-8 deg); with a slow raise the firmware
+trim's hike (learned T ramped over the raise plus the closed loop) keeps up, with a fast one the sag is abrupt. `--pre-hike` takes the
+play up in the plan, with both feet down, before the lift.
+
+**What it does.** For each step, the stance leg's hip-roll goal gets `+ theta` (the firmware trim's convention: + raises the swing-side
+hip; `Kin.pose(hike=)`), min-jerk in over the settle (over `--pre-hike-frac` of it, default all of it: 0.4 s at T 4), held through
+the single support, and out over the start of the next step: over `--td-pause` if there is one (the removal then happens with nothing
+else moving), else over the first half of the next shift (0.7 s at T 4; the shift itself is slow at its start). `theta` is the side's
+value of `--pre-hike L,R` (deg, 0 to 12; 0 = no hike on that side). The seeds to try are the trims the robot learns, `5.2,3.4`. A pre-hike
+step's ramp-in and the previous step's ramp-out never overlap (the out ramp is at most as long as the pause plus the shift).
+
+**The swing sole is kept where the plan has it.** A hike alone (the stance hip-roll goal += theta, the swing leg's goals unchanged) leaves the
+stance leg where it is in the world and rolls the pelvis about the stance hip's roll axis; the swing-side hip rises, and the swing sole with
+it: by the swing ankle's lateral distance from the stance hip x sin(theta), 12.5 mm at 5.2 deg with the pelvis 40 mm over the stance
+foot (measured on the plant's forward kinematics, `tests/test_pre_hike.py`). With both feet down in the settle that unloads the swing foot,
+and in the single support it moves the foot with the pelvis. `dwell.hiked_pose` therefore solves the swing leg's IK for the rolled pelvis
+with the sole's world position fixed, and turns its ankle roll back by the pelvis roll, so the sole stays level and at the height the plan
+commands (0 on the floor, h in the air); the stance leg is the level solution with the hip roll goal += theta (its other joints and its
+ankle roll are unchanged: the leg does not move). Checked on the MuJoCo plant: both ankle-roll points land on their targets to 1e-6 m and
+both soles are level for hikes of 0, 5.2 and 9 deg on either stance and the swing foot at 0 and 15 mm. Cost: the swing leg's joints move
+a few degrees more (its peak joint speed in the swing goes from 86-92 to 156-167 deg/s at `--ss-s 1.2`, under the 185 deg/s limit).
+
+**The firmware's trim.** The plan carries the hike, so the host seeds the firmware's learned trim T of a side with a pre-hike to 0
+(`trim T L 0` instead of `trim T L 5.2`; `track_host.py` prints it) and the two do not add; the closed loop stays on and corrects the
+residual, and its learned T then grows from 0 on its own (the `TS` lines' `T` shows how much it still needs: a `T` near 0 at mid single
+support means the plan's hike was the right size, a `T` near the old 5.2 / 3.4 means it did nothing). The pre-check reads the lift-off and
+touchdown pelvis shift through the hike (the stance hip-roll goal less theta), so its numbers are the same as without; the joint-range rule
+covers the stance hip roll and the swing leg (the swing leg's IK is solved, so a swing foot out of reach refuses the plan).
+
+**Robot test lines** (fixed walks, T 4, `--ahead 1`, lift gate on; compare the TS lean-in / lean-out and T against the same line without `--pre-hike`):
+
+```
+# (1) normal timing, no regression
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --pre-hike 5.2,3.4 --live --note "prehike march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --pre-hike 5.2,3.4 --live --note "prehike fwd20"
+# (2) the same with only the raise shortened
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --raise-s 0.42 --move-s 0.66 --lower-s 0.77 --pre-hike 5.2,3.4 --live --note "prehike raise0.42 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --raise-s 0.42 --move-s 0.66 --lower-s 0.77 --pre-hike 5.2,3.4 --live --note "prehike raise0.42 fwd20"
+# (3) with the short single support
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 1.2 --pre-hike 5.2,3.4 --live --note "prehike ss1.2 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 1.2 --pre-hike 5.2,3.4 --live --note "prehike ss1.2 fwd20"
+```
+
+Variants: `--pre-hike-frac 0.5` finishes the ramp in the first half of the settle; `--settle 0.8` gives the ramp more time (the step is 0.4 s longer);
+`--pre-hike 5.2,0` hikes one side only. Without `--live` each prints the plan and sends nothing.
+
 ## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
 
 A walk with no fixed length: every step the host reads the CURRENT command, `vx vy wz` (mm/s forward, mm/s left, deg/s

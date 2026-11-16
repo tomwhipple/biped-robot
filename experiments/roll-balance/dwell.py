@@ -171,6 +171,40 @@ def effective_step_s(T, td_pause=0.0, settle=None, **kw):
     return r["period"] + (td_pause or 0.0)
 
 
+def hiked_pose(K, theta, stance, shift=0.0, fwd=0.0, footL=(0.0, 0.0, 0.0), footR=(0.0, 0.0, 0.0), ankle=None):
+    """K.pose with a hip-roll hike `theta` (rad, the firmware trim's convention: + raises the SWING-side hip) on the
+    `stance` leg, the swing leg solved so that its sole stays where `footL` / `footR` put it.
+
+    The hike (hip roll goal += theta on the stance leg alone, its ankle roll unchanged) leaves the stance leg where it
+    is in the world and rolls the pelvis about the stance hip's roll axis by -theta (L stance) / +theta (R stance), so
+    the swing-side hip rises, and the swing sole with it by the swing ankle's lateral distance from the stance hip x
+    sin(theta) (12.5 mm at 5.2 deg with the pelvis 40 mm over the stance foot). The swing leg's own joints would then lift its sole off the
+    floor by that much (or, in single support, move the foot with the pelvis); here its IK is solved for the rolled
+    pelvis with the foot's world position fixed and its ankle roll turned back by the pelvis roll, so the sole is
+    where the plan has it, flat. Returns (q {joint: rad}, roll rad): the pelvis roll about the world x axis."""
+    import numpy as np
+    from v6_kin import leg_ik
+    p, k = K.p, K.k1.copy()
+    k.pelvis = k.pelvis + np.array([fwd, shift, 0.0])
+    foot = {"L": k.footL + np.asarray(footL, float), "R": k.footR + np.asarray(footR, float)}
+    q = K.pose(shift=shift, fwd=fwd, footL=footL, footR=footR, hike={stance: theta}, ankle=ankle)
+    sg = 1.0 if stance == "L" else -1.0
+    al = -sg * theta                                      # the pelvis roll about +x
+    c, sn = math.cos(al), math.sin(al)
+    rx = np.array([[1.0, 0.0, 0.0], [0.0, c, -sn], [0.0, sn, c]])
+    hr = k.pelvis + np.array([0.0, sg * p.hip_sep / 2, p.hip_z - p.d_yaw_roll])      # the stance hip's roll axis point
+    pel = hr + rx @ (k.pelvis - hr)
+    sw = "R" if stance == "L" else "L"
+    ss = -sg
+    hip_yaw_pt = pel + rx @ np.array([0.0, ss * p.hip_sep / 2, p.hip_z])
+    v = rx.T @ (foot[sw] - hip_yaw_pt) + np.array([0.0, 0.0, p.d_yaw_roll])
+    qs = leg_ik(p, v, None, 0.0)
+    for j, n in enumerate(("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")):
+        q[f"{sw}_{n}"] = float(qs[j])
+    q[f"{sw}_ankle_roll"] -= al                           # the sole flat in the world: the pelvis roll taken out
+    return q, al, pel
+
+
 def _mj(u):
     u = min(max(u, 0.0), 1.0)
     return u * u * u * (10 - 15 * u + 6 * u * u)
@@ -182,7 +216,7 @@ class Dwell:
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
                  ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0,
                  td_pause=0.0, settle=None, lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None,
-                 move_s=None, lower_s=None):
+                 move_s=None, lower_s=None, pre_hike=None, pre_hike_frac=1.0):
         """td_pause: s, the next step's lateral shift (all pelvis / hip roll / ankle roll motion of the shift, and the
         fore-aft pelvis move with it) starts this long AFTER the planned touchdown of the swing foot: the lowering, the
         ankle feed-forward's and the swing tilt's ramp-out are complete first (they follow the foot's height, 0 at
@@ -191,7 +225,12 @@ class Dwell:
         (the single support and the shift keep their lengths). lower_frac: the lowering's share of the single
         support (default 0.35; the move takes what the raise and the lowering leave). ss_s / shift_s / raise_s / move_s /
         lower_s: s, the single support, the lateral shift and the three parts of the single support given directly
-        (resolve_times: the step is then shift + settle + single support, T only supplies what was not given). land_early: mm, the swing sole is
+        (resolve_times: the step is then shift + settle + single support, T only supplies what was not given).
+        pre_hike: {"L": deg, "R": deg} (or a pair), a hip-roll hike of the STANCE leg in the plan (the firmware trim's
+        convention: + raises the swing-side hip), min-jerk in over the settle (both feet down; over pre_hike_frac of it),
+        held through the single support and out over the start of the next step (over the pause when there is one, else
+        over half the shift). The swing leg is solved for the rolled pelvis, its sole stays where the plan has it
+        (hiked_pose). land_early: mm, the swing sole is
         commanded this far BELOW the floor at touchdown (min-jerk with the lowering; a slight press), held through the
         pause and released over the next shift, 0..4.
         ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
@@ -238,6 +277,11 @@ class Dwell:
         R_, M_, F_ = rt["parts"]                 # the raise / move / lower shares of the single support
         u_l = 0.65 if not custom else 1.0 - F_   # where the lowering starts
         self.explicit = rt["explicit"]
+        pre_h = {s_: math.radians(v_) for s_, v_ in per_side(pre_hike).items()}
+        if any(abs(math.degrees(v_)) > 12.0 + 1e-9 for v_ in pre_h.values()) or any(v_ < 0 for v_ in pre_h.values()):
+            raise ValueError("pre_hike: want 0 to 12 deg per side")
+        if not 0.05 <= pre_hike_frac <= 1.0:
+            raise ValueError("pre_hike_frac: want 0.05 to 1")
         t_pause = float(td_pause or 0.0)
         if t_pause < 0.0 or t_pause > 2.0:
             raise ValueError(f"td_pause {t_pause:g} s: want 0 to 2")
@@ -328,6 +372,27 @@ class Dwell:
             k = (self.k_ds[st] or self.k[st]) if ds else self.k[st]
             return fe[st][1] + sg * k * self.oy
 
+        t_out = t_pause if t_pause > 0 else 0.5 * t_sh
+
+        def hike_at(tt):
+            """(stance side, hike rad) at time tt, or None: in over the settle, held to the touchdown, out after it."""
+            if not any(pre_h.values()):
+                return None
+            for p_ in steps:
+                th = pre_h[p_["stance"]]
+                if not th:
+                    continue
+                if p_["b"] <= tt <= p_["td"]:
+                    m_ = _mj((tt - p_["b"]) / max(pre_hike_frac * t_set, 1e-6))
+                elif p_["td"] < tt <= p_["td"] + t_out:
+                    m_ = 1.0 - _mj((tt - p_["td"]) / max(t_out, 1e-6))
+                else:
+                    continue
+                return (p_["stance"], th * m_) if m_ > 0 else None
+            return None
+        self.hike_at = hike_at
+        self.pre_hike = pre_h
+
         segs = [dict(t=0.0, ms=1e3 * t_crouch, q=K.pose(), row=dict(tag="crouch"))]
         phases, self.liftoff, self.step_ends = [], [], []
         fe = {s: list(v) for s, v in feet.items()}
@@ -409,8 +474,13 @@ class Dwell:
                     ffv = float(self.ankle_ff_steps[cur])
                 if ffv and r_a > 0:
                     ank = {st_a: math.radians(ffv) * r_a}
-            qd = K.pose(shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
-                        footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
+            hk = hike_at(tt) if pre_h["L"] or pre_h["R"] else None
+            if hk is not None:
+                qd, _, _ = hiked_pose(K, hk[1], hk[0], shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
+                                      footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
+            else:
+                qd = K.pose(shift=pel, fwd=x_pel, footL=(fxy["L"][0], fxy["L"][1], fz["L"]),
+                            footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
             if swing_tilt and cur < len(steps) and h > 0:
                 sw_t = steps[cur]["swing"]
                 tilt_i = (swing_tilt[cur] if cur < len(swing_tilt) else swing_tilt[-1]) \
