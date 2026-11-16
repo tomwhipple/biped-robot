@@ -821,7 +821,7 @@ asked, what was applied (mm/s, mm/s, deg/s), the per-step displacement, the note
 | per step | default | flag | why |
 |---|---|---|---|
 | forward dx | 50 mm | `--max-fwd-mm` | hw 2026-11-16, T 4, tilt 5 deg (auto above 43 mm): three fixed 50 mm walks 7/7 clean each and one steered walk through 50 mm, lean <= 3.8 deg |
-| backward dx | 40 mm | `--max-back-mm` | hw 2026-11-16, T 4, tilt 3, since the lift gate was flashed: 8 walks clean at 40 mm (the fall at 40 back was before the gate) |
+| backward dx | 32 mm | `--max-back-mm` | steering mode, hw 2026-11-16: after sidesteps right, a backward command of -10 mm/s (40 mm) ramps dx -20, -40, -40, and on the third backward step (left stance) the robot tipped 13.8 deg inward once and fell once (the step before was clean, in 1.7 out 2.2) in two of three runs of that pattern; at -8 mm/s (32 mm) the same kind of pattern ran clean, including a 43-step walk. 40 mm backward is proven only as a FIXED walk (8 clean at T 4, tilt 3, with the lift gate) and stays available with `--max-back-mm 40` |
 | sideways dy | 15 mm | `--max-side-mm` | proven side step |
 | heading dyaw | 5 deg | `--max-turn-deg` | proven (turns ~5 deg per step) |
 | slew, change of (dx, dy, dyaw) from one step to the next | 20 mm, 10 mm, 3 deg | `--slew DX,DY,DYAW` | below |

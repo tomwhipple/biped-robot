@@ -9,12 +9,20 @@ Takes the roll-balance track log of one run, finds its UTC window (the flight re
 segments or hand-recorded mp4+.pts), and writes:
 
   anomalies             every TS step with inward lean >= 8 or outward >= 6 deg, gate hold,
-                        track stop, abort/fall line, flight fall event, implausible recovery
+                        track stop, abort/fall line, firmware ABORT step, stop-rule ending, GATE-TIMEOUT,
+                        a run with fewer TS lines than steps decided (short_run: the host log has no fall
+                        line, a fall shows as a missing last TS), the flight record's fall latch
+                        (fall_latch: EV_FALL event / TF_FALLEN tick flag), implausible recovery
+  ending                "clean", or the kinds of ending anomalies (fall_latch, firmware_abort, stop_rule,
+                        gate_timeout, short_run, abort_or_fall)
   implausible_recovery  TELEMETRY ONLY (flight record IMU): tip > 20 deg and back < 10 deg within
                         6 s without a fall latch = someone helped. Works without tags.
-  foreign_motion        image-only hint (tools/vision/foreign.py); unreliable, see README
-  edge_margin_min_mm, edge_margin_min_at, position_start/end, heading_start/end
-                        from the tags; null when no tags are visible
+  foreign_motion_hints  image-only hint list (tools/vision/foreign.py); unreliable, fires on the robot itself,
+                        so it is kept in the JSON only and left out of the printed summary, see README
+  edge_margin_min_mm, edge_margin_min_at, position_start/end, position_track_extent, heading_start/end
+                        from the tags; null when no tags are visible. Start / end = median over the first / last
+                        window (>= 1 s) in which the torso tag is stationary (the tag swings +-80 mm sideways with
+                        every step); position_method says how each was obtained
   tilt_video_vs_imu     max |tag roll/pitch - IMU roll/pitch| (needs tags); null without
   contact sheet         start, end and +-1 s around every anomaly
 
@@ -42,6 +50,7 @@ import tag_track as T  # noqa: E402
 import vgeom as G  # noqa: E402
 
 LEAN_IN_DEG, LEAN_OUT_DEG = 8.0, 6.0
+ENDING_KINDS = ("fall_latch", "firmware_abort", "stop_rule", "gate_timeout", "short_run", "abort_or_fall")
 STOP_RE = re.compile(r"(?i)aborts\s+(?!\s*none)|\bfell\b|fall latch|\bfallen\b|\babort(ed)?\b(?! or)")
 
 
@@ -56,11 +65,14 @@ def log_anomalies(rows, t0):
             ns = [int(x) for x in re.findall(r"TS (\d+) ", r.get("text", ""))]
             for n in range(1, max(ns, default=0) + 1):
                 first_seen.setdefault(n, r["t"])
+    t_end = t0 + max((r["t"] for r in rows if not r.get("summary") and "t" in r), default=0.0)
     for s in summary.get("steps", []):
         t = first_seen.get(s["n"])
         tt = None if t is None else t0 + t
         if s["lean_in"] >= LEAN_IN_DEG or s["lean_out"] >= LEAN_OUT_DEG:
             out.append(dict(kind="ts_lean", t_utc=tt, detail=f"step {s['n']} {s['stance']} in {s['lean_in']} out {s['lean_out']}"))
+        if s.get("ok") is False:
+            out.append(dict(kind="firmware_abort", t_utc=tt, detail=f"step {s['n']} {s['stance']} ABORT"))
         if s.get("gate_ms"):
             pass                                  # reported by the HOLDING line below (it has the time)
     held = False
@@ -74,8 +86,18 @@ def log_anomalies(rows, t0):
         for line in tx.splitlines():
             if STOP_RE.search(line) and "accel-reject" not in line and "learning" not in line:
                 out.append(dict(kind="abort_or_fall", t_utc=t0 + r["t"], detail=line.strip()[:100]))
+    oc = summary.get("outcome") or {}
     if summary.get("gate_timeout"):
-        out.append(dict(kind="gate_timeout", t_utc=None, detail=str(summary["gate_timeout"])))
+        out.append(dict(kind="gate_timeout", t_utc=t_end, detail=str(summary["gate_timeout"])))
+    if oc.get("stop_rule"):
+        out.append(dict(kind="stop_rule", t_utc=t_end, detail="the host's stop rule ended the track (lean past --stop-lean / --stop-out, or an ABORT)"))
+    if oc.get("fell"):
+        out.append(dict(kind="fall_latch", t_utc=t_end, detail="the host read the fall latch after the run"))
+    planned = (summary.get("args") or {}).get("steps")
+    done = max([s["n"] for s in summary.get("steps", [])], default=0)
+    if planned and done < planned and not any(o["kind"] in ("gate_timeout", "stop_rule", "firmware_abort", "abort_or_fall") for o in out):
+        # the host log has no fall line: a run that fell has no TS line for the step it fell in (2026-11-16 14:01: 16 of 17)
+        out.append(dict(kind="short_run", t_utc=t_end, detail=f"{done} TS lines for {planned} steps decided: the track ended early (fall, link or firmware stop)"))
     return out
 
 
@@ -141,19 +163,58 @@ def _hms(t):
     return None if t is None else dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%H:%M:%S.%f")[:-3] + "Z"
 
 
+STILL_S, STILL_MM = 1.0, 15.0    # a stationary window: >= 1 s with the torso tag within 15 mm (x and y spread)
+
+
+def still_position(good, last, win_s=STILL_S, spread_mm=STILL_MM):
+    """-> ([x, y], how) of the first (last=False) / last (last=True) window of tracker rows >= win_s long whose x and
+    y each spread (max - min) <= spread_mm: the robot at rest. The torso tag swings about +-80 mm sideways with every
+    step, so a single mid-step sample is up to ~90 mm off the at-rest position. No such window (it never stood still
+    that long in view): the median of the first / last 5 % of the rows, and `how` says so."""
+    seq = list(reversed(good)) if last else list(good)
+    best = None
+    for i in range(len(seq)):
+        w = [seq[i]]
+        for r in seq[i + 1:]:
+            w.append(r)
+            xs, ys = [q["x_mm"] for q in w], [q["y_mm"] for q in w]
+            if max(xs) - min(xs) > spread_mm or max(ys) - min(ys) > spread_mm:
+                w.pop()
+                break
+        if len(w) >= 2 and abs(w[-1]["t"] - w[0]["t"]) >= win_s:
+            best = w
+            break
+    if best is not None:
+        how = dict(method="median over a stationary window", window_s=round(abs(best[-1]["t"] - best[0]["t"]), 2),
+                   frames=len(best), spread_mm_max=spread_mm,
+                   from_utc=_hms(min(q["t"] for q in best)), to_utc=_hms(max(q["t"] for q in best)))
+    else:
+        n = max(1, len(good) // 20)
+        best = seq[:n]
+        how = dict(method=f"median of the {'last' if last else 'first'} 5 % of the frames: NO stationary window of "
+                          f"{win_s:g} s found, may be mid-step (up to ~90 mm off)", frames=len(best))
+    pos = [round(float(np.median([r["x_mm"] for r in best])), 1), round(float(np.median([r["y_mm"] for r in best])), 1)]
+    return pos, how
+
+
 def tag_flags(rows, imu):
     """Flags from tracker rows (+ IMU series for the tilt cross-check)."""
     good = [r for r in rows if r.get("stale") is False]
     if not good:
         return dict(edge_margin_min_mm=None, edge_margin_min_at=None, position_start=None, position_end=None,
-                    heading_start=None, heading_end=None, tilt_video_vs_imu=None, tags_visible_frames=0)
+                    position_method=None, position_track_extent=None, heading_start=None, heading_end=None, tilt_video_vs_imu=None, tags_visible_frames=0)
     k = min(good, key=lambda r: r["margin_min_mm"])
     n = max(1, len(good) // 20)
-    pos = lambda g: [round(float(np.median([r["x_mm"] for r in g])), 1), round(float(np.median([r["y_mm"] for r in g])), 1)]
+    p_start, h_start = still_position(good, False)
+    p_end, h_end = still_position(good, True)
+    xs, ys = [r["x_mm"] for r in good], [r["y_mm"] for r in good]
+    extent = dict(x_mm=[round(min(xs), 1), round(max(xs), 1)], y_mm=[round(min(ys), 1), round(max(ys), 1)],
+                  note="all frames with tags, including the +-80 mm per-step sway")
     hd = lambda g: round(float(np.median([r["heading_deg"] for r in g])), 1)
     out = dict(edge_margin_min_mm=round(k["margin_min_mm"], 1), edge_margin_min_at=dict(utc=_hms(k["t"]), edge=k["margin_min_edge"],
                x_mm=round(k["x_mm"], 1), y_mm=round(k["y_mm"], 1)),
-               position_start=pos(good[:n]), position_end=pos(good[-n:]),
+               position_start=p_start, position_end=p_end, position_method=dict(start=h_start, end=h_end),
+               position_track_extent=extent,
                heading_start=hd(good[:n]), heading_end=hd(good[-n:]), tags_visible_frames=len(good), tilt_video_vs_imu=None)
     if imu is not None and len(imu["t"]):
         sure = [r for r in good if not r.get("ambiguous")]
@@ -184,9 +245,12 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
     for e in imrep["excursions"]:
         anomalies.append(dict(kind="implausible_recovery" if e["implausible"] else "tip_over", t_utc=e["t_peak"],
                               detail=f"{e['peak_deg']:.0f} deg, fall latch {e['fall_latched']}"))
+    for ft in imrep.get("falls", []):
+        anomalies.append(dict(kind="fall_latch", t_utc=ft, detail="flight record: fall latch (EV_FALL / TF_FALLEN)"))
     anomalies = [a for a in anomalies if a["t_utc"] is not None]
     anomalies.sort(key=lambda a: a["t_utc"])
-    rep = dict(run=name, window_utc=[_hms(t0), _hms(t1)], flight_record=imrep["source"],
+    ending = sorted({a["kind"] for a in anomalies if a["kind"] in ENDING_KINDS})
+    rep = dict(run=name, window_utc=[_hms(t0), _hms(t1)], flight_record=imrep["source"], ending=ending or "clean",
                implausible_recovery=imrep["implausible_recovery"], max_tip_deg=imrep.get("max_tip_deg"),
                anomalies=[dict(a, t_utc=_hms(a["t_utc"]), t_epoch=a["t_utc"]) for a in anomalies], notes=[])
     if imrep.get("note"):
@@ -195,9 +259,9 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
         rep["flight_record_partial"] = True
     video, context = pick_videos(video_dirs, t0 - 1, t1 + 1) if use_video else (None, None)
     rep["video"], rep["context_video"] = video, context
-    rep.update(foreign_motion=None, tags=None)
+    rep.update(foreign_motion_hints=None, tags=None)
     rep.update(edge_margin_min_mm=None, edge_margin_min_at=None, position_start=None, position_end=None,
-               heading_start=None, heading_end=None, tilt_video_vs_imu=None)
+               position_method=None, position_track_extent=None, heading_start=None, heading_end=None, tilt_video_vs_imu=None)
     if video:
         clip_mp4 = os.path.join(out_dir, f"{name}_clip.mp4")
         # cut with frame accuracy from this one file
@@ -214,7 +278,7 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
             fm.pop("series", None)
             fm["reliability"] = "hint only: also fires on the person in the chair, socks, the dog (README)"
             fm["events"] = [dict(e, t_start=_hms(e["t_start"]), t_end=_hms(e["t_end"]), t_peak=_hms(e["t_peak"])) for e in fm["events"]]
-            rep["foreign_motion"] = fm
+            rep["foreign_motion_hints"] = fm
             cfg = G.load_config(cfg_path)
             trows, cal = T.track_video(clip_mp4, cfg, stride=2)
             if cal is None:
@@ -250,7 +314,8 @@ def main(argv=None):
     ap.add_argument("--wait-s", type=float, default=90.0, help="wait for the flight record to cover the run's end")
     a = ap.parse_args(argv)
     rep = run_report(a.track, a.video_dir, a.frec_dir, a.out_dir, a.config, not a.no_video, a.wait_s)
-    print(json.dumps({k: v for k, v in rep.items() if k not in ("anomalies",)}, indent=1, default=float))
+    # foreign_motion_hints stays in the JSON file only: it fires on the robot itself
+    print(json.dumps({k: v for k, v in rep.items() if k not in ("anomalies", "foreign_motion_hints")}, indent=1, default=float))
     print(f"{len(rep['anomalies'])} anomalies")
     return 0
 

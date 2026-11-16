@@ -197,7 +197,7 @@ def test_cmd_walk_check_window_sees_the_extra_and_every_step_passes_the_whole_pl
         assert len(cw.steps) >= 8
     cw = mk(["12.5 0 0"] * 4 + ["-10 0 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9)))
     cw.rehearse(8)
-    assert max(c["dx"] for c in cw.steps) == pytest.approx(0.05) and min(c["dx"] for c in cw.steps) == pytest.approx(-0.04)
+    assert max(c["dx"] for c in cw.steps) == pytest.approx(0.05) and min(c["dx"] for c in cw.steps) == pytest.approx(-0.032)
     assert [c["tilt"] for c in cw.steps[:4]] == [5.0] * 4
 
 

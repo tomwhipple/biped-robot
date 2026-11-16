@@ -43,6 +43,10 @@ tools/vision/run_report.py track_20261116T093534.jsonl --video-dir hw_sessions/2
 
 # before a run (reads camd's newest frame, never opens the camera); exit 0 ok / 3 too close / 2 not seen / 4 no frame
 tools/vision/where.py --direction forward --min-margin 300
+# ... and refuse a walk whose END would be within 300 mm of an edge: net displacement in the robot frame
+# (forward / left, mm), rotated by the tracker's heading; the predicted end margins are printed, with +-100 mm
+# next to them while f comes from the coplanarity estimate
+tools/vision/where.py --plan-dx-mm 200 --plan-dy-mm 0 --min-margin 300
 ```
 
 `tools/sony_record.sh` refuses (exit 3, no file) while camd or any other liveview reader holds
@@ -159,11 +163,17 @@ the emeet at the far end sees 0-3.
   collector flushes late, so a run checked right after the walk found no record. It now picks the
   session open at the run's start and waits until a decoded tick reaches the run's end; if it never
   does, the result says `partial` (not "no excursion").
+* **run_report endings and positions.** The host log has no fall line: a run that fell has no TS line for
+  the step it fell in, so `anomalies` lists `short_run` (fewer TS lines than steps decided), `firmware_abort`,
+  `stop_rule`, `gate_timeout` (the host summary's `outcome`) and `fall_latch` (the flight record's EV_FALL event or
+  TF_FALLEN tick flag); `ending` names them or says `clean`. `position_start` / `position_end` are the median over
+  the first / last window of >= 1 s in which the torso tag is stationary (the tag sways +-80 mm with every step;
+  `position_method` says how), `position_track_extent` is the min / max x and y over all tagged frames.
 * **eMeet frames**: tags decode (ids 2, 3, 11, 12 at 47-77 px on the real 1080p frames); the
   tracker's accuracy on them is synthetic only (`tests/test_vision_track.py::test_emeet_*`): measured
   layout and known f give position within 10 mm and heading within 3 deg; the auto layout gives the
   numbers above.
-* **foreign_motion is unreliable.** Foreground against the clip's median frame, robot excluded. At
+* **foreign_motion_hints is unreliable** (kept in the report JSON only, not in the printed summary). Foreground against the clip's median frame, robot excluded. At
   its default threshold it fires on most clips, including ones whose only "foreign" thing is the
   person in the chair or a sock at the edge of the board, and on the dog (cmd_steer_T4_b at
   16:48:31-16:48:44) and the catch (gate_push_march_T5_b). It cannot tell a hand from a leg. Treat an

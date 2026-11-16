@@ -25,7 +25,7 @@ import select
 import time
 
 # ---- the envelope (README: the table) -------------------------------------------------------------------------
-FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 40.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
+FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 32.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
 SLEW = (20.0, 10.0, 3.0)         # max change of (dx mm, dy mm, dyaw deg) from one step to the next
 PAUSE_STEPS = 15                 # marching in place longer than this many steps in a row ends the walk
 # swing tilt from the farther of this step's |dx| and the last one's (the swing foot starts at -dx of the last step):

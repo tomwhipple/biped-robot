@@ -823,6 +823,7 @@ def live(pl, a):
     if cw is not None:
         cw.on_plan(pl)
     fell = {"v": False, "abort": False, "gate": None}
+    stop = False
     yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
     yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
     if a.note:
@@ -1073,6 +1074,10 @@ def live(pl, a):
                                                       first_boost=pl["args"].get("first_boost"),
                                                       drift_side=pl["args"].get("drift_side")),
                  gate_timeout=fell["gate"],
+                 # how the run ended, for tools/vision/run_report.py: a firmware ABORT line, the stop rule or a link error
+                 # (abort / stop_rule), the lift-gate timeout, and whether a fall was read (only known with ankle learning)
+                 outcome=dict(abort=bool(fell["abort"]), stop_rule=bool(stop), gate_timeout=bool(fell["gate"]),
+                              fell=(fell["v"] if learn is not None else None)),
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
                  cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None)))
@@ -1244,7 +1249,7 @@ def main(argv=None):
     ap.add_argument("--max-steps", type=int, default=120, help="--cmd: stop after this many steps (default 120)")
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
     ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
-    ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 40)")
+    ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32; 40 is proven only as a fixed walk, README envelope table)")
     ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap (default 15)")
     ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
     ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
