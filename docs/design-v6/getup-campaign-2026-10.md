@@ -349,8 +349,11 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec77_walk_si_l3 (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | the 3 cm reference lift (`--mimic-lift 0.03 --swing-height 0.035`) | stride1/steps5 0.3 robot lift ≥ 3 cm on both feet in ≥ 2 of 3 seeds, x1.5 no worse than ppsi on the inset plant | | | | | seed 14 (224M of 300M, capped by the window): lift even but under 3 cm (stride1 0.3 robot 2.7 / 2.7 cm on C, ppsi 3.3 / 1.6), **x1.5 8/8** (ppsi 5/5), stride1 0.3 robot trips 8/8 (ppsi 0); s1, s2 and a full-length s14 (`_full`) run 11-14; **11-15, 3 full-length seeds (`_full`, s1, s2): not held** (0/3): R lift up on 3/3 (stride1 0.3 robot 2.0–2.2 cm on C vs 1.6) but < 3 cm on all; x1.5 8/8, 0/0, 0/0; stride1 0.6 refit falls 1–4/8 (ppsi 0) and tilt +1.7..+3.3 deg on 3/3 |
 | robot_legs_prec78_walk_si_side (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--walk-submix 0.25,0.40` (sidestep share 25 → 40 %) | side L/R \|dy\| ≥ 0.15 on the inset plant in ≥ 2 of 3 seeds, backward kept | | | | | **not held** (0/3): side L / R \|dy\| 0.02–0.09 on C (ppsi 0.02 / 0.06); backward now falls 1–3/8 on 3/3; x1.5 5/5, 0/0, 5/5 |
 | robot_legs_prec79_walk_si_slow (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--gait-freq 0.55,0.65` (was 0.7,0.8) | larger walking shift, R lift up, sidesteps \|dy\| ≥ 0.1 on the inset plant, ≥ 2 of 3 seeds, no new falls / pose trips | | | | | **not held** (0/3): steps5 shift no larger (−0.36..−0.51 / +0.29..+0.43 vs −0.49 / +0.51), R lift 1.6–2.1, sidesteps lost, 2/3 fail the walk test (fwd 0.45–0.64); **x1.5 0/0 on C 3/3** (ppsi 5/5) |
-| robot_legs_prec80_walk_si_l3_scratch (+ _s1, _s2; pilot _p200) | 11-15 | prec77_walk_si_l3 recipe | **from scratch** (no `--init-from`), 500M (pilot: seed 17, 200M) | on C: steps5 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.7 cm, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | |
-| robot_legs_prec81_walk_si_scratch (+ _s1, _s2) | 11-15 | prec72_walk_ppsi recipe | **from scratch** (no `--init-from`), 500M | on C: steps5 robot \|shift\| ≥ 0.6 both feet, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | |
+| robot_legs_prec80_walk_si_l3_scratch (+ _s1, _s2; pilot _p200) | 11-15 | prec77_walk_si_l3 recipe | **from scratch** (no `--init-from`), 500M (pilot: seed 17, 200M) | on C: steps5 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.7 cm, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | **not held, 0 of 4 walk at all**: fwd +0.03 / +0.02 / +0.06 / −0.00 m in 4 s (parent +0.87..+0.71), stride1 / steps5 0.3 robot lift ≤ 0.7 cm both feet, no march; they stand (x1.5 8/8 on 3 of 4). The warm start is what makes the walk; from scratch at 500M the recipe finds only the stand |
+| robot_legs_prec81_walk_si_scratch (+ _s1, _s2) | 11-15 | prec72_walk_ppsi recipe | **from scratch** (no `--init-from`), 500M | on C: steps5 robot \|shift\| ≥ 0.6 both feet, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | **not held, 0 of 3 walk at all**: fwd +0.06 / +0.09 / +0.09 m, lift ≤ 0.5 cm, side L +0.29–0.44 on s14 only (falls 5–8/8). **RL walk from scratch parked** (11-16) |
+| robot_legs_prec82_walk_si_sw75 (+ _s1, _s2) | 11-16 | prec72_walk_ppsi recipe (warm start prec16) | `--mimic-sway 0.075` (a sway reference sized from the robot's measured single-support shift, 1.05–1.32 × 62 mm) | on C: steps5 0.3 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.5 cm, ≥ 2 of 3 seeds, still WALKS, x1.5 no worse than 5/5 | | | | | |
+| robot_legs_prec83_walk_si_l3_sw75 (+ _s1, _s2) | 11-16 | prec77_walk_si_l3 recipe | `--mimic-sway 0.075` | on C: stride1 0.3 robot R lift ≥ 3 cm and steps5 \|shift\| ≥ 0.6 both feet, ≥ 2 of 3 seeds | | | | | |
+| robot_legs_prec84_walk_si_slow_sw75 (+ _s1, _s2) | 11-16 | prec79_walk_si_slow recipe (0.55–0.65 Hz) | `--mimic-sway 0.075` | on C: steps5 \|shift\| ≥ 0.6 both feet and side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds, x1.5 kept at 0/0 | | | | | |
 
 ## Nights
 
@@ -3256,3 +3259,74 @@ Tomorrow: first, does each scratch student walk at all (the .md WALKS line, dir 
 seeds: steps5 / stride1 robot shift and R lift, dir side L / R, x1.5, stride1 0.6 refit; then A and B. If neither arm moves the
 shift or the sidesteps on ≥ 2 seeds, the RL walk on the inset sole parks (held jobs + a WHY note) until the plant or the
 reference changes (#259).
+
+### Night of 2026-11-15 (evaluated 2026-11-16)
+
+**The walk on the robot's sole from scratch: two arms × three seeds + a pilot. Not one student walks; the scratch pivot parks.
+The inset-sole walk gets one more night, on the reference (a robot-sized sway).** Stride only; get-up and the march RL line
+stay parked. Nothing in this entry needs Tom.
+
+**The runner.** `night_run.sh` 22:00 – 05:02: 7 teachers (the 200M pilot + six 500M) + 7 distils, all exit 0, every job on
+main with origin verified (bacc9bb, then ae742bd from 02:49). Pre-flight 14/14. **Fixers: none** (fixer.log has nothing since
+11-14). Collection 05:02 – 05:13, no STALE REFEREE.
+
+**Merged / branched:** nothing. Since the last plan main gained only PR #314 (`sim/current_budget.py`, a current budget for the
+power-lite branch): no plant, env or grade change, so the comparisons stand. Open PRs #229, #206, #71 do not touch training.
+
+**Grading** (`/tmp/plan1116/grade{A,B,C}.*`, grade.py on main, 8 seeds, SHAPE_HZ=8): A as is (each run's own trained plant =
+play + inset sole), B the play plant, C play + inset sole. The control prec72_walk_ppsi_s128r24 re-grades as on 11-15.
+
+| student (plant C) | WALKS | x1.5 | walk 0.3 → stop dx (m) | fwd / back / side L / side R / turn L / R | stride1 0.3 robot lift L / R (min), trips | steps5 0.3 robot lift L / R | tilt max |
+|---|---|---|---|---|---|---|---|
+| prec72_walk_ppsi (control) | yes | 5/5 | 0.72 | +0.76 −0.73 +0.02 −0.06 +73 −56 | 3.3 / 1.6 (1.5), 0 | 3.4 / 2.1 | 10.1 |
+| pilot prec80_..._p200 (200M) | no | 8/8 | 0.03 | +0.03 +0.01 +0.01 −0.02 +44 −41 | 0.2 / 0.6 (0.2), 0 | 0.2 / 0.6 | 9.3 |
+| Z3 prec80_walk_si_l3_scratch | no | 1/1 | 0.02 | +0.02 +0.01 +0.18(3) −0.01 +59 −37 | 0.2 / 0.6 (0.1), 6 | 0.2 / 0.7 | 15.4 |
+| Z3 prec80_..._s1 | no | 8/8 | 0.06 | +0.06 +0.00 +0.01 −0.06 +54 −37 | 0.1 / 0.4 (0.1), 8 | 0.1 / 0.4 | 12.8 |
+| Z3 prec80_..._s2 | no | 8/8 | −0.01 | −0.00 −0.01 +0.01 −0.10 +43 −54 | 0.5 / 0.4 (0.4), 0 | 0.7 / 0.4 | 15.3 |
+| Z2 prec81_walk_si_scratch | no | 8/8 | 0.08 | +0.06 +0.00 +0.44(8) −0.02 +48 −45 | 0.2 / 0.3 (0.2), 0 | 0.2 / 0.3 | 14.0 |
+| Z2 prec81_..._s1 | no | 8/8 | 0.09 | +0.09 −0.06 +0.03 −0.09 +52 −44 | 0.4 / 0.2 (0.1), 5 | 0.4 / 0.2 | 15.4 |
+| Z2 prec81_..._s2 | no | 1/1 | 0.09 | +0.09 −0.02 +0.01 −0.08 +15 −41 | 0.4 / 0.5 (0.3), 8 | 0.4 / 0.5 | 15.6 |
+
+(x1.5 as falls/trips of 8; "(n)" = falls of 8. A and B tell the same story; they differ only in the two s14 seeds' side L
+(Z3 +0.18 / +0.23 m with 3 / 4 falls, Z2 +0.29 / +0.44 m with 5 / 8 falls, on A / B). The shift column is empty: no foot rises far enough for grade.py to call a step. Every
+student is 0/0 on push 0.4 and has 0 falls on the robot probes; march5: none marches.)
+
+**Hypotheses:**
+- **Z3 and Z2, the warm start as the limit: not testable, 0 of 6 seeds walk** (the pilot neither). From scratch, the recipe
+  learns to stand with the feet down (lift ≤ 0.7 cm, forward ≤ 0.09 m in 4 s against 0.3 m/s asked), turns in place a little,
+  and stops there. The teachers' cards are the same (line_1m 0/8 on all 7; card seed-passes 14–16/160, distil gap 0 to +1),
+  and the training curves plateau by ~130M (eval reward ~1200–1400, the warm-started parents' level). So the warm start is
+  what makes this recipe walk at all. Whether it also limits the shift and the sidesteps cannot be answered from scratch at
+  this length.
+- Side note: Z2 s14 sidesteps left 0.44 m but falls 8/8 doing it, and the scratch students tilt more at the stand (12.8–15.6
+  deg max against 10.1).
+
+**Ranking:** no walk candidate, no march candidate. #259 has not passed (its latest comment is still 11-11). **No robot
+candidate.** The robot walks on the scripted dwell gait + lift gate (#297).
+
+**Stop and decide (rule 4): the from-scratch walk parks (my choice, rule 0)**, as pre-committed on 11-15. Held note:
+`queue/held/WHY-1116-scratch-walk-parked.txt`. **The warm-started inset-sole walk gets ONE more night (its 5th), on the other
+stated cause from 11-15: the reference.** The reference holds the rolls at the stand pose unless `--mimic-sway` is set, and the
+inset-sole recipes (prec72–79) never set it. 11-10's sway test (prec46–51, 35 and 50 mm) ran on the old wide-sole plant, where
+the single-support edge sat at ~0.5 × 62 mm, so a 35 mm sway already went past what that plant needed; the policy had no reason
+to follow it. On the inset sole the single-support edge sits where the robot's does, at ~1.2–1.3 × 62 mm (the 11-12 dwell runs;
+the stepper shifts 1.05–1.32 × 62 mm), and every inset-sole student so far shifts only 0.3–0.6 × 62 mm and lifts R 1.4–2.3 cm.
+Tonight's sway is sized from the robot: **75 mm** (12.6 deg of hip roll with the ankle cancelling it, inside the 27.5 deg
+ankle-roll stop). **Pre-committed:** if no arm moves the steps5 shift to ≥ 0.6 on both feet in ≥ 2 of 3 seeds, the RL walk on
+the inset sole parks entirely behind #259 (the plant must reproduce the robot first), with no new recipe variables.
+
+**Tonight (2026-11-16): one variable, `--mimic-sway 0.075`, on three parents × three seeds (14/15/16), 9 teacher + distil
+pairs, 300M each, warm start prec16 as the parents, BRANCH=main.** Seeds interleaved (S, SL, SF per seed), arm S first.
+
+| arm | runs | parent | hypothesis (plant C, ≥ 2 of 3 seeds) |
+|---|---|---|---|
+| S | prec82_walk_si_sw75, _s1, _s2 | prec72_walk_ppsi (2 cm) | steps5 0.3 robot \|shift when up\| ≥ 0.6 both feet (parent 0.49 / 0.51), R lift ≥ 2.5 cm (2.1), still WALKS, x1.5 no worse than 5/5 |
+| SL | prec83_walk_si_l3_sw75, _s1, _s2 | prec77_walk_si_l3 (3 cm reference) | with the weight over the stance foot the 3 cm reference lifts R: stride1 0.3 robot R ≥ 3 cm (parent 2.0–2.2), shift ≥ 0.6 both feet |
+| SF | prec84_walk_si_slow_sw75, _s1, _s2 | prec79_walk_si_slow (0.55–0.65 Hz) | the slow clock gives the sway time: shift ≥ 0.6 both feet and side L / R \|dy\| ≥ 0.1 (parent ≤ 0.05), x1.5 kept at 0/0 |
+
+The same variable on three parents is a replicated test of one cause (nine seeds): if the sway works it should show on all
+three, and SL / SF say whether it brings the 3 cm lift or the sidesteps with it. ~6.5 h; pre-flight PASS 18/18. **Fallback:**
+arm S's recipe (`fallback.job`; the previous one, the from-scratch Z3, is `fallback.job.prec80-20261116`).
+
+Tomorrow: on C per arm, spread over seeds: steps5 / stride1 robot shift and R lift, WALKS, dir side L / R and back, x1.5, torso
+tilt (a sway that leans the torso is not the robot's level shift); then A and B.
