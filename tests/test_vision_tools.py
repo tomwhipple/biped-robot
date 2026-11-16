@@ -18,6 +18,7 @@ import clip  # noqa: E402
 import camd  # noqa: E402
 import run_report as RR  # noqa: E402
 import where as W  # noqa: E402
+import implausible as IM  # noqa: E402
 import vgeom as G  # noqa: E402
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
@@ -90,19 +91,26 @@ def test_where_exit_codes_and_margins(tmp_path):
     p = str(tmp_path / "f.png")
     cv2.imwrite(p, img)
 
+    import json
+    conf = str(tmp_path / "v.json")
+    with open(conf, "w") as f:                      # measured-style config of the Sony synthetic scene
+        json.dump({"board": {"layout": "config"}, "robot": {"tags": t.CFG["robot"]["tags"]}}, f)
+
     def run(direction, margin):
         return subprocess.run([PY, os.path.join(VIS, "where.py"), "--image", p, "--direction", direction,
-                               "--min-margin", str(margin)], capture_output=True, text=True)
+                               "--min-margin", str(margin), "--config", conf], capture_output=True, text=True)
     assert run("back", 400).returncode == 0
     r = run("forward", 400)
     assert r.returncode == 3 and "TOO CLOSE" in r.stdout
     blank = str(tmp_path / "b.png")
     cv2.imwrite(blank, img * 0 + 120)
-    assert subprocess.run([PY, os.path.join(VIS, "where.py"), "--image", blank], capture_output=True).returncode == 2
+    assert subprocess.run([PY, os.path.join(VIS, "where.py"), "--image", blank, "--config", conf],
+                          capture_output=True).returncode == 2
 
 
 def test_margin_along_diagonal():
     cfg = G.load_config()
+    cfg["board"].update(width_mm=900.0, length_mm=1200.0)
     assert abs(W.margin_along(cfg, 450, 600, 0, 1) - 600) < 1e-9
     assert abs(W.margin_along(cfg, 100, 600, -1, 0) - 100) < 1e-9
     assert abs(W.margin_along(cfg, 450, 1100, 0.7071, 0.7071) - 100 / 0.7071) < 0.1
@@ -131,3 +139,46 @@ def test_log_anomalies_ts_lean_gate_hold_and_stop():
 def test_real_camera_frame_via_where():
     r = subprocess.run([PY, os.path.join(VIS, "where.py"), "--json"], capture_output=True, text=True, timeout=60)
     assert r.returncode in (0, 2, 3)
+
+
+def test_pick_videos_prefers_the_emeet_and_keeps_the_sony_as_context(tmp_path):
+    for name in ("sony_a", "emeet_a", "other"):
+        (tmp_path / f"{name}.mp4").write_text("x")
+        (tmp_path / f"{name}.pts").write_text("# timecode format v2\n1000000\n1005000\n")
+    prim, ctx = RR.pick_videos([str(tmp_path)], 1000.5, 1004.0)
+    assert os.path.basename(prim) == "emeet_a.mp4" and os.path.basename(ctx) == "sony_a.mp4"
+    assert RR.pick_videos([str(tmp_path)], 5000, 5001) == (None, None)
+
+
+def test_find_frec_picks_the_open_session_even_before_the_collector_flushes(tmp_path):
+    t0 = 1_794_846_934.0                       # 2026-11-16T16:35:34Z
+    old = tmp_path / "flight_20261113T172054Z_prec16.frec"
+    new = tmp_path / "flight_20261116T160000Z_prec16.frec"
+    for f in (old, new):
+        f.write_text("x")
+    os.utime(old, (t0 - 90000, t0 - 90000))
+    os.utime(new, (t0 + 5, t0 + 5))             # written after the run start, but BEFORE the run's end
+    assert IM.find_frec(str(tmp_path), t0, t0 + 74) == str(new)
+    assert IM.find_frec(str(tmp_path), t0 - 400000, t0 - 399000) is None
+
+
+def test_check_run_waits_for_the_record_to_cover_the_end(tmp_path, monkeypatch):
+    import numpy as np
+    run = tmp_path / "track_20261116T093534.jsonl"
+    run.write_text('{"t": 0.0, "cmd": "cal show"}\n{"t": 74.0, "cmd": "x"}\n')
+    t0, t1 = IM.run_window(str(run))
+    calls = []
+
+    def fake_read(path, a, b):
+        calls.append(1)
+        end = t1 - 30 if len(calls) < 3 else t1 + 2        # the collector catches up on the 3rd look
+        t = np.arange(t0 - 5, end, 0.02)
+        return dict(t=t, roll_deg=np.zeros(len(t)), pitch_deg=np.zeros(len(t)), flags=np.zeros(len(t), int),
+                    up=np.tile([0, 0, 1.0], (len(t), 1))), []
+    monkeypatch.setattr(IM, "find_frec", lambda *a: "fake.frec")
+    monkeypatch.setattr(IM, "read_window", fake_read)
+    r = IM.check_run(str(run), wait_s=10, poll_s=0.01)
+    assert len(calls) == 3 and not r.get("partial") and r["implausible_recovery"] == []
+    calls.clear()
+    r = IM.check_run(str(run), wait_s=0, poll_s=0.01)           # gives up at once: says partial, not "clean"
+    assert r["partial"] and "not established" in r["note"]

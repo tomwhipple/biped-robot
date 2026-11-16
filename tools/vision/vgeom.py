@@ -17,27 +17,35 @@ import cv2
 import numpy as np
 
 # Everything physical is a CONFIG value; these are nominal numbers to be replaced
-# by a tape measure (see tools/vision/README.md "What to measure").
+# by a tape measure (see tools/vision/README.md "What to measure"). Board 32 x 48 in is measured.
 DEFAULT_CONFIG = {
-    "image_size": [1024, 680],
-    "camera": {"f_px": None, "cx": None, "cy": None},      # None: estimate f, centre = image centre
+    "image_size": [1920, 1080],
+    # f_px None: estimate it from the board tags when the layout is measured, else use f_prior_px
+    # (eMeet C960 at 1080p, assumed ~90 deg diagonal field of view = 1100 px; NOT measured)
+    "camera": {"f_px": None, "f_prior_px": 1100.0, "cx": None, "cy": None},
     "board": {
-        "width_mm": 900.0, "length_mm": 1200.0, "origin": "near-left",
-        # tag centres in the board frame (mm), up-arrow along +y, black-square size
+        # 32 x 48 in, measured by the owner. Tag centres are PROVISIONAL (the placement guide's
+        # 20 mm from both edges = 60 mm centre inset for an 80 mm tag, arrow away from the Sony,
+        # corner labels as seen from the Sony); `measured` becomes true when a config file gives
+        # board.tags. "layout": "config" uses the tag positions below, "auto_end" is the fallback
+        # that infers a frame from two tags alone (tag_track.Tracker.auto_end_layout).
+        "layout": "config", "measured": False, "assumed_tag_spacing_mm": None,
+        "width_mm": 812.8, "length_mm": 1219.2, "origin": "near-left",
         "tags": {
-            "0": {"center": [60.0, 1140.0], "size": 80.0},
-            "1": {"center": [840.0, 1140.0], "size": 80.0},
+            "0": {"center": [60.0, 1159.2], "size": 80.0},
+            "1": {"center": [752.8, 1159.2], "size": 80.0},
             "2": {"center": [60.0, 60.0], "size": 80.0},
-            "3": {"center": [840.0, 60.0], "size": 80.0},
-            "4": {"center": [60.0, 600.0], "size": 80.0},
-            "5": {"center": [840.0, 600.0], "size": 80.0},
+            "3": {"center": [752.8, 60.0], "size": 80.0},
+            "4": {"center": [60.0, 609.6], "size": 80.0},
+            "5": {"center": [752.8, 609.6], "size": 80.0},
         },
     },
     "robot": {
         # torso tags: centre in the body frame (mm), outward normal, up direction, size
+        # as placed 2026-11-16: back (40 mm spare) and top (60 mm); there is no front tag 10 now
+        # (add "10": {"center": [30,0,0], "normal": [1,0,0], "up": [0,0,1], "size": 60} to use one)
         "tags": {
-            "10": {"center": [30.0, 0.0, 0.0], "normal": [1, 0, 0], "up": [0, 0, 1], "size": 60.0},
-            "11": {"center": [-30.0, 0.0, 0.0], "normal": [-1, 0, 0], "up": [0, 0, 1], "size": 60.0},
+            "11": {"center": [-30.0, 0.0, 0.0], "normal": [-1, 0, 0], "up": [0, 0, 1], "size": 40.0},
             "12": {"center": [0.0, 0.0, 45.0], "normal": [0, 0, 1], "up": [1, 0, 0], "size": 60.0},
         },
         # foot tags are reported separately (feet move relative to the torso)
@@ -56,7 +64,11 @@ def load_config(path=None):
     cfg = copy.deepcopy(DEFAULT_CONFIG)
     if path:
         with open(path) as f:
-            _merge(cfg, json.load(f))
+            user = json.load(f)
+        _merge(cfg, user)
+        if user.get("board", {}).get("tags"):
+            cfg["board"]["measured"] = True          # the owner's numbers replace the provisional ones
+            cfg["board"].setdefault("layout", "config")
     return cfg
 
 
@@ -84,9 +96,11 @@ def frame_from_normal_up(normal, up):
 
 
 def board_tag_pose(entry):
-    """(R, t) of a board tag in the board frame: lies flat, arrow along +y."""
+    """(R, t) of a board tag in the board frame: lies flat, arrow along +y unless the entry has
+    "yaw_deg" (counter-clockwise from +y seen from above)."""
     c = entry["center"]
-    return frame_from_normal_up([0, 0, 1], [0, 1, 0]), np.array([c[0], c[1], 0.0])
+    y = np.radians(entry.get("yaw_deg", 0.0))
+    return frame_from_normal_up([0, 0, 1], [-np.sin(y), np.cos(y), 0]), np.array([c[0], c[1], 0.0])
 
 
 def robot_tag_pose(entry):

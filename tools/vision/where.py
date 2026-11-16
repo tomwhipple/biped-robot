@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Pre-run check: where is the robot on the board, and is there room to walk?
 
-    tools/vision/where.py [--image F.jpg | --camd-dir DIR] [--direction forward|back|left|right|heading]
+    tools/vision/where.py [--image F.jpg | --camd-dir DIR] [--source emeet|sony] [--direction forward|back|left|right|heading]
         [--min-margin 250] [--config vision.json] [--max-age 2] [--json]
 
-Looks at ONE frame, never holds the camera: it reads DIR/sony_latest.jpg that
-tools/vision/camd.py keeps (--max-age s: refuse a stale one), or --image. With neither
-it takes a single frame from the Sony itself, but only if nothing else is reading it
-(camd lock / another liveview.py = refuse, exit 4).
+Looks at ONE frame, never holds the camera: it reads DIR/<source>_latest.jpg that
+tools/vision/camd.py keeps (--max-age s: refuse a stale one), or --image. With neither it
+takes a single frame from the camera itself, but only if nothing else is reading it (camd
+lock / another reader = refuse, exit 4). The eMeet (1080p, high mount) is the default source:
+the Sony is context video only.
 
 Exit 0: margin in the requested direction >= --min-margin (or no direction asked).
 Exit 3: margin below the threshold.  Exit 2: robot/board tags not found.
@@ -89,9 +90,11 @@ def where(gray, cfg=None, direction=None, min_margin=None, tracker=None):
     return out
 
 
-def grab(camd_dir, max_age):
-    """Newest frame without disturbing the camera: camd's latest.jpg, else one direct frame
-    if nobody else holds the Sony."""
+def grab(camd_dir, max_age, source="emeet"):
+    """Newest frame without disturbing the camera: camd's <source>_latest.jpg, else one direct
+    frame if nobody else holds the camera."""
+    if source == "emeet":
+        return _grab_emeet(camd_dir, max_age)
     p = os.path.join(camd_dir, "sony_latest.jpg")
     if os.path.exists(p):
         age = time.time() - os.path.getmtime(p)
@@ -120,10 +123,40 @@ def grab(camd_dir, max_age):
     return (cv2.cvtColor(f, cv2.COLOR_BGR2GRAY), "direct Sony frame") if ok else (None, "no frame from the Sony")
 
 
+def _grab_emeet(camd_dir, max_age):
+    p = os.path.join(camd_dir, "emeet_latest.jpg")
+    if os.path.exists(p):
+        age = time.time() - os.path.getmtime(p)
+        if age <= max_age:
+            return cv2.imread(p, cv2.IMREAD_GRAYSCALE), f"camd emeet_latest.jpg ({age:.1f} s old)"
+        return None, f"camd emeet_latest.jpg is {age:.0f} s old (daemon stopped or camera stalled)"
+    lock = os.path.join(camd_dir, "emeet.lock")
+    if os.path.exists(lock):
+        import fcntl
+        fd = os.open(lock, os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return None, "camd holds the eMeet but writes no latest.jpg"
+        finally:
+            os.close(fd)
+    if subprocess.run(["fuser", "/dev/video0"], capture_output=True).returncode == 0:
+        return None, "another process has /dev/video0 open"
+    tmp = "/tmp/where_emeet.jpg"
+    if os.path.exists(tmp):
+        os.unlink(tmp)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "v4l2", "-input_format", "mjpeg", "-video_size",
+                    "1920x1080", "-framerate", "15", "-i", "/dev/video0", "-frames:v", "8", "-update", "1", tmp],
+                   capture_output=True, timeout=30)     # 8 frames: the first ones are dark while exposure settles
+    g = cv2.imread(tmp, cv2.IMREAD_GRAYSCALE)
+    return (g, "direct eMeet frame") if g is not None else (None, "no frame from the eMeet")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--image")
     ap.add_argument("--camd-dir", default=DEFAULT_DIR)
+    ap.add_argument("--source", choices=["emeet", "sony"], default="emeet", help="the eMeet is the measurement camera")
     ap.add_argument("--direction", choices=["forward", "back", "left", "right", "heading"])
     ap.add_argument("--min-margin", type=float, default=250.0)
     ap.add_argument("--max-age", type=float, default=2.0)
@@ -133,7 +166,7 @@ def main(argv=None):
     if a.image:
         gray, src = cv2.imread(a.image, cv2.IMREAD_GRAYSCALE), a.image
     else:
-        gray, src = grab(a.camd_dir, a.max_age)
+        gray, src = grab(a.camd_dir, a.max_age, a.source)
     if gray is None:
         print(f"where: no frame: {src}", file=sys.stderr)
         return 4

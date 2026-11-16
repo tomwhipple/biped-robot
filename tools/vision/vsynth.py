@@ -61,9 +61,11 @@ def render(tags, K, R_cb, t_cb, size=(1024, 680), blur=0.8, noise=3.0, seed=0, s
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def scene_tags(cfg, body_R, body_t, board_ids=(0, 1, 2, 3, 4, 5), robot_ids=(10, 11, 12)):
+def scene_tags(cfg, body_R, body_t, board_ids=None, robot_ids=None):
     """Board tags at their configured places + robot tags for a body pose (R, t in board frame)."""
     tags = []
+    board_ids = [int(i) for i in cfg["board"]["tags"]] if board_ids is None else board_ids
+    robot_ids = [int(i) for i in cfg["robot"]["tags"]] if robot_ids is None else robot_ids
     for i in board_ids:
         e = cfg["board"]["tags"][str(i)]
         R, t = G.board_tag_pose(e)

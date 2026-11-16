@@ -79,18 +79,31 @@ def log_anomalies(rows, t0):
     return out
 
 
-def find_video(dirs, t0, t1):
-    """The mp4 (+ .pts) in any of dirs covering most of [t0, t1] -> path or None."""
-    best = None
+def find_videos(dirs, t0, t1):
+    """[(coverage_s, mp4)] of every mp4 (+ .pts) in dirs overlapping [t0, t1], best first."""
+    out = []
     for d in dirs:
         for pts in glob.glob(os.path.join(d, "*.pts")):
             ts = C.read_pts(pts)
             if not ts:
                 continue
             cover = min(ts[-1], t1) - max(ts[0], t0)
-            if cover > 0 and os.path.exists(pts[:-4] + ".mp4") and (best is None or cover > best[0]):
-                best = (cover, pts[:-4] + ".mp4")
-    return best[1] if best and best[0] > 0.5 * (t1 - t0) else (best[1] if best else None)
+            if cover > 0 and os.path.exists(pts[:-4] + ".mp4"):
+                out.append((cover, pts[:-4] + ".mp4"))
+    return sorted(out, reverse=True)
+
+
+def pick_videos(dirs, t0, t1):
+    """(primary, context): the eMeet (measurement camera; its files are named emeet*) is primary,
+    the Sony context. Without an eMeet file the best-covering video is primary."""
+    vids = find_videos(dirs, t0, t1)
+    em = [v for v in vids if os.path.basename(v[1]).startswith("emeet")]
+    so = [v for v in vids if os.path.basename(v[1]).startswith("sony")]
+    if em:
+        return em[0][1], (so[0][1] if so else None)
+    if so:
+        return so[0][1], None
+    return (vids[0][1], None) if vids else (None, None)
 
 
 def _frame_at(cap_cache, path, ts, t):
@@ -158,12 +171,12 @@ def tag_flags(rows, imu):
     return out
 
 
-def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_path=None, use_video=True):
+def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_path=None, use_video=True, wait_s=90.0):
     rows = [json.loads(l) for l in open(track)]
     name = os.path.splitext(os.path.basename(track))[0]
     out_dir = out_dir or os.path.dirname(os.path.abspath(track))
     os.makedirs(out_dir, exist_ok=True)
-    imrep = IM.check_run(track, frec_dir=frec_dir, data=True)
+    imrep = IM.check_run(track, frec_dir=frec_dir, data=True, wait_s=wait_s)
     t0, t1 = imrep["window_utc"]
     imu = imrep.pop("_imu", None)
     imrep.pop("_events", None)
@@ -176,10 +189,12 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
     rep = dict(run=name, window_utc=[_hms(t0), _hms(t1)], flight_record=imrep["source"],
                implausible_recovery=imrep["implausible_recovery"], max_tip_deg=imrep.get("max_tip_deg"),
                anomalies=[dict(a, t_utc=_hms(a["t_utc"]), t_epoch=a["t_utc"]) for a in anomalies], notes=[])
-    if imrep["source"] is None:
-        rep["notes"].append(imrep.get("note"))
-    video = find_video(video_dirs, t0 - 1, t1 + 1) if use_video else None
-    rep["video"] = video
+    if imrep.get("note"):
+        rep["notes"].append(imrep["note"])
+    if imrep.get("partial"):
+        rep["flight_record_partial"] = True
+    video, context = pick_videos(video_dirs, t0 - 1, t1 + 1) if use_video else (None, None)
+    rep["video"], rep["context_video"] = video, context
     rep.update(foreign_motion=None, tags=None)
     rep.update(edge_margin_min_mm=None, edge_margin_min_at=None, position_start=None, position_end=None,
                heading_start=None, heading_end=None, tilt_video_vs_imu=None)
@@ -215,6 +230,8 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
                 for dtm in (-1, 0, 1):
                     moments.append((f"{a['kind']} {dtm:+d}s {_hms(a['t_utc'])[:8]}", a["t_utc"] + dtm))
             rep["contact_sheet"] = contact_sheet(clip_mp4, moments, os.path.join(out_dir, f"{name}_vision.jpg"))
+            if context:
+                rep["context_contact_sheet"] = contact_sheet(context, moments, os.path.join(out_dir, f"{name}_vision_context.jpg"))
     else:
         rep["notes"].append("no video covers this run")
     with open(os.path.join(out_dir, f"{name}_vision.json"), "w") as f:
@@ -230,8 +247,9 @@ def main(argv=None):
     ap.add_argument("--out-dir")
     ap.add_argument("--config")
     ap.add_argument("--no-video", action="store_true")
+    ap.add_argument("--wait-s", type=float, default=90.0, help="wait for the flight record to cover the run's end")
     a = ap.parse_args(argv)
-    rep = run_report(a.track, a.video_dir, a.frec_dir, a.out_dir, a.config, not a.no_video)
+    rep = run_report(a.track, a.video_dir, a.frec_dir, a.out_dir, a.config, not a.no_video, a.wait_s)
     print(json.dumps({k: v for k, v in rep.items() if k not in ("anomalies",)}, indent=1, default=float))
     print(f"{len(rep['anomalies'])} anomalies")
     return 0
