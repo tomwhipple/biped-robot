@@ -819,7 +819,7 @@ The single support is 2.2 s at T 4 and 3.2 s at T 5; the shift and settle are th
 functions of the sole height, which is 0 at the touchdown. Measured on the T 4 / T 5 plans (stance hip roll goal of the next
 step): rate 0.5 deg/s at the touchdown, 3.3 deg/s at +0.1 s, 9.4 at +0.2, 17.4 at +0.3, 32.9 at +0.5, peak 39.5 deg/s at +0.7 s.
 Before the touchdown the goal moves only 2 deg/s (T 4, at -0.5 s; 0.6 at -0.1 s: the ankle ff ramping out through the leg
-geometry). The sole is within 1 mm of the floor from 0.10 s (T 4) / 0.12 s (T 5) before the touchdown and within 3 mm from 0.20 s / 0.34 s.
+geometry). The sole is within 1 mm of the floor from about 0.12 s (T 4) / 0.20 s (T 5) before the touchdown and within 3 mm from 0.20 s / 0.34 s.
 So **the 0.34 s overlap is not in the plan.** What does overlap the shift on the robot is the firmware: at the touchdown the
 support state goes to double support and the stance trim FADES, linearly to 0 over 0.6 s (`balance/stance_trim.h`, `fade_s`),
 so the hike correction of the stance foot is taken out while the shift starts; that is on top of the plan's goals, and the
@@ -849,7 +849,10 @@ python experiments/roll-balance/track_host.py $F $W                             
 python experiments/roll-balance/track_host.py $F $W --td-pause 0.3                    --note "td pause0.3 fwd"
 python experiments/roll-balance/track_host.py $F $W --td-pause 0.3 --settle 0.2       --note "td pause0.3 settle0.2 fwd"
 python experiments/roll-balance/track_host.py $F $W --land-early-mm 2                 --note "td land2 fwd"
-python experiments/roll-balance/track_host.py $F $B  [the same four flag sets]        --note "td ... back"
+python experiments/roll-balance/track_host.py $F $B                                   --note "td base back"
+python experiments/roll-balance/track_host.py $F $B --td-pause 0.3                    --note "td pause0.3 back"
+python experiments/roll-balance/track_host.py $F $B --td-pause 0.3 --settle 0.2       --note "td pause0.3 settle0.2 back"
+python experiments/roll-balance/track_host.py $F $B --land-early-mm 2                 --note "td land2 back"
 ```
 
 Without `--live` each prints the plan (the timeline, the pre-check) and sends nothing.
