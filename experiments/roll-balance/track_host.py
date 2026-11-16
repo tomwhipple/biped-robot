@@ -30,6 +30,7 @@ import json
 import math
 import os
 import re
+import signal
 import sys
 import time
 
@@ -160,20 +161,32 @@ def expand_seq(seq, first="R"):
 
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
-         k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False):
+         k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
+         step_cmds=None):
     """lift_gate (dwell): kGate on the last frame before each lift-off (the firmware waits there for a level, quiet body).
     yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4).
     cmd: one per-step command (step_cmd / preset_cmd) replacing the --dir preset's; seq: [(cmd, count)] segments
     in one continuous track (n_steps is then the expanded count). A yaw_trim LIST is the heading hold's asked turn
-    per step, complete (it replaces the command's own turn)."""
+    per step, complete (it replaces the command's own turn).
+    step_cmds: one command per step, used as given (cmd_walk.py, the --cmd mode: no closing step is inserted at a
+    reversal -- the walk decides that itself); a command's "tilt" is that step's swing tilt (swing_tilt is then the
+    default of the steps without one), "yaw_free" leaves the heading trim off that step."""
     gkw = {}
+    tilt_arg = swing_tilt
     if amp[1] is None:
         import dwell as DW
         amp = (amp[0], DW.k_static_R(T_step))
     dkw = dict(G.DIRS[direction])
     meta = None
     cmds = None
-    if seq is not None:
+    if step_cmds is not None:
+        cmds = list(step_cmds)
+        n_steps = len(cmds)
+        dkw = dict(dx_steps=[c["dx"] for c in cmds], dy_steps=[c["dy"] for c in cmds])
+        meta = [dict(name=f"{i + 1}:{c['name']}", key=c["key"]) for i, c in enumerate(cmds)]
+        if any("tilt" in c for c in cmds):
+            tilt_arg = [c.get("tilt", swing_tilt) for c in cmds]
+    elif seq is not None:
         cmds = expand_seq(seq, first)
         n_steps = len(cmds)
         dkw = dict(dx_steps=[c["dx"] for c in cmds], dy_steps=[c["dy"] for c in cmds])
@@ -190,14 +203,14 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **({"ankle_ff_steps": list(ankle_steps)} if ankle_steps is not None else {}),
                    **({"step_meta": meta} if meta is not None else {}),
                    **({"drop": drop} if drop is not None else {}),
-                   **({"swing_tilt": swing_tilt} if swing_tilt else {}))
+                   **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
-        elif seq is not None:
-            dkw["yaw_trim"] = [c["yt"] + yaw_trim for c in cmds]
+        elif seq is not None or step_cmds is not None:
+            dkw["yaw_trim"] = [c["yt"] + (0.0 if c.get("yaw_free") else yaw_trim) for c in cmds]
         else:
             dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
-    elif seq is not None or cmd is not None:
+    elif seq is not None or cmd is not None or step_cmds is not None:
         raise ValueError("--step / --seq / --stride-mm need the dwell model")
     sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model,
                     lift_gate=lift_gate and model == "dwell", **dkw, **gkw)
@@ -212,7 +225,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
                           k_ds=tuple(k_ds) if k_ds else None,
                           ankle_steps=list(ankle_steps) if ankle_steps is not None else None,
-                          cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt, lift_gate=lift_gate))
+                          cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt, lift_gate=lift_gate,
+                          step_cmds=list(step_cmds) if step_cmds is not None else None))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -243,6 +257,21 @@ class HeadingHold:
         self._d += [self._d[-1]] * (n_steps - len(self._d))
         self.asked = [max(-clip, min(clip, (d - YAW_DRIFT) / YAW_GAIN)) for d in self._d]
         self.log = []
+        self.err = 0.0                 # the last measured heading error, deg (the --cmd mode asks new steps with it)
+
+    def asked_for(self, d):
+        """The asked turn (deg) of a step whose commanded heading change is d, with the last measured error."""
+        return max(-self.clip, min(self.clip, (d + self.k * self.err - YAW_DRIFT) / YAW_GAIN))
+
+    def set_step(self, i, d, asked=None):
+        """--cmd mode: step i (appended if it is the next one) commands a heading change d deg; asked overrides the
+        asked turn (the closing step: 0)."""
+        while len(self._d) <= i:
+            self._d.append(d)
+            self.asked.append(self.asked_for(d))
+        self._d[i] = d
+        self.asked[i] = self.asked_for(d) if asked is None else float(asked)
+        self.n = len(self._d)
 
     def ref(self, n_done):
         """The reference heading after n_done steps, deg."""
@@ -254,6 +283,7 @@ class HeadingHold:
         """n_done single supports reported, psi the heading (deg, from the start), first_free = the first step
         whose frames are not uploaded yet. Returns True when the asked list changed."""
         err = self.ref(n_done) - psi
+        self.err = err
         new = [max(-self.clip, min(self.clip, (d + self.k * err - YAW_DRIFT) / YAW_GAIN)) for d in self._d]
         a = new[min(first_free, self.n - 1)]
         self.log.append(dict(n=n_done, psi=round(psi, 1), ref=round(self.ref(n_done), 1), err=round(err, 1),
@@ -390,12 +420,15 @@ def yaw_of_imu(txt):
 UPPER = 0.05     # the shift must not exceed k_static by more than this (x 62 mm): 18:09 fell OUTWARD at 1.35
 
 
-def precheck(pl, tol=0.01):
+def precheck(pl, tol=0.01, only_step=None):
     """The robot's static shift requirement as a hard constraint (hw 2026-11-12: it fell when the foot came up
     at 1.0-1.1 x): from the FRAMES that would be sent, the pelvis must be at or beyond k_static[stance] x 62 mm
     over the stance foot at every lift-off and at every touchdown. The pelvis shift is recovered from the
     frames' stance hip roll goal (ticks -> rad through the calibration in use, interpolated at that instant)
-    by inverting the IK with the plan's feet. -> (ok, rows)."""
+    by inverting the IK with the plan's feet. -> (ok, rows).
+    only_step (0-based): judge that one step only -- its lift-off and touchdown, the joint margin over its frames and
+    the pelvis speed over its frames (the --cmd mode's incremental check of the step it is about to upload; the
+    default, None, is the whole plan as before)."""
     sw, fr, cal = pl["sway"], pl["frames"], pl["cal"]
     K = G.W.S.kin(pl["args"].get("drop") or 0.02)
     oy = abs(K.model_offset("L")[1])
@@ -408,8 +441,12 @@ def precheck(pl, tol=0.01):
     if pl.get("allow_over"):
         top = {"L": 9.0, "R": 9.0}
     kf = []                      # (track ms, decoded {joint: rad})
+    win = (-1e18, 1e18)
+    if only_step is not None:
+        st_ = sw._steps[only_step]
+        win = (1e3 * (st_["a"] - sw.t_first) - 1.0, 1e3 * (st_["td"] - sw.t_first) + 1.0)
     for tm, hx, kind in fr:
-        if kind != "kf":
+        if kind != "kf" or not win[0] <= tm <= win[1]:
             continue
         q = {}
         for j, n in enumerate(G.LEG):
@@ -455,6 +492,8 @@ def precheck(pl, tol=0.01):
 
     rows, ok = [], True
     for k, p in enumerate(sw.phases):
+        if only_step is not None and k != only_step:
+            continue
         st = p["stance"]
         sg = 1.0 if st == "L" else -1.0
         for what, t in (("lift-off", p["t0"]), ("touchdown", p["t1"])):
@@ -492,7 +531,7 @@ def precheck(pl, tol=0.01):
                          need=round(math.degrees(JOINT_MARGIN), 2), top=round(tight[3], 2), ok=True))
     # the pelvis (x, y) speed through the shift: the double-support shift's min-jerk timing (dwell.SCHEDULE) was validated for
     # a lateral move of ~161 mm in >= 1.2 s; a longer stride adds fore-aft travel to the same time. Sampled at the keyframes.
-    v = pelvis_speed(sw)
+    v = pelvis_speed(sw, None if only_step is None else (win[0] / 1e3 + sw.t_first, win[1] / 1e3 + sw.t_first))
     okv = v <= PELVIS_V_MAX * 1.01
     ok = ok and okv
     rows.append(dict(step=0, stance="pelvis", at="pelvis speed", t=0.0, ratio=round(1e3 * v, 1), need=0.0,
@@ -500,10 +539,11 @@ def precheck(pl, tol=0.01):
     return ok, rows
 
 
-def pelvis_speed(sw):
-    """Peak speed (m/s) of the pelvis in the floor plane over the plan, from the keyframes' pelvis (fwd, shift)."""
+def pelvis_speed(sw, window=None):
+    """Peak speed (m/s) of the pelvis in the floor plane over the plan (or over window = (t0, t1) s of the plan's
+    own clock), from the keyframes' pelvis (fwd, shift)."""
     peak = 0.0
-    segs = [sg for sg in sw.segs[1:] if sg.get("pa")]
+    segs = [sg for sg in sw.segs[1:] if sg.get("pa") and (window is None or window[0] <= sg["t"] <= window[1])]
     for sa, sb in zip(segs, segs[1:]):
         dt = sb["t"] - sa["t"]
         if dt > 0:
@@ -622,6 +662,8 @@ def speeds(pl):
 
 
 def _label(a):
+    if getattr(a, "cmd", None):
+        return f"cmd {a.cmd}"
     if a.seq:
         return f"seq {a.seq}"
     if a.step:
@@ -661,7 +703,7 @@ def dry(pl, a):
         if pl.get("cmds") is not None and pl["args"].get("seq") is not None:
             for nm, n_, vx, vy, vw in rows_:
                 print(f"   segment {nm} x{n_}: {vx:+.1f} mm/s fwd, {vy:+.1f} mm/s side, {vw:+.2f} deg/s")
-    pr = None if (a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
+    pr = None if (getattr(a, "cmd", None) or a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
                   or a.swing_tilt) else \
         (predicted_dwell(a.T, a.dir) if pl["model"] == "dwell" else predicted(a.T, a.dir))
     if pr:
@@ -700,6 +742,9 @@ def live(pl, a):
     adds = pl["adds"]
     hold = pl.get("hold")
     learn = pl.get("learn")
+    cw = pl.get("cmdwalk")          # --cmd: the steps are decided as the walk goes (cmd_walk.CmdWalk)
+    if cw is not None:
+        cw.on_plan(pl)
     fell = {"v": False, "abort": False, "gate": None}
     yaw_state = {"prev": None, "psi": 0.0}         # unwrapped heading since the start, deg
     yaw_state["prev"] = yaw_state["start"] = yaw_of_imu(r.cmd("imu"))
@@ -710,6 +755,8 @@ def live(pl, a):
         hold = None
 
     def first_free_step():
+        if cw is not None:
+            return len(cw.steps)           # a decided step may have frames uploaded; the provisional one is free
         last_t = adds[sent - 1][0] if sent else 0
         sw = pl["sway"]
         return sum(1 for p_ in sw.phases if 1e3 * (p_["t0"] - sw.t_first) <= last_t)
@@ -720,9 +767,27 @@ def live(pl, a):
         kw = dict(pl["args"])
         if hold is not None:
             kw["yaw_trim"] = hold.asked
+        if cw is not None:
+            kw.update(cw.plan_kwargs())
+            if learn is not None:              # the steps decided since get the learned trim of their stance side
+                lst = list(kw.get("ankle_steps") or [])
+                for i_ in range(len(lst), len(kw["step_cmds"])):
+                    lst.append(learn.A["R" if cw.swing_of(i_) == "L" else "L"])
+                kw["ankle_steps"] = pl["args"]["ankle_steps"] = lst
         newp = plan(**kw)
         adds = newp["adds"]
         pl["sway"], pl["frames"] = newp["sway"], newp["frames"]
+        if cw is not None:
+            cw.on_plan(newp)
+
+    def decide_if_due():
+        """--cmd: the next line reaches past the lift-off of the first undecided step: fix that step (read the command,
+        check it) and re-plan. True when it did, the caller looks at the new line list."""
+        if cw is None or cw.finished or sent >= len(adds) or adds[sent][0] <= cw.limit_ms():
+            return False
+        cw.decide()
+        replan()
+        return True
 
     def seg_of(n):
         """(name, key) of the segment step n (1-based) belongs to; None when the plan has none (a plain --dir run)."""
@@ -810,10 +875,26 @@ def live(pl, a):
             raise RuntimeError(f"refused: {txt.strip()[-160:]}")
         return txt
 
+    saved_sig = {}
+    stop = False
+    if cw is not None:
+        def on_signal(sig, _frame):
+            name = signal.Signals(sig).name
+            if cw.stop_req is not None:
+                raise RuntimeError(f"second {name}")
+            cw.request_stop(name)
+            print(f"  {name}: the walk stops after the current step (once more: halt)", flush=True)
+        for sg_ in (signal.SIGINT, signal.SIGTERM):
+            try:
+                saved_sig[sg_] = signal.signal(sg_, on_signal)
+            except ValueError:               # not the main thread
+                pass
     try:
         for l in pl["pre"]:
             r.cmd(l)
         while sent < len(adds) and adds[sent][0] <= ahead_ms:
+            if decide_if_due():
+                continue
             add(adds[sent][1])
             sent += 1
         r.cmd(pl["play"])
@@ -849,6 +930,8 @@ def live(pl, a):
                 print("  lift gate timeout -> the firmware ended the track" if fell["gate"] else "  stop rule hit -> track stop")
                 break
             while sent < len(adds) and adds[sent][0] <= head + ahead_ms:
+                if decide_if_due():
+                    continue
                 stop = scan(add(adds[sent][1])) or stop
                 sent += 1
             if re.search(r"^track (done|idle)", txt, re.M) or (sent >= len(adds) and "resting" in txt):
@@ -862,6 +945,10 @@ def live(pl, a):
         except Exception:  # noqa: BLE001
             pass
     finally:
+        for sg_, h_ in saved_sig.items():
+            signal.signal(sg_, h_)
+        if cw is not None:
+            cw.ended("stop rule / fall / link" if (fell["abort"] or stop) else (cw.reason or "track ended"))
         try:
             r.c.idle(3.0)
             scan(r.cmd("track steps"))
@@ -901,15 +988,110 @@ def live(pl, a):
                 ankle = dict(dir=learn.dir, start=learn.start, end=learn.A, keep=learn.keep, log=learn.log, saved=saved)
                 print(f"ankle trim ({learn.dir}): L {learn.start['L']:.2f} -> {learn.A['L']:.2f}, R {learn.start['R']:.2f} -> "
                       f"{learn.A['R']:.2f}; {'saved to ' + learn.path if saved else 'NOT saved (fall / abort / link)'}")
-        log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=pl["args"]["n_steps"], amp=list(pl["amp"]),
+        log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=(len(cw.steps) if cw is not None else pl["args"]["n_steps"]), amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
                                                       ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"],
                                                       lift_gate=pl["args"].get("lift_gate")),
                  gate_timeout=fell["gate"],
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
-                 heading=(hold.log if hold is not None else None)))
+                 heading=(hold.log if hold is not None else None),
+                 cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None)))
         r.close()
         print(f"log: {log_path}")
+
+
+def main_cmd(a, seeds, amp, aff):
+    """--cmd: the walk with live velocity commands (cmd_walk.py). Dry run: the first --dry-steps steps from the command
+    now in the source, then a stop. Live: the rolling upload of live() with every step decided as it is reached."""
+    import cmd_walk as CW
+    me = sys.modules[__name__]
+    bad = [n for n, v in (("--seq", a.seq), ("--step", a.step), ("--stride-mm", a.stride_mm), ("--side-mm", a.side_mm),
+                          ("--turn", a.turn), ("--heading-rate", a.heading_rate)) if v is not None]
+    if bad:
+        print(f"REFUSED: {', '.join(bad)} do not combine with --cmd (the commands are the walk; wz is the heading rate)")
+        return 2
+    if a.model != "dwell":
+        print("REFUSED: --cmd needs --model dwell")
+        return 2
+    if a.ahead < 1.0:
+        print("REFUSED: --cmd needs --ahead >= 1 (the next step is decided when the play head is one step from its lift-off)")
+        return 2
+    try:
+        src = CW.make_source(a.cmd)
+        lim = {}
+        for key, val in (("fwd", a.max_fwd_mm), ("back", a.max_back_mm), ("side", a.max_side_mm), ("yaw", a.max_turn_deg),
+                         ("pause", a.pause_steps)):
+            if val is not None:
+                lim[key] = val
+        if a.slew:
+            lim["slew"] = tuple(float(x) for x in a.slew.split(","))
+            if len(lim["slew"]) != 3:
+                raise ValueError("--slew wants DX,DY,DYAW")
+    except ValueError as e:
+        print(f"REFUSED: {e}")
+        return 2
+    if isinstance(src, CW.FileSource):
+        c0 = src.read()
+        if c0 is None:
+            print(f"REFUSED: no readable command in {src.path} ({src.error}); write `0 0 0` there first")
+            return 2
+        if c0[0] == "stop":
+            print(f"{src.path} says stop: nothing to do")
+            return 0
+    status = a.status or (src.path + ".status" if isinstance(src, CW.FileSource) else None)
+    learn = None
+    if a.ankle_learn == "on":
+        learn = AnkleLearner("cmd", start=(tuple(float(x) for x in a.ankle_seed.split(",")) if a.ankle_seed else None))
+        aff = (learn.A["L"], learn.A["R"])
+        print(f"ankle trim learning (cmd): starts L {aff[0]:.2f}, R {aff[1]:.2f} deg (--ankle-ff ignored)")
+    base = dict(T_step=a.T, seeds=seeds, lead_ms=a.lead, cal=None, amp=amp, model=a.model, ds=a.ds, h=a.h,
+                pelvis_x=a.pelvis_x, ankle_ff=aff, k_ds=(tuple(float(x) for x in a.k_ds.split(",")) if a.k_ds else None),
+                drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), lift_gate=a.lift_gate == "on")
+    hold = HeadingHold(1, [0.0], k=a.heading_k) if (a.heading_hold == "on" and a.live) else None
+
+    def walk(cal):
+        b = dict(base, cal=cal)
+        w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
+                       max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
+                       allow_over=a.allow_over)
+        return w
+    print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
+          f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
+          f"per step, slew {lim.get('slew', CW.SLEW)}; max {a.max_steps} steps"
+          + (f", {a.max_time:g} s" if a.max_time else "") + (f"; status {status}" if status else ""))
+    if not a.live:
+        cw = walk(None)
+        try:
+            cw.rehearse(a.dry_steps)
+            pd = plan(**cw.plan_kwargs())
+        except ValueError as e:
+            print(f"REFUSED: the kinematics cannot do this plan ({e})")
+            return 2
+        pd["allow_over"] = a.allow_over
+        print(f"\ndry run: the first {a.dry_steps} steps from the command read now ({cw.log[0]['requested']}), each step "
+              f"re-reads SOURCE live; then a stop (the stop step is the last one below)")
+        dry(pd, a)
+        return 0
+    sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
+    import robot_io
+    probe = robot_io.Robot(host=a.host)
+    cal = {n: (z, d) for n, (_, z, d) in probe.cal.items()}
+    probe.close()
+    cw = walk(cal)
+    try:
+        pl = plan(**dict(cw.plan_kwargs(), **({"ankle_steps": [learn.A[cw.provisional() and ("R" if cw.swing_of(0) == "L" else "L")]]}
+                                              if learn is not None else {})))
+    except ValueError as e:
+        print(f"REFUSED: the kinematics cannot do this plan ({e}) -- nothing sent")
+        return 2
+    pl["allow_over"] = a.allow_over
+    pl["hold"], pl["learn"], pl["cmdwalk"] = hold, learn, cw
+    if hold is not None:
+        print(f"heading hold: the commanded heading rate is wz x T per step, feed-forward + feedback k {a.heading_k:g}")
+    if a.gate:
+        pl["pre"] = [f"liftgate set {' '.join(x.strip() for x in a.gate.split(','))}"] + pl["pre"]
+    live(pl, a)
+    return 0
 
 
 def main(argv=None):
@@ -966,7 +1148,27 @@ def main(argv=None):
                     help="dwell: the pelvis fore-aft through single support -- over the stance foot, moving forward only "
                          "in the shift (the default; fwd T 3.4 with mid: right-stance pitch +7 deg), or over the feet's "
                          "mid point")
-    ap.add_argument("--ahead", type=float, default=2.0, help="steps the host stays ahead of the play head")
+    ap.add_argument("--ahead", type=float, default=None,
+                    help="steps the host stays ahead of the play head (default 2; 1 with --cmd, which needs >= 1)")
+    ap.add_argument("--cmd", default=None, metavar="SOURCE",
+                    help="live velocity commands (cmd_walk.py): file:PATH (a text file re-read every step: `vx vy wz` in "
+                         "mm/s, mm/s, deg/s, or `stop` / `pause`) or stdin. The walk has no fixed length; every step is "
+                         "clamped, slewed and pre-checked before it is uploaded. --dir / --steps / --step / --seq / "
+                         "--stride-mm / --side-mm / --turn are not used")
+    ap.add_argument("--max-steps", type=int, default=120, help="--cmd: stop after this many steps (default 120)")
+    ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
+    ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 40)")
+    ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32)")
+    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap (default 15)")
+    ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
+    ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
+                    help="--cmd: largest change of the step's dx mm, dy mm, dyaw deg from one step to the next (default 20,10,3)")
+    ap.add_argument("--pause-steps", type=int, default=None,
+                    help="--cmd: a march in place (`pause` / `0 0 0`) longer than this many steps in a row ends the walk "
+                         "(default 15 = 60 s at T 4; 0 = no limit)")
+    ap.add_argument("--status", default=None, help="--cmd: the host's status file, one JSON line, rewritten every step "
+                    "(default PATH.status for file:PATH)")
+    ap.add_argument("--dry-steps", type=int, default=8, help="--cmd dry run: how many steps to rehearse")
     ap.add_argument("--stop-lean", type=float, default=14.0,
                     help="deg toward the swing foot -> track stop (inward tips to ~10 deg recover and the walk goes on, hw 2026-11-12 18:2x; the firmware aborts at 15)")
     ap.add_argument("--stop-out", type=float, default=6.0,
@@ -1000,6 +1202,8 @@ def main(argv=None):
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
+    if a.ahead is None:
+        a.ahead = 1.0 if a.cmd else 2.0
     seeds = tuple(float(x) for x in a.seed.split(","))
     import dwell as DW
     if a.model == "dwell" and a.T < DW.T_FLOOR and not a.below_floor:
@@ -1008,6 +1212,8 @@ def main(argv=None):
         return 2
     amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     aff = tuple(float(x) for x in a.ankle_ff.split(","))
+    if a.cmd:
+        return main_cmd(a, seeds, amp, aff)
     learn = None
     if a.ankle_learn == "on" and a.model == "dwell":
         learn = AnkleLearner(a.dir, start=(tuple(float(x) for x in a.ankle_seed.split(","))

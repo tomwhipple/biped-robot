@@ -799,6 +799,126 @@ python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one tr
 python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
 ```
 
+## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
+
+A walk with no fixed length: every step the host reads the CURRENT command, `vx vy wz` (mm/s forward, mm/s left, deg/s
+left), and plans the next not-yet-uploaded step from it. The step's displacement is the command x T (`dx = vx T`,
+`dy = vy T`, `dyaw = wz T`), clamped, slewed and pre-checked before one frame of it is uploaded; the rolling upload, the
+heading hold, the stop rules (`--stop-lean`, `--stop-out`, the lift-gate timeout) and the lift gate are the ones above.
+At T 4: 5 mm/s = 20 mm per step, 10 mm/s = 40 mm per step, 1.25 deg/s = 5 deg per step.
+
+**Sources.** `--cmd file:PATH`: a small text file, re-read every step; its first line is `vx vy wz` (floats, spaces or
+commas, `#` comments) or the word `stop` / `pause`. A missing, empty or unparseable file keeps the last command (the
+host prints what it applied each step; the first read must succeed or nothing is sent). `--cmd stdin`: the same lines on
+standard input, read without blocking (the newest parseable line wins; end of input = stop). `stop`, end of input,
+Ctrl-C and SIGTERM all end the walk the same way: the next step is the closing step, then the firmware rests. A second
+Ctrl-C halts (`track halt`). `--max-steps N` (default 120) and `--max-time S` (default 600; 0 = none) end it the same way.
+`--status PATH` (default `PATH.status` for `file:PATH`) is rewritten every step with one JSON line: the state, what was
+asked, what was applied (mm/s, mm/s, deg/s), the per-step displacement, the notes (what scaled it).
+
+**Envelope** (all checked before a step is uploaded; flags override):
+
+| per step | default | flag | why |
+|---|---|---|---|
+| forward dx | 40 mm | `--max-fwd-mm` | proven at T 4 with tilt 3 (10 mm/s); the pre-check passes it with 2.6 deg of ankle margin |
+| backward dx | 32 mm | `--max-back-mm` | a fall happened at 40 back before the lift gate: the conservative cap stays |
+| sideways dy | 15 mm | `--max-side-mm` | proven side step |
+| heading dyaw | 5 deg | `--max-turn-deg` | proven (turns ~5 deg per step) |
+| slew, change of (dx, dy, dyaw) from one step to the next | 20 mm, 10 mm, 3 deg | `--slew DX,DY,DYAW` | below |
+| swing tilt | from the larger of this and the last step's \|dx\|: 0 to 26 mm, 3 deg to 43 mm, 5 deg beyond | `--swing-tilt X` fixes it | the swing foot starts at -dx of the last step, so that sets the reach; the table above has the caps (27 mm without tilt, 43 with 3 deg) |
+| pre-check | static-shift window (k 1.30 to 1.35 over the stance foot at lift-off and touchdown), every leg joint 2 deg inside its range, IK reachable, pelvis speed <= 252 mm/s | | the whole-plan pre-check, run on the one step |
+
+A command past the envelope is scaled by ONE factor in vx, vy and wz (the direction of the command is kept; the
+scaling is printed). The slew then moves the step from the last one toward that point only as far as the three change
+limits allow (again one factor). Then the pre-check judges the step itself (`precheck(only_step=)`, on a two-step window:
+a step's frames depend on the previous step only, through where the swing foot starts and the hip yaw it left); if it
+fails, the largest fraction of the way from the last step that passes is used (from zero if the last step itself no
+longer passes; none at all ends the walk). A step that fails is never uploaded.
+
+**Why a slew of 20 mm / 10 mm / 3 deg.** In step j the swing foot starts at -dx(j-1) from the stance foot and lands at
++dx(j): it travels dx(j) + dx(j-1), and the double support after it has the feet dx(j) apart. A steady 40 mm walk
+travels 80 mm per step (proven); the same-size reversal 40 -> -32 travels only 8 mm, so the swing foot's reach is not the
+danger. What a jump changes is the stagger the next shift and touchdown start from (40 mm one way to 32 mm the other in
+one step: the feet and the pelvis (it moves dx(j-1) fore-aft in the shift) change direction between two steps with no
+step in which both feet are squared). 20 mm is half the stride cap, so full forward to full backward takes five steps and
+passes through zero (the march step, feet squared): 40, 20, 0, -20, -32. Sideways 10 mm (two steps from 15 to -5) and
+turn 3 deg (the hip yaw swing 2c is c = dyaw / 1.34 / 2: a 5 -> -5 jump reverses the asked turn by 7.5 deg between two steps). These are
+a proposal from the geometry and the SIL, not measured on the robot.
+
+**Reversal.** The sideways rule of `--seq` (feet laterally apart and the new direction opposite to the gap: one `close`
+step) fires after EVERY odd step of a sideways walk that goes on (the foot that followed lands alongside), which would
+turn it into out, close, out, close; `--cmd` applies it to the swing foot's lateral travel instead: when the next step's
+swing foot would travel AGAINST the commanded direction, one closing step (no displacement) comes first and the command
+waits a step. A full reversal (15 mm right after 15 mm left) is a null out-step, not a wrong-way one, and needs none.
+`expand_seq` is unchanged.
+
+**Heading.** With wz = 0 the reference heading is held as before; with wz != 0 the reference advances by the applied
+dyaw (wz T, after the clamps) per step, the same loop as `--heading-rate`. The ankle learner stays off unless
+`--ankle-learn on` (then one state, key `cmd`, in `results/ankle_trim_state.json`).
+
+**Pause.** `pause` (and `0 0 0`) marches in place: zero-displacement steps, the `march` gait. Marching in place is the
+gait's own steady state with the feet squared, but how long the robot can hold it is not measured: the longest
+march the README records is 6 steps at T 4. A march of more than `--pause-steps` (default 15 steps, 60 s at T 4; 0 = no limit)
+in a row ends the walk the same way as `stop`. The alternative (end the track and restart from the crouch) was not
+built: the restart needs the crouch lead-in (2.5 s) and a new `track play`, and a second walk in the same process.
+
+**Latency.** The frames of step j up to its lift-off (the shift over the stance foot and the settle, both feet down) do not
+depend on step j, so the host decides step j late: the first upload line that reaches past lift-off j is held back until the
+command is read (`CmdWalk.limit_ms()`). With `--ahead 1` the upload reaches one step past the play head, so step j is
+decided when the head is at lift-off j-1 (tested: head between lift-off j-1 and 1.6 s after it). A command written just
+before that read is the step after next's at the latest: the swing foot starts to move between T and 2T after the file
+is written (4 to 8 s at T 4: one step best case, two worst case), and touches down 2.2 s later (T 4), so the new
+displacement is complete 6 to 10 s after the write. `stop` takes the same time. `--ahead 2` adds one step to both.
+(The lift gate parks the play head, so it parks the decisions too.)
+
+**Two terminals.**
+
+```
+python experiments/roll-balance/walk_keys.py /tmp/walk_cmd          # terminal 2: writes 0 0 0, then your keys
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --cmd file:/tmp/walk_cmd --live    # terminal 1
+```
+
+`walk_keys.py` (stdlib: termios, no robot access, it only writes the file atomically): W / S forward / back, A / D left /
+right, Q / E turn left / right (one press = 5 mm or 1 deg per step; clamped to the default envelope), X zeroes the
+command, SPACE or ESC writes `stop` and exits (Ctrl-C exits WITHOUT a stop). Its status line shows the command and the
+host's `PATH.status` (state, step, applied, what scaled it).
+
+**Dry run.** `python track_host.py --T 4 --cmd file:/tmp/walk_cmd --dry-steps 6` rehearses six steps from the command read
+now (each step re-reads the file live), prints each decision and the plan's usual dry-run report. It sends nothing.
+
+**Tests** (`tests/test_cmd_walk.py`, fake robot): command changes take effect on the next decided step; uniform
+scaling; slew; stop = closing step and a clean end; unparseable keeps the last; reversal; max-steps / pause / max-time;
+the frames of a constant command equal the `--step` run's (20 mm, and 40 / -30 mm with tilt 3); frames up to a step's
+lift-off do not depend on the step; every frame the live loop uploads is exactly the final plan's.
+
+**SIL** (`cmd_walk_sil.py`: the steps the walk decides for `10 0 0` x6, `0 0 1.25` x4, `0 -3.75 0` x5, `-8 0 0` x6,
+`stop` at T 4 (22 steps: dx 20, 40 x5, 20, 0 x8, -20, -32 x5, 0), k 1.3 / 1.30, ff 2,2, tilt per step, lift gate on, no
+extra delay; `results/cmd_walk_sil.json`):
+
+| plant | falls | aborts | lifts | lean in max | lean out max | peak tilt | heading end |
+|---|---|---|---|---|---|---|---|
+| fit | 0 | 0 | 22/22 | 2.5 deg | 3.2 deg | 3.8 deg | -23.6 deg |
+| inset sole (`sole_in_L=8,sole_in_R=-12`) | 0 | 0 | 22/22 | 2.6 deg | 4.0 deg | 3.7 deg | -28.9 deg |
+
+(Four left-turn steps ask +20 deg; the sim drifts right with the feed-forward trim alone, as for `--seq`: the live heading
+hold is what holds the reference. No gate holds.)
+
+**First robot test** (T 4, `--ahead 1`, a person at the robot; nothing here has run on it):
+
+```
+echo "0 0 0" > /tmp/walk_cmd
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --cmd file:/tmp/walk_cmd           # dry run first
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --cmd file:/tmp/walk_cmd --live --note "cmd test 1"
+# then, from a second terminal, one line at a time, a few steps (>= 8 s) each:
+echo "0 0 0"     > /tmp/walk_cmd   # march in place
+echo "5 0 0"     > /tmp/walk_cmd   # forward, 20 mm per step
+echo "10 0 0"    > /tmp/walk_cmd   # forward, 40 mm per step
+echo "0 0 1.25"  > /tmp/walk_cmd   # turn left, 5 deg per step
+echo "0 -2.5 0"  > /tmp/walk_cmd   # sideways right, 10 mm per step
+echo "-5 0 0"    > /tmp/walk_cmd   # back, 20 mm per step
+echo "stop"      > /tmp/walk_cmd
+```
+
 ## The lift gate (2026-11-13): wait for a level, quiet body before a foot leaves the floor
 
 `gaitplay/lift_gate.h` (firmware), `sim/lift_gate.py` (its twin), `track_host.py --lift-gate on` (the default for the

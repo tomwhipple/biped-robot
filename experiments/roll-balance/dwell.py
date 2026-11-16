@@ -95,7 +95,9 @@ class Dwell:
         prints and the ankle learner.
         swing_tilt: deg, toe-down tilt of the SWING sole (its ankle pitch + tilt, + = plantarflexion), ramped in over the
         raise, held, out over the lower like the ankle feed-forward: flat at lift-off and at touchdown. The swing leg's
-        ankle pitch is what bounds the stride (track_host's pre-check); the tilt gives it room."""
+        ankle pitch is what bounds the stride (track_host's pre-check); the tilt gives it room. A list is one tilt
+        per step (track_host --cmd picks it from the step length; steps past its end repeat the last).
+        """
         K = S.kin(drop)
         self.oy = abs(K.model_offset("L")[1])
         if kR is None:
@@ -274,7 +276,9 @@ class Dwell:
                         footR=(fxy["R"][0], fxy["R"][1], fz["R"]), ankle=ank)
             if swing_tilt and cur < len(steps) and h > 0:
                 sw_t = steps[cur]["swing"]
-                qd[f"{sw_t}_ankle"] += math.radians(swing_tilt) * fz[sw_t] / h
+                tilt_i = (swing_tilt[cur] if cur < len(swing_tilt) else swing_tilt[-1]) \
+                    if isinstance(swing_tilt, (list, tuple)) else swing_tilt
+                qd[f"{sw_t}_ankle"] += math.radians(tilt_i) * fz[sw_t] / h
             qd["L_hip_yaw"] += yy["L"]
             qd["R_hip_yaw"] += yy["R"]
             segs.append(dict(t=tt, ms=1e3 * dt, q=qd, row=None,
