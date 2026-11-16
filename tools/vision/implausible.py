@@ -142,6 +142,17 @@ def find_excursions(d, events, exceed=EXCEED_DEG, back=RETURN_DEG, max_s=MAX_REC
     return out
 
 
+def fall_times(d, events):
+    """-> UTC times of the fall latch in a flight-record window: every EV_FALL event, and the first tick of every
+    run of ticks with TF_FALLEN set (the latch stays on once set, so a run of ticks is one fall)."""
+    out = [float(e["t"]) for e in events if e["kind"] == "fall"]
+    t, on = d["t"], (d["flags"] & F.TF_FALLEN) != 0
+    for i in range(len(t)):
+        if on[i] and (i == 0 or not on[i - 1]):
+            out.append(float(t[i]))
+    return sorted(out)
+
+
 def exact_start(events, t0):
     """The run's first command is `cal show`: its host-rx time in the flight record's events is
     the run's t=0 to ~10 ms (the file name only has the second, in local time)."""
@@ -175,7 +186,7 @@ def check_run(track_path, frec=None, frec_dir=None, pad=10.0, data=False, wait_s
     ex = find_excursions(d, events)
     r = dict(source=path, window_utc=[t0, t1], n_ticks=int(len(d["t"])),
              max_tip_deg=float(np.max(np.maximum(np.abs(d["roll_deg"]), np.abs(d["pitch_deg"])))) if len(d["t"]) else None,
-             excursions=ex, implausible_recovery=[e for e in ex if e["implausible"]])
+             excursions=ex, implausible_recovery=[e for e in ex if e["implausible"]], falls=fall_times(d, events))
     if partial:
         r["partial"] = True
         r["note"] = (f"the flight record ends {t1 - float(d['t'][-1]):.0f} s before the run's end (collector not "

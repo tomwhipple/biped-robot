@@ -81,8 +81,11 @@ def test_envelope_scales_all_three_uniformly_and_slew_limits_the_change():
     f = min(50 / 80, 15 / 40, 5 / 8)
     assert s == pytest.approx([80 * f, 40 * f, 8 * f], abs=0.02)         # the sideways cap binds: one factor, same direction
     assert any("envelope" in n for n in cw.log[0]["notes"])
-    # backward is capped at 40, forward at 50
+    # backward is capped at 32 (steering mode), forward at 50
     cw = walk(["-20 0 0"] * 6, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw.decide()
+    assert cw.log[0]["step_mm_deg"][0] == pytest.approx(-32.0)
+    cw = walk(["-20 0 0"] * 6, limits=dict(slew=(1e9, 1e9, 1e9), back=40.0))      # 40 stays available by flag
     cw.decide()
     assert cw.log[0]["step_mm_deg"][0] == pytest.approx(-40.0)
 
@@ -90,7 +93,7 @@ def test_envelope_scales_all_three_uniformly_and_slew_limits_the_change():
 def test_slew_walks_through_zero_from_full_forward_to_full_back():
     cw = walk(["10 0 0"] * 4 + ["-10 0 0"] * 5 + ["stop"])
     cw.rehearse(40)
-    assert dxs(cw) == [20.0, 40.0, 40.0, 40.0, 20.0, 0.0, -20.0, -40.0, -40.0, 0.0]
+    assert dxs(cw) == [20.0, 40.0, 40.0, 40.0, 20.0, 0.0, -20.0, -32.0, -32.0, 0.0]
     assert any("slew" in n for r in cw.log for n in r["notes"])
     # all three components move together (a diagonal keeps its direction while it is slewed)
     cw = walk(["10 3.75 0"] * 3)
@@ -438,7 +441,7 @@ def test_walk_keys_controller_and_atomic_file(tmp_path):
     assert ctl.v[0] == 50.0                            # never past the envelope
     for _ in range(20):
         ctl.key("s")
-    assert ctl.v[0] == -40.0
+    assert ctl.v[0] == -32.0
     assert not ctl.key("z") and ctl.key("x") and ctl.line() == "0 0 0\n"
     assert ctl.key("\x1b") and ctl.line() == "stop\n"
     f = tmp_path / "cmd"

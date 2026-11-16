@@ -182,3 +182,132 @@ def test_check_run_waits_for_the_record_to_cover_the_end(tmp_path, monkeypatch):
     calls.clear()
     r = IM.check_run(str(run), wait_s=0, poll_s=0.01)           # gives up at once: says partial, not "clean"
     assert r["partial"] and "not established" in r["note"]
+
+
+# ---- run_report: endings, stationary positions, extent -------------------------------------------------------------
+def _ts_rows(n_ts, t_end=70.0):
+    rows = [dict(t=0.0, cmd="cal show", text="x")]
+    for k in range(1, n_ts + 1):
+        rows.append(dict(t=4.0 * k, cmd="track steps", text="".join(f"TS {j} L in 1.7 out 2.2 e +2.0 T +1.8 hike +1.4 ok G 0\n" for j in range(1, k + 1))))
+    rows.append(dict(t=t_end, cmd="imu", text="levelled yes"))
+    return rows
+
+
+def _summary(n_steps, n_ts, **kw):
+    return dict(summary=True, args=dict(steps=n_steps), gate_timeout=None,
+                steps=[dict(n=j, stance="LR"[j % 2], lean_in=1.7, lean_out=2.2, gate_ms=0, ok=True) for j in range(1, n_ts + 1)], **kw)
+
+
+def test_log_anomalies_a_fall_run_is_a_short_run_and_a_clean_run_is_not():
+    # 2026-11-16 14:01: 17 steps decided, TS lines up to 16, no fall or abort text anywhere in the host log
+    a = RR.log_anomalies(_ts_rows(16) + [_summary(17, 16)], 1000.0)
+    assert [x["kind"] for x in a] == ["short_run"] and a[0]["t_utc"] == 1070.0 and "16 TS lines for 17" in a[0]["detail"]
+    assert RR.log_anomalies(_ts_rows(17) + [_summary(17, 17)], 1000.0) == []
+
+
+def test_log_anomalies_abort_stop_rule_and_gate_timeout_are_listed():
+    rows = _ts_rows(5)
+    s = _summary(8, 5, outcome=dict(abort=True, stop_rule=True, gate_timeout=False, fell=None))
+    s["steps"][3]["ok"] = False
+    k = [x["kind"] for x in RR.log_anomalies(rows + [s], 1000.0)]
+    assert "firmware_abort" in k and "stop_rule" in k and "short_run" not in k      # the abort explains the short run
+    s = _summary(8, 5, outcome=dict(abort=False, stop_rule=True, gate_timeout=True, fell=None))
+    s["gate_timeout"] = dict(n=6, stance="R", held_ms=3000, dev=4.0, rate=0.2)
+    a = RR.log_anomalies(rows + [s], 1000.0)
+    gt = [x for x in a if x["kind"] == "gate_timeout"]
+    assert gt and gt[0]["t_utc"] == 1070.0                                          # was dropped for want of a time
+    assert any(x["kind"] == "stop_rule" for x in a)
+    s = _summary(8, 5, outcome=dict(abort=False, stop_rule=False, gate_timeout=False, fell=True))
+    assert "fall_latch" in [x["kind"] for x in RR.log_anomalies(rows + [s], 1000.0)]
+
+
+def test_flight_record_fall_latch_times():
+    import numpy as np
+    t = np.arange(1000.0, 1010.0, 0.5)
+    flags = np.zeros(len(t), int)
+    flags[10:] = IM.F.TF_FALLEN                      # latched from t = 1005 on: one fall, not 10
+    d = dict(t=t, flags=flags)
+    assert IM.fall_times(d, [dict(kind="fall", t=1004.9), dict(kind="cmd", t=1001.0)]) == [1004.9, 1005.0]
+    assert IM.fall_times(dict(t=t, flags=np.zeros(len(t), int)), []) == []
+
+
+def _tag_rows(spec):
+    """spec: [(t0, t1, fn(t) -> (x, y))] at 12 Hz -> tracker-like rows"""
+    rows = []
+    for a, b, fn in spec:
+        for t in np.arange(a, b, 1 / 12):
+            x, y = fn(t)
+            rows.append(dict(t=1000.0 + float(t), stale=False, x_mm=x, y_mm=y, heading_deg=0.0, roll_deg=0.0, pitch_deg=0.0,
+                             margin_min_mm=300.0, margin_min_edge="near"))
+    return rows
+
+
+import numpy as np  # noqa: E402
+
+
+def test_position_start_end_are_taken_at_rest_not_mid_step():
+    sway = lambda c: (lambda t: (c[0] + 80 * np.sin(2 * np.pi * t / 4.0), c[1] + 10 * np.sin(2 * np.pi * t / 8.0)))
+    rows = _tag_rows([(0, 4, lambda t: (402.0 + 0.5 * np.sin(t), 518.0)),         # at rest before the first step
+                      (4, 30, sway((450, 480))),                                     # stepping: +-80 mm sway
+                      (30, 34, lambda t: (494.0, 443.0)),                           # rest at the end
+                      ])
+    # the end of the run is mid-sway: the last samples alone would be far off
+    out = RR.tag_flags(rows, None)
+    assert out["position_start"] == pytest.approx([402.0, 518.0], abs=1.0)
+    assert out["position_end"] == pytest.approx([494.0, 443.0], abs=1.0)
+    assert out["position_method"]["start"]["method"].startswith("median over a stationary window")
+    assert out["position_method"]["end"]["window_s"] >= 1.0
+    ext = out["position_track_extent"]
+    assert ext["x_mm"][0] < 380 and ext["x_mm"][1] > 520 and ext["y_mm"][0] < 445 and ext["y_mm"][1] > 515
+
+
+def test_position_end_falls_back_and_says_so_when_never_still():
+    rows = _tag_rows([(0, 20, lambda t: (450 + 80 * np.sin(2 * np.pi * t / 4.0), 480.0))])
+    out = RR.tag_flags(rows, None)
+    assert "NO stationary window" in out["position_method"]["end"]["method"] and out["position_end"] is not None
+    assert RR.tag_flags([], None)["position_method"] is None and RR.tag_flags([], None)["position_track_extent"] is None
+
+
+# ---- where.py --plan-dx-mm / --plan-dy-mm ------------------------------------------------------------------------
+def test_plan_end_rotates_the_robot_frame_by_the_heading():
+    cfg = G.load_config()
+    cfg["board"].update(width_mm=900.0, length_mm=1200.0)
+    cfg["foot_margin_mm"] = 0.0
+    ex, ey, m = W.plan_end(cfg, 450, 600, 0.0, 200, 0)               # heading 0 = +y: forward is +y, left is -x
+    assert (round(ex), round(ey)) == (450, 800) and round(m["far"]) == 400 and round(m["near"]) == 800
+    ex, ey, _ = W.plan_end(cfg, 450, 600, 0.0, 0, 100)
+    assert (round(ex), round(ey)) == (350, 600)
+    ex, ey, _ = W.plan_end(cfg, 450, 600, 90.0, 200, 0)              # turned left 90 deg: forward is -x
+    assert (round(ex), round(ey)) == (250, 600)
+    ex, ey, _ = W.plan_end(cfg, 450, 600, 90.0, 0, 100)              # and its left is -y
+    assert (round(ex), round(ey)) == (450, 500)
+    ex, ey, _ = W.plan_end(cfg, 450, 600, 180.0, -200, 50)           # facing -y: back is +y, left is +x
+    assert (round(ex), round(ey)) == (500, 800)
+
+
+def test_where_plan_refuses_an_end_point_near_the_edge(tmp_path):
+    import json
+    import test_vision_track as t
+    img = t.render(t.CFG, 10, 3, -4, 300, 900)                         # robot near x 300, y 900 on the 900 x 1200 board
+    p = str(tmp_path / "f.png")
+    cv2.imwrite(p, img)
+    conf = str(tmp_path / "v.json")
+    with open(conf, "w") as f:
+        json.dump({"board": {"layout": "config"}, "robot": {"tags": t.CFG["robot"]["tags"]}}, f)
+
+    def run(*args):
+        return subprocess.run([PY, os.path.join(VIS, "where.py"), "--image", p, "--min-margin", "250", "--config", conf, *args],
+                              capture_output=True, text=True)
+    ok = run("--plan-dx-mm", "-200")                                     # backing away from the far edge
+    assert ok.returncode == 0 and "predicted end margins" in ok.stdout and "OK" in ok.stdout
+    bad = run("--plan-dx-mm", "200")                                     # starts with ~300 mm to the far edge, ends within ~100
+    assert bad.returncode == 3 and "END TOO CLOSE" in bad.stdout
+    js = json.loads(run("--plan-dx-mm", "200", "--json").stdout)
+    pl = js["plan"]
+    assert pl["ok"] is False and pl["end_margin_min_edge"] == "far" and pl["end_margin_min_mm"] < 250
+    assert pl["end_y_mm"] > js["y_mm"] + 150 and "position_uncertainty_mm" in js
+    assert "plan" not in json.loads(run("--direction", "back", "--json").stdout)           # no plan flags: unchanged output
+    left = run("--plan-dy-mm", "100")                                    # left = toward -x: x ~300 -> ~200 < 250 from the left edge
+    assert left.returncode == 3 and "left edge" in left.stdout
+    assert run("--plan-dy-mm", "-100").returncode == 0                   # right: x ~400
+    assert "+-100 mm: f from" in bad.stdout                              # f from the coplanarity estimate: the uncertainty is printed
