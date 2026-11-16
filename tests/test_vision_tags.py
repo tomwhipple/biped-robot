@@ -30,7 +30,7 @@ def test_every_tag_decodes_at_24px():
 
 def test_sheet_builds(tmp_path):
     pdf, pages = make_tags.build(str(tmp_path))
-    assert os.path.getsize(pdf) > 10000 and len(pages) == 3
+    assert os.path.getsize(pdf) > 10000 and len(pages) == 4
     assert pages[0].size == (2550, 3300)       # US Letter at 300 dpi
 
 
