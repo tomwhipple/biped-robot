@@ -70,6 +70,33 @@ T_FLOOR = 3.0
 YAW_SIGN = -1.0          # sim (sil_gait, T 5, fit): yaw_trim +4 deg/step with +1 turned the body -35 deg over 6 steps
 
 
+LOWER_FRAC = 0.35            # the lowering's share of the single support (the raise has the same, the move the rest)
+LAND_EARLY_MAX_MM = 4.0
+LOWER_FRAC_RANGE = (0.20, 0.50)
+
+
+def split_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None):
+    """(shift, settle, double support, single support) s of a step of nominal time T, as the constructor lays them
+    out: the SCHEDULE entry for T, else fractions of T."""
+    t_ds = ds * T
+    t_set = settle_frac * t_ds
+    t_sh = t_ds - t_set
+    if t_shift is None and float(T) in SCHEDULE:
+        t_shift, t_settle = SCHEDULE[float(T)]
+    if t_shift is not None:               # absolute durations override the fractions
+        t_sh = float(t_shift)
+        t_set = float(t_settle if t_settle is not None else 0.25)
+        t_ds = t_sh + t_set
+    return t_sh, t_set, t_ds, T - t_ds
+
+
+def effective_step_s(T, td_pause=0.0, settle=None, **kw):
+    """The step time with --td-pause and --settle: T + pause (every step but the first) + (settle - the schedule's
+    settle) when a settle is given; the single support and the shift keep the schedule's lengths."""
+    t_sh, t_set, t_ds, t_ss = split_times(T, **kw)
+    return T + (td_pause or 0.0) + ((settle - t_set) if settle is not None else 0.0)
+
+
 def _mj(u):
     u = min(max(u, 0.0), 1.0)
     return u * u * u * (10 - 15 * u + 6 * u * u)
@@ -79,8 +106,18 @@ class Dwell:
     def __init__(self, T=4.0, n_steps=6, kL=K_STATIC["L"], kR=None, ds=0.4, settle_frac=0.25, h=0.022,
                  dx=0.0, dy=0.0, yaw=0.0, first="L", drop=0.02, t_crouch=2.0, t_settle0=1.0, dt=0.04,
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
-                 ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0):
-        """ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
+                 ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0,
+                 td_pause=0.0, settle=None, lower_frac=None, land_early=0.0):
+        """td_pause: s, the next step's lateral shift (all pelvis / hip roll / ankle roll motion of the shift, and the
+        fore-aft pelvis move with it) starts this long AFTER the planned touchdown of the swing foot: the lowering, the
+        ankle feed-forward's and the swing tilt's ramp-out are complete first (they follow the foot's height, 0 at
+        touchdown). Every step but the first has it, and so does the final shift back to the centre; each step is
+        that much longer. settle: s, the pre-lift settle (default per schedule); a shorter one shortens the step
+        (the single support and the shift keep their lengths). lower_frac: the lowering's share of the single
+        support (default 0.35; the move takes what the raise and the lowering leave). land_early: mm, the swing sole is
+        commanded this far BELOW the floor at touchdown (min-jerk with the lowering; a slight press), held through the
+        pause and released over the next shift, 0..4.
+        ankle_ff: {"L": deg, "R": deg} (or an (L, R) pair), a fixed feed-forward on the STANCE ankle roll,
         + = outward (the body rolls toward the stance foot's outside; 1 deg moves the CoM ~3.7 mm in the plant FK),
         ramped in over the raise, held, taken out over the lower (the swing foot's height profile).
         ankle_ff_steps: a list, deg per step (step i's stance ankle), overriding ankle_ff where given (the host's
@@ -117,21 +154,37 @@ class Dwell:
 
         def _at(lst, i, default):
             return default if lst is None else (lst[i] if i < len(lst) else lst[-1])
-        t_ds = ds * T                         # shift + settle
-        t_set = settle_frac * t_ds
-        t_sh = t_ds - t_set
-        if t_shift is None and float(T) in SCHEDULE:
-            t_shift, t_settle = SCHEDULE[float(T)]
-        if t_shift is not None:               # absolute durations override the fractions
-            t_sh = float(t_shift)
-            t_set = float(t_settle if t_settle is not None else 0.25)
+        t_sh, t_set, t_ds, t_ss = split_times(T, ds, settle_frac, t_shift, t_settle)
+        t_pause = float(td_pause or 0.0)
+        if t_pause < 0.0 or t_pause > 2.0:
+            raise ValueError(f"td_pause {t_pause:g} s: want 0 to 2")
+        period = T                            # the step time: T, longer by a settle change (the pause is per step, below)
+        if settle is not None:
+            if not 0.0 <= settle <= 2.0:
+                raise ValueError(f"settle {settle:g} s: want 0 to 2")
+            period = T + (float(settle) - t_set)
+            t_set = float(settle)
             t_ds = t_sh + t_set
-        t_ss = T - t_ds
+        land = float(land_early or 0.0)
+        if not 0.0 <= land <= LAND_EARLY_MAX_MM + 1e-9:
+            raise ValueError(f"land_early {land:g} mm: want 0 to {LAND_EARLY_MAX_MM:g}")
+        land /= 1e3
+        if lower_frac is not None and not LOWER_FRAC_RANGE[0] <= lower_frac <= LOWER_FRAC_RANGE[1]:
+            raise ValueError(f"lower_frac {lower_frac:g}: want {LOWER_FRAC_RANGE[0]:g} to {LOWER_FRAC_RANGE[1]:g}")
+        if lower_frac == LOWER_FRAC:
+            lower_frac = None                  # the default written out is the default
+        F_ = LOWER_FRAC if lower_frac is None else float(lower_frac)       # the lowering's share of the single support
+        u_l = 0.65 if lower_frac is None else 1.0 - F_                     # where it starts
         self.T, self.t_shift, self.t_settle, self.t_ss, self.h = T, t_sh, t_set, t_ss, h
+        self.td_pause, self.lower_frac, self.land_early = t_pause, F_, land
+        self.step_time = period + t_pause
         self.stamp = (f"dwell T{T:g} ds{ds:g} (shift {t_sh:.2f} settle {t_set:.2f} ss {t_ss:.2f} s) "
                       f"kL{kL:g} kR{kR:g} h{1e3 * h:.0f}mm dx{dx:+g} dy{dy:+g} yaw{yaw:+g}"
                       + "".join(f" kds{s_}{v:g}" for s_, v in self.k_ds.items() if v)
-                      + "".join(f" aff{s_}{v:+g}" for s_, v in self.ankle_ff.items() if v))
+                      + "".join(f" aff{s_}{v:+g}" for s_, v in self.ankle_ff.items() if v)
+                      + (f" pause{t_pause:g}" if t_pause else "") + (f" settle{t_set:g}" if settle is not None else "")
+                      + (f" lower{F_:g}" if lower_frac is not None else "")
+                      + (f" land{1e3 * land:g}mm" if land else ""))
         self.r = None
         self.q_start = K.pose(straight=True)
         swing_of = (lambda i: first if i % 2 == 0 else ("R" if first == "L" else "L"))
@@ -144,8 +197,10 @@ class Dwell:
         for i in range(n_steps):
             sw = swing_of(i)
             st = "R" if sw == "L" else "L"
-            steps.append(dict(i=i, swing=sw, stance=st, a=t, b=t + t_sh, lo=t + t_ds, td=t + T))
-            t += T
+            pz = t_pause if i > 0 else 0.0
+            steps.append(dict(i=i, swing=sw, stance=st, a=t, s0=t + pz, b=t + pz + t_sh, lo=t + pz + t_ds,
+                              td=t + period + pz))
+            t += period + pz
         # the feet's goals per step (the stepper's convention: the leading foot steps out, the other follows)
         goals = []
         f = {s: list(v) for s, v in feet.items()}
@@ -182,12 +237,13 @@ class Dwell:
             staggered = abs(f[sw_c][0] - f[st_c][0]) > 1e-4 or abs(f[sw_c][1] - f[st_c][1]) > 1e-4
             if staggered or abs(yq["L"]) > 1e-4 or abs(yq["R"]) > 1e-4:
                 i = len(steps)
-                steps.append(dict(i=i, swing=sw_c, stance=st_c, a=t, b=t + t_sh, lo=t + t_ds, td=t + T, closing=True))
-                t += T
+                steps.append(dict(i=i, swing=sw_c, stance=st_c, a=t, s0=t + t_pause, b=t + t_pause + t_sh,
+                                  lo=t + t_pause + t_ds, td=t + period + t_pause, closing=True))
+                t += period + t_pause
                 goals.append((list(f[sw_c]), [f[st_c][0], f[st_c][1]], dict(yq), {"L": 0.0, "R": 0.0}))
                 f[sw_c] = [f[st_c][0], f[st_c][1]]
         t_end_steps = t
-        t_back = t_end_steps + t_sh            # back to the centre, both feet down
+        t_back = t_end_steps + t_pause + t_sh  # back to the centre, both feet down
         self.t_end = t_back + 1.0
         self._steps, self._goals = steps, goals
 
@@ -216,21 +272,26 @@ class Dwell:
                 pel_from = stance_target(cur, fe)
                 px_from = fe[steps[cur]["stance"]][0]
                 cur += 1
+            press = None
             if cur < len(steps):
                 p = steps[cur]
                 tgt = stance_target(cur, fe, ds=True)
                 tgt_ss = stance_target(cur, fe)
                 px_tgt = fe[p["stance"]][0]
                 if tt <= p["b"]:
-                    m_sh = _mj((tt - p["a"]) / max(t_sh, 1e-6))
+                    m_sh = _mj((tt - p["s0"]) / max(t_sh, 1e-6))
                     pel = pel_from + m_sh * (tgt - pel_from)
                     px = px_from + m_sh * (px_tgt - px_from)
+                    if land and cur > 0:                  # the last step's pressed sole, released over this shift
+                        press = (steps[cur - 1]["swing"], -land * (1.0 - m_sh))
                 else:
                     pel = tgt
                     px = px_tgt
                 fz = {"L": 0.0, "R": 0.0}
                 fxy = {s: list(v) for s, v in fe.items()}
                 yy = dict(yq)
+                if press is not None:
+                    fz[press[0]] = press[1]
                 if tt > p["lo"]:
                     u = (tt - p["lo"]) / t_ss
                     pel = tgt + _mj(u / 0.35) * (tgt_ss - tgt)     # the two-stage shift's second stage (else 0)
@@ -238,11 +299,12 @@ class Dwell:
                     start, goal, y_from, y_to = goals[cur]
                     if u < 0.35:
                         fz[sw] = h * _mj(u / 0.35)
-                    elif u < 0.65:
+                    elif u < u_l:
                         fz[sw] = h
                     else:
-                        fz[sw] = h * (1.0 - _mj((u - 0.65) / 0.35))
-                    m = _mj((u - 0.35) / 0.3)
+                        v_ = _mj((u - u_l) / F_)
+                        fz[sw] = h * (1.0 - v_) - land * v_ if land else h * (1.0 - v_)
+                    m = _mj((u - 0.35) / (0.3 if lower_frac is None else u_l - 0.35))
                     fxy[sw] = [start[0] + m * (goal[0] - start[0]), start[1] + m * (goal[1] - start[1])]
                     yy[sw] = y_from[sw] + m * (y_to[sw] - y_from[sw])
                     st_ = p["stance"]
@@ -250,10 +312,12 @@ class Dwell:
             else:
                 # after the last step: back to the centre between the feet
                 mid = 0.5 * (fe["L"][1] + fe["R"][1])
-                m_sh = _mj((tt - t_end_steps) / max(t_sh, 1e-6))
+                m_sh = _mj((tt - t_end_steps - t_pause) / max(t_sh, 1e-6))
                 pel = pel_from + m_sh * (mid - pel_from)
                 px = px_from + m_sh * (0.5 * (fe["L"][0] + fe["R"][0]) - px_from)
                 fz = {"L": 0.0, "R": 0.0}
+                if land and steps:
+                    fz[steps[-1]["swing"]] = -land * (1.0 - m_sh)
                 fxy = {s: list(v) for s, v in fe.items()}
                 yy = dict(yq)
             # pelvis_x "mid": over the feet's mid point (moves forward with the swing foot); "stance": over the stance
@@ -288,7 +352,7 @@ class Dwell:
         for i, p in enumerate(steps):
             lo, td = p["lo"], p["td"]
             phases.append(dict(t0=lo, raise_end=lo + 0.35 * t_ss, hold_from=lo + 0.35 * t_ss,
-                               lower_start=lo + 0.65 * t_ss, t1=td, swing=p["swing"], stance=p["stance"],
+                               lower_start=lo + u_l * t_ss, t1=td, swing=p["swing"], stance=p["stance"],
                                ss_a=lo, ss_b=td))
             self.step_ends.append(td + min(0.1, 0.5 * t_sh))     # both feet down: a stop may end here
         # the commanded shift ratio at each lift-off, over the stance foot (the constraint the host checks)
@@ -320,6 +384,14 @@ class Dwell:
             return math.pi * u + off
         for k, p in enumerate(ps):
             if p["t0"] <= t <= p["t1"]:
+                w = (t - p["t0"]) / (p["t1"] - p["t0"])
+                if self.lower_frac != LOWER_FRAC:
+                    # a lowering longer or shorter than 0.35: the firmware's raise end (0.35) and lowering start (0.65)
+                    # still land on this gait's, the phase is warped piecewise-linearly between them
+                    u_l = 1.0 - self.lower_frac
+                    w = w if w < 0.35 else (0.35 + 0.3 * (w - 0.35) / (u_l - 0.35) if w < u_l
+                                            else 0.65 + 0.35 * (w - u_l) / (1.0 - u_l))
+                    return math.pi * (k + 0.25 + 0.5 * w) + off
                 u = 0.25 + 0.5 * (t - p["t0"]) / (p["t1"] - p["t0"])
                 return math.pi * (k + u) + off
             nxt = ps[k + 1]["t0"] if k + 1 < len(ps) else p["t1"] + (self.t_shift + self.t_settle)

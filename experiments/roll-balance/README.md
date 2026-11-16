@@ -799,6 +799,61 @@ python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one tr
 python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
 ```
 
+## The step's timeline and the touchdown pause (`--td-pause`, `--settle`, `--lower-frac`, `--land-early-mm`; host only)
+
+**Timeline of one step** (`dwell.Dwell`, s from the step's start; the step's start is the previous step's planned touchdown;
+the `timeline:` line of the plan summary prints it for the plan at hand):
+
+| | T 4 | T 5 | what moves |
+|---|---|---|---|
+| shift | 0 - 1.40 | 0 - 1.40 | pelvis min-jerk over the new stance foot (hip roll, ankle roll, fore-aft with `--pelvis-x stance`); both feet down |
+| settle | 1.40 - 1.80 | 1.40 - 1.80 | everything held, both feet down (the lift gate's frame is the last one before lift-off) |
+| raise | 1.80 - 2.57 | 1.80 - 2.92 | swing sole up to h over 0.35 of the single support; the stance ankle ff and the swing tilt ramp IN with its height |
+| move | 2.57 - 3.23 | 2.92 - 3.88 | sole at h, forward / sideways over 0.30; the stance and swing hip yaw |
+| lower | 3.23 - 4.00 | 3.88 - 5.00 | sole down over 0.35, min-jerk; the ankle ff and the swing tilt ramp OUT with its height (both are 0 at 4.00) |
+
+The single support is 2.2 s at T 4 and 3.2 s at T 5; the shift and settle are the same 1.4 + 0.4 s (`dwell.SCHEDULE`).
+
+**Where the next shift begins.** In the plan, at the planned touchdown, with no overlap: the next step's shift is
+`_mj((t - touchdown) / 1.4)` from the touchdown on, and the foot's lowering, the ankle ff and the swing tilt are all
+functions of the sole height, which is 0 at the touchdown. Measured on the T 4 / T 5 plans (stance hip roll goal of the next
+step): rate 0.5 deg/s at the touchdown, 3.3 deg/s at +0.1 s, 9.4 at +0.2, 17.4 at +0.3, 32.9 at +0.5, peak 39.5 deg/s at +0.7 s.
+Before the touchdown the goal moves only 2 deg/s (T 4, at -0.5 s; 0.6 at -0.1 s: the ankle ff ramping out through the leg
+geometry). The sole is within 1 mm of the floor from 0.10 s (T 4) / 0.12 s (T 5) before the touchdown and within 3 mm from 0.20 s / 0.34 s.
+So **the 0.34 s overlap is not in the plan.** What does overlap the shift on the robot is the firmware: at the touchdown the
+support state goes to double support and the stance trim FADES, linearly to 0 over 0.6 s (`balance/stance_trim.h`, `fade_s`),
+so the hike correction of the stance foot is taken out while the shift starts; that is on top of the plan's goals, and the
+servos' lag moves the goals' effect later, not earlier. Where the 0.34 s and the 36 deg/s at +0.1-0.3 s of the flight record
+come from is not explained by the plan: its goal rate there is 3-17 deg/s.
+
+**`--td-pause S`** (default 0): the next step's shift starts S s after the touchdown. All of the shift's motion is held
+(`pel`, fore-aft, feet; the pose is the touchdown frame's, which has the ankle ff and the tilt out), then the old shift
+runs, S later. Every step but the first and the final shift back to the centre have it, so a step is S longer and the walk
+`n S` longer. **`--settle S2`** replaces the pre-lift settle (0.4 s); the shift and the single support keep their lengths, so
+`--td-pause 0.3 --settle 0.2` is 4.1 s per step at T 4. The step time is printed (`timeline:`) and used for `--ahead`, the
+commanded speeds, `--heading-rate` and `--cmd` (a command's displacement is v x the step time); `T` stays the schedule's key.
+
+**`--lower-frac F`** (0.20 to 0.50, default 0.35) or **`--lower-s S3`** (= F x the single support): the lowering's share of the
+single support. The move takes what the raise (0.35) and the lowering leave, the step time does not change, the phase the
+firmware sees is warped piecewise so its raise end (0.35) and lowering start (0.65) still land on the plan's.
+**`--land-early-mm D`** (0 to 4, default 0): the swing sole is commanded D mm BELOW the floor at the touchdown (the same
+min-jerk descent, `z = h (1 - v) - D v`, so it crosses the floor early), held through the pause and let up (min-jerk) over the
+next shift, so the lift-off pose is the plain one. The pre-check judges every frame, so the joint margins cover it (tested to 4 mm).
+Not run on the robot: the press loads the foot the way the stepper's sole bias does, but how far the servos hold a goal below the floor is unmeasured.
+
+**A/B on the robot** (fixed walks, T 4, `--ahead 1`; `walk` = forward 8 at 40 mm, `back` = backward 8 at 32 mm):
+
+```
+F="--T 4 --ahead 1 --swing-tilt 3 --live"; W="--dir fwd --steps 8 --stride-mm 40"; B="--dir back --steps 8 --stride-mm 32"
+python experiments/roll-balance/track_host.py $F $W                                   --note "td base fwd"
+python experiments/roll-balance/track_host.py $F $W --td-pause 0.3                    --note "td pause0.3 fwd"
+python experiments/roll-balance/track_host.py $F $W --td-pause 0.3 --settle 0.2       --note "td pause0.3 settle0.2 fwd"
+python experiments/roll-balance/track_host.py $F $W --land-early-mm 2                 --note "td land2 fwd"
+python experiments/roll-balance/track_host.py $F $B  [the same four flag sets]        --note "td ... back"
+```
+
+Without `--live` each prints the plan (the timeline, the pre-check) and sends nothing.
+
 ## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
 
 A walk with no fixed length: every step the host reads the CURRENT command, `vx vy wz` (mm/s forward, mm/s left, deg/s

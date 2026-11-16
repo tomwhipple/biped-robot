@@ -161,7 +161,7 @@ class CmdWalk:
 
     def __init__(self, host, source, base, first="R", hold=None, limits=None, max_steps=120, max_time=None,
                  status=None, say=print, clock=time.monotonic, fixed_tilt=0.0, yaw_trim=None, allow_over=False,
-                 ankle_side=None, first_boost=0.0, drift_side=None):
+                 ankle_side=None, first_boost=0.0, drift_side=None, step_s=None):
         """base: the plan() keyword arguments shared by every plan of the walk (T_step, seeds, lead_ms, cal, amp, model,
         ds, h, pelvis_x, ankle_ff, k_ds, drop, lift_gate; direction, n_steps and first are set here).
         ankle_side, first_boost, drift_side: the by-step feed-forwards (track_host.ankle_extra / step_drift); None / 0 =
@@ -169,7 +169,7 @@ class CmdWalk:
         check window sees exactly what the walk's plan will."""
         self.H, self.src, self.hold, self.say, self.clock = host, source, hold, say, clock
         self.base = dict(base)
-        self.T = float(base["T_step"])
+        self.T = float(base["T_step"] if step_s is None else step_s)       # the step time: a command's displacement is v x T
         self.first, self.status_path = first, status
         lim = dict(fwd=FWD_MM, back=BACK_MM, side=SIDE_MM, yaw=YAW_DEG, slew=SLEW, pause=PAUSE_STEPS)
         lim.update(limits or {})

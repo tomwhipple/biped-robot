@@ -208,7 +208,8 @@ def expand_seq(seq, first="R"):
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
-         step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None):
+         step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None, td_pause=0.0, settle=None,
+         lower_frac=None, land_early=0.0):
     """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
     stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
     decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
@@ -269,6 +270,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **({"ankle_ff_steps": list(ankle_eff)} if ankle_eff is not None else {}),
                    **({"step_meta": meta} if meta is not None else {}),
                    **({"drop": drop} if drop is not None else {}),
+                   **({"td_pause": td_pause} if td_pause else {}), **({"settle": settle} if settle is not None else {}),
+                   **({"lower_frac": lower_frac} if lower_frac is not None else {}),
+                   **({"land_early": land_early} if land_early else {}),
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
@@ -297,7 +301,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt, lift_gate=lift_gate,
                           step_cmds=list(step_cmds) if step_cmds is not None else None,
                           ankle_side=tuple(ankle_side) if ankle_side is not None else None,
-                          first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None))
+                          first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None,
+                          td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -719,7 +724,7 @@ def report_precheck(pl):
 def speeds(pl):
     """(mm/s forward, mm/s left, deg/s commanded heading) over the plan's steps (the closing step excluded), and the
     per-segment list [(name, steps, fwd, left, deg/s)]."""
-    cm, T = pl.get("cmds"), pl["args"]["T_step"]
+    cm, T = pl.get("cmds"), getattr(pl["sway"], "step_time", pl["args"]["T_step"])
     if cm is None:
         c = preset_cmd(pl["args"]["direction"]) if pl["args"]["direction"] in G.DIRS and "yaw" not in G.DIRS[pl["args"]["direction"]] \
             else dict(name=pl["args"]["direction"], dx=0.0, dy=0.0, dpsi=0.0)
@@ -754,14 +759,28 @@ def _extra(a):
                     f", swing tilt {a.swing_tilt:g} deg" if a.swing_tilt else ""])
 
 
+def timeline(sw):
+    """One line: the per-step timeline of a dwell plan and its effective step time."""
+    ss, F = sw.t_ss, sw.lower_frac
+    tl = [("pause", sw.td_pause)] if sw.td_pause else []
+    tl += [("shift", sw.t_shift), ("settle", sw.t_settle), ("raise", 0.35 * ss), ("move", (1.0 - 0.35 - F) * ss),
+           ("lower", F * ss)]
+    return (" + ".join(f"{n} {v:.2f}" for n, v in tl) + f" = {sum(v for _, v in tl):.2f} s per step (nominal T {sw.T:g}; "
+            f"single support {ss:.2f} s, the next shift starts {sw.td_pause:.2f} s after the touchdown"
+            + (f"; sole {1e3 * sw.land_early:g} mm below the floor at touchdown" if sw.land_early else "") + ")")
+
+
 def dry(pl, a):
     adds = pl["adds"]
     nb = sum(len(l) + 1 for _, l in adds)
-    ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
+    Teff = getattr(a, "Teff", a.T)
+    ahead_ms = min(a.ahead * Teff, MAX_AHEAD_S) * 1e3
     first = [l for t, l in adds if t <= ahead_ms]
     print(f"gait: {pl['model']} T {a.T:g} s/step, {pl['args']['n_steps']} steps, {_label(a)}{_extra(a)}; {sum(1 for f in pl['frames'] if f[2] == 'kf')} "
           f"keyframes at {G.KF_S * 1e3:.0f} ms + {sum(1 for f in pl['frames'] if f[2] == 'rest')} rest frames; "
           f"track {pl['duration_s']:.1f} s after a {a.lead} ms lead-in")
+    if pl["model"] == "dwell":
+        print(f"timeline: {timeline(pl['sway'])}")
     print(f"upload: {len(adds)} `track add` lines ({PER_LINE} frames each), {nb} bytes; longest line "
           f"{max(len(l) for _, l in adds)} chars (CLI limit 192)")
     print(f"before play: {len(first)} lines (the first {ahead_ms / 1e3:.1f} s); at {a.ms_per_line:.0f} ms a line "
@@ -775,13 +794,14 @@ def dry(pl, a):
           else "lift gate: no gate frames (--lift-gate off, or the sway model)")
     if pl["model"] == "dwell":
         tot, rows_ = speeds(pl)
-        print(f"speed (commanded, one step per {a.T:g} s): {tot[0]:+.1f} mm/s forward, {tot[1]:+.1f} mm/s sideways (+ = left), "
+        print(f"speed (commanded, one step per {Teff:g} s): {tot[0]:+.1f} mm/s forward, {tot[1]:+.1f} mm/s sideways (+ = left), "
               f"{tot[2]:+.2f} deg/s heading (+ = left)")
         if pl.get("cmds") is not None and pl["args"].get("seq") is not None:
             for nm, n_, vx, vy, vw in rows_:
                 print(f"   segment {nm} x{n_}: {vx:+.1f} mm/s fwd, {vy:+.1f} mm/s side, {vw:+.2f} deg/s")
     pr = None if (getattr(a, "cmd", None) or a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
-                  or a.swing_tilt) else \
+                  or a.swing_tilt or a.td_pause or a.settle is not None or a.lower_frac is not None
+                  or a.lower_s is not None or a.land_early_mm) else \
         (predicted_dwell(a.T, a.dir) if pl["model"] == "dwell" else predicted(a.T, a.dir))
     if pr:
         print(f"SIL prediction ({pl['model']}, {pr['runs']} runs over plants x delay): falls {pr['falls']}, aborts "
@@ -906,7 +926,7 @@ def live(pl, a):
         sg = seg_of(h["from_step"])
         print(f"  heading {h['psi']:+.1f} (ref {h['ref']:+.1f}, err {h['err']:+.1f}) -> asked {h['asked']:+.2f} "
               f"deg/step from step {h['from_step']}{' [' + sg['name'] + ']' if sg else ''}", flush=True)
-    ahead_ms = min(a.ahead * a.T, MAX_AHEAD_S) * 1e3
+    ahead_ms = min(a.ahead * getattr(a, "Teff", a.T), MAX_AHEAD_S) * 1e3
 
     def scan(txt):
         """Every new TS line in txt: record, print, and say whether one of them trips the stop rule. (2026-11-12:
@@ -1085,6 +1105,11 @@ def live(pl, a):
         print(f"log: {log_path}")
 
 
+def timing_kw(a):
+    """plan()'s keywords for the step-timing flags (empty = today's frames)."""
+    return dict(td_pause=a.td_pause, settle=a.settle, lower_frac=a.lower_frac, land_early=a.land_early_mm)
+
+
 def main_cmd(a, seeds, amp, aff, by_step):
     """--cmd: the walk with live velocity commands (cmd_walk.py). Dry run: the first --dry-steps steps from the command
     now in the source, then a stop. Live: the rolling upload of live() with every step decided as it is reached."""
@@ -1131,7 +1156,8 @@ def main_cmd(a, seeds, amp, aff, by_step):
         print(f"ankle trim learning (cmd): starts L {aff[0]:.2f}, R {aff[1]:.2f} deg (--ankle-ff ignored)")
     base = dict(T_step=a.T, seeds=seeds, lead_ms=a.lead, cal=None, amp=amp, model=a.model, ds=a.ds, h=a.h,
                 pelvis_x=a.pelvis_x, ankle_ff=aff, k_ds=(tuple(float(x) for x in a.k_ds.split(",")) if a.k_ds else None),
-                drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), lift_gate=a.lift_gate == "on")
+                drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), lift_gate=a.lift_gate == "on",
+                **timing_kw(a))
     hold = HeadingHold(1, [0.0], k=a.heading_k) if (a.heading_hold == "on" and a.live) else None
     side = by_step["ankle_side"] if by_step["ankle_side"] is not None else ANKLE_SIDE_CMD
     boost = by_step["first_boost"] if by_step["first_boost"] is not None else FIRST_BOOST_CMD
@@ -1144,7 +1170,8 @@ def main_cmd(a, seeds, amp, aff, by_step):
         b = dict(base, cal=cal)
         w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
                        max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
-                       allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift)
+                       allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift,
+                       step_s=a.Teff)
         return w
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
@@ -1286,6 +1313,24 @@ def main(argv=None):
                          "feed-forward cancels on a sideL / sideR step, blended by the step's lateral share (a --seq / "
                          "--cmd step; the heading hold's and --yaw-trim's feed-forward both follow). Default 0.94,1.9 "
                          "with --cmd, 1.9,1.9 (no change) otherwise")
+    ap.add_argument("--td-pause", type=float, default=0.0, metavar="S",
+                    help="dwell: the next step's lateral shift (and the fore-aft pelvis move with it) starts S seconds AFTER "
+                         "the planned touchdown of the swing foot: the lowering, the ankle ff's and the swing tilt's ramp-out "
+                         "are over first. Every step but the first, and the final shift back, is S longer (the plan "
+                         "summary prints the timeline and the step time) unless --settle shortens the pre-lift settle. "
+                         "Default 0: today's frames")
+    ap.add_argument("--settle", type=float, default=None, metavar="S2",
+                    help="dwell: the pre-lift settle, both feet down, s (default per T: 0.4 at T 3.4-6); the shift and the "
+                         "single support keep their lengths, so the step is (S2 - default) longer or shorter")
+    ap.add_argument("--lower-frac", type=float, default=None, metavar="F",
+                    help="dwell: the swing foot's lowering as a share of the single support (default 0.35; 0.20 to 0.45); "
+                         "the move takes what the raise (0.35) and the lowering leave. The step time does not change")
+    ap.add_argument("--lower-s", type=float, default=None, metavar="S3",
+                    help="dwell: the same, as the lowering's duration in s (= F x the single support at this T)")
+    ap.add_argument("--land-early-mm", type=float, default=0.0, metavar="D",
+                    help="dwell: 0 to 4 mm: the swing sole is commanded D mm BELOW the floor at touchdown (a slight press: "
+                         "the foot reaches the floor early in height terms), held through the pause and let up over the "
+                         "next shift. The pre-check's joint margins cover it")
     ap.add_argument("--ankle-learn", choices=["on", "off"], default="off",
                     help="dwell: learn the stance-ankle trim per side at step rate (AnkleLearner): starts from "
                          "results/ankle_trim_state.json for this --dir (seeds 2/2, sideR R 3), replaces --ankle-ff, "
@@ -1327,6 +1372,25 @@ def main(argv=None):
     except ValueError as e:
         print(f"REFUSED: {e}")
         return 2
+    try:
+        if a.lower_s is not None:
+            if a.lower_frac is not None:
+                raise ValueError("--lower-frac and --lower-s are alternatives")
+            t_ss = DW.split_times(a.T, *(() if a.ds is None else (a.ds,)))[3]
+            a.lower_frac = a.lower_s / t_ss
+        if a.model != "dwell" and (a.td_pause or a.settle is not None or a.lower_frac is not None or a.land_early_mm):
+            raise ValueError("--td-pause / --settle / --lower-frac / --lower-s / --land-early-mm need --model dwell")
+        DW.Dwell  # (the ranges are checked by the plan: a ValueError is printed as REFUSED below)
+        for nm, v, lo, hi in (("--td-pause", a.td_pause, 0.0, 2.0), ("--settle", a.settle, 0.0, 2.0),
+                              ("--lower-frac", a.lower_frac, DW.LOWER_FRAC_RANGE[0], DW.LOWER_FRAC_RANGE[1]),
+                              ("--land-early-mm", a.land_early_mm, 0.0, DW.LAND_EARLY_MAX_MM)):
+            if v is not None and not lo - 1e-9 <= v <= hi + 1e-9:
+                raise ValueError(f"{nm} {v:g}: want {lo:g} to {hi:g}")
+    except ValueError as e:
+        print(f"REFUSED: {e}")
+        return 2
+    a.Teff = DW.effective_step_s(a.T, a.td_pause, a.settle, **({} if a.ds is None else {"ds": a.ds})) \
+        if a.model == "dwell" else a.T
     if a.cmd:
         return main_cmd(a, seeds, amp, aff, by_step)
     learn = None
@@ -1364,7 +1428,8 @@ def main(argv=None):
             print("ankle trim learning per segment key: " + ", ".join(f"{k} L {lr.A['L']:.2f} R {lr.A['R']:.2f}"
                                                                       for k, lr in learn.by.items()))
     kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt,
-                  lift_gate=a.lift_gate == "on", **{k: v for k, v in by_step.items() if v is not None})
+                  lift_gate=a.lift_gate == "on", **{k: v for k, v in by_step.items() if v is not None},
+                  **timing_kw(a))
     if not a.live:
         try:
             pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
@@ -1388,7 +1453,7 @@ def main(argv=None):
         return 2
     if a.model == "dwell" and a.heading_hold == "on":
         if a.heading_rate is not None:
-            dpsi = a.heading_rate * a.T
+            dpsi = a.heading_rate * a.Teff
         elif a.turn is not None:
             dpsi = a.turn / pl["args"]["n_steps"]
         elif seq or cmd:
