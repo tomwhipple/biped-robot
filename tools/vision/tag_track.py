@@ -66,6 +66,8 @@ class Tracker:
         good = [d for d in frames_dets if len([i for i in d if str(i) in self.cfg["board"]["tags"]]) >= 2]
         if not good:
             return None
+        if self.cfg["board"].get("layout") == "auto_end":
+            return self.auto_end_layout(good, f)
         f = f or self.cfg["camera"].get("f_px")
         info = None
         if f is None:
@@ -84,10 +86,109 @@ class Tracker:
         t = np.median([p[1] for p in poses], axis=0)
         self.set_board_pose(cv2.Rodrigues(R)[0], t.reshape(3, 1))
         rms = [G.reproj_rms(*self._board_pts(d), self.pose[0], self.pose[1], self.K) for d in good]
-        return dict(f_px=float(f), f_estimate=info, board_frames=len(good),
+        return dict(layout="config", f_px=float(f), f_source="estimated from the board tags" if info else "config",
+                    f_estimate=info, board_frames=len(good),
+                    per_tag_rms_px=self.per_tag_rms(good[0]), board_frames_n=len(good),
                     board_rms_px_median=float(np.median(rms)), board_rms_px_max=float(np.max(rms)),
                     camera_position_board_mm=(-self.R_cb.T @ self.t_cb).round(1).tolist(),
                     tags_seen=sorted({i for d in good for i in d if str(i) in self.cfg["board"]["tags"]}))
+
+    def per_tag_rms(self, d):
+        """Reprojection error (px, RMS over its 4 corners) of every board tag in detection d
+        under the fitted board pose, plus mean edge length in px."""
+        out = {}
+        pts = G.board_object_points(self.cfg, [i for i in d])
+        for i, obj in pts.items():
+            out[str(i)] = dict(rms_px=round(G.reproj_rms(obj, d[i], self.pose[0], self.pose[1], self.K), 3),
+                               size_px=round(G.mean_edge_px(d[i]), 1))
+        return out
+
+    def auto_end_layout(self, good, f=None):
+        """APPROXIMATE board frame from detections alone, for before the layout is measured.
+
+        Takes the two most widely separated board tags, assumes they lie in the board plane
+        near ONE end of the board and that the board end is on their centre line
+        (`assumed_end_offset_mm` into the board, default 0) and symmetric about them
+        (`assumed_side_inset_mm`, default (width - tag spacing) / 2). Focal length: the one at
+        which the two tags' planar-PnP normals agree best (they are coplanar), shallow minimum,
+        about +-20 %; config camera.f_px overrides. The tag spacing is MEASURED by the camera
+        (stable to ~5 % over f = 700-1600 on the 2026-11-16 eMeet frames). What is assumed is only
+        where the board edges are relative to the tags. Frame: origin at the board end corner on
+        the image right, +x along the end toward the image left, +y into the board toward the
+        camera, z up. The other board tags are listed and ignored."""
+        cfg = self.cfg
+        d = max(good, key=lambda dd: len([i for i in dd if str(i) in cfg["board"]["tags"]]))
+        ids = [i for i in d if str(i) in cfg["board"]["tags"]]
+        sep = lambda a, b: np.linalg.norm(d[a].mean(0) - d[b].mean(0))
+        a, b = max(((a, b) for a in ids for b in ids if a < b), key=lambda p: sep(*p))
+        W = cfg["board"]["width_mm"]
+        end_off = cfg["board"].get("assumed_end_offset_mm", 0.0)
+        c = cfg["camera"]
+
+        def poses(fv):
+            K = G.make_K(fv, self.size, c.get("cx"), c.get("cy"))
+            out = []
+            for i in (a, b):
+                s = cfg["board"]["tags"][str(i)]["size"]
+                n, rv, tv, err = cv2.solvePnPGeneric(G.tag_corners_local(s), d[i], K, None,
+                                                     flags=cv2.SOLVEPNP_IPPE_SQUARE)
+                out.append([(cv2.Rodrigues(rv[k])[0], tv[k].reshape(3), float(np.ravel(err)[k])) for k in range(n)])
+            best = None
+            for pa in out[0]:
+                for pb in out[1]:
+                    ang = np.degrees(np.arccos(np.clip(pa[0][:, 2] @ pb[0][:, 2], -1, 1)))
+                    if best is None or ang < best[0]:
+                        best = (ang, pa, pb)
+            return best
+
+        fv = f or c.get("f_px")
+        bracket = None
+        if fv is not None:
+            f_source = "config camera.f_px"
+        else:
+            grid = np.geomspace(500, 3000, 70)
+            ang = np.array([poses(g)[0] for g in grid])
+            k = int(np.argmin(ang))
+            near = grid[ang <= ang[k] + 1.5]
+            bracket = [float(near.min()), float(near.max())]
+            if ang[k] < 4.0 and 0 < k < len(grid) - 1:
+                fv, f_source = float(grid[k]), "tag-plane coplanarity (shallow minimum, +-20 %)"
+            else:
+                fv, f_source = c.get("f_prior_px", 1100.0), "prior (coplanarity gave no clear minimum)"
+        angd, pa, pb = poses(fv)
+        self.set_camera(fv)
+        ta, tb = pa[1], pb[1]
+        spacing = float(np.linalg.norm(ta - tb))
+        side = cfg["board"].get("assumed_side_inset_mm")
+        side = (W - spacing) / 2.0 if side is None else side
+        n = pa[0][:, 2] + pb[0][:, 2]
+        n /= np.linalg.norm(n)
+        if n @ ta > 0:
+            n = -n                                   # plane normal toward the camera = board up
+        xl = tb - ta
+        xl -= n * (xl @ n)
+        xl /= np.linalg.norm(xl)
+        Y = np.cross(n, xl)
+        if Y[2] > 0:
+            Y = -Y                                    # +y toward the camera
+        Z = n
+        X = np.cross(Y, Z)
+        o_tag = ta if X @ ta < X @ tb else tb         # the tag with the smaller x
+        O = o_tag - X * side - Y * end_off
+        R_cb = np.stack([X, Y, Z], axis=1)
+        self.set_board_pose(cv2.Rodrigues(R_cb)[0], O.reshape(3, 1))
+        fwd = R_cb.T @ np.array([0, 0, 1.0])
+        return dict(layout="auto_end (APPROXIMATE: board edges assumed relative to two tags)",
+                    f_px=float(fv), f_source=f_source, f_bracket_px=bracket, tags_used=[a, b],
+                    tags_ignored=[i for i in ids if i not in (a, b)],
+                    tag_spacing_mm_measured=round(spacing, 1), assumed_side_inset_mm=round(float(side), 1),
+                    assumed_end_offset_mm=end_off, plane_normal_disagreement_deg=round(float(angd), 2),
+                    per_tag_pnp_rms_px={str(a): round(pa[2], 3), str(b): round(pb[2], 3)},
+                    per_tag_size_px={str(a): round(G.mean_edge_px(d[a]), 1), str(b): round(G.mean_edge_px(d[b]), 1)},
+                    camera_position_board_mm=(-R_cb.T @ O).round(1).tolist(),
+                    camera_pitch_down_deg=round(float(np.degrees(np.arcsin(np.clip(-fwd[2], -1, 1)))), 1),
+                    accuracy="positions are relative to the assumed board edges: edge margins are only as good as "
+                             "that assumption (tens of mm to 100 mm); heading and tilt do not depend on it")
 
     def _board_pts(self, d):
         obj, img, _ = G.stack_board(self.cfg, d)
@@ -117,7 +218,7 @@ class Tracker:
         if self.K is None or self.pose is None:
             res["error"] = "not calibrated"
             return res
-        if board_ids:
+        if board_ids and cfg["board"].get("layout") == "config":
             obj, img, _ = G.stack_board(cfg, dets)
             res["board_rms_px"] = G.reproj_rms(obj, img, self.pose[0], self.pose[1], self.K)
         # robot torso tags -> candidate body poses
@@ -249,6 +350,25 @@ class Tracker:
         sigma["ambiguity_resolved_by_continuity"] = resolved
         return Rb, p[:3], [c["id"] for c in cands], sigma
 
+    def robot_tag_residuals(self, res, dets):
+        """Reprojection error (px RMS) of each robot torso tag under the fused body pose in res."""
+        if res.get("x_mm") is None:
+            return {}
+        Rb = G.board_R_from_euler(res["heading_deg"], res["pitch_deg"], res["roll_deg"] * self.cfg["roll_sign"])
+        tb = np.array([res["x_mm"], res["y_mm"], res["z_mm"]])
+        out = {}
+        for i, e in self.cfg["robot"]["tags"].items():
+            i = int(i)
+            if i not in dets:
+                continue
+            Rm, tm = G.robot_tag_pose(e)
+            P = G.tag_corners_local(e["size"]) @ (Rb @ Rm).T + Rb @ tm + tb
+            pc = P @ self.R_cb.T + self.t_cb
+            uv = pc @ self.K.T
+            out[str(i)] = dict(rms_px=round(float(np.sqrt(np.mean(np.sum((uv[:, :2] / uv[:, 2:3] - dets[i]) ** 2, axis=1)))), 3),
+                               size_px=round(G.mean_edge_px(dets[i]), 1))
+        return out
+
     # -- drawing -------------------------------------------------------------------
     def annotate(self, bgr, res, dets):
         img = bgr.copy()
@@ -309,7 +429,10 @@ def frames(path, pts=None, stride=1, start=None, end=None, t0=0.0):
 def track_video(path, cfg=None, pts=None, stride=1, start=None, end=None, calib_frames=60,
                 annotate=None, t0=0.0, progress=False):
     """Run the tracker over a video -> (rows, calibration report)."""
-    tr = Tracker(cfg)
+    cap = cv2.VideoCapture(path)
+    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    cap.release()
+    tr = Tracker(cfg, size)
     det_cache, rows = [], []
     for n, t, bgr in frames(path, pts, 1, start, end, t0):
         if n % 5 == 0 and len(det_cache) < calib_frames:
@@ -380,7 +503,9 @@ def main(argv=None):
             print(json.dumps(tr.process(gray, None, d), indent=1))
         return 0 if cal else 2
     if a.calibrate:
-        tr = Tracker(cfg)
+        cap = cv2.VideoCapture(a.input)
+        tr = Tracker(cfg, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+        cap.release()
         ds = []
         for n, t, bgr in frames(a.input, a.pts, 5, a.start, a.end):
             ds.append(detect(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), tr.det))

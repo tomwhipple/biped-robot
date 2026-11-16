@@ -2,7 +2,8 @@
 """Camera daemon: ONE process owns a camera and records rolling wall-clock segments.
 
     tools/vision/camd.py --source sony  [--dir DIR] [--segment-s 60] [--keep-hours 6]
-    tools/vision/camd.py --source emeet --dir DIR            # /dev/video0, second instance
+    tools/vision/camd.py --source emeet [--size 1920x1080 --fps 15]    # /dev/video0, the measurement
+                                                                       # camera; own lock, same dir is fine
     tools/vision/camd.py --source lavfi --dir /tmp/x         # synthetic, for tests
 
 Writes DIR/<name>_<UTC start>.mp4 (H.264, "<name> <UTC>" burned in, as
@@ -44,7 +45,7 @@ FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 STAMP_RE = re.compile(r"_(\d{8}T\d{6})Z\.(mp4|pts)$")
 
 
-def source_cmd(name):
+def source_cmd(name, size="1920x1080", fps=15):
     """argv of a process that writes concatenated JPEG frames on stdout."""
     if name == "sony":
         # the USB node is group plugdev, which long-lived shells may predate: sg
@@ -52,7 +53,7 @@ def source_cmd(name):
     if name == "emeet":
         # MJPEG passed through undecoded: never raw YUYV (see tools/cam_relay.py)
         return ["ffmpeg", "-loglevel", "error", "-f", "v4l2", "-input_format", "mjpeg",
-                "-video_size", "1280x720", "-framerate", "10", "-i", "/dev/video0",
+                "-video_size", size, "-framerate", str(fps), "-i", "/dev/video0",
                 "-c:v", "copy", "-f", "mjpeg", "-"]
     if name == "lavfi":
         return ["ffmpeg", "-loglevel", "error", "-re", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10",
@@ -132,6 +133,8 @@ def main(argv=None):
     ap.add_argument("--source", default="sony", choices=["sony", "emeet", "lavfi"])
     ap.add_argument("--name", help="file prefix (default: the source name)")
     ap.add_argument("--dir", default=DEFAULT_DIR)
+    ap.add_argument("--size", default="1920x1080", help="emeet capture size (MJPEG)")
+    ap.add_argument("--fps", type=int, default=15, help="emeet frame rate")
     ap.add_argument("--segment-s", type=float, default=60.0)
     ap.add_argument("--keep-hours", type=float, default=6.0)
     ap.add_argument("--stall-s", type=float, default=15.0)
@@ -141,7 +144,7 @@ def main(argv=None):
     os.makedirs(a.dir, exist_ok=True)
     lockfd = take_lock(os.path.join(a.dir, f"{name}.lock"))  # noqa: F841  (held until exit)
 
-    src = subprocess.Popen(source_cmd(a.source), stdout=subprocess.PIPE, start_new_session=True)
+    src = subprocess.Popen(source_cmd(a.source, a.size, a.fps), stdout=subprocess.PIPE, start_new_session=True)
     stop = threading.Event()
 
     def on_signal(*_):

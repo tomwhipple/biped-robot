@@ -41,11 +41,13 @@ def make_detector():
     return cv2.aruco.ArucoDetector(DICT, p)
 
 
-def detect(gray, detector=None, upscale=2):
+def detect(gray, detector=None, upscale=None):
     """-> {id: 4x2 float64 corners (TL,TR,BR,BL in the tag's own frame)}, pixels of `gray`."""
     detector = detector or make_detector()
     if gray.ndim == 3:
         gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
+    if upscale is None:       # small frames (Sony 1024 px): tags of 16-30 px need the 2x; 1080p tags are 45+ px
+        upscale = 2 if gray.shape[1] < 1400 else 1
     if upscale != 1:
         gray = cv2.resize(gray, None, fx=upscale, fy=upscale, interpolation=cv2.INTER_CUBIC)
     corners, ids, _ = detector.detectMarkers(gray)

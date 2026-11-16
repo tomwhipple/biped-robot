@@ -1,5 +1,7 @@
 # tools/vision: camera monitoring for hardware runs
 
+**Cameras.** The eMeet C960 on its high mount (/dev/video0, MJPEG 1920x1080) is the MEASUREMENT camera: tags, position, tilt. The Sony (low, tripod) is context video only: from there the board tags are ~55x12 px and nothing decodes. Both can be recorded by two camd processes (`--source emeet`, `--source sony`; separate locks), `where.py` and `calibrate.py` default to the eMeet, and `run_report.py` tracks on a video named `emeet*` and adds a context contact sheet from a `sony*` one.
+
 For an AI operator supervising the biped on its board: a recorder that owns the camera, a
 clip cutter, an AprilTag tracker (position, heading, tilt, distance to the board edges), a
 per-run report, and a pre-run "where is it / is there room" check. Measurement tools; no
@@ -11,6 +13,7 @@ PIL from the project venv.
 | `make_tags.py` | print-ready AprilTag 36h11 sheet (US Letter, 100 %) + placement guide |
 | `camd.py` | the camera daemon: one process owns the Sony (or the emeet), rolling 60 s segments |
 | `clip.py` | cut a clip from segments by UTC time |
+| `calibrate.py` | check the setup from ONE frame: camera pose, f, per-tag reprojection error (run after every re-aim) |
 | `tag_track.py` | tag tracker (video / image -> JSONL/CSV, annotated video, calibration report) |
 | `run_report.py` | per-run `<run>_vision.json` + contact-sheet JPEG |
 | `where.py` | one frame -> position, heading, edge margins; exit code for a travel direction |
@@ -27,6 +30,9 @@ tools/vision/make_tags.py -o hw_sessions/2026-11-16/vision
 setsid nohup tools/vision/camd.py --source sony >> ~/cam-segments/camd.log 2>&1 &
 tools/vision/camd.py --source emeet --dir ~/cam-segments-emeet     # second stream, /dev/video0
 tools/vision/clip.py --from 2026-11-16T16:36:10Z --to 2026-11-16T16:36:25Z -o catch.mp4
+
+# after every re-aim of the eMeet (newest camd frame, or pass a jpg):
+tools/vision/calibrate.py --source emeet            # or: calibrate.py frame.jpg --config vision.json
 
 # tags
 tools/vision/tag_track.py clip.mp4 --config vision.json -o clip_track.jsonl --annotate clip_ann.mp4
@@ -48,6 +54,33 @@ use `clip.py` instead of `sony_record.sh`. Segments default to `~/cam-segments` 
 Host tool, not wired in yet: before the track starts, `track_host.py` would call
 `subprocess.run([sys.executable, "tools/vision/where.py", "--direction", "forward", "--min-margin", "300"])`
 and stop on a return code other than 0 (2 = tags not visible: unknown, not safe).
+
+## Tags as placed (2026-11-16) and the approximate layout
+
+Robot: torso BACK = id 11 at 40 mm, torso TOP = id 12 at 60 mm, feet 13/14 at 25 mm (reported as
+`foot_L`/`foot_R`, not fused into the body pose), no front tag (the default config has only 11 and 12;
+add a `"10"` entry to use one). Board tags are NOT at the nominal corner labels (the eMeet sees ids 2
+and 3 at the end where the robot stands), so the default board layout is **`auto_end`**, used until a
+measured `board.tags` config is given (which switches to `config` automatically):
+
+* it takes the two most widely separated board tags, assumes they lie in the board plane near one
+  end of the board, that the board end is on their centre line (`board.assumed_end_offset_mm`, 0) and
+  that the board is symmetric about them (`board.assumed_side_inset_mm`, default (width - spacing)/2);
+* f is the one at which the two tags' planar-PnP normals agree best (they are coplanar): a shallow
+  minimum, +-20 % (bracket printed). On the real 2026-11-16 eMeet frames: f about 840-1035 px
+  (bracket 600-1300), tag spacing measured 704-724 mm (stable over f = 700-1600);
+* board frame: origin at the board end corner on the image right, +x along the end toward the image
+  left, +y into the board toward the camera, z up (so heading 180 = walking toward the tags);
+* accuracy: moving f over its +-20 % bracket moves the robot position by about 130 mm in y and 70 mm
+  in x, heading by 5 deg, pitch/roll by 1 deg. Edge margins also depend on where the board edges
+  really are relative to the tags. So until the layout is measured and f pinned: position and margins
+  to about +-100 mm, heading +-5 deg, tilt +-2 deg. Relative motion within a run is much better.
+* what pins f: a measured layout with tags spread over the board (all four in view), or one tag of
+  known size held at a measured distance (px = f * size / distance).
+
+`calibrate.py` prints all this (and warns when a robot tag reprojects > 3 px, i.e. the torso mount
+offsets are still nominal: on the real frame tags 11 and 12 reproject at ~7.6 px under the nominal
+mounts, about 10 mm of mount error).
 
 ## Frames and numbers
 
@@ -109,6 +142,14 @@ the emeet at the far end sees 0-3.
   fall latch (the gate also held at 16:36:15.1Z). The other 10 runs of that day (max tip 4-11 deg)
   produce no flag. The IMU series comes from `flight_20261113T172054Z_prec16.frec` (a session that
   stayed open from 11-13 to 11-16).
+* **implausible.py waits** (default 90 s, `--wait-s`) for the flight record to cover the run's end: the
+  collector flushes late, so a run checked right after the walk found no record. It now picks the
+  session open at the run's start and waits until a decoded tick reaches the run's end; if it never
+  does, the result says `partial` (not "no excursion").
+* **eMeet frames**: tags decode (ids 2, 3, 11, 12 at 47-77 px on the real 1080p frames); the
+  tracker's accuracy on them is synthetic only (`tests/test_vision_track.py::test_emeet_*`): measured
+  layout and known f give position within 10 mm and heading within 3 deg; the auto layout gives the
+  numbers above.
 * **foreign_motion is unreliable.** Foreground against the clip's median frame, robot excluded. At
   its default threshold it fires on most clips, including ones whose only "foreign" thing is the
   person in the chair or a sock at the edge of the board, and on the dog (cmd_steer_T4_b at

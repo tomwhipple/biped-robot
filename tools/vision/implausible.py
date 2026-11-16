@@ -21,6 +21,7 @@ import os
 import re
 import struct
 import sys
+import time
 
 import numpy as np
 
@@ -54,15 +55,18 @@ def run_window(track_path):
 
 
 def find_frec(directory, t0, t1):
-    """The .frec whose [start from its name, mtime] covers [t0, t1]."""
-    for p in sorted(glob.glob(os.path.join(directory, "**", "*.frec"), recursive=True)):
+    """The session file that was open at t0: the latest-started .frec whose name stamp is <= t0
+    and which was written at or after t0 (its mtime lags the run's end until the collector
+    flushes, so the end is NOT required here: check_run waits for the ticks instead)."""
+    best = None
+    for p in glob.glob(os.path.join(directory, "**", "*.frec"), recursive=True):
         m = re.search(r"flight_(\d{8}T\d{6})Z", p)
         if not m:
             continue
         s = dt.datetime.strptime(m.group(1), "%Y%m%dT%H%M%S").replace(tzinfo=dt.timezone.utc).timestamp()
-        if s <= t0 and os.path.getmtime(p) >= t1:
-            return p
-    return None
+        if s <= t0 and os.path.getmtime(p) >= t0 and (best is None or s > best[0]):
+            best = (s, p)
+    return best[1] if best else None
 
 
 def read_window(frec, t0, t1):
@@ -145,19 +149,38 @@ def exact_start(events, t0):
     return min(c, key=lambda t: abs(t - t0)) if c else t0
 
 
-def check_run(track_path, frec=None, frec_dir=None, pad=10.0, data=False):
+def check_run(track_path, frec=None, frec_dir=None, pad=10.0, data=False, wait_s=90.0, poll_s=5.0):
+    """Excursion check for one run. The flight collector flushes a little after the run ends, so
+    this WAITS (up to wait_s) until the record covers the run's end -- a record file whose
+    mtime and last decoded tick reach the end of the run -- before deciding. If it never does,
+    the result says so (`partial`) instead of claiming 'no excursion'."""
     t0, t1 = run_window(track_path)
-    frec = frec or find_frec(frec_dir or "hw_sessions", t0, t1)
-    if frec is None:
+    deadline = time.time() + wait_s
+    while True:
+        path = frec or find_frec(frec_dir or "hw_sessions", t0, t1)
+        d = events = None
+        if path is not None:
+            d, events = read_window(path, t0 - pad, t1 + pad)
+            if len(d["t"]) and d["t"][-1] >= t1 - 1.0:
+                break                                    # covers the end of the run
+        if time.time() >= deadline:
+            break
+        time.sleep(poll_s)
+    if path is None:
         return dict(source=None, window_utc=[t0, t1], excursions=[], implausible_recovery=None,
-                    note="no flight record covers this run")
-    d, events = read_window(frec, t0 - pad, t1 + pad)
+                    note=f"no flight record covers this run (waited {wait_s:.0f} s)")
+    partial = not (len(d["t"]) and d["t"][-1] >= t1 - 1.0)
     t0x = exact_start(events, t0)
     t0, t1 = t0x, t1 + (t0x - t0)
     ex = find_excursions(d, events)
-    r = dict(source=frec, window_utc=[t0, t1], n_ticks=int(len(d["t"])),
-                max_tip_deg=float(np.max(np.maximum(np.abs(d["roll_deg"]), np.abs(d["pitch_deg"])))) if len(d["t"]) else None,
-                excursions=ex, implausible_recovery=[e for e in ex if e["implausible"]])
+    r = dict(source=path, window_utc=[t0, t1], n_ticks=int(len(d["t"])),
+             max_tip_deg=float(np.max(np.maximum(np.abs(d["roll_deg"]), np.abs(d["pitch_deg"])))) if len(d["t"]) else None,
+             excursions=ex, implausible_recovery=[e for e in ex if e["implausible"]])
+    if partial:
+        r["partial"] = True
+        r["note"] = (f"the flight record ends {t1 - float(d['t'][-1]):.0f} s before the run's end (collector not "
+                     "flushed yet): rerun later; absence of an excursion is not established" if len(d["t"]) else
+                     "the flight record has no ticks in this run's window yet")
     if data:
         r["_imu"], r["_events"] = d, events
     return r
@@ -173,13 +196,16 @@ def main(argv=None):
     ap.add_argument("--frec")
     ap.add_argument("--frec-dir", default="hw_sessions")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--wait-s", type=float, default=90.0, help="wait this long for the record to cover the run's end")
     a = ap.parse_args(argv)
-    r = check_run(a.track, a.frec, a.frec_dir)
+    r = check_run(a.track, a.frec, a.frec_dir, wait_s=a.wait_s)
     if a.json:
         print(json.dumps(r, indent=1))
         return 0
     print(f"{os.path.basename(a.track)}  frec={r['source'] and os.path.basename(r['source'])}  "
           f"max tip {r.get('max_tip_deg') and round(r['max_tip_deg'], 1)} deg")
+    if r.get("note"):
+        print("  NOTE:", r["note"])
     for e in r["excursions"]:
         print(f"  tip {e['peak_deg']:.0f} deg at {_iso(e['t_peak'])} ({_iso(e['t_start'])}..{_iso(e['t_end'])}) "
               f"fall={e['fall_latched']} -> {'IMPLAUSIBLE RECOVERY' if e['implausible'] else 'ok/explained'}")
