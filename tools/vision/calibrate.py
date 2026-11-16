@@ -34,7 +34,7 @@ def calibrate_frame(gray, cfg=None):
     tr = Tracker(cfg, (gray.shape[1], gray.shape[0]))
     d = detect(gray, tr.det)
     cal = tr.calibrate([d])
-    out = dict(image_size=[gray.shape[1], gray.shape[0]], tags_seen={str(i): round(G.mean_edge_px(c), 1) for i, c in sorted(d.items())})
+    out = dict(image_size=[gray.shape[1], gray.shape[0]], tag_sizes_px={str(i): round(G.mean_edge_px(c), 1) for i, c in sorted(d.items())})
     if cal is None:
         out["error"] = "fewer than two board tags decoded"
         return out, tr, d
@@ -65,7 +65,7 @@ def main(argv=None):
     if a.json:
         print(json.dumps(out, indent=1, default=float))
     else:
-        print(f"frame {path}  {out['image_size'][0]}x{out['image_size'][1]}  tags seen (px): {out['tags_seen']}")
+        print(f"frame {path}  {out['image_size'][0]}x{out['image_size'][1]}  tags seen (px): {out['tag_sizes_px']}")
         if "error" in out:
             print("calibrate:", out["error"], file=sys.stderr)
         else:
@@ -74,6 +74,9 @@ def main(argv=None):
             print(f"camera in the board frame: {out['camera_position_board_mm']} mm" + (f", {out['camera_pitch_down_deg']} deg down" if 'camera_pitch_down_deg' in out else ""))
             pt = out.get("per_tag_rms_px") or out.get("per_tag_pnp_rms_px")
             print(f"board tags reprojection (px): {pt}")
+            for pair, v in (out.get("layout_fit") or {}).items():
+                print(f"layout fit {pair}: layout {v['layout_mm']} mm vs measured {v['measured_mm']} mm "
+                      f"(ratio {v['ratio']}, plane normals differ {v['plane_normal_disagreement_deg']} deg)")
             for k in ("tag_spacing_mm_measured", "assumed_side_inset_mm", "assumed_end_offset_mm", "board_rms_px_median", "accuracy"):
                 if k in out:
                     print(f"{k}: {out[k]}")

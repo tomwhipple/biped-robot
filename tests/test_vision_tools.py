@@ -110,6 +110,7 @@ def test_where_exit_codes_and_margins(tmp_path):
 
 def test_margin_along_diagonal():
     cfg = G.load_config()
+    cfg["board"].update(width_mm=900.0, length_mm=1200.0)
     assert abs(W.margin_along(cfg, 450, 600, 0, 1) - 600) < 1e-9
     assert abs(W.margin_along(cfg, 100, 600, -1, 0) - 100) < 1e-9
     assert abs(W.margin_along(cfg, 450, 1100, 0.7071, 0.7071) - 100 / 0.7071) < 0.1

@@ -55,7 +55,17 @@ Host tool, not wired in yet: before the track starts, `track_host.py` would call
 `subprocess.run([sys.executable, "tools/vision/where.py", "--direction", "forward", "--min-margin", "300"])`
 and stop on a return code other than 0 (2 = tags not visible: unknown, not safe).
 
-## Tags as placed (2026-11-16) and the approximate layout
+## Tags as placed (2026-11-16): provisional layout, and the fallback
+
+**Default layout = the placement guide** (`board.measured: false`): tag centres 60 mm from both edges
+of their corner (80 mm tag, 20 mm clearance), arrow away from the Sony, ids 0-1 far, 2-3 near, 4-5
+mid-edge, corner labels as seen from the Sony (the eMeet sees 2 at image right, 3 at image left: it
+looks the other way). `calibrate.py` reports how well that fits: on the real frames the tags 2 and 3
+are 704-726 mm apart as seen by the camera vs 692.8 mm in the layout (ratio 1.02-1.05, plane normals
+within 2 deg, tag reprojection 0.8-4 px): consistent, not exact. A config file with `board.tags` marks
+the layout measured.
+
+Below is the fallback `"layout": "auto_end"`, kept for when the layout is unknown:
 
 Robot: torso BACK = id 11 at 40 mm, torso TOP = id 12 at 60 mm, feet 13/14 at 25 mm (reported as
 `foot_L`/`foot_R`, not fused into the body pose), no front tag (the default config has only 11 and 12;
@@ -84,8 +94,8 @@ mounts, about 10 mm of mount error).
 
 ## Frames and numbers
 
-Board frame: origin = near-left corner (as seen from the Sony), x right, y away from the Sony
-(far end), z up, mm. Heading 0 = along +y, counter-clockwise positive. Pitch > 0 leaning
+Board 32 x 48 in = 812.8 x 1219.2 mm (measured). Board frame: origin = near-left corner (as seen from
+the Sony), x right, y away from the Sony (toward the eMeet), z up, mm. Heading 0 = along +y, counter-clockwise positive. Pitch > 0 leaning
 forward, roll > 0 leaning to the robot's right (`roll_sign` in the config if the firmware
 differs; `run_report.py` reports which sign matched the IMU). Edge margins are for the torso
 reference point minus `foot_margin_mm`.
@@ -125,10 +135,13 @@ the emeet at the far end sees 0-3.
 
 * **Tag sheet**: rendered, shrunk/blurred/warped, decoded (`detect_study.py`). Minimum outer-edge size
   that decodes every tag at four rotations: 16 px frontal, 24 px with 1.5 px blur, 32 px (nominal,
-  before foreshortening) at 60 deg tilt, about 50 px at 70 deg. At f = 870 px: 60 mm tag = 104 / 52 /
-  35 px at 0.5 / 1.0 / 1.5 m; 80 mm = 139 / 70 / 46; 40 mm = 70 / 35 / 23.
-* **Focal length (Sony 1024x680)**: about 870 px, bracket 800-960, from the board's far end in the
-  2026-11-16 and 11-13 footage (nominal 900 mm wide, 1200 mm long). Not a calibration.
+  before foreshortening) at 60 deg tilt, about 50 px at 70 deg. At the Sony's f = 790 px: 60 mm tag = 95 /
+  47 / 32 px at 0.5 / 1.0 / 1.5 m; 80 mm = 126 / 63 / 42; 40 mm = 63 / 32 / 21. (The eMeet at 1080p
+  sees tags 47-98 px.)
+* **Focal length (Sony 1024x680)**: about 790 px (bracket 720-870) from the board's far end in the
+  2026-11-16 and 11-13 footage, now using the measured 812.8 mm width (an earlier quote of 870 px
+  assumed 900 mm and was ~10 % high). Not a calibration, and irrelevant for tracking now that the
+  eMeet is the measurement camera. At 790 px a 60 mm tag is 95 / 47 / 32 px at 0.5 / 1.0 / 1.5 m.
 * **Tracker: synthetic only** (`tests/test_vision_track.py`; no tagged footage exists yet). Camera
   fitted to the real footage (f 870, 475 mm high, 500 mm in front of the board, 20 deg down),
   60 mm torso tags, blur 1 px, noise 4: position within 10 mm, heading within 3 deg, tilt within

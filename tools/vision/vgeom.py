@@ -17,25 +17,27 @@ import cv2
 import numpy as np
 
 # Everything physical is a CONFIG value; these are nominal numbers to be replaced
-# by a tape measure (see tools/vision/README.md "What to measure").
+# by a tape measure (see tools/vision/README.md "What to measure"). Board 32 x 48 in is measured.
 DEFAULT_CONFIG = {
     "image_size": [1920, 1080],
     # f_px None: estimate it from the board tags when the layout is measured, else use f_prior_px
     # (eMeet C960 at 1080p, assumed ~90 deg diagonal field of view = 1100 px; NOT measured)
     "camera": {"f_px": None, "f_prior_px": 1100.0, "cx": None, "cy": None},
     "board": {
-        # "auto_end": no measured layout yet -- see tag_track.auto_end_layout (approximate);
-        # becomes "config" as soon as a config file gives board.tags (measured positions)
-        "layout": "auto_end", "assumed_tag_spacing_mm": None,    # None = the board width
-        "width_mm": 900.0, "length_mm": 1200.0, "origin": "near-left",
-        # tag centres in the board frame (mm), up-arrow along +y, black-square size
+        # 32 x 48 in, measured by the owner. Tag centres are PROVISIONAL (the placement guide's
+        # 20 mm from both edges = 60 mm centre inset for an 80 mm tag, arrow away from the Sony,
+        # corner labels as seen from the Sony); `measured` becomes true when a config file gives
+        # board.tags. "layout": "config" uses the tag positions below, "auto_end" is the fallback
+        # that infers a frame from two tags alone (tag_track.Tracker.auto_end_layout).
+        "layout": "config", "measured": False, "assumed_tag_spacing_mm": None,
+        "width_mm": 812.8, "length_mm": 1219.2, "origin": "near-left",
         "tags": {
-            "0": {"center": [60.0, 1140.0], "size": 80.0},
-            "1": {"center": [840.0, 1140.0], "size": 80.0},
+            "0": {"center": [60.0, 1159.2], "size": 80.0},
+            "1": {"center": [752.8, 1159.2], "size": 80.0},
             "2": {"center": [60.0, 60.0], "size": 80.0},
-            "3": {"center": [840.0, 60.0], "size": 80.0},
-            "4": {"center": [60.0, 600.0], "size": 80.0},
-            "5": {"center": [840.0, 600.0], "size": 80.0},
+            "3": {"center": [752.8, 60.0], "size": 80.0},
+            "4": {"center": [60.0, 609.6], "size": 80.0},
+            "5": {"center": [752.8, 609.6], "size": 80.0},
         },
     },
     "robot": {
@@ -64,8 +66,9 @@ def load_config(path=None):
         with open(path) as f:
             user = json.load(f)
         _merge(cfg, user)
-        if user.get("board", {}).get("tags") and "layout" not in user["board"]:
-            cfg["board"]["layout"] = "config"       # measured positions given: use them
+        if user.get("board", {}).get("tags"):
+            cfg["board"]["measured"] = True          # the owner's numbers replace the provisional ones
+            cfg["board"].setdefault("layout", "config")
     return cfg
 
 

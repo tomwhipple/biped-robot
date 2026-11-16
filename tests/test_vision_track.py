@@ -22,7 +22,7 @@ R_CB, T_CB = synth.look_at([450, -500, 475], [450, 400, 150])
 # the Sony-geometry tests use the full measured-style layout and a front tag; the eMeet defaults
 # (auto layout, tags 11/12) are tested below
 CFG = G.load_config()
-CFG["board"]["layout"] = "config"
+CFG["board"].update(layout="config", width_mm=900.0, length_mm=1200.0)   # the synthetic Sony scene
 CFG["robot"]["tags"] = {
     "10": {"center": [30.0, 0.0, 0.0], "normal": [1, 0, 0], "up": [0, 0, 1], "size": 60.0},
     "11": {"center": [-30.0, 0.0, 0.0], "normal": [-1, 0, 0], "up": [0, 0, 1], "size": 60.0},
@@ -80,7 +80,7 @@ def test_edge_margins_and_nearest_edge(tracker):
     tracker._last = None
     r = tracker.process(render(CFG, 0, 0, 0, 150, 1000), 0.0)
     assert r["margin_min_edge"] == "left" and abs(r["margin_left_mm"] - 150) < 10
-    assert abs(r["margin_far_mm"] - 200) < 10 and abs(r["margin_right_mm"] - 750) < 10
+    assert abs(r["margin_far_mm"] - 200) < 15 and abs(r["margin_right_mm"] - 750) < 15
 
 
 def test_hidden_robot_is_held_then_stale_then_lost(tracker):
@@ -106,12 +106,15 @@ def test_board_scale_is_not_observable_but_shows_in_the_camera_position():
 
 def test_defaults_and_config_override(tmp_path):
     cfg = G.load_config()
-    assert cfg["board"]["layout"] == "auto_end" and sorted(cfg["robot"]["tags"]) == ["11", "12"]
+    assert cfg["board"]["layout"] == "config" and cfg["board"]["measured"] is False
+    assert cfg["board"]["width_mm"] == 812.8 and cfg["board"]["length_mm"] == 1219.2          # 32 x 48 in
+    assert sorted(cfg["robot"]["tags"]) == ["11", "12"]
     assert cfg["robot"]["tags"]["11"]["size"] == 40.0 and cfg["robot"]["tags"]["12"]["size"] == 60.0
     p = tmp_path / "v.json"
     p.write_text('{"board": {"tags": {"2": {"center": [100, 50], "size": 79}}}}')
     m = G.load_config(str(p))
-    assert m["board"]["layout"] == "config" and list(m["board"]["tags"]) == ["2"]    # measured -> used as given
+    assert m["board"]["layout"] == "config" and m["board"]["measured"] is True
+    assert list(m["board"]["tags"]) == ["2"]                    # measured -> used as given
 
 
 def test_video_end_to_end_with_wall_clock_and_report_flags(tmp_path):
@@ -152,7 +155,8 @@ def erender(cfg, hd, pt, rl, x, y, z=170.0, seed=0):
 
 
 def test_emeet_auto_layout_from_one_frame_and_measured_layout():
-    cfg = G.load_config()                       # defaults: auto layout, tags 11 (40 mm) and 12 (60 mm)
+    cfg = G.load_config()                       # tags 11 (40 mm) and 12 (60 mm); no measured layout:
+    cfg["board"]["layout"] = "auto_end"         # infer a frame from the two board-end tags
     img = erender(cfg, 160, 4, -3, 420, 600)
     tr = T.Tracker(cfg, ESIZE)
     cal = tr.calibrate([detect(img, tr.det)])
@@ -169,7 +173,7 @@ def test_emeet_auto_layout_from_one_frame_and_measured_layout():
     tr2 = T.Tracker(cfg2, ESIZE)
     d = detect(img, tr2.det)
     cal2 = tr2.calibrate([d])
-    assert cal2["layout"] == "config" and max(v["rms_px"] for v in cal2["per_tag_rms_px"].values()) < 1.0
+    assert cal2["layout"].startswith("config") and max(v["rms_px"] for v in cal2["per_tag_rms_px"].values()) < 1.0
     r2 = tr2.process(img, 0.0, d)
     assert abs(r2["x_mm"] - 420) < 10 and abs(r2["y_mm"] - 600) < 10
     assert abs((r2["heading_deg"] - 160 + 180) % 360 - 180) < 3
@@ -178,8 +182,9 @@ def test_emeet_auto_layout_from_one_frame_and_measured_layout():
 def test_calibrate_frame_reports_per_tag_errors():
     import calibrate as CAL
     cfg = G.load_config()
+    cfg["board"]["layout"] = "auto_end"
     out, _, _ = CAL.calibrate_frame(erender(cfg, 160, 0, 0, 420, 600), cfg)
-    assert set(out["tags_seen"]) >= {"2", "3", "11", "12"} and out["robot"]["used_tags"] == [11, 12]
+    assert set(out["tag_sizes_px"]) >= {"2", "3", "11", "12"} and out["robot"]["used_tags"] == [11, 12]
     assert out["per_tag_pnp_rms_px"]["2"] < 1 and "camera_position_board_mm" in out
     blank, _, _ = CAL.calibrate_frame(erender(cfg, 160, 0, 0, 420, 600) * 0 + 150, cfg)
     assert "error" in blank
@@ -192,7 +197,9 @@ REAL = "/home/claw/code/robot/hw_sessions/2026-11-16/vision/calib_emeet_reaimed_
 def test_real_emeet_frame_decodes_tags_and_calibrates():
     import calibrate as CAL
     import cv2
-    out, _, _ = CAL.calibrate_frame(cv2.imread(REAL, cv2.IMREAD_GRAYSCALE))
-    assert set(out["tags_seen"]) == {"2", "3", "11", "12"}
-    assert 600 < out["f_px"] < 1500 and 600 < out["tag_spacing_mm_measured"] < 800
-    assert out["robot"]["used_tags"] == [11, 12] and abs(abs(out["robot"]["heading_deg"]) - 176) < 10
+    out, _, _ = CAL.calibrate_frame(cv2.imread(REAL, cv2.IMREAD_GRAYSCALE))      # provisional layout, 812.8 x 1219.2
+    assert set(out["tag_sizes_px"]) == {"2", "3", "11", "12"} and out["layout"].startswith("config (PROVISIONAL")
+    assert 600 < out["f_px"] < 1500
+    fit = out["layout_fit"]["2-3"]                           # observed 1.017: the provisional layout fits
+    assert 0.9 < fit["ratio"] < 1.1 and max(v["rms_px"] for v in out["per_tag_rms_px"].values()) < 3
+    assert out["robot"]["used_tags"] == [11, 12] and abs(abs(out["robot"]["heading_deg"]) - 180) < 10

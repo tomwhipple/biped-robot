@@ -69,10 +69,17 @@ class Tracker:
         if self.cfg["board"].get("layout") == "auto_end":
             return self.auto_end_layout(good, f)
         f = f or self.cfg["camera"].get("f_px")
-        info = None
+        info, f_source, bracket = None, "config camera.f_px", None
         if f is None:
-            info = G.estimate_focal(self.cfg, good, self.size)
-            f = info["f"]
+            ids = sorted({i for d in good for i in d if str(i) in self.cfg["board"]["tags"]})
+            if len(ids) >= 3:
+                info = G.estimate_focal(self.cfg, good, self.size)
+                f, f_source = info["f"], "fitted to the board tags (reprojection)"
+                bracket = [info["f_lo"], info["f_hi"]]
+            else:                      # two tags cannot fix f from reprojection; their coplanarity can, roughly
+                dd = max(good, key=lambda x: len([i for i in x if str(i) in self.cfg["board"]["tags"]]))
+                bi = [i for i in dd if str(i) in self.cfg["board"]["tags"]]
+                f, f_source, bracket = self.coplanar_focal(dd, bi[0], bi[1])
         self.set_camera(f)
         self.f_info = info
         poses = []
@@ -86,12 +93,30 @@ class Tracker:
         t = np.median([p[1] for p in poses], axis=0)
         self.set_board_pose(cv2.Rodrigues(R)[0], t.reshape(3, 1))
         rms = [G.reproj_rms(*self._board_pts(d), self.pose[0], self.pose[1], self.K) for d in good]
-        return dict(layout="config", f_px=float(f), f_source="estimated from the board tags" if info else "config",
-                    f_estimate=info, board_frames=len(good),
-                    per_tag_rms_px=self.per_tag_rms(good[0]), board_frames_n=len(good),
+        layout = "config (MEASURED)" if self.cfg["board"].get("measured") else "config (PROVISIONAL tag positions: placement guide, 20 mm from both edges)"
+        return dict(layout=layout, f_px=float(f), f_source=f_source, f_bracket_px=bracket,
+                    f_estimate=info, board_frames=len(good), layout_fit=self.layout_fit(good[0]),
+                    per_tag_rms_px=self.per_tag_rms(good[0]),
                     board_rms_px_median=float(np.median(rms)), board_rms_px_max=float(np.max(rms)),
                     camera_position_board_mm=(-self.R_cb.T @ self.t_cb).round(1).tolist(),
                     tags_seen=sorted({i for d in good for i in d if str(i) in self.cfg["board"]["tags"]}))
+
+    def layout_fit(self, d):
+        """How well the configured board layout fits what the camera sees: for every pair of board
+        tags, the distance between their centres in the layout vs measured from the tags'
+        individual poses at this f (ratio ~1 = the layout, the print size and f are consistent)."""
+        ids = [i for i in d if str(i) in self.cfg["board"]["tags"]]
+        out = {}
+        for x in range(len(ids)):
+            for y in range(x + 1, len(ids)):
+                a, b = ids[x], ids[y]
+                ang, pa, pb = self._pair_poses(d, a, b, self.K[0, 0])
+                ca, cb = (np.array(self.cfg["board"]["tags"][str(i)]["center"]) for i in (a, b))
+                lay = float(np.linalg.norm(ca - cb))
+                meas = float(np.linalg.norm(pa[1] - pb[1]))
+                out[f"{a}-{b}"] = dict(layout_mm=round(lay, 1), measured_mm=round(meas, 1), ratio=round(meas / lay, 3),
+                                       plane_normal_disagreement_deg=round(float(ang), 2))
+        return out
 
     def per_tag_rms(self, d):
         """Reprojection error (px, RMS over its 4 corners) of every board tag in detection d
@@ -102,6 +127,37 @@ class Tracker:
             out[str(i)] = dict(rms_px=round(G.reproj_rms(obj, d[i], self.pose[0], self.pose[1], self.K), 3),
                                size_px=round(G.mean_edge_px(d[i]), 1))
         return out
+
+    def _pair_poses(self, d, a, b, fv):
+        """Planar-PnP solutions of two (coplanar) tags at focal length fv, the pair whose plane
+        normals agree best -> (angle_deg, (R, t, err) of a, (R, t, err) of b)."""
+        c = self.cfg["camera"]
+        K = G.make_K(fv, self.size, c.get("cx"), c.get("cy"))
+        out = []
+        for i in (a, b):
+            s = self.cfg["board"]["tags"][str(i)]["size"]
+            n, rv, tv, err = cv2.solvePnPGeneric(G.tag_corners_local(s), d[i], K, None,
+                                                 flags=cv2.SOLVEPNP_IPPE_SQUARE)
+            out.append([(cv2.Rodrigues(rv[k])[0], tv[k].reshape(3), float(np.ravel(err)[k])) for k in range(n)])
+        best = None
+        for pa in out[0]:
+            for pb in out[1]:
+                ang = np.degrees(np.arccos(np.clip(pa[0][:, 2] @ pb[0][:, 2], -1, 1)))
+                if best is None or ang < best[0]:
+                    best = (ang, pa, pb)
+        return best
+
+    def coplanar_focal(self, d, a, b):
+        """f at which tags a and b (known coplanar) have the best-agreeing plane normals: a shallow
+        minimum (+-20 %). -> (f, source text, bracket)."""
+        grid = np.geomspace(500, 3000, 70)
+        ang = np.array([self._pair_poses(d, a, b, g)[0] for g in grid])
+        k = int(np.argmin(ang))
+        near = grid[ang <= ang[k] + 1.5]
+        bracket = [float(near.min()), float(near.max())]
+        if ang[k] < 4.0 and 0 < k < len(grid) - 1:
+            return float(grid[k]), "tag-plane coplanarity (shallow minimum, +-20 %)", bracket
+        return self.cfg["camera"].get("f_prior_px", 1100.0), "prior (coplanarity gave no clear minimum)", bracket
 
     def auto_end_layout(self, good, f=None):
         """APPROXIMATE board frame from detections alone, for before the layout is measured.
@@ -125,37 +181,13 @@ class Tracker:
         end_off = cfg["board"].get("assumed_end_offset_mm", 0.0)
         c = cfg["camera"]
 
-        def poses(fv):
-            K = G.make_K(fv, self.size, c.get("cx"), c.get("cy"))
-            out = []
-            for i in (a, b):
-                s = cfg["board"]["tags"][str(i)]["size"]
-                n, rv, tv, err = cv2.solvePnPGeneric(G.tag_corners_local(s), d[i], K, None,
-                                                     flags=cv2.SOLVEPNP_IPPE_SQUARE)
-                out.append([(cv2.Rodrigues(rv[k])[0], tv[k].reshape(3), float(np.ravel(err)[k])) for k in range(n)])
-            best = None
-            for pa in out[0]:
-                for pb in out[1]:
-                    ang = np.degrees(np.arccos(np.clip(pa[0][:, 2] @ pb[0][:, 2], -1, 1)))
-                    if best is None or ang < best[0]:
-                        best = (ang, pa, pb)
-            return best
-
         fv = f or c.get("f_px")
         bracket = None
         if fv is not None:
             f_source = "config camera.f_px"
         else:
-            grid = np.geomspace(500, 3000, 70)
-            ang = np.array([poses(g)[0] for g in grid])
-            k = int(np.argmin(ang))
-            near = grid[ang <= ang[k] + 1.5]
-            bracket = [float(near.min()), float(near.max())]
-            if ang[k] < 4.0 and 0 < k < len(grid) - 1:
-                fv, f_source = float(grid[k]), "tag-plane coplanarity (shallow minimum, +-20 %)"
-            else:
-                fv, f_source = c.get("f_prior_px", 1100.0), "prior (coplanarity gave no clear minimum)"
-        angd, pa, pb = poses(fv)
+            fv, f_source, bracket = self.coplanar_focal(d, a, b)
+        angd, pa, pb = self._pair_poses(d, a, b, fv)
         self.set_camera(fv)
         ta, tb = pa[1], pb[1]
         spacing = float(np.linalg.norm(ta - tb))
