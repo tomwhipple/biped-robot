@@ -55,6 +55,23 @@ class Tracker:
         c = self.cfg["camera"]
         self.K = G.make_K(f, self.size, c.get("cx"), c.get("cy"))
 
+    def export_pose(self, dets, cal=None):
+        """The board/camera pose as a JSON-able dict, with the pixel corners of the board tags in `dets` (the frame
+        it was fitted from) so a later frame can check that the camera has not moved (see load_pose)."""
+        ids = sorted(i for i in dets if str(i) in self.cfg["board"]["tags"])
+        return dict(size=list(self.size), f_px=float(self.K[0, 0]), rvec=np.ravel(self.pose[0]).tolist(),
+                    tvec=np.ravel(self.pose[1]).tolist(), layout=(cal or {}).get("layout"),
+                    f_source=(cal or {}).get("f_source"), f_bracket_px=(cal or {}).get("f_bracket_px"),
+                    tag_corners_px={str(i): np.asarray(dets[i], float).reshape(4, 2).round(2).tolist() for i in ids})
+
+    def load_pose(self, d):
+        """Install an exported pose (same image size only). Returns False if the size differs."""
+        if tuple(d["size"]) != tuple(self.size):
+            return False
+        self.set_camera(d["f_px"])
+        self.set_board_pose(np.array(d["rvec"], float).reshape(3, 1), np.array(d["tvec"], float).reshape(3, 1))
+        return True
+
     def set_board_pose(self, rvec, tvec):
         self.pose = (rvec, tvec)
         self.R_cb = cv2.Rodrigues(rvec)[0]

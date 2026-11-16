@@ -311,3 +311,60 @@ def test_where_plan_refuses_an_end_point_near_the_edge(tmp_path):
     assert left.returncode == 3 and "left edge" in left.stdout
     assert run("--plan-dy-mm", "-100").returncode == 0                   # right: x ~400
     assert "+-100 mm: f from" in bad.stdout                              # f from the coplanarity estimate: the uncertainty is printed
+
+
+# ---- where.py: cached board pose when a board tag is hidden ---------------------------------------------------------
+def _board_scene(hide=(), shift_cam=False, seed=0):
+    import test_vision_track as t
+    import vsynth as synth
+    tags = synth.scene_tags(t.CFG, G.board_R_from_euler(10, 3, -4), [300, 900, 170.0])
+    tags = [x for x in tags if x[0] not in hide]
+    Rcb, Tcb = (synth.look_at([450, -500, 475], [450, 400, 150]) if not shift_cam else synth.look_at([470, -500, 475], [450, 400, 150]))
+    return synth.render(tags, t.K, Rcb, Tcb, t.SIZE, board_rect=(900, 1200), seed=seed, blur=1.0, noise=4)
+
+
+def _board_ids(img, cfg):
+    import tagdefs
+    return sorted(i for i in tagdefs.detect(img, tagdefs.make_detector()) if str(i) in cfg["board"]["tags"])
+
+
+def test_where_uses_the_cached_board_pose_when_a_board_tag_is_hidden(tmp_path):
+    import test_vision_track as t
+    cache = str(tmp_path / "emeet_board_pose.json")
+    full = _board_scene()
+    ids = _board_ids(full, t.CFG)
+    assert len(ids) >= 2
+    live = W.where(full, t.CFG, pose_cache=cache)
+    assert live["found"] and live["board_pose"] == "live" and os.path.exists(cache)
+    # hide all but one board tag: no live calibration possible, the visible tag still sits where it was
+    one = _board_scene(hide=tuple(i for i in range(6) if i != ids[0]))
+    assert len(_board_ids(one, t.CFG)) == 1
+    nocache = W.where(one, t.CFG)
+    assert not nocache["found"] and "fewer than 2" in nocache["reason"]
+    c = W.where(one, t.CFG, pose_cache=cache)
+    assert c["found"] and c["board_pose"] == "cached" and c["board_pose_info"]["tags"] == [ids[0]]
+    assert c["board_pose_info"]["max_shift_px"] < 3.0 and c["board_pose_info"]["age_s"] >= 0
+    assert abs(c["x_mm"] - live["x_mm"]) < 15 and abs(c["y_mm"] - live["y_mm"]) < 15      # same pose, so the same position
+    assert abs(c["heading_deg"] - live["heading_deg"]) < 3
+    # a different image size cannot use it
+    small = cv2.resize(one, (one.shape[1] // 2, one.shape[0] // 2))
+    r = W.where(small, t.CFG, pose_cache=cache)
+    assert not r["found"]
+
+
+def test_where_refuses_the_cached_pose_when_the_camera_moved(tmp_path):
+    import test_vision_track as t
+    cache = str(tmp_path / "emeet_board_pose.json")
+    full = _board_scene()
+    ids = _board_ids(full, t.CFG)
+    W.where(full, t.CFG, pose_cache=cache)
+    keep = tuple(i for i in range(6) if i != ids[0])
+    bumped = _board_scene(hide=keep, shift_cam=True)                      # camera moved 20 mm sideways: the tag shifts in the image
+    assert _board_ids(bumped, t.CFG) == [ids[0]]
+    r = W.where(bumped, t.CFG, pose_cache=cache)
+    assert not r["found"] and r["board_pose"] == "refused" and "moved" in r["reason"]
+    assert W.where(bumped, t.CFG, pose_cache=cache, pose_tol_px=400.0)["found"]          # the tolerance is the only gate
+    none_visible = _board_scene(hide=tuple(range(6)))
+    r = W.where(none_visible, t.CFG, pose_cache=cache)
+    assert not r["found"] and r["board_pose"] == "refused" and "cannot be checked" in r["reason"]
+    assert not W.where(none_visible, t.CFG, pose_cache=str(tmp_path / "missing.json"))["found"]

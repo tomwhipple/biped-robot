@@ -10,6 +10,13 @@ takes a single frame from the camera itself, but only if nothing else is reading
 lock / another reader = refuse, exit 4). The eMeet (1080p, high mount) is the default source:
 the Sony is context video only.
 
+Board pose cache: the camera and the board do not move, so every frame with >= 2 board tags refreshes
+DIR/<source>_board_pose.json (pose, focal length, the tags' pixel corners, timestamp) and a frame with fewer (the
+robot or its tether hides a board tag) uses it, provided the board tags that ARE visible still sit within
+--pose-tol-px (4) of where the cache had them. If they moved (a bumped camera) it refuses (exit 2, reason says so);
+with no board tag to check against, or no cache, it refuses too. Output says `board pose: live` or
+`cached (age ...)`; JSON: board_pose "live" | "cached" | "refused", board_pose_info.
+
 Exit 0: margin in the requested direction >= --min-margin (or no direction asked).
 Exit 3: margin below the threshold.  Exit 2: robot/board tags not found.
 Exit 4: no frame (camera busy or stale).
@@ -70,6 +77,54 @@ def margin_along(cfg, x, y, dx, dy):
     return best - m
 
 
+POSE_TOL_PX = 4.0                    # a visible board tag may sit this far (mean corner distance) from where the cached pose had it
+
+
+def pose_cache_path(camd_dir, source):
+    return os.path.join(camd_dir, f"{source}_board_pose.json")
+
+
+def save_pose(path, tr, d, cal, now=None):
+    """Remember the board/camera pose of a frame that had >= 2 board tags, next to the camd segments (atomic)."""
+    rec = tr.export_pose(d, cal)
+    rec["t"] = time.time() if now is None else now
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(rec, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass                                # a read-only dir only costs the fallback, never the live result
+
+
+def use_cached_pose(tr, d, path, tol_px=POSE_TOL_PX, now=None):
+    """A frame with < 2 board tags: install the cached pose if the board tags that ARE visible still sit where they
+    did in the frame it came from (the camera and the board do not move; a bumped camera shifts every tag).
+    -> (info, None) on success, (None, reason) on refusal. info: age_s, tags (ids checked), max_shift_px."""
+    try:
+        with open(path) as f:
+            rec = json.load(f)
+    except (OSError, ValueError):
+        return None, "no cached board pose (needs one frame with 2 board tags first)"
+    if tuple(rec.get("size", ())) != tuple(tr.size):
+        return None, f"cached board pose is for a {rec.get('size')} image, this frame is {list(tr.size)}"
+    seen = {int(k): np.array(v, float) for k, v in rec.get("tag_corners_px", {}).items()}
+    shift = {}
+    for i in d:
+        if str(i) in tr.cfg["board"]["tags"] and i in seen:
+            shift[i] = float(np.mean(np.linalg.norm(np.asarray(d[i], float).reshape(4, 2) - seen[i], axis=1)))
+    if not shift:
+        return None, "cached board pose cannot be checked: no board tag in this frame was in the frame it came from"
+    worst = max(shift, key=shift.get)
+    if shift[worst] > tol_px:
+        return None, (f"camera or board moved: board tag {worst} is {shift[worst]:.1f} px from where the cached pose "
+                      f"had it (> {tol_px:g} px); show 2 board tags to recalibrate")
+    tr.load_pose(rec)
+    return dict(age_s=(time.time() if now is None else now) - rec["t"], tags=sorted(shift),
+                max_shift_px=round(shift[worst], 2), f_source=rec.get("f_source"),
+                f_bracket_px=rec.get("f_bracket_px"), layout=rec.get("layout")), None
+
+
 POSITION_UNCERTAINTY_MM = 100.0      # README: position and margins to about +-100 mm until the layout is measured and f pinned
 
 
@@ -82,18 +137,32 @@ def plan_end(cfg, x, y, heading_deg, dx_mm, dy_mm):
     return ex, ey, G.edge_margins(cfg, ex, ey)
 
 
-def where(gray, cfg=None, direction=None, min_margin=None, tracker=None, plan_dx_mm=None, plan_dy_mm=None):
+def where(gray, cfg=None, direction=None, min_margin=None, tracker=None, plan_dx_mm=None, plan_dy_mm=None,
+          pose_cache=None, pose_tol_px=POSE_TOL_PX):
     """One frame -> dict(found, x_mm, y_mm, heading_deg, margins, margin_dir_mm, plan, ok, reason).
     plan_dx_mm / plan_dy_mm (either given): the planned net displacement, forward / left; adds `plan` with the end
-    point and its margins, and with min_margin the end margins decide `ok`."""
+    point and its margins, and with min_margin the end margins decide `ok`.
+    pose_cache: path of the cached board pose. A frame with >= 2 board tags calibrates live and refreshes it; a frame
+    with fewer uses the cache if the visible board tags still sit within pose_tol_px of where it had them (else
+    found False, reason says the camera moved). `board_pose` is "live" or "cached", `board_pose_info` the check."""
     cfg = cfg or G.load_config()
     tr = tracker or Tracker(cfg, (gray.shape[1], gray.shape[0]))
     d = detect(gray, tr.det)
     cal = None
+    pose_how, pose_info = "live", None
     if tracker is None:
         cal = tr.calibrate([d])
+        if cal is not None and pose_cache:
+            save_pose(pose_cache, tr, d, cal)
         if cal is None:
-            return dict(found=False, ok=None, reason="fewer than 2 board tags visible", tags=sorted(d))
+            reason = "fewer than 2 board tags visible"
+            if not pose_cache:
+                return dict(found=False, ok=None, reason=reason, tags=sorted(d))
+            pose_info, why = use_cached_pose(tr, d, pose_cache, pose_tol_px)
+            if pose_info is None:
+                return dict(found=False, ok=None, reason=f"{reason}; {why}", tags=sorted(d), board_pose="refused")
+            pose_how = "cached"
+            cal = dict(f_source=pose_info["f_source"], f_bracket_px=pose_info["f_bracket_px"])
     r = tr.process(gray, None, d)
     if r.get("x_mm") is None:
         return dict(found=False, ok=None, reason="no robot torso tag visible", tags=sorted(d))
@@ -101,6 +170,9 @@ def where(gray, cfg=None, direction=None, min_margin=None, tracker=None, plan_dx
                pitch_deg=r["pitch_deg"], roll_deg=r["roll_deg"], ambiguous=r.get("ambiguous"),
                margins={k: r[f"margin_{k}_mm"] for k in ("left", "right", "near", "far")}, tags=r["tags"],
                f_px=tr.K[0, 0])
+    out["board_pose"] = pose_how
+    if pose_info is not None:
+        out["board_pose_info"] = pose_info
     if cal is not None:
         out["f_source"] = cal.get("f_source")
         out["f_bracket_px"] = cal.get("f_bracket_px")
@@ -205,6 +277,9 @@ def main(argv=None):
     ap.add_argument("--plan-dx-mm", type=float, help="planned net displacement, forward (robot frame); with --plan-dy-mm")
     ap.add_argument("--plan-dy-mm", type=float, help="planned net displacement, left (robot frame)")
     ap.add_argument("--max-age", type=float, default=2.0)
+    ap.add_argument("--pose-cache", help="cached board pose file (default <camd-dir>/<source>_board_pose.json; none with "
+                                         "--image unless given); used when a frame shows < 2 board tags")
+    ap.add_argument("--pose-tol-px", type=float, default=POSE_TOL_PX, help="how far a visible board tag may sit from the cached pose")
     ap.add_argument("--config")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
@@ -216,13 +291,18 @@ def main(argv=None):
         print(f"where: no frame: {src}", file=sys.stderr)
         return 4
     planned = a.plan_dx_mm is not None or a.plan_dy_mm is not None
+    cache = a.pose_cache or (None if a.image else pose_cache_path(a.camd_dir, a.source))
     r = where(gray, G.load_config(a.config), a.direction, a.min_margin if (a.direction or planned) else None,
-              plan_dx_mm=a.plan_dx_mm, plan_dy_mm=a.plan_dy_mm)
+              plan_dx_mm=a.plan_dx_mm, plan_dy_mm=a.plan_dy_mm, pose_cache=cache, pose_tol_px=a.pose_tol_px)
     r["frame_source"] = src
     if a.json:
         print(json.dumps(r, indent=1, default=float))
     elif r["found"]:
         m = r["margins"]
+        bi = r.get("board_pose_info")
+        print("board pose: " + ("live" if bi is None else f"cached (age {bi['age_s']:.0f} s; board tags {bi['tags']} within "
+              f"{bi['max_shift_px']:.1f} px of where it had them)")
+              + (f"; f from {r['f_source']}" if r.get("f_source") else ""))
         print(f"robot at x {r['x_mm']:.0f} y {r['y_mm']:.0f} mm, heading {r['heading_deg']:.0f} deg, "
               f"tilt p {r['pitch_deg']:.0f} r {r['roll_deg']:.0f}; margins L {m['left']:.0f} R {m['right']:.0f} "
               f"near {m['near']:.0f} far {m['far']:.0f} mm" + (" (pose ambiguous)" if r.get("ambiguous") else ""))

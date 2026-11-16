@@ -163,6 +163,11 @@ the emeet at the far end sees 0-3.
   collector flushes late, so a run checked right after the walk found no record. It now picks the
   session open at the run's start and waits until a decoded tick reaches the run's end; if it never
   does, the result says `partial` (not "no excursion").
+* **Board pose cache.** The camera and board do not move, so `where.py` writes `<camd-dir>/<source>_board_pose.json`
+  (pose, f, the board tags' pixel corners, time) on every frame with >= 2 board tags and uses it for a frame with
+  fewer (the robot or its tether hides one), as long as the visible board tags sit within `--pose-tol-px` (4) of
+  where the cache had them. A bumped camera, no board tag to check, no cache or a different image size: refused
+  (exit 2, reason says why). Output: `board pose: live` / `cached (age ...)`; JSON `board_pose` live | cached | refused.
 * **run_report endings and positions.** The host log has no fall line: a run that fell has no TS line for
   the step it fell in, so `anomalies` lists `short_run` (fewer TS lines than steps decided), `firmware_abort`,
   `stop_rule`, `gate_timeout` (the host summary's `outcome`) and `fall_latch` (the flight record's EV_FALL event or
