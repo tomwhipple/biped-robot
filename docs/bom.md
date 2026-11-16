@@ -149,10 +149,13 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   (about 5 STS3215s, not stalled at once).
 - The robot puts 17 servos on that path. The prototype measured 6.8 A peaks on
   10.
-- The sim budget for the two scripted motions: a **4.54 A** bus peak on the
-  seat-push get-up and a **2.46 A** worst per-port peak on the Gate D walk.
-  It is a sim figure; the bench number with a watt meter on the pack lead is
-  still owed.
+- The sim budget, per power-lite branch, on the robot's servo set:
+  - **The dwell walk:** a 3.8 A bus peak and 2.3 A on a leg's lead (upper
+    model).
+  - **The get-ups:** a 10–14 A bus peak (5.5–8.2 A in the lower model).
+  - **The prone get-up's leg leads:** 7.3–8.5 A peaks.
+  - It is a sim figure; the bench number with a watt meter on the pack lead is
+    still owed.
 - The fix under consideration is to solder the power lead to the inlet pads
   instead of using the XH plug.
 - The fuse and the bulk capacitor are required before the first powered floor
