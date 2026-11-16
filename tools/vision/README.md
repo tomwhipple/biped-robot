@@ -15,7 +15,7 @@ PIL from the project venv.
 | `run_report.py` | per-run `<run>_vision.json` + contact-sheet JPEG |
 | `where.py` | one frame -> position, heading, edge margins; exit code for a travel direction |
 | `implausible.py`, `foreign.py` | telemetry-only "somebody helped" check; image-only motion hint |
-| `vgeom.py`, `tagdefs.py`, `synth.py`, `detect_study.py` | geometry/config, tag ids, synthetic renderer, detectability study |
+| `vgeom.py`, `tagdefs.py`, `vsynth.py`, `detect_study.py` | geometry/config, tag ids, synthetic renderer, detectability study |
 
 ## Commands
 

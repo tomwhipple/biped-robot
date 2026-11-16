@@ -11,7 +11,7 @@ import pytest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools", "vision"))
 import run_report  # noqa: E402,F401
-import synth  # noqa: E402
+import vsynth as synth  # noqa: E402
 import tag_track as T  # noqa: E402
 import vgeom as G  # noqa: E402
 from tagdefs import detect  # noqa: E402
