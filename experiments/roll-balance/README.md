@@ -857,6 +857,15 @@ python experiments/roll-balance/track_host.py $F $B --land-early-mm 2           
 
 Without `--live` each prints the plan (the timeline, the pre-check) and sends nothing.
 
+**On the robot (2026-11-16, fixed and `--cmd` walks at T 4, from the coordinator's runs).** Forward / backward fixed walks and a mixed
+steered walk with `--td-pause 0.3`: about 144 steps clean; the weight-transfer kick on the shift onto the left foot (the touchdown
+rebound) dropped from median / p90 / max 1.0 / 3.1 / 3.5 deg (baseline, 16 shifts) to 0.6 / 0.8 / 0.9 (16 shifts) and 0.7 / 0.9 / 1.0 (13
+shifts, steered); headings tighter. Sidesteps: an early reading that the pause made lateral steps under-travel or go the wrong way was
+not borne out. An alternating A/B/A/B with the tracker (positions at rest, the robot about 40 deg off square, six steps of +-15 mm each)
+under-travelled with and without the pause (right legs 15 / 30 / 33 mm, left legs about 0 / -20 / -13 mm of about 80 mm commanded, +-40-80 mm
+of fore-aft drift, no tips): sidesteps under-travel on the robot with and without `--td-pause`, cause unknown. The plan and the
+uploaded frames are identical in placement with the pause (tests, and the frames of a robot run decoded against the plan).
+
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
 
 The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving
@@ -993,6 +1002,13 @@ The two fwd lines at k 1.0 and 0.85 carry `--swing-tilt 3`: without it the plan 
 -39.5 deg, outside the plant's 38 deg less 2 deg margin: with the pelvis nearer the centre the swing foot has more reach to cover). With it the
 margin is 4.4 / 3.4 deg. At k 1.15 no tilt is needed (2.5 deg).
 
+**On the robot (2026-11-16/17, march, T 4).** `--ss-s 1.2` (full shift, normal settle): FELL on step 2 (R stance). The flight record shows no
+ramp or scaling fault in the plan: after foot-off the body leans about 2.4 deg toward the swing foot by +0.4 s and in a normal step recovers by
+0.6-0.8 s; the short step lowered at 0.8 s while still -4.2 deg, landed hard, rebounded and toppled outward. Only the raise shortened
+(`--raise-s 0.42 --move-s 0.66 --lower-s 0.77`): no fall, but 3 of 7 steps tipped 11-12 deg inward (L 11.1, R 11.7, L 12.2): the fast lift
+is itself the disturbance, on both sides. So shortening the single support or the raise tips or topples the robot as it is; the options stay
+for experiments (they leave the default frames untouched). The SIL tables above did not predict this (the sim is the forgiving one).
+
 ## Taking up the hip-roll play before the foot leaves: `--pre-hike L,R`, `--pre-hike-frac F` (host only; default off)
 
 Why (the flight records of 2026-11-17, from the coordinator): with `--ss-s 1.2` the first R-stance step fell, and with only the raise
@@ -1042,6 +1058,16 @@ python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 
 
 Variants: `--pre-hike-frac 0.5` finishes the ramp in the first half of the settle; `--settle 0.8` gives the ramp more time (the step is 0.4 s longer);
 `--pre-hike 5.2,0` hikes one side only. Without `--live` each prints the plan and sends nothing.
+
+**On the robot (tested 2026-11-16): no benefit for the quick lift; it conflicts with the lift gate level and the trim's reference.**
+`--pre-hike 5.2,3.4` at normal timing: clean 7/7 (lean in <= 4.1 deg), but (a) the firmware lift gate TIMES OUT on the roughly 4.3 deg pre-tilt
+at its default level of 3 deg (the run needed `liftgate set 6 15 150 3000`, restored afterwards; `--gate 6,15,150,3000` sends it): the gate holds
+when the roll is more than its level off the settled double-support roll (`lift_gate.h`); why that reference does not follow the planned
+pre-tilt was not established; and (b) the firmware trim takes its roll
+reference at lift-off, that is the pre-tilted posture, so its learned T climbs back (L 1.2 -> 5.2, R 1.3 -> 3.3) on top of the plan's hike
+instead of staying near 0. With the quick lift (`--raise-s 0.42 ...`) it did not help: still 3 of 7 steps tipped 10.7-11.4 deg inward. The
+hypothesis that the pelvis sags through the hip-roll play at a fast foot-off, and that taking the play up beforehand lets the trim keep up,
+is not supported by this test; the option stays default-off.
 
 ## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
 
