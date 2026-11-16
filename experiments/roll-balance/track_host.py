@@ -81,6 +81,52 @@ YAW_GAIN, YAW_DRIFT = 1.34, 1.9            # the robot's heading per step = YAW_
 PELVIS_V_MAX = 0.252                       # m/s: the fastest pelvis move in the shift the SIL holds (161 mm in 1.2 s)
 
 
+# --cmd mode's by-step feed-forwards (2026-11-16, README "By step type"): all off outside --cmd unless their flag is given.
+ANKLE_SIDE_CMD = (2.0, 3.0)         # --ankle-ff-side L,R: the stance ankle's ff on a sideways step toward its own side
+ANKLE_SIDE_OFF = (2.0, 2.0)         # = ROBOT_ANKLE_FF: no change
+FIRST_BOOST_CMD = 1.0               # --first-ankle-boost: deg added to the first stance step of each side
+DRIFT_SIDE_CMD = (0.94, YAW_DRIFT)  # --heading-drift-side L,R: the heading drift (deg/step, + = left) of a sideL / sideR step
+DRIFT_SIDE_OFF = (YAW_DRIFT, YAW_DRIFT)
+SIDE_REF_MM = 15.0                  # the lateral step at which the ankle ff reaches its --ankle-ff-side value
+
+
+def parse_pair(txt, name, lo=-10.0, hi=10.0):
+    v = [float(x) for x in str(txt).split(",")]
+    if len(v) != 2 or not all(lo <= x <= hi for x in v):
+        raise ValueError(f"{name} wants L,R (deg, {lo:g} to {hi:g}), got {txt!r}")
+    return tuple(v)
+
+
+def swing_side(i, first):
+    """The swing foot of step i (0-based) of a walk whose first swing foot is `first`."""
+    return first if i % 2 == 0 else ("R" if first == "L" else "L")
+
+
+def ankle_extra(i, dy, first, side=None, boost=0.0):
+    """Deg added to step i's stance-ankle feed-forward: toward a sideways step's own side the stance ankle there gets
+    (side[stance] - ROBOT_ANKLE_FF[stance]) x min(1, |dy| / SIDE_REF_MM) (dy in m, + = left: a LEFT step loads the LEFT
+    stance, a RIGHT step the RIGHT stance), and the first stance step of each side (steps 0 and 1) gets `boost`."""
+    st = "R" if swing_side(i, first) == "L" else "L"
+    x = boost if i < 2 else 0.0
+    if side is not None and dy and ((dy > 0 and st == "L") or (dy < 0 and st == "R")):
+        k = 0 if st == "L" else 1
+        x += (side[k] - ROBOT_ANKLE_FF[k]) * min(1.0, abs(dy) * 1e3 / SIDE_REF_MM)
+    return x
+
+
+def step_drift(c, side=None):
+    """The heading drift (deg / step, + = left) the hold's feed-forward cancels for step command c: YAW_DRIFT for the
+    fore-aft part, side[0] (sideL) or side[1] (sideR) for the lateral part, blended by the lateral share of the step
+    |dy| / (|dx| + |dy|); a step in place has the fore-aft value."""
+    if side is None:
+        return YAW_DRIFT
+    ax, ay = abs(c["dx"]), abs(c["dy"])
+    if ax + ay < 1e-9:
+        return YAW_DRIFT
+    f = ay / (ax + ay)
+    return (1.0 - f) * YAW_DRIFT + f * side[0 if c["dy"] > 0 else 1]
+
+
 def _num(x):
     return f"{float(x):g}"
 
@@ -162,8 +208,12 @@ def expand_seq(seq, first="R"):
 def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, first="R", amp=ROBOT_AMP,
          model="dwell", ds=None, h=None, yaw_trim=YAW_TRIM, pelvis_x=ROBOT_PELVIS_X, ankle_ff=ROBOT_ANKLE_FF,
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
-         step_cmds=None):
-    """lift_gate (dwell): kGate on the last frame before each lift-off (the firmware waits there for a level, quiet body).
+         step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None):
+    """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
+    stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
+    decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
+    (step_drift): the constant yaw_trim is scaled by each step's drift / YAW_DRIFT.
+    lift_gate (dwell): kGate on the last frame before each lift-off (the firmware waits there for a level, quiet body).
     yaw_trim (deg / step, + = left) is ADDED to the direction's own turn (turnL / turnR ask +-4).
     cmd: one per-step command (step_cmd / preset_cmd) replacing the --dir preset's; seq: [(cmd, count)] segments
     in one continuous track (n_steps is then the expanded count). A yaw_trim LIST is the heading hold's asked turn
@@ -195,19 +245,38 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
         dkw = dict(dx=cmd["dx"], dy=cmd["dy"], yaw_trim=cmd["yt"])
         meta = [dict(name=cmd["name"], key=cmd["key"])] * n_steps
         cmds = [cmd] * n_steps
+    def _yt(c):
+        return yaw_trim if drift_side is None else yaw_trim * step_drift(c, drift_side) / YAW_DRIFT
+    extras = None
+    if step_cmds is not None:
+        extras = [c.get("aff_x", 0.0) for c in cmds]
+    elif ankle_side is not None or first_boost:
+        dys = [c["dy"] for c in cmds] if cmds is not None else [dkw.get("dy", 0.0)] * n_steps
+        extras = [ankle_extra(i, dy, first, ankle_side, first_boost) for i, dy in enumerate(dys)]
+    ankle_eff = ankle_steps
+    if extras is not None and any(extras):
+        base = list(ankle_steps) if ankle_steps is not None else []
+        ankle_eff = []
+        for i in range(n_steps):
+            st_k = 0 if swing_side(i, first) == "R" else 1
+            b = base[i] if i < len(base) and base[i] is not None else ankle_ff[st_k]
+            ankle_eff.append(b + extras[i])
     if model == "dwell":
         gkw = dict(**({"ds": ds} if ds is not None else {}), **({"h": h} if h is not None else {}),
                    **({"pelvis_x": pelvis_x} if pelvis_x != "mid" else {}),
                    **({"ankle_ff": tuple(ankle_ff)} if any(ankle_ff) else {}),
                    **({"k_ds": tuple(k_ds)} if k_ds and any(k_ds) else {}),
-                   **({"ankle_ff_steps": list(ankle_steps)} if ankle_steps is not None else {}),
+                   **({"ankle_ff_steps": list(ankle_eff)} if ankle_eff is not None else {}),
                    **({"step_meta": meta} if meta is not None else {}),
                    **({"drop": drop} if drop is not None else {}),
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         elif seq is not None or step_cmds is not None:
-            dkw["yaw_trim"] = [c["yt"] + (0.0 if c.get("yaw_free") else yaw_trim) for c in cmds]
+            dkw["yaw_trim"] = [c["yt"] + (0.0 if c.get("yaw_free") else _yt(c))
+                               for c in cmds]
+        elif drift_side is not None and cmds is not None:
+            dkw["yaw_trim"] = [c["yt"] + _yt(c) for c in cmds]
         else:
             dkw["yaw_trim"] = dkw.get("yaw_trim", 0.0) + yaw_trim
     elif seq is not None or cmd is not None or step_cmds is not None:
@@ -226,7 +295,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           k_ds=tuple(k_ds) if k_ds else None,
                           ankle_steps=list(ankle_steps) if ankle_steps is not None else None,
                           cmd=cmd, seq=seq, drop=drop, swing_tilt=swing_tilt, lift_gate=lift_gate,
-                          step_cmds=list(step_cmds) if step_cmds is not None else None))
+                          step_cmds=list(step_cmds) if step_cmds is not None else None,
+                          ankle_side=tuple(ankle_side) if ankle_side is not None else None,
+                          first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -249,28 +320,34 @@ class HeadingHold:
     reference -- a commanded heading change per step, so a commanded heading RATE is the same loop -- and asks
     the steps not yet uploaded for asked = (dpsi_cmd + k x error - YAW_DRIFT) / YAW_GAIN deg each, clipped."""
 
-    def __init__(self, n_steps, dpsi_cmd, k=0.5, clip=8.0):
+    def __init__(self, n_steps, dpsi_cmd, k=0.5, clip=8.0, drift=None):
         """dpsi_cmd: the commanded heading change per step, deg: one number, or a list per step (a --seq run: the
-        active segment's)."""
+        active segment's). drift: the heading drift the feed-forward cancels, deg / step: None = YAW_DRIFT for every
+        step, or a list per step (step_drift: it depends on the step's type)."""
         self.n, self.dpsi, self.k, self.clip = n_steps, dpsi_cmd, k, clip
         self._d = list(dpsi_cmd) if isinstance(dpsi_cmd, (list, tuple)) else [dpsi_cmd] * n_steps
         self._d += [self._d[-1]] * (n_steps - len(self._d))
-        self.asked = [max(-clip, min(clip, (d - YAW_DRIFT) / YAW_GAIN)) for d in self._d]
+        self._dr = list(drift) if drift is not None else []
+        self._dr += [self._dr[-1] if self._dr else YAW_DRIFT] * (len(self._d) - len(self._dr))
+        self.asked = [max(-clip, min(clip, (d - dr) / YAW_GAIN)) for d, dr in zip(self._d, self._dr)]
         self.log = []
         self.err = 0.0                 # the last measured heading error, deg (the --cmd mode asks new steps with it)
 
-    def asked_for(self, d):
+    def asked_for(self, d, drift=None):
         """The asked turn (deg) of a step whose commanded heading change is d, with the last measured error."""
-        return max(-self.clip, min(self.clip, (d + self.k * self.err - YAW_DRIFT) / YAW_GAIN))
+        return max(-self.clip, min(self.clip, (d + self.k * self.err - (YAW_DRIFT if drift is None else drift)) / YAW_GAIN))
 
-    def set_step(self, i, d, asked=None):
+    def set_step(self, i, d, asked=None, drift=None):
         """--cmd mode: step i (appended if it is the next one) commands a heading change d deg; asked overrides the
-        asked turn (the closing step: 0)."""
+        asked turn (the closing step: 0); drift: that step's heading drift (default YAW_DRIFT)."""
+        dr = YAW_DRIFT if drift is None else drift
         while len(self._d) <= i:
             self._d.append(d)
-            self.asked.append(self.asked_for(d))
+            self._dr.append(dr)
+            self.asked.append(self.asked_for(d, dr))
         self._d[i] = d
-        self.asked[i] = self.asked_for(d) if asked is None else float(asked)
+        self._dr[i] = dr
+        self.asked[i] = self.asked_for(d, dr) if asked is None else float(asked)
         self.n = len(self._d)
 
     def ref(self, n_done):
@@ -284,7 +361,7 @@ class HeadingHold:
         whose frames are not uploaded yet. Returns True when the asked list changed."""
         err = self.ref(n_done) - psi
         self.err = err
-        new = [max(-self.clip, min(self.clip, (d + self.k * err - YAW_DRIFT) / YAW_GAIN)) for d in self._d]
+        new = [max(-self.clip, min(self.clip, (d + self.k * err - dr) / YAW_GAIN)) for d, dr in zip(self._d, self._dr)]
         a = new[min(first_free, self.n - 1)]
         self.log.append(dict(n=n_done, psi=round(psi, 1), ref=round(self.ref(n_done), 1), err=round(err, 1),
                              asked=round(a, 2), from_step=first_free + 1))
@@ -991,7 +1068,10 @@ def live(pl, a):
         log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=(len(cw.steps) if cw is not None else pl["args"]["n_steps"]), amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
                                                       ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"],
-                                                      lift_gate=pl["args"].get("lift_gate")),
+                                                      lift_gate=pl["args"].get("lift_gate"),
+                                                      ankle_side=pl["args"].get("ankle_side"),
+                                                      first_boost=pl["args"].get("first_boost"),
+                                                      drift_side=pl["args"].get("drift_side")),
                  gate_timeout=fell["gate"],
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
@@ -1000,7 +1080,7 @@ def live(pl, a):
         print(f"log: {log_path}")
 
 
-def main_cmd(a, seeds, amp, aff):
+def main_cmd(a, seeds, amp, aff, by_step):
     """--cmd: the walk with live velocity commands (cmd_walk.py). Dry run: the first --dry-steps steps from the command
     now in the source, then a stop. Live: the rolling upload of live() with every step decided as it is reached."""
     import cmd_walk as CW
@@ -1048,12 +1128,18 @@ def main_cmd(a, seeds, amp, aff):
                 pelvis_x=a.pelvis_x, ankle_ff=aff, k_ds=(tuple(float(x) for x in a.k_ds.split(",")) if a.k_ds else None),
                 drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), lift_gate=a.lift_gate == "on")
     hold = HeadingHold(1, [0.0], k=a.heading_k) if (a.heading_hold == "on" and a.live) else None
+    side = by_step["ankle_side"] if by_step["ankle_side"] is not None else ANKLE_SIDE_CMD
+    boost = by_step["first_boost"] if by_step["first_boost"] is not None else FIRST_BOOST_CMD
+    drift = by_step["drift_side"] if by_step["drift_side"] is not None else DRIFT_SIDE_CMD
+    print(f"by step: stance ankle ff on a sideways step L,R = {side[0]:g},{side[1]:g} (scaled by |dy| / {SIDE_REF_MM:g} mm), "
+          f"first stance step of each side +{boost:g} deg; heading drift sideL,sideR {drift[0]:g},{drift[1]:g} deg/step "
+          f"(forward {YAW_DRIFT:g})")
 
     def walk(cal):
         b = dict(base, cal=cal)
         w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
                        max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
-                       allow_over=a.allow_over)
+                       allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift)
         return w
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
@@ -1157,8 +1243,8 @@ def main(argv=None):
                          "--stride-mm / --side-mm / --turn are not used")
     ap.add_argument("--max-steps", type=int, default=120, help="--cmd: stop after this many steps (default 120)")
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
-    ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 40)")
-    ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32)")
+    ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
+    ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 40)")
     ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap (default 15)")
     ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
     ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
@@ -1182,6 +1268,19 @@ def main(argv=None):
                     help="dwell: L,R deg, a fixed feed-forward on the STANCE ankle roll, + = outward (the CoM toward the "
                          "stance foot's outside, ~3.7 mm/deg), ramped in over the raise, held, out over the lower "
                          "(default 2,2: hw 2026-11-12 19:10-19:28; 0,0 = off)")
+    ap.add_argument("--ankle-ff-side", default=None, metavar="L,R",
+                    help="dwell: the stance ankle's ff (deg) on a sideways step toward its own side: the RIGHT stance on "
+                         "a step right (dy < 0) gets R instead of 2, the LEFT stance on a step left L; added as "
+                         "(value - 2) x min(1, |dy| / 15 mm) to the stance ankle (--ankle-ff or the learner's value). "
+                         "Default 2,3 with --cmd, 2,2 (no change) otherwise")
+    ap.add_argument("--first-ankle-boost", type=float, default=None, metavar="DEG",
+                    help="dwell: deg added to the stance ankle ff of the first stance step on each side of a walk only "
+                         "(default 1 with --cmd, 0 otherwise)")
+    ap.add_argument("--heading-drift-side", default=None, metavar="L,R",
+                    help="dwell: the heading drift (deg / step, + = left; 1.9 = the forward-walking calibration) the "
+                         "feed-forward cancels on a sideL / sideR step, blended by the step's lateral share (a --seq / "
+                         "--cmd step; the heading hold's and --yaw-trim's feed-forward both follow). Default 0.94,1.9 "
+                         "with --cmd, 1.9,1.9 (no change) otherwise")
     ap.add_argument("--ankle-learn", choices=["on", "off"], default="off",
                     help="dwell: learn the stance-ankle trim per side at step rate (AnkleLearner): starts from "
                          "results/ankle_trim_state.json for this --dir (seeds 2/2, sideR R 3), replaces --ankle-ff, "
@@ -1212,8 +1311,19 @@ def main(argv=None):
         return 2
     amp = tuple(float(x) for x in a.amp.split(",")) if a.amp else ROBOT_AMP
     aff = tuple(float(x) for x in a.ankle_ff.split(","))
+    try:
+        by_step = dict(
+            ankle_side=(parse_pair(a.ankle_ff_side, "--ankle-ff-side", 0.0, 5.0) if a.ankle_ff_side is not None else None),
+            first_boost=a.first_ankle_boost,
+            drift_side=(parse_pair(a.heading_drift_side, "--heading-drift-side", -5.0, 5.0)
+                        if a.heading_drift_side is not None else None))
+        if by_step["first_boost"] is not None and not 0.0 <= by_step["first_boost"] <= 3.0:
+            raise ValueError("--first-ankle-boost wants 0 to 3 deg")
+    except ValueError as e:
+        print(f"REFUSED: {e}")
+        return 2
     if a.cmd:
-        return main_cmd(a, seeds, amp, aff)
+        return main_cmd(a, seeds, amp, aff, by_step)
     learn = None
     if a.ankle_learn == "on" and a.model == "dwell":
         learn = AnkleLearner(a.dir, start=(tuple(float(x) for x in a.ankle_seed.split(","))
@@ -1249,7 +1359,7 @@ def main(argv=None):
             print("ankle trim learning per segment key: " + ", ".join(f"{k} L {lr.A['L']:.2f} R {lr.A['R']:.2f}"
                                                                       for k, lr in learn.by.items()))
     kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt,
-                  lift_gate=a.lift_gate == "on")
+                  lift_gate=a.lift_gate == "on", **{k: v for k, v in by_step.items() if v is not None})
     if not a.live:
         try:
             pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
@@ -1280,7 +1390,9 @@ def main(argv=None):
             dpsi = list(pl["dpsi"])           # the active segment's commanded heading change, per step
         else:
             dpsi = {"turnL": 5.0, "turn": 5.0, "turnR": -5.0}.get(a.dir, 0.0)
-        hold = HeadingHold(pl["args"]["n_steps"], dpsi, k=a.heading_k)
+        hold = HeadingHold(pl["args"]["n_steps"], dpsi, k=a.heading_k,
+                           drift=([step_drift(c, by_step["drift_side"]) for c in pl["cmds"]]
+                                  if by_step["drift_side"] is not None and pl["cmds"] is not None else None))
         pl = plan(**{**pl["args"], "yaw_trim": hold.asked})
         pl["hold"] = hold
         print(f"heading hold: {dpsi if not isinstance(dpsi, list) else 'per segment (' + ', '.join(f'{x:+g}' for x in sorted(set(dpsi))) + ')'}"

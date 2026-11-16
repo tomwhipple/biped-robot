@@ -24,7 +24,7 @@ import time
 class Controller:
     """The key map and the command it builds: the testable part."""
 
-    def __init__(self, T=4.0, step_mm=5.0, step_deg=1.0, limits=(40.0, 32.0, 15.0, 5.0)):
+    def __init__(self, T=4.0, step_mm=5.0, step_deg=1.0, limits=(50.0, 40.0, 15.0, 5.0)):
         """step_mm / step_deg: one key press changes the per-STEP displacement by this much (the speeds are that / T);
         limits: the host's default envelope (fwd, back, side, turn per step), the keys never go past it."""
         self.T, self.sx, self.sa = float(T), float(step_mm), float(step_deg)
