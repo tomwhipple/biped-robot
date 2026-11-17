@@ -45,6 +45,7 @@ MIN_SAMPLES = 8
 PERIOD_LO, PERIOD_HI, PERIOD_N = 0.85, 1.25, 41   # the real gait cycle is not the planned one (7.5 s measured against 6.9 planned)
 WARMUP_STEPS = 3              # the window must hold whole walking cycles: no correction for the first steps
 MIN_STEP_MM = 4.0              # a correction smaller than this is not a step: it is added up and applied as fewer, larger ones
+I_LEAK_BAND, I_LEAK_FLIP = 0.85, 0.5     # the integral decays in the dead band, and fast once the error has crossed zero
 DEADBAND_MM = 5.0             # the fitted sample's step-to-step jitter is ~2.5 mm on the 2026-11-16 run (15 mm with the plain mean over 2 planned steps)
 WORSE_W, WORSE_MM, WORSE_CORR_MM = 6, 45.0, 4.0   # the lateral error grew by 45 mm over 6 steps of corrections averaging >= 4 mm (body) against it
 SAT_STEPS, SAT_ERR_MM = 6, 120.0                  # corrections at the clip for 6 steps and still 120 mm off: it does not hold
@@ -365,7 +366,11 @@ class PosHold:
         soft = 0.0 if abs(e) <= self.deadband else e - math.copysign(self.deadband, e)
         u = -self.k * soft + self.integ[ax]
         sat = abs(u) >= clip - 1e-9 and u * soft < 0
-        if not sat and soft != 0.0:
+        if soft == 0.0:
+            self.integ[ax] *= I_LEAK_BAND                  # inside the dead band: let it go slowly
+        elif soft * self.integ[ax] > 0:
+            self.integ[ax] *= I_LEAK_FLIP                  # the error has the sign the integral pushes: it is pushing the wrong way
+        elif not sat:
             self.integ[ax] = _clip(self.integ[ax] - self.ki * soft, clip)
         tot = _clip(-self.k * soft + self.integ[ax], clip)
         self._pfrac[ax] = (-self.k * soft) / tot if abs(tot) > 1e-9 else 0.0       # the share that answers the error

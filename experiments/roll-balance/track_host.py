@@ -1360,7 +1360,7 @@ def make_poshold(a):
                     window_steps=a.pos_window_steps, delay_steps=a.pos_delay_steps, deadband_mm=a.pos_deadband_mm,
                     centre=(W / 2.0, L / 2.0))
     sam.start()
-    print(f"pos-hold: tracker frames from {path}; step {a.Teff:g} s, sample = median over {a.pos_window_steps:g} steps "
+    print(f"pos-hold: tracker frames from {path}; step {a.Teff:g} s, sample = fit over {a.pos_window_steps:g} steps "
           f"({ph.window_s():g} s), k {a.pos_k:g} ki {a.pos_ki:g} rate {a.pos_rate_mm:g} mm/step, clip lat {a.pos_clip[0]:g} / fwd {a.pos_clip[1]:g} mm per step, "
           f"delay {a.pos_delay_steps} steps, deadband {a.pos_deadband_mm:g} mm, "
           + (f"keep-on-board {margin:g} mm" if margin > 0 else "keep-on-board off")
