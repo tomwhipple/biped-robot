@@ -3480,11 +3480,9 @@ The 3 cm parents (prec77_walk_si_l3 seeds) on D sidestep +0.01 – +0.02 / −0.
 - **GD and GL, one seed each:** neither reaches shift ≥ 0.6 on both feet on D (GL −0.54 / +0.60 is the nearest any student
   has come). GD lifts R 3.1 cm on steps5; GL's stride1 R lift is 2.2 cm, as its parent. GD falls 7/8 on stride1 0.6 refit.
 - **New, and not a pre-committed criterion: the sag plant brings the sidesteps back.** On D every one of the four students
-  sidesteps 0.29 – 0.48 m of the 0.6 m ideal in both directions; every student of the last six nights, and both parents on D,
-  made ≤ 0.09. Backward has 0 falls on D on all four (parent 2/8). On the play + inset plant (C) the gain mostly vanishes
+  sidesteps 0.29 – 0.48 m of the 0.6 m ideal in both directions; the 11-16 students on C, and both parents on D, made ≤ 0.09. Backward has 0 falls on D on all four (parent 2/8). On the play + inset plant (C) the gain mostly vanishes
   (±0.02 – 0.22), so it is the sag plant that lets them sidestep, not a policy that sidesteps anywhere. Which plant is right
-  is #259's question; the sag is the only one fitted to the robot's lift-off. It is the first time since walk21_fricact that
-  all six directions are kept, on any plant.
+  is #259's question; the sag is the only one fitted to the robot's lift-off.
 - **The weight shift still does not move**, and on C the sag-trained students shift less than the parent (−0.17 – −0.28 on
   L-up against −0.49): they have learned the sag plant, not a bigger shift.
 - Distil gap (card seed-passes, teacher → student): 28→36, 28→29, 19→33, 22→24. Not the limit.
