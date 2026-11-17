@@ -1,39 +1,22 @@
 """Position hold for the host's --cmd walk (#297): the overhead camera tracker closes the position the way the IMU
-closes the heading, one bounded correction per step.
+closes the heading, one bounded correction per step. The design, the numbers and the robot runs are in
+experiments/roll-balance/README.md ("Position hold"); this is the map.
 
-Why. The dwell gait creeps sideways a few mm per step (2026-11-16: 7-step marches in place moved the robot +11 and
-+42 mm along the tracker's x with the plain 4 s gait, -29 and -24 mm with the pause variant) and walked itself to a
-board edge twice. The heading hold already closes yaw. This closes lateral and fore-aft position.
+Frames (tools/vision README "Frames and numbers"). Board frame: x from the board's LEFT edge as seen from the Sony camera
+at the near end, y from the near end, mm. Heading 0 = along +y, counter-clockwise (a left turn) positive: forward =
+(-sin h, cos h), robot-left = (-cos h, -sin h). Facing the Sony (h 180) the robot's left is +x. The eMeet looks from the far
+end and its IMAGE is mirrored left-right relative to x; the tracker works in the board frame, so nothing here sees image
+left or right. Errors are in the robot frame: lat positive = left, fwd positive = forward, err = measured - reference.
 
-Frames (tools/vision README "Frames and numbers"). Board frame: x from the board's LEFT edge as seen from the Sony
-camera at the near end (the camera looks along +y, x is to its right), y from the near end, mm. Heading 0 = along +y,
-counter-clockwise (a left turn) positive: forward = (-sin h, cos h), robot-left = (-cos h, -sin h). So facing the
-Sony (h 180) the robot's left is +x. The eMeet looks from the far end and its IMAGE is mirrored left-right relative to
-that x; the tracker works in the board frame, so nothing here ever sees image left/right.
-
-The position sample. The torso tag swings about +-80 mm sideways with each step's pelvis shift, toward the stance
-foot, and the stance foot alternates every step, so one step's average is biased by the sway and the bias flips sign
-with the step. The sample is therefore the TRIMMED MEAN (15 % off each end: one mis-detected frame cannot move it)
-over the last `window_steps` steps (default 2 = one full left-right gait cycle) of the tracker's per-frame position,
-each frame located from the camd recorder's emeet_latest.jpg (read-only: the camera itself is never opened). A window
-of one full cycle holds each phase equally, so the sample does not depend on which phase the decision falls in. (A
-plain median was tried on the fake robot: the sway is two-humped, the median sits in the gap between the humps and
-moves +-10 mm with the sampling.) It needs `min_samples` frames spread over at least half the
-window and the newest within half a window of now; otherwise there is NO FIX.
-
-The control. e = (sample + travel of the steps decided but not yet in the sample) - reference, in the robot frame
-(lat positive = robot's left, fwd positive = forward). The reference is the start pose plus the integrated command
-(the displacement each step was asked for before the correction; a zero command holds the start position). The
-correction is -k e per step, clipped (lateral 6 mm, fore-aft 10 mm), added to the next unlocked step before the
-envelope / slew limits are applied. `delay_steps` is how many decided steps are not yet visible in a sample (the
-window half-length, the rolling upload and the camera): the loop compensates them (a Smith predictor), without it a
-gain of 0.3 rings.
-
-No fix: the correction freezes at the last trim for at most `no_fix_steps` steps, then it is zero; with a non-zero
-command active, more than that many steps without a fix turns the command into `stop`. Nothing is extrapolated.
-
-Keep on board: if the predicted position (sample + steps already decided) is within `margin` mm of a board edge, the
-step is replaced by one toward the board centre (the full envelope, along the direction away from the near edges).
+Locator: frame -> (x, y, heading), the board pose calibrated once (or loaded from where.py's / this tool's pose file).
+PosSampler: time-stamped positions from camd's emeet_latest.jpg; fix() is the sample: with `cycle_s` a least-squares fit of
+offset + slope + one sinusoid (period searched around the planned gait cycle) over 1.5 cycles, evaluated at the window's
+centre -- the torso tag swings +-80 mm once per two steps and the real cycle is not the planned one, so a mean aliases it.
+PosHold: reference = start pose (re-based to the walking mean after the warmup) + the integrated command; error = sample - the
+reference at the steps the sample shows + the proportional part of the corrections still on their way; PI law with a soft dead
+band, anti-windup, rate limit and a minimum step (small corrections are added up); a lateral correction c (body mm per step)
+is a sidestep pair, dy = 2 c on the lead step; no fix = freeze then zero then stop a moving command; the lateral correction
+goes off if corrections do not bring the error back (wrong-signed response); keep-on-board steps toward the centre.
 """
 from __future__ import annotations
 
@@ -51,17 +34,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 VISION = os.path.join(HERE, "..", "..", "tools", "vision")
 
 K_DEFAULT = 0.3               # fraction of the error (beyond the dead band) fixed per step
-KI_DEFAULT = 0.04             # integral gain per step: learns the standing creep and the (weak, variable) sideways response
+KI_DEFAULT = 0.06             # integral gain per step: learns the standing creep and the (weak, variable) sideways response
 RATE_MM = 5.0                 # the correction may change by this much per step
-CLIP_LAT_MM, CLIP_FWD_MM = 12.0, 10.0
+CLIP_LAT_MM, CLIP_FWD_MM = 6.0, 10.0   # body mm per step (a sidestep pair moves the body by its lead dy: dy = 2 x this per step)
 MARGIN_MM = 250.0
 NO_FIX_STEPS = 4
-WINDOW_STEPS = 2.0            # one full left-right cycle
-DELAY_STEPS = 3
-MIN_SAMPLES = 4
+WINDOW_STEPS = 3.0            # one and a half left-right cycles
+DELAY_STEPS = 4
+MIN_SAMPLES = 8
+PERIOD_LO, PERIOD_HI, PERIOD_N = 0.85, 1.25, 41   # the real gait cycle is not the planned one (7.5 s measured against 6.9 planned)
 WARMUP_STEPS = 3              # the window must hold whole walking cycles: no correction for the first steps
-DEADBAND_MM = 10.0            # the sample's step-to-step jitter on the robot is ~10 mm (2026-11-16 run): leave less than this alone
-WORSE_W, WORSE_MM, WORSE_CORR_MM = 6, 60.0, 6.0   # the lateral error grew by 60 mm over 6 steps of corrections averaging >= 6 mm against it
+MIN_STEP_MM = 4.0              # a correction smaller than this is not a step: it is added up and applied as fewer, larger ones
+DEADBAND_MM = 5.0             # the fitted sample's step-to-step jitter is ~2.5 mm on the 2026-11-16 run (15 mm with the plain mean over 2 planned steps)
+WORSE_W, WORSE_MM, WORSE_CORR_MM = 6, 45.0, 4.0   # the lateral error grew by 45 mm over 6 steps of corrections averaging >= 4 mm (body) against it
 SAT_STEPS, SAT_ERR_MM = 6, 120.0                  # corrections at the clip for 6 steps and still 120 mm off: it does not hold
 
 
@@ -126,6 +111,7 @@ class Locator:
         self.tr = None
         self.pending, self.ref_corners, self.cal = [], {}, None
         self.why = "not calibrated"
+        self.n_calls, self.roi, self.full_every = 0, None, 8
 
     def __call__(self, gray):
         from tag_track import Tracker
@@ -133,7 +119,17 @@ class Locator:
         if self.tr is None:
             self.tr = Tracker(self.cfg, (gray.shape[1], gray.shape[0]))
         tr = self.tr
-        d = detect(gray, tr.det)
+        self.n_calls += 1
+        d = None
+        if self.cal is not None and self.roi is not None and self.n_calls % self.full_every:
+            # the board pose is fixed and the robot is where it was a moment ago: look for the tags in a window around it
+            # (about 6x fewer pixels, so about 6x more frames per second); every full_every-th frame is a whole one
+            x0, y0, x1, y1 = self.roi
+            sub = detect(np.ascontiguousarray(gray[y0:y1, x0:x1]), tr.det)
+            if any(str(i) in self.cfg["robot"]["tags"] for i in sub):
+                d = {i: np.asarray(c, float) + np.array([x0, y0]) for i, c in sub.items()}
+        if d is None:
+            d = detect(gray, tr.det)
         board = [i for i in d if str(i) in self.cfg["board"]["tags"]]
         if self.cal is None and board and any(self._load(d, board, pp) for pp in (*self.pose_read, self.pose_path) if pp):
             pass
@@ -159,7 +155,13 @@ class Locator:
         r = tr.process(gray, None, d)
         if r.get("x_mm") is None:
             self.why = "no robot torso tag visible"
+            self.roi = None
             return None
+        rc = np.vstack([np.asarray(d[i], float).reshape(4, 2) for i in d if str(i) in self.cfg["robot"]["tags"]])
+        h_, w_ = gray.shape[:2]
+        pad = 260
+        self.roi = (max(0, int(rc[:, 0].min()) - pad), max(0, int(rc[:, 1].min()) - pad),
+                    min(w_, int(rc[:, 0].max()) + pad), min(h_, int(rc[:, 1].max()) + pad))
         self.why = ""
         return dict(x=r["x_mm"], y=r["y_mm"], h=(None if r.get("ambiguous") else r["heading_deg"]))
 
@@ -210,7 +212,7 @@ class PosSampler:
     reads DIR/emeet_latest.jpg if it is newer than the last frame used (its mtime is the frame's time) and runs the
     locator; start() polls from a thread. Tests and the fake robot call add() directly."""
 
-    def __init__(self, locate=None, path=None, poll_s=0.2, keep_s=120.0, max_age_s=2.0, clock=time.time):
+    def __init__(self, locate=None, path=None, poll_s=0.1, keep_s=120.0, max_age_s=2.0, clock=time.time):
         self.locate, self.path, self.poll_s, self.keep_s, self.clock, self.max_age = locate, path, poll_s, keep_s, clock, max_age_s
         self.s = collections.deque()
         self.last_mtime = None
@@ -256,19 +258,23 @@ class PosSampler:
     def start(self):
         def run():
             while not self._stop.is_set():
+                t_in = time.time()
                 try:
                     self.poll_once()
                 except Exception as e:                       # a bad frame must not end the thread
                     self.why = f"locator error: {e}"
-                self._stop.wait(self.poll_s)
+                self._stop.wait(max(0.0, self.poll_s - (time.time() - t_in)))     # a slow frame is not followed by a pause
         self._th = threading.Thread(target=run, daemon=True)
         self._th.start()
 
     def stop(self):
         self._stop.set()
 
-    def fix(self, t_end, window_s, min_samples=MIN_SAMPLES):
-        """Trimmed-mean position over (t_end - window_s, t_end] -> dict(x, y, h, n) or None (no fix)."""
+    def fix(self, t_end, window_s, min_samples=MIN_SAMPLES, cycle_s=None):
+        """Position over (t_end - window_s, t_end] -> dict(x, y, h, n[, period]) or None (no fix).
+        cycle_s None: the trimmed mean (fine for a robot standing still). cycle_s = the planned gait cycle (two steps), s:
+        the fit described at the top of the module -- offset + slope + one sinusoid whose period is searched around cycle_s
+        -- evaluated at the window's centre (so the sample is that far back in time: `age_s` in the result)."""
         with self._lock:
             w = [s for s in self.s if t_end - window_s < s[0] <= t_end]
         if len(w) < min_samples:
@@ -277,23 +283,43 @@ class PosSampler:
         if ts[-1] - ts[0] < 0.5 * window_s or t_end - ts[-1] > 0.5 * window_s:
             return None
         hs = [s[3] for s in w if s[3] is not None]
-        return dict(x=trimmed_mean([s[1] for s in w]), y=trimmed_mean([s[2] for s in w]),
-                    h=(circ_median(hs) if len(hs) >= max(2, len(w) // 2) else None), n=len(w))
+        h = circ_median(hs) if len(hs) >= max(2, len(w) // 2) else None
+        if cycle_s is None:
+            return dict(x=trimmed_mean([s[1] for s in w]), y=trimmed_mean([s[2] for s in w]), h=h, n=len(w))
+        tc = t_end - window_s / 2.0
+        tw = np.array(ts) - tc
+        X = np.array([[s[1], s[2]] for s in w])
+        best = None
+        for Pk in cycle_s * np.linspace(PERIOD_LO, PERIOD_HI, PERIOD_N):
+            wk = 2.0 * math.pi / Pk
+            A = np.stack([np.ones_like(tw), tw, np.sin(wk * tw), np.cos(wk * tw)], 1)
+            c = np.linalg.lstsq(A, X, rcond=None)[0]
+            r = float(np.sum((A @ c - X) ** 2))
+            if best is None or r < best[0]:
+                best = (r, c, Pk)
+        c = best[1]
+        return dict(x=float(c[0, 0]), y=float(c[0, 1]), h=h, n=len(w), period=best[2], age_s=window_s / 2.0,
+                    resid=math.sqrt(best[0] / (2 * len(w))))
 
 
 # ---- the hold ------------------------------------------------------------------------------------------------------
 
 class PosHold:
-    def __init__(self, sampler, step_s, margins=None, k=K_DEFAULT, ki=KI_DEFAULT, rate_mm=RATE_MM,
+    def __init__(self, sampler, step_s, margins=None, k=K_DEFAULT, ki=KI_DEFAULT, rate_mm=RATE_MM, min_step_mm=MIN_STEP_MM,
                  clip=(CLIP_LAT_MM, CLIP_FWD_MM), margin_mm=MARGIN_MM,
-                 no_fix_steps=NO_FIX_STEPS, window_steps=WINDOW_STEPS, delay_steps=DELAY_STEPS, min_samples=MIN_SAMPLES,
+                 no_fix_steps=NO_FIX_STEPS, window_steps=WINDOW_STEPS, delay_steps=DELAY_STEPS, min_samples=MIN_SAMPLES, fit=True,
                  deadband_mm=DEADBAND_MM, warmup_steps=WARMUP_STEPS, centre=None, say=print, clock=time.time):
         """margins(x, y) -> {left, right, near, far} mm (None: no edge rule); centre = (x, y) of the board centre."""
         self.S, self.T, self.margins, self.k, self.ki, self.rate = sampler, float(step_s), margins, k, ki, rate_mm
+        self.min_step = min_step_mm
+        self.last_emit = 0.0
+        self.uprev = [0.0, 0.0]           # the control law's own output last step (before the min-step accumulation)
+        self.acc = [0.0, 0.0]             # corrections below min_step, held back and added up
         self.clip_lat, self.clip_fwd = clip
         self.margin_mm = margin_mm
         self.no_fix_steps, self.window_steps, self.delay = int(no_fix_steps), window_steps, int(delay_steps)
         self.min_samples, self.deadband, self.warmup = min_samples, deadband_mm, int(warmup_steps)
+        self.fit = fit
         self.centre, self.say, self.clock = centre, say, clock
         self.p0 = None                    # reference start (board mm)
         self.h_cmd = None                 # the commanded heading now (deg)
@@ -353,7 +379,7 @@ class PosHold:
         """Called once per step, as it is decided. Sets self.dec: fix / err / corr / override / notes and returns the
         reason to stop (a string) or None."""
         now = self.clock() if now is None else now
-        f = self.S.fix(now, self.window_s(), self.min_samples)
+        f = self.S.fix(now, self.window_s(), self.min_samples, cycle_s=2.0 * self.T if self.fit else None)
         d = dict(step=j + 1, fix=None, err=None, corr=(0.0, 0.0), override=None, notes=[], frozen=False)
         self.dec = d
         if f is not None and f["h"] is None and self.h_cmd is not None:
@@ -407,6 +433,7 @@ class PosHold:
         e_b = (f["x"] - ref_seen[0] + pc[0], f["y"] - ref_seen[1] + pc[1])
         e_fwd, e_lat = to_robot(h, *e_b)
         d["err"] = (e_lat, e_fwd)
+        d["err_sample"] = (e_meas[1], e_meas[0])                       # the sample alone; err adds the corrections on their way
         d["pos"] = (f["x"], f["y"], h)
         d["ref"] = ref_now
         d["pred"] = pred
@@ -435,10 +462,24 @@ class PosHold:
             self.integ[1] = 0.0
             d["notes"].append("LATERAL CORRECTION OFF: " + self.lat_off)
         # the correction may not jump: at most self.rate mm from the last one
-        cx = self.trim[0] + _clip(cx - self.trim[0], self.rate)
-        cy = self.trim[1] + _clip(cy - self.trim[1], self.rate)
+        cx = self.uprev[0] + _clip(cx - self.uprev[0], self.rate)
+        cy = self.uprev[1] + _clip(cy - self.uprev[1], self.rate)
+        self.uprev = [cx, cy]
+        # a sub-4 mm sideways (or fore-aft) correction is a different kind of step from a march in place for the ankle
+        # feed-forward, the heading drift and the foot's landing, and flips the reversal rule: add them up instead
+        out = []
+        for ax, v, lim in ((0, cx, self.clip_fwd), (1, cy, self.clip_lat)):
+            self.acc[ax] = _clip(self.acc[ax] + v, lim)
+            if abs(self.acc[ax]) >= self.min_step:
+                out.append(self.acc[ax])
+                self.acc[ax] = 0.0
+            else:
+                out.append(0.0)
+        cx, cy = out
+        if cy:
+            self.last_emit = cy
         at_clip = abs(cy) >= self.clip_lat - 1e-9
-        self.sat = self.sat + 1 if at_clip and (self.sat == 0 or cy * self.trim[1] > 0) else (1 if at_clip else 0)
+        self.sat = self.sat + 1 if at_clip and (self.sat == 0 or cy * self.last_emit > 0) else (1 if at_clip else 0)
         if not walking:
             cx = cy = 0.0
             d["notes"].append(f"settling ({len(self.hist)}/{self.warmup} steps): no correction yet")
@@ -470,7 +511,7 @@ class PosHold:
         dec = self.dec or {}
         pf = dec.get("pfrac", (0.0, 0.0))
         pc = to_board(hm, (applied[0] - cmd[0]) * pf[0], (applied[1] - cmd[1]) * pf[1])
-        self.hist.append(dict(cmd=to_board(hm, *cmd), app=to_board(hm, *applied), h=hm, pcorr=pc))
+        self.hist.append(dict(cmd=to_board(hm, *cmd), app=to_board(hm, *applied), h=hm, pcorr=pc, app_r=tuple(applied)))
         self.h_cmd += dpsi
         d = self.dec
         d["applied"] = tuple(applied)
@@ -485,6 +526,7 @@ class PosHold:
         if d.get("fix") is not None:
             r.update(x=round(d["pos"][0], 1), y=round(d["pos"][1], 1), h=round(d["pos"][2], 1), n=d["fix"]["n"],
                      ref=[round(v, 1) for v in d["ref"]], err_lat=round(d["err"][0], 2), err_fwd=round(d["err"][1], 2),
+                     sample_lat=round(d["err_sample"][0], 2), sample_fwd=round(d["err_sample"][1], 2),
                      corr_dy=round(d["corr"][1], 2), corr_dx=round(d["corr"][0], 2))
         if "applied_corr" in d:
             r.update(applied_dx=round(d["applied_corr"][0], 2), applied_dy=round(d["applied_corr"][1], 2))
@@ -502,7 +544,8 @@ class PosHold:
         el, ef = d["err"]
         cx, cy = d["applied_corr"] if "applied_corr" in d else d["corr"]
         s = (f"pos x {x:.0f} y {y:.0f} h {h:.0f} (n {d['fix']['n']}; ref {d['ref'][0]:.0f} {d['ref'][1]:.0f}, "
-             f"err lat {el:+.1f} fwd {ef:+.1f} mm) -> corr dy {cy:+.1f} dx {cx:+.1f} mm")
+             f"err lat {el:+.1f} fwd {ef:+.1f} mm = sample {d['err_sample'][0]:+.1f} / {d['err_sample'][1]:+.1f} + pending "
+             f"{el - d['err_sample'][0]:+.1f} / {ef - d['err_sample'][1]:+.1f}) -> corr dy {cy:+.1f} dx {cx:+.1f} mm")
         if d["override"]:
             o = d["override"]
             s += (f"; KEEP-ON-BOARD: {'/'.join(o['edges'])} margin {o['min_margin']:.0f} < {self.margin_mm:.0f} mm: "

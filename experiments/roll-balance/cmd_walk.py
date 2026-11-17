@@ -27,6 +27,7 @@ import time
 # ---- the envelope (README: the table) -------------------------------------------------------------------------
 FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 32.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
 SLEW = (20.0, 10.0, 3.0)         # max change of (dx mm, dy mm, dyaw deg) from one step to the next
+SIDE_PAIR = 2.0                  # a sidestep is a lead step (out by dy) and a close step (alongside): the body moves dy per TWO steps
 SIDE_PLAIN_MM = 3.0              # a step with more sideways travel than this is a sideways step (side timing)
 PAUSE_STEPS = 15                 # marching in place longer than this many steps in a row ends the walk
 # swing tilt from the farther of this step's |dx| and the last one's (the swing foot starts at -dx of the last step):
@@ -182,6 +183,7 @@ class CmdWalk:
         self.log = []                                    # one record per decision
         self.cur = ("vel", (0.0, 0.0, 0.0))              # the command in force
         self.last = (0.0, 0.0, 0.0)                      # the displacement of the last decided step: mm, mm, deg
+        self.last_cmd = (0.0, 0.0, 0.0)                  # the same without the position hold's correction
         self.fy = {"L": 0.0, "R": 0.0}                   # the feet's lateral positions (the reversal rule)
         self.finished, self.reason = False, None
         self.stop_req = None
@@ -239,6 +241,10 @@ class CmdWalk:
         if self.finished or self.sway is None:
             return float("inf")
         sw, j = self.sway, len(self.steps)
+        if self.side_plain:
+            # the step's own timing (pause, shift, settle) follows its displacement (a sideways step is plain throughout),
+            # so frames from the touchdown of the step before it on depend on it
+            return round(1e3 * (sw._steps[j]["a"] - sw.t_first))
         return round(1e3 * (sw.phases[j]["t0"] - sw.t_first))
 
     # -- the check of one step (a two-step window)
@@ -322,11 +328,20 @@ class CmdWalk:
         self.finished, self.reason = True, why
         if self.hold is not None:
             self.hold.set_step(j, 0.0, asked=0.0)
-        self.last = (0.0, 0.0, 0.0)
-        self._lateral(j, 0.0)
+        self.last = self.last_cmd = (0.0, 0.0, 0.0)
         if self.ph is not None:
-            self.ph.commit((0.0, 0.0), (0.0, 0.0), 0.0)
+            b = self._body_dy(j, 0.0)
+            self.ph.commit((0.0, b), (0.0, b), 0.0)
+        self._lateral(j, 0.0)
         return self._record(j, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), notes, "stopping")
+
+    def _body_dy(self, j, dy_mm):
+        """The body's sideways travel in step j (mm) for a step dy: the swing foot lands dy outside the stance foot (out)
+        or alongside it, the stance foot stays, the body is midway between the feet."""
+        sw = self.swing_of(j)
+        st = "R" if sw == "L" else "L"
+        out = (dy_mm > 0 and sw == "L") or (dy_mm < 0 and sw == "R")
+        return 0.5e3 * (self.fy[st] + (dy_mm / 1e3 if out else 0.0) - self.fy[sw])
 
     def _lateral(self, j, dy_mm):
         sw = self.swing_of(j)
@@ -344,7 +359,8 @@ class CmdWalk:
             notes.append("pause: marching in place")
         else:
             req = self.cur[1]
-        want = (req[0] * T, req[1] * T, req[2] * T)                       # mm, mm, deg per step
+        # the sideways command is the BODY's velocity: dy on the lead step is the body's travel per pair of steps
+        want = (req[0] * T, req[1] * T * SIDE_PAIR, req[2] * T)           # mm, mm, deg per step
         ov = self.ph.dec["override"] if self.ph is not None else None
         if ov is not None:                                                # keep-on-board: a step toward the board centre
             comp = [(ov["fwd"], lim["fwd"] if ov["fwd"] > 0 else lim["back"]), (ov["left"], lim["side"])]
@@ -361,11 +377,13 @@ class CmdWalk:
         if f < 1.0:
             notes.append(f"envelope: x{f:.2f}")
         # 2. the slew: from the last step's displacement toward d1, as far as the per-step change limits allow
+        # (anchored at the last COMMANDED step: the hold's corrections are not part of the command's own history)
+        anchor = self.last_cmd if self.ph is not None else self.last
         lam = 1.0
-        for a, b, s in zip(self.last, d1, lim["slew"]):
+        for a, b, s in zip(anchor, d1, lim["slew"]):
             if abs(b - a) > s + 1e-9:
                 lam = min(lam, s / abs(b - a))
-        d2 = tuple(a + lam * (b - a) for a, b in zip(self.last, d1))
+        d2 = tuple(a + lam * (b - a) for a, b in zip(anchor, d1))
         if lam < 1.0:
             notes.append(f"slew: {lam:.2f} of the way from the last step")
         # 2b. the position hold's correction on top of the (enveloped, slewed) command, bounded by the same envelope
@@ -373,6 +391,7 @@ class CmdWalk:
         dcmd = d2
         if self.ph is not None and ov is None:
             cx, cy = self.ph.dec["corr"]
+            cy *= SIDE_PAIR                                               # the hold's lateral output is body mm per step
             if abs(cx) > 1e-9 or abs(cy) > 1e-9:
                 d2 = (self._bounded(d2[0] + cx, 0, -lim["back"], lim["fwd"]),
                       self._bounded(d2[1] + cy, 1, -lim["side"], lim["side"]), d2[2])
@@ -392,7 +411,7 @@ class CmdWalk:
             ok, bad = self.check(c)
             notes.append("lateral reversal with the feet apart: closing step (the command waits one step)")
             if ok:
-                return self._accept(j, c, (0.0, 0.0, 0.0), req, notes, cmd_part=(0.0, 0.0))
+                return self._accept(j, c, (0.0, 0.0, 0.0), req, notes)      # the closing step is not a correction: cmd = applied
             d2 = dcmd = (0.0, 0.0, 0.0)
         # 4. the pre-check, on this very step
         d3 = self._admissible(d2, notes)
@@ -444,19 +463,21 @@ class CmdWalk:
     def _accept(self, j, c, d, req, notes, cmd_part=None):
         self.steps.append(c)
         self.last = (c["dx"] * 1e3, c["dy"] * 1e3, c["dpsi"])
+        self.last_cmd = (cmd_part[0], cmd_part[1], c["dpsi"]) if cmd_part is not None else self.last
+        if self.ph is not None:                                  # the hold's books: the body's travel from the feet's geometry
+            b_app = self._body_dy(j, c["dy"] * 1e3)
+            b_cmd = 0.5 * cmd_part[1] if cmd_part is not None else b_app          # the command's own travel: dy per pair, so dy / 2 a step
+            self.ph.commit((cmd_part[0] if cmd_part is not None else self.last[0], b_cmd), (self.last[0], b_app), c["dpsi"])
         self._lateral(j, c["dy"] * 1e3)
         if self.hold is not None:
             self.hold.set_step(j, c["dpsi"], drift=self._drift(c))
             self.hold.set_step(j + 1, c["dpsi"], drift=self._drift(c))         # the provisional step
-        if self.ph is not None:
-            self.ph.commit(cmd_part if cmd_part is not None else (self.last[0], self.last[1]), (self.last[0], self.last[1]),
-                           c["dpsi"])
         return self._record(j, self.last, req, notes, "marching" if all(abs(x) < 1e-9 for x in self.last) else "walking")
 
     def _record(self, j, applied_step, req, notes, state):
         T = self.T
         rec = dict(step=j + 1, state=state, requested=[round(x, 3) for x in req],
-                   applied=[round(x / T, 3) for x in applied_step], step_mm_deg=[round(x, 2) for x in applied_step],
+                   applied=[round(applied_step[0] / T, 3), round(applied_step[1] / (SIDE_PAIR * T), 3), round(applied_step[2] / T, 3)], step_mm_deg=[round(x, 2) for x in applied_step],
                    tilt=self.steps[-1].get("tilt", 0.0), notes=notes, time=time.time(), T=T)
         if self.ph is not None and self.ph.dec is not None:
             rec["pos"] = self.ph.record()

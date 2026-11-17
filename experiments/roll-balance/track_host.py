@@ -87,6 +87,8 @@ ANKLE_SIDE_OFF = (2.0, 2.0)         # = ROBOT_ANKLE_FF: no change
 FIRST_BOOST_CMD = 1.0               # --first-ankle-boost: deg added to the first stance step of each side
 DRIFT_SIDE_CMD = (0.94, YAW_DRIFT)  # --heading-drift-side L,R: the heading drift (deg/step, + = left) of a sideL / sideR step
 DRIFT_SIDE_OFF = (YAW_DRIFT, YAW_DRIFT)
+SIDE_BLEND_MM = 8.0                 # the heading drift is the sidestep's from this much lateral travel on, blended below (a 3 mm correction
+                                    # on a march in place must not switch it: 1.9 -> 0.94 deg/step for a left one)
 SIDE_REF_MM = 15.0                  # the lateral step at which the ankle ff reaches its --ankle-ff-side value
 
 
@@ -123,7 +125,7 @@ def step_drift(c, side=None):
     ax, ay = abs(c["dx"]), abs(c["dy"])
     if ax + ay < 1e-9:
         return YAW_DRIFT
-    f = ay / (ax + ay)
+    f = ay / (ax + ay) * min(1.0, ay * 1e3 / SIDE_BLEND_MM)      # a few mm of sideways travel is not a sidestep: no jump
     return (1.0 - f) * YAW_DRIFT + f * side[0 if c["dy"] > 0 else 1]
 
 
@@ -793,10 +795,10 @@ def speeds(pl):
             segs[-1][2].append(c)
         else:
             segs.append((c.get("seg"), c["name"], [c]))
-    rows = [(nm, len(cs), 1e3 * sum(c["dx"] for c in cs) / (T * len(cs)), 1e3 * sum(c["dy"] for c in cs) / (T * len(cs)),
+    rows = [(nm, len(cs), 1e3 * sum(c["dx"] for c in cs) / (T * len(cs)), 1e3 * sum(c["dy"] for c in cs) / (2.0 * T * len(cs)),
              sum(c["dpsi"] for c in cs) / (T * len(cs))) for _, nm, cs in segs]
     n = len(cm)
-    tot = (1e3 * sum(c["dx"] for c in cm) / (T * n), 1e3 * sum(c["dy"] for c in cm) / (T * n),
+    tot = (1e3 * sum(c["dx"] for c in cm) / (T * n), 1e3 * sum(c["dy"] for c in cm) / (2.0 * T * n),
            sum(c["dpsi"] for c in cm) / (T * n)) if n else (0.0, 0.0, 0.0)
     return tot, rows
 
@@ -1201,6 +1203,9 @@ def main_cmd(a, seeds, amp, aff, by_step):
                          ("pause", a.pause_steps)):
             if val is not None:
                 lim[key] = val
+        if lim.get("side", 0.0) > 30.0:
+            raise ValueError("--max-side-mm: the pre-check passes fixed sidesteps up to 30 mm at T 4 (pelvis speed at its limit "
+                             "at 30, 25 has margin); more is refused")
         if a.slew:
             lim["slew"] = tuple(float(x) for x in a.slew.split(","))
             if len(lim["slew"]) != 3:
@@ -1316,7 +1321,7 @@ def make_poshold(a):
     sam = PH.PosSampler(loc, path)
     margin = a.keep_on_board if a.keep_on_board is not None else PH.MARGIN_MM
     W, L = cfg["board"]["width_mm"], cfg["board"]["length_mm"]
-    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, ki=a.pos_ki, rate_mm=a.pos_rate_mm, clip=a.pos_clip,
+    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, ki=a.pos_ki, rate_mm=a.pos_rate_mm, min_step_mm=a.pos_min_step_mm, clip=a.pos_clip,
                     margin_mm=(margin if margin > 0 else None), no_fix_steps=a.pos_no_fix_steps,
                     window_steps=a.pos_window_steps, delay_steps=a.pos_delay_steps, deadband_mm=a.pos_deadband_mm,
                     centre=(W / 2.0, L / 2.0))
@@ -1412,12 +1417,13 @@ def main(argv=None):
                          "--pos-window-steps steps against the start pose plus the integrated command, a bounded correction "
                          "-k x error on the next step's dy / dx (README: Position hold). Default off: frames unchanged")
     ap.add_argument("--pos-k", type=float, default=0.3, help="--pos-hold: fraction of the error (beyond the dead band) corrected per step")
-    ap.add_argument("--pos-ki", type=float, default=0.04, help="--pos-hold: integral gain per step (learns the standing creep and the sideways response; clipped to the clip)")
+    ap.add_argument("--pos-ki", type=float, default=0.06, help="--pos-hold: integral gain per step (learns the standing creep and the sideways response; clipped to the clip)")
+    ap.add_argument("--pos-min-step-mm", type=float, default=4.0, help="--pos-hold: corrections smaller than this are added up and applied as fewer, larger steps")
     ap.add_argument("--pos-rate-mm", type=float, default=5.0, help="--pos-hold: the correction may change by this much per step")
-    ap.add_argument("--pos-clip", default="12,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
-    ap.add_argument("--pos-window-steps", type=float, default=2.0, help="--pos-hold: steps in the median window (2 = one left-right cycle)")
-    ap.add_argument("--pos-delay-steps", type=int, default=3, help="--pos-hold: decided steps not yet visible in a sample (compensated)")
-    ap.add_argument("--pos-deadband-mm", type=float, default=10.0, help="--pos-hold: error under this is left alone (soft: only the excess is corrected)")
+    ap.add_argument("--pos-clip", default="6,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
+    ap.add_argument("--pos-window-steps", type=float, default=3.0, help="--pos-hold: steps in the fit window (3 = one and a half left-right cycles)")
+    ap.add_argument("--pos-delay-steps", type=int, default=4, help="--pos-hold: decided steps not yet visible in a sample (compensated)")
+    ap.add_argument("--pos-deadband-mm", type=float, default=5.0, help="--pos-hold: error under this is left alone (soft: only the excess is corrected)")
     ap.add_argument("--pos-no-fix-steps", type=int, default=4,
                     help="--pos-hold: steps without a tracker fix the last trim is held for; more than this with a non-zero command = stop")
     ap.add_argument("--keep-on-board", type=float, default=None, metavar="MM",
@@ -1429,7 +1435,8 @@ def main(argv=None):
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
     ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
     ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32; 40 is proven only as a fixed walk, README envelope table)")
-    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap (default 15)")
+    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap, the lead step's dy = the body's travel per PAIR of steps (default 15, up to 30; "
+                                                                  "the delivered sideways velocity is at most cap / (2 T))")
     ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
     ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
                     help="--cmd: largest change of the step's dx mm, dy mm, dyaw deg from one step to the next (default 20,10,3)")

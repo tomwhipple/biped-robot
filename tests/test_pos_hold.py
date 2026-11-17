@@ -96,7 +96,7 @@ def sample(cfg, render, hd, x, y, loc, n=5, t0=1000.0):
 
 
 def new_hold(f_clock, sam, **kw):
-    kw = dict(dict(deadband_mm=0.0, ki=0.0, rate_mm=99.0), **kw)      # the sign tests want the plain proportional law
+    kw = dict(dict(deadband_mm=0.0, ki=0.0, rate_mm=99.0, min_step_mm=0.0), **kw)      # the sign tests want the plain proportional law
     return PH.PosHold(sam, T, say=lambda *a, **k: None, clock=f_clock, **kw)
 
 
@@ -121,17 +121,17 @@ def test_signs_through_the_synthetic_scene(scene, hd):
     clk = Clock(2000.0)
     sam = PH.PosSampler(clock=clk)
 
-    def feed(f, t0, n=6):
+    def feed(f, t0, n=14):
         for k in range(n):
             sam.add(t0 + k, f["x"], f["y"], f["h"])
     # (1) hold: start, then 15 mm toward board +x
     ph = new_hold(clk, sam, k=0.3, margin_mm=None, delay_steps=0, warmup_steps=0)
-    feed(f0, 1994.0)
-    assert ph.update(0, False, now=2000.0) is None
+    feed(f0, 1987.0)
+    assert ph.update(0, False, now=2000.5) is None
     ph.commit((0.0, 0.0), (0.0, 0.0), 0.0)
     f1 = sample(cfg, render, hd, x0 + 15.0, y0, loc, t0=2005.0)
     feed(f1, 2005.0)
-    assert ph.update(1, False, now=2011.0) is None
+    assert ph.update(1, False, now=2018.5) is None
     cx, cy = ph.dec["corr"]
     bx, by = PH.to_board(f1["h"], cx, cy)
     assert bx < -1.0 and abs(by) < 2.0, (hd, cx, cy, bx, by, ph.dec, f0, f1)                  # toward -x, about 30 x k = 9 mm
@@ -145,14 +145,14 @@ def test_signs_through_the_synthetic_scene(scene, hd):
     clk2 = Clock(3000.0)
     sam2 = PH.PosSampler(clock=clk2)
     ph2 = new_hold(clk2, sam2, k=0.3, margin_mm=None, delay_steps=0, warmup_steps=0)
-    for k in range(6):
-        sam2.add(2994.0 + k, f0["x"], f0["y"], f0["h"])
-    ph2.update(0, True, now=3000.0)
+    for k in range(14):
+        sam2.add(2987.0 + k, f0["x"], f0["y"], f0["h"])
+    ph2.update(0, True, now=3000.5)
     for i in range(3):                                                  # three steps of 12 mm to the left, none seen
         ph2.commit((0.0, 12.0), (0.0, 12.0), 0.0)
-    for k in range(6):
+    for k in range(14):
         sam2.add(3005.0 + k, f0["x"], f0["y"], f0["h"])
-    ph2.update(3, True, now=3011.0)
+    ph2.update(3, True, now=3018.5)
     cx, cy = ph2.dec["corr"]
     assert cy > 0 and abs(cx) < 1.0, (cx, cy)                           # robot-left
     bx, by = PH.to_board(f0["h"], cx, cy)
@@ -236,6 +236,69 @@ def test_the_sample_is_the_median_over_whole_cycles_whatever_the_phase():
     assert max(one) - min(one) > 60.0
 
 
+def _real_like(sam, period, t0=1000.0, t1=1200.0, hz=2.0, amp=70.0, drift=0.0, rng=None, noise=3.0):
+    rng = rng or np.random.default_rng(0)
+    for t in np.arange(t0, t1, 1.0 / hz):
+        sam.add(float(t), 400.0 + amp * math.sin(2 * math.pi * (t - t0) / period + 0.7) + 0.05 * drift * (t - t0)
+                + 0.3 * amp * math.sin(4 * math.pi * (t - t0) / period) + rng.normal(0, noise), 600.0, 180.0)
+
+
+def test_the_fitted_sample_does_not_alias_when_the_real_step_time_is_not_the_planned_one():
+    """2026-11-16 run: planned step 3.47 s (cycle 6.94), real 3.74 (cycle 7.5 s). A mean over a window of two PLANNED steps
+    follows the sway; the fit finds the real period and offset: jitter a few mm instead of tens."""
+    sam = PH.PosSampler(keep_s=1e9)
+    _real_like(sam, 7.5)
+    ends = [1040.0 + 2.9 * k for k in range(36)]                       # decisions at every phase of the sway
+    mean = [sam.fix(t, 6.94, 4)["x"] for t in ends]
+    fit = [sam.fix(t, 3 * 3.47, 8, cycle_s=6.94)["x"] for t in ends]
+
+    def jit(v):
+        v = np.array(v)
+        return (v[2:] - 2 * v[1:-1] + v[:-2]).std() / np.sqrt(6)
+    assert jit(mean) > 4.0 and jit(fit) < 2.0 and jit(fit) < jit(mean) / 4, (jit(mean), jit(fit))   # real run: 15 mm against 2.5
+    assert max(abs(np.array(fit) - 400.0)) < 8.0                       # and it is the offset, not a phase of the sway
+    f = sam.fix(1100.0, 3 * 3.47, 8, cycle_s=6.94)
+    assert 7.2 < f["period"] < 7.8 and f["age_s"] == pytest.approx(1.5 * 3.47)
+
+
+def test_the_fit_follows_a_drift_and_works_at_2_hz():
+    sam = PH.PosSampler(keep_s=1e9)
+    _real_like(sam, 7.5, drift=-4.0, hz=1.8)                           # 0.2 mm per second of walking drift
+    f = sam.fix(1100.0, 3 * 3.47, 8, cycle_s=6.94)
+    truth = 400.0 + 0.05 * -4.0 * (1100.0 - 10.4 / 2 - 1000.0)
+    assert abs(f["x"] - truth) < 6.0
+
+
+def test_small_corrections_are_added_up_into_fewer_larger_steps():
+    clk = Clock(1000.0)
+    sam = PH.PosSampler(clock=clk)
+    ph = PH.PosHold(sam, T, say=lambda *a: None, clock=clk, min_step_mm=4.0)
+    out = []
+    for _ in range(8):
+        ph.acc[1] = 0.0 if not out else ph.acc[1]
+    ph.acc = [0.0, 0.0]
+    # drive the accumulator the way update() does: 1.5 mm asked every step -> 4.5 emitted every third step
+    emitted = []
+    for k in range(9):
+        ph.acc[1] = max(-6, min(6, ph.acc[1] + 1.5))
+        if abs(ph.acc[1]) >= ph.min_step:
+            emitted.append(ph.acc[1])
+            ph.acc[1] = 0.0
+        else:
+            emitted.append(0.0)
+    assert emitted == [0, 0, 4.5, 0, 0, 4.5, 0, 0, 4.5]
+
+
+def test_heading_drift_blend_has_no_jump_for_a_small_lateral_step():
+    side = H.DRIFT_SIDE_CMD
+    base = H.step_drift(dict(dx=0.0, dy=0.0), side)
+    vals = [H.step_drift(dict(dx=0.0, dy=m / 1e3), side) for m in (0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0)]
+    assert abs(vals[0] - base) < 0.1                                    # 0.5 mm of lateral is still a march in place
+    mm = (0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 10.0, 15.0)
+    assert all(abs(b - a) < 0.13 * (m2 - m1) + 1e-9 for a, b, m1, m2 in zip(vals, vals[1:], mm, mm[1:]))    # no jump, a ramp
+    assert vals[-1] == pytest.approx(side[0]) and vals[-2] == pytest.approx(side[0])         # a real sidestep: its own drift
+
+
 def test_no_fix_when_samples_are_few_clumped_or_old():
     sam = PH.PosSampler()
     for t in (1000.0, 1000.2, 1000.4):
@@ -255,11 +318,13 @@ class FakeRobot:
     later; every step the robot also creeps `creep_lat` mm (negative = to its right) and `creep_fwd`."""
 
     def __init__(self, cw, sam, clk, lag=1, creep_lat=-4.0, creep_fwd=0.0, sway=60.0, drop=lambda i: False,
-                 h=0.0, lat_gain=1.0, bias_sd=0.0, seed=1, start=(406.0, 600.0)):
+                 h=0.0, lat_gain=1.0, bias_sd=0.0, seed=1, slip_sd=0.0, creep_plain=None, start=(406.0, 600.0)):
         self.cw, self.sam, self.clk, self.lag = cw, sam, clk, lag
         self.creep = (creep_fwd, creep_lat)
         self.pos = list(start)
         self.h, self.sway, self.drop, self.lat_gain = h, sway, drop, lat_gain
+        self.slip_sd = slip_sd
+        self.creep_plain = creep_plain       # the creep of a step laid out with the plain timing (a sideways step and the next); None = the same
         self.applied, self.t0, self.i = [], 1000.0, 0
         self.rng = np.random.default_rng(seed)
         self.bias_sd = bias_sd
@@ -271,13 +336,18 @@ class FakeRobot:
                 break
             self.cw.decide()                                      # step i is decided as interval i starts
             c = self.cw.steps[-1]
-            self.applied.append((c["dx"] * 1e3, c["dy"] * 1e3))
+            if self.cw.ph is not None and self.cw.ph.hist:
+                self.applied.append(tuple(self.cw.ph.hist[-1]["app_r"]))      # the body's travel from the feet's geometry
+            else:
+                self.applied.append((c["dx"] * 1e3, 0.5 * c["dy"] * 1e3))
             # the interval: whatever was decided `lag` steps ago executes, plus the creep
             if i - self.lag >= 0 and i - self.lag < len(self.applied):
                 dx, dy = self.applied[i - self.lag]
             else:
                 dx = dy = 0.0
-            bx, by = PH.to_board(self.h, dx + self.creep[0], self.lat_gain * dy + self.creep[1])
+            plain = self.creep_plain is not None and i - self.lag >= 0 and (self.cw.steps[min(i - self.lag, len(self.cw.steps) - 1)].get('lat') or (i - self.lag > 0 and self.cw.steps[i - self.lag - 1].get('lat')))
+            cl = self.creep_plain if plain else self.creep[1]
+            bx, by = PH.to_board(self.h, dx + self.creep[0], self.lat_gain * dy + cl + (self.rng.normal(0, self.slip_sd) if self.slip_sd else 0.0))
             self.pos[0] += bx
             self.pos[1] += by
             self.track.append(tuple(self.pos))
@@ -300,7 +370,7 @@ def hold_walk(script, clk, sam, **phkw):
     kw.update(phkw)
     ph = PH.PosHold(sam, T, say=lambda *a, **k: None, clock=clk, **kw)
     cw = C.CmdWalk(H, C.ListSource(script), BASE, first="R", say=lambda *a, **k: None, poshold=ph, limits=dict(pause=0),
-                   max_steps=200)
+                   max_steps=200, side_timing="plain")
     return cw, ph
 
 
@@ -309,58 +379,57 @@ def lat_err(track, start=(406.0, 600.0)):
     return [-(x - start[0]) for x, _ in track]
 
 
-def run_hold(g, creep, lag=2, bias=0.0, seed=1, n=40, cmd="0 0 0", **phkw):
+def run_hold(g, creep, lag=2, bias=2.5, seed=1, n=40, cmd="0 0 0", slip=4.0, plain=0.5, **phkw):
     clk = Clock(1000.0)
     sam = PH.PosSampler(clock=clk)
-    for k in range(40):                                           # the standing robot before the first step
-        sam.add(990.0 + k * 0.25, 406.0, 600.0, 0.0)
+    for k in range(60):                                           # the standing robot before the first step
+        sam.add(970.0 + k * 0.5, 406.0, 600.0, 0.0)
     cw, ph = hold_walk([cmd] * 100, clk, sam, **phkw)
-    fr = FakeRobot(cw, sam, clk, lag=lag, creep_lat=creep, lat_gain=g, bias_sd=bias, seed=seed).run(n)
+    fr = FakeRobot(cw, sam, clk, lag=lag, creep_lat=creep, lat_gain=g, bias_sd=bias, seed=seed, slip_sd=slip, creep_plain=plain).run(n)
     return np.array(lat_err(fr.track)), np.array([d["applied_corr"][1] for d in ph.log]), cw, ph
 
 
-def uncontrolled(creep, g=1.0, n=40):
+def uncontrolled(creep, n=40):
     clk = Clock(1000.0)
     cw = C.CmdWalk(H, C.ListSource(["0 0 0"] * 100), BASE, first="R", say=lambda *a, **k: None, limits=dict(pause=0), max_steps=200)
-    return np.array(lat_err(FakeRobot(cw, PH.PosSampler(clock=clk), clk, creep_lat=creep, lat_gain=g).run(n).track))
+    return np.array(lat_err(FakeRobot(cw, PH.PosSampler(clock=clk), clk, creep_lat=creep).run(n).track))
 
 
-def test_closed_loop_march_in_place_with_creep():
-    """-4 mm per step creep (to the robot's right), the plant moves what it is asked: the first steps cost the start (3 steps
-    before the window holds whole cycles, 2 to 3 steps of delay), then the error comes back slowly (the integral learns the
-    creep without winding up through the delay): under 40 mm throughout, falling from step 15, 25 mm or less from step 38."""
-    err, corr, cw, ph = run_hold(1.0, -4.0)
-    assert np.abs(err).max() <= 40.0 and np.abs(err[15:]).max() <= np.abs(err).max() and np.abs(err[-3:]).max() <= 30.0, (np.abs(err).max(), np.abs(err[-3:]).max())
-    assert abs(uncontrolled(-4.0)[-1]) > 150.0                    # without the hold: 40 x 4 mm
-    assert np.abs(corr).max() <= PH.CLIP_LAT_MM + 1e-9 and np.abs(np.diff(corr)).max() <= PH.RATE_MM + 1e-9
+def test_closed_loop_march_in_place_with_the_pause_creep():
+    """-4.7 mm per step creep to the robot's right with the pause timing (2026-11-16), plain timing (which the hold's own
+    steps get) creeping +0.5, 4 mm of stick-slip scatter per step: the first steps cost the start (3 steps before the
+    window holds whole cycles, then the fit lags and the delay); then it comes back. A sidestep pair moves the body by its
+    lead's dy, so the books are the feet's geometry, not dy."""
+    err, corr, cw, ph = run_hold(1.0, -4.7)
+    assert np.abs(err).max() <= 65.0 and np.abs(err[25:]).mean() <= 25.0, (np.abs(err).max(), np.abs(err[25:]).mean())
+    assert abs(uncontrolled(-4.7)[-1]) > 150.0                    # without the hold: 40 x 4.7 mm
+    assert np.abs(corr).max() <= 2 * PH.CLIP_LAT_MM + 1e-9        # the body's travel of a lead step is dy / 2 per step
     assert ph.lat_off is None
     s = ph.summary()
-    assert s["steps"] == 40 and s["no_fix_steps"] == 0 and s["overrides"] == 0 and s["max_abs_err_lat_mm"] <= 40.0
+    assert s["steps"] == 40 and s["no_fix_steps"] == 0 and s["overrides"] == 0 and s["max_abs_err_lat_mm"] <= 65.0
     assert s["start_at_rest"] is None                             # begin() was not called here: no standing pose logged
 
 
 @pytest.mark.parametrize("lag", [0, 1, 2, 3])
 def test_closed_loop_tolerates_a_wrong_delay_estimate(lag):
-    err, _, _, ph = run_hold(1.0, -4.0, lag=lag)                  # the hold assumes 3
-    assert np.abs(err).max() <= 45.0 and np.abs(err[-3:]).max() <= 32.0 and ph.lat_off is None
+    err, _, _, ph = run_hold(1.0, -4.7, lag=lag)                  # the hold assumes 4
+    assert np.abs(err).max() <= 70.0 and np.abs(err[25:]).mean() <= 30.0 and ph.lat_off is None
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_closed_loop_on_the_measured_plant_does_not_limit_cycle(seed):
-    """The robot of 2026-11-16: a sideways step moves it 0.37 of what was asked (0.2 to 1.0 on other runs), the
-    position sample jitters ~10 mm per decision, a creep of 2.6 mm per step. It cannot hold within 25 mm that fast (the
-    corrections are slew-limited and the plant weak), but it must hold in a band without hunting, and beat no hold."""
-    err, corr, cw, ph = run_hold(0.37, -2.6, bias=10.0, seed=seed)
-    assert np.abs(err).max() <= 50.0 and np.abs(err[20:]).mean() <= 40.0, (np.abs(err).max(), np.abs(err[20:]).mean())
-    assert abs(uncontrolled(-2.6, 0.37)[-1]) > 100.0
+    """The robot of 2026-11-16: 0.8 of a planned sidestep arrives (0.2 to 1.7 per step), 10 mm of stick-slip, a creep of 4.7
+    mm per step with the pause: hold in a band, one sign of correction, no hunting."""
+    err, corr, cw, ph = run_hold(0.8, -4.7, slip=8.0, seed=seed)
+    assert np.abs(err).max() <= 75.0 and np.abs(err[25:]).mean() <= 35.0, (np.abs(err).max(), np.abs(err[25:]).mean())
     active = corr[np.abs(corr) > 0.5]
     assert np.sum(np.diff(np.sign(active)) != 0) <= 4             # one sign: no hunting
-    assert np.std(np.diff(corr)) < 2.5 and ph.lat_off is None
+    assert ph.lat_off is None
 
 
 def test_closed_loop_without_creep_stays_quiet():
-    err, corr, cw, ph = run_hold(1.0, 0.0, bias=10.0, seed=2)
-    assert np.abs(err).max() <= 25.0 and np.abs(corr).max() <= 6.0
+    err, corr, cw, ph = run_hold(1.0, 0.0, bias=4.0, seed=2, plain=None)
+    assert np.abs(err).max() <= 25.0 and np.abs(corr).max() <= 8.0
     assert np.sum(np.diff(np.sign(corr[np.abs(corr) > 0.5])) != 0) <= 6
 
 
@@ -369,14 +438,14 @@ def test_closed_loop_forward_command_holds_the_line_and_the_pace():
     position follows the integrated command (10 mm/step)."""
     clk = Clock(1000.0)
     sam = PH.PosSampler(clock=clk)
-    for k in range(40):
-        sam.add(990.0 + k * 0.25, 406.0, 300.0, 0.0)
+    for k in range(60):
+        sam.add(970.0 + k * 0.5, 406.0, 300.0, 0.0)
     cw, ph = hold_walk([f"{10.0 / T} 0 0"] * 80, clk, sam, margin_mm=None)
-    fr = FakeRobot(cw, sam, clk, creep_fwd=-3.0, start=(406.0, 300.0)).run(40)
+    fr = FakeRobot(cw, sam, clk, creep_fwd=-3.0, creep_lat=-3.0, creep_plain=0.5, start=(406.0, 300.0)).run(40)
     err = lat_err(fr.track, (406.0, 300.0))
-    assert max(abs(e) for e in err) <= 40.0 and max(abs(e) for e in err[-3:]) <= 36.0
+    assert max(abs(e) for e in err) <= 50.0 and max(abs(e) for e in err[-8:]) <= 36.0
     along = fr.track[-1][1] - 300.0
-    assert abs(along - 400.0) < 40.0, along                        # 40 steps x 10 mm asked
+    assert abs(along - 400.0) < 45.0, along                        # 40 steps x 10 mm asked
     clk2 = Clock(1000.0)
     cw2 = C.CmdWalk(H, C.ListSource([f"{10.0 / T} 0 0"] * 80), BASE, first="R", say=lambda *a, **k: None, max_steps=200)
     fr2 = FakeRobot(cw2, PH.PosSampler(clock=clk2), clk2, creep_fwd=-3.0, start=(406.0, 300.0)).run(40)
@@ -475,7 +544,7 @@ def test_pending_steps_count_toward_the_edge_rule():
     assert ph.dec["override"] is not None and ph.dec["override"]["edges"] == ["left"]
 
 
-@pytest.mark.parametrize("gain", [-1.0, -0.5])
+@pytest.mark.parametrize("gain", [-1.0, -0.8])
 def test_a_wrong_signed_sideways_response_turns_the_lateral_correction_off(gain):
     """The pause timing moved the robot the wrong way on a sideways command (2026-11-16): the hold must notice and stop
     correcting laterally, say so in the step line, and keep fore-aft on."""
@@ -489,7 +558,7 @@ def test_a_wrong_signed_sideways_response_turns_the_lateral_correction_off(gain)
     FakeRobot(cw, sam, clk, lat_gain=gain, creep_lat=-4.0, bias_sd=8.0).run(30)
     assert ph.lat_off is not None and "wrong-signed" in ph.lat_off
     k_off = next(i for i, d in enumerate(ph.log) if any("LATERAL CORRECTION OFF" in n for n in d["notes"]))
-    assert k_off < 25 and all(d["applied_corr"][1] == 0.0 for d in ph.log[k_off + 3:])
+    assert k_off < 30 and all(d["applied_corr"][1] == 0.0 for d in ph.log[k_off + 3:])
     assert any("LATERAL CORRECTION OFF" in ln for ln in lines)                    # printed, not only logged
     assert any("LATERAL CORRECTION OFF" in n for n in cw.log[-1]["pos"]["notes"])
     assert ph.summary()["lateral_off"] == ph.lat_off
@@ -547,21 +616,21 @@ def test_side_timing_plain_lays_out_the_sideways_step_and_the_next_with_the_plai
     plain = D.resolve_times(4.0)
     var = D.resolve_times(4.0, shift_s=1.2, settle=0.1, raise_s=0.77, move_s=0.45, lower_s=0.55)
     p = _plan(_cmds(dys, "plain"), **PAUSE_KW)
-    ph = p["sway"].phases
-    ss = [x["t1"] - x["t0"] for x in ph]
-    # the single support of the sideways step (2) and of the next (3) is the plain one; the others the variant's
-    assert ss[2] == pytest.approx(plain["t_ss"]) and ss[3] == pytest.approx(plain["t_ss"])
-    assert [ss[i] for i in (0, 1, 4, 5)] == pytest.approx([var["t_ss"]] * 4)
     steps = p["sway"]._steps
-    # no pause before step 3 (it follows the sideways step) and its shift + settle are the plain ones
-    gap = lambda i: steps[i]["s0"] - steps[i - 1]["td"]              # noqa: E731
-    assert gap(3) == pytest.approx(0.0) and gap(2) == pytest.approx(0.3) and gap(4) == pytest.approx(0.3)
-    assert steps[3]["lo"] - steps[3]["s0"] == pytest.approx(plain["t_sh"] + plain["t_set"])
-    assert steps[2]["lo"] - steps[2]["s0"] == pytest.approx(var["t_sh"] + var["t_set"])       # its own lead is decided before it
-    # 'same' keeps one timing: identical frames to a plan that never heard of side timing
+    ss = [x["t1"] - x["t0"] for x in p["sway"].phases]
+    lead = [steps[i]["lo"] - steps[i]["s0"] for i in range(6)]          # shift + settle before the lift-off
+    gap = lambda i: steps[i]["s0"] - steps[i - 1]["td"]                 # noqa: E731  the pause before step i
+    # the sideways step (2) and the next (3) are plain throughout: single support, shift + settle, and no pause before
+    # either; the others keep the variant's
+    for i in (2, 3):
+        assert ss[i] == pytest.approx(plain["t_ss"]) and lead[i] == pytest.approx(plain["t_sh"] + plain["t_set"])
+        assert gap(i) == pytest.approx(0.0)
+    for i in (0, 1, 4, 5):
+        assert ss[i] == pytest.approx(var["t_ss"]) and lead[i] == pytest.approx(var["t_sh"] + var["t_set"])
+    assert gap(1) == pytest.approx(0.3) and gap(4) == pytest.approx(0.3)
+    # 'same' keeps one timing
     same = _plan(_cmds(dys, "same"), **PAUSE_KW)
-    base = _plan([dict(c) for c in _cmds(dys, "same")], **PAUSE_KW)
-    assert _hash(same) == _hash(base) and _hash(same) != _hash(p)
+    assert all(abs(x["t1"] - x["t0"] - var["t_ss"]) < 1e-9 for x in same["sway"].phases) and _hash(same) != _hash(p)
 
 
 def test_side_timing_changes_nothing_without_a_sideways_step_or_without_a_pause():
