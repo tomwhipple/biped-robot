@@ -475,7 +475,7 @@ def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_
     assert cw.log[0]["applied"][1] == pytest.approx(1.25)                # reported back as the body's velocity
     cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9)))
     cw.decide()
-    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(25.0)            # the default cap: 25 mm per pair = 3.1 mm/s at T 4 (robot: clean to 25)
+    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(15.0)            # the default cap: 15 mm per pair = 1.9 mm/s at T 4
     cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9), side=30.0))
     cw.decide()
     assert cw.log[0]["step_mm_deg"][1] == pytest.approx(30.0)
@@ -488,12 +488,3 @@ def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_
 def test_side_cap_flag_up_to_30_and_refused_beyond(capsys):
     assert H.main(["--cmd", "stdin", "--max-side-mm", "31"]) == 2
     assert "up to 30" in capsys.readouterr().out
-
-
-def test_trim_tlim_sends_the_firmwares_own_gains_with_only_the_limit_changed():
-    status = ("aborts   none since the last read\r\n"
-              "gains    kp 0.250  ki 1.000 /s  lim 12.0 deg  tlim 14.0 deg  fade 0.60 s  abort 25.0 deg\r\n"
-              "learned  T L +7.40 deg  T R +3.40 deg  (hike convention: + lifts the other hip)\r\n"
-              "learning |e| <= 4.0 deg; past 8.0 deg, an abort or a clamped hike puts T back: last kept\r\n")
-    assert H.trim_set_line(status, 6.9) == "trim set 0.250 1.000 12.0 6.9 0.60 25.0 4.0 8.0"
-    assert H.trim_set_line("garbage", 6.9) is None

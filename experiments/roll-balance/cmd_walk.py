@@ -25,7 +25,7 @@ import select
 import time
 
 # ---- the envelope (README: the table) -------------------------------------------------------------------------
-FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 32.0, 25.0, 5.0       # per step; the proven strides (README: the envelope table)
+FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 32.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
 SLEW = (20.0, 10.0, 3.0)         # max change of (dx mm, dy mm, dyaw deg) from one step to the next
 SIDE_PAIR = 2.0                  # a sidestep is a lead step (out by dy) and a close step (alongside): the body moves dy per TWO steps
 SIDE_PLAIN_MM = 3.0              # a step with more sideways travel than this is a sideways step (side timing)
