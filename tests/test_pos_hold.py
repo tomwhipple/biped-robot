@@ -347,7 +347,7 @@ class FakeRobot:
                 dx = dy = 0.0
             plain = self.creep_plain is not None and i - self.lag >= 0 and (self.cw.steps[min(i - self.lag, len(self.cw.steps) - 1)].get('lat') or (i - self.lag > 0 and self.cw.steps[i - self.lag - 1].get('lat')))
             cl = self.creep_plain if plain else self.creep[1]
-            bx, by = PH.to_board(self.h, dx + self.creep[0], self.lat_gain * dy + cl + (self.rng.normal(0, self.slip_sd) if self.slip_sd else 0.0))
+            bx, by = PH.to_board(self.h, dx + self.creep[0], (self.lat_gain(i) if callable(self.lat_gain) else self.lat_gain) * dy + cl + (self.rng.normal(0, self.slip_sd) if self.slip_sd else 0.0))
             self.pos[0] += bx
             self.pos[1] += by
             self.track.append(tuple(self.pos))
@@ -425,6 +425,23 @@ def test_closed_loop_on_the_measured_plant_does_not_limit_cycle(seed):
     active = corr[np.abs(corr) > 0.5]
     assert np.sum(np.diff(np.sign(active)) != 0) <= 4             # one sign: no hunting
     assert ph.lat_off is None
+
+
+def test_the_integral_does_not_wind_up_while_the_plant_does_not_answer():
+    """2026-11-16 19:48: 14 corrections of +6 moved the robot nowhere, then it moved 45 mm in 6 steps and the correction kept
+    its sign for 6 decisions after the error had crossed zero (the integral sat at its clip)."""
+    clk = Clock(1000.0)
+    sam = PH.PosSampler(clock=clk)
+    for k in range(60):
+        sam.add(970.0 + k * 0.5, 406.0, 600.0, 0.0)
+    cw, ph = hold_walk(["0 0 0"] * 100, clk, sam)
+    fr = FakeRobot(cw, sam, clk, lag=2, creep_lat=-4.7, creep_plain=-4.7, bias_sd=2.5, slip_sd=3.0,
+                   lat_gain=lambda i: 0.0 if i < 14 else 2.5).run(40)          # then it answers at once, and more
+    err = np.array(lat_err(fr.track))
+    corr = np.array([d["applied_corr"][1] for d in ph.log])
+    cross = next(i for i in range(16, 40) if err[i] > 0)               # the true error crosses zero
+    assert corr[cross + 3:cross + 6].max() <= 1.0, (cross, corr)          # it stops pushing within 3 decisions of the crossing
+    assert np.abs(err[cross:cross + 6]).max() < 40.0
 
 
 def test_closed_loop_without_creep_stays_quiet():

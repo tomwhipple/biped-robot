@@ -1338,8 +1338,9 @@ steps too). Each step prints the sample's own error and the pending part: `err l
 line the first robot test of this found confusing: the position and the error were the same sample; the error includes the
 three corrections still on their way, which were then large and the other way).
 Control law per axis: `u = -k x (e beyond a dead band) + I`; `k` = `--pos-k` 0.3, dead band `--pos-deadband-mm` 5 (soft: only the
-excess is corrected), `I` integrates the excess with `--pos-ki` 0.06 per step, is clipped to the correction clip and is not wound
-up while the output sits at the clip. `u` is clipped to `--pos-clip` (lateral 6, fore-aft 10 mm per step) and may change by at
+excess is corrected), `I` integrates the excess with `--pos-ki` 0.06 per step, is clipped to the correction clip, is not wound
+up while the output sits at the clip, decays by 15 % a step inside the dead band and by 50 % a step while the error has the sign the
+integral pushes (it has crossed zero: the integral is pushing the wrong way). `u` is clipped to `--pos-clip` (lateral 6, fore-aft 10 mm per step) and may change by at
 most `--pos-rate-mm` (5) per step. The corrections are in BODY mm per step. **A lateral correction `c` is planned as a sidestep
 pair**: `dy = 2 c` is added to the next undecided step AFTER the envelope and the slew (it is itself kept inside both:
 `--max-side-mm`, `--slew`), the close step of the pair carries the same value (ignored by the geometry), and the hold's books are
@@ -1441,7 +1442,19 @@ Robot runs of the hold (2026-11-16, all 40-step marches in place, `--cmd "0 0 0"
    mm on that noise (the sample was the trimmed mean over 2 planned steps, 15 mm jitter; see the table above for the fit).
 4. A back / forward command run with the hold (18 steps, no tips): fore-aft closed to 9 mm, lateral ended 42 mm to the right, the
    same as without the hold: the lateral correction was 0 for most of it (settling, then noise inside the dead band).
-Not yet run with the fit, the pair mapping and the whole-step side timing.
+5. 19:48, fit + pair mapping + whole-step side timing (2761449), pause timing: start (281, 314, 171) -> end (377, 307, 177), max |err|
+   lat 89 mm. 14 decisions of +4 to +6 moved the robot nowhere (x 270 -> 260), then +45 mm in 6 steps while the correction stayed +5 for 6
+   decisions past zero error: the integral had wound to its clip while the plant did not answer, and unwound only through errors
+   beyond the dead band (fixed above: decay inside the band and after a sign change; test with a plant that answers only from step
+   14). The 2 jumps 319 -> 347 -> 383 coincide with tips (steps 29, 31, `in 12.3 out 0.1`) that shoved the robot. 3 inward tips (steps 15,
+   29, 31, all stance L, `out 0.0`): checked on the host side from the jsonl: the final plan of the logged step sequence has the same
+   lift-off pelvis ratio (1.30) and the same timing for those steps as for their untipped neighbours; the frames of a step up
+   to `CmdWalk.limit_ms` are identical in the plan made before and after its decision (all 36 decisions of the run replayed); the
+   `track add` lines of the lead-in of steps 15, 29 and 31 reached the robot 3.1 to 3.3 s ahead of the play head, as for every
+   other step (smallest margin of the run 2.85 s after the start); the longest gap between uploads was 1.0 s. So the host
+   delivered the shift in time and in full; the missing outward shift is on the robot's side (the firmware's track player / the
+   foot's slip under a sidestep), as with the same signature on main.
+Not yet run with the integral leak.
 
 What the tests cover (`tests/test_pos_hold.py`, `tests/test_cmd_walk.py`): the signs through the tracker on synthetic scenes; the
 fit against the mean when the real step time is not the planned one; the closed loop on a fake robot with the numbers above
