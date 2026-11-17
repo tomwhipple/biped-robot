@@ -1296,20 +1296,30 @@ the sampling. A sample needs 4 frames spread over at least half the window with 
 else there is NO FIX. The start pose is the same sample, taken with the robot standing before anything is sent; no
 start fix, no run (`REFUSED`).
 
-**The loop, per step.** Reference = start pose + the integrated command (what each step was asked for before any
-correction: with a zero command the start position is held; with a velocity the line and pace of the command). Error
-`e` (robot frame) = the sample's position - the reference at the end of the steps the sample already shows, plus the
-corrections and the estimated slip of the `--pos-delay-steps` (default 3) decided steps it does not show yet (a Smith
-predictor: the window's half cycle, the rolling upload and the camera delay the effect of a correction by 2 to 3 steps,
-and without the compensation a gain of 0.3 rings). The slip is a running estimate (factor 0.25 per step, so about the last 4
-steps) of what the robot does beyond what the steps ask, taken from the sample-to-sample motion; without it the
-compensation counts a standing creep as a pending correction and the hold settles 3 x creep further out.
-Correction = `-k x e`, `k` = `--pos-k` (0.3), lateral clipped to `--pos-clip` 6 mm and fore-aft 10 mm per step, none under
-`--pos-deadband-mm` (4; the tracker's relative accuracy is about 10 mm), none for the first 3 steps (the first window
-holds the standing robot, not whole cycles). It is added to the next undecided step AFTER the envelope and the slew (it
-is itself kept inside both: `--max-*-mm`, `--slew`), then the lateral-reversal rule and the pre-check judge the sum. The
-pause counter (`--pause-steps`) counts the command, not the correction: a march in place with a hold still ends at
-`--pause-steps` unless it is raised (0 = none).
+**The loop, per step.** Reference = the pose the walk settles at + the integrated command (what each step was asked for
+before any correction: with a zero command the position is held; with a velocity, the line and pace of the command). The
+standing pose is not that reference: the mean over a walking cycle sits tens of mm from where the robot stood (2026-11-16
+run: +28 mm), so after the first 3 steps (`warmup`: the window must hold whole cycles, no correction before) the reference is
+re-based to the walking mean (printed: `reference re-based`), and the standing pose stays the start in the log. Error `e`
+(robot frame) = the sample's position - the reference at the end of the steps the sample already shows, plus the
+proportional part of the corrections of the `--pos-delay-steps` (default 3) decided steps it does not show yet (a Smith
+predictor: the window's half cycle, the upload and the camera delay a correction's effect by about 3 steps; the
+integral part is left out on purpose, it is the learned creep canceller and the creep acts on those steps too).
+Control law per axis: `u = -k x (e beyond a dead band) + I`; `k` = `--pos-k` 0.3, dead band `--pos-deadband-mm` 10 (soft:
+only the excess is corrected; the sample jitters ~10 mm from one decision to the next), `I` integrates the excess with
+`--pos-ki` 0.04 per step, is clipped to the correction clip and is not wound up while the output sits at the clip. `u` is
+clipped to `--pos-clip` (lateral 12, fore-aft 10 mm per step) and may change by at most `--pos-rate-mm` (5) per step. It is added
+to the next undecided step AFTER the envelope and the slew (it is itself kept inside both: `--max-*-mm`, `--slew`: the
+cmd mode's 10 mm per step slew on dy is the binding limit for the lateral part), then the lateral-reversal rule and the
+pre-check judge the sum. The pause counter (`--pause-steps`) counts the command, not the correction: a march in place
+with a hold still ends at `--pause-steps` unless it is raised (0 = none).
+
+The gains are not tuned to a known plant: on the robot a sideways step moved it 0.37 of what was commanded (0.2 to 1.0 on
+other runs) with a creep of up to 4 to 6 mm per step. The integral makes the loop gain-agnostic (it finds the correction that
+cancels the creep whatever the response), and `ki` is small so that it does not wind up through the delay: on a fake robot
+with a 0.2 to 1.0 response, 2.6 to 6 mm creep, 10 mm of sample jitter and 1 to 3 steps of delay the lateral error stays
+within 40 to 60 mm over 40 steps and comes back toward the band afterwards (tests/test_pos_hold.py). It does not hold
+within 25 mm from the start: the first steps cost the start (3 steps of warmup plus the delay times the creep).
 
 Every step prints (and the summary row's `cmd_walk.steps[].pos` keeps) the position, the reference and the error:
 
@@ -1317,18 +1327,26 @@ Every step prints (and the summary row's `cmd_walk.steps[].pos` keeps) the posit
   cmd step 7: asked +0.00 +0.00 +0.00 ... -> marching: dx +0.0 mm, dy +4.1 mm, dyaw +0.00 deg per step ...
     pos x 392 y 601 h 179 (n 14; ref 406 600, err lat -13.2 fwd +0.4 mm) -> corr dy +4.0 dx +0.0 mm
 ```
+(a step line also carries what the hold did: `settling`, `reference re-based`, `NO FIX`, `LATERAL CORRECTION OFF`)
 
-`pos_hold` in the summary has the step count, steps without a fix, keep-on-board overrides and the error ranges.
+`pos_hold` in the summary has the pose at rest before and after the walk (x, y, heading), the largest |lat| and |fwd| error, the
+step count, steps without a fix, keep-on-board overrides, why the lateral correction went off (if it did), and the error ranges.
 
-**A sideways response that is wrong or weak.** On the robot (2026-11-16 18:40) with `--td-pause` and the fast phase times a
-sideways command moved the robot the OTHER way (+y at 2.5 mm/s for 10 steps: 52 mm to its right), with plain timing it
-went where commanded, and a march in place crept right about 4 mm per step with the pause, slightly left without. So the
-hold does not assume that a `dy` produces a `dy`: a correction works if it settles the lateral error at creep / k, which
-is at most clip / k (20 mm); if the lateral correction has sat at its clip, one sign, for 4 steps while the error is clip / k
-+ 10 mm (30 mm) or more, it does not work, and the lateral correction goes OFF for the rest of the walk with
-`LATERAL CORRECTION OFF: ...` in every step's line (fore-aft stays on). (A per-step regression of the measured sideways
-motion on the commanded one was tried: the decision-to-sample delay is not known well enough to line them up, and it
-called a working loop weak.) The cure is the side timing below, which is the default with `--td-pause`.
+**A sideways response that is wrong-signed.** On the robot (2026-11-16 18:40) with `--td-pause` and the fast phase times a
+sideways command moved the robot the OTHER way (+y at 2.5 mm/s for 10 steps: 52 mm to its right); with plain timing it went
+where commanded, with a gain of about 0.37 (8 left sidesteps, 115 mm commanded, 42 mm moved). A march in place crept right
+about 4 mm per step with the pause, slightly left without. So the hold does not assume that a `dy` produces a `dy`. A WEAK
+response is handled by the integral (above). A WRONG-SIGNED one shows as an error that keeps growing against corrections:
+if, over the last 6 steps, the lateral corrections averaged 6 mm or more against the error and the error (3-sample means,
+then and now) grew by 60 mm or more, or the corrections sit at the clip and the error is 120 mm off, the lateral correction
+goes OFF for the rest of the walk, and every step's `pos` line says `LATERAL CORRECTION OFF: ...` (fore-aft stays on).
+Tuned so that none of a 0.2, 0.37 and 1.0 response with 4 mm creep trips it (fake robot, 3 seeds). The response is not
+estimated as a number: a per-step regression of the measured sideways motion on the commanded one called a working loop weak
+(the decision-to-sample delay is not known well enough to line them up, and the sample jitters as much as a correction moves
+the robot), and an earlier rule "corrections at the clip for 4 steps with the error over 30 mm" fired during the start-up
+transient of the first robot run (2026-11-16 18:50: the correction acted for 3 steps, was then turned off and the robot crept
+63 mm past the reference with no correction). The cure for a wrong-signed response is the side timing below, the default with
+`--td-pause`.
 
 **`--side-timing plain|same`** (default `plain` when `--td-pause` is given, else `same`; `--cmd`). A step with more than 3 mm
 of sideways travel is a sideways step. With `plain`, its single support (raise, move, lower) and the whole of the NEXT
@@ -1353,7 +1371,7 @@ printed. The reference follows that step, so once clear of the edge the hold hol
 margins are only as good as the board layout: +-100 mm until the layout is measured and f pinned (tools/vision README), so
 the default 250 leaves room for that.
 
-**Flags.** `--pos-hold on|off`, `--pos-k`, `--pos-clip LAT,FWD`, `--pos-window-steps`, `--pos-delay-steps`,
+**Flags.** `--pos-hold on|off`, `--pos-k`, `--pos-ki`, `--pos-rate-mm`, `--pos-clip LAT,FWD`, `--pos-window-steps`, `--pos-delay-steps`,
 `--pos-deadband-mm`, `--pos-no-fix-steps`, `--keep-on-board MM`, `--side-timing`, `--pos-camd-dir DIR` (camd's directory; default
 `$CAMD_DIR` or `~/cam-segments`), `--pos-config FILE` (the tools/vision config).
 
@@ -1376,12 +1394,19 @@ python experiments/roll-balance/track_host.py --ahead 1 $PAUSE --cmd file:/tmp/w
     --max-steps 40 --live --note "pos-hold fwd 40"
 ```
 
-Not run on the robot. What the tests cover (`tests/test_pos_hold.py`): the signs through the tracker on synthetic scenes;
-the closed loop on a fake robot with a creep of -4 mm per step (right) and +-60 mm sway, noise and a 0 to 2 step delay: the
-lateral error stays within 25 mm over 40 steps (it settles at 13 to 19 mm; without the hold it reaches 160 mm), with a forward
-command and a fore-aft slip the along-track position follows the command; dropouts freeze, then zero, the trim and stop a
-moving command; the edge rule steps toward the centre at headings 0 and 180 and counts the steps already decided. The fake
-robot has the model's creep and delay by construction: the real gait's response to a 4 to 6 mm sidestep is unmeasured.
+First robot run (2026-11-16 18:50, plain timing, 40-step march in place, the first version of the hold): 41 steps clean, start
+(283, 585) and end (264, 566) at rest by where.py; the lateral error went +3, +30, +61 (the start-up transient and the offset
+of the walking mean from the standing pose), the correction acted for 3 steps and was turned off by the old detector, and the
+robot crept 2.6 mm per step to its right to 63 mm past the reference. The version above re-bases the reference, ignores the
+transient, widens the lateral clip to 12 mm, adds the integral and the 10 mm dead band, and replaces the detector. Not yet run.
+
+What the tests cover (`tests/test_pos_hold.py`): the signs through the tracker on synthetic scenes; the closed loop on a fake
+robot (creep, a 0.2 to 1.0 sideways response, 0 to 3 steps of delay, 10 mm of sample jitter, sway): bounded, no hunting
+(at most 4 sign changes of the correction in 40 steps), not tripped by a weak response; a reversed response turns the lateral
+correction off, with the message printed; with a forward command and a fore-aft slip the along-track position follows the
+command; dropouts freeze, then zero, the trim and stop a moving command; the edge rule steps toward the centre at headings 0 and
+180 and counts the steps already decided. The fake robot has the model's creep, response and delay by construction: the real
+gait's response to a 6 to 12 mm sidestep is only measured through the totals above.
 
 ## The lift gate (2026-11-13): wait for a level, quiet body before a foot leaves the floor
 
