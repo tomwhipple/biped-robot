@@ -796,6 +796,17 @@ def make_parser():
                         "on that side ('hip=2:3,L_hip=8:10,ankle=4:6'). Exclusive with --roll-series-k (hw 2026-11-11 clamp; "
                         "experiments/policy/weight-transfer-gate). config.json records it; the "
                         "referee and grade.py inherit it")
+    p.add_argument("--footoff-sag", default=None,
+                   help="the FOOT-OFF SAG, deg per STANCE side: 'L=6.4,R=2.9' (the 2026-11-16 "
+                        "fit), or 'L=LO:HI,R=LO:HI' drawn per episode per side. Preloaded springs "
+                        "in series with the hip / ankle roll servos beyond the encoder (the encoders "
+                        "read the shaft); each preload scales with its foot's share of the floor "
+                        "load, so when a foot unloads the body sags toward it about the stance leg "
+                        "(walker_env.footoff_sag_*, both envs; experiments/roll-balance/footoff_sag.py "
+                        "validates it against the robot's walks). Exclusive with --roll-play-deg / "
+                        "--roll-series-k; use it without --sole-in-mm (the inset sole stands in for "
+                        "the same inner edge, and the two together tip clean replayed steps). "
+                        "config.json records it; the referee, grade.py and the distil inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,
                    help="torso mass/inertia DR +-fraction (replaces the generic "
                         "--mass-range draw for the torso body)")
@@ -1138,6 +1149,11 @@ def build_env_kw(args):
         rp = parse_roll_play_deg(args.roll_play_deg)
         if rp is not None:
             env_kw["roll_play_deg"] = {k: list(v) for k, v in rp.items()}
+    if getattr(args, "footoff_sag", None):
+        from walker_env import parse_footoff_sag   # jax-free, shared with both envs
+        fs = parse_footoff_sag(args.footoff_sag)
+        if fs is not None:
+            env_kw["footoff_sag"] = {k: list(v) for k, v in fs.items()}
     if args.torso_mass_range is not None:
         env_kw["torso_mass_range"] = args.torso_mass_range
     if args.torso_com_y is not None:

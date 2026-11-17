@@ -412,6 +412,95 @@ def roll_play_substep(cur, q, shaft, h, lim, xp=np):
     return eng, sg, xp.where(eng, q + sg * h, s_c)
 
 
+# The foot-off sag (footoff_sag; #297, hw_sessions/2026-11-16/DESIGN_moving_lift_gait.md section 1):
+# when a foot leaves the floor the robot's body rolls toward it, beyond the stance encoders, by a
+# per-side angle (fit: 6.4 deg on a LEFT stance, 2.9 on a RIGHT one), released over ~0.66 s, and
+# rings there (2.0 Hz, damping ratio 0.05 in the fit). The plant's form: a spring FOOTOFF_SAG_K in
+# series with each hip-roll and ankle-roll servo, beyond its encoder (quasi-static, as
+# roll_series_k: the link sees the PD x k/(kp+k), the encoder reads link + deflection), whose rest
+# angle carries a preload toward the other foot that scales with this foot's share of the floor
+# load (its sole pads' penetration). In double support the two legs' preloads push against each
+# other through the floor; as the other foot unloads, the stance leg's preload is released and the
+# body sags onto the springs as fast as the swing foot rises. FOOTOFF_SAG_ANKLE_SHARE of the preload
+# sits at the ankle (it rolls the whole body over the foot), the rest at the hip (it tilts the
+# torso over the stance leg). It is a model of the beyond-encoder roll yield, as roll_play_deg and
+# roll_series_k are, and replaces them. Calibrated on grade.py's plant against the 2026-11-16 track
+# walks (experiments/roll-balance/footoff_sag.py; the README's "The foot-off sag"): with K and GAIN
+# below, a value of X deg gives a replayed static sag of about X deg.
+FOOTOFF_SAG_ANKLE_SHARE = 0.3  # the preload's share at the ankle roll (design note: ~30 % whole body)
+FOOTOFF_SAG_K = 60.0          # N m/rad, the series springs (hip and ankle rolls, both sides)
+FOOTOFF_SAG_GAIN = 0.5        # the springs' rest offset (rad) per rad of the requested static sag
+FOOTOFF_SAG_MAX_DEG = 20.0
+
+
+def parse_footoff_sag(spec):
+    """footoff_sag -> {"L": (lo, hi), "R": (lo, hi)} deg (a side left out has no preload; the
+    springs are on all four rolls whenever the term is on), or None when off. Accepts None / "" /
+    {}, "L=6.4,R=2.9" (a value per STANCE side: the sag toward the lifted foot while that foot
+    stands alone), "L=3.2:9.6,R=1.5:4.4" (a uniform per-episode draw per side), one value for
+    both sides, or the dict config.json stores ({"L": [lo, hi], ...})."""
+    if spec is None or spec == "" or spec == {} or spec is False:
+        return None
+    if isinstance(spec, (int, float, np.integer, np.floating)):
+        spec = {"L": float(spec), "R": float(spec)}
+    elif isinstance(spec, str):
+        d = {}
+        for tok in spec.split(","):
+            tok = tok.strip()
+            if not tok:
+                continue
+            k, eq, v = tok.partition("=")
+            if not eq:
+                v, k = k, None
+            try:
+                vals = [float(x) for x in v.split(":")]
+            except ValueError:
+                raise ValueError(f"footoff_sag {spec!r}: want L=LO:HI,R=LO:HI (deg)")
+            for s_ in ("LR" if k is None else (k.strip(),)):
+                d[s_] = vals
+        spec = d
+    out = {}
+    for k, v in dict(spec).items():
+        if k not in ("L", "R"):
+            raise ValueError(f"footoff_sag: key {k!r} not L / R")
+        v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
+        if len(v) == 1:
+            v = v * 2
+        if len(v) != 2 or not (0.0 <= v[0] <= v[1] <= FOOTOFF_SAG_MAX_DEG):
+            raise ValueError(f"footoff_sag {k}={v}: need 0 <= lo <= hi <= {FOOTOFF_SAG_MAX_DEG:g} (deg)")
+        out[k] = (v[0], v[1])
+    return out or None
+
+
+def footoff_sag_layout(servo_names, ankle_share=None):
+    """(mask, side, sign, part) per servo: mask 1.0 on the hip and ankle rolls (the springs),
+    side 0 = L / 1 = R, sign = the link-angle direction that rolls the body toward the OTHER
+    foot (every roll axis is +x and each roll joint's child is the body below it: with that foot
+    on the floor, +q rolls everything above the joint to the robot's left), part = the share of
+    the preload the joint carries (FOOTOFF_SAG_ANKLE_SHARE at the ankle, the rest at the hip)."""
+    a = FOOTOFF_SAG_ANKLE_SHARE if ankle_share is None else float(ankle_share)
+    mask = np.array([1.0 if n.endswith(("hip_roll", "ankle_roll")) else 0.0 for n in servo_names])
+    side = np.array([1 if n.startswith("R_") else 0 for n in servo_names], dtype=np.int64)
+    sign = np.where(side == 0, -1.0, 1.0)
+    part = np.array([a if n.endswith("ankle_roll") else (1.0 - a) if n.endswith("hip_roll") else 0.0
+                     for n in servo_names])
+    return mask, side, sign, part
+
+
+def footoff_load_share(pad_z, pad_r, xp=np):
+    """(2,) each foot's share of the floor load, from its sole pads' penetration: pad_z (2, P)
+    pad-centre heights above the local ground, pad_r their radius. 0 for a foot off the floor;
+    both 0 with both feet up. numpy or jax (the operators only)."""
+    pen = xp.sum(xp.maximum(pad_r - pad_z, 0.0), axis=1)
+    return pen / xp.maximum(xp.sum(pen), 1e-9)
+
+
+def footoff_sag_shift(theta, share, side, sign, part):
+    """per servo: the spring's rest angle (rad, link side) under this tick's load shares:
+    sign x part x theta[side] x share[side] on the roll joints. theta (2,) rad per side."""
+    return part * sign * theta[side] * share[side]
+
+
 def parse_trim_T(spec):
     """'Llo:Lhi,Rlo:Rhi' (deg) -> ((Llo, Lhi), (Rlo, Rhi)); a single value is a fixed trim."""
     out = []
@@ -901,6 +990,10 @@ class BimoWalkerEnv(gym.Env):
         # encoder reads, the link floats inside +/-play/2 of it (roll_play_substep). "LO:HI"
         # (all four rolls), "hip=LO:HI,ankle=LO:HI" or {"hip": (lo, hi), ...}: drawn per
         # episode per joint (parse_roll_play_deg). None = off (bit-exact). Mirror of env_mjx.
+        footoff_sag=None,              # the FOOT-OFF SAG (deg per stance side, "L=6.4,R=2.9" or
+        # "L=LO:HI,R=LO:HI" drawn per episode): a preloaded spring in series with the roll servos
+        # beyond the encoder, released as the other foot unloads (FOOTOFF_SAG_*, parse_footoff_sag).
+        # Exclusive with roll_play_deg / roll_series_k. None = off (bit-exact). Mirror of env_mjx.
         torso_mass_range: float | None = None,   # per-episode torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of the generic mass_range for the torso body
         torso_com_y: float = 0.0,      # per-episode lateral torso CoM offset
@@ -1259,6 +1352,11 @@ class BimoWalkerEnv(gym.Env):
         if self.roll_play_deg is not None and self.roll_series_k is not None:
             raise ValueError("roll_play_deg and roll_series_k are two models of the same "
                              "beyond-encoder roll yield: set one")
+        self.footoff_sag = parse_footoff_sag(footoff_sag)
+        if self.footoff_sag is not None and (self.roll_play_deg is not None
+                                             or self.roll_series_k is not None):
+            raise ValueError("footoff_sag is a model of the beyond-encoder roll yield, as "
+                             "roll_play_deg and roll_series_k are: set one")
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.zero_offset_deg = float(zero_offset_deg)
@@ -1524,6 +1622,11 @@ class BimoWalkerEnv(gym.Env):
         # roll play (roll_play_deg): per-servo half-width h (rad, 0 off the rolls) drawn at
         # reset, and the shaft - link offset the encoders add (within +/-h). None when off.
         self._rp_h = self._rp_off = self._rp_dq = None
+        # foot-off sag (footoff_sag): the roll springs' layout, the per-side preload theta
+        # (rad, drawn at reset), the shaft - link deflection the encoders add. None when off.
+        self._fs_mask, self._fs_side, self._fs_sign, self._fs_part = footoff_sag_layout(self._servo_names)
+        self._fs_theta = self._fs_defl = self._fs_dq = self._fs_shift = None
+        self._fs_k, self._fs_gain = FOOTOFF_SAG_K, FOOTOFF_SAG_GAIN
         self.held_joints = ({} if not held_joints else
                             {str(k): float(v) for k, v in held_joints.items()})
         _bad = [k for k in self.held_joints if k not in self._sname2i]
@@ -1648,6 +1751,8 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
         if self.roll_play_deg is not None and self._servo is None:
             raise ValueError("roll_play_deg needs actuator_model='sts3215' (the PD torque model)")
+        if self.footoff_sag is not None and self._servo is None:
+            raise ValueError("footoff_sag needs actuator_model='sts3215' (the PD torque model)")
         self._torque_on = True         # see set_torque_enabled()
         self.off_frictionloss = off_frictionloss
         self._held_frictionloss = None  # saved joint frictionloss while released
@@ -1916,7 +2021,19 @@ class BimoWalkerEnv(gym.Env):
             q = q + self._p(self._ser_defl)      # the encoder reads the shaft
         if self._rp_h is not None:
             q = q + self._p(self._rp_off)        # the encoder reads the shaft
+        if self._fs_theta is not None:
+            q = q + self._p(self._fs_defl)       # the encoder reads the shaft
         return q
+
+    def _footoff_share(self):
+        """(2,) each foot's share of the floor load (footoff_load_share), from the pads now (the
+        kinematics recomputed: after mj_step the positions lag qpos by one substep)."""
+        mujoco.mj_kinematics(self.model, self.data)
+        xyz = self.data.geom_xpos
+        z = np.array([[xyz[g][2] - self._ground_z(float(xyz[g][0]), float(xyz[g][1])) for g in gs]
+                      for gs in self._pad_gids])
+        r = float(self.model.geom_size[self._pad_gids[0][0]][0])
+        return footoff_load_share(z, r)
 
     def _dq_qhist_seed(self):
         """The history at rest at the current pose (env_mjx _dq_qhist0)."""
@@ -2112,6 +2229,9 @@ class BimoWalkerEnv(gym.Env):
         if self._rp_h is not None:
             # roll play: the encoder reads the servo shaft, link + (shaft - link)
             q_j = q_j + self._p(self._rp_off)
+        if self._fs_theta is not None:
+            # foot-off sag: the encoder reads the servo shaft, link + the spring's deflection
+            q_j = q_j + self._p(self._fs_defl)
         if self._zero_off is not None:
             # calibration-error DR (env_mjx parity)
             q_j = q_j - self._p(self._zero_off)
@@ -2120,6 +2240,8 @@ class BimoWalkerEnv(gym.Env):
             dq_j = dq_j + self._p(self._ser_dq)
         if self._rp_h is not None:
             dq_j = dq_j + self._p(self._rp_dq)
+        if self._fs_theta is not None:
+            dq_j = dq_j + self._p(self._fs_dq)
         if self.dq_obs_window is not None and self._dq_qhist is not None:
             # reg-58 view: the mean joint velocity over the last _dq_win ticks
             # (the history is advanced in reset()/step(); this stays a pure read)
@@ -2710,6 +2832,22 @@ class BimoWalkerEnv(gym.Env):
             self._rp_h = h
             self._rp_off = np.zeros(self._n_servo)
             self._rp_dq = np.zeros(self._n_servo)
+        self._fs_theta = None
+        if self.footoff_sag is not None:
+            # foot-off sag: the preload per stance side, uniform in its range (a fixed value
+            # draws nothing), after every other draw so they keep their streams; the springs
+            # start relaxed
+            if self._servo is None:
+                raise ValueError("footoff_sag needs actuator_model='sts3215'")
+            th = np.zeros(2)
+            for i, s_ in enumerate("LR"):
+                if s_ in self.footoff_sag:
+                    lo, hi = self.footoff_sag[s_]
+                    th[i] = lo if lo == hi else float(self.np_random.uniform(lo, hi))
+            self._fs_theta = self._fs_gain * np.deg2rad(th)
+            self._fs_defl = np.zeros(self._n_servo)
+            self._fs_dq = np.zeros(self._n_servo)
+            self._fs_shift = np.zeros(self._n_servo)
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -2839,6 +2977,10 @@ class BimoWalkerEnv(gym.Env):
         x_before = float(self.data.qpos[0])
         if self._rp_h is not None:
             rp_off0 = self._rp_off.copy()
+        if self._fs_theta is not None:
+            # foot-off sag: this tick's spring rest angles from the feet's load shares now
+            self._fs_shift = footoff_sag_shift(self._fs_theta, self._footoff_share(),
+                                               self._fs_side, self._fs_sign, self._fs_part)
         for i in range(self.n_substeps):
             cur = self._last_target if i < lat_k else target
             if self._servo is not None:
@@ -2855,6 +2997,12 @@ class BimoWalkerEnv(gym.Env):
                     x_ser = 1.0 / (1.0 + kp * self._ser_c)
                     kp = kp * x_ser
                     kd = kd * x_ser
+                if self._fs_theta is not None:
+                    # foot-off sag springs (quasi-static, as the roll series spring) on the
+                    # hip and ankle rolls: gains x k/(kp+k)
+                    x_fs = np.where(self._fs_mask > 0, self._fs_k / (kp + self._fs_k), 1.0)
+                    kp = kp * x_fs
+                    kd = kd * x_fs
                 stall = stall * self._stall_prof
                 w0 = w0 * self._w0_prof
                 q = self.data.qpos[self._sqpos]
@@ -2883,6 +3031,9 @@ class BimoWalkerEnv(gym.Env):
                         cur, q, q + self._rp_off, self._rp_h,
                         w0 * self.sim_dt if self._torque_on else 0.0)
                     err = np.where(rp, cur - shaft, err)
+                if self._fs_theta is not None:
+                    # the spring's rest angle is shifted by the preload (link side)
+                    err = err + self._fs_shift
                 if self._lash_rad > 0.0 or self._roll_lash_rad > 0.0:
                     # gear backlash: +/-lash/2 deadzone on the position error
                     # (inside the lash the output gear floats -- no P torque);
@@ -2923,6 +3074,11 @@ class BimoWalkerEnv(gym.Env):
             defl = self._servo_tau * self._ser_c
             self._ser_dq = (defl - self._ser_defl) / self.control_dt
             self._ser_defl = defl
+        if self._fs_theta is not None:
+            # foot-off sag: the shaft sits at link - rest shift + tau/k (what the encoders read)
+            defl = self._fs_mask * (self._servo_tau / self._fs_k - self._fs_shift)
+            self._fs_dq = (defl - self._fs_defl) / self.control_dt
+            self._fs_defl = defl
         x_after = float(self.data.qpos[0])
 
         d = self.data

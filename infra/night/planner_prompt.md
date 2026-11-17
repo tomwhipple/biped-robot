@@ -83,6 +83,15 @@ hold the work. These rules change how you plan:
   sole"). Report all three, side by side; the inset-sole number is the one closest to the robot's lateral margin. The
   `_ppsi` arms (11-12 night) trained on it (`--sole-in-mm L=8,R=-12`); compare them with their `_pp` twins. Judge a march by
   whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
+  **From 2026-11-17 also a fourth grading, on the foot-off sag:** `GRADE_PLANT_TERMS=sag_L=6.4,sag_R=2.9` (no play, no
+  sole_in terms: the sag replaces the play and stands in for the inset sole's edge). It is the robot's release at lift-off
+  (2026-11-16 walks: the body rolls 6.4 deg toward the lifted foot on a left stance, 2.9 on a right one) as preloaded
+  springs beyond the roll encoders. Replaying six 2026-11-16 walks it keeps the three clean walks up and tips the quick-raise
+  walks, which the play plant does not (experiments/roll-balance/README.md, "The foot-off sag"; it tips left stances only,
+  and rings less than the robot). Report it beside the other three.
+  The training flag is `--footoff-sag L=6.4,R=2.9`, or for domain randomisation 0.5-1.5x per side per episode
+  `--footoff-sag L=3.2:9.6,R=1.45:4.35`. It replaces `--roll-play-deg` (exclusive) and is used without `--sole-in-mm`.
+  Whether an arm uses it is your decision.
 - **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
   4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2
   + mimic-march 0.05, swing-height 0.035) and P4 prec71_mir_pp (P1 + mirror loss).

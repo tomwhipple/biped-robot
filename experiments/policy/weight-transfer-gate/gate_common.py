@@ -48,6 +48,13 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
   sole_in=<mm>, sole_in_L=, sole_in_R=<mm>   the sole's INNER support edge moved to this distance
               inboard of the ankle-roll axis (the pads inboard of it are moved onto it; the plant's is
               ~22 mm): the robot's inward edge sits near the axis (2026-11-12 dwell runs, #297)
+  sag=<deg>, sag_L=, sag_R=<deg>   the foot-off sag (walker_env footoff_sag): preloaded springs in
+              series with the hip and ankle rolls beyond their encoders, the preload released as the
+              other foot unloads; the value is the static sag toward the lifted foot with that
+              side's foot alone on the floor (the 2026-11-16 fit: L 6.4, R 2.9). Fixed values, live
+              at once and at every reset after; replaces the run's (and the terms') roll play and
+              series spring. Study terms: sag_k=<N m/rad>, sag_gain=, sag_ankle=<0..1> override
+              walker_env's FOOTOFF_SAG_K / _GAIN / _ANKLE_SHARE (the CPU env only)
   fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
               hip-roll joints, replacing the plant's: it acts on the link, so under the play it
               holds the link inside its band
@@ -261,6 +268,26 @@ def apply_terms(env, terms):
                      W.roll_play_bounds(env.roll_play_deg, env._servo_names)[0])
         env._rp_off = np.zeros(env._n_servo)
         env._rp_dq = np.zeros(env._n_servo)
+    if any(k in terms for k in ("sag", "sag_L", "sag_R")):
+        import walker_env as W
+        # the foot-off sag replaces the run's (or the terms') roll play and series spring: the
+        # env takes one model of the beyond-encoder roll yield
+        env.roll_series_k = None
+        env._ser_c = env._ser_defl = env._ser_dq = None
+        env.roll_play_deg = None
+        env._rp_h = env._rp_off = env._rp_dq = None
+        spec = {s_: float(terms.get("sag_" + s_, terms.get("sag", 0.0))) for s_ in "LR"}
+        env.footoff_sag = W.parse_footoff_sag(spec)
+        # live now too (a Replay places the robot without a reset): fixed values, springs relaxed;
+        # sag_k / sag_gain / sag_ankle override the calibrated constants (study terms)
+        env._fs_k = float(terms.get("sag_k", W.FOOTOFF_SAG_K))
+        env._fs_gain = float(terms.get("sag_gain", W.FOOTOFF_SAG_GAIN))
+        env._fs_theta = env._fs_gain * np.radians([spec["L"], spec["R"]])
+        env._fs_mask, env._fs_side, env._fs_sign, env._fs_part = W.footoff_sag_layout(
+            env._servo_names, terms.get("sag_ankle"))
+        env._fs_defl = np.zeros(env._n_servo)
+        env._fs_dq = np.zeros(env._n_servo)
+        env._fs_shift = np.zeros(env._n_servo)
     if any(k in terms for k in ("floor_tc", "floor_dr", "floor_d0", "floor_d1", "floor_w")):
         # the floor's contact softness (the floor + every sole pad, as simh.apply_model's floor_tc):
         # solref (time constant, damping ratio) and solimp (d0, d1, width m); an omitted one keeps
