@@ -1318,6 +1318,9 @@ smooth):
 | **fit of offset + slope + sinusoid, period searched, 1.5 cycles** (chosen; at 1.85 Hz: 2.4 mm) | **2.5 mm** |
 | the same, 2 cycles | 2.0 mm, but 2 steps older |
 
+On the 19:09 run (plain timing, real step 3.99 s against 4.0 planned, so nothing to alias) the same comparison is 6.3 mm for the old sample
+and 4.9 mm for the fit: the fit matters when the real cycle differs from the planned one, as it does with the pause timing.
+
 (Only the jitter is measured: the offset's bias against the true mean position is not, the fit agrees with the plain mean
 over the measured cycle to within the jitter. A sample needs 8 frames spread over half the window, else NO FIX.) The
 standing pose, taken before anything is sent, is a plain mean.
