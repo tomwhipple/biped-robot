@@ -233,12 +233,11 @@ class Dwell:
                  ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0,
                  td_pause=0.0, settle=None, lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None,
                  move_s=None, lower_s=None, pre_hike=None, pre_hike_frac=1.0, moving_lift=None, step_lateral=None):
-        """step_lateral: one bool per step, True = a sideways step. Its single support (raise / move / lower) and the
-        whole of the NEXT step (the pause, shift and settle before its lift-off, and its single support) are laid out with
-        the PLAIN timing (no pause, the schedule's own shift / settle / single support for T, none of settle / ss_s /
-        shift_s / raise_s / move_s / lower_s / lower_frac / moving_lift); the other steps keep the given one. A step's own
-        pause, shift and settle come before its lift-off, so they follow the step before it only (cmd_walk decides a step
-        late). None / all False: one timing for every step.
+        """step_lateral: one bool per step, True = a sideways step. That step and the one after it (the lead and the close
+        of a sidestep) are laid out with the PLAIN timing throughout, the pause, shift and settle before the lift-off
+        included: no pause, the schedule's own shift / settle / single support for T, none of settle / ss_s / shift_s /
+        raise_s / move_s / lower_s / lower_frac / moving_lift; the other steps keep the given one. (cmd_walk decides a step
+        before the frames of its lead-in are made: CmdWalk.limit_ms.) None / all False: one timing for every step.
         td_pause: s, the next step's lateral shift (all pelvis / hip roll / ankle roll motion of the shift, and the
         fore-aft pelvis move with it) starts this long AFTER the planned touchdown of the swing foot: the lowering, the
         ankle feed-forward's and the swing tilt's ramp-out are complete first (they follow the foot's height, 0 at
@@ -328,14 +327,11 @@ class Dwell:
         self.step_lateral = lat
 
         def tm_of(i):
+            # a sideways step and the one after it (the lead and the close of a sidestep pair): the plain timing, the pause
+            # and the shift before the lift-off included
             lat_i = i < len(lat) and lat[i]
             lat_p = 0 < i <= len(lat) and lat[i - 1]
-            ss_plain, lead_plain = lat_i or lat_p, lat_p
-            if ss_plain == lead_plain:
-                return tm_plain if ss_plain else tm_main
-            ld, ss = (tm_plain if lead_plain else tm_main), (tm_plain if ss_plain else tm_main)
-            return dict(ss, t_sh=ld["t_sh"], t_set=ld["t_set"], t_ds=ld["t_ds"], pz=ld["pz"],
-                        period=ld["t_sh"] + ld["t_set"] + ss["t_ss"])
+            return tm_plain if (lat_i or lat_p) else tm_main
         land = float(land_early or 0.0)
         if not 0.0 <= land <= LAND_EARLY_MAX_MM + 1e-9:
             raise ValueError(f"land_early {land:g} mm: want 0 to {LAND_EARLY_MAX_MM:g}")
