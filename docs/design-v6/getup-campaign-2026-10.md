@@ -351,9 +351,12 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec79_walk_si_slow (+ _s1, _s2) | 11-14 | prec72_walk_ppsi recipe | `--gait-freq 0.55,0.65` (was 0.7,0.8) | larger walking shift, R lift up, sidesteps \|dy\| ≥ 0.1 on the inset plant, ≥ 2 of 3 seeds, no new falls / pose trips | | | | | **not held** (0/3): steps5 shift no larger (−0.36..−0.51 / +0.29..+0.43 vs −0.49 / +0.51), R lift 1.6–2.1, sidesteps lost, 2/3 fail the walk test (fwd 0.45–0.64); **x1.5 0/0 on C 3/3** (ppsi 5/5) |
 | robot_legs_prec80_walk_si_l3_scratch (+ _s1, _s2; pilot _p200) | 11-15 | prec77_walk_si_l3 recipe | **from scratch** (no `--init-from`), 500M (pilot: seed 17, 200M) | on C: steps5 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.7 cm, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | **not held, 0 of 4 walk at all**: fwd +0.03 / +0.02 / +0.06 / −0.00 m in 4 s (parent +0.87..+0.71), stride1 / steps5 0.3 robot lift ≤ 0.7 cm both feet, no march; they stand (x1.5 8/8 on 3 of 4). The warm start is what makes the walk; from scratch at 500M the recipe finds only the stand |
 | robot_legs_prec81_walk_si_scratch (+ _s1, _s2) | 11-15 | prec72_walk_ppsi recipe | **from scratch** (no `--init-from`), 500M | on C: steps5 robot \|shift\| ≥ 0.6 both feet, side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds | | | | | **not held, 0 of 3 walk at all**: fwd +0.06 / +0.09 / +0.09 m, lift ≤ 0.5 cm, side L +0.29–0.44 on s14 only (falls 5–8/8). **RL walk from scratch parked** (11-16) |
-| robot_legs_prec82_walk_si_sw75 (+ _s1, _s2) | 11-16 | prec72_walk_ppsi recipe (warm start prec16) | `--mimic-sway 0.075` (a sway reference sized from the robot's measured single-support shift, 1.05–1.32 × 62 mm) | on C: steps5 0.3 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.5 cm, ≥ 2 of 3 seeds, still WALKS, x1.5 no worse than 5/5 | | | | | |
-| robot_legs_prec83_walk_si_l3_sw75 (+ _s1, _s2) | 11-16 | prec77_walk_si_l3 recipe | `--mimic-sway 0.075` | on C: stride1 0.3 robot R lift ≥ 3 cm and steps5 \|shift\| ≥ 0.6 both feet, ≥ 2 of 3 seeds | | | | | |
-| robot_legs_prec84_walk_si_slow_sw75 (+ _s1, _s2) | 11-16 | prec79_walk_si_slow recipe (0.55–0.65 Hz) | `--mimic-sway 0.075` | on C: steps5 \|shift\| ≥ 0.6 both feet and side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds, x1.5 kept at 0/0 | | | | | |
+| robot_legs_prec82_walk_si_sw75 (+ _s1, _s2) | 11-16 | prec72_walk_ppsi recipe (warm start prec16) | `--mimic-sway 0.075` (a sway reference sized from the robot's measured single-support shift, 1.05–1.32 × 62 mm) | on C: steps5 0.3 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.5 cm, ≥ 2 of 3 seeds, still WALKS, x1.5 no worse than 5/5 | | | | | **not held (0/3)**: steps5 shift on the weaker foot 0.38–0.47 (parent 0.49/0.51); R lift ≥ 2.5 on 1/3 (steps5); x1.5 worse on 2/3; **backward lost on 2/3** (−0.08, −0.00 m). Seed 17 extra agrees |
+| robot_legs_prec83_walk_si_l3_sw75 (+ _s1, _s2) | 11-16 | prec77_walk_si_l3 recipe | `--mimic-sway 0.075` | on C: stride1 0.3 robot R lift ≥ 3 cm and steps5 \|shift\| ≥ 0.6 both feet, ≥ 2 of 3 seeds | | | | | **not held (0/3)**: stride1 robot R 2.2/1.8/2.2 cm (parent 2.0–2.2); shift on both feet on none; backward falls 4/8 and 6/8 on two seeds; stride1 0.6 refit falls 5 and 7/8 |
+| robot_legs_prec84_walk_si_slow_sw75 (+ _s1, _s2) | 11-16 | prec79_walk_si_slow recipe (0.55–0.65 Hz) | `--mimic-sway 0.075` | on C: steps5 \|shift\| ≥ 0.6 both feet and side L/R \|dy\| ≥ 0.1, ≥ 2 of 3 seeds, x1.5 kept at 0/0 | | | | | **not held (0/3)**: shift on both feet on none; side \|dy\| ≤ 0.06; x1.5 0/0 kept on 1/3; backward lost on s1. **The sway does not move the shift; the inset-sole walk parked 11-17** |
+| robot_legs_prec85_walk_sag (+ _s1, _s2; _s3 extra) | 11-17 | prec72_walk_ppsi recipe (warm start prec16) | plant: `--roll-play-deg` + `--sole-in-mm` → `--footoff-sag L=6.4,R=2.9` (PR #324, fixed) | on D (sag): steps5 0.3 robot \|shift\| ≥ 0.6 both feet, R lift ≥ 2.5 cm, WALKS, backward 0 falls, x1.5 no worse than the parent on D, ≥ 2 of 3 seeds | | | | | |
+| robot_legs_prec86_walk_sagdr (+ _s1, _s2; _s3 extra) | 11-17 | prec72_walk_ppsi recipe | plant → `--footoff-sag L=3.2:9.6,R=1.45:4.35` (DR 0.5–1.5×) | as prec85, and the gain holds on C and A as well | | | | | |
+| robot_legs_prec87_walk_l3_sagdr (+ _s1, _s2; _s3 extra) | 11-17 | prec77_walk_si_l3 recipe (3 cm) | plant → the DR sag | on D: stride1 0.3 robot R lift ≥ 3 cm, steps5 shift ≥ 0.6 both feet, ≥ 2 of 3 seeds | | | | | |
 
 ## Nights
 
@@ -3330,3 +3333,127 @@ arm S's recipe (`fallback.job`; the previous one, the from-scratch Z3, is `fallb
 
 Tomorrow: on C per arm, spread over seeds: steps5 / stride1 robot shift and R lift, WALKS, dir side L / R and back, x1.5, torso
 tilt (a sway that leans the torso is not the robot's level shift); then A and B.
+
+### Night of 2026-11-16 (evaluated 2026-11-17)
+
+**A robot-sized sway in the reference (`--mimic-sway 0.075`) on three parents × three seeds (+ one extra seed each): the
+walking shift does not move on any seed. As pre-committed, the inset-sole walk parks. The walk moves to the new foot-off sag
+plant (PR #324), which is a plant change, not a new recipe variable.** Stride only; get-up and the march RL line stay parked.
+Nothing in this entry needs Tom. The robot is out of service (a printed hip joint broke at 20:13 on 11-16, #297), so no
+hardware comparison is possible this week anyway.
+
+**The runner.** `night_run.sh` started at 17:44 on 11-16 (the hardware session restarted it on the owner's word) and ran to
+02:27. It trained 12 teacher + distil pairs: the planned 9, plus a seed-17 replicate of each arm that the hardware session
+added (Tom 11-16: "have the planner queue twelve pairs"). All exited 0, every job ran on main with origin verified (52e1a55,
+then f1ba66b from 20:38). There was one transient DNS failure on fetch at 19:13, retried OK. The 22:00 cron runner found the
+lock held and exited, as designed. **Fixers: none** (fixer.log has nothing since 11-14). Collection 02:27 – 02:43, no STALE
+REFEREE.
+
+**Merged / branched:** nothing by me. Since the last plan main gained:
+- PR #324 (f1ba66b, the foot-off sag: `--footoff-sag`, grading terms `sag_L` / `sag_R`; opt-in, defaults byte-identical);
+- PRs #315 and #317 – #323 (host gait tool, vision tools, arm calibration, the planner prompt's twelve-pair sizing).
+
+None changes grade.py's default plant or the training env defaults, so the C comparisons stand. Open PRs: #325 (host position
+hold), #229, #206 and #71. None touches training.
+
+**Grading.** `/tmp/plan1117/grade{A,B,C,D}.*` and `s3grade*` hold the runs; `parD.*` holds the 3 cm parents on D. All on
+grade.py on main, 8 seeds, SHAPE_HZ=8. The plants:
+- A: as is (each run's trained plant = play + inset sole);
+- B: play;
+- C: play + inset sole;
+- D: **the foot-off sag, `sag_L=6.4,sag_R=2.9`** (new from today; no play, no inset).
+
+The control prec72_walk_ppsi_s128r24 re-grades on C exactly as on 11-15 and 11-16. Every student WALKS (walk 0.3 → stop dx
+0.33 – 0.36, fwd ≥ 0.5 m). Every student is 0/0 on push 0.4, has 0 falls on every robot probe, and trips `pose` 8/8 at the
+stop of walk 0.3 → stop (the known slow-clock stop trip). None marches.
+
+| student | x1.5 C / D | fwd / back / side L / side R (C; falls) | stride1 0.3 robot R lift (C) | steps5 0.3 robot lift L / R (C) | steps5 shift L-up / R-up, **C** | same, **D** | tilt max |
+|---|---|---|---|---|---|---|---|
+| prec72_walk_ppsi (control) | 5/5 / 8/8 | +0.76 −0.73 +0.02 −0.06 (D: back 2/8 falls) | 1.6 | 3.4 / 2.1 | −0.49 / +0.51 | −0.61 / +0.42 | 10.1 |
+| S prec82_walk_si_sw75 | 7/7 / 8/8 | +0.73 −0.77 +0.03 −0.05 | 1.6 | 3.2 / 1.6 | −0.43 / +0.45 | −0.53 / +0.26 | 10.5 |
+| S _s1 | 0/0 / 2/5 | +0.60 **−0.08** +0.02 −0.03 | 1.7 | 3.3 / 1.7 | −0.38 / +0.40 | −0.48 / +0.32 | 9.5 |
+| S _s2 | 8/8 / 8/8 | +0.83 **−0.00** +0.01 −0.03 | 2.4 | 3.4 / 2.5 | −0.43 / +0.47 | −0.51 / +0.38 | 15.4 |
+| S _s3 (extra) | 0/0 / 0/0 | +0.59 −0.67 +0.03 −0.05 (D: back 6/8) | 1.7 | 3.5 / 1.8 | −0.38 / +0.59 | −0.49 / +0.31 | 11.3 |
+| SL prec83_walk_si_l3_sw75 | 1/2 / 1/1 | +0.86 −0.74(4) +0.02 −0.02 | 2.2 | 3.1 / 2.6 | −0.50 / +0.37 | −0.46 / +0.40 | 11.5 |
+| SL _s1 | 6/6 / 5/5 | +0.68 −0.78 +0.03 −0.03 | 1.8 | 4.0 / 2.3 | −0.38 / +0.33 | −0.46 / +0.50 | 9.2 |
+| SL _s2 | 8/8 / 8/8 | +0.75 −0.98(6) +0.02 −0.01 | 2.2 | 3.7 / 2.6 | −0.34 / +0.67 | −0.41 / +0.44 | 10.4 |
+| SL _s3 (extra) | 8/8 / 8/8 | +0.71 −0.70 +0.03 −0.02 | 1.6 | 3.7 / 2.7 | −0.37 / +0.58 | −0.48 / +0.26 | 11.0 |
+| SF prec84_walk_si_slow_sw75 | 7/7 / 3/3 | +0.60 −0.54 +0.02 −0.04 | 2.0 | 2.8 / 2.5 | −0.64 / +0.35 | −0.58 / +0.39 | 11.4 |
+| SF _s1 | 5/7 / 0/0 | +0.54 **−0.10** +0.01 −0.01 | 1.5 | 3.0 / 2.1 | −0.37 / +0.60 | −0.49 / +0.35 | 11.9 |
+| SF _s2 | 0/0 / 8/8 | +0.63 −0.63 +0.03 −0.06 | 1.9 | 2.9 / 2.0 | −0.35 / +0.43 | −0.47 / +0.45 | 13.6 |
+| SF _s3 (extra) | 0/0 / 0/0 | +0.50 −0.63 −0.01 −0.04 | 1.6 | 2.9 / 1.9 | −0.38 / +0.38 | −0.45 / +0.65 | 11.2 |
+
+x1.5 is falls/trips of 8. "(n)" is falls of 8. A and B tell the same story. stride1 0.6 refit falls on C: S 4/0/0,
+SL 5/7/0, SF 3/1/0 (parent 0). The 3 cm parents prec77_walk_si_l3 (full, s1, s2) on D: x1.5 5/6, 8/8, 0/0; stride1 0.3 robot
+R lift 2.5 / 2.2 / 2.4; steps5 R 3.0 / 2.7 / 2.9, shift −0.41 / +0.45, −0.38 / +0.38, −0.42 / +0.33.
+
+**Hypotheses** (pre-committed: plant C, ≥ 2 of seeds 14–16):
+- **S (2 cm parent): not held (0 of 3).** steps5 |shift| ≥ 0.6 on both feet: none (0.38 – 0.47 on the weaker foot; parent
+  0.49 / 0.51). R lift ≥ 2.5 cm: 1 of 3 on steps5 (s2 2.5), 0 of 3 on stride1. x1.5 was worse than the parent's 5/5 on 2 of 3.
+  **Backward is lost on 2 of 3** (−0.08, −0.00 m).
+- **SL (3 cm parent): not held (0 of 3).** stride1 R lift is 2.2 / 1.8 / 2.2 cm (the parent's 2.0 – 2.2). Shift: none.
+  Backward falls 4/8 and 6/8 on two seeds. stride1 0.6 refit falls 5 and 7/8 on two seeds.
+- **SF (slow clock): not held (0 of 3).** Shift: none on both feet (s14 −0.64 on L-up only). side |dy| ≤ 0.06. x1.5 kept at
+  0/0 on 1 of 3. Backward lost on s1 (−0.10).
+- The seed-17 extras (outside the criterion) agree: no seed reaches 0.6 on both feet.
+- **The sway does not move the shift, and it costs backward** on 3 of 9 seeds. The policy keeps its own ~0.4 – 0.5 × 62 mm
+  shift and does not follow the reference's 75 mm.
+- **Distil gap** (card seed-passes, teacher → student): S 19→17, 20→21, 18→14 (s3 19→21); SL 21→27, 24→20, 14→14 (28→21);
+  SF 22→17, 19→18, 17→18 (19→19). Median −1. Not the limit.
+
+**What the sag plant (D) says about today's walk policies.** No student falls on D's stride1 / steps5 robot probes, and the
+shift and lift there are those on C (±0.1). D takes margin rather than steps:
+- the control's x1.5 goes 5/5 → 8/8;
+- backward falls appear (control 2/8, S s3 6/8, SL s2 8/8).
+
+A policy that never shifts more than ~0.5 × 62 mm has no reason to on D either. That is the question tonight asks of
+training.
+
+**Ranking:** no walk candidate (none lifts R 3 cm on stride1 robot, none keeps a sidestep), no march candidate. #259 has not
+passed (its latest comment is still 11-11). **No robot candidate**, and the robot is down.
+
+**Stop and decide (rule 4): the inset-sole walk parks (as pre-committed on 11-16; my choice, rule 0).** Five nights (11-12
+ppsi, 11-13 trim, 11-14 L / S / F, 11-15 from scratch, 11-16 sway), 27 seeds, no hardware-confirmed gain. It showed that no
+recipe variable moves the shift (0.3 – 0.6 × 62 mm against the robot's ~1.1 – 1.3), the R lift (1.4 – 2.6 cm) or the sidesteps
+on the play + inset plant, and that the warm start is what makes the recipe walk at all. Held note:
+`queue/held/WHY-1117-inset-sole-walk-parked.txt`.
+
+**The walk moves to the foot-off sag plant (new line, night 1).** The 11-16 pre-commit said "parks behind #259 until the plant
+or the reference changes". The plant changed last evening. The foot-off sag (#324) is the first plant term fitted to the
+robot's release at lift-off:
+- on left stance it is within 11 % of the robot's sag;
+- it replays the robot's three clean 11-16 walks clean;
+- it tips the quick-raise walks, which the play and inset plants do not (experiments/roll-balance/README.md, "The foot-off
+  sag").
+
+No policy has trained on it. The stated cause: the play + inset plant lets a ~0.5 × 62 mm shift survive single support, so
+nothing pushes the policy further. With the stance side yielding toward the lifted foot at every lift-off (6.4 deg L,
+2.9 deg R), a policy that does not shift over the stance foot loses balance.
+
+Not verified:
+- the Warp path with the flag. I built the jax env from tonight's exact argv on CPU and stepped it, DR range drawn, obs
+  finite; R21 parity covers jax vs CPU. `preflight` does not parse `--footoff-sag`.
+- the DR centre on the training plant (the fit was replayed on grade.py's plant only).
+- the sag's right-stance tips. The plant does not reproduce them.
+
+**Tonight (2026-11-17): three arms × three seeds (14/15/16) + a seed-17 extra replicate each = 12 teacher + distil pairs,
+300M, warm start prec16 as the parents, BRANCH=main.** Every arm swaps only the plant: `--roll-play-deg` and `--sole-in-mm`
+out, `--footoff-sag` in (exclusive; no inset sole with it). The seeds are interleaved (G, GD, GL per seed), so a run that
+starts this morning gives the addendum one seed of each arm.
+
+| arm | runs | parent | variable | hypothesis (plant D, ≥ 2 of seeds 14–16) |
+|---|---|---|---|---|
+| G | prec85_walk_sag, _s1, _s2 (+ _s3) | prec72_walk_ppsi (2 cm) | plant → `--footoff-sag L=6.4,R=2.9` (the fit, fixed) | steps5 0.3 robot \|shift when up\| ≥ 0.6 on both feet (parent on D 0.61 / 0.42), R lift ≥ 2.5 cm (2.1), still WALKS, backward 0 falls (parent 2/8), x1.5 no worse than the parent on D (8/8) |
+| GD | prec86_walk_sagdr, _s1, _s2 (+ _s3) | prec72_walk_ppsi (2 cm) | plant → `--footoff-sag L=3.2:9.6,R=1.45:4.35` (0.5 – 1.5× per side per episode) | as G; against G, DR keeps the gain on C and A too (the robot's right-stance sag varies 1.5 – 3.1 deg with the gait) |
+| GL | prec87_walk_l3_sagdr, _s1, _s2 (+ _s3) | prec77_walk_si_l3 (3 cm) | plant → the DR sag | shifted over the stance foot, the 3 cm reference lifts R: stride1 0.3 robot R ≥ 3 cm (parent on D 2.2 – 2.5), steps5 shift ≥ 0.6 on both feet, backward falls no worse than the parent |
+
+About 9 h (43 min a pair). Pre-flight PASS 24/24. **Fallback:** arm GD's recipe (`fallback.job`; the previous one, arm S, is
+`fallback.job.prec82-20261117`).
+
+**Pre-committed for tomorrow:** if no arm reaches shift ≥ 0.6 on both feet on D in ≥ 2 of 3 seeds, and R lift does not move
+either, the warm-started RL walk of the prec16 lineage parks entirely. I will then decide (rule 0) between two options:
+- a reference taken from the host stepper's gait, which the robot does walk (#297; ~450 clean steps on 11-16);
+- waiting on #259.
+
+Tomorrow I grade on D first (per arm, spread over seeds: steps5 / stride1 robot shift and R lift, WALKS, back / side, x1.5,
+torso tilt), then on C, A and B.

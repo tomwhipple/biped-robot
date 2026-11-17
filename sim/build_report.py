@@ -434,6 +434,24 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-17 card: night 27 -- a robot-sized sway in the walk reference (three parents x three seeds + extras): the weight
+# shift does not move and backward walking is lost on 3 of 9 seeds; the narrow-sole walk parks; tonight the foot-off sag plant.
+fig_1117 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec82_walk_si_sw75_s2_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec82_walk_si_sw75_s2_s128r24_walk_steps_R',
+                 'prec82 seed 16, the 2 cm walk with a 75 mm sway in its reference: the right foot still rises about 2 cm, and '
+                 'the body still moves only ~0.45 of the way over the stance foot (0 of 9 seeds reach 0.6)'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_walk_steps_R',
+                 'control: prec72_ppsi, the same recipe without the sway, on the same probe: the same step'),
+    video_figure('robot_legs_prec82_walk_si_sw75_s2_s128r24', ['backward_1m'],
+                 'robot_legs_prec82_walk_si_sw75_s2_s128r24_backward_1m',
+                 'what the sway cost: asked to walk backward, prec82 seed 16 stays where it is (0.00 m on the direction '
+                 'probe); 3 of 9 sway seeds lost backward'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['backward_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_backward_1m',
+                 'control: prec72_ppsi walks backward (0.73 m on the direction probe)'),
+] if f)
 # 2026-11-16 card: night 26 -- the walk on the robot's narrow sole trained from scratch (two recipes, three seeds each):
 # no student walks at all, so the scratch pivot parks; tonight a sway reference sized from the robot's own weight shift.
 fig_1116 = "\n    ".join(f for f in [
@@ -1164,6 +1182,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·17 · night 27: the sway reference does not move the weight shift; the walk moves to the foot-off sag plant</span></p>
+    <p><b>A 75 mm side-to-side sway in the walk reference, on three parents (2 cm lift, 3 cm lift, slower clock), three seeds
+    each plus one extra: none of the twelve policies moves its body further over the stance foot.</b> They still move
+    ~0.35-0.5 of the model's 62 mm, where the robot needs ~1.1-1.3. The right foot still rises 1.5-2.5 cm. All still walk
+    forward. Three seeds lost walking backward. As decided on 11-16, the walk on the narrow-sole plant parks after five nights
+    and 27 seeds.</p>
+    <p><b>Tonight: the same walk on the foot-off sag plant.</b> This plant model was fitted last evening to what the robot does
+    when a foot leaves the floor: the body sags toward the lifted foot (6.4 deg on a left stance, 2.9 on a right). Replayed,
+    it keeps the robot's clean walks up and tips the quick-raise walks the way the robot did, which no earlier plant did. No
+    policy has trained on it yet. The test is whether a plant that punishes a small shift makes the policy shift more. Three
+    arms run: the fitted sag, the sag randomised 0.5-1.5x, and the sag with the 3 cm lift, each on three seeds plus one extra.
+    The robot is out of service (a printed hip joint broke on 11-16), and nothing here is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1117}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·16 · night 26: from scratch, the walk does not appear; next, a robot-sized weight shift</span></p>
     <p><b>Two walk recipes on the robot's narrow sole, trained from scratch for 500M steps, three seeds each, plus a short
