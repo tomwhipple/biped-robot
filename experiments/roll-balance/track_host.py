@@ -1178,6 +1178,12 @@ def live(pl, a):
                 ankle = dict(dir=learn.dir, start=learn.start, end=learn.A, keep=learn.keep, log=learn.log, saved=saved)
                 print(f"ankle trim ({learn.dir}): L {learn.start['L']:.2f} -> {learn.A['L']:.2f}, R {learn.start['R']:.2f} -> "
                       f"{learn.A['R']:.2f}; {'saved to ' + learn.path if saved else 'NOT saved (fall / abort / link)'}")
+        if cw is not None and cw.ph is not None:
+            cw.ph.finish()
+            sm = cw.ph.summary()
+            print(f"pos-hold: start at rest {sm['start_at_rest']}, end at rest {sm['end_at_rest']} (x, y, heading); max |err| lat "
+                  f"{sm['max_abs_err_lat_mm']:.0f} fwd {sm['max_abs_err_fwd_mm']:.0f} mm; {sm['no_fix_steps']} steps without a fix, "
+                  f"{sm['overrides']} keep-on-board steps" + (f"; LATERAL OFF: {sm['lateral_off']}" if sm['lateral_off'] else ""))
         log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=(len(cw.steps) if cw is not None else pl["args"]["n_steps"]), amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
                                                       ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"],
@@ -1344,13 +1350,13 @@ def make_poshold(a):
     sam = PH.PosSampler(loc, path)
     margin = a.keep_on_board if a.keep_on_board is not None else PH.MARGIN_MM
     W, L = cfg["board"]["width_mm"], cfg["board"]["length_mm"]
-    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, clip=a.pos_clip,
+    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, ki=a.pos_ki, rate_mm=a.pos_rate_mm, clip=a.pos_clip,
                     margin_mm=(margin if margin > 0 else None), no_fix_steps=a.pos_no_fix_steps,
                     window_steps=a.pos_window_steps, delay_steps=a.pos_delay_steps, deadband_mm=a.pos_deadband_mm,
                     centre=(W / 2.0, L / 2.0))
     sam.start()
     print(f"pos-hold: tracker frames from {path}; step {a.Teff:g} s, sample = median over {a.pos_window_steps:g} steps "
-          f"({ph.window_s():g} s), k {a.pos_k:g}, clip lat {a.pos_clip[0]:g} / fwd {a.pos_clip[1]:g} mm per step, "
+          f"({ph.window_s():g} s), k {a.pos_k:g} ki {a.pos_ki:g} rate {a.pos_rate_mm:g} mm/step, clip lat {a.pos_clip[0]:g} / fwd {a.pos_clip[1]:g} mm per step, "
           f"delay {a.pos_delay_steps} steps, deadband {a.pos_deadband_mm:g} mm, "
           + (f"keep-on-board {margin:g} mm" if margin > 0 else "keep-on-board off")
           + f", no-fix limit {a.pos_no_fix_steps} steps; waiting for the start pose ...", flush=True)
@@ -1439,11 +1445,13 @@ def main(argv=None):
                          "emeet_latest.jpg; read-only, no camera access). Per step: the median position over the last "
                          "--pos-window-steps steps against the start pose plus the integrated command, a bounded correction "
                          "-k x error on the next step's dy / dx (README: Position hold). Default off: frames unchanged")
-    ap.add_argument("--pos-k", type=float, default=0.3, help="--pos-hold: fraction of the error corrected per step")
-    ap.add_argument("--pos-clip", default="6,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
+    ap.add_argument("--pos-k", type=float, default=0.3, help="--pos-hold: fraction of the error (beyond the dead band) corrected per step")
+    ap.add_argument("--pos-ki", type=float, default=0.04, help="--pos-hold: integral gain per step (learns the standing creep and the sideways response; clipped to the clip)")
+    ap.add_argument("--pos-rate-mm", type=float, default=5.0, help="--pos-hold: the correction may change by this much per step")
+    ap.add_argument("--pos-clip", default="12,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
     ap.add_argument("--pos-window-steps", type=float, default=2.0, help="--pos-hold: steps in the median window (2 = one left-right cycle)")
     ap.add_argument("--pos-delay-steps", type=int, default=3, help="--pos-hold: decided steps not yet visible in a sample (compensated)")
-    ap.add_argument("--pos-deadband-mm", type=float, default=4.0, help="--pos-hold: errors under this are not corrected")
+    ap.add_argument("--pos-deadband-mm", type=float, default=10.0, help="--pos-hold: error under this is left alone (soft: only the excess is corrected)")
     ap.add_argument("--pos-no-fix-steps", type=int, default=4,
                     help="--pos-hold: steps without a tracker fix the last trim is held for; more than this with a non-zero command = stop")
     ap.add_argument("--keep-on-board", type=float, default=None, metavar="MM",

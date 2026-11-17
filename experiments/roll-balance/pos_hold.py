@@ -50,17 +50,19 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 VISION = os.path.join(HERE, "..", "..", "tools", "vision")
 
-K_DEFAULT = 0.3               # fraction of the error fixed per step
-CLIP_LAT_MM, CLIP_FWD_MM = 6.0, 10.0
+K_DEFAULT = 0.3               # fraction of the error (beyond the dead band) fixed per step
+KI_DEFAULT = 0.04             # integral gain per step: learns the standing creep and the (weak, variable) sideways response
+RATE_MM = 5.0                 # the correction may change by this much per step
+CLIP_LAT_MM, CLIP_FWD_MM = 12.0, 10.0
 MARGIN_MM = 250.0
 NO_FIX_STEPS = 4
 WINDOW_STEPS = 2.0            # one full left-right cycle
 DELAY_STEPS = 3
-WARMUP_STEPS = 3              # the window must hold whole walking cycles: no correction for the first steps
 MIN_SAMPLES = 4
-DIST_ALPHA = 0.25             # the per-step slip estimate follows the last ~4 steps
-SAT_STEPS, SAT_EXTRA_MM = 4, 10.0  # corrections at the clip for 4 steps while the error is clip/k + 10 mm or more
-DEADBAND_MM = 4.0             # the tracker's relative accuracy is ~10 mm: do not chase less than this
+WARMUP_STEPS = 3              # the window must hold whole walking cycles: no correction for the first steps
+DEADBAND_MM = 10.0            # the sample's step-to-step jitter on the robot is ~10 mm (2026-11-16 run): leave less than this alone
+WORSE_W, WORSE_MM, WORSE_CORR_MM = 6, 60.0, 6.0   # the lateral error grew by 60 mm over 6 steps of corrections averaging >= 6 mm against it
+SAT_STEPS, SAT_ERR_MM = 6, 120.0                  # corrections at the clip for 6 steps and still 120 mm off: it does not hold
 
 
 # ---- frames -------------------------------------------------------------------------------------------------------
@@ -282,11 +284,12 @@ class PosSampler:
 # ---- the hold ------------------------------------------------------------------------------------------------------
 
 class PosHold:
-    def __init__(self, sampler, step_s, margins=None, k=K_DEFAULT, clip=(CLIP_LAT_MM, CLIP_FWD_MM), margin_mm=MARGIN_MM,
+    def __init__(self, sampler, step_s, margins=None, k=K_DEFAULT, ki=KI_DEFAULT, rate_mm=RATE_MM,
+                 clip=(CLIP_LAT_MM, CLIP_FWD_MM), margin_mm=MARGIN_MM,
                  no_fix_steps=NO_FIX_STEPS, window_steps=WINDOW_STEPS, delay_steps=DELAY_STEPS, min_samples=MIN_SAMPLES,
                  deadband_mm=DEADBAND_MM, warmup_steps=WARMUP_STEPS, centre=None, say=print, clock=time.time):
         """margins(x, y) -> {left, right, near, far} mm (None: no edge rule); centre = (x, y) of the board centre."""
-        self.S, self.T, self.margins, self.k = sampler, float(step_s), margins, k
+        self.S, self.T, self.margins, self.k, self.ki, self.rate = sampler, float(step_s), margins, k, ki, rate_mm
         self.clip_lat, self.clip_fwd = clip
         self.margin_mm = margin_mm
         self.no_fix_steps, self.window_steps, self.delay = int(no_fix_steps), window_steps, int(delay_steps)
@@ -297,10 +300,13 @@ class PosHold:
         self.hist = []                    # per decided step: dict(cmd=(bx, by), app=(bx, by)) board-frame displacements
         self.nofix = 0
         self.trim = (0.0, 0.0)            # last (dx, dy) correction in the robot frame, mm
-        self.slip = (0.0, 0.0)            # estimated per-step slip (fwd, left) the robot adds to what a step asks, mm
-        self.prev = None                  # (steps seen at the last fix, its position)
+        self.integ = [0.0, 0.0]           # the integral part of the correction (fwd, lat), mm
+        self.rebased = False
+        self._pfrac = [0.0, 0.0]          # the share of the last correction that is the proportional part
+        self.emeas = []                   # the measured lateral error at each sample, mm
+        self.start_pose = self.end_pose = None
+        self.max_err = [0.0, 0.0]
         self.sat = 0                      # consecutive steps with the lateral correction at its clip
-        self.last_cy = 0.0
         self.lat_off = None               # why the lateral correction is off (None = on)
         self.dec = None                   # the decision of the step being decided
         self.log = []
@@ -323,6 +329,21 @@ class PosHold:
     def begin(self, f):
         """Take the standing pose `f` (start_fix) as the reference start."""
         self.p0, self.h_cmd, self.hist = (f["x"], f["y"]), f["h"], []
+        self.start_pose = (f["x"], f["y"], f["h"])
+
+    def _law(self, ax, e, clip, on):
+        """One axis of the control law: -k x (e beyond the dead band) + an integral that learns the standing creep, held
+        at half the clip and not wound up while the output is at the clip."""
+        if not on:
+            return 0.0
+        soft = 0.0 if abs(e) <= self.deadband else e - math.copysign(self.deadband, e)
+        u = -self.k * soft + self.integ[ax]
+        sat = abs(u) >= clip - 1e-9 and u * soft < 0
+        if not sat and soft != 0.0:
+            self.integ[ax] = _clip(self.integ[ax] - self.ki * soft, clip)
+        tot = _clip(-self.k * soft + self.integ[ax], clip)
+        self._pfrac[ax] = (-self.k * soft) / tot if abs(tot) > 1e-9 else 0.0       # the share that answers the error
+        return tot
 
     def _sum(self, items, key):
         return (sum(h[key][0] for h in items), sum(h[key][1] for h in items))
@@ -360,56 +381,69 @@ class PosHold:
             d["notes"].append(f"hold started at x {f['x']:.0f} y {f['y']:.0f} heading {f['h']:.0f}")
         n_pend = min(self.delay, len(self.hist))
         seen, pend = self.hist[:len(self.hist) - n_pend], self.hist[len(self.hist) - n_pend:]
-        # what the robot did beyond what the steps asked (the creep): from the move between this sample and the last,
-        # less the steps that came into view in between
-        if self.prev is not None and len(seen) > self.prev[0] and len(self.hist) > self.warmup:
-            cnt = len(seen) - self.prev[0]
-            app = self._sum(seen[self.prev[0]:], "app")
-            sb = ((f["x"] - self.prev[1][0] - app[0]) / cnt, (f["y"] - self.prev[1][1] - app[1]) / cnt)
-            sf, sl = to_robot(f["h"], *sb)
-            a = DIST_ALPHA
-            self.slip = ((1 - a) * self.slip[0] + a * _clip(sf, 2 * self.clip_fwd),
-                         (1 - a) * self.slip[1] + a * _clip(sl, 2 * self.clip_lat))
-        self.prev = (len(seen), (f["x"], f["y"]))
-        slip_b = to_board(f["h"], *self.slip)
-        cs = self._sum(seen, "cmd")
-        ps = self._sum(pend, "app")
-        ps = (ps[0] + n_pend * slip_b[0], ps[1] + n_pend * slip_b[1])
-        ref_seen = (self.p0[0] + cs[0], self.p0[1] + cs[1])             # where the reference was when the sample's last step ended
-        pred = (f["x"] + ps[0], f["y"] + ps[1])                        # the sample plus the steps decided since
-        ref_now = (self.p0[0] + self._sum(self.hist, "cmd")[0], self.p0[1] + self._sum(self.hist, "cmd")[1])
         h = f["h"]
+        ps = self._sum(pend, "app")
+        # the pending corrections that will show in the position: only their proportional part (the answer to the error);
+        # the integral part is the learned creep canceller, and the creep acts on those same steps too
+        pc = (sum(x["pcorr"][0] for x in pend), sum(x["pcorr"][1] for x in pend))
+
+        def ref_at(items):
+            c = self._sum(items, "cmd")
+            return (self.p0[0] + c[0], self.p0[1] + c[1])
+        if not self.rebased and len(self.hist) >= self.warmup:
+            # the mean position over a walking cycle is not the standing pose (the torso sits differently over the feet
+            # in the walk): hold what the walk does, from here. The standing pose stays the start for the log.
+            r = ref_at(seen)
+            off = (f["x"] - r[0] + pc[0], f["y"] - r[1] + pc[1])
+            self.p0 = (self.p0[0] + off[0], self.p0[1] + off[1])
+            self.rebased = True
+            of, ol = to_robot(h, *off)
+            d["notes"].append(f"reference re-based to the walking mean (fwd {of:+.0f}, lat {ol:+.0f} mm from the standing pose)")
+        ref_seen, ref_now = ref_at(seen), ref_at(self.hist)
+        pred = (f["x"] + ps[0], f["y"] + ps[1])                        # the sample plus the steps decided since
         # error now = measured error at the sample + the corrections still on their way (the commanded part of a
         # pending step is in both the reference and the prediction)
-        pc = (sum(a["app"][0] - a["cmd"][0] for a in pend) + n_pend * slip_b[0],
-              sum(a["app"][1] - a["cmd"][1] for a in pend) + n_pend * slip_b[1])
+        e_meas = to_robot(h, f["x"] - ref_seen[0], f["y"] - ref_seen[1])
         e_b = (f["x"] - ref_seen[0] + pc[0], f["y"] - ref_seen[1] + pc[1])
         e_fwd, e_lat = to_robot(h, *e_b)
         d["err"] = (e_lat, e_fwd)
         d["pos"] = (f["x"], f["y"], h)
         d["ref"] = ref_now
         d["pred"] = pred
-        d["slip"] = self.slip
-        # does a sideways correction move the robot sideways? (the pause timing on 2026-11-16 moved it the wrong way.)
-        # The response cannot be read off one step: it is the sample-to-sample motion against the correction, and the
-        # decision-to-sample delay is not known well enough to line them up. What shows without it: a correction that
-        # works settles the error at creep / k <= clip / k; one that sits at its clip for several steps while the error is
-        # well past that does not work.
-        if self.lat_off is None and self.sat >= SAT_STEPS and abs(e_lat) >= self.clip_lat / max(self.k, 1e-9) + SAT_EXTRA_MM:
+        walking = len(self.hist) >= self.warmup                        # the first window still holds the standing robot
+        if walking:
+            self.emeas.append(e_meas[1])
+            self.max_err = [max(self.max_err[0], abs(e_lat)), max(self.max_err[1], abs(e_fwd))]
+        # does a sideways correction move the robot sideways? (the pause timing on 2026-11-16 moved it the wrong way)
+        # Over the last WORSE_W steps the corrections pushed one way against the error, and the measured error (3-sample
+        # means, then and now: the sample jitters ~10 mm) still grew. Or the corrections sit at their clip and the error is
+        # far past anything a working loop settles at.
+        if self.lat_off is None and walking and len(self.emeas) >= WORSE_W + 3:
+            then, now_ = sum(self.emeas[-WORSE_W - 3:-WORSE_W]) / 3.0, sum(self.emeas[-3:]) / 3.0
+            sg = 1.0 if now_ >= 0 else -1.0
+            cl = [to_robot(x["h"], x["app"][0] - x["cmd"][0], x["app"][1] - x["cmd"][1])[1] for x in self.hist[-WORSE_W:] if "h" in x]
+            mc = sum(cl) / len(cl) if cl else 0.0
+            if sg * (now_ - then) >= WORSE_MM and -sg * mc >= WORSE_CORR_MM:
+                self.lat_off = (f"over the last {WORSE_W} steps the corrections averaged {mc:+.1f} mm against a lateral error that "
+                                f"went from {then:+.0f} to {now_:+.0f} mm: the sideways response is weak or wrong-signed")
+        if self.lat_off is None and walking and self.sat >= SAT_STEPS and abs(e_lat) >= SAT_ERR_MM:
             self.lat_off = (f"the lateral error is {e_lat:+.0f} mm after {self.sat} steps of corrections at the {self.clip_lat:g} mm "
                             f"clip: they do not bring it back (response weak or wrong-signed)")
-        cx = 0.0 if abs(e_fwd) < self.deadband else _clip(-self.k * e_fwd, self.clip_fwd)
-        cy = 0.0 if abs(e_lat) < self.deadband else _clip(-self.k * e_lat, self.clip_lat)
+        cx, cy = self._law(0, e_fwd, self.clip_fwd, walking), self._law(1, e_lat, self.clip_lat, walking and self.lat_off is None)
         if self.lat_off is not None:
             cy = 0.0
+            self.integ[1] = 0.0
             d["notes"].append("LATERAL CORRECTION OFF: " + self.lat_off)
+        # the correction may not jump: at most self.rate mm from the last one
+        cx = self.trim[0] + _clip(cx - self.trim[0], self.rate)
+        cy = self.trim[1] + _clip(cy - self.trim[1], self.rate)
         at_clip = abs(cy) >= self.clip_lat - 1e-9
-        self.sat = self.sat + 1 if at_clip and (self.sat == 0 or cy * self.last_cy > 0) else (1 if at_clip else 0)
-        self.last_cy = cy
-        if len(self.hist) < self.warmup:           # the first window still holds the standing robot, not whole cycles
+        self.sat = self.sat + 1 if at_clip and (self.sat == 0 or cy * self.trim[1] > 0) else (1 if at_clip else 0)
+        if not walking:
             cx = cy = 0.0
             d["notes"].append(f"settling ({len(self.hist)}/{self.warmup} steps): no correction yet")
         d["corr"] = (cx, cy)
+        d["pfrac"] = tuple(self._pfrac)
         self.trim = (cx, cy)
         # keep on board
         if self.margins is not None and self.margin_mm is not None and self.centre is not None:
@@ -433,7 +467,10 @@ class PosHold:
         if self.p0 is None:
             return
         hm = self.h_cmd + 0.5 * dpsi
-        self.hist.append(dict(cmd=to_board(hm, *cmd), app=to_board(hm, *applied)))
+        dec = self.dec or {}
+        pf = dec.get("pfrac", (0.0, 0.0))
+        pc = to_board(hm, (applied[0] - cmd[0]) * pf[0], (applied[1] - cmd[1]) * pf[1])
+        self.hist.append(dict(cmd=to_board(hm, *cmd), app=to_board(hm, *applied), h=hm, pcorr=pc))
         self.h_cmd += dpsi
         d = self.dec
         d["applied"] = tuple(applied)
@@ -451,8 +488,6 @@ class PosHold:
                      corr_dy=round(d["corr"][1], 2), corr_dx=round(d["corr"][0], 2))
         if "applied_corr" in d:
             r.update(applied_dx=round(d["applied_corr"][0], 2), applied_dy=round(d["applied_corr"][1], 2))
-        if d.get("slip"):
-            r["slip_fwd"], r["slip_lat"] = round(d["slip"][0], 2), round(d["slip"][1], 2)
         if d.get("override"):
             r["keep_on_board"] = dict(edges=d["override"]["edges"], min_margin=round(d["override"]["min_margin"], 1))
         return r
@@ -472,12 +507,26 @@ class PosHold:
             o = d["override"]
             s += (f"; KEEP-ON-BOARD: {'/'.join(o['edges'])} margin {o['min_margin']:.0f} < {self.margin_mm:.0f} mm: "
                   f"step toward the centre (fwd {o['fwd']:+.2f} left {o['left']:+.2f})")
-        return s
+        return s + "".join(f"; {n}" for n in d["notes"])
+
+    def finish(self, wait_s=None):
+        """After the walk: the pose at rest (the trimmed mean over the last step), waiting up to wait_s of wall clock for
+        the samples of a robot standing still."""
+        end = self.clock() + (1.2 * self.T + 1.0 if wait_s is None else wait_s)
+        while self.clock() < end:
+            time.sleep(0.2)
+        f = self.S.fix(self.clock(), self.T, self.min_samples)
+        if f is not None and f["h"] is not None:
+            self.end_pose = (f["x"], f["y"], f["h"])
+        return self.end_pose
 
     def summary(self):
-        errs = [d["err"] for d in self.log if d.get("err")]
         out = dict(steps=len(self.log), no_fix_steps=sum(1 for d in self.log if d.get("fix") is None),
-                   overrides=sum(1 for d in self.log if d.get("override")))
+                   overrides=sum(1 for d in self.log if d.get("override")), lateral_off=self.lat_off,
+                   start_at_rest=[round(v, 1) for v in self.start_pose] if self.start_pose else None,
+                   end_at_rest=[round(v, 1) for v in self.end_pose] if self.end_pose else None,
+                   max_abs_err_lat_mm=round(self.max_err[0], 1), max_abs_err_fwd_mm=round(self.max_err[1], 1))
+        errs = [d["err"] for d in self.log if d.get("err")]
         if errs:
             out["err_lat_mm"] = [round(min(e[0] for e in errs), 1), round(max(e[0] for e in errs), 1)]
             out["err_fwd_mm"] = [round(min(e[1] for e in errs), 1), round(max(e[1] for e in errs), 1)]
