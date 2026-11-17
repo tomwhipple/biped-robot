@@ -799,6 +799,276 @@ python track_host.py --T 5 --seq "fwd:4,turnL:3,fwd:4"                  # one tr
 python track_host.py --T 4 --dir fwd --steps 8 --stride-mm 40 --swing-tilt 3   # longer stride with the toe-down tilt
 ```
 
+## The step's timeline and the touchdown pause (`--td-pause`, `--settle`, `--lower-frac`, `--land-early-mm`; host only)
+
+**Timeline of one step** (`dwell.Dwell`, s from the step's start; the step's start is the previous step's planned touchdown;
+the `timeline:` line of the plan summary prints it for the plan at hand):
+
+| | T 4 | T 5 | what moves |
+|---|---|---|---|
+| shift | 0 - 1.40 | 0 - 1.40 | pelvis min-jerk over the new stance foot (hip roll, ankle roll, fore-aft with `--pelvis-x stance`); both feet down |
+| settle | 1.40 - 1.80 | 1.40 - 1.80 | everything held, both feet down (the lift gate's frame is the last one before lift-off) |
+| raise | 1.80 - 2.57 | 1.80 - 2.92 | swing sole up to h over 0.35 of the single support; the stance ankle ff and the swing tilt ramp IN with its height |
+| move | 2.57 - 3.23 | 2.92 - 3.88 | sole at h, forward / sideways over 0.30; the stance and swing hip yaw |
+| lower | 3.23 - 4.00 | 3.88 - 5.00 | sole down over 0.35, min-jerk; the ankle ff and the swing tilt ramp OUT with its height (both are 0 at 4.00) |
+
+The single support is 2.2 s at T 4 and 3.2 s at T 5; the shift and settle are the same 1.4 + 0.4 s (`dwell.SCHEDULE`).
+
+**Where the next shift begins.** In the plan, at the planned touchdown, with no overlap: the next step's shift is
+`_mj((t - touchdown) / 1.4)` from the touchdown on, and the foot's lowering, the ankle ff and the swing tilt are all
+functions of the sole height, which is 0 at the touchdown. Measured on the T 4 / T 5 plans (stance hip roll goal of the next
+step): rate 0.5 deg/s at the touchdown, 3.3 deg/s at +0.1 s, 9.4 at +0.2, 17.4 at +0.3, 32.9 at +0.5, peak 39.5 deg/s at +0.7 s.
+Before the touchdown the goal moves only 2 deg/s (T 4, at -0.5 s; 0.6 at -0.1 s: the ankle ff ramping out through the leg
+geometry). The sole is within 1 mm of the floor from about 0.12 s (T 4) / 0.20 s (T 5) before the touchdown and within 3 mm from 0.20 s / 0.34 s.
+So **the 0.34 s overlap is not in the plan.** What does overlap the shift on the robot is the firmware: at the touchdown the
+support state goes to double support and the stance trim FADES, linearly to 0 over 0.6 s (`balance/stance_trim.h`, `fade_s`),
+so the hike correction of the stance foot is taken out while the shift starts; that is on top of the plan's goals, and the
+servos' lag moves the goals' effect later, not earlier. Where the 0.34 s and the 36 deg/s at +0.1-0.3 s of the flight record
+come from is not explained by the plan: its goal rate there is 3-17 deg/s.
+
+**`--td-pause S`** (default 0): the next step's shift starts S s after the touchdown. All of the shift's motion is held
+(`pel`, fore-aft, feet; the pose is the touchdown frame's, which has the ankle ff and the tilt out), then the old shift
+runs, S later. Every step but the first and the final shift back to the centre have it, so a step is S longer and the walk
+`n S` longer. **`--settle S2`** replaces the pre-lift settle (0.4 s); the shift and the single support keep their lengths, so
+`--td-pause 0.3 --settle 0.2` is 4.1 s per step at T 4. The step time is printed (`timeline:`) and used for `--ahead`, the
+commanded speeds, `--heading-rate` and `--cmd` (a command's displacement is v x the step time); `T` stays the schedule's key.
+
+**`--lower-frac F`** (0.20 to 0.50, default 0.35) or **`--lower-s S3`** (= F x the single support): the lowering's share of the
+single support. The move takes what the raise (0.35) and the lowering leave, the step time does not change, the phase the
+firmware sees is warped piecewise so its raise end (0.35) and lowering start (0.65) still land on the plan's.
+**`--land-early-mm D`** (0 to 4, default 0): the swing sole is commanded D mm BELOW the floor at the touchdown (the same
+min-jerk descent, `z = h (1 - v) - D v`, so it crosses the floor early), held through the pause and let up (min-jerk) over the
+next shift, so the lift-off pose is the plain one. The pre-check judges every frame, so the joint margins cover it (tested to 4 mm).
+Not run on the robot: the press loads the foot the way the stepper's sole bias does, but how far the servos hold a goal below the floor is unmeasured.
+
+**A/B on the robot** (fixed walks, T 4, `--ahead 1`; `walk` = forward 8 at 40 mm, `back` = backward 8 at 32 mm):
+
+```
+F="--T 4 --ahead 1 --swing-tilt 3 --live"; W="--dir fwd --steps 8 --stride-mm 40"; B="--dir back --steps 8 --stride-mm 32"
+python experiments/roll-balance/track_host.py $F $W                                   --note "td base fwd"
+python experiments/roll-balance/track_host.py $F $W --td-pause 0.3                    --note "td pause0.3 fwd"
+python experiments/roll-balance/track_host.py $F $W --td-pause 0.3 --settle 0.2       --note "td pause0.3 settle0.2 fwd"
+python experiments/roll-balance/track_host.py $F $W --land-early-mm 2                 --note "td land2 fwd"
+python experiments/roll-balance/track_host.py $F $B                                   --note "td base back"
+python experiments/roll-balance/track_host.py $F $B --td-pause 0.3                    --note "td pause0.3 back"
+python experiments/roll-balance/track_host.py $F $B --td-pause 0.3 --settle 0.2       --note "td pause0.3 settle0.2 back"
+python experiments/roll-balance/track_host.py $F $B --land-early-mm 2                 --note "td land2 back"
+```
+
+Without `--live` each prints the plan (the timeline, the pre-check) and sends nothing.
+
+**On the robot (2026-11-16, fixed and `--cmd` walks at T 4, from the coordinator's runs).** Forward / backward fixed walks and a mixed
+steered walk with `--td-pause 0.3`: about 144 steps clean; the weight-transfer kick on the shift onto the left foot (the touchdown
+rebound) dropped from median / p90 / max 1.0 / 3.1 / 3.5 deg (baseline, 16 shifts) to 0.6 / 0.8 / 0.9 (16 shifts) and 0.7 / 0.9 / 1.0 (13
+shifts, steered); headings tighter. Sidesteps: an early reading that the pause made lateral steps under-travel or go the wrong way was
+not borne out. An alternating A/B/A/B with the tracker (positions at rest, the robot about 40 deg off square, six steps of +-15 mm each)
+under-travelled with and without the pause (right legs 15 / 30 / 33 mm, left legs about 0 / -20 / -13 mm of about 80 mm commanded, +-40-80 mm
+of fore-aft drift, no tips): sidesteps under-travel on the robot with and without `--td-pause`, cause unknown. The plan and the
+uploaded frames are identical in placement with the pause (tests, and the frames of a robot run decoded against the plan).
+
+## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
+
+The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving
+any of `--ss-s S` (the single support), `--shift-s S` (the lateral shift), `--raise-s` / `--move-s` / `--lower-s`
+(the three parts of the single support) lays the step out from the given values, and `--settle S` and `--td-pause S` add
+to it as above. `--T` is then not the step time: it only supplies the shift (1.4 s) and settle (0.4 s) that were not given
+(`track_host.py` prints a note, the `timeline:` line and the effective step time, and the commanded speeds use it). The parts not
+given split what is left in today's proportions (raise 0.35 : move 0.30 : lower 0.35); with the move not given, the move
+takes what the given raise / lowering leave and the other keeps its 0.35 share; all three given and no `--ss-s`: the
+single support is their sum. A raise or lowering under 0.10 of the single support, or a move under 0.08, is refused (the
+keyframes are 100 ms apart: a raise of 0.21 s is two keyframes and the min-jerk profile is sampled that coarsely, which is
+what the firmware interpolates between). The firmware's phase (raise end at 0.35, lowering start at 0.65 of the single
+support) is warped piecewise onto the plan's, as for `--lower-frac`.
+
+**Guards.** A single support under 1.8 s, a shift under 1.4 s or a step under the SIL floor (3 s) is no longer refused when
+it was given explicitly: a `WARNING:` line is printed instead (without an explicit phase time the T floor still refuses).
+The pre-check's other rules stay refusals: IK reach, every joint 2 deg inside its range, the pelvis speed in the shift (<= 252
+mm/s: a shift of 1.0 s at k 1.3 is 260 mm/s and is refused; 1.2 s passes), and a new one, the swing leg's joint speed.
+
+**Swing joint speed.** The peak |d q / d t| of the swing leg's six joints between consecutive keyframes over every single
+support must stay under 0.8 x the STS3215's no-load speed: 4.04 rad/s at 12 V, measured (`tools/measure_servo_speed.py`,
+`docs/servo-map.md`, `docs/training.md`) = 231 deg/s, so 185 deg/s. The plans of today (T 4, T 3.4, fwd 40 mm with tilt 3)
+peak at 72 and 98 deg/s (R knee); fwd 20 mm at `--ss-s` 2.2 / 1.2 / 0.8 / 0.6: 67 / 113 / 162 / 148 deg/s (the
+0.6 s plan is lower than the 0.8 s one because its raise is two keyframes: the coarse sampling hides part of the peak
+the servo would be asked for, so read the 0.6 s figure as a lower bound). The plan summary prints the peak.
+
+**`--allow-under`.** The static-shift pre-check does not refuse a short `--amp` today: its lower bound is the plan's OWN k (a plan at
+`--amp 1.15,1.15` passes at 1.15 x), and the robot's requirement (L 1.30, R 1.30) is only the upper bound's base. So
+`--amp 1.15,1.15` runs without the flag. What the flag changes: a lift-off or touchdown whose pelvis is short of the plan's own k
+(a timing that cannot reach it) is a warning, not a refusal; and the pre-check prints a `WARNING:` line whenever the plan's k is under
+the robot's requirement, saying whether `--allow-under` was given. IK, joint range, pelvis speed and swing joint speed stay refusals.
+
+**SIL** (fit plant and inset-sole plant `sole_in_L=8,sole_in_R=-12`; six steps of march / fwd 20 mm, no swing tilt, T 4's
+shift 1.4 and settle 0.4, k 1.3 unless stated, lift gate on; ankle ff 2,2, `--pelvis-x stance`; `sil_gait.run`; `(a)` the single
+support at k 1.3, `(b)` k at the two shortest single supports). "clean" = no fall, the 7 lifts of 6 steps plus the closing
+step; "gate timeout" = the firmware's lift gate waited 3 s for a level, quiet body and ended the track with both feet down
+(a stop, not a fall); clearance = the swing sole's peak height per step.
+
+(a)
+
+| plant | walk | k | single support | result | lean in / out max (deg) | swing clearance min / mean (mm) |
+|---|---|---|---|---|---|---|
+| fit | march | 1.3 | 2.2 s | clean | 2.8 / 2.8 | 14.2 / 18.7 |
+| fit | march | 1.3 | 1.2 s | gate timeout, track ended (2/6) | 3.1 / 2.9 | 4.3 / 14.3 |
+| fit | march | 1.3 | 0.8 s | clean | 3.0 / 3.5 | 16.4 / 21.0 |
+| fit | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 3.1 / 4.4 | 3.1 / 16.8 |
+| fit | fwd20 | 1.3 | 2.2 s | clean | 2.7 / 2.8 | 14.5 / 18.7 |
+| fit | fwd20 | 1.3 | 1.2 s | gate timeout, track ended (2/6) | 3.1 / 2.9 | 5.8 / 14.5 |
+| fit | fwd20 | 1.3 | 0.8 s | gate timeout, track ended (2/6) | 3.0 / 3.5 | 4.7 / 16.3 |
+| fit | fwd20 | 1.3 | 0.6 s | FELL out | 3.1 / 4.4 | 17.7 / 23.6 |
+| inset | march | 1.3 | 2.2 s | clean | 2.9 / 3.8 | 15.7 / 18.0 |
+| inset | march | 1.3 | 1.2 s | clean | 9.5 / 0.9 | 13.6 / 15.5 |
+| inset | march | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.3 / 20.3 |
+| inset | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 4.2 / 3.3 | 2.5 / 13.3 |
+| inset | fwd20 | 1.3 | 2.2 s | clean | 2.8 / 3.8 | 15.2 / 17.7 |
+| inset | fwd20 | 1.3 | 1.2 s | clean | 10.0 / 0.9 | 13.2 / 15.5 |
+| inset | fwd20 | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.4 / 20.4 |
+| inset | fwd20 | 1.3 | 0.6 s | FELL in | 5.9 / 3.3 | 12.2 / 17.1 |
+
+(b)
+
+| plant | walk | k | single support | result | lean in / out max (deg) | swing clearance min / mean (mm) |
+|---|---|---|---|---|---|---|
+| fit | march | 1.3 | 0.8 s | clean | 3.0 / 3.5 | 16.4 / 21.0 |
+| fit | march | 1.15 | 0.8 s | clean | 3.1 / 3.8 | 17.4 / 21.1 |
+| fit | march | 1 | 0.8 s | clean | 3.2 / 3.9 | 18.2 / 24.3 |
+| fit | march | 0.85 | 0.8 s | clean | 3.3 / 3.3 | 18.6 / 24.8 |
+| fit | march | 0.7 | 0.8 s | clean | 10.4 / 2.3 | 17.2 / 25.1 |
+| fit | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 3.1 / 4.4 | 3.1 / 16.8 |
+| fit | march | 1.15 | 0.6 s | clean | 3.3 / 4.7 | 18.8 / 22.2 |
+| fit | march | 1 | 0.6 s | clean | 3.6 / 4.5 | 20.1 / 24.1 |
+| fit | march | 0.85 | 0.6 s | clean | 3.9 / 4.2 | 20.6 / 26.5 |
+| fit | march | 0.7 | 0.6 s | clean | 10.6 / 2.7 | 17.1 / 23.8 |
+| fit | fwd20 | 1.3 | 0.8 s | gate timeout, track ended (2/6) | 3.0 / 3.5 | 4.7 / 16.3 |
+| fit | fwd20 | 1.15 | 0.8 s | clean | 3.1 / 3.8 | 16.9 / 20.7 |
+| fit | fwd20 | 1 | 0.8 s | clean | 3.1 / 3.9 | 17.6 / 24.1 |
+| fit | fwd20 | 0.85 | 0.8 s | clean | 4.0 / 3.3 | 18.5 / 24.6 |
+| fit | fwd20 | 0.7 | 0.8 s | clean | 10.5 / 2.4 | 18.9 / 25.4 |
+| fit | fwd20 | 1.3 | 0.6 s | FELL out | 3.1 / 4.4 | 17.7 / 23.6 |
+| fit | fwd20 | 1.15 | 0.6 s | clean | 3.3 / 4.7 | 19.0 / 22.3 |
+| fit | fwd20 | 1 | 0.6 s | clean | 3.5 / 4.5 | 19.6 / 22.9 |
+| fit | fwd20 | 0.85 | 0.6 s | clean | 3.7 / 4.2 | 20.1 / 26.2 |
+| fit | fwd20 | 0.7 | 0.6 s | clean | 7.1 / 2.6 | 17.9 / 25.6 |
+| inset | march | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.3 / 20.3 |
+| inset | march | 1.15 | 0.8 s | FELL in | 9.9 / 2.6 | 9.0 / 17.6 |
+| inset | march | 1 | 0.8 s | FELL out | 6.4 / 2.9 | 27.6 / 27.6 |
+| inset | march | 0.85 | 0.8 s | FELL in | 11.4 / 2.5 | 8.3 / 17.4 |
+| inset | march | 0.7 | 0.8 s | clean | 12.5 / 0.0 | 8.9 / 15.6 |
+| inset | march | 1.3 | 0.6 s | gate timeout, track ended (2/6) | 4.2 / 3.3 | 2.5 / 13.3 |
+| inset | march | 1.15 | 0.6 s | FELL out | 5.0 / 3.7 | 15.0 / 22.0 |
+| inset | march | 1 | 0.6 s | FELL out | 2.7 / 3.9 | 29.7 / 29.7 |
+| inset | march | 0.85 | 0.6 s | FELL out | 6.8 / 3.3 | 28.4 / 28.4 |
+| inset | march | 0.7 | 0.6 s | FELL in | 12.0 / 0.5 | 8.8 / 15.1 |
+| inset | fwd20 | 1.3 | 0.8 s | FELL in | 3.5 / 2.0 | 20.4 / 20.4 |
+| inset | fwd20 | 1.15 | 0.8 s | clean | 4.3 / 2.6 | 12.3 / 20.3 |
+| inset | fwd20 | 1 | 0.8 s | FELL out | 6.3 / 2.9 | 27.6 / 27.6 |
+| inset | fwd20 | 0.85 | 0.8 s | FELL in | 11.6 / 2.5 | 7.1 / 16.8 |
+| inset | fwd20 | 0.7 | 0.8 s | clean | 12.8 / 0.3 | 8.8 / 15.0 |
+| inset | fwd20 | 1.3 | 0.6 s | FELL in | 5.9 / 3.3 | 12.2 / 17.1 |
+| inset | fwd20 | 1.15 | 0.6 s | FELL out | 4.9 / 3.7 | 14.8 / 21.2 |
+| inset | fwd20 | 1 | 0.6 s | FELL in | 11.0 / 3.9 | 11.9 / 20.8 |
+| inset | fwd20 | 0.85 | 0.6 s | FELL out | 6.8 / 3.3 | 28.5 / 28.5 |
+| inset | fwd20 | 0.7 | 0.6 s | FELL in | 12.5 / 0.5 | 8.7 / 15.0 |
+
+**Where the sim stops being credible.** It is known to be far more forgiving than the robot in single support, and these numbers show
+it is also not smooth: on the fit plant k 1.3 gate-times-out at 1.2 and 0.6 s but runs clean at 0.8 s, and k 1.15 / 1.0 / 0.85 run clean at
+0.6 s where k 1.3 does not; on the inset plant k 1.3 falls at 0.8 s but runs at 1.2 s, and every k at 0.6 s falls or ends. With six steps per cell and one
+seed these are single draws of a chaotic system, not a trend. What they do say: no short single support is a fall everywhere (the fit plant is clean
+in 19 of 22 cells at k >= 0.85), the lean stays under 5 deg except at k 0.7 and on the inset plant, and a clearance of 15-20 mm at
+0.6 s means the 100 ms keyframes still lift the foot. What they cannot say: whether the real single support survives a lift with the
+pelvis at 0.85-1.15 x (on the robot a lift at 1.15 x tipped in; README 'k R 1.35...'), how the servos follow a 0.2 s raise (the swing speed check is the
+only model of that), or any friction / sole effect. Treat the sim as a filter for plans that cannot work, not as evidence that one will.
+
+**Robot test lines** (fixed walks, T 4, `--ahead 1`, lift gate on (the default); part 1 at k 1.3, part 2 at the shortest single support of part 1):
+
+```
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 1.2 --live --note "ss 1.2 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 1.2 --live --note "ss 1.2 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.8 --live --note "ss 0.8 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.8 --live --note "ss 0.8 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --live --note "ss 0.6 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.6 --live --note "ss 0.6 fwd20"
+
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 1.15,1.15 --allow-under --live --note "ss 0.6 k 1.15 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 0.6 --amp 1.15,1.15 --allow-under --live --note "ss 0.6 k 1.15 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 1.0,1.0 --allow-under --live --note "ss 0.6 k 1.0 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --swing-tilt 3 --ss-s 0.6 --amp 1.0,1.0 --allow-under --live --note "ss 0.6 k 1.0 fwd20"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 0.6 --amp 0.85,0.85 --allow-under --live --note "ss 0.6 k 0.85 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --swing-tilt 3 --ss-s 0.6 --amp 0.85,0.85 --allow-under --live --note "ss 0.6 k 0.85 fwd20"
+```
+
+Without `--live` each prints the note, the timeline, the warnings and the pre-check and sends nothing.
+The two fwd lines at k 1.0 and 0.85 carry `--swing-tilt 3`: without it the plan is REFUSED (the swing foot's ankle pitch reaches -38.6 /
+-39.5 deg, outside the plant's 38 deg less 2 deg margin: with the pelvis nearer the centre the swing foot has more reach to cover). With it the
+margin is 4.4 / 3.4 deg. At k 1.15 no tilt is needed (2.5 deg).
+
+**On the robot (2026-11-16/17, march, T 4).** `--ss-s 1.2` (full shift, normal settle): FELL on step 2 (R stance). The flight record shows no
+ramp or scaling fault in the plan: after foot-off the body leans about 2.4 deg toward the swing foot by +0.4 s and in a normal step recovers by
+0.6-0.8 s; the short step lowered at 0.8 s while still -4.2 deg, landed hard, rebounded and toppled outward. Only the raise shortened
+(`--raise-s 0.42 --move-s 0.66 --lower-s 0.77`): no fall, but 3 of 7 steps tipped 11-12 deg inward (L 11.1, R 11.7, L 12.2): the fast lift
+is itself the disturbance, on both sides. So shortening the single support or the raise tips or topples the robot as it is; the options stay
+for experiments (they leave the default frames untouched). The SIL tables above did not predict this (the sim is the forgiving one).
+
+## Taking up the hip-roll play before the foot leaves: `--pre-hike L,R`, `--pre-hike-frac F` (host only; default off)
+
+Why (the flight records of 2026-11-17, from the coordinator): with `--ss-s 1.2` the first R-stance step fell, and with only the raise
+shortened (`--raise-s 0.42 --move-s 0.66 --lower-s 0.77`) 3 of 7 steps tipped 11-12 deg inward on both sides: a fast lift is the
+disturbance. The hypothesis under test: at foot-off the pelvis sags through the hip-roll play (6-8 deg); with a slow raise the firmware
+trim's hike (learned T ramped over the raise plus the closed loop) keeps up, with a fast one the sag is abrupt. `--pre-hike` takes the
+play up in the plan, with both feet down, before the lift.
+
+**What it does.** For each step, the stance leg's hip-roll goal gets `+ theta` (the firmware trim's convention: + raises the swing-side
+hip; `Kin.pose(hike=)`), min-jerk in over the settle (over `--pre-hike-frac` of it, default all of it: 0.4 s at T 4), held through
+the single support, and out over the start of the next step: over `--td-pause` if there is one (the removal then happens with nothing
+else moving), else over the first half of the next shift (0.7 s at T 4; the shift itself is slow at its start). `theta` is the side's
+value of `--pre-hike L,R` (deg, 0 to 12; 0 = no hike on that side). The seeds to try are the trims the robot learns, `5.2,3.4`. A pre-hike
+step's ramp-in and the previous step's ramp-out never overlap (the out ramp is at most as long as the pause plus the shift).
+
+**The swing sole is kept where the plan has it.** A hike alone (the stance hip-roll goal += theta, the swing leg's goals unchanged) leaves the
+stance leg where it is in the world and rolls the pelvis about the stance hip's roll axis; the swing-side hip rises, and the swing sole with
+it: by the swing ankle's lateral distance from the stance hip x sin(theta), 12.5 mm at 5.2 deg with the pelvis 40 mm over the stance
+foot (measured on the plant's forward kinematics, `tests/test_pre_hike.py`). With both feet down in the settle that unloads the swing foot,
+and in the single support it moves the foot with the pelvis. `dwell.hiked_pose` therefore solves the swing leg's IK for the rolled pelvis
+with the sole's world position fixed, and turns its ankle roll back by the pelvis roll, so the sole stays level and at the height the plan
+commands (0 on the floor, h in the air); the stance leg is the level solution with the hip roll goal += theta (its other joints and its
+ankle roll are unchanged: the leg does not move). Checked on the MuJoCo plant: both ankle-roll points land on their targets to 1e-6 m and
+both soles are level for hikes of 0, 5.2 and 9 deg on either stance and the swing foot at 0 and 15 mm. Cost: the swing leg's joints move
+a few degrees more (its peak joint speed in the swing goes from 86-92 to 156-167 deg/s at `--ss-s 1.2`, under the 185 deg/s limit).
+
+**The firmware's trim.** The plan carries the hike, so the host seeds the firmware's learned trim T of a side with a pre-hike to 0
+(`trim T L 0` instead of `trim T L 5.2`; `track_host.py` prints it) and the two do not add; the closed loop stays on and corrects the
+residual, and its learned T then grows from 0 on its own (the `TS` lines' `T` shows how much it still needs: a `T` near 0 at mid single
+support means the plan's hike was the right size, a `T` near the old 5.2 / 3.4 means it did nothing). The pre-check reads the lift-off and
+touchdown pelvis shift through the hike (the stance hip-roll goal less theta), so its numbers are the same as without; the joint-range rule
+covers the stance hip roll and the swing leg (the swing leg's IK is solved, so a swing foot out of reach refuses the plan).
+
+**Robot test lines** (fixed walks, T 4, `--ahead 1`, lift gate on; compare the TS lean-in / lean-out and T against the same line without `--pre-hike`):
+
+```
+# (1) normal timing, no regression
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --pre-hike 5.2,3.4 --live --note "prehike march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --pre-hike 5.2,3.4 --live --note "prehike fwd20"
+# (2) the same with only the raise shortened
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --raise-s 0.42 --move-s 0.66 --lower-s 0.77 --pre-hike 5.2,3.4 --live --note "prehike raise0.42 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --raise-s 0.42 --move-s 0.66 --lower-s 0.77 --pre-hike 5.2,3.4 --live --note "prehike raise0.42 fwd20"
+# (3) with the short single support
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir march --steps 6 --ss-s 1.2 --pre-hike 5.2,3.4 --live --note "prehike ss1.2 march"
+python experiments/roll-balance/track_host.py --T 4 --ahead 1 --dir fwd --steps 6 --stride-mm 20 --ss-s 1.2 --pre-hike 5.2,3.4 --live --note "prehike ss1.2 fwd20"
+```
+
+Variants: `--pre-hike-frac 0.5` finishes the ramp in the first half of the settle; `--settle 0.8` gives the ramp more time (the step is 0.4 s longer);
+`--pre-hike 5.2,0` hikes one side only. Without `--live` each prints the plan and sends nothing.
+
+**On the robot (tested 2026-11-16): no benefit for the quick lift; it conflicts with the lift gate level and the trim's reference.**
+`--pre-hike 5.2,3.4` at normal timing: clean 7/7 (lean in <= 4.1 deg), but (a) the firmware lift gate TIMES OUT on the roughly 4.3 deg pre-tilt
+at its default level of 3 deg (the run needed `liftgate set 6 15 150 3000`, restored afterwards; `--gate 6,15,150,3000` sends it): the gate holds
+when the roll is more than its level off the settled double-support roll (`lift_gate.h`); why that reference does not follow the planned
+pre-tilt was not established; and (b) the firmware trim takes its roll
+reference at lift-off, that is the pre-tilted posture, so its learned T climbs back (L 1.2 -> 5.2, R 1.3 -> 3.3) on top of the plan's hike
+instead of staying near 0. With the quick lift (`--raise-s 0.42 ...`) it did not help: still 3 of 7 steps tipped 10.7-11.4 deg inward. The
+hypothesis that the pelvis sags through the hip-roll play at a fast foot-off, and that taking the play up beforehand lets the trim keep up,
+is not supported by this test; the option stays default-off.
+
 ## Live velocity commands (`track_host.py --cmd`, `cmd_walk.py`, `walk_keys.py`; dry run by default)
 
 A walk with no fixed length: every step the host reads the CURRENT command, `vx vy wz` (mm/s forward, mm/s left, deg/s
