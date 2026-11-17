@@ -280,7 +280,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **{k_: v_ for k_, v_ in (("ss_s", ss_s), ("shift_s", shift_s), ("raise_s", raise_s), ("move_s", move_s),
                                            ("lower_s", lower_s)) if v_ is not None},
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}),
-                   **({"moving_lift": moving_lift} if moving_lift else {}))
+                   **({"moving_lift": moving_lift} if moving_lift else {}),
+                   **({"step_lateral": [bool(c.get("lat")) for c in cmds]}
+                      if step_cmds is not None and any(c.get("lat") for c in cmds) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         elif seq is not None or step_cmds is not None:
@@ -1260,6 +1262,7 @@ def main_cmd(a, seeds, amp, aff, by_step):
           f"first stance step of each side +{boost:g} deg; heading drift sideL,sideR {drift[0]:g},{drift[1]:g} deg/step "
           f"(forward {YAW_DRIFT:g})")
 
+    side_timing = a.side_timing or ("plain" if a.td_pause else "same")
     ph = None
     if a.pos_hold == "on":
         if not a.live:
@@ -1275,8 +1278,12 @@ def main_cmd(a, seeds, amp, aff, by_step):
         w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
                        max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
                        allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift,
-                       step_s=a.Teff, poshold=ph)
+                       step_s=a.Teff, poshold=ph, side_timing=side_timing)
         return w
+    if side_timing == "plain" and a.td_pause:
+        print("side timing plain: a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause, the "
+              "schedule's shift / settle / single support) for its single support, the next step throughout "
+              "(a step's own pause and shift come before it is decided)")
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
           f"per step, slew {lim.get('slew', CW.SLEW)}; max {a.max_steps} steps"
@@ -1332,7 +1339,8 @@ def make_poshold(a):
     cfg = G.load_config(a.pos_config)
     d = a.pos_camd_dir or DEFAULT_DIR
     path = os.path.join(d, "emeet_latest.jpg")
-    loc = PH.Locator(cfg, pose_path=os.path.join(d, "emeet_poshold_pose.json"))
+    loc = PH.Locator(cfg, pose_path=os.path.join(d, "emeet_poshold_pose.json"),
+                    pose_read=[os.path.join(d, "emeet_board_pose.json")])
     sam = PH.PosSampler(loc, path)
     margin = a.keep_on_board if a.keep_on_board is not None else PH.MARGIN_MM
     W, L = cfg["board"]["width_mm"], cfg["board"]["length_mm"]
@@ -1422,6 +1430,10 @@ def main(argv=None):
                          "mm/s, mm/s, deg/s, or `stop` / `pause`) or stdin. The walk has no fixed length; every step is "
                          "clamped, slewed and pre-checked before it is uploaded. --dir / --steps / --step / --seq / "
                          "--stride-mm / --side-mm / --turn are not used")
+    ap.add_argument("--side-timing", choices=["plain", "same"], default=None,
+                    help="--cmd: with `plain` a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause, "
+                         "the schedule's shift / settle / single support for T) for its single support, and the next step "
+                         "takes it throughout; `same` keeps one timing. Default plain when --td-pause is given (README: Position hold)")
     ap.add_argument("--pos-hold", choices=["on", "off"], default="off",
                     help="--cmd, live: close the robot's position from the overhead camera tracker (tools/vision, camd's "
                          "emeet_latest.jpg; read-only, no camera access). Per step: the median position over the last "

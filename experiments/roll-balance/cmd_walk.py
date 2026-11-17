@@ -27,6 +27,7 @@ import time
 # ---- the envelope (README: the table) -------------------------------------------------------------------------
 FWD_MM, BACK_MM, SIDE_MM, YAW_DEG = 50.0, 32.0, 15.0, 5.0       # per step; the proven strides (README: the envelope table)
 SLEW = (20.0, 10.0, 3.0)         # max change of (dx mm, dy mm, dyaw deg) from one step to the next
+SIDE_PLAIN_MM = 3.0              # a step with more sideways travel than this is a sideways step (side timing)
 PAUSE_STEPS = 15                 # marching in place longer than this many steps in a row ends the walk
 # swing tilt from the farther of this step's |dx| and the last one's (the swing foot starts at -dx of the last step):
 # 0 up to 26 mm (27 passes the pre-check at 2.1 deg), 3 deg up to 43, 5 deg beyond (proven to 50 mm)
@@ -161,7 +162,7 @@ class CmdWalk:
 
     def __init__(self, host, source, base, first="R", hold=None, limits=None, max_steps=120, max_time=None,
                  status=None, say=print, clock=time.monotonic, fixed_tilt=0.0, yaw_trim=None, allow_over=False,
-                 ankle_side=None, first_boost=0.0, drift_side=None, step_s=None, poshold=None):
+                 ankle_side=None, first_boost=0.0, drift_side=None, step_s=None, poshold=None, side_timing="same"):
         """base: the plan() keyword arguments shared by every plan of the walk (T_step, seeds, lead_ms, cal, amp, model,
         ds, h, pelvis_x, ankle_ff, k_ds, drop, lift_gate; direction, n_steps and first are set here).
         ankle_side, first_boost, drift_side: the by-step feed-forwards (track_host.ankle_extra / step_drift); None / 0 =
@@ -190,6 +191,7 @@ class CmdWalk:
         self.allow_over = allow_over
         self.ankle_side, self.first_boost, self.drift_side = ankle_side, float(first_boost or 0.0), drift_side
         self.fail = None
+        self.side_plain = side_timing == "plain"        # sideways steps (and the next one) take the plain timing (dwell step_lateral)
         self.ph = poshold                                # pos_hold.PosHold or None (off: nothing below changes)
         if self.hold is not None:
             self.hold.set_step(0, 0.0)                   # the provisional step 0
@@ -207,8 +209,11 @@ class CmdWalk:
 
     def _cmd(self, dx, dy, dyaw, prev_dx_mm, name=None, **kw):
         tilt = self.fixed_tilt or tilt_for(max(abs(dx), abs(prev_dx_mm)))
-        return dict(name=name or f"cmd({dx:g},{dy:g},{dyaw:g})", key="cmd", dx=dx / 1e3, dy=dy / 1e3,
-                    yt=dyaw / self.H.YAW_GAIN, dpsi=float(dyaw), seg=0, tilt=tilt, **kw)
+        c = dict(name=name or f"cmd({dx:g},{dy:g},{dyaw:g})", key="cmd", dx=dx / 1e3, dy=dy / 1e3,
+                 yt=dyaw / self.H.YAW_GAIN, dpsi=float(dyaw), seg=0, tilt=tilt, **kw)
+        if self.side_plain and abs(dy) > SIDE_PLAIN_MM:
+            c["lat"] = True
+        return c
 
     def _aff(self, i, c):
         """Step i's command with its ankle extra (deg on its stance ankle)."""

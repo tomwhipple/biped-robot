@@ -59,6 +59,7 @@ DELAY_STEPS = 3
 WARMUP_STEPS = 3              # the window must hold whole walking cycles: no correction for the first steps
 MIN_SAMPLES = 4
 DIST_ALPHA = 0.25             # the per-step slip estimate follows the last ~4 steps
+SAT_STEPS, SAT_EXTRA_MM = 4, 10.0  # corrections at the clip for 4 steps while the error is clip/k + 10 mm or more
 DEADBAND_MM = 4.0             # the tracker's relative accuracy is ~10 mm: do not chase less than this
 
 
@@ -107,17 +108,19 @@ class Locator:
     `calib_frames` frames that show >= 2 board tags, and kept: the camera and the board do not move, so a frame whose
     robot hides a board tag still locates the robot. A visible board tag that sits more than `tol_px` from where the
     calibration frames had it means the camera moved: no fix until it is back (a re-aim needs a restart).
+    pose_read: more pose files to try first, e.g. where.py's <camd-dir>/emeet_board_pose.json (written on every frame with
+    two board tags, same JSON keys; it keeps this hold's board frame the one where.py reports margins in).
     pose_path: the calibrated pose (f, board pose, the board tags' pixel corners) is saved there, and a later start
     whose first frame shows at least one board tag where the file has it loads it instead of waiting for a frame with
     two board tags (the robot often hides one) -- and keeps the board frame the same between runs, which the
     auto-layout fit (f from the tags' coplanarity) does not."""
 
-    def __init__(self, cfg=None, tol_px=4.0, calib_frames=3, pose_path=None):
+    def __init__(self, cfg=None, tol_px=4.0, calib_frames=3, pose_path=None, pose_read=()):
         sys.path.insert(0, VISION)
         import vgeom as G
         self.G = G
         self.cfg = cfg or G.load_config()
-        self.tol, self.n_cal, self.pose_path = tol_px, calib_frames, pose_path
+        self.tol, self.n_cal, self.pose_path, self.pose_read = tol_px, calib_frames, pose_path, tuple(pose_read)
         self.tr = None
         self.pending, self.ref_corners, self.cal = [], {}, None
         self.why = "not calibrated"
@@ -130,7 +133,7 @@ class Locator:
         tr = self.tr
         d = detect(gray, tr.det)
         board = [i for i in d if str(i) in self.cfg["board"]["tags"]]
-        if self.cal is None and self.pose_path and board and self._load(d, board):
+        if self.cal is None and board and any(self._load(d, board, pp) for pp in (*self.pose_read, self.pose_path) if pp):
             pass
         if self.cal is None:
             if len(board) >= 2:
@@ -174,23 +177,23 @@ class Locator:
         except OSError:
             pass                                    # a read-only dir only costs the shortcut
 
-    def _load(self, d, board):
+    def _load(self, d, board, path):
         import json
         try:
-            with open(self.pose_path) as f:
+            with open(path) as f:
                 rec = json.load(f)
         except (OSError, ValueError):
             return False
         tr = self.tr
         if tuple(rec.get("size", ())) != tuple(tr.size):
             return False
-        ref = {int(i): np.array(c, float) for i, c in rec["corners"].items()}
+        ref = {int(i): np.array(c, float) for i, c in (rec.get("corners") or rec["tag_corners_px"]).items()}
         sh = [float(np.mean(np.linalg.norm(np.asarray(d[i], float).reshape(4, 2) - ref[i], axis=1))) for i in board if i in ref]
         if not sh or max(sh) > self.tol:
             return False
         tr.set_camera(rec["f_px"])
         tr.set_board_pose(np.array(rec["rvec"], float).reshape(3, 1), np.array(rec["tvec"], float).reshape(3, 1))
-        self.cal, self.ref_corners = dict(f_px=rec["f_px"], loaded=self.pose_path), ref
+        self.cal, self.ref_corners = dict(f_px=rec["f_px"], loaded=path), ref
         self.why = ""
         return True
 
@@ -296,6 +299,9 @@ class PosHold:
         self.trim = (0.0, 0.0)            # last (dx, dy) correction in the robot frame, mm
         self.slip = (0.0, 0.0)            # estimated per-step slip (fwd, left) the robot adds to what a step asks, mm
         self.prev = None                  # (steps seen at the last fix, its position)
+        self.sat = 0                      # consecutive steps with the lateral correction at its clip
+        self.last_cy = 0.0
+        self.lat_off = None               # why the lateral correction is off (None = on)
         self.dec = None                   # the decision of the step being decided
         self.log = []
 
@@ -384,8 +390,22 @@ class PosHold:
         d["ref"] = ref_now
         d["pred"] = pred
         d["slip"] = self.slip
+        # does a sideways correction move the robot sideways? (the pause timing on 2026-11-16 moved it the wrong way.)
+        # The response cannot be read off one step: it is the sample-to-sample motion against the correction, and the
+        # decision-to-sample delay is not known well enough to line them up. What shows without it: a correction that
+        # works settles the error at creep / k <= clip / k; one that sits at its clip for several steps while the error is
+        # well past that does not work.
+        if self.lat_off is None and self.sat >= SAT_STEPS and abs(e_lat) >= self.clip_lat / max(self.k, 1e-9) + SAT_EXTRA_MM:
+            self.lat_off = (f"the lateral error is {e_lat:+.0f} mm after {self.sat} steps of corrections at the {self.clip_lat:g} mm "
+                            f"clip: they do not bring it back (response weak or wrong-signed)")
         cx = 0.0 if abs(e_fwd) < self.deadband else _clip(-self.k * e_fwd, self.clip_fwd)
         cy = 0.0 if abs(e_lat) < self.deadband else _clip(-self.k * e_lat, self.clip_lat)
+        if self.lat_off is not None:
+            cy = 0.0
+            d["notes"].append("LATERAL CORRECTION OFF: " + self.lat_off)
+        at_clip = abs(cy) >= self.clip_lat - 1e-9
+        self.sat = self.sat + 1 if at_clip and (self.sat == 0 or cy * self.last_cy > 0) else (1 if at_clip else 0)
+        self.last_cy = cy
         if len(self.hist) < self.warmup:           # the first window still holds the standing robot, not whole cycles
             cx = cy = 0.0
             d["notes"].append(f"settling ({len(self.hist)}/{self.warmup} steps): no correction yet")
