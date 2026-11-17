@@ -1288,3 +1288,103 @@ back / march, 4 steps: every lift-off has a gate frame, zero holds, the per-step
 the run without the gate. A roll-rate kick (200 deg/s at 1.56 s, in the double support before the first lift-off): the
 gate holds 360 ms and the walk goes on. A 290 deg/s kick at 1.62 s: the run without the gate falls (35 deg); with it
 the hold times out after 3000 ms, the track ends with both feet down, no fall, no foot lifted.
+
+## The foot-off sag: a plant term for the release at lift-off (`--footoff-sag`, `sag_L=`/`sag_R=`; `footoff_sag.py`; 2026-11-16 evening)
+
+When a foot leaves the floor the robot's body rolls toward it beyond the stance encoders, then rings
+(hw_sessions/2026-11-16/DESIGN_moving_lift_gait.md §1: on a LEFT stance 6.4 deg, on a RIGHT stance 2.9 deg, released
+over 0.66 s, 2.0 Hz / damping ratio 0.05 in the fit). The plants above have no such release: the per-side play lets
+the body fall through a free band onto the rigid PD, which does not ring, and the inset sole moves the static edge
+instead of the thing that sets it.
+
+**The term** (walker_env `footoff_sag`, mirrored in env_mjx, parity R21): a spring (60 N m/rad) in series with each
+hip-roll and ankle-roll servo, beyond its encoder, in the roll series spring's quasi-static form (the link sees the
+PD × k/(kp + k), the encoder reads link + deflection). Each spring's rest angle carries a preload toward the other foot,
+scaled by its own foot's share of the floor load (the sole pads' penetration, once per control tick). 30 % of a
+side's preload sits at the ankle (it rolls the whole body over the foot), 70 % at the hip (it tilts the torso over the
+stance leg); the design note infers a whole-body share near 30 % from the ankle feed-forward that cured the inward tips.
+In double support the two legs' preloads push against each other through the floor. When one foot unloads, the stance
+leg's preload is no longer held, and the body sags onto the springs as fast as the swing foot rises. So the release
+time follows the raise with nothing fitted to it; a 0.42 s raise releases faster than a 0.77 s one.
+- Its value is the static sag in degrees per stance side. Preload = 0.5 × that; with the springs' own give the
+  replayed sag comes out within about 10 % of the value on a left stance.
+- It replaces the roll play and the series spring (exclusive: three models of the same yield).
+- Use it on the plant's own sole, without `sole_in`. With the inset sole as well, the two count the same inner edge
+  twice: every replayed left-stance step of the clean runs tips.
+- Mechanism choices tried and dropped (replay grids, `/tmp` scripts, not kept):
+  - preload at the ankle alone: every left stance tips, even at a quarter of the preload;
+  - the term on top of the play and the inset sole: tips the clean runs;
+  - zero dry friction on the rolls: rings more but tips the clean runs.
+
+**Validation** (`footoff_sag.py run`): each single support of six 2026-11-16 track walks is replayed on its own.
+- Placement: grade.py's plant is placed at the robot's measured joints before the weight shift (2.5 s before the raise,
+  or 0.4 s after the touchdown before it).
+- Drive: it then gets the robot's written goals, trim, lift gate and ankle feed-forward included, to 0.8 s after
+  touchdown.
+- sag = the passive roll beyond the stance encoders (IMU minus hip + ankle roll encoders) over 0.9-1.3 s after the raise
+  starts, median over the clean steps after the first.
+- Plants:
+  - `play` = `play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`;
+  - `inset` = that + `sole_in_L=8,sole_in_R=-12`;
+  - `sag` = `sag_L=6.4,sag_R=2.9`.
+
+| run | stance | robot sag / t90 / peak | play | inset | **sag** |
+|---|---|---|---|---|---|
+| 152118 march T 4 (clean) | L | 5.6° / 0.44 s / 7.2° | 5.1 / 0.46 / 5.4 | 2.4 / 0.34 / 4.7 | **5.5 / 0.44 / 7.0** |
+| | R | 3.1 / 0.36 / 5.2 | 2.5 / 0.36 / 2.7 | 4.5 / 0.48 / 6.9 | **2.4 / 0.36 / 3.1** |
+| 150059 fwd 40 mm, td-pause (clean) | L | 5.4 / 0.44 / 7.5 | 4.5 / 0.46 / 4.7 | 4.1 / 0.42 / 4.9 | **5.8 / 0.44 / 7.6** |
+| | R | 1.7 / 0.34 / 2.2 | 3.8 / 0.42 / 3.9 | 4.7 / 0.60 / 4.9 | **2.3 / 0.36 / 2.8** |
+| 174820 Variant M fwd 20 mm (clean) | L | 5.4 / 0.42 / 7.5 | 5.2 / 0.50 / 5.4 | 4.0 / 0.38 / 5.6 | **6.0 / 0.42 / 8.2** |
+| | R | 1.5 / 0.34 / 2.1 | 3.6 / 0.40 / 3.7 | 6.1 / 0.60 / 6.8 | **2.8 / 0.36 / 3.3** |
+| 151416 raise 0.42 s | L | 5.0 / 0.22 / 9.8 (n 1) | 5.0 / 0.32 / 5.5 | all tip | all tip |
+| | R | 2.5 / 0.26 / 4.2 | 3.9 / 0.26 / 4.0 | 6.2 / 0.42 / 6.8 | **2.4 / 0.24 / 3.6** |
+| 152225 raise 0.42 s + pre-hike | L | 5.8 / 0.28 / 8.3 | 6.1 / 0.36 / 6.4 | 2.4 / 0.24 / 6.5 | **5.9 / 0.30 / 9.8** |
+| | R | 2.2 / 0.26 / 5.0 | 2.5 / 0.28 / 3.7 | 2.8 / 0.28 / 7.4 | **2.7 / 0.28 / 3.9** |
+
+Tips: steps whose roll toward the lifted foot peaked ≥ 7° before touchdown, the track's own tip line. Odd steps are
+left stances.
+
+| run | robot | play | inset | **sag** |
+|---|---|---|---|---|
+| 152118, 150059, 174820 (clean) | none | none | none | **none** |
+| 150430 `--ss-s 1.2` march (fell) | step 2 (R) | none | none | **step 1 (L)** |
+| 151416 raise 0.42 s | 3, 6, 7 | none | 3, 5, 7 | **1, 3, 5, 7** |
+| 152225 raise 0.42 s + pre-hike | 2, 5, 6 | none | 5 | **5, 7** |
+
+What matches, with the sag on:
+- Left-stance sag: within 11 % on every clean run.
+- Right-stance sag: within 30 % on the march and on both quick runs.
+- t90: the robot's on the T 4 steps (0.42-0.44 s); on the quick raises 0.24-0.30 s against the robot's 0.22-0.28.
+- The sag's first peak on a left stance of the clean runs: 7.0-8.2° against 7.2-7.5° (the play plant: 4.7-5.4°).
+- Tips: none on the three clean runs, and some on each run that tipped.
+
+What does not match:
+- **Right-stance sag on the two forward walks is too large:** 2.3 / 2.8° against 1.7 / 1.5° (+35 % / +87 %). The
+  march's right stance is 3.1°, so the robot's right side varies with the gait more than the term does.
+- **The sim tips only on left stances.** The robot's right-stance tips (step 2 of the `--ss-s 1.2` march, step 6 of
+  the raise-0.42 march, steps 2 and 6 with the pre-hike) are not reproduced. The sim tips step 1 of the `--ss-s 1.2`
+  and raise-0.42 marches, which the robot held.
+- **The ringing after the first peak is too damped.**
+  - Damped-sine fits on the median sag trace: robot 1.4-1.7 Hz, ζ 0.05-0.17.
+  - Sim 1.7 Hz, ζ 0.57-0.61 on the forward walks' left stances; elsewhere no oscillation to fit.
+  - The plant's dry friction (0.17 N m) and damping on the roll links take it out after one swing.
+  - Removing the friction rings more but tips the clean runs (above).
+  - The design note's 2.0 Hz / ζ 0.05 is its model's parameter. On this replay measure the robot rings at 1.4-1.7 Hz.
+- **Double support leans further outward:** over the last 1 s of the shift the sag plant rolls 1.2-1.7° further away
+  from the lifted foot than the robot on the forward walks (−1.9 / −2.6° against −0.7 / −0.9° on a left stance).
+  - Its springs make the double-support roll chain softer.
+  - The design note's double-support ringing (3.0 Hz, ζ 0.32 after the shift kicks) is not measured here.
+- Calibrated and validated on grade.py's plant only. The training plant's DR centre (kp × 0.9, kd × 0.56) is not
+  replayed.
+- The static edge the inset sole was fitted to (march k R 1.20 tips, 1.30 holds; SIL table above) is not re-run with
+  the sag on.
+
+**Using it.**
+- Grade on it as a fourth plant: `GRADE_PLANT_TERMS=sag_L=6.4,sag_R=2.9`. It drops the run's own play or spring.
+- Train with `--footoff-sag L=6.4,R=2.9` in place of `--roll-play-deg ...` and `--sole-in-mm ...`.
+- For domain randomisation, 0.5-1.5 × per side per episode: `--footoff-sag L=3.2:9.6,R=1.45:4.35`. The two forward
+  walks' right stance (1.5-1.7°) sits at the bottom of that range, the march's (3.1°) inside it.
+- Figures: `results/footoff_sag/<stamp>_<note>.png` (robot median and p10-p90, each plant). Numbers:
+  `results/footoff_sag/summary.md` / `.json`.
+- The robot's side is read from the flight record and cached in `build/footoff-sag/cache/`. The track logs come from
+  whichever `~/code/robot*/experiments/roll-balance/results/` holds them (they are not committed).

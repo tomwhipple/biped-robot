@@ -48,6 +48,8 @@ Gates (float64, so precision is not the limiter):
       and paid on a grounded march stand (not gated on the foot being up)
   R20 the two-foot (AND) march term (w_march_both): airborne arithmetic with the
       per-foot latch state carried, the term live once both feet's swings latched
+  R21 the foot-off sag (footoff_sag): grounded stance with the per-side preloads and the
+      load shares live, the encoder obs reading the servo shaft (link + deflection)
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -58,6 +60,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
       python parity_test.py --march-both     # R20 only
+      python parity_test.py --footoff-sag    # R21 only
 """
 import os
 import sys
@@ -122,6 +125,10 @@ def sync(state, cpu, gpu_env):
               if getattr(cpu, "_rp_h", None) is not None else state.rp_h),
         rp_off=(jp.asarray(np.array(cpu._rp_off))
                 if getattr(cpu, "_rp_h", None) is not None else state.rp_off),
+        fs_amp=(jp.asarray(cpu._fs_part * cpu._fs_sign * cpu._fs_theta[cpu._fs_side])
+                if getattr(cpu, "_fs_theta", None) is not None else state.fs_amp),
+        fs_defl=(jp.asarray(np.array(cpu._fs_defl))
+                 if getattr(cpu, "_fs_theta", None) is not None else state.fs_defl),
         dq_qhist=(jp.asarray(np.array(cpu._dq_qhist))
                   if getattr(cpu, "_dq_qhist", None) is not None else state.dq_qhist),
         dq_win=(jp.asarray(cpu._dq_win, dtype=jp.int32)
@@ -971,7 +978,46 @@ def manifold_stats():
     print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
 
+# -- R21: the foot-off sag (footoff_sag) ------------------------------------------
+# preloaded springs in series with the four roll servos beyond the encoder; each joint's
+# rest angle is shifted by its side's preload x that foot's share of the floor load (the
+# pads' penetration, walker_env.footoff_load_share / footoff_sag_shift, shared). Grounded
+# stance (both feet loaded, the shares and the shifts live) with the 2026-11-16 fit;
+# liveness: the roll joints' shaft - link deflection is non-zero, the encoder obs reads
+# link + deflection, and no other joint carries one.
+FOOTOFF_SAG_PARITY = "L=6.4,R=2.9"
+
+
+def footoff_sag_block():
+    over = dict(footoff_sag=FOOTOFF_SAG_PARITY)
+    c, g, s = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n = c._nq_act
+    ok_b = run_block(
+        "R21. foot-off sag (L 6.4, R 2.9 deg), grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c, g, s), matched_only=True, min_frac=0.5)
+    roll = [i for i, nm in enumerate(c._servo_names) if nm.endswith("roll")]
+    other = [i for i in range(c._n_servo) if i not in roll]
+    defl = np.degrees(np.abs(c._fs_defl[roll]))
+    q_obs = c._obs()[:n]
+    zo = c._p(c._zero_off) if c._zero_off is not None else 0.0
+    q_link = c.data.qpos[c._jqpos] - zo
+    gap = float(np.max(np.abs(q_obs - q_link - c._p(c._fs_defl))))
+    share = c._footoff_share()
+    ok_c = (float(defl.max()) > 0.05 and gap < 1.6e-3      # one tick of quantization
+            and float(np.max(np.abs(c._fs_defl[other]))) == 0.0
+            and abs(float(share.sum()) - 1.0) < 1e-9)
+    print(f"== R21-c. foot-off sag liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   roll shaft - link {np.round(defl, 3).tolist()} deg; load shares L/R "
+          f"{np.round(share, 3).tolist()}; |obs q - (link + deflection)| max {gap:.1e} rad (quantized)")
+    return ok_b and ok_c
+
+
 def main():
+    if "--footoff-sag" in sys.argv:
+        ok = footoff_sag_block()
+        print("\nPARITY (R21):", "PASS" if ok else "FAIL")
+        return ok
     if "--roll-series" in sys.argv:
         ok = roll_series_block()
         print("\nPARITY (R15):", "PASS" if ok else "FAIL")
@@ -1004,7 +1050,7 @@ def main():
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
-               march_both_block()]
+               march_both_block(), footoff_sag_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
