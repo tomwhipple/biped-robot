@@ -161,7 +161,7 @@ class CmdWalk:
 
     def __init__(self, host, source, base, first="R", hold=None, limits=None, max_steps=120, max_time=None,
                  status=None, say=print, clock=time.monotonic, fixed_tilt=0.0, yaw_trim=None, allow_over=False,
-                 ankle_side=None, first_boost=0.0, drift_side=None, step_s=None):
+                 ankle_side=None, first_boost=0.0, drift_side=None, step_s=None, poshold=None):
         """base: the plan() keyword arguments shared by every plan of the walk (T_step, seeds, lead_ms, cal, amp, model,
         ds, h, pelvis_x, ankle_ff, k_ds, drop, lift_gate; direction, n_steps and first are set here).
         ankle_side, first_boost, drift_side: the by-step feed-forwards (track_host.ankle_extra / step_drift); None / 0 =
@@ -190,6 +190,7 @@ class CmdWalk:
         self.allow_over = allow_over
         self.ankle_side, self.first_boost, self.drift_side = ankle_side, float(first_boost or 0.0), drift_side
         self.fail = None
+        self.ph = poshold                                # pos_hold.PosHold or None (off: nothing below changes)
         if self.hold is not None:
             self.hold.set_step(0, 0.0)                   # the provisional step 0
 
@@ -282,11 +283,17 @@ class CmdWalk:
         j = len(self.steps)
         err = self._refresh()
         kind = self.cur[0]
+        ph_why = None
+        if self.ph is not None:
+            active = kind == "vel" and any(abs(x) > 1e-9 for x in self.cur[1])
+            ph_why = self.ph.update(j, active)
         why = self.stop_req
         if why is None and getattr(self.src, "closed", False):
             why = "command source closed"
         if why is None and kind == "stop":
             why = "stop command"
+        if why is None and ph_why:
+            why = ph_why
         if why is None and j >= self.max_steps:
             why = f"--max-steps {self.max_steps}"
         if why is None and self.max_time and self.clock() - self.t_begin > self.max_time:
@@ -312,6 +319,8 @@ class CmdWalk:
             self.hold.set_step(j, 0.0, asked=0.0)
         self.last = (0.0, 0.0, 0.0)
         self._lateral(j, 0.0)
+        if self.ph is not None:
+            self.ph.commit((0.0, 0.0), (0.0, 0.0), 0.0)
         return self._record(j, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), notes, "stopping")
 
     def _lateral(self, j, dy_mm):
@@ -331,6 +340,13 @@ class CmdWalk:
         else:
             req = self.cur[1]
         want = (req[0] * T, req[1] * T, req[2] * T)                       # mm, mm, deg per step
+        ov = self.ph.dec["override"] if self.ph is not None else None
+        if ov is not None:                                                # keep-on-board: a step toward the board centre
+            comp = [(ov["fwd"], lim["fwd"] if ov["fwd"] > 0 else lim["back"]), (ov["left"], lim["side"])]
+            sc = min((cap / abs(c) for c, cap in comp if abs(c) > 1e-9), default=0.0)
+            want = (ov["fwd"] * sc, ov["left"] * sc, want[2])
+            notes.append(f"keep-on-board: {'/'.join(ov['edges'])} margin {ov['min_margin']:.0f} mm: "
+                         f"step toward the centre dx {want[0]:+.1f} dy {want[1]:+.1f} mm instead of the command")
         # 1. the envelope: one factor for all three
         f = 1.0
         for v, cap in ((want[0], lim["fwd"] if want[0] > 0 else lim["back"]), (want[1], lim["side"]), (want[2], lim["yaw"])):
@@ -347,6 +363,16 @@ class CmdWalk:
         d2 = tuple(a + lam * (b - a) for a, b in zip(self.last, d1))
         if lam < 1.0:
             notes.append(f"slew: {lam:.2f} of the way from the last step")
+        # 2b. the position hold's correction on top of the (enveloped, slewed) command, bounded by the same envelope
+        # and slew; `dcmd` is the commanded part, which the hold integrates into its reference
+        dcmd = d2
+        if self.ph is not None and ov is None:
+            cx, cy = self.ph.dec["corr"]
+            if abs(cx) > 1e-9 or abs(cy) > 1e-9:
+                d2 = (self._bounded(d2[0] + cx, 0, -lim["back"], lim["fwd"]),
+                      self._bounded(d2[1] + cy, 1, -lim["side"], lim["side"]), d2[2])
+                if abs(d2[0] - dcmd[0] - cx) > 1e-9 or abs(d2[1] - dcmd[1] - cy) > 1e-9:
+                    notes.append("pos-hold correction limited by the envelope / slew")
         # 3. a lateral reversal with the feet apart: a closing step first (the --seq rule). The swing foot's lateral
         # travel in this step is its goal (an out-step lands dy outside the stance foot, any other step alongside it)
         # less where it stands; a step whose foot would travel AGAINST the commanded direction is the reversal --
@@ -361,14 +387,14 @@ class CmdWalk:
             ok, bad = self.check(c)
             notes.append("lateral reversal with the feet apart: closing step (the command waits one step)")
             if ok:
-                return self._accept(j, c, (0.0, 0.0, 0.0), req, notes)
-            d2 = (0.0, 0.0, 0.0)
+                return self._accept(j, c, (0.0, 0.0, 0.0), req, notes, cmd_part=(0.0, 0.0))
+            d2 = dcmd = (0.0, 0.0, 0.0)
         # 4. the pre-check, on this very step
         d3 = self._admissible(d2, notes)
         if d3 is None:
             self.fail = "even a step in place fails the pre-check"
             return None
-        if self.cur[0] == "pause" or all(abs(x) < 1e-9 for x in d3):
+        if self.cur[0] == "pause" or all(abs(x) < 1e-9 for x in (dcmd if self.ph is not None else d3)):
             self.pause_n += 1
             if self.pause_n > lim["pause"] > 0:
                 self.fail = f"marching in place for more than {lim['pause']} steps"
@@ -376,7 +402,13 @@ class CmdWalk:
         else:
             self.pause_n = 0
         c = self._cmd(round(d3[0], 2), round(d3[1], 2), round(d3[2], 3), abs(self.last[0]))
-        return self._accept(j, c, d3, req, notes)
+        return self._accept(j, c, d3, req, notes, cmd_part=(dcmd[0], dcmd[1]))
+
+    def _bounded(self, v, axis, lo_env, hi_env):
+        """v clamped to the envelope and to the slew window around the last step's value."""
+        s = self.lim["slew"][axis]
+        lo, hi = max(lo_env, self.last[axis] - s), min(hi_env, self.last[axis] + s)
+        return v if lo > hi else min(max(v, lo), hi)
 
     def _admissible(self, d, notes):
         """d (mm, mm, deg) if the step passes, else the largest fraction of the way from the last step toward d that does
@@ -404,13 +436,16 @@ class CmdWalk:
         notes.append(f"pre-check ({why}): even a step in place fails")
         return None
 
-    def _accept(self, j, c, d, req, notes):
+    def _accept(self, j, c, d, req, notes, cmd_part=None):
         self.steps.append(c)
         self.last = (c["dx"] * 1e3, c["dy"] * 1e3, c["dpsi"])
         self._lateral(j, c["dy"] * 1e3)
         if self.hold is not None:
             self.hold.set_step(j, c["dpsi"], drift=self._drift(c))
             self.hold.set_step(j + 1, c["dpsi"], drift=self._drift(c))         # the provisional step
+        if self.ph is not None:
+            self.ph.commit(cmd_part if cmd_part is not None else (self.last[0], self.last[1]), (self.last[0], self.last[1]),
+                           c["dpsi"])
         return self._record(j, self.last, req, notes, "marching" if all(abs(x) < 1e-9 for x in self.last) else "walking")
 
     def _record(self, j, applied_step, req, notes, state):
@@ -418,6 +453,8 @@ class CmdWalk:
         rec = dict(step=j + 1, state=state, requested=[round(x, 3) for x in req],
                    applied=[round(x / T, 3) for x in applied_step], step_mm_deg=[round(x, 2) for x in applied_step],
                    tilt=self.steps[-1].get("tilt", 0.0), notes=notes, time=time.time(), T=T)
+        if self.ph is not None and self.ph.dec is not None:
+            rec["pos"] = self.ph.record()
         self.log.append(rec)
         self._say(rec)
         self._status(rec)
@@ -429,6 +466,8 @@ class CmdWalk:
                  f"{rec['state']}: dx {s[0]:+.1f} mm, dy {s[1]:+.1f} mm, dyaw {s[2]:+.2f} deg per step "
                  f"({a[0]:+.2f} {a[1]:+.2f} {a[2]:+.2f}), tilt {rec['tilt']:g}"
                  + "".join(f"; {n}" for n in rec["notes"]), flush=True)
+        if self.ph is not None:
+            self.say("    " + self.ph.describe(), flush=True)
 
     def _status(self, rec, state=None):
         if not self.status_path:

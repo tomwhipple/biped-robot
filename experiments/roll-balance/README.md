@@ -1247,6 +1247,121 @@ echo "-5 0 0"    > /tmp/walk_cmd   # back, 20 mm per step
 echo "stop"      > /tmp/walk_cmd
 ```
 
+## Position hold (`--pos-hold on`, `--keep-on-board`; `--cmd` only, live only; default off)
+
+The gait creeps sideways a few mm per step (2026-11-16: 7-step marches in place moved the robot +11 and +42 mm along the
+tracker's x with the plain 4 s gait, -29 and -24 mm with the pause variant; it walked itself to a board edge twice). The
+heading hold closes yaw from the IMU; the position hold closes lateral and fore-aft position from the overhead camera
+tracker ([tools/vision](../../tools/vision/README.md)), one bounded correction per step. `pos_hold.py` is the module,
+`cmd_walk.py` applies it. Off, nothing changes: the frames are byte-identical (a `CmdWalk` without a hold takes none of
+the new branches). A dry run reads no tracker and applies no correction. Fixed walks and `--seq` are not covered: their
+steps are all planned before the walk starts, so there is no next step to correct.
+
+**Conventions** (the bug class that hurt on 2026-11-16: left and right as seen from the Sony, in the webcam image, and
+the robot's own). Everything is in the tracker's BOARD frame until the last line.
+
+```
+              far end (y = board length, the eMeet's end)            eMeet looks from here toward the Sony:
+        x = 0  +---------------------------------------+ x = width     its IMAGE is mirrored left-right
+   (Sony's    |                                       |  (Sony's      relative to x. The tracker works in
+    left)     |   heading 0   = facing +y (far end)   |   right)      the board frame, so nothing here sees
+              |   heading 180 = facing the Sony       |               image left or right.
+              |   counter-clockwise (a left turn) +   |
+              |   robot-left at heading h =           |   x: from the board's LEFT edge as seen from the Sony
+              |        (-cos h, -sin h) in (x, y)     |   y: from the near (Sony) end
+        y = 0 +---------------------------------------+
+              near end, the Sony camera looks along +y from here
+```
+
+So facing the far end (heading 0) the robot's left is board -x; facing the Sony (heading 180) its left is board +x.
+Errors are in the ROBOT frame: `lat` positive = the robot's left (toward which a positive `dy` steps), `fwd` positive =
+forward; `err` = measured minus reference. The correction is `-k x err`, so a robot found left of its line gets a
+negative (rightward) `dy`. `tests/test_pos_hold.py` renders the scene with `tools/vision/vsynth.py` (the eMeet's
+geometry at headings 180, 140 and 0; the Sony's at 140), runs it through the real tracker, and checks the sign of the
+correction in board x for a robot found displaced +x and for a `left` command it did not follow.
+
+**What is measured, and when.** A thread reads camd's `emeet_latest.jpg` (read-only; the camera is never opened), runs the
+tracker on every new frame (polled every 0.2 s, so at most 5 per second) and keeps time-stamped positions. The board pose is calibrated ONCE from
+the first three frames with two board tags, saved as `emeet_poshold_pose.json` next to the camd segments and reused by the
+next run when a board tag still sits where it was (so a robot hiding one board tag does not cost the fix, and the board
+frame is the same between runs); a visible board tag more than 4 px from its calibrated place means the camera moved:
+no fix. The torso tag swings about +-80 mm sideways with every step's pelvis shift, toward the stance foot, and the stance
+foot alternates, so the position per step is not usable. **The sample is the trimmed mean (15 % off each end) over the
+last `--pos-window-steps` steps (default 2 = one full left-right gait cycle) of the per-frame positions.** A window of one
+whole cycle holds every phase equally, so the sample does not depend on where in the step the decision falls (tested: a
+two-step window varies by under 12 mm over every phase of +-80 mm sway, a one-step window by over 60). A plain median
+was tried and rejected: the sway is two-humped, the median sits in the gap between the humps and jumps +-10 mm with
+the sampling. A sample needs 4 frames spread over at least half the window with the newest within half a window of now,
+else there is NO FIX. The start pose is the same sample, taken with the robot standing before anything is sent; no
+start fix, no run (`REFUSED`).
+
+**The loop, per step.** Reference = start pose + the integrated command (what each step was asked for before any
+correction: with a zero command the start position is held; with a velocity the line and pace of the command). Error
+`e` (robot frame) = the sample's position - the reference at the end of the steps the sample already shows, plus the
+corrections and the estimated slip of the `--pos-delay-steps` (default 3) decided steps it does not show yet (a Smith
+predictor: the window's half cycle, the rolling upload and the camera delay the effect of a correction by 2 to 3 steps,
+and without the compensation a gain of 0.3 rings). The slip is a running estimate (factor 0.25 per step, so about the last 4
+steps) of what the robot does beyond what the steps ask, taken from the sample-to-sample motion; without it the
+compensation counts a standing creep as a pending correction and the hold settles 3 x creep further out.
+Correction = `-k x e`, `k` = `--pos-k` (0.3), lateral clipped to `--pos-clip` 6 mm and fore-aft 10 mm per step, none under
+`--pos-deadband-mm` (4; the tracker's relative accuracy is about 10 mm), none for the first 3 steps (the first window
+holds the standing robot, not whole cycles). It is added to the next undecided step AFTER the envelope and the slew (it
+is itself kept inside both: `--max-*-mm`, `--slew`), then the lateral-reversal rule and the pre-check judge the sum. The
+pause counter (`--pause-steps`) counts the command, not the correction: a march in place with a hold still ends at
+`--pause-steps` unless it is raised (0 = none).
+
+Every step prints (and the summary row's `cmd_walk.steps[].pos` keeps) the position, the reference and the error:
+
+```
+  cmd step 7: asked +0.00 +0.00 +0.00 ... -> marching: dx +0.0 mm, dy +4.1 mm, dyaw +0.00 deg per step ...
+    pos x 392 y 601 h 179 (n 14; ref 406 600, err lat -13.2 fwd +0.4 mm) -> corr dy +4.0 dx +0.0 mm
+```
+
+`pos_hold` in the summary has the step count, steps without a fix, keep-on-board overrides and the error ranges.
+
+**No fix.** The correction freezes at the last trim for at most `--pos-no-fix-steps` steps (default 4) and says
+`NO FIX ... correction frozen`; after that it is zero (`correction off`). Nothing is extrapolated: the slip estimate and
+the error are only updated from a real sample. With a NON-ZERO command active, more than that many steps without a fix turns
+the command into `stop` (the closing step, then the walk ends; the reason says so). A march in place goes on.
+
+**`--keep-on-board MM`** (default 250 with `--pos-hold on`; 0 = off). If the predicted position (the sample plus the travel
+of the steps already decided) is within MM of any board edge (`foot_margin_mm` already off), the step is replaced by one
+toward the board centre along the directions of the near edges, as large as the envelope allows (the slew and the pre-check
+still apply; the heading command is kept) and the line `KEEP-ON-BOARD: left margin 190 < 250 mm: step toward the centre` is
+printed. The reference follows that step, so once clear of the edge the hold holds the new place, it does not go back. Absolute
+margins are only as good as the board layout: +-100 mm until the layout is measured and f pinned (tools/vision README), so
+the default 250 leaves room for that.
+
+**Flags.** `--pos-hold on|off`, `--pos-k`, `--pos-clip LAT,FWD`, `--pos-window-steps`, `--pos-delay-steps`,
+`--pos-deadband-mm`, `--pos-no-fix-steps`, `--keep-on-board MM`, `--pos-camd-dir DIR` (camd's directory; default
+`$CAMD_DIR` or `~/cam-segments`), `--pos-config FILE` (the tools/vision config).
+
+**On the robot** (camd must be recording the eMeet: `emeet_latest.jpg` fresh; a person at the robot; start with the
+tags in view and the robot standing; `$CAMD` is camd's `--dir`):
+
+```
+CAMD=/home/claw/code/robot/hw_sessions/2026-11-16/vision/cam
+PAUSE="--td-pause 0.3 --shift-s 1.2 --settle 0.1 --raise-s 0.77 --move-s 0.45 --lower-s 0.55"   # 3.37 s per step
+# (a) 40 steps marching in place, the start position held
+echo "0 0 0" > /tmp/walk_cmd
+python experiments/roll-balance/track_host.py --ahead 1 $PAUSE --cmd file:/tmp/walk_cmd --pos-hold on --pos-camd-dir $CAMD \
+    --max-steps 40 --pause-steps 45                                          # dry run first (no tracker is read)
+python experiments/roll-balance/track_host.py --ahead 1 $PAUSE --cmd file:/tmp/walk_cmd --pos-hold on --pos-camd-dir $CAMD \
+    --max-steps 40 --pause-steps 45 --live --note "pos-hold march 40"
+# (b) the same with a forward command, 10 mm per step (3 mm/s x 3.37 s): start near the near end (tracker y about 300),
+#     facing the far end, so 400 mm of travel stays on the board
+echo "3 0 0" > /tmp/walk_cmd
+python experiments/roll-balance/track_host.py --ahead 1 $PAUSE --cmd file:/tmp/walk_cmd --pos-hold on --pos-camd-dir $CAMD \
+    --max-steps 40 --live --note "pos-hold fwd 40"
+```
+
+Not run on the robot. What the tests cover (`tests/test_pos_hold.py`): the signs through the tracker on synthetic scenes;
+the closed loop on a fake robot with a creep of -4 mm per step (right) and +-60 mm sway, noise and a 0 to 2 step delay: the
+lateral error stays within 25 mm over 40 steps (it settles at 13 to 19 mm; without the hold it reaches 160 mm), with a forward
+command and a fore-aft slip the along-track position follows the command; dropouts freeze, then zero, the trim and stop a
+moving command; the edge rule steps toward the centre at headings 0 and 180 and counts the steps already decided. The fake
+robot has the model's creep and delay by construction: the real gait's response to a 4 to 6 mm sidestep is unmeasured.
+
 ## The lift gate (2026-11-13): wait for a level, quiet body before a foot leaves the floor
 
 `gaitplay/lift_gate.h` (firmware), `sim/lift_gate.py` (its twin), `track_host.py --lift-gate on` (the default for the
