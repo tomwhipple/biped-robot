@@ -198,6 +198,21 @@ def test_calibrated_pose_is_saved_and_reused_when_a_board_tag_is_hidden(tmp_path
     assert r1 is not None and abs(r1["x"] - r0["x"]) < 3 and abs(r1["y"] - r0["y"]) < 3
 
 
+def test_where_pys_cached_board_pose_file_is_read_too(tmp_path):
+    import json
+    cfg = ecfg()
+    first = PH.Locator(cfg, pose_path=str(tmp_path / "mine.json"))
+    for k in range(3):
+        first(erender(cfg, 180, 420, 600, seed=k))
+    rec = json.load(open(tmp_path / "mine.json"))
+    rec["tag_corners_px"] = rec.pop("corners")                  # where.py's key for the same thing
+    (tmp_path / "emeet_board_pose.json").write_text(json.dumps(rec))
+    tags = synth.scene_tags(cfg, G.board_R_from_euler(180, 0, 0), [420, 600, 170.0], board_ids=[3])
+    one = synth.render(tags, EK, E_R, E_T, ESIZE, blur=1.0, noise=3, seed=4, floor=170)
+    loc = PH.Locator(cfg, pose_read=[str(tmp_path / "emeet_board_pose.json")])
+    assert loc(one) is not None
+
+
 # ---- the phase-consistent sample ----------------------------------------------------------------------------------------
 
 def sway_samples(sam, t0, t1, base=(420.0, 600.0), amp=80.0, dt=0.25, drift=0.0):
@@ -239,11 +254,11 @@ class FakeRobot:
     later; every step the robot also creeps `creep_lat` mm (negative = to its right) and `creep_fwd`."""
 
     def __init__(self, cw, sam, clk, lag=1, creep_lat=-4.0, creep_fwd=0.0, sway=60.0, drop=lambda i: False,
-                 h=0.0, start=(406.0, 600.0)):
+                 h=0.0, lat_gain=1.0, start=(406.0, 600.0)):
         self.cw, self.sam, self.clk, self.lag = cw, sam, clk, lag
         self.creep = (creep_fwd, creep_lat)
         self.pos = list(start)
-        self.h, self.sway, self.drop = h, sway, drop
+        self.h, self.sway, self.drop, self.lat_gain = h, sway, drop, lat_gain
         self.applied, self.t0, self.i = [], 1000.0, 0
         self.rng = np.random.default_rng(1)
         self.track = []
@@ -260,7 +275,7 @@ class FakeRobot:
                 dx, dy = self.applied[i - self.lag]
             else:
                 dx = dy = 0.0
-            bx, by = PH.to_board(self.h, dx + self.creep[0], dy + self.creep[1])
+            bx, by = PH.to_board(self.h, dx + self.creep[0], self.lat_gain * dy + self.creep[1])
             self.pos[0] += bx
             self.pos[1] += by
             self.track.append(tuple(self.pos))
@@ -438,6 +453,23 @@ def test_pending_steps_count_toward_the_edge_rule():
     assert ph.dec["override"] is not None and ph.dec["override"]["edges"] == ["left"]
 
 
+@pytest.mark.parametrize("gain", [-1.0, 0.2])
+def test_a_wrong_signed_or_weak_sideways_response_turns_the_lateral_correction_off(gain):
+    """The pause timing moved the robot the wrong way on a sideways command (2026-11-16): the hold must notice and stop
+    correcting laterally, and say so; fore-aft stays on."""
+    clk = Clock(1000.0)
+    sam = PH.PosSampler(clock=clk)
+    for k in range(40):
+        sam.add(990.0 + k * 0.25, 406.0, 600.0, 0.0)
+    cw, ph = hold_walk(["0 0 0"] * 80, clk, sam)
+    FakeRobot(cw, sam, clk, lat_gain=gain).run(30)
+    assert ph.lat_off is not None and "wrong-signed" in ph.lat_off
+    k_off = next(i for i, d in enumerate(ph.log) if any("LATERAL CORRECTION OFF" in n for n in d["notes"]))
+    assert k_off < 20 and all(d["applied_corr"][1] == 0.0 for d in ph.log[k_off:])
+    assert any("LATERAL CORRECTION OFF" in n for n in cw.log[-1]["pos"]["notes"])
+    # a working response never trips it (the closing-the-loop tests above run the same walk with gain 1)
+
+
 # ---- off = unchanged --------------------------------------------------------------------------------------------------------
 
 def test_hold_with_no_creep_stays_out_of_the_way():
@@ -460,3 +492,65 @@ def test_hold_with_no_creep_stays_out_of_the_way():
 def test_flag_is_off_by_default_and_needs_cmd(capsys):
     a = H.main(["--pos-hold", "on"])
     assert a == 2 and "needs --cmd" in capsys.readouterr().out
+
+
+# ---- side timing: frame level -------------------------------------------------------------------------------------------------
+
+PAUSE_KW = dict(td_pause=0.3, shift_s=1.2, settle=0.1, raise_s=0.77, move_s=0.45, lower_s=0.55)
+
+
+def _plan(cmds, **kw):
+    return H.plan(**dict(T_step=4.0, n_steps=len(cmds), direction="march", step_cmds=cmds, lift_gate=False,
+                         **{k: v for k, v in kw.items()}))
+
+
+def _cmds(dys, side_timing):
+    cw = C.CmdWalk(H, C.ListSource(["0 0 0"]), BASE, first="R", say=lambda *a, **k: None, side_timing=side_timing)
+    return [cw._cmd(0.0, dy, 0.0, 0.0) for dy in dys]
+
+
+def test_side_timing_plain_lays_out_the_sideways_step_and_the_next_with_the_plain_timing():
+    import dwell as D
+    dys = [0.0, 0.0, 10.0, 0.0, 0.0, 0.0]
+    plain = D.resolve_times(4.0)
+    var = D.resolve_times(4.0, shift_s=1.2, settle=0.1, raise_s=0.77, move_s=0.45, lower_s=0.55)
+    p = _plan(_cmds(dys, "plain"), **PAUSE_KW)
+    ph = p["sway"].phases
+    ss = [x["t1"] - x["t0"] for x in ph]
+    # the single support of the sideways step (2) and of the next (3) is the plain one; the others the variant's
+    assert ss[2] == pytest.approx(plain["t_ss"]) and ss[3] == pytest.approx(plain["t_ss"])
+    assert [ss[i] for i in (0, 1, 4, 5)] == pytest.approx([var["t_ss"]] * 4)
+    steps = p["sway"]._steps
+    # no pause before step 3 (it follows the sideways step) and its shift + settle are the plain ones
+    gap = lambda i: steps[i]["s0"] - steps[i - 1]["td"]              # noqa: E731
+    assert gap(3) == pytest.approx(0.0) and gap(2) == pytest.approx(0.3) and gap(4) == pytest.approx(0.3)
+    assert steps[3]["lo"] - steps[3]["s0"] == pytest.approx(plain["t_sh"] + plain["t_set"])
+    assert steps[2]["lo"] - steps[2]["s0"] == pytest.approx(var["t_sh"] + var["t_set"])       # its own lead is decided before it
+    # 'same' keeps one timing: identical frames to a plan that never heard of side timing
+    same = _plan(_cmds(dys, "same"), **PAUSE_KW)
+    base = _plan([dict(c) for c in _cmds(dys, "same")], **PAUSE_KW)
+    assert _hash(same) == _hash(base) and _hash(same) != _hash(p)
+
+
+def test_side_timing_changes_nothing_without_a_sideways_step_or_without_a_pause():
+    flat = _cmds([0.0] * 5, "plain")
+    assert not any(c.get("lat") for c in flat)
+    assert _hash(_plan(flat, **PAUSE_KW)) == _hash(_plan(_cmds([0.0] * 5, "same"), **PAUSE_KW))
+    side = _cmds([0.0, 10.0, 0.0, 0.0], "plain")
+    # no pause / explicit timing: the plain timing IS the timing, the frames do not change
+    assert _hash(_plan(side)) == _hash(_plan(_cmds([0.0, 10.0, 0.0, 0.0], "same")))
+    # 3 mm and under is not a sideways step
+    assert not any(c.get("lat") for c in _cmds([3.0, -3.0], "plain"))
+
+
+def test_side_timing_phase_for_the_firmware_follows_each_steps_own_timing():
+    p = _plan(_cmds([0.0, 10.0, 0.0, 0.0], "plain"), **PAUSE_KW)
+    sw = p["sway"]
+    for k, ph in enumerate(sw.phases):                      # the firmware's phase is 0.25 at lift-off, 0.75 at touchdown
+        assert sw.phi(ph["t0"]) == pytest.approx(np.pi * (k + 0.25) + np.pi, abs=1e-6)
+        assert sw.phi(ph["t1"]) == pytest.approx(np.pi * (k + 0.75) + np.pi, abs=1e-6)
+
+
+def _hash(p):
+    import hashlib
+    return hashlib.sha256("\n".join(x for _, x, _ in p["frames"]).encode()).hexdigest()[:16]

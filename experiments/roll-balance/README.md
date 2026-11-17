@@ -1282,7 +1282,8 @@ correction in board x for a robot found displaced +x and for a `left` command it
 
 **What is measured, and when.** A thread reads camd's `emeet_latest.jpg` (read-only; the camera is never opened), runs the
 tracker on every new frame (polled every 0.2 s, so at most 5 per second) and keeps time-stamped positions. The board pose is calibrated ONCE from
-the first three frames with two board tags, saved as `emeet_poshold_pose.json` next to the camd segments and reused by the
+the first three frames with two board tags, saved as `emeet_poshold_pose.json` next to the camd segments (where.py's `emeet_board_pose.json`, when it is there, is tried
+first: the same pose file format, so the hold and where.py share one board frame) and reused by the
 next run when a board tag still sits where it was (so a robot hiding one board tag does not cost the fix, and the board
 frame is the same between runs); a visible board tag more than 4 px from its calibrated place means the camera moved:
 no fix. The torso tag swings about +-80 mm sideways with every step's pelvis shift, toward the stance foot, and the stance
@@ -1319,6 +1320,26 @@ Every step prints (and the summary row's `cmd_walk.steps[].pos` keeps) the posit
 
 `pos_hold` in the summary has the step count, steps without a fix, keep-on-board overrides and the error ranges.
 
+**A sideways response that is wrong or weak.** On the robot (2026-11-16 18:40) with `--td-pause` and the fast phase times a
+sideways command moved the robot the OTHER way (+y at 2.5 mm/s for 10 steps: 52 mm to its right), with plain timing it
+went where commanded, and a march in place crept right about 4 mm per step with the pause, slightly left without. So the
+hold does not assume that a `dy` produces a `dy`: a correction works if it settles the lateral error at creep / k, which
+is at most clip / k (20 mm); if the lateral correction has sat at its clip, one sign, for 4 steps while the error is clip / k
++ 10 mm (30 mm) or more, it does not work, and the lateral correction goes OFF for the rest of the walk with
+`LATERAL CORRECTION OFF: ...` in every step's line (fore-aft stays on). (A per-step regression of the measured sideways
+motion on the commanded one was tried: the decision-to-sample delay is not known well enough to line them up, and it
+called a working loop weak.) The cure is the side timing below, which is the default with `--td-pause`.
+
+**`--side-timing plain|same`** (default `plain` when `--td-pause` is given, else `same`; `--cmd`). A step with more than 3 mm
+of sideways travel is a sideways step. With `plain`, its single support (raise, move, lower) and the whole of the NEXT
+step (pause, shift, settle and single support) are laid out with the plain timing (no pause, the schedule's own shift /
+settle / single support for `--T`); every other step keeps the pause / explicit timing, so the pause and the fast timing
+apply to forward, back and turn steps only. A step's own pause, shift and settle come before its lift-off and so before it
+is decided (a step is decided one step ahead, README: the latency): they follow the step before it. `dwell.Dwell(step_lateral=)`
+does the layout per step (the firmware's phase warp too); with no sideways step, or without a pause, the frames are
+byte-identical (tested). A hold's own correction steps count: a 4 mm correction makes that step and the next plain, which
+is the cost of the rule when the hold corrects every other step; `--side-timing same` keeps the pause timing on them.
+
 **No fix.** The correction freezes at the last trim for at most `--pos-no-fix-steps` steps (default 4) and says
 `NO FIX ... correction frozen`; after that it is zero (`correction off`). Nothing is extrapolated: the slip estimate and
 the error are only updated from a real sample. With a NON-ZERO command active, more than that many steps without a fix turns
@@ -1333,7 +1354,7 @@ margins are only as good as the board layout: +-100 mm until the layout is measu
 the default 250 leaves room for that.
 
 **Flags.** `--pos-hold on|off`, `--pos-k`, `--pos-clip LAT,FWD`, `--pos-window-steps`, `--pos-delay-steps`,
-`--pos-deadband-mm`, `--pos-no-fix-steps`, `--keep-on-board MM`, `--pos-camd-dir DIR` (camd's directory; default
+`--pos-deadband-mm`, `--pos-no-fix-steps`, `--keep-on-board MM`, `--side-timing`, `--pos-camd-dir DIR` (camd's directory; default
 `$CAMD_DIR` or `~/cam-segments`), `--pos-config FILE` (the tools/vision config).
 
 **On the robot** (camd must be recording the eMeet: `emeet_latest.jpg` fresh; a person at the robot; start with the
