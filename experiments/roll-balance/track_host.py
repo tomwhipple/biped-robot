@@ -1190,7 +1190,8 @@ def live(pl, a):
                               fell=(fell["v"] if learn is not None else None)),
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
-                 cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None)))
+                 cmd_walk=(dict(reason=cw.reason, steps=cw.log, **({"pos_hold": cw.ph.summary()} if cw.ph is not None else {}))
+                          if cw is not None else None)))
         r.close()
         print(f"log: {log_path}")
 
@@ -1259,12 +1260,22 @@ def main_cmd(a, seeds, amp, aff, by_step):
           f"first stance step of each side +{boost:g} deg; heading drift sideL,sideR {drift[0]:g},{drift[1]:g} deg/step "
           f"(forward {YAW_DRIFT:g})")
 
+    ph = None
+    if a.pos_hold == "on":
+        if not a.live:
+            print("pos-hold on: a dry run reads no tracker and applies no correction (the correction needs the robot's "
+                  "position over time); the rehearsal below is the plain command")
+        else:
+            ph = make_poshold(a)
+            if ph is None:
+                return 2
+
     def walk(cal):
         b = dict(base, cal=cal)
         w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
                        max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
                        allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift,
-                       step_s=a.Teff)
+                       step_s=a.Teff, poshold=ph)
         return w
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
@@ -1303,8 +1314,51 @@ def main_cmd(a, seeds, amp, aff, by_step):
         print(f"heading hold: the commanded heading rate is wz x T per step, feed-forward + feedback k {a.heading_k:g}")
     if a.gate:
         pl["pre"] = [f"liftgate set {' '.join(x.strip() for x in a.gate.split(','))}"] + pl["pre"]
-    live(pl, a)
+    try:
+        live(pl, a)
+    finally:
+        if ph is not None:
+            ph.S.stop()
     return 0
+
+
+def make_poshold(a):
+    """--pos-hold on, live: the tracker sampler (a thread reading camd's emeet_latest.jpg), the start fix, the PosHold.
+    None (after printing why) when the start pose cannot be read: a hold that cannot see the robot is refused."""
+    import pos_hold as PH
+    sys.path.insert(0, os.path.join(ROOT, "tools", "vision"))
+    import vgeom as G
+    from camd import DEFAULT_DIR
+    cfg = G.load_config(a.pos_config)
+    d = a.pos_camd_dir or DEFAULT_DIR
+    path = os.path.join(d, "emeet_latest.jpg")
+    loc = PH.Locator(cfg, pose_path=os.path.join(d, "emeet_poshold_pose.json"))
+    sam = PH.PosSampler(loc, path)
+    margin = a.keep_on_board if a.keep_on_board is not None else PH.MARGIN_MM
+    W, L = cfg["board"]["width_mm"], cfg["board"]["length_mm"]
+    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, clip=a.pos_clip,
+                    margin_mm=(margin if margin > 0 else None), no_fix_steps=a.pos_no_fix_steps,
+                    window_steps=a.pos_window_steps, delay_steps=a.pos_delay_steps, deadband_mm=a.pos_deadband_mm,
+                    centre=(W / 2.0, L / 2.0))
+    sam.start()
+    print(f"pos-hold: tracker frames from {path}; step {a.Teff:g} s, sample = median over {a.pos_window_steps:g} steps "
+          f"({ph.window_s():g} s), k {a.pos_k:g}, clip lat {a.pos_clip[0]:g} / fwd {a.pos_clip[1]:g} mm per step, "
+          f"delay {a.pos_delay_steps} steps, deadband {a.pos_deadband_mm:g} mm, "
+          + (f"keep-on-board {margin:g} mm" if margin > 0 else "keep-on-board off")
+          + f", no-fix limit {a.pos_no_fix_steps} steps; waiting for the start pose ...", flush=True)
+    f = ph.start_fix(ph.window_s() + 6.0)
+    if f is None:
+        print(f"REFUSED: --pos-hold on but the tracker gives no position of the robot standing ({sam.why or 'too few frames'}); "
+              f"is camd --source emeet running and the robot's tags in view? Nothing sent")
+        sam.stop()
+        return None
+    ph.begin(f)
+    m = G.edge_margins(cfg, f["x"], f["y"])
+    print(f"pos-hold: start x {f['x']:.0f} y {f['y']:.0f} mm heading {f['h']:.0f} deg ({f['n']} frames); margins "
+          f"L {m['left']:.0f} R {m['right']:.0f} near {m['near']:.0f} far {m['far']:.0f} mm"
+          + ("" if cfg["board"].get("measured") else "  (board layout not measured: absolute +-100 mm, relative changes ~10 mm)"),
+          flush=True)
+    return ph
 
 
 def main(argv=None):
@@ -1368,6 +1422,23 @@ def main(argv=None):
                          "mm/s, mm/s, deg/s, or `stop` / `pause`) or stdin. The walk has no fixed length; every step is "
                          "clamped, slewed and pre-checked before it is uploaded. --dir / --steps / --step / --seq / "
                          "--stride-mm / --side-mm / --turn are not used")
+    ap.add_argument("--pos-hold", choices=["on", "off"], default="off",
+                    help="--cmd, live: close the robot's position from the overhead camera tracker (tools/vision, camd's "
+                         "emeet_latest.jpg; read-only, no camera access). Per step: the median position over the last "
+                         "--pos-window-steps steps against the start pose plus the integrated command, a bounded correction "
+                         "-k x error on the next step's dy / dx (README: Position hold). Default off: frames unchanged")
+    ap.add_argument("--pos-k", type=float, default=0.3, help="--pos-hold: fraction of the error corrected per step")
+    ap.add_argument("--pos-clip", default="6,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
+    ap.add_argument("--pos-window-steps", type=float, default=2.0, help="--pos-hold: steps in the median window (2 = one left-right cycle)")
+    ap.add_argument("--pos-delay-steps", type=int, default=3, help="--pos-hold: decided steps not yet visible in a sample (compensated)")
+    ap.add_argument("--pos-deadband-mm", type=float, default=4.0, help="--pos-hold: errors under this are not corrected")
+    ap.add_argument("--pos-no-fix-steps", type=int, default=4,
+                    help="--pos-hold: steps without a tracker fix the last trim is held for; more than this with a non-zero command = stop")
+    ap.add_argument("--keep-on-board", type=float, default=None, metavar="MM",
+                    help="--pos-hold: a step toward the board centre when the predicted position is within MM of an edge "
+                         "(default 250; 0 = off)")
+    ap.add_argument("--pos-camd-dir", default=None, help="--pos-hold: camd's directory (default camd.DEFAULT_DIR)")
+    ap.add_argument("--pos-config", default=None, help="--pos-hold: tools/vision config JSON (board, robot tags)")
     ap.add_argument("--max-steps", type=int, default=120, help="--cmd: stop after this many steps (default 120)")
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
     ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
@@ -1475,6 +1546,16 @@ def main(argv=None):
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
+    try:
+        a.pos_clip = tuple(float(x) for x in a.pos_clip.split(","))
+        if len(a.pos_clip) != 2 or min(a.pos_clip) < 0:
+            raise ValueError
+    except ValueError:
+        print("REFUSED: --pos-clip wants LAT,FWD (mm, >= 0)")
+        return 2
+    if a.pos_hold == "on" and not a.cmd:
+        print("REFUSED: --pos-hold on needs --cmd (a fixed walk's steps are all planned before it starts)")
+        return 2
     if a.ahead is None:
         a.ahead = 1.0 if a.cmd else 2.0
     seeds = tuple(float(x) for x in a.seed.split(","))
