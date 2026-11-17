@@ -1081,9 +1081,9 @@ At T 4: 5 mm/s = 20 mm per step, 10 mm/s = 40 mm per step, 1.25 deg/s = 5 deg pe
 to the stance foot" (`dwell.Dwell._goals`), so the BODY moves `dy` per two steps, whichever feet lead. `vy` is the body's
 velocity (the delivered one), so the lead step carries `dy = 2 vy T`, the close step the same value (the geometry ignores it:
 a step that is not the leading side lands alongside the stance foot), and the body moves `vy T` per step on average. The
-`--max-side-mm` cap (default 25, up to 30: the pre-check passes fixed sidesteps to 30 mm at T 4, the pelvis speed exactly at its
-limit at 30, 25 has margin) is on `dy`, so the fastest sideways body velocity is cap / (2 T): 3.1 mm/s at 25 mm and T 4 (1.9 at
-15 mm). The dry run's printed `speed (commanded ...) sideways` and the `applied` fields of the status are body velocities.
+`--max-side-mm` cap (default 15, up to 30: the pre-check passes fixed sidesteps to 30 mm at T 4, the pelvis speed exactly at its
+limit at 30, 25 has margin) is on `dy`, so the fastest sideways body velocity is cap / (2 T): 1.9 mm/s at 15 mm and T 4 (3.1 at 25 mm,
+the candidate default: see the table). The dry run's printed `speed (commanded ...) sideways` and the `applied` fields of the status are body velocities.
 (Before this a sideways command was delivered at half its value.)
 
 **Sources.** `--cmd file:PATH`: a small text file, re-read every step; its first line is `vx vy wz` (floats, spaces or
@@ -1101,7 +1101,7 @@ asked, what was applied (mm/s, mm/s, deg/s), the per-step displacement, the note
 |---|---|---|---|
 | forward dx | 50 mm | `--max-fwd-mm` | hw 2026-11-16, T 4, tilt 5 deg (auto above 43 mm): three fixed 50 mm walks 7/7 clean each and one steered walk through 50 mm, lean <= 3.8 deg |
 | backward dx | 32 mm | `--max-back-mm` | steering mode, hw 2026-11-16: after sidesteps right, a backward command of -10 mm/s (40 mm) ramps dx -20, -40, -40, and on the third backward step (left stance) the robot tipped 13.8 deg inward once and fell once (the step before was clean, in 1.7 out 2.2) in two of three runs of that pattern; at -8 mm/s (32 mm) the same kind of pattern ran clean, including a 43-step walk. 40 mm backward is proven only as a FIXED walk (8 clean at T 4, tilt 3, with the lift gate) and stays available with `--max-back-mm 40` |
-| sideways dy (lead step; the body moves it per PAIR of steps) | 25 mm | `--max-side-mm` (up to 30) | robot 2026-11-16, plain timing, fixed `--side-mm 25` both directions clean (lean <= 4.0): 4 pairs moved +72 / -83 mm of 100 planned; at 20 mm +62 / -36 of 80. The pre-check passes 30 (pelvis speed exactly at the 252 limit), 25 has margin. (It was 15, the first proven side step.) |
+| sideways dy (lead step; the body moves it per PAIR of steps) | 15 mm | `--max-side-mm` (up to 30) | proven side step. Fixed `--side-mm 25` sidesteps, plain timing, both directions, were clean on the robot 2026-11-16 (lean <= 4.0; 4 pairs moved +72 / -83 mm of 100 planned; at 20 mm +62 / -36 of 80): 25 is the candidate default after a steering-mode run. The pre-check passes 30 (pelvis speed exactly at the 252 limit), 25 has margin |
 | heading dyaw | 5 deg | `--max-turn-deg` | proven (turns ~5 deg per step) |
 | slew, change of (dx, dy, dyaw) from one step to the next | 20 mm, 10 mm, 3 deg | `--slew DX,DY,DYAW` | below |
 | stance ankle ff on a sideways step, first-step boost, heading drift by step type | 2,3 deg; +1 deg; 0.94,1.9 deg/step | `--ankle-ff-side`, `--first-ankle-boost`, `--heading-drift-side` | [By step type](#by-step-type-hw-2026-11-16) below |
@@ -1407,12 +1407,6 @@ still apply; the heading command is kept) and the line `KEEP-ON-BOARD: left marg
 printed. The reference follows that step, so once clear of the edge the hold holds the new place, it does not go back. Absolute
 margins are only as good as the board layout: +-100 mm until the layout is measured and f pinned (tools/vision README), so
 the default 250 leaves room for that.
-
-**`--trim-tlim DEG`** (default unset: the firmware's gains are not touched). Sends `trim set` before the run with the firmware's current
-gains (read from its `trim` status) and only the limit on the learned stance trim T changed, and reads them back. On the robot
-2026-11-16 the inward tips of the steering runs went with the learned T on the left stance: below 7 deg 0 tips in 309 left-stance steps,
-at 7 deg or more 13 in 178 (flight record), whatever the step type; the flag exists to cap T (e.g. `--trim-tlim 6.9`) when the
-robot's own learned T has drifted up. The value is the coordinator's to give after the robot test.
 
 **Flags.** `--pos-hold on|off`, `--pos-k`, `--pos-ki`, `--pos-rate-mm`, `--pos-min-step-mm`, `--pos-clip LAT,FWD`, `--pos-window-steps`, `--pos-delay-steps`,
 `--pos-deadband-mm`, `--pos-no-fix-steps`, `--keep-on-board MM`, `--side-timing`, `--pos-camd-dir DIR` (camd's directory; default
