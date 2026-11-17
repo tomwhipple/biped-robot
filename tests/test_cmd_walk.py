@@ -75,7 +75,7 @@ def test_stdin_source_is_non_blocking_and_sees_eof():
 # ---- the rules
 
 def test_envelope_scales_all_three_uniformly_and_slew_limits_the_change():
-    cw = walk(["20 10 2"] * 6, limits=dict(slew=(1e9, 1e9, 1e9)))        # asks 80 mm, 80 mm (10 mm/s of body = 2 x 40 per pair), 8 deg
+    cw = walk(["20 10 2"] * 6, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))        # (the cap the table in the README had before 25) asks 80 mm, 80 mm (10 mm/s of body = 2 x 40 per pair), 8 deg
     cw.decide()
     s = cw.log[0]["step_mm_deg"]
     f = min(50 / 80, 15 / 80, 5 / 8)
@@ -170,17 +170,17 @@ def test_max_steps_and_pause_bounds():
 def test_a_sideways_reversal_with_the_feet_apart_inserts_one_closing_step_and_walking_on_does_not():
     # two left steps leave the left foot 15 mm out; a small right step would have the right foot travel LEFT (to 10 mm
     # beyond where it stands): the feet are brought together first, and the command waits one step
-    cw = walk(["0 3.75 0"] * 2 + ["0 -0.625 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 3.75 0"] * 2 + ["0 -0.625 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(6)
     names = [c["name"] for c in cw.steps]
     assert names.count("close") == 1 and names[2] == "close" and cw.steps[3]["dy"] == pytest.approx(-0.005)
     # a full reversal (15 mm right after 15 mm left) is a null out-step, not a wrong-way one: no closing step
-    cw = walk(["0 3.75 0"] * 2 + ["0 -3.75 0"] * 3, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 3.75 0"] * 2 + ["0 -3.75 0"] * 3, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(5)
     assert [c["name"] for c in cw.steps].count("close") == 0
     # sideways right all the way: R goes out, L follows alongside: never a closing step (the --seq boundary rule
     # `gap x dy < 0` would have fired after every odd step here)
-    cw = walk(["0 -3.75 0"] * 7, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 -3.75 0"] * 7, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(7)
     assert [c["name"] for c in cw.steps].count("close") == 0
     assert all(c["dy"] == pytest.approx(-0.015) for c in cw.steps[:7])
@@ -475,7 +475,7 @@ def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_
     assert cw.log[0]["applied"][1] == pytest.approx(1.25)                # reported back as the body's velocity
     cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9)))
     cw.decide()
-    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(15.0)            # the default cap: 15 mm per pair = 1.875 mm/s at T 4
+    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(25.0)            # the default cap: 25 mm per pair = 3.1 mm/s at T 4 (robot: clean to 25)
     cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9), side=30.0))
     cw.decide()
     assert cw.log[0]["step_mm_deg"][1] == pytest.approx(30.0)
@@ -488,3 +488,12 @@ def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_
 def test_side_cap_flag_up_to_30_and_refused_beyond(capsys):
     assert H.main(["--cmd", "stdin", "--max-side-mm", "31"]) == 2
     assert "up to 30" in capsys.readouterr().out
+
+
+def test_trim_tlim_sends_the_firmwares_own_gains_with_only_the_limit_changed():
+    status = ("aborts   none since the last read\r\n"
+              "gains    kp 0.250  ki 1.000 /s  lim 12.0 deg  tlim 14.0 deg  fade 0.60 s  abort 25.0 deg\r\n"
+              "learned  T L +7.40 deg  T R +3.40 deg  (hike convention: + lifts the other hip)\r\n"
+              "learning |e| <= 4.0 deg; past 8.0 deg, an abort or a clamped hike puts T back: last kept\r\n")
+    assert H.trim_set_line(status, 6.9) == "trim set 0.250 1.000 12.0 6.9 0.60 25.0 4.0 8.0"
+    assert H.trim_set_line("garbage", 6.9) is None

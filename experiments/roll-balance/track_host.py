@@ -882,6 +882,34 @@ def dry(pl, a):
     print(f"  ... {len(adds) - len(first)} `track add` lines while it plays, then the firmware rests by itself")
 
 
+def trim_set_line(status, tlim_deg):
+    """`trim set ...` with the firmware's CURRENT gains (read from its `trim` status text) and only the learned-T limit changed:
+    -> the line, or None when the status cannot be read (nothing is sent then)."""
+    g = re.search(r"gains\s+kp\s+([\d.]+)\s+ki\s+([\d.]+)\s*/s\s+lim\s+([\d.]+)\s*deg\s+tlim\s+([\d.]+)\s*deg\s+fade\s+([\d.]+)\s*s\s+abort\s+([\d.]+)\s*deg", status)
+    l = re.search(r"learning \|e\| <= ([\d.]+) deg; past ([\d.]+) deg", status)
+    if not g or not l:
+        return None
+    kp, ki, lim, _tl, fade, abort = g.groups()
+    learn, keep = l.groups()
+    return f"trim set {kp} {ki} {lim} {tlim_deg:g} {fade} {abort} {learn} {keep}"
+
+
+def set_trim_tlim(r, tlim_deg):
+    """--trim-tlim: cap the firmware's learned stance trim T at tlim_deg before the run (T >= 7 deg on the left stance went with
+    the inward tips of 2026-11-16: 0 tips in 309 L steps below 7, 13 in 178 at or above). The other gains stay as they are."""
+    line = trim_set_line(r.cmd("trim"), tlim_deg)
+    if line is None:
+        print("REFUSED: --trim-tlim: the `trim` status could not be read, nothing sent")
+        return False
+    out = r.cmd(line)
+    print(f"{line} -> {out.strip()}")
+    back = trim_set_line(r.cmd("trim"), tlim_deg)
+    ok = back is not None and back == line
+    if not ok:
+        print("WARNING: the trim gains read back differ from what was set")
+    return ok
+
+
 def live(pl, a):
     sys.path.insert(0, os.path.join(ROOT, "experiments", "stepper"))
     import robot_io
@@ -1049,6 +1077,8 @@ def live(pl, a):
             except ValueError:               # not the main thread
                 pass
     try:
+        if getattr(a, "trim_tlim", None) is not None and not set_trim_tlim(r, a.trim_tlim):
+            return
         for l in pl["pre"]:
             r.cmd(l)
         while sent < len(adds) and adds[sent][0] <= ahead_ms:
@@ -1411,6 +1441,9 @@ def main(argv=None):
                     help="--cmd: with `plain` a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause, "
                          "the schedule's shift / settle / single support for T) for its single support, and the next step "
                          "takes it throughout; `same` keeps one timing. Default plain when --td-pause is given (README: Position hold)")
+    ap.add_argument("--trim-tlim", type=float, default=None, metavar="DEG",
+                    help="send `trim set` before the run with the firmware's current gains and this limit on the learned stance trim T "
+                         "(deg; T >= 7 on the left stance went with the inward tips of 2026-11-16). Default: do not touch the firmware's gains")
     ap.add_argument("--pos-hold", choices=["on", "off"], default="off",
                     help="--cmd, live: close the robot's position from the overhead camera tracker (tools/vision, camd's "
                          "emeet_latest.jpg; read-only, no camera access). Per step: the median position over the last "
@@ -1435,7 +1468,7 @@ def main(argv=None):
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
     ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
     ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32; 40 is proven only as a fixed walk, README envelope table)")
-    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap, the lead step's dy = the body's travel per PAIR of steps (default 15, up to 30; "
+    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap, the lead step's dy = the body's travel per PAIR of steps (default 25, up to 30; "
                                                                   "the delivered sideways velocity is at most cap / (2 T))")
     ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
     ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
