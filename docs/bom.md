@@ -282,9 +282,9 @@ arms), times the number of each part.
 
 **The build uses no washers, and heat-set inserts only for power lite.** All
 servo-case and printed-pilot screws are M2.5 flat-head self-tappers. The servo
-case holes take M2.5, not M3. Power lite mounts on M3 machine screws into four
-M3 heat-set inserts (Tom, 2026-11-18), its holes drilled out from Ø2.7 to
-Ø3.2.
+case holes take M2.5, not M3. Power lite mounts on machine screws into four
+heat-set inserts (Tom, 2026-11-18): M3 screws in its two −y holes, drilled
+out from Ø2.7 to Ø3.2, and M2.5 standoffs in its two +y holes.
 
 | fastener | qty | where | have |
 |---|---|---|---|
@@ -293,10 +293,12 @@ M3 heat-set inserts (Tom, 2026-11-18), its holes drilled out from Ø2.7 to
 | M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
 | M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
 | 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
-| M3 heat-set insert, M3 × 5.7 × Ø4.6 (e.g. Ruthex RX-M3x5.7) | 4 | power lite's four standoff bosses in the torso (Ø4.1 pilots, 6.5 deep) | |
-| M3 × 6 button head, machine | 3 | power lite onto its −y bosses (2), the BMS bracket onto its top standoff (1) | the disc screws' kind |
-| M3 × 15 male-female standoff, 6 mm male, 5.5 mm hex | 2 | power lite onto its +y bosses; the BMS bracket screws onto them | |
-| M3 × 6 flat head (ISO 10642, 90° countersunk), machine | 1 | the BMS bracket onto its bottom standoff, flush under the BMS | |
+| M3 heat-set insert, M3 × 5.7 × Ø4.6 (e.g. Ruthex RX-M3x5.7) | 2 | power lite's −y bosses in the torso (Ø4.1 pilots, 6.5 deep) | |
+| M2.5 heat-set insert, M2.5 × 5.7 | 2 | power lite's +y bosses, under the standoffs (Ø3.6 pilots, assumed: check against the inserts bought) | |
+| M3 × 6 button head, machine | 2 | power lite onto its −y bosses | the disc screws' kind |
+| M2.5 × 15 male-female standoff, 6 mm male, 5 mm hex | 2 | power lite onto its +y bosses; the BMS bracket screws onto them | |
+| M2.5 × 6 button head, machine | 1 | the BMS bracket onto its top standoff | |
+| M2.5 × 6 flat head (90° countersunk), machine | 1 | the BMS bracket onto its bottom standoff, flush under the BMS | |
 | double-sided foam tape, about 1 mm | 1 strip | a pad between the BMS and its bracket (its hooks hold it), the balance park onto the aft inner wall (#213) | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |
 | **M3 button head, disc screws** | **116** = 56 × M3×5 + 52 × M3×6 + 8 × M3×8 | 4 per servo disc | **40 M3 × 6 on hand** |
@@ -347,4 +349,4 @@ M3 heat-set inserts (Tom, 2026-11-18), its holes drilled out from Ø2.7 to
 | soldering iron, wire strippers, heat-shrink | power splices, the bulk capacitor, the XH pigtail | |
 | lever and weights for 0.5 / 1.0 / 1.5 N·m | the #73 stiffness bench | |
 
-A heat-set insert tip for M3 (power lite's four inserts), and a Ø3.2 drill for its holes.
+Heat-set insert tips for M3 and M2.5 (power lite's four inserts), and a Ø3.2 drill for its two −y holes.

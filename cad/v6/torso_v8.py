@@ -56,9 +56,9 @@ THE POWER BAY (#213). The power board (power lite) stands on the aft wall's
 four bosses, as the torso was drawn for; its relay K1 stands 26.7 off it, so
 the bay's cover is a cap (power_cover_v8) 4.7 proud of the torso's aft end,
 on three of the torso's four skin screws and a tab in the fourth corner. The
-board sits on M3 machine screws and standoffs in heat-set inserts in the
-bosses (Tom, 2026-11-18). Its BMS rides the BMS bracket (power_bracket_v8),
-held by four hooks, on two standoffs in the board's +y holes: over J1, J2 and
+board sits on M3 machine screws and M2.5 standoffs in heat-set inserts in
+the bosses (Tom, 2026-11-18). Its BMS rides the BMS bracket (power_bracket_v8),
+held by four hooks, on two M2.5 standoffs in the board's +y holes: over J1, J2 and
 the W pads its wires come from, beside the fuses, which pull straight out
 aft with the cap off. The torso itself is as it was: its skin holes,
 windows and deck pockets are drawn from the flat cover's seat
@@ -429,15 +429,25 @@ def _snap_fingers():
 STACK_MALE = 6.0                               # the Pi's standoffs' male thread
 PI_PILOT = STACK_MALE - V.PI_PCB_T + 0.5       # 5.0 into the boss and the wall
 PWRB_SCREW_L = 6.0                             # M3 x 6 button head, machine: 4.4 into the insert
-PWRB_INSERT_DEPTH = D.HEATSET_L + 0.8          # 6.5: the insert flush with the boss's face, room for a tip
+PWRB_INSERT_TIP = 0.8                          # each insert's pilot past it (flush with the boss's face): a tip's room
+
+
+def _pwrb_insert(hy, hz):
+    """(pilot D, length, OD) of the heat-set insert in the power board's boss
+    at (hy, hz): M2.5 under the BMS bracket's standoffs (the +y holes), M3
+    under the board's own screws (the -y holes)."""
+    if hy > 0:
+        return D.HEATSET_M25_D, D.HEATSET_M25_L, D.HEATSET_M25_OD
+    return D.HEATSET_D, D.HEATSET_L, D.HEATSET_OD
 
 
 def _board_bosses():
     """(add, cut): four standoff bosses for the Pi off the front inner wall
     (the stack goes in from the front, so all four are bossed) and four for
-    the power board off the aft inner wall, each with an M3 heat-set insert
-    pressed in flush with its face (Tom, 2026-11-18: boards mount on M3
-    machine screws, not self-tappers): its pilot runs 0.5 into the wall."""
+    the power board off the aft inner wall, each with a heat-set insert
+    pressed in flush with its face (Tom, 2026-11-18: boards mount on machine
+    screws, not self-tappers; M3 for the board's screws, M2.5 under the
+    standoffs, _pwrb_insert): its pilot runs 0.5 into the wall."""
     o = 0.3
     add, cut = None, None
     for sy in V.PI_SCREW_Y:
@@ -448,7 +458,8 @@ def _board_bosses():
             cut = c if cut is None else cut + c
     for hy, hz in V.PWRB_HOLES_YZ:
         add += _roofed_boss_x(V.PWRB_BOSS_R, V.PWRB_PCB_X1, V.PWRB_WALL_X[0] + o, hy, hz)
-        cut += cyl_x(D.HEATSET_D / 2, V.PWRB_PCB_X1 - 1, V.PWRB_PCB_X1 + PWRB_INSERT_DEPTH, hy, hz)
+        d, ln, _ = _pwrb_insert(hy, hz)
+        cut += cyl_x(d / 2, V.PWRB_PCB_X1 - 1, V.PWRB_PCB_X1 + ln + PWRB_INSERT_TIP, hy, hz)
     return add, cut
 
 
@@ -826,7 +837,7 @@ def power_cover_v8():
     return c
 
 
-PBR_SCREW_L = 6.0                 # M3 x 6 machine screws into each standoff's female thread: 3.5 in
+PBR_SCREW_L = 6.0                 # M2.5 x 6 machine screws into each standoff's female thread: 3.5 in
 PBR_HOLES_YZ = [(y, z) for y, z in V.PWRB_HOLES_YZ if y > 0]           # H1 (top), H3 (bottom)
 PBR_EDGE_IN = (3.5, 2.5)          # the plate stops this far inside the BMS's -y edge (finger room at
                                   # the fuses) and +y edge (the skin)
@@ -836,7 +847,7 @@ PBR_RIM_CLR = 0.3
 PBR_SPINE_HW = 4.5                # solid either side of the standoffs' line
 PBR_BAND = 4.0                    # the frame round its two windows
 PBR_PAD_HW = 3.8                  # round each standoff
-PWRB_SO_R = 3.2                   # a standoff's 5.5 mm (M3) hex, round its corners
+PWRB_SO_R = 2.9                   # a standoff's 5 mm (M2.5) hex, round its corners
 # The BMS's HOOKS (Tom, 2026-11-18: tabs with overhangs, so it stays on the
 # bracket as the robot moves, tape or no tape). Each lip reaches PBR_HOOK_OVER
 # over the PCB's aft face, inside its part-free margin (BMS_EDGE, 2.0), its
@@ -885,18 +896,10 @@ def pbr_snap_strains():
     return out
 
 
-def _csk_x_m3(y, z, x_face, sign):
-    """An M3 flat head's 90 deg countersink (D.M3_CS_D) in a face normal to x,
-    opening toward -sign."""
-    h = (D.M3_CS_D - D.M3_CLEAR) / 2 + 0.3
-    rot = Rot(0, 90, 0) if sign > 0 else Rot(0, -90, 0)
-    return Pos(x_face + sign * (0.3 - h / 2), y, z) * rot * Cone(D.M3_CLEAR / 2, D.M3_CS_D / 2 + 0.3, h)
-
-
 def power_bracket_v8(snaps=True):
-    """THE BMS BRACKET: a plate on the two M3 standoffs in the power board's
-    +y holes, held by an M3 x 6 button head at the top and an M3 x 6 flat head
-    at the bottom (under the BMS), and the BMS on it component side aft on a
+    """THE BMS BRACKET: a plate on the two M2.5 standoffs in the power
+    board's +y holes, held by an M2.5 x 6 button head at the top and an
+    M2.5 x 6 flat head at the bottom (under the BMS), and the BMS on it component side aft on a
     foam pad (dimensions_v6 BMS_*), held by four hooks (PBR_HOOK_*): fixed
     over its top edge, snaps under its bottom edge and at its -y edge. A ledge
     under its bottom edge carries it. Two windows leave its bare side to the
@@ -954,9 +957,9 @@ def power_bracket_v8(snaps=True):
         p += box(xc, xl, ys0, yo, z0, z1)
         p -= wedge_z([(xl - 0.01, ys1), (xl - 0.01, yo + 0.01), (xl + (yo - ys1), yo + 0.01)], z0 - 1, z1 + 1)
     for sy, sz in PBR_HOLES_YZ:
-        p -= cyl_x(D.M3_CLEAR / 2, xf + 1, xa - 1, sy, sz)
+        p -= cyl_x(D.CASE_SCREW_CLEAR / 2, xf + 1, xa - 1, sy, sz)
         if sz == hz_bot:                                               # under the BMS: flush
-            p -= _csk_x_m3(sy, sz, xa, -1)
+            p -= csk_x(sy, sz, xa, -1)
     return p
 
 
@@ -1361,7 +1364,7 @@ def mock_j1_plug():
 
 
 def mock_pwrb_standoffs():
-    """The bracket's two M3 x 15 male-female standoffs on the board's parts
+    """The bracket's two M2.5 x 15 male-female standoffs on the board's parts
     face in its +y holes (H1, H3): each hex as a cylinder round its corners.
     Their 6 mm male studs (through the board into the bosses) are not drawn."""
     m = None
@@ -1372,11 +1375,12 @@ def mock_pwrb_standoffs():
 
 
 def mock_pwrb_inserts():
-    """The four M3 heat-set inserts in the power board's bosses, flush with
-    their faces (D.HEATSET_*)."""
+    """The four heat-set inserts in the power board's bosses, flush with
+    their faces (_pwrb_insert)."""
     m = None
     for hy, hz in V.PWRB_HOLES_YZ:
-        c = cyl_x(D.HEATSET_OD / 2, V.PWRB_PCB_X1, V.PWRB_PCB_X1 + D.HEATSET_L, hy, hz)
+        _, ln, od = _pwrb_insert(hy, hz)
+        c = cyl_x(od / 2, V.PWRB_PCB_X1, V.PWRB_PCB_X1 + ln, hy, hz)
         m = c if m is None else m + c
     return m
 
@@ -1430,12 +1434,12 @@ def SCREWS():
     for hy, hz in V.PWRB_HOLES_YZ:
         if (hy, hz) in PBR_HOLES_YZ:
             s.append(dict(name=f"pwrb_so_{hy:+.0f}_{hz:+.0f}", part="torso_v8",
-                          kind=f"M3 x {V.PWRB_SO_L:.0f} male-female standoff, {STACK_MALE:.0f} mm male: "
-                               "the power board into its boss's M3 heat-set insert", axis=(1, 0, 0),
-                          pos=(V.PWRB_PCB_X0, hy, hz), length=STACK_MALE, clamp=V.PWRB_T, pilot=D.HEATSET_L))
-            head = "flat head (ISO 10642), flush under the BMS" if hz < -30 else "button head"
+                          kind=f"M2.5 x {V.PWRB_SO_L:.0f} male-female standoff, {STACK_MALE:.0f} mm male: "
+                               "the power board into its boss's M2.5 heat-set insert", axis=(1, 0, 0),
+                          pos=(V.PWRB_PCB_X0, hy, hz), length=STACK_MALE, clamp=V.PWRB_T, pilot=D.HEATSET_M25_L))
+            head = "flat head (90 deg countersunk), flush under the BMS" if hz < -30 else "button head"
             s.append(dict(name=f"pbr_{hy:+.0f}_{hz:+.0f}", part="power_bracket_v8",
-                          kind=f"M3x6 {head}, machine: the BMS bracket into the standoff", axis=(1, 0, 0),
+                          kind=f"M2.5x6 {head}, machine: the BMS bracket into the standoff", axis=(1, 0, 0),
                           pos=(V.PBR_X[1], hy, hz), length=PBR_SCREW_L, clamp=V.PBR_T, pilot=None))
         else:
             s.append(dict(name=f"pwrb_{hy:+.0f}_{hz:+.0f}", part="torso_v8",
@@ -1984,8 +1988,8 @@ def power_bay_step(pieces, path, board_step=None):
     kids = []
     for name, s in (("pelvis_v8", pieces["pelvis_v8"]), ("torso_v8", pieces["torso_v8"]),
                     ("battery_door_v8", pieces["battery_door_v8"]), ("pack", mock_pack()),
-                    ("power_lite_board", board), ("heat_set_inserts_m3", mock_pwrb_inserts()),
-                    ("standoffs_m3x15", mock_pwrb_standoffs()),
+                    ("power_lite_board", board), ("heat_set_inserts_m3_m2.5", mock_pwrb_inserts()),
+                    ("standoffs_m2.5x15", mock_pwrb_standoffs()),
                     ("power_bracket_v8", pieces["power_bracket_v8"]), ("bms_cf_3sjh25a", mock_bms()),
                     ("balance_park_v8", pieces["balance_park_v8"]),
                     ("balance_extension_male_and_pack_plug", mock_balance_male()),

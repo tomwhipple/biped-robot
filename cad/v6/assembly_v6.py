@@ -271,7 +271,7 @@ def mock_power_board():
 
 
 def mock_power_standoffs():
-    """The BMS bracket's two M3 x 15 standoffs on the power board (torso_v8.mock_pwrb_standoffs)."""
+    """The BMS bracket's two M2.5 x 15 standoffs on the power board (torso_v8.mock_pwrb_standoffs)."""
     import torso_v8
     return torso_v8.mock_pwrb_standoffs()
 

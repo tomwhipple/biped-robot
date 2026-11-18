@@ -388,15 +388,16 @@ cover off:
   the bosses); the General Driver goes on top with four M2.5 × 6.
 
 **Power lite** (`pcb/power-lite/`):
-97 × 64.5 × 1.6 mm, through-hole parts on the top side, four holes 3.2 mm in
-from the corners. They were made for M2.5 (Ø2.7) and are drilled out to Ø3.2:
-every board mounts on M3 machine screws into heat-set inserts (Tom,
-2026-11-18).
+97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes
+(Ø2.7) 3.2 mm in from the corners. Boards mount on machine screws into
+heat-set inserts (Tom, 2026-11-18): M3 in the two −y holes, drilled out to
+Ø3.2, and M2.5 standoffs in the two +y holes as made.
 
 - It stands vertical in the aft bay, right behind the pelvis and so beside the
   pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall,
-  each with an M3 heat-set insert: 2 × M3 × 6 button heads in its −y holes,
-  and in its +y holes the BMS bracket's two M3 × 15 male-female standoffs.
+  each with a heat-set insert: 2 × M3 × 6 button heads into M3 inserts in its
+  −y holes, and in its +y holes the BMS bracket's two M2.5 × 15 male-female
+  standoffs into M2.5 inserts.
   The 6 mm keeps its leads clear of the bearing housing's rear lugs.
 - Its tallest part is the relay K1, 26.7 mm off it; the cap stands 2.0 mm over
   it. The fuses F1/F2 (16.3 mm with the fuse in) pull straight out aft with
@@ -412,7 +413,7 @@ every board mounts on M3 machine screws into heat-set inserts (Tom,
 - **The BMS** (a ShillehTek CF-3SJH25A-C, 56 × 45 × 8 mm from its datasheet,
   not measured) is wired to the board's W pads, with no connectors. It rides
   the **BMS bracket** (`power_bracket_v8`, 4 g, a 2.5 mm plate on the two
-  standoffs, an M3 × 6 button head and an M3 × 6 flat head), component side
+  standoffs, an M2.5 × 6 button head and an M2.5 × 6 flat head), component side
   aft on a foam pad, 18.5 mm off the board: over J1, J2 and the W pads, beside
   the fuses (1.0 mm past their ends, 2.2 mm over their tops), 0.9 mm off the
   +y skin. A ledge carries it, and four hooks hold it: a fixed one over its

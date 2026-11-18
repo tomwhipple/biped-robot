@@ -543,11 +543,12 @@ assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
 # 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
-# side, four holes 3.2 in from the corners, made for M2.5 (2.7) and drilled
-# out to 3.2 for M3: every board mounts on M3 machine screws into heat-set
-# inserts (Tom, 2026-11-18). No copper comes within 4 mm of a hole's centre on
-# either face except the back's GND pour, which stops at r = 1.60, so the
-# drill touches GND only. Vertical, right behind the pelvis and so beside the
+# side, four M2.5 holes (2.7) 3.2 in from the corners. Boards mount on
+# machine screws into heat-set inserts (Tom, 2026-11-18): M3 screws in the
+# two -y holes, drilled out to 3.2 (no copper comes within 4 mm of a hole's
+# centre on either face except the back's GND pour, which stops at r = 1.60,
+# so the drill touches GND only), and M2.5 standoffs (Tom: standoffs stay
+# M2.5) in the two +y holes as made. Vertical, right behind the pelvis and so beside the
 # pack (Tom, 2026-10-14), parts facing aft, on four 6 mm standoff bosses off
 # the aft inner wall, each with an M3 heat-set insert; its THT leads stand <= 2.5 mm
 # below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
@@ -561,7 +562,7 @@ HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
-PWRB_HOLE_D = 3.2                             # drilled out from the fab's 2.7 (M2.5) for M3
+PWRB_HOLE_D = 2.7                             # as made (M2.5); the two -y holes are drilled to 3.2 for M3
 PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_D): 1.85 of wall
 PWRB_T = 1.6
 PWRB_UNDER = 2.5                              # THT leads below the board
@@ -651,10 +652,10 @@ BMS_H = 8.0                                   # overall: PCB + its TO-252 MOSFET
 BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
 BMS_MASS = 15.0                               # the listing's
 BMS_TAPE = 1.0                                # foam tape, bracket .. its bare side
-# its bracket (power_bracket_v8): a plate on two M3 male-female standoffs in
-# the board's +y holes (H1, H3; 6 mm male into the bosses' inserts, as the
-# board's screws), screwed to them with M3 flat heads
-PWRB_SO_L = 15.0                              # M3 x 15 standoffs
+# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs
+# in the board's +y holes (H1, H3; 6 mm male into the bosses' M2.5 inserts),
+# screwed to them with M2.5 machine screws
+PWRB_SO_L = 15.0                              # M2.5 x 15 standoffs
 PBR_T = 2.5
 PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 on the standoffs, -65.91 aft face
 BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts

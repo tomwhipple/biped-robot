@@ -153,7 +153,11 @@ FIT = 0.30              # moving / drop-in fit
 HEATSET_D = 4.1         # M3 x D4.6 heat-set insert pilot
 HEATSET_L = 5.7         # ... its length (the common M3 x 5.7 x D4.6, e.g. Ruthex RX-M3x5.7)
 HEATSET_OD = 4.6        # ... its knurl
-M3_CS_D = 6.7           # countersink mouth for an M3 flat head (ISO 10642, head 6.0) + 0.7
+# M2.5 heat-set insert (power lite's standoffs, Tom 2026-11-18): ASSUMED the
+# M2.5 x 5.7 of the same family -- check the pilot against the inserts bought
+HEATSET_M25_D = 3.6     # its pilot
+HEATSET_M25_L = 5.7
+HEATSET_M25_OD = 4.0
 M3_CLEAR = 3.4
 M25_TAP = 2.2           # M2.5 self-tap pilot (electronics board)
 
