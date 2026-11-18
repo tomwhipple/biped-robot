@@ -1,6 +1,0 @@
-*-backups/
-*.kicad_prl
-fp-info-cache
-#auto_saved_files#
-*.lck
-_autosave-*

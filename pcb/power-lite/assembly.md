@@ -241,13 +241,13 @@ then tug the wire to check it is held.
   terminal 2, the middle one, and terminal 3. Check with the meter that the two wires read 0 Ω
   in the position you call "run" and open in "stop".
 - **J12** uses pins 2, 3, 5 and 6 only. Their far ends follow the
-  [harness](../power-board/harness.md#j9-and-j12-control-to-the-general-driver):
+  [harness](harness.md#j12-control-to-the-esp32):
   - pin 2 `SERVO_EN` to P3 pin 4 (IO16);
   - pin 3 GND to P3 pin 3;
   - pin 5 `RAIL_V` to H3 pin 4 (GPIO34);
   - pin 6 `ESTOP_N` to H2 pin 1 (IO4).
 
-  The far-end housings depend on the General Driver's headers (harness check P5). The elechawk
+  The far-end housings depend on the General Driver's headers (harness.md, J12). The elechawk
   kit has 2.54 mm Dupont housings.
 - **The servo leads** must put the General Driver's GND wire on pin 3 here (harness check P4).
 - **J2 takes the pack's balance plug directly.** Meter the plug first (harness check P2): pin 1

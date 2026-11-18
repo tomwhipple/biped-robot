@@ -1,9 +1,9 @@
 # A cheaper power system: options and landed prices (2026-11-02)
 
-*A dated record. Tom, 2026-11-02, after the [rev B quote](2026-11-02-power-board-rev-b-quote.md):
+*A dated record. Tom, 2026-11-02, after the rev B quote of the custom power board (removed in #327; in git history at fff467f):
 "2 boards is more than $300 and 30+ days with tax and shipping and all. I think we need to go
 back to the drawing board and come up with much cheaper battery protection and power
-distribution system." The custom board is [pcb/power-board](../../pcb/power-board/README.md);
+distribution system." The custom board was `pcb/power-board` (removed in #327; in git history at fff467f);
 the earlier off-the-shelf search is
 [2026-10-24-power-board-off-the-shelf-survey.md](2026-10-24-power-board-off-the-shelf-survey.md).*
 
@@ -100,7 +100,7 @@ include one.
    - The inrush could trip the BMS's short-circuit detector.
    - The options are a bulk capacitor on the always-on side, a pre-charge resistor, or a
      smaller bulk capacitor. Test it on the bench, and it can be simulated with
-     `pcb/power-board/pbsim` once the BMS is characterised.
+     `pcb/power-lite/sim/lite_sim.py` once the BMS is characterised.
 3. **The BMS switches the negative lead.**
    - System ground becomes P−, and B− differs from it once the BMS trips.
    - The pack's balance lead must go only to the BMS.

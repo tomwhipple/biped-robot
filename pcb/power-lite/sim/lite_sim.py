@@ -2,10 +2,10 @@
 
 The board's parts are taken from parts.py net for net; around them sit models of what the board connects
 to. Values marked ASSUMED are not measured: they bound the results and are checked at bring-up.
-- the pack: 3 cells, 15 mOhm, 2 x 150 nH of lead (ASSUMED, as rev B's pbsim "15 mOhm pack");
+- the pack: 3 cells, 15 mOhm, 2 x 150 nH of lead (ASSUMED);
 - the BMS: a closed switch of 2.5 mOhm (ShillehTek board: 8 x P75N02LDG, 5 mOhm each, 4 + 4 in series);
   its trip points are not modelled (undocumented; the bench check measures them);
-- the main switch 3 mOhm; F1 4.58 mOhm (rev B record C13), F2 32 mOhm (ASSUMED);
+- the main switch 3 mOhm; F1 4.58 mOhm, F2 32 mOhm (ASSUMED);
 - K1: TE V23134 coil 90 Ohm with its 470 Ohm suppression resistor, L = 0.3 H (ASSUMED, not on TE's sheet);
   the contact closes at the operate current (7.2 V / 90 Ohm) and opens at the release current (1.6 V / 90 Ohm),
   1.5 mOhm closed (15 mV at 10 A typ., TE);

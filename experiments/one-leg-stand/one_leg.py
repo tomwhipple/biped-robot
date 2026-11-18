@@ -47,7 +47,7 @@ CAL = {"R_hip_roll": (2082, -1), "R_hip_pitch": (1997, 1), "R_knee": (2125, -1),
        "R_hip_yaw": (2184, 1), "L_hip_yaw": (2153, 1), "R_ankle_roll": (2108, 1), "L_ankle_roll": (1997, 1)}
 ROLLS = ("L_hip_roll", "R_hip_roll", "L_ankle_roll", "R_ankle_roll")
 # The robot as it is on the bench (2026-10-24): v6 legs, tethered power, the torso is the print (m_pelvis)
-# plus the General Driver board (m_board) and its leads. No pack, Pi, head, neck servo, power board, arms.
+# plus the General Driver board (m_board) and its leads. No pack, Pi, head, neck servo, power lite, arms.
 # Geometry untouched (torso_v7 stays on: the deck height and board position are the printed torso's).
 # m_wiring 0.010 is a guess (board leads + servo bus cable); the true torso mass is unmeasured.
 AS_BUILT = ["m_battery=0", "m_pi4=0", "m_power=0", "m_neck_servo=0", "m_head=0", "m_wiring=0.01"]
