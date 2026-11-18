@@ -337,8 +337,8 @@ housing), open at both ends for the covers:
   is built against) to ±60.06 at the bottom. Their inner faces (±57.46) are
   0.2 mm off the pelvis's cell walls.
 - two inner walls, either side of the pelvis and 0.2 mm off its webs: front
-  x 13.21 … 15.81 (the board stack stands off it), aft x −40.81 … −38.21 (the
-  power lite stands off it).
+  x 13.21 … 15.81 (the board stack stands off it), aft x −40.81 … −38.21 (power
+  lite stands off it).
 - the **battery layer** over the pelvis's ceiling: pack ribs on both inner
   walls (front pair at y ±29, aft pair at y ±22), stopping 14 mm under the
   deck top with a 45° top so leads pass over them, and a ledge with a 45° gusset

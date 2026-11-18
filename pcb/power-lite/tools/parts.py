@@ -1,7 +1,7 @@
 """Power-lite board: every part, its symbol, footprint, MPN, datasheet and the net of every pin (the spec).
 
-The design and its decisions: docs/design-v6/2026-11-02-power-lite-options.md. Pin orders of the
-connector pin orders are in pcb/power-lite/harness.md.
+The design and its decisions: docs/design-v6/2026-11-02-power-lite-options.md. The connector
+pin orders are in pcb/power-lite/harness.md.
 """
 PROJECT = "power-lite"
 
