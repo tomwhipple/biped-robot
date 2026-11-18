@@ -56,8 +56,8 @@ THE POWER BAY (#213). The power board (power lite) stands on the aft wall's
 four bosses, as the torso was drawn for; its relay K1 stands 26.7 off it, so
 the bay's cover is a cap (power_cover_v8) 4.7 proud of the torso's aft end,
 on three of the torso's four skin screws and a tab in the fourth corner. The
-board sits on M3 machine screws and M2.5 standoffs in heat-set inserts in
-the bosses (Tom, 2026-11-18). Its BMS rides the BMS bracket (power_bracket_v8),
+board sits on M2.5 machine screws and standoffs in heat-set inserts in the
+bosses (Tom, 2026-11-18). Its BMS rides the BMS bracket (power_bracket_v8),
 held by four hooks, on two M2.5 standoffs in the board's +y holes: over J1, J2 and
 the W pads its wires come from, beside the fuses, which pull straight out
 aft with the cap off. The torso itself is as it was: its skin holes,
@@ -428,17 +428,15 @@ def _snap_fingers():
 
 STACK_MALE = 6.0                               # the Pi's standoffs' male thread
 PI_PILOT = STACK_MALE - V.PI_PCB_T + 0.5       # 5.0 into the boss and the wall
-PWRB_SCREW_L = 6.0                             # M3 x 6 button head, machine: 4.4 into the insert
+PWRB_SCREW_L = 6.0                             # M2.5 x 6 button head, machine: 4.4 into the insert
 PWRB_INSERT_TIP = 0.8                          # each insert's pilot past it (flush with the boss's face): a tip's room
 
 
 def _pwrb_insert(hy, hz):
     """(pilot D, length, OD) of the heat-set insert in the power board's boss
-    at (hy, hz): M2.5 under the BMS bracket's standoffs (the +y holes), M3
-    under the board's own screws (the -y holes)."""
-    if hy > 0:
-        return D.HEATSET_M25_D, D.HEATSET_M25_L, D.HEATSET_M25_OD
-    return D.HEATSET_D, D.HEATSET_L, D.HEATSET_OD
+    at (hy, hz): M2.5 in all four (Tom, 2026-11-18: M2.5 screws, standoffs and
+    inserts, so the board's holes are used as made)."""
+    return D.HEATSET_M25_D, D.HEATSET_M25_L, D.HEATSET_M25_OD
 
 
 def _board_bosses():
@@ -446,8 +444,8 @@ def _board_bosses():
     (the stack goes in from the front, so all four are bossed) and four for
     the power board off the aft inner wall, each with a heat-set insert
     pressed in flush with its face (Tom, 2026-11-18: boards mount on machine
-    screws, not self-tappers; M3 for the board's screws, M2.5 under the
-    standoffs, _pwrb_insert): its pilot runs 0.5 into the wall."""
+    screws, not self-tappers; M2.5, _pwrb_insert): its pilot runs 0.5 into
+    the wall."""
     o = 0.3
     add, cut = None, None
     for sy in V.PI_SCREW_Y:
@@ -777,10 +775,10 @@ SWP_SCREW_L = 8.0                 # M2.5 x 8 flat head, in through the cap's pla
 PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 deep, as the flat cover's
 # the TAB in the cap's +y bottom corner (Tom, 2026-11-18): a tongue as wide
 # as a corner block that reaches forward inside the +y skin, under the BMS
-# (1.0 clear) and short of the BMS bracket's ledge (1.0 clear), so that corner
+# (1.0 clear) and short of the BMS bracket's ledge (1.2 clear), so that corner
 # is held to the skin like the other three
 PCAP_TAB_H = V.BMS_Z[0] - 1.0 - V.TORSO_BOT_Z                          # 1.5 tall
-PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 1.0            # -69.11 its forward end
+PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 1.2            # -69.31 its forward end
 
 
 def _pcap_blocks_yz():
@@ -801,8 +799,8 @@ def power_cover_v8():
     """THE POWER CAP: the aft bay's cover, PCAP_PROUD aft of the torso's end
     so the power board's relay K1 has PWRB_COMP_AIR under it. Its rim carries
     the torso's skins and deck aft to a flat plate, its inner faces 0.2 inside
-    the torso's; a lip off them goes in under the deck and inside the -y
-    skin; three corner blocks reach forward inside the skins to the torso's
+    the torso's; a lip off them goes in under the deck and inside both
+    skins; three corner blocks reach forward inside the skins to the torso's
     skin screws (dimensions_v6 PCOV_SCREW_*), pilots teardropped toward the
     print's up (+x), and a tab (PCAP_TAB_*) inside the +y skin in the fourth
     corner, under the BMS. The switch pod screws onto its outer face from inside
@@ -818,6 +816,7 @@ def power_cover_v8():
     xs = (V.PCAP_X[1] - 0.3, V.TORSO_AFT_X + sl)     # from the plate: it prints off the bed's plate
     c += box(*xs, -hy, hy, ztop - st, ztop)
     c += box(*xs, -hy, -hy + st, zt, ztop)
+    c += box(*xs, hy - st, hy, zt, ztop)                                  # and inside the +y skin
     by, bh = COVER_BLOCK[1], V.PCAP_BLOCK_H
     for yb, zb_ in _pcap_blocks_yz():
         s = 1 if yb > 0 else -1
@@ -1443,8 +1442,8 @@ def SCREWS():
                           pos=(V.PBR_X[1], hy, hz), length=PBR_SCREW_L, clamp=V.PBR_T, pilot=None))
         else:
             s.append(dict(name=f"pwrb_{hy:+.0f}_{hz:+.0f}", part="torso_v8",
-                          kind="M3x6 button head, machine, into the boss's M3 heat-set insert", axis=(1, 0, 0),
-                          pos=(V.PWRB_PCB_X0, hy, hz), length=PWRB_SCREW_L, clamp=V.PWRB_T, pilot=D.HEATSET_L))
+                          kind="M2.5x6 button head, machine, into the boss's M2.5 heat-set insert", axis=(1, 0, 0),
+                          pos=(V.PWRB_PCB_X0, hy, hz), length=PWRB_SCREW_L, clamp=V.PWRB_T, pilot=D.HEATSET_M25_L))
     for ey, ez in SWP_SCREWS_YZ:
         s.append(dict(name=f"switch_pod_{ey:+.0f}_{ez:+.0f}", part="switch_pod_v8",
                       kind="M2.5x8 self-tap, flat head (through the cap into the switch pod's side wall)",
@@ -1988,7 +1987,7 @@ def power_bay_step(pieces, path, board_step=None):
     kids = []
     for name, s in (("pelvis_v8", pieces["pelvis_v8"]), ("torso_v8", pieces["torso_v8"]),
                     ("battery_door_v8", pieces["battery_door_v8"]), ("pack", mock_pack()),
-                    ("power_lite_board", board), ("heat_set_inserts_m3_m2.5", mock_pwrb_inserts()),
+                    ("power_lite_board", board), ("heat_set_inserts_m2.5", mock_pwrb_inserts()),
                     ("standoffs_m2.5x15", mock_pwrb_standoffs()),
                     ("power_bracket_v8", pieces["power_bracket_v8"]), ("bms_cf_3sjh25a", mock_bms()),
                     ("balance_park_v8", pieces["balance_park_v8"]),

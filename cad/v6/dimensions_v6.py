@@ -543,14 +543,11 @@ assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
 # 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
-# side, four M2.5 holes (2.7) 3.2 in from the corners. Boards mount on
-# machine screws into heat-set inserts (Tom, 2026-11-18): M3 screws in the
-# two -y holes, drilled out to 3.2 (no copper comes within 4 mm of a hole's
-# centre on either face except the back's GND pour, which stops at r = 1.60,
-# so the drill touches GND only), and M2.5 standoffs (Tom: standoffs stay
-# M2.5) in the two +y holes as made. Vertical, right behind the pelvis and so beside the
+# side, four M2.5 holes (2.7) 3.2 in from the corners. Boards mount on M2.5
+# machine screws and standoffs into M2.5 heat-set inserts, the holes used as
+# made (Tom, 2026-11-18). Vertical, right behind the pelvis and so beside the
 # pack (Tom, 2026-10-14), parts facing aft, on four 6 mm standoff bosses off
-# the aft inner wall, each with an M3 heat-set insert; its THT leads stand <= 2.5 mm
+# the aft inner wall, each with an M2.5 heat-set insert; its THT leads stand <= 2.5 mm
 # below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
 # the parts side (from aft) its left edge is at +y: J1, the pack's XT60, mates
 # along the board out of that edge, so the board sits hard to -y and the
@@ -562,8 +559,8 @@ HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
-PWRB_HOLE_D = 2.7                             # as made (M2.5); the two -y holes are drilled to 3.2 for M3
-PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_D): 1.85 of wall
+PWRB_HOLE_D = 2.7                             # M2.5, as made
+PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_M25_D): 2.1 of wall
 PWRB_T = 1.6
 PWRB_UNDER = 2.5                              # THT leads below the board
 PWRB_STANDOFF = 6.0                           # wall face .. solder side

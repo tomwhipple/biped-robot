@@ -151,8 +151,8 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
 | §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
-| §9c power lite's bosses: −y / +y | heat-set insert, M3 × 5.7 × Ø4.6 / M2.5 × 5.7 | 2 / 2 |
-| §9c power lite: −y holes / +y holes | M3 × 6 button head / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
+| §9c power lite's bosses | M2.5 heat-set insert, M2.5 × 5.7 × Ø4.0 | 4 |
+| §9c power lite: −y holes / +y holes | M2.5 × 6 button head / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
 | §9c BMS bracket onto the standoffs (top / bottom) / power cap | M2.5 × 6 button head / M2.5 × 6 flat / M2.5 × 8 flat | 1 / 1 / 3 |
 | §9c BMS onto its bracket / balance park onto the aft wall | double-sided foam tape, 1 mm | — |
 | §9c switch pod onto the cap (from the cap's inner face) | M2.5 × 8 flat | 4 |
@@ -492,19 +492,15 @@ the main switch and the E-stop side by side in the **switch pod**
    - At the same time, solder the board's half of the main switch's lead into
      W6/W7: a 14 AWG pair to the board half of its inline disconnect (step 6).
 2. **The board** goes in from aft: vertical, parts facing aft, onto the four
-   6 mm standoff bosses on the aft inner wall. Boards mount on machine
-   screws into heat-set inserts, not self-tappers; the standoffs stay M2.5
-   (Tom, 2026-11-18).
-   - **Before the board, the inserts:** with the iron, from aft, flush with
-     each boss's face: an **M3 heat-set insert** (M3 × 5.7 × Ø4.6, Ø4.1
-     pilot) in each of the two −y bosses, an **M2.5 heat-set insert**
-     (M2.5 × 5.7, Ø3.6 pilot) in each of the two +y bosses. The M2.5 pilot
-     is assumed: check it against the inserts you have.
-   - **Drill the board's two −y holes (H2, H4) out to Ø3.2.** They were made
-     for M2.5 (Ø2.7). Nothing comes within 4 mm of a hole's centre except the
-     back's GND pour, which the drill just touches: harmless. The +y holes
-     stay as they are.
-   - Its −y holes: **2 × M3 × 6 button heads**, 4.4 mm into the inserts.
+   6 mm standoff bosses on the aft inner wall. Boards mount on M2.5 machine
+   screws and standoffs into heat-set inserts, not self-tappers, and the
+   board's holes are used as made (Tom, 2026-11-18).
+   - **Before the board, the inserts:** press an **M2.5 heat-set insert**
+     (M2.5 × 5.7 × Ø4.0) into each of the four bosses with the iron, from
+     aft, flush with the boss's face. The pilots are Ø3.6, 6.5 deep: an
+     assumed size, so check it against the inserts you have.
+   - Its −y holes (H2, H4): **2 × M2.5 × 6 button heads**, 4.4 mm into the
+     inserts.
    - Its +y holes (H1 at the top, H3 at the bottom): **2 × M2.5 × 15
      male-female standoffs**, their 6 mm male thread through the board into the
      inserts. Turn them with a 5 mm nut driver.
@@ -603,7 +599,8 @@ the main switch and the E-stop side by side in the **switch pod**
    and J11 first, then drive **3 × M2.5 × 8 flat-heads** in through the
    skins into its corner blocks: the +y top, −y top and −y bottom holes.
    - The fourth corner, +y bottom, has a **tab** instead of a block: it goes
-     in 5.9 mm inside the +y skin, under the BMS. A block and a skin screw
+     in 5.7 mm inside the +y skin, under the BMS. A lip inside each skin and
+     under the deck locates the cap's edges. A block and a skin screw
      there would stand where the BMS's lower corner is, so the torso has no
      hole there.
    - **To take the cap off** (a fuse): the three skin screws out, the cap

@@ -16,17 +16,17 @@ plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) $(V6_HAN
 	$(v6_parts_listed)
 sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) ## the terrain and get-up references the trainer loads (slow; changes what trains)
 
-$(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --write | tail -1
-$(V6_LEGS_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_LEGS_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --asbuilt-legs --write | tail -1
-sim/bimo_biped_v6ar_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+sim/bimo_biped_v6ar_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --write | tail -1
-sim/bimo_biped_v6legs_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+sim/bimo_biped_v6legs_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --asbuilt-legs --write | tail -1
-sim/bimo_biped_v6legs_meas_sole.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+sim/bimo_biped_v6legs_meas_sole.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write | tail -1
-$(V6_HANG_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_HANG_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --hang --asbuilt-legs --write | tail -1
 ifneq ($(SERVO_MESHES),)
 $(subst sim/meshes/v6/,sim/meshes/%/,$(SERVO_MESHES)): $(PYDEPS_sim/add_cad_meshes.py)

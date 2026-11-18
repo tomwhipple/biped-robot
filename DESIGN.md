@@ -389,15 +389,14 @@ cover off:
 
 **Power lite** (`pcb/power-lite/`):
 97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes
-(Ø2.7) 3.2 mm in from the corners. Boards mount on machine screws into
-heat-set inserts (Tom, 2026-11-18): M3 in the two −y holes, drilled out to
-Ø3.2, and M2.5 standoffs in the two +y holes as made.
+(Ø2.7) 3.2 mm in from the corners, used as made: boards mount on M2.5
+machine screws and standoffs into heat-set inserts (Tom, 2026-11-18).
 
 - It stands vertical in the aft bay, right behind the pelvis and so beside the
   pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall,
-  each with a heat-set insert: 2 × M3 × 6 button heads into M3 inserts in its
-  −y holes, and in its +y holes the BMS bracket's two M2.5 × 15 male-female
-  standoffs into M2.5 inserts.
+  each with an M2.5 heat-set insert: 2 × M2.5 × 6 button heads in its −y
+  holes, and in its +y holes the BMS bracket's two M2.5 × 15 male-female
+  standoffs.
   The 6 mm keeps its leads clear of the bearing housing's rear lugs.
 - Its tallest part is the relay K1, 26.7 mm off it; the cap stands 2.0 mm over
   it. The fuses F1/F2 (16.3 mm with the fuse in) pull straight out aft with
@@ -451,10 +450,10 @@ heat-set inserts (Tom, 2026-11-18): M3 in the two −y holes, drilled out to
 - `power_cover_v8`, the **cap** (29 g, 122.5 × 71.5 × 15.3 mm, every edge
   square): the torso's skins and deck carried 4.7 mm aft of its end to a plate
   with vent slots, a
-  lip in under the deck and inside the −y skin, and three corner blocks that
+  lip in under the deck and inside both skins, and three corner blocks that
   reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
   (+y top, −y top, −y bottom). The fourth corner, +y bottom, has a tab: a
-  1.5 mm tongue 5.9 mm in along the +y skin, under the BMS (1.0 mm). A block
+  1.5 mm tongue 5.7 mm in along the +y skin, under the BMS (1.0 mm). A block
   and screw there would stand where the BMS's corner is, so the torso has no
   hole there. The torso's other skin holes, windows and deck pockets are where
   they were for the flat cover.

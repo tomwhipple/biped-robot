@@ -151,10 +151,8 @@ WALL = 2.6              # standard printed wall (>= 2.4 = 3 perimeters @ 0.4 noz
 PLATE = 3.0             # joint arm plates
 FIT = 0.30              # moving / drop-in fit
 HEATSET_D = 4.1         # M3 x D4.6 heat-set insert pilot
-HEATSET_L = 5.7         # ... its length (the common M3 x 5.7 x D4.6, e.g. Ruthex RX-M3x5.7)
-HEATSET_OD = 4.6        # ... its knurl
-# M2.5 heat-set insert (power lite's standoffs, Tom 2026-11-18): ASSUMED the
-# M2.5 x 5.7 of the same family -- check the pilot against the inserts bought
+# M2.5 heat-set insert (power lite's four bosses, Tom 2026-11-18): ASSUMED an
+# M2.5 x 5.7 x D4.0 -- check the pilot against the inserts bought
 HEATSET_M25_D = 3.6     # its pilot
 HEATSET_M25_L = 5.7
 HEATSET_M25_OD = 4.0
