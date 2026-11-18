@@ -434,6 +434,21 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-18 card: night 28 -- the walk on the foot-off sag plant (three arms x three seeds + extras): the weight shift
+# does not move on any of 16 seeds; the prec16-lineage RL walk parks; tonight the march re-opens on the sag plant.
+fig_1118 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec86_walk_sagdr_s5_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec86_walk_sagdr_s5_s128r24_walk_steps_R',
+                 'prec86 seed 19, the walk trained on the randomised foot-off sag, on its own plant: the nearest any student came '
+                 '(0.52 / 0.69 of 62 mm over the stance foot); none of 16 reaches 0.6 on both feet'),
+    video_figure('robot_legs_prec86_walk_sagdr_s2_s128r24', ['sidestep_L'],
+                 'robot_legs_prec86_walk_sagdr_s2_s128r24_sidestep_L',
+                 'what the sag plant does give: prec86 seed 16 sidesteps left on its own plant (16 of 16 sag students sidestep '
+                 '0.4-0.5 m on it; on the play + inset plant the gain mostly vanishes)'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_sidestep_L',
+                 'control: the parent prec72_ppsi on its own plant (play + inset sole), the same probe'),
+] if f)
 # 2026-11-17 card: night 27 -- a robot-sized sway in the walk reference (three parents x three seeds + extras): the weight
 # shift does not move and backward walking is lost on 3 of 9 seeds; the narrow-sole walk parks; tonight the foot-off sag plant.
 fig_1117 = "\n    ".join(f for f in [
@@ -1182,6 +1197,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·18 · night 28: the foot-off sag plant does not move the weight shift either; the RL walk parks, the march gets one night on the new plant</span></p>
+    <p><b>Three walk arms on the foot-off sag plant (the fitted sag, the sag randomised 0.5-1.5x, and the sag with the 3 cm
+    lift), three seeds each plus extras, 16 policies in all: none moves its body further over the stance foot.</b> They move
+    0.4-0.55 of the model's 62 mm, where the robot needs ~1.1-1.3. The right foot rises a little more with the randomised sag
+    (2.3-3.1 cm when walking, against 2.1), but not on the single stride, and never 3 cm. The new thing: on the sag plant
+    every one of them sidesteps 0.4-0.5 m both ways, which the earlier policies could not. On the older plant that gain mostly
+    disappears, so it says as much about the plant as about the policy.</p>
+    <p><b>Decision:</b> after six nights and 43 seeds in which no plant or reference change moved the weight shift, the RL walk
+    on the current reference parks. The next walk reference will be taken from the host stepper's slow gait, which the robot
+    does walk (it shifts, waits, then lifts). That is a day job and is not built yet. <b>Tonight:</b> the march in place
+    (milestone 1) gets one night on the sag plant, where a lift without a shift tips. It was parked on 11-14 because every
+    march lifted only one foot. Three arms run, on three seeds each plus one extra. The robot is out of service (broken hip
+    joint), and nothing here is a robot candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1118}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·17 · night 27: the sway reference does not move the weight shift; the walk moves to the foot-off sag plant</span></p>
     <p><b>A 75 mm side-to-side sway in the walk reference, on three parents (2 cm lift, 3 cm lift, slower clock), three seeds
