@@ -180,7 +180,8 @@ def v6():
 
     with open(os.path.join(ROOT, SETTINGS)) as fh:
         spec = json.load(fh)
-    slice_deps = g.deps("cad/slice.py") | {SETTINGS}
+    slice_deps = g.deps("cad/slice.py") | {SETTINGS} \
+        | {f"cad/orca/{kind}.json" for kind in ("machine", "process", "filament")}
     jobs = []
     for variant, entry in [(None, spec)] + sorted(spec.get("variants", {}).items()):
         plates = entry.get("plates", {})

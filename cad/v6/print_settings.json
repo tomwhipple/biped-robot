@@ -11,7 +11,7 @@
     }
   },
   "filament": {
-    "preset": "Flashforge Generic PETG",
+    "preset": "Generic PETG @Flashforge",
     "settings": {
       "nozzle_temperature": [
         "255"

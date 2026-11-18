@@ -22,6 +22,7 @@ cad/
 │   └── check_printability.py   the printability audit engine
 ├── run_checks.sh           the CAD gate
 ├── slice.py, orca_profile.py        OrcaSlicer CLI wrapper (PRINT_LIST.md, Slicing)
+├── orca/                   the slicer's system presets, flattened (generated: orca_profile.py snapshot)
 ├── stable_stl.py           STL export that keeps an unchanged part's bytes
 ├── render_part.py          one STL as a strip of views -> build/v6/renders/<name>.png
 └── vendor/ST3215.step      the servo's vendor STEP

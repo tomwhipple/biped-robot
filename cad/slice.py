@@ -277,13 +277,11 @@ def choose_printer(lib, spec, wanted=None):
 
 def build_presets(lib, spec, entry, printer, with_part=True):
     """(machine, process, filament) dicts, flattened and layered."""
+    # Flat, with no inherits: the CLI resolves an inherits against its data
+    # dir's system bundles, and this run's data dir has none.
     machine = lib.resolve("machine", printer)
     for k in SECRET_KEYS:
         machine.pop(k, None)
-    if printer != spec["printer"]:
-        # The CLI checks process/filament compatibility through the printer's
-        # system parent; with inherits dropped it rejects the process.
-        machine["inherits"] = spec["printer"]
     process = lib.resolve("process", spec["process"]["preset"])
     filament = lib.resolve("filament", spec["filament"]["preset"])
     process.update(spec["process"].get("settings", {}))
@@ -480,7 +478,7 @@ def square_up(files, spins):
     model = files["3D/3dmodel.model"].decode()
     settings = files["Metadata/model_settings.config"].decode()
     names = {oid: re.search(r'<metadata key="name" value="([^"]*)"', body).group(1)
-             for oid, body in re.findall(r'<object id="(\d+)">(.*?)</object>', settings, re.S)}
+             for oid, body in re.findall(r'<object id="(\d+)"[^>]*>(.*?)</object>', settings, re.S)}
     items, boxes = [], {}
     for tag in re.findall(r"<item [^>]*/>", model):
         oid = re.search(r'objectid="(\d+)"', tag).group(1)
@@ -533,7 +531,7 @@ def put_enforcers(files, boxes):
     # model): a new enforcer object takes the next id after all of them
     next_id = 1 + max(int(x) for name, data in files.items() if name.endswith(".model")
                       for x in re.findall(rb'<object id="(\d+)"', data))
-    for m in reversed(list(re.finditer(r'<object id="(\d+)">(.*?)</object>', settings, re.S))):
+    for m in reversed(list(re.finditer(r'<object id="(\d+)"[^>]*>(.*?)</object>', settings, re.S))):
         name = re.search(r'<metadata key="name" value="([^"]*)"', m.group(2)).group(1)
         if name not in boxes:
             continue
@@ -562,6 +560,16 @@ def put_enforcers(files, boxes):
         raise SystemExit(f"project has no object named {', '.join(boxes)}")
     files["3D/3dmodel.model"] = model.encode()
     files["Metadata/model_settings.config"] = settings.encode()
+
+
+def name_printer_parent(cfg, spec, printer):
+    """Set the project's printer ``inherits_group`` entry (process, filament,
+    printer) to the GUI printer preset's system parent. The CLI was handed a
+    flat printer; slicing a project, it checks the process against this."""
+    group = list(cfg.get("inherits_group") or ["", "", ""])
+    group[-1] = spec["printer"] if printer != spec["printer"] else ""
+    cfg["inherits_group"] = group
+    return cfg
 
 
 def finalize_3mf(path, cfg_patch):
@@ -795,6 +803,9 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
         put_enforcers(files, enforcers)
     if moved or enforcers:
         reworked = os.path.join(work, f"{name}.reworked.3mf")
+        key = "Metadata/project_settings.config"
+        files[key] = json.dumps(name_printer_parent(json.loads(files[key]), spec, printer),
+                                indent=4).encode()
         write_project(reworked, infos, files)
         os.remove(project)
         os.remove(gcode)
@@ -806,7 +817,8 @@ def slice_part(name, spec, lib, outdir, printer, copies=None):
     cfg = json.loads(zipfile.ZipFile(project).read("Metadata/project_settings.config"))
     overridden = set(spec["process"].get("settings", {})) | set(spec["supports"]) \
         | set(entry.get("settings", {})) | {"enable_support"}
-    cfg = finalize_3mf(project, {"different_settings_to_system": [
+    cfg = finalize_3mf(project, {"inherits_group": name_printer_parent(cfg, spec, printer)["inherits_group"],
+                                 "different_settings_to_system": [
         different_keys(cfg, system_process, also=overridden & set(process)),
         different_keys(cfg, system_filament, also=overridden & set(filament)),
         # The GUI preset's own keys (print host, serial) are in no system file.

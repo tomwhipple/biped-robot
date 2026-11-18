@@ -33,7 +33,8 @@ Projects slice in parallel (`--jobs`, default half the cores).
    A plate (`plates` in the JSON) hands all its parts to one CLI run, which
    arranges them on the bed.
 2. **Build the presets.** `cad/orca_profile.py` flattens three presets by name,
-   from the GUI's user presets first, then the bundled Flashforge profiles:
+   from the GUI's user presets first, then the repo's snapshot of the system
+   presets (`cad/orca/`, below):
    - the printer: the GUI's own printer preset if exactly one inherits the
      spec's printer and has a print host, else the system preset (`--printer`
      picks one);
@@ -78,17 +79,46 @@ Projects slice in parallel (`--jobs`, default half the cores).
    orientation and first instance rotation, its copies, and every process and
    filament value. The next run compares a saved project against this.
 
+## The system presets: a snapshot in the repo
+
+The spec's three system presets (`printer`, `process.preset`,
+`filament.preset` in `cad/v6/print_settings.json`) are read from
+`cad/orca/{machine,process,filament}.json`, never from the installed app.
+The app ships its vendor presets only as binary caches (`<vendor>.opc`, the
+format in OrcaSlicer's `docs/HLSD/preset-cache.md`), which are not an
+interface. Each file is one preset with its `inherits` chain flattened, built
+from OrcaSlicer's published profile JSONs at a release tag;
+`cad/orca/source.json` records the tag and the vendor versions. They are
+generated, not edited:
+
+```bash
+python3 cad/orca_profile.py snapshot             # at the installed app's release (v<version>)
+python3 cad/orca_profile.py snapshot --ref v2.5.1
+```
+
+Regenerate when OrcaSlicer is updated, or when the spec names another
+preset. A vendor version in `source.json` that differs from the installed
+`.opc` header's means the GUI's system preset has moved from the snapshot.
+The GUI then resets any key the project leaves unlisted to its own value
+(quirk 3). Upstream renames presets: a preset's `renamed_from` gives the
+old name, and the spec takes the new one.
+
 ## Upstream quirks it works around
 
 **1. `inherits` is not resolved from a file path.** The CLI's `--load-settings`
 loads exactly the keys in the file you hand it and fills the rest from built-in
 defaults. A thin filament preset silently becomes PLA. `orca_profile.Library`
-walks the chain within the Flashforge vendor directory and the user's presets
-and hands the CLI flat presets. Two details:
+walks the chain through the user's presets to the snapshot and hands the CLI
+flat presets. Two details:
 - `from` must survive flattening, or the loader fails with `from unsupported`.
-- A flattened GUI printer preset keeps `inherits` pointing at its system
-  parent, because the CLI checks process compatibility through it. Without it
-  the CLI rejects the process (exit 239).
+- The printer goes to the CLI with no `inherits`: the CLI resolves one
+  against `<datadir>/system`, and a slice's data dir has no bundles there
+  (exit 251, `can not resolve preset`). The project's `inherits_group` then
+  names the GUI printer preset's system parent, so the GUI still sees the
+  project's printer as its own preset on Flashforge's. It is set before a
+  reworked project is sliced again too: slicing a project, the CLI checks the
+  process against the printer's parent there, and with none it rejects the
+  process (exit 239, `process not compatible with printer`).
 
 **2. The CLI's normative check rejects Flashforge's own printer preset.**
 `fdm_adventurer5m_common` sets relative extrusion but its `layer_change_gcode`

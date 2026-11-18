@@ -1,0 +1,14 @@
+{
+  "generated_by": "cad/orca_profile.py snapshot -- do not edit",
+  "upstream": "https://raw.githubusercontent.com/OrcaSlicer/OrcaSlicer/v2.5.1/resources/profiles",
+  "ref": "v2.5.1",
+  "vendor_versions": {
+    "Flashforge": "02.04.00.14",
+    "OrcaFilamentLibrary": "02.04.00.26"
+  },
+  "presets": {
+    "machine": "Flashforge Adventurer 5M Pro 0.4 Nozzle",
+    "process": "0.20mm Standard @Flashforge AD5M Pro 0.4 Nozzle",
+    "filament": "Generic PETG @Flashforge"
+  }
+}
