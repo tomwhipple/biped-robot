@@ -74,16 +74,50 @@ file is in [`switches/`](switches/).
 | Feetech ST3215 memory table v3.7 (register map, defaults) | [xls](https://files.waveshare.com/upload/2/27/ST3215%20memory%20register%20map-EN.xls), cited in `firmware/components/scsbus/include/scsbus/registers.h` | the register reference behind [servo-map.md §4](../servo-map.md#4-registers) |
 | Feetech communication protocol manual | [pdf](https://files.waveshare.com/upload/2/27/Communication_Protocol_User_Manual-EN(191218-0923).pdf) | packet format; the source of the `scsbus` golden packets |
 
-## To download
+## Power lite: board parts
 
-These parts are in the build, but their manufacturer documents are not in the
-repo yet:
+The files are in [`power-lite/`](power-lite/). The BOM is
+[`pcb/power-lite/fab/power-lite-bom.csv`](../../pcb/power-lite/fab/power-lite-bom.csv).
+The ShillehTek CF-3SJH25A-C protection board is off-board and has no maker
+datasheet; it was accepted on a bench check.
+
+| file | what it is (parts, revision/date, key pages) | source |
+|---|---|---|
+| `amass-xt60pw.pdf` | XT60PW-M/F board-mount connectors (J1, J2), spec sheet V1.2 | Amass |
+| `jst-xh.pdf` | B2B/B4B-XH-A headers | JST |
+| `jst-ph.pdf` | B2B/B8B-PH-K-S headers | JST |
+| `keystone-3568.pdf` | MINI blade fuse holder | Keystone |
+| `panasonic-eeu-fr.pdf` | C1, EEU-FR1E102 (1000 uF / 25 V). FR series radial-lead catalog sheet, 5 pp., 04 May 2013: ratings, ripple/ESR table, dimensions | Panasonic, via the [DigiKey-hosted copy](https://media.digikey.com/pdf/Data%20Sheets/Panasonic%20Electronic%20Components/EEU-FR_Series.pdf); industrial.panasonic.com timed out |
+| `kemet-c322.pdf` | C2, C322C104K5R5TA (0.1 uF, 50 V, X7R, 5.08 mm). GoldMax 300 Comm X7R part sheet, 4 pp., KEMET-generated | [KEMET](https://connect.kemet.com:7667/gateway/IntelliData-ComponentDocumentation/1.0/download/specsheet/C322C104K5R5TA) |
+| `goodark-1n400x.pdf` | D1, 1N4007. 1N4001 thru 1N4007 general-purpose rectifiers, 2 pp. | [Good-Ark](https://goodarksemi.com/docs/datasheets/general_purpose_rectifiers/1N400x.pdf) |
+| `littelfuse-1-5ke.pdf` | D2, D3, 1.5KE16A. 1.5KE series TVS diodes, revised 11/20/15 (DigiKey F5624CT-ND copy of Littelfuse's sheet; littelfuse.com blocks scripted download) | [UTK mirror](https://web.eecs.utk.edu/~dcostine/ECE482/components/parts/PartsKit/datasheets/F5624CT-ND.pdf) |
+| `molex-5267.pdf` | J4-J8, 22-03-5035 (3-circuit Mini-SPOX 5267 header). Molex's series catalog drawing, MX5267-NA-B104 (2002): features, ratings, the ordering table with dimensions A and B for 22-03-5035. It is the series sheet, not the part's own sales drawing or product spec (molex.com does not serve them to scripted clients) | Molex, via [ChipDip](https://static.chipdip.ru/lib/473/DOC047473976.pdf) |
+| `te-v23134-f7.pdf` | K1, 1-1414610-0. Plug-in Maxi ISO relays, Power Relay F7 (V23134), 4 pp., 04-2013 Rev. 0413; the part is listed in the ordering table (V23134-J0052-X455) | TE, via the [RS Online copy](https://assets.rs-online.com/v1699044454/Datasheets/da2e19e2a00cf526f3d462032ef10e31.pdf); te.com returns Access Denied |
+| `kingbright-wp710a10gd.pdf` | LED1, WP710A10GD (green T-1 lamp), 5 pp., Rev V.10B, 04/18/2020 | [Kingbright](https://www.kingbrightusa.com/images/catalog/SPEC/WP710A10GD.pdf) |
+| `kingbright-wp710a10id.pdf` | LED2, WP710A10ID (high-efficiency red T-1 lamp), 5 pp., Rev V.12A, 08/11/2023 | [Kingbright](https://www.kingbrightusa.com/images/catalog/SPEC/WP710A10ID.pdf) |
+| `onsemi-pn2222a.pdf` | Q1, Q2, PN2222A, 8 pp., Rev. 1.1.0, July 2014 (Fairchild datasheet carried by onsemi) | [onsemi](https://www.onsemi.com/pdf/datasheet/pn2222a-d.pdf) |
+| `yageo-mfr.pdf` | R1-R8, MFR-25 metal film resistors, 4 pp., Revision 201304 | Yageo, via [ChipDip](https://static.chipdip.ru/lib/469/DOC013469277.pdf); yageo.com's own PDF link serves a web page |
+
+## Raspberry Pi 4 Model B and Camera Module 3
+
+The files are in [`raspberry-pi/`](raspberry-pi/).
+
+| file | what it is | source |
+|---|---|---|
+| `rpi4-datasheet.pdf` | Raspberry Pi 4 Model B datasheet, release 1.1, March 2024, 13 pp. | [Raspberry Pi](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf) |
+| `rpi4-mechanical-drawing.pdf` | board outline and mounting holes, 1 p. | [Raspberry Pi](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf) |
+| `camera-module-3-product-brief.pdf` | Camera Module 3 (Standard, NoIR, Wide, NoIR Wide) product brief, published June 2024, 7 pp. | [Raspberry Pi](https://datasheets.raspberrypi.com/camera/camera-module-3-product-brief.pdf) |
+
+## Pololu D24V50F5: 5 V / 5 A buck
+
+| file | what it is | source |
+|---|---|---|
+| `pololu/d24v50f5-dimensions.pdf` | dimension diagram, drawing date 2 January 2018 (item 2851). The torso has no mount for it: its power bay holds power lite (#112) | [Pololu](https://www.pololu.com/file/0J1436/d24v50f5-step-down-voltage-regulator-dimensions.pdf) |
+
+## To download
 
 | part | manufacturer documents |
 |---|---|
-| Raspberry Pi 4 Model B | [product brief](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf), [datasheet](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf), [mechanical drawing](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf) |
-| Raspberry Pi Camera Module 3 (Wide) | [product brief](https://datasheets.raspberrypi.com/camera/camera-module-3-product-brief.pdf) |
-| Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The torso has no mount for it: its power bay holds power lite (#112) |
-| Power lite's connectors and fuse holder | in [`power-lite/`](power-lite/): `amass-xt60pw.pdf` (XT60PW-M/F board-mount, spec sheet V1.2), `jst-xh.pdf` (B2B/B4B-XH-A), `jst-ph.pdf` (B2B/B8B-PH-K-S), `keystone-3568.pdf` (MINI blade fuse holder). The rest of its parts: [`pcb/power-lite/tools/parts.py`](../../pcb/power-lite/tools/parts.py) links each maker's page |
-| 3S LiPo pack | the chosen pack's manufacturer spec sheet: dimensions, capacity, C rating, connector |
-| 3S protection board | the chosen board's manufacturer datasheet: continuous current, cut-off voltages, balance-lead pinout |
+| Raspberry Pi 4 Model B product brief | [pdf](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf): 21 MB, not committed |
+| Molex 22-03-5035 sales drawing and product spec | [product page](https://www.molex.com/en-us/products/part-detail/22035035): molex.com does not serve the PDFs to scripted clients |
+| 3S LiPo pack (OVONIC 3S 4200 mAh 130C XT60) | no maker spec sheet found |
