@@ -253,7 +253,13 @@ EOF
   # 60k keeps a third in hand; the 06:55 guard still bounds a slow run.
   RATE=17000
   [[ "$ARGS" == *"--mjx-impl warp"* ]] && RATE=60000
-  BUDGET=$(( (END_HARD - $(date +%s) - 900) * RATE ))
+  # A distill queued for this teacher must start by ~06:20: night_distill.sh
+  # stops at 06:45 and wants a 600 s minimum budget plus a 900 s referee
+  # reserve. With only the 15 min tail the capped teacher could end too late
+  # for its student (2026-11-18: s5's distill exited 4 at 06:21).
+  TAIL=900
+  if grep -sqE "night_distill\.sh +$OUT( |\$)" "$N"/queue/*; then TAIL=2400; fi
+  BUDGET=$(( (END_HARD - $(date +%s) - TAIL) * RATE ))
   if (( BUDGET < 5000000 )); then
     echo "window too small for $JOB; stays queued"
     break
