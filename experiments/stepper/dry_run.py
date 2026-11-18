@@ -5,7 +5,7 @@
 
 Lifts, a march, a forward walk, sidesteps (both ways), the board steering/stop rules (with a stand-in for
 the camera) and main()'s argument handling; plus board_view on the fixture frame in testdata/. Exits
-non-zero on the first failure. experiments/ is not collected by `make pytest` (it runs tests/ and pbsim),
+non-zero on the first failure. experiments/ is not collected by `make pytest` (it runs tests/),
 so this is a script; its test_* functions also run under `pytest experiments/stepper/dry_run.py`.
 """
 from __future__ import annotations

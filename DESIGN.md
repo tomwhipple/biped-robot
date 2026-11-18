@@ -48,7 +48,7 @@ Each requirement traces to a measurement on the earlier prototype
 | controller | Waveshare General Driver for Robots (ESP32, onboard QMI8658C IMU), 1 Mbaud half-duplex servo bus |
 | compute | Raspberry Pi 4B (vision, navigation), talking to the ESP32 |
 | camera | Raspberry Pi Camera Module 3 Wide (102° HFOV) in the head, ±90° neck yaw |
-| power | OVONIC 3S LiPo, 4200 mAh, 130C, XT60 (#107; 205 g weighed, listed 96 × 44.5 × 25.5 mm), protection board, inline fuse; #112 replaces these two with a custom power board, which the torso holds (§5.3); the Pi takes 5 V from the General Driver it carries as a HAT |
+| power | OVONIC 3S LiPo, 4200 mAh, 130C, XT60 (#107; 205 g weighed, listed 96 × 44.5 × 25.5 mm), protection board, inline fuse; #112 replaces these two with power lite (`pcb/power-lite/`), which the torso holds (§5.3); the Pi takes 5 V from the General Driver it carries as a HAT |
 | structure | PETG prints, 2 mm silicone rubber soles; M2.5 flat-head self-tappers into printed pilots, M3 screws on the servo horns and idler discs |
 
 ![Front view of the robot with every joint marked: servo ID, joint name, bus port, STS3250s](docs/img/servo_map.png)
@@ -295,9 +295,9 @@ measured from the vendor's STEP model (`cad/vendor/ST3215.step`). Print list:
 Two prints, two covers, a door, the BMS bracket and the balance park
 (`cad/v6/torso_v8.py`):
 the **pelvis** holds the legs, and the **torso** around it holds the pack, the
-board stack (the Pi with the General Driver on it) and the power board with
+board stack (the Pi with the General Driver on it) and power lite with
 its BMS. The pack sits in the middle over the hips, the board stack in a bay
-in front of the pelvis and the power board in a bay right behind it. The
+in front of the pelvis and power lite in a bay right behind it. The
 pelvis is glued into the torso for good; the pack comes out sideways through
 the **battery door**, one screw. The pelvis, the covers, the door, the
 bracket and the park print without supports; the torso
@@ -338,7 +338,7 @@ housing), open at both ends for the covers:
   0.2 mm off the pelvis's cell walls.
 - two inner walls, either side of the pelvis and 0.2 mm off its webs: front
   x 13.21 … 15.81 (the board stack stands off it), aft x −40.81 … −38.21 (the
-  power board stands off it).
+  power lite stands off it).
 - the **battery layer** over the pelvis's ceiling: pack ribs on both inner
   walls (front pair at y ±29, aft pair at y ±22), stopping 14 mm under the
   deck top with a 45° top so leads pass over them, and a ledge with a 45° gusset
@@ -387,7 +387,7 @@ cover off:
 - Four M2.5 × 17 male-female standoffs hold the Pi (their 6 mm male thread into
   the bosses); the General Driver goes on top with four M2.5 × 6.
 
-**The power board** is power lite (PR #209, `pcb/power-lite/`, not merged):
+**Power lite** (`pcb/power-lite/`):
 97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes 3.2 mm
 in from the corners, which the torso uses as they are (#213).
 
@@ -453,7 +453,7 @@ in from the corners, which the torso uses as they are (#213).
   windows and deck pockets are where they were for the flat cover.
 
 **The battery door** (`battery_door_v8`, 11 g, 79.8 × 29.6 × 12.4 mm),
-printed outer face down, is the +y skin from the power board's J1 to the front
+printed outer face down, is the +y skin from power lite's J1 to the front
 inner wall (opening x −59.0 … +17.0, z −38 … −8). One screw, one tab:
 
 - the tab is its aft edge, a tongue bevelled 40° off the plate's normal that
@@ -476,7 +476,7 @@ at y ±14, cut free by slots up to z −54, with 0.5 mm barbs (about 1.35 %
 strain). They hold it while the glue cures: CA or epoxy on the web faces, the
 ledge and the skins. The joint is permanent, and nothing needs the pelvis out:
 
-- the board stack comes out of the front bay and the power board out of the
+- the board stack comes out of the front bay and power lite out of the
   aft bay with their covers off (the BMS and its bracket first);
 - the yaw stator screws are reached from above through the deck aperture, with
   the pack out. The four outboard ones (y ±52.25) need a driver shank of 5 mm
@@ -831,7 +831,7 @@ See [GitHub issues](https://github.com/tomwhipple/biped-robot/issues)
    get-up. No catch line for now: carpet falls have been fine and reprints are
    cheap. Powered from a
    bench supply instead of the pack, the supply tether's check T1
-   ([pcb/power-board/harness.md](pcb/power-board/harness.md)) comes first.
+   ([pcb/power-lite/harness.md](pcb/power-lite/harness.md)) comes first.
 7. **Gate E**: train a policy on the measured plant, trusted once the
    simulation reproduces what the robot has shown (#259). A legs policy holds the
    built legs standing (§11); walking and the 17-servo policy are open (#86).

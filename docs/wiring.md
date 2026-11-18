@@ -72,7 +72,7 @@ few days, storage-charge it to 3.8 V/cell.
 - 3S, ≥ 15 A continuous on the pack lead, over-discharge cut-off about 3.0 V/cell, on the balance leads.
 - It is the backstop that does not depend on the firmware, below battguard's 3.3 V/cell landing line ([Battery protection](#battery-protection)).
 - A UART "smart" BMS (JBD/Daly 3S class) in its place would report per-cell voltages. Whether that is wanted is **open**.
-- The torso has no pocket for a separate protection board and buck. It holds the custom power board (#112) in the bay right behind the pelvis, beside the pack, on four standoffs off the aft inner wall (`cad/v6/torso_v8.py`).
+- The torso has no pocket for a separate protection board and buck. It holds power lite in the bay right behind the pelvis, beside the pack, on four standoffs off the aft inner wall (`cad/v6/torso_v8.py`).
 
 ### Fuse
 
@@ -418,7 +418,7 @@ releases torque.
 - the four servo branches (J4–J7) with the servo IDs of [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled);
 - the control signals to the ESP32 (`SERVO_EN`, `RAIL_V`, `ESTOP_N`).
 
-It leaves off what the sources do not settle: the physical fan-out of J12 to the General Driver's headers (listed in [pcb/power-board/harness.md](../pcb/power-board/harness.md) for the rev B board, not verified for power lite) and the neck and arm IDs, which are drawn as a proposal.
+It leaves off what the sources do not settle: the physical fan-out of J12 to the General Driver's headers (listed in [pcb/power-lite/harness.md](../pcb/power-lite/harness.md), not yet verified against the headers) and the neck and arm IDs, which are drawn as a proposal.
 
 ## Bring-up checklist
 

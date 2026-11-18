@@ -2890,7 +2890,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "pack in; pad 1 = angled-side contact (-), pad 2 = straight side (+), as rev B J1"
+		(property "Description" "pack in; pad 1 = angled-side contact (-), pad 2 = straight side (+)"
 			(at 40.64 50.8 0)
 			(effects
 				(font
@@ -6030,7 +6030,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "rev B's order: 2 SERVO_EN (IO16), 3 GND, 5 RAIL_V (GPIO34), 6 ESTOP_N (IO4)"
+		(property "Description" "pins 2 SERVO_EN (IO16), 3 GND, 5 RAIL_V (GPIO34), 6 ESTOP_N (IO4)"
 			(at 335.28 160.02 0)
 			(effects
 				(font

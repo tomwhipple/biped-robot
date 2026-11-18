@@ -2,8 +2,8 @@
 
 *The choices behind it are in
 [2026-11-02-power-lite-options.md](../../docs/design-v6/2026-11-02-power-lite-options.md). It
-replaces the custom [power board](../power-board/README.md) for the robot. How to solder and
-wire it: [assembly.md](assembly.md).*
+is how the robot is powered. How to solder and wire it: [assembly.md](assembly.md); its
+connectors and cables: [harness.md](harness.md).*
 
 ![Power lite, top](../../docs/design-v6/figs/powerlite_top.png)
 
@@ -69,7 +69,7 @@ pack balance lead (J2) ─ BMS cell taps                                      �
 | W6/W7 | the main switch | wire pads | W6 pack B+, W7 switched (VIN) |
 
 - **J1's plug faces out of the left edge.** The XT60's mating face overhangs the edge by 0.25 mm,
-  with its pins 16.1 mm in, as on the custom board. Ask the board house for no rail or panel on
+  with its pins 16.1 mm in. Ask the board house for no rail or panel on
   that edge.
 - **J3 and J11 are different families** (XH and PH), so the two 2-pin leads cannot swap.
 - **The ESP32's readings:**
@@ -78,10 +78,9 @@ pack balance lead (J2) ─ BMS cell taps                                      �
     - It reads low while the E-stop is released, because Q2 conducts while the coil supply is up.
     - It reads high when the E-stop is pressed, the board is unpowered, F2 has blown, or the
       lead is unplugged. Every failure reads as stop.
-    - The levels and polarity are rev B's ESTOP_N's.
   - C2 (100 nF) filters `RAIL_V` for the ADC.
-- **J3 and J4–J8 keep the custom board's pin orders**, so the harness in
-  [`../power-board/harness.md`](../power-board/harness.md) applies (checks P2–P4).
+- **J3 and J4–J8 follow the General Driver's pin orders**: the cables and checks P1–P4 are in
+  [harness.md](harness.md).
 
 ## Before it goes in the robot
 
@@ -185,7 +184,7 @@ The KiCad files are generated: edit the tools, not the files.
 4. Run `sh fab.sh` to write the fab outputs, after ERC and DRC.
 
 The relay's footprint (`power-lite.pretty/TE_PowerRelay_F7_PCB`) is drawn from TE's V23134
-datasheet; the XT60's is the custom board's.
+datasheet; the XT60's is from Amass's spec sheet.
 
 ![Power lite, populated](../../docs/design-v6/figs/powerlite_3d.png)
 

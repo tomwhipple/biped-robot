@@ -83,6 +83,7 @@ repo yet:
 |---|---|
 | Raspberry Pi 4 Model B | [product brief](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf), [datasheet](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-datasheet.pdf), [mechanical drawing](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf) |
 | Raspberry Pi Camera Module 3 (Wide) | [product brief](https://datasheets.raspberrypi.com/camera/camera-module-3-product-brief.pdf) |
-| Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The torso has no mount for it: its power bay holds the custom power board (#112) |
+| Pololu D24V50F5, 5 V / 5 A buck | [product page](https://www.pololu.com/product/2851), with its dimension diagram. The torso has no mount for it: its power bay holds power lite (#112) |
+| Power lite's connectors and fuse holder | in [`power-lite/`](power-lite/): `amass-xt60pw.pdf` (XT60PW-M/F board-mount, spec sheet V1.2), `jst-xh.pdf` (B2B/B4B-XH-A), `jst-ph.pdf` (B2B/B8B-PH-K-S), `keystone-3568.pdf` (MINI blade fuse holder). The rest of its parts: [`pcb/power-lite/tools/parts.py`](../../pcb/power-lite/tools/parts.py) links each maker's page |
 | 3S LiPo pack | the chosen pack's manufacturer spec sheet: dimensions, capacity, C rating, connector |
 | 3S protection board | the chosen board's manufacturer datasheet: continuous current, cut-off voltages, balance-lead pinout |

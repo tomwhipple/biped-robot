@@ -35,7 +35,7 @@ show` before sending anything).
 ## The as-built plant
 
 The torso carries the printed frame and the General Driver board only: tethered
-power, no pack, Pi, head, neck servo, power board or arms. `AS_BUILT` in
+power, no pack, Pi, head, neck servo, power lite or arms. `AS_BUILT` in
 `one_leg.py` zeroes `m_battery m_pi4 m_power m_neck_servo m_head` and keeps
 `m_wiring` at 10 g (a guess), with `torso_v7` still on so the deck height and
 board position are the printed torso's. The robot weighs **1.240 kg** with a
