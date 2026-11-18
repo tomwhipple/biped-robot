@@ -11,6 +11,7 @@ build123d>=0.11
 imageio-ffmpeg
 trimesh          # mesh inertia for the robot's plant (sim/build_v6_inertia.py)
 opencv-python-headless==5.0.0.93 # tools/vision (cv2.aruco) and tests/test_vision_*
+pandas==3.0.6    # tools/flight_reader.py, experiments/one-leg-stand
 pytest           # tests/
 pygame           # optional: gamepad command source (link/sources.py)
 pyserial        # tools/servo_tool.py (ST3215 bench tool over the USB bridge)

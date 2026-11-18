@@ -67,7 +67,7 @@ def segment_cmd(base, label):
     stamp = r"%{pts\:gmtime\:0\:%Y-%m-%dT%H\\\:%M\\\:%S}.%{eif\:mod(t*1000\,1000)\:d\:3}Z"
     dtxt = f"drawtext={font}:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.6:x=8:y=8:text='{label} {stamp}'"
     return ["ffmpeg", "-loglevel", "error", "-y", "-use_wallclock_as_timestamps", "1",
-            "-f", "image2pipe", "-c:v", "mjpeg", "-i", "-", "-copyts", "-vsync", "passthrough",
+            "-f", "image2pipe", "-c:v", "mjpeg", "-i", "-", "-copyts", "-fps_mode", "passthrough",
             "-filter_complex", f"[0:v]{dtxt},split[a][b];[a]setpts=PTS-STARTPTS[mp4]",
             "-map", "[mp4]", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
             "-movflags", "+frag_keyframe+empty_moov", base + ".mp4",

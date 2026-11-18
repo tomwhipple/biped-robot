@@ -9,11 +9,17 @@ import os
 import re
 import stat
 import subprocess
+import sys
 import time
 
 import pytest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# infra/night runs on the Linux training box: GNU date -d, find -printf,
+# timeout, /run/user, and a fixed PATH for the planner.
+pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"),
+                                reason="infra/night scripts are Linux-only")
+
+ROOT =os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NIGHT = os.path.join(ROOT, "infra", "night")
 LIB = os.path.join(NIGHT, "night_window.sh")
 PLAN = os.path.join(NIGHT, "plan_morning.sh")

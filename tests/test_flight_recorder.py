@@ -12,6 +12,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -146,20 +147,9 @@ def test_collector_splits_on_reboot_and_silence(tmp_path):
     assert len({c["file"] for c in col.closed}) == 3
 
 
-def _wait_udp_drained(port, timeout=10.0):
-    """Block until the kernel receive queue of local UDP `port` is empty."""
-    want = f":{port:04X}"
-
-    def queued():
-        with open("/proc/net/udp") as f:
-            rows = [ln.split() for ln in f.read().splitlines()[1:]]
-        return sum(int(r[4].split(":")[1], 16) for r in rows
-                   if r[1].endswith(want))
-
-    deadline = time.monotonic() + timeout
-    while queued() and time.monotonic() < deadline:
-        time.sleep(0.01)
-    time.sleep(0.05)                     # the last datagram may still be in handle()
+def _read_lines(stream, lines):
+    for line in stream:
+        lines.append(line)
 
 
 def test_collector_over_udp(tmp_path):
@@ -170,7 +160,10 @@ def test_collector_over_udp(tmp_path):
     sock.close()
     proc = subprocess.Popen([sys.executable, os.path.join(ROOT, "tools", "flight_collector.py"),
                              "--port", str(port), "--bind", "127.0.0.1", "--out", str(tmp_path),
-                             "--status-every", "0"], stdout=subprocess.PIPE, text=True)
+                             "--status-every", "0.05"], stdout=subprocess.PIPE, text=True)
+    lines = []
+    reader = threading.Thread(target=_read_lines, args=(proc.stdout, lines), daemon=True)
+    reader.start()
     try:
         tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         deadline = time.time() + 10
@@ -182,12 +175,18 @@ def test_collector_over_udp(tmp_path):
                 tx.sendto(tick(k, k), ("127.0.0.1", port))
         tx.sendto(event(51, "balance ABORT (tip)", code=F.EV_OUT, k=50), ("127.0.0.1", port))
         # SIGTERM stops the collector at its next loop turn without draining
-        # the socket: wait until it has read every datagram, not a fixed
-        # 0.5 s a loaded box can outrun (#148)
-        _wait_udp_drained(port)
+        # the socket: wait until its status shows the event, sent last, and so
+        # every datagram before it on loopback, not a fixed 0.5 s a loaded box
+        # can outrun (#148)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not any(
+                l.startswith("status:") and "event 1," in l for l in list(lines)):
+            time.sleep(0.01)
     finally:
         proc.terminate()
-        out, _ = proc.communicate(timeout=10)
+        proc.wait(timeout=10)
+        reader.join(timeout=10)
+    out = "".join(lines)
     assert "session closed" in out
     summ = json.load(open(next(tmp_path.glob("*.summary.json"))))
     b = summ["boots"][f"{BOOT:08x}"]

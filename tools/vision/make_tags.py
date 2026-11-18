@@ -21,6 +21,7 @@ W, H = int(8.5 * DPI), int(11 * DPI)
 MM = DPI / 25.4
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONTB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONTM = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
 
 CORNER = {0: "far-left", 1: "far-right", 2: "near-left", 3: "near-right"}
 
@@ -60,8 +61,11 @@ AFTER PLACING: tell Claude, who will take a calibration capture.
 """
 
 
-def font(size, bold=False):
-    return ImageFont.truetype(FONTB if bold else FONT, size)
+def font(size, bold=False, mono=False):
+    path = FONTM if mono else FONTB if bold else FONT
+    if os.path.exists(path):
+        return ImageFont.truetype(path, size)
+    return ImageFont.load_default(size)     # no DejaVu here: Pillow's own font
 
 
 def mm(v):
@@ -148,8 +152,7 @@ def build(outdir):
     page, d = sheet_page("Placement guide")
     y = mm(22)
     for line in GUIDE.splitlines():
-        d.text((mm(12), y), line, fill=0, font=ImageFont.truetype(
-            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 27))
+        d.text((mm(12), y), line, fill=0, font=font(27, mono=True))
         y += 40
     scale_bar(d, mm(20), H - mm(18))
     pages.append(page)

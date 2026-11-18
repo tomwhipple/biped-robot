@@ -25,7 +25,15 @@ needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg
 PY = sys.executable
 
 
-@needs_ffmpeg
+def _ffmpeg_has(filt):
+    if shutil.which("ffmpeg") is None:
+        return False
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    return any(line.split()[1:2] == [filt] for line in out.splitlines())
+
+
+@pytest.mark.skipif(not _ffmpeg_has("drawtext"),
+                    reason="camd stamps frames with drawtext; this ffmpeg is built without it (libfreetype)")
 def test_camd_segments_lock_clip_and_latest(tmp_path):
     d = str(tmp_path)
     p = subprocess.Popen([PY, os.path.join(VIS, "camd.py"), "--source", "lavfi", "--dir", d,
