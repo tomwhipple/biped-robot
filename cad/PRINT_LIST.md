@@ -67,12 +67,12 @@ the slicer; see [Supports](#supports-are-the-slicers-job).
 
 - **`pelvis_v8`, `torso_v8`, `front_cover_v8`, `power_cover_v8`, `switch_pod_v8`, `power_bracket_v8`, `balance_park_v8`, `battery_door_v8`**
   - The torso is eight prints (the pelvis, the torso, two covers, the switch
-    pod, the BMS bracket, the balance park and the battery door): the switch
-    pod on its own, the rest on two plates (`print_settings.json` `plates`,
+    pod, the BMS bracket, the balance park and the battery door): two plates
+    and the front cover on its own (`print_settings.json` `plates`,
     `make slice`): `torso_frame` (the torso, the pelvis and the door:
-    6 h 26 m, 192 g) and `torso_covers` (both covers, the BMS bracket and
-    the balance park: 1 h 34 m, 48 g; the switch pod alone 1 h 9 m, 42 g).
-    The covers do not fit beside the torso. The pelvis, the covers, the
+    6 h 16 m, 191 g), `power_bay` (the power bay's cap, the BMS bracket, the
+    balance park and the switch pod: 2 h 3 m, 73 g) and `front_cover_v8`
+    (37 m, 18 g). The covers do not fit beside the torso. The pelvis, the covers, the
     bracket, the park, the pod and the door print without supports: the
     pelvis's ceiling is on the bed, the covers' vent slots are cut through
     flat plates, everything on the cap and the bracket rises from its plate,

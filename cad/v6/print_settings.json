@@ -49,16 +49,16 @@
         "pelvis_v8",
         "battery_door_v8"
       ],
-      "note": "the torso's first print: the torso (support in its windows only), the pelvis and the battery door; the covers do not fit beside the torso, so they are torso_covers"
+      "note": "the torso's first print: the torso (support in its windows only), the pelvis and the battery door; the covers do not fit beside the torso, so the front cover prints alone and the cap is on power_bay"
     },
-    "torso_covers": {
+    "power_bay": {
       "parts": [
-        "front_cover_v8",
         "power_cover_v8",
         "power_bracket_v8",
-        "balance_park_v8"
+        "balance_park_v8",
+        "switch_pod_v8"
       ],
-      "note": "the torso's second print: both covers (the power bay's is a cap), the BMS bracket and the balance park, no supports"
+      "note": "the power bay: the cap, the BMS bracket, the balance park and the switch pod, no supports"
     },
     "arms": {
       "parts": [
