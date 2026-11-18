@@ -388,14 +388,16 @@ cover off:
   the bosses); the General Driver goes on top with four M2.5 × 6.
 
 **Power lite** (`pcb/power-lite/`):
-97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes 3.2 mm
-in from the corners, which the torso uses as they are (#213).
+97 × 64.5 × 1.6 mm, through-hole parts on the top side, four holes 3.2 mm in
+from the corners. They were made for M2.5 (Ø2.7) and are drilled out to Ø3.2:
+every board mounts on M3 machine screws into heat-set inserts (Tom,
+2026-11-18).
 
 - It stands vertical in the aft bay, right behind the pelvis and so beside the
-  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall:
-  2 × M2.5 × 6 pan in its −y holes, and in its +y holes the BMS bracket's two
-  M2.5 × 15 male-female standoffs. The 6 mm keeps its leads clear of the
-  bearing housing's rear lugs.
+  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall,
+  each with an M3 heat-set insert: 2 × M3 × 6 button heads in its −y holes,
+  and in its +y holes the BMS bracket's two M3 × 15 male-female standoffs.
+  The 6 mm keeps its leads clear of the bearing housing's rear lugs.
 - Its tallest part is the relay K1, 26.7 mm off it; the cap stands 2.0 mm over
   it. The fuses F1/F2 (16.3 mm with the fuse in) pull straight out aft with
   the cap off.
@@ -410,10 +412,12 @@ in from the corners, which the torso uses as they are (#213).
 - **The BMS** (a ShillehTek CF-3SJH25A-C, 56 × 45 × 8 mm from its datasheet,
   not measured) is wired to the board's W pads, with no connectors. It rides
   the **BMS bracket** (`power_bracket_v8`, 4 g, a 2.5 mm plate on the two
-  standoffs, 2 × M2.5 × 6 flat-heads), component side aft on foam tape, 18.5 mm
-  off the board: over J1, J2 and the W pads, beside the fuses (1.0 mm past
-  their ends, 2.2 mm over their tops), 0.9 mm off the +y skin. A ledge and two
-  stops on the bracket hold it in place; the cap is 2.2 mm off its parts.
+  standoffs, an M3 × 6 button head and an M3 × 6 flat head), component side
+  aft on a foam pad, 18.5 mm off the board: over J1, J2 and the W pads, beside
+  the fuses (1.0 mm past their ends, 2.2 mm over their tops), 0.9 mm off the
+  +y skin. A ledge carries it, and four hooks hold it: a fixed one over its
+  top edge, snaps under its bottom edge and at its −y edge, each lip 0.8 mm
+  over its PCB. The cap is 2.2 mm off its parts.
 - **The balance lead:** J2 is under the BMS and below the door's sill, so a
   3S JST-XH balance extension lead stays plugged into it and parks its male
   end, pins up, in the **balance park** (`balance_park_v8`, a 0.6 g cup
@@ -448,9 +452,11 @@ in from the corners, which the torso uses as they are (#213).
   with vent slots, a
   lip in under the deck and inside the −y skin, and three corner blocks that
   reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
-  (+y top, −y top, −y bottom); the +y bottom hole stays empty, because the
-  BMS's corner is where its block would stand. The torso's skin holes,
-  windows and deck pockets are where they were for the flat cover.
+  (+y top, −y top, −y bottom). The fourth corner, +y bottom, has a tab: a
+  1.5 mm tongue 5.9 mm in along the +y skin, under the BMS (1.0 mm). A block
+  and screw there would stand where the BMS's corner is, so the torso has no
+  hole there. The torso's other skin holes, windows and deck pockets are where
+  they were for the flat cover.
 
 **The battery door** (`battery_door_v8`, 11 g, 79.8 × 29.6 × 12.4 mm),
 printed outer face down, is the +y skin from power lite's J1 to the front

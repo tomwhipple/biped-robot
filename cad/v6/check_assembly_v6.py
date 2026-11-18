@@ -121,7 +121,7 @@ STATIC_PAIRS = [
     ("power_bracket_v8", "power_board_mock", "the BMS bracket over the board's parts", 2.0),
     ("power_bracket_v8", "torso_v8", "the BMS bracket vs the torso (the deck over it)", 0.4),
     ("power_bracket_v8", "power_cover_v8", "the BMS bracket vs the cap's corner blocks", 1.0),
-    ("bms_mock", "power_bracket_v8", "the BMS on the bracket's foam tape, between its stops: must not intersect", None),
+    ("bms_mock", "power_bracket_v8", "the BMS on the bracket's foam pad, in its hooks: must not intersect", None),
     ("bms_mock", "power_board_mock", "the BMS over the fuses, J1 and J2", 2.0),
     ("bms_mock", "power_cover_v8", "the BMS under the cap (its +y top corner block)", 1.0),
     ("bms_mock", "torso_v8", "the BMS vs the +y skin", 0.5),

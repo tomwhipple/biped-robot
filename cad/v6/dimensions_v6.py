@@ -543,9 +543,13 @@ assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
 # 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
-# side, four M2.5 holes 3.2 in from the corners. Vertical, right behind the
-# pelvis and so beside the pack (Tom, 2026-10-14), parts facing aft, on four
-# 6 mm standoff bosses off the aft inner wall; its THT leads stand <= 2.5 mm
+# side, four holes 3.2 in from the corners, made for M2.5 (2.7) and drilled
+# out to 3.2 for M3: every board mounts on M3 machine screws into heat-set
+# inserts (Tom, 2026-11-18). No copper comes within 4 mm of a hole's centre on
+# either face except the back's GND pour, which stops at r = 1.60, so the
+# drill touches GND only. Vertical, right behind the pelvis and so beside the
+# pack (Tom, 2026-10-14), parts facing aft, on four 6 mm standoff bosses off
+# the aft inner wall, each with an M3 heat-set insert; its THT leads stand <= 2.5 mm
 # below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
 # the parts side (from aft) its left edge is at +y: J1, the pack's XT60, mates
 # along the board out of that edge, so the board sits hard to -y and the
@@ -557,7 +561,8 @@ HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
-PWRB_HOLE_D = 2.7
+PWRB_HOLE_D = 3.2                             # drilled out from the fab's 2.7 (M2.5) for M3
+PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_D): 1.85 of wall
 PWRB_T = 1.6
 PWRB_UNDER = 2.5                              # THT leads below the board
 PWRB_STANDOFF = 6.0                           # wall face .. solder side
@@ -636,7 +641,7 @@ assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
 # no mounting holes, only the four corner pads, live at pack potential, with
 # a plated hole each) and its overall 8 mm is the older ShillehTek manual's
 # (which gives 58 x 45 x 8) -- MEASURE ALL OF IT ON ARRIVAL. It goes component
-# side aft on double-sided foam tape on the bracket, 45 across (y), its P+/P-
+# side aft on the bracket, held by its hooks over a foam pad, 45 across (y), its P+/P-
 # edge up; its pads, approximate (datasheet figure 1): B- top -y, B2 top +y,
 # B3 bottom -y, B1+ bottom +y, P- and P+ along the top edge.
 BMS_L = 56.0                                  # tall (z)
@@ -646,10 +651,10 @@ BMS_H = 8.0                                   # overall: PCB + its TO-252 MOSFET
 BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
 BMS_MASS = 15.0                               # the listing's
 BMS_TAPE = 1.0                                # foam tape, bracket .. its bare side
-# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs in
-# the board's +y holes (H1, H3; 6 mm male into the bosses, as the board's
-# screws were), screwed to them with flat heads
-PWRB_SO_L = 15.0                              # M2.5 x 15 standoffs
+# its bracket (power_bracket_v8): a plate on two M3 male-female standoffs in
+# the board's +y holes (H1, H3; 6 mm male into the bosses' inserts, as the
+# board's screws), screwed to them with M3 flat heads
+PWRB_SO_L = 15.0                              # M3 x 15 standoffs
 PBR_T = 2.5
 PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 on the standoffs, -65.91 aft face
 BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts
@@ -919,7 +924,7 @@ assert YAW_HOUSING_SCREWS_L[1][1] + YAW_HOUSING_BOSS_R <= HOUSING_CHAN_HW, \
 assert YAW_HOUSING_SCREWS_L[0][0] + YAW_HOUSING_BOSS_R <= D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP \
     and YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R <= PELVIS_HW, \
     "the rear-outboard lug must stay off the cell and inside the pelvis's width"
-assert min(abs(y) for y, _ in PWRB_HOLES_YZ if y < 0) - 3.5 >= YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R + 0.3 + 0.5, \
+assert min(abs(y) for y, _ in PWRB_HOLES_YZ if y < 0) - PWRB_BOSS_R >= YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R + 0.3 + 0.5, \
     "the power board's -y lower standoff must clear the rear-outboard lug's notch"
 assert PWRB_PCB_X1 + PWRB_UNDER <= YAW_HOUSING_SCREWS_L[0][0] - YAW_HOUSING_BOSS_R - 0.3 - 0.5, \
     "the power board's leads must clear the rear-outboard lug"
