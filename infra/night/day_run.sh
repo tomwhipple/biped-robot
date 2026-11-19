@@ -41,6 +41,31 @@ PY="$BASE/.venv/bin/python"
 fix() {   # STEP LOG TIMEOUT_MIN <<< detail -> 0 if a Claude session fixed it
   "$N/claude_fix.sh" "$@"
 }
+# The harness scripts and the pre-flight live in the REPO (infra/night/);
+# $N mirrors them so the running copies never sit inside the tree (a reset
+# could rewrite them mid-run). The mirror happens on every runner start.
+install_harness() {
+  local f
+  mkdir -p "$N"
+  for f in "$BASE"/infra/night/*; do
+    local b; b=$(basename "$f")
+    case "$b" in *.bak-*) continue;; esac
+    if ! cmp -s "$f" "$N/$b" 2>/dev/null; then
+      install -m 0755 "$f" "$N/$b.new.$$" && mv -f "$N/$b.new.$$" "$N/$b" \
+        && echo "$(date +%H:%M) harness: $b updated from the clone"
+    fi
+  done
+}
+# The training inputs are generated: build them after the sync (issue #144).
+# Incremental over build/; a failed build must not train a job.
+build_inputs() {
+  if (cd "$BASE" && make plant sim-data PY="$PY") >> "$N/make.log" 2>&1; then
+    echo "$(date +%H:%M) make plant sim-data ok"
+  else
+    echo "$(date +%H:%M) !!! make plant sim-data failed (night/make.log)"
+    return 1
+  fi
+}
 sync_repo() {   # $1 = branch; leaves the tree at that branch's origin tip
   # Tom 2026-11-05: "Always check to make sure we have the latest from github
   # before starting a training run." Retry the fetch (a blip must not train a
@@ -75,7 +100,12 @@ EOF
        "$(git -C "$BASE" rev-parse --short HEAD) -- the morning planner must flag every card from this job"
 }
 sync_repo main
+install_harness
 mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]' && ! build_inputs; then
+  echo "$(date +%H:%M) !!! no training inputs; the queue stays queued"
+  exit 1
+fi
 # Tom 2026-10-23: "Make sure to always test these jobs before spending all
 # night on them." Pre-flight the queue BEFORE the first launch (and before
 # pausing the vision queue): parses every job like this runner does, checks
@@ -192,6 +222,10 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   fi
   BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
   sync_repo "${BR:-main}"
+  if ! build_inputs; then
+    echo "no training inputs; $JOB stays queued"
+    break
+  fi
   # CMD= jobs: run an arbitrary command from $BASE instead of train_mjx.py
   # (first need: nightly distill_student.py -- 2026-08-30, after two ad-hoc
   # launches lost GPU races to ollama's vision reload; ALL gpu work goes

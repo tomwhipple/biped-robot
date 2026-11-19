@@ -6,12 +6,22 @@
 # the branch is pushed, installs the runner scripts + cron (idempotent),
 # and queues the train_mjx args.
 #
+# The harness runs as claw (moved from tw 2026-08-05); `ssh mira` lands as
+# tw, so every step on mira goes through `sudo -n -u claw`.
+#
+# Since 2026-11-19 (issue #144) the runner the cron fires is the clone's own
+# infra/night/night_run.sh -- crontab points into the git clone, and the
+# runner mirrors the scripts into the untracked night/ state dir on every
+# start, so an upgrade of the harness is a clone sync, not an rsync here.
+#
 # Usage: infra/night_arm.sh [--branch <name>] <train_mjx.py args>
 #   --branch: train a one-off from a pushed branch instead of main.
-# Collect results next morning with: infra/night_collect.sh
+# Results are refereed on mira at 07:15 (infra/night_collect_local.sh).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
+NIGHT=/home/claw/code/robot-mjx/night
+BASE=/home/claw/code/robot-mjx
 [[ $# -gt 0 ]] || { echo "usage: night_arm.sh [--branch <name>] <train_mjx.py args>"; exit 1; }
 
 BRANCH=main
@@ -45,15 +55,25 @@ echo "    origin/$BRANCH @ $(git -C "$REPO" rev-parse --short "origin/$BRANCH")"
 
 echo "=== installing runner scripts + cron on mira (idempotent) ==="
 # the runner lives OUTSIDE the clone (night/ is untracked) so a mid-run
-# git reset can never rewrite the executing script; it self-updates here
-rsync -aq "$HERE/night/night_run.sh" "$HERE/night/night_stop.sh" \
-  mira:code/robot-mjx/night/
-ssh mira 'chmod +x code/robot-mjx/night/night_*.sh
-TAB=$(crontab -l 2>/dev/null | grep -v "robot-mjx/night/night_" || true)
-printf "%s\n0 22 * * * %s\n0 7 * * * %s\n" "$TAB" \
-  "$HOME/code/robot-mjx/night/night_run.sh" \
-  "$HOME/code/robot-mjx/night/night_stop.sh" | crontab -
-crontab -l | grep night_'
+# git reset can never rewrite the executing script; the clone's
+# infra/night/ mirrors itself into night/ on every start. Crontab fires
+# the clone's own runner -- it exists only once this branch's
+# infra/night/ is on origin/main (it is: night_run.sh is tracked).
+rsync -qp --rsync-path="sudo -n -u claw rsync" \
+  "$HERE/night/night_run.sh" "$HERE/night/night_stop.sh" \
+  "$HERE/night/vision_pause.sh" "mira:$NIGHT/"
+ssh mira "sudo -n -u claw bash -s" <<EOF
+chmod 755 $NIGHT/night_run.sh $NIGHT/night_stop.sh $NIGHT/vision_pause.sh
+TAB=\$(crontab -l 2>/dev/null | grep -v robot-mjx)
+printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "\$TAB" \
+  "0 22 * * * $BASE/infra/night/night_run.sh" \
+  "0 7 * * * $BASE/infra/night/night_stop.sh" \
+  "15 7 * * * /home/claw/code/robot/infra/night_collect_local.sh" \
+  "30 7 * * * $BASE/infra/night/plan_morning.sh" \
+  "30 21 * * * $BASE/infra/night/ensure_queue.sh" \
+  "30 5 * * * $BASE/infra/night/plan_morning.sh" | crontab -
+crontab -l | grep robot-mjx
+EOF
 
 OUT="job"
 prev=""
@@ -64,8 +84,8 @@ for a in "${ARGS[@]}"; do
 done
 QN="$(date +%m%d%H%M%S)-$OUT"
 echo "=== queueing $QN [branch $BRANCH]: ${ARGS[*]} ==="
-{ echo "BRANCH=$BRANCH"; printf '%s\n' "${ARGS[*]}"; } \
-  | ssh mira "mkdir -p code/robot-mjx/night/queue && cat > code/robot-mjx/night/queue/$QN"
-echo ">>> tonight's queue (runs in this order from 22:00 while each job fits"
-echo ">>> before the 07:00 hard stop; collect with infra/night_collect.sh):"
-ssh mira 'ls code/robot-mjx/night/queue | grep -v "^done$"'
+{ echo "BRANCH=$BRANCH"; printf '%s\n' "${ARGS[@]}"; } \
+  | ssh mira "sudo -n -u claw tee $NIGHT/queue/$QN > /dev/null"
+echo ">>> tonight's queue (runs in this order from 22:00; no starts after"
+echo ">>> 06:45, hard stop 07:00; refereed on mira at 07:15):"
+ssh mira "ls $NIGHT/queue | grep -v -x -e done -e held"

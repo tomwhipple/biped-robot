@@ -552,34 +552,52 @@ approximation. `progress.jsonl` logs the eval curve.
 
 ### Nightly on mira
 
-mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`.
+mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`. The
+harness runs as the user `claw`, out of `/home/claw/code/robot-mjx`.
 Training runs **at night only**; days belong to the box's owner.
 
-- **Window.** cron starts `infra/night/night_run.sh` at 22:00. No new job starts
-  after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00, and
-  the last eval checkpoint stands.
+- **Window.** claw's cron starts the clone's own `infra/night/night_run.sh` at
+  22:00. No new job starts after 06:45 (start deadline 15 min before the hard
+  stop); `infra/night/night_stop.sh` stops a running job at 07:00, and the
+  last eval checkpoint stands. A `night/MARATHON_UNTIL` file (an epoch) holds
+  the 07:00 stop off for a sanctioned multi-day window.
+- **Harness in the repo (2026-11-19, #144).** Cron fires the scripts out of
+  the training clone's `infra/night/`; on every start the runner mirrors them
+  into the clone's untracked `night/` state directory (queue, logs, locks) so
+  the copies a job was checked against never change under it, and so a `git
+  reset` can never rewrite the executing script. `night_arm.sh` still rsyncs
+  the runner/stop/vision_pause copies as a bootstrap. Deploying a harness
+  change is a merge to `main` followed by the clone's next sync — no separate
+  install step.
 - **GPU handover.** The daytime GPU owner is the camera-watcher classifier
   (`llama3.2-vision` via ollama). The runners call `infra/night/vision_pause.sh
   pause` before training, which pauses the classifier container and unloads
   the model (the backlog waits in redis), and `resume` when the night ends or
   is stopped. While paused, a `CLASSIFIER_PAUSED` sentinel tells mira's camera
   watchdog that the lag is intentional.
-- **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
+- **Committed code only.** `robot-mjx` is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
   branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
   is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
-  Anything not pushed does not train. The
-  runner scripts sit in the clone's untracked `night/` directory, so a reset
-  cannot rewrite them mid-run.
+  Anything not pushed does not train.
+- **The harness builds its inputs (#144).** After each sync the runner runs
+  `make plant sim-data` in the clone. `build/` is gitignored and survives the
+  reset, so a sync that changed nothing relevant costs seconds; a plant or
+  reference that left git is rebuilt from its sources. A failed build leaves
+  the job queued (nothing trains on a missing or half-built plant). What the
+  envs and the referee load is the generated output
+  (`build/v6/stl`, `build/v6/sim`), never a committed copy.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
-  <train_mjx.py args>` checks that the branch is pushed, installs the runner and
-  its cron on mira, and queues a job file `night/queue/<MMDDhhmmss>-<out>`.
+  <train_mjx.py args>` checks that the branch is pushed, installs the runner,
+  the stop and `vision_pause.sh` and their cron as claw, and queues a job file
+  `night/queue/<MMDDhhmmss>-<out>`. A job file holds a `BRANCH=` line and one
+  line of arguments; lines starting `#` are notes (parent, variable,
+  hypothesis), never arguments.
 - **Queue.** Jobs run in sorted order; the queue is rescanned after every job.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
   `infra/night_distill.sh`, §9) through the same GPU gate. `--steps` is capped to what the remaining
-  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). Lines
-  starting `#` are notes (parent, variable, hypothesis), never arguments.
+  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise).
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
