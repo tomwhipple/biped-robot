@@ -69,8 +69,9 @@ void ctrlTick(uint32_t now_ms);
 void dropFromCtrl(railguard::DropWhy why);
 // A frame that disables: ENABLE, ARM and ESTOP all clear (Guard::disabledCommand).
 void disabledFromCtrl();
-// Every valid frame from the commander, in both modes (Guard::commanderFrame). ESTOP
-// set: SERVO_EN low on this very tick, whoever powered the rail.
+// Every valid frame from the commander, in both modes (Guard::commanderFrame). An
+// ESTOP press (the flag's edge): SERVO_EN low on this very tick, whoever powered the
+// rail. A flag held after that does nothing more.
 void commanderFrame(bool estop);
 
 // -- housekeeping (core 0) ------------------------------------------------------

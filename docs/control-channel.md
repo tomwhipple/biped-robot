@@ -309,8 +309,9 @@ so an uncalibrated robot is diagnosable the moment a console opens;
 calibrated zero, the standing pose. It is the one request honoured while the
 robot is benched, fallen or E-stopped — the states in which every other
 channel correctly refuses to move anything, and exactly the states a robot
-on the floor is in. (On a power-lite image a commander still sending `ESTOP`
-keeps the rail off, so a reset takes it letting go first: `RAIL_DOWN`.)
+on the floor is in. (On a power-lite image a commander's `ESTOP` press drops the
+servo rail. A reset from a console that is still holding it works; only one sent
+within 0.5 s of the press is refused with `RAIL_DOWN`.)
 
 - **A rising edge, and the first frame from a sender never counts**, so a
   client that reboots with the bit set cannot move a robot nobody is

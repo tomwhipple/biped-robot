@@ -1799,9 +1799,10 @@ static void railBenchDone() {
     if (!s_rail_typed) robot::rail::requestOff(railguard::DropWhy::kDisarm);
 }
 
-// A deliberate `home` or wireless reset: the one bench motion that may power the
-// rail, since it is the way back from a fall and ends released. Autohomes call
-// homeAll directly and so never close K1 by themselves.
+// A `home`, the wireless reset, or the fall pick-up's autohome: the bench motions
+// that may power the rail, since each is the way back from a fall and ends
+// released. A hold's autohome calls homeAll directly: the arm it came from
+// powered the rail, and a hold that has lost it has nothing to home.
 linkproto::ArmResult homePowered(Sink out, long spd) {
     bool powered = false;
     if (!railEnsureUp(out, powered)) return linkproto::ArmResult::kRailDown;
@@ -1835,19 +1836,13 @@ static inline linkproto::ArmResult homePowered(Sink out, long spd) { return home
 //    re-armed torque in the operator's hands (2026-08-30/31) and was removed;
 //    this is a slow home that ends released, at Tom's request, and `fall
 //    autohome off` restores "wait for a typed `home`". A power-lite image
-//    always waits for that: see the end of fallTickImpl.
+//    homes the same way: the pick-up powers the rail for it (homePowered),
+//    and the home drops it again when it ends (Tom 2026-11-19, #229).
 // Every fall, hand-over, pick-up and clear is a flight-recorder Ev::kFall event.
 static bool s_fall_on = true;
 static bool s_fall_autohome = true;
 static fallguard::Detector s_fall;
 static uint32_t s_armed_falls_seen = 0;
-static bool s_fall_pickup_said = false;   // power lite: said once per fall
-// What a fall tells the operator to do. A macro, so a default image's code is untouched.
-#if BIMO_POWER_LITE
-#define BIMO_FALL_RECOVERY "then `home` or the wireless reset"
-#else
-#define BIMO_FALL_RECOVERY (s_fall_autohome ? "it homes itself after 1 s" : "then `home`")
-#endif
 
 static void fallEvent(fallguard::Motion m, fallguard::Event e, const char* text) {
     robot::flight::event(flightrec::Ev::kFall, text, static_cast<int32_t>(m), static_cast<int32_t>(e));
@@ -1878,12 +1873,12 @@ void fallTickImpl(Sink out) {
         const float tilt = robot::g_armed_fall_tilt_deg.load();
         char msg[96];
         snprintf(msg, sizeof msg, "armed fall at %.0f deg: loop disarmed, torque off", static_cast<double>(tilt));
-        s_fall_pickup_said = false;
         if (s_fall_on) {
             s_fall.latch(fallguard::Motion::kPolicy, tilt);
             fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
             say(out, "FALL (armed loop): torso tilted %.0f deg -- disarmed, torque OFF\r\n", static_cast<double>(tilt));
-            say(out, "  pick it up, hold it upright and still: %s\r\n", BIMO_FALL_RECOVERY);
+            say(out, "  pick it up, hold it upright and still: %s\r\n",
+                s_fall_autohome ? "it homes itself after 1 s" : "then `home`");
         } else {
             fallEvent(fallguard::Motion::kPolicy, fallguard::Event::kFell, msg);
             say(out, "FALL (armed loop) at %.0f deg -- disarmed, torque OFF; bench fall guard is off, no autohome\r\n",
@@ -1898,7 +1893,6 @@ void fallTickImpl(Sink out) {
     const uint32_t now_ms = static_cast<uint32_t>(pdTICKS_TO_MS(xTaskGetTickCount()));
     const fallguard::Event ev = s_fall.update(fallguard::Motion::kBench, valid, smp.up, smp.gyro, now_ms);
     if (ev == fallguard::Event::kFell) {
-        s_fall_pickup_said = false;
         s_traj_active = false;
 #if BIMO_POWER_LITE
         if (s_home_pending) {   // the beacon must not say HOME_PENDING for ever
@@ -1916,33 +1910,22 @@ void fallTickImpl(Sink out) {
                  static_cast<double>(s_fall.fallTiltDeg()));
         fallEvent(fallguard::Motion::kBench, ev, msg);
         say(out, "FALL: torso tilted %.0f deg -- motion stopped, torque OFF. Pick it up and hold it upright "
-            "and still: %s\r\n", static_cast<double>(s_fall.fallTiltDeg()), BIMO_FALL_RECOVERY);
+            "and still: %s\r\n", static_cast<double>(s_fall.fallTiltDeg()),
+            s_fall_autohome ? "it homes itself after 1 s" : "then `home`");
         return;
     }
     if (ev != fallguard::Event::kPickedUp || !s_fall_autohome) return;
-    // Power lite: a pick-up never starts a home, with the rail off or on. Closing K1 --
-    // the relay's inrush, then motion -- is not something to do by itself in the
-    // operator's hands, and a typed `rail on` is a request for power, not for motion
-    // (the Detector repeats this event every 2 s, so a rail that came on later would
-    // otherwise start one). The latch stands until someone asks: `home`, the wireless
-    // reset, or an arm. To have the autohome back, drop this branch.
-#if BIMO_POWER_LITE
-    if (!s_fall_pickup_said) {
-        s_fall_pickup_said = true;
-        fallEvent(s_fall.fellIn(), fallguard::Event::kPickedUp, "picked up: upright and still 1 s, no autohome");
-        out("FALL: upright and still. It does not home by itself here: `home` or the wireless "
-            "reset powers the rail and homes\r\n");
-    }
-#else
+    // Power lite: homePowered closes K1 for this home and opens it again when the
+    // home ends (homeVerify). Refused -- E-stop, a rail fault, the pack guard -- it
+    // says why and the latch stands; the Detector repeats the pick-up, so it retries.
     const fallguard::Motion m = s_fall.fellIn();
     out("FALL cleared: upright and still for 1 s -- homing\r\n");
-    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+    if (homePowered(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
         out("home did not start -- still FALLEN (`home` to retry)\r\n");
         return;
     }
     s_fall.clear();
     fallEvent(m, fallguard::Event::kPickedUp, "picked up: upright and still 1 s, autohome started");
-#endif
 }
 
 // -- flail guard + operator stop, bench half (shared.h g_armed_holds,
@@ -1991,12 +1974,6 @@ void flailTickImpl(Sink out) {
             const auto was = static_cast<linkproto::ArmResult>(robot::g_arm_result.load());
             const linkproto::ArmResult now_r = linkproto::benchStopResult(was, s_home_pending);
             if (now_r != was) robot::g_arm_result.store(static_cast<uint8_t>(now_r));
-#if BIMO_POWER_LITE
-            // The rail a stopped home was using goes with it, unless it was asked for by
-            // name. A hard stop leaves that to ctrl, so the reason stands as the
-            // operator's. A hold is not a home, and keeps its rail.
-            if (s_home_pending && !hard) railBenchDone();
-#endif
             s_home_pending = false;
             balStop(out, "STOP"); trimStop(out, "STOP");
             if (hard) {
@@ -2171,9 +2148,6 @@ void cmdFall(Sink out, int argc, char** argv) {
     say(out, "  bench guard %s, autohome %s (upright < %.0f deg, |gyro| < %.2f rad/s for %lu ms)\r\n",
         s_fall_on ? "ON" : "OFF", s_fall_autohome ? "ON" : "OFF", static_cast<double>(fallguard::kPickupTiltDeg),
         static_cast<double>(fallguard::kPickupGyroRadS), static_cast<unsigned long>(fallguard::kPickupHoldMs));
-#if BIMO_POWER_LITE
-    out("  power lite: a pick-up never homes by itself; `autohome` here is the flail/soft-stop hold's\r\n");
-#endif
     say(out, "  %s, %lu fall(s) since boot (bench + armed), last %.0f deg\r\n",
         s_fall.fallen() ? (s_fall.fellIn() == fallguard::Motion::kPolicy ? "FALLEN in the armed loop (motion locked)"
                                                                          : "FALLEN on the bench (motion locked)")
@@ -2604,6 +2578,14 @@ void benchVbatTickImpl() {
     if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
         !robot::g_bus || s_traj_active || s_bal.engaged())
         return;
+#if BIMO_POWER_LITE
+    // No servo answers with the rail off: say "no reading" (0) rather than let the
+    // last one stand, and spend no reply timeout finding out.
+    if (!robot::rail::busUp()) {
+        robot::g_telemetry.vbat_mv.store(0);
+        return;
+    }
+#endif
     const obs::Calibration& cal = robot::calibration();
     for (int k = 0; k < obs::kNumBusJoints; ++k) {
         const int b = (s_bench_vbat_bus + k) % obs::kNumBusJoints;
@@ -4181,6 +4163,9 @@ uint32_t recorderTick() {
         b.ankle_ticks = 0;
         b.hip_ticks = flightrec::sat16(s_trim_dth);
         b.clamps = s_trim_clamps;
+#if BIMO_POWER_LITE
+        if (!robot::rail::busUp()) return robot::flight::recordBench(nullptr, v);
+#endif
         return robot::flight::recordBench(robot::g_bus, v);
     }
     b.state = static_cast<uint8_t>(s_bal.state());

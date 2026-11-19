@@ -99,9 +99,12 @@ constexpr uint32_t kEstopReleaseMs = 100;
 // The welded-contact check: see above.
 constexpr uint32_t kStuckMs = 8000;
 constexpr uint16_t kStuckDecayMv = 150;
-// A commander's ESTOP frame refuses the rail until its next frame without the flag,
-// or until this long has passed with no frame at all: a console that held ESTOP and
-// went away must not lock the tether out of `rail on` for good.
+// A commander's ESTOP acts on its EDGE: the frame where the flag goes up, or the first
+// frame with it after this long with no frame at all (a commander that is new, or
+// back). That frame takes the rail, and requestOn() refuses until the commander's next
+// frame without the flag, or for this long. A flag held after that does nothing more:
+// a console left E-stopped must not need someone at it before the wireless reset, the
+// tether's `rail on` or the pick-up's home can power the rail (Tom 2026-11-19, #229).
 constexpr uint32_t kCommanderEstopHoldMs = 500;
 
 enum class State : uint8_t {
@@ -139,7 +142,7 @@ enum class Verdict : uint8_t {
     kStuckFault = 3,    // Fault::kStuck stands: clearFault() after looking at K1
     kRailStillUp = 4,   // still discharging from the last drop: try again shortly
     kNoReading = 5,     // no sample yet, or the ADC read failed
-    kCommanderEstop = 6,  // the commander is sending ESTOP: it has to let go first
+    kCommanderEstop = 6,  // the commander pressed ESTOP under kCommanderEstopHoldMs ago
 };
 
 struct Sample {
@@ -164,9 +167,9 @@ class Guard {
     // RUN, and otherwise does nothing. It never powers the rail.
     void disabledCommand();
 
-    // Every valid frame from the commander, in every mode. ESTOP set: SERVO_EN low
-    // now (kLinkEstop), and requestOn() refuses while it stays set. It latches nothing
-    // here: the flag is a level, and the commander's next frame without it ends this.
+    // Every valid frame from the commander, in every mode. An ESTOP edge (see
+    // kCommanderEstopHoldMs): SERVO_EN low now (kLinkEstop), and requestOn() refuses
+    // for a moment. It latches nothing: the toggle's latch is the hard one.
     void commanderFrame(bool estop);
 
     // Clear a fault. Refused (false) while Fault::kStuck's rail is still up.
@@ -209,8 +212,11 @@ class Guard {
     uint16_t stuck_low_mv_ = 0;
     uint32_t stuck_since_ = 0;
 
-    bool cmdr_estop_ = false;
-    uint32_t cmdr_estop_ms_ = 0;
+    bool cmdr_seen_ = false;      // any commander frame yet
+    uint32_t cmdr_frame_ms_ = 0;  // the last one
+    bool cmdr_estop_ = false;     // its ESTOP flag
+    bool cmdr_press_ = false;     // an edge whose refusal still stands
+    uint32_t cmdr_press_ms_ = 0;
 };
 
 // Why the armed loop went limp: the same ranking as ctrl_task's safety block (the
