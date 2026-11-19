@@ -18,14 +18,21 @@ as you go, and stop at the first reading that is outside its range (see
 |---|---|---|
 | [0. Set up](#part-0-set-up) | the bench, the camera and the BMS's real size | — |
 | [1. The BMS alone](#part-1-the-bms-alone) | where it cuts off, how it comes back, that it carries 12 A | lab supply, resistors |
-| [2. The board on the lab supply](#part-2-the-board-on-the-lab-supply) | the E-stop, the relay and the ESP32 signals, with no pack | lab supply, a 3.3 V source |
+| [2. The board on the lab supply](#part-2-the-board-on-the-lab-supply) | the E-stop, the relay and the ESP32 signals, with no pack | lab supply, resistors |
 | [3. The BMS and the pack on the board](#part-3-the-bms-and-the-pack-on-the-board) | the whole power path, on the real pack | the pack |
 | [4. The relay closing onto the servos](#part-4-the-relay-closing-onto-the-servos) | the inrush does not trip the BMS, and the E-stop always opens the rail | the robot's servos |
 
 **`SERVO_EN` is driven by hand throughout.** The firmware that drives the relay, reads the
-E-stop and checks for a stuck rail is in PR #229 and is not on `main` yet (#218). Here a
-3.3 V wire stands in for the ESP32's IO16, and a 47 kΩ resistor to 3.3 V stands in for IO4's
-pull-up.
+E-stop and checks for a stuck rail is in PR #229 and is not on `main` yet (#218). One lab
+supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the breadboard's
+**+ rail**.
+- **`SERVO_EN`** is driven from the + rail through **three 470 Ω in series** (the **drive
+  row**). With R1 that sets Q1's base current to about what an ESP32 pin gives: 5.9 mA at
+  12.0 V, against 4.9 mA from 3.3 V through R1 alone (simulation).
+- **`ESTOP_N`** is pulled up to the + rail through **47 kΩ**, in place of IO4's pull-up. So
+  its high reads the + rail's voltage (12.0 V on the lab supply, the pack voltage in Parts 3
+  and 4), not 3.3 V. Q2 is rated 40 V.
+- **The BMS's wake-up** (1.2) uses the same supply as the "charger", rewired.
 
 ## Safety
 
@@ -44,6 +51,9 @@ pull-up.
 - **Break current with the supply's output button, not the main switch.** The main switch
   has no DC rating for breaking a load. Turn it off only after the relay has dropped the
   servo rail (README, How power flows).
+- **Never connect the + rail straight to a J12 wire.** `SERVO_EN` goes only through the three
+  470 Ω, `ESTOP_N` only through the 47 kΩ. Straight to 12 V, `SERVO_EN` would push about 24 mA
+  into Q1's base, and `ESTOP_N` would put the supply across Q2 whenever the E-stop is at RUN.
 - **Film every powered step** (AGENTS.md), from before the first connection until after the
   last disconnection, with the meter's display in frame where you can.
 
@@ -51,17 +61,18 @@ pull-up.
 
 | item | for | notes |
 |---|---|---|
-| lab supply, current-limited, 0–13 V | the "pack" in Parts 1 and 2 | **15 A or more** for the 12 A test (1.6): the supply the robot runs on |
-| a second supply, or a second channel | 3.3 V for `SERVO_EN` and the pull-up; 12.6 V to wake the BMS | 50 mA is enough; its − goes to the board's ground |
+| lab supply, current-limited, 0–13 V | the "pack" in Parts 1 and 2 | **15 A or more** for the 12 A test (1.7): the supply the robot runs on |
 | multimeter | V, Ω, diode, mA; µA if it has it | |
 | 4 × 1 kΩ, ¼ W | three as the "cell" divider, one as a light load | |
 | 1 × 47 kΩ, ¼ W | `ESTOP_N`'s pull-up | |
+| 4 × 470 Ω, ¼ W | three in series as `SERVO_EN`'s drive; one to wake the BMS (1.2) | spares of R1's 470R |
+| a short 22 AWG solid wire | the + rail from the J3 lead in Parts 3 and 4 | |
 | 1 Ω, 150 W or more | the 12 A load | or 2 × 2 Ω 100 W in parallel, or an electronic load at 12 A |
 | 14 AWG wire, clip leads, a small breadboard | rig wiring; 14 AWG for anything carrying 12 A | |
 | the J12 lead and the E-stop lead | from the assembly guide's [Make the leads](assembly.md#make-the-leads) | |
 | a PHR-2 housing with its two contacts joined | a J11 jumper | or the E-stop lead with the toggle at RUN |
 | camera on a stand | filming | |
-| optional: an oscilloscope, an IR thermometer | the inrush trace (Part 4); the load and the BMS's temperatures (1.6) | |
+| optional: an oscilloscope, an IR thermometer | the inrush trace (Part 4); the load and the BMS's temperatures (1.7) | |
 
 ## Part 0: Set up
 
@@ -112,9 +123,31 @@ P+ ──── 1 kΩ load ──── P−      meter across P+ and P−: the 
 1. Meter each tap against B−: B3 about 3.70 V, B2 about 7.40 V, B1+ 11.10 V.
 2. Meter the output, P+ to P−. It should read about 11.1 V.
 3. **If it reads 0 V, the BMS is asleep.** Boards of this family often ship asleep and wake
-   when a charger is put across P+ and P− (DS-NA405 §4). Set the second supply to 12.6 V,
-   0.2 A, connect it + to P+ and − to P− for 3 s, remove it, and measure again. Record
-   whether it needed this.
+   when a charger is put across P+ and P− (DS-NA405 §4). The BMS switches only P−, not P+
+   (DS-NA405 §3), so a 12.6 V charger on an 11.1 V pack holds P− about 1.5 V below B−. The
+   one supply does the same when its − moves to P− and a 470 Ω between B− and P− sets the
+   cells:
+
+   ```
+   supply + ──── B1+ (and P+), the divider as in 1.1
+   supply − ──── P−
+   B− ──── 470 Ω ──── P−        meter: + on B−, − on P−
+   ```
+
+   1. Take the 1 kΩ load off P+/P−. Raise the supply to **12.6 V** (4.2 V a cell, a full
+      pack), limit still 0.1 A.
+   2. Clip the 470 Ω between B− and P−, and a second lead from the supply's − to P−. Nothing
+      changes yet: B−, P− and the supply's − are joined.
+   3. **Unclip the supply's − from B−.** The divider's 3.6 mA now returns through the 470 Ω:
+      B− sits **1.7 V above P−** and the cells at 10.9 V (3.63 V each), the voltages a
+      12.6 V charger puts on a 10.9 V pack. Hold 3 s, watching the meter.
+   4. **Awake:** B− to P− falls to about 0 V, because the BMS's MOSFETs short the 470 Ω.
+      **Asleep:** it stays at 1.7 V.
+   5. **Clip the supply's − back onto B− first,** then remove the P− lead and the 470 Ω, so
+      the BMS never loses power. Supply back to 11.1 V, the load back on, and measure the
+      output again.
+
+   Record whether it needed waking, and whether this woke it.
 
 ### 1.3 Standing drain
 
@@ -154,8 +187,8 @@ This decides what happens in the robot after a low-battery cut-off.
    Record the voltage where the output comes back, if it does.
 2. If it has not come back at 11.1 V: turn the supply off for 10 s and back on. Record whether
    that brings it back.
-3. If not: apply the 12.6 V "charger" across P+/P− as in 1.2. Record whether that brings it
-   back.
+3. If not: wake it as in 1.2, steps 3.1–3.5 (the supply as the charger). Record whether that
+   brings it back.
 
 ### 1.6 A power cycle: the pack swap
 
@@ -165,7 +198,7 @@ back on its own when the pack is plugged in again.
 1. With the output on at 11.1 V, turn the supply off. Wait 10 s. Turn it on.
 2. Record whether the output came back by itself. Do this three times.
 
-**If it needs the 12.6 V wake every time,** the robot cannot use it as wired: every swap would
+**If it needs the wake (1.2) every time,** the robot cannot use it as wired: every swap would
 need a charger on P+/P−. Stop here and decide what to do.
 
 ### 1.7 12 A for 2 s
@@ -222,13 +255,16 @@ simulation in the README's [Checks](README.md#checks) where it gives one.*
 - **Supply:** 12.0 V, **limit 0.5 A**, output off. + to **W7** (silkscreen SW, the right pad of
   the pair on the top edge), − to **W2** (BMS P-). Use short solid wires pushed through the
   pads and clipped.
+- **The breadboard's + rail:** a second clip lead from the **lab supply's + terminal**. It
+  stands in for the ESP32's 3.3 V. It is taken before F2, so `ESTOP_N` keeps its pull-up with
+  F2 out (2.8).
 - **J12 test lead:** plug the J12 lead in and bring its four wires to the breadboard:
-  - pin 3, GND: to the 3.3 V source's −;
-  - pin 6, `ESTOP_N`: 47 kΩ to 3.3 V;
+  - pin 3, GND: to the breadboard's − rail;
+  - pin 6, `ESTOP_N`: 47 kΩ to the + rail;
   - pin 5, `RAIL_V`: free, for the meter;
-  - pin 2, `SERVO_EN`: free. This is the wire you touch to 3.3 V.
+  - pin 2, `SERVO_EN`: free. Put three 470 Ω in series from the + rail to a spare row, the
+    **drive row**. Touching the `SERVO_EN` wire to the drive row is "`SERVO_EN` high".
 - **J11:** nothing plugged in yet. Open means "E-stop pressed".
-- 3.3 V source on: 3.3 V, limit 50 mA.
 
 Measure every voltage below against **W2 (ground)**, or J12 pin 3, which is the same net.
 
@@ -242,7 +278,7 @@ Turn the supply on.
 | LED1 (green) | on | it shows the logic feed, after F2 |
 | LED2 (red), K1 | off, silent | |
 | J3 pin 1 to pin 2 | 12.0 V, pin 1 + | the General Driver's feed |
-| `ESTOP_N` (J12.6) | 3.3 V | J11 open reads as "stop" |
+| `ESTOP_N` (J12.6) | 12.0 V, the + rail | J11 open reads as "stop" |
 | `RAIL_V` (J12.5) | 0.00 V | |
 
 ### 2.3 E-stop at RUN
@@ -251,13 +287,13 @@ Plug the J11 jumper in (or the E-stop lead, toggle at RUN).
 
 | check | expected | why |
 |---|---|---|
-| `ESTOP_N` | below 0.1 V (simulation: 0.007 V) | Q2 conducts while the coil feed is up |
+| `ESTOP_N` | below 0.1 V (simulation: 0.009 V) | Q2 conducts while the coil feed is up |
 | K1, LED2 | still off | `SERVO_EN` is free: R2 holds Q1 off |
 | supply current | up about 0.2 mA | R5 and R6 |
 
 ### 2.4 Rail on
 
-Touch the `SERVO_EN` wire to 3.3 V and hold it there; a clip is easier.
+Touch the `SERVO_EN` wire to the drive row and hold it there; a clip is easier.
 
 | check | expected | why |
 |---|---|---|
@@ -266,12 +302,12 @@ Touch the `SERVO_EN` wire to 3.3 V and hold it there; a clip is easier.
 | `RAIL_V` | 2.11 V (12.0 × 10/57) | R3/R4 divide SERVO+ by 5.7 |
 | J4–J7, pin 2 to pin 3 | 12.0 V | the rail reaches the servo headers |
 | supply current | about 0.17 A | the coil's 90 Ω, its built-in 470 Ω, LED2 |
-| Q1's saturation: D1's unbanded end to ground | 0.17–0.23 V (simulation) | the coil's low side |
-| `SERVO_EN` current: the meter (mA) between 3.3 V and the wire | about 5 mA (simulation: 4.9 mA) | the ESP32 pin gives up to 20 mA |
+| Q1's saturation: D1's unbanded end to ground | 0.17–0.23 V (simulation: 0.22 V) | the coil's low side |
+| `SERVO_EN` current: the meter (mA) between the drive row and the wire | about 5.9 mA (simulation) | an ESP32 pin, through R1, gives 4.9 mA; it can give up to 20 mA |
 
 ### 2.5 Rail off by `SERVO_EN`
 
-Let go of `SERVO_EN` (leave it free), then try it tied to ground.
+Let go of `SERVO_EN` (leave it free), then try it tied to ground (the − rail).
 
 | check | expected |
 |---|---|
@@ -280,12 +316,12 @@ Let go of `SERVO_EN` (leave it free), then try it tied to ground.
 
 ### 2.6 Rail off by the E-stop
 
-`SERVO_EN` back on 3.3 V, so the rail is on. Then unplug J11 (or the toggle to STOP).
+`SERVO_EN` back on the drive row, so the rail is on. Then unplug J11 (or the toggle to STOP).
 
 | check | expected |
 |---|---|
 | K1 | drops at once |
-| `ESTOP_N` | 3.3 V |
+| `ESTOP_N` | 12.0 V |
 | `RAIL_V` | fades to 0 as in 2.5 |
 
 Plug J11 back in (RUN) with `SERVO_EN` still high: **K1 closes again.** That is the hardware
@@ -293,7 +329,9 @@ as designed: re-arming after an E-stop is the firmware's job (PR #229).
 
 ### 2.7 Over the pack's range
 
-With the rail on (`SERVO_EN` high, J11 in):
+With the rail on (`SERVO_EN` high, J11 in). The + rail follows the supply, so at 9.0 V
+`SERVO_EN` gets 4.3 mA, less than an ESP32 pin's 4.9 mA: a harder test. The simulation still
+closes K1 there (coil 97 mA, Q1 at 0.18 V).
 
 | supply | check | expected |
 |---|---|---|
@@ -310,7 +348,7 @@ Turn the supply off before pulling or fitting a fuse.
 
 | fuse out | power on, J11 in, `SERVO_EN` high | expected |
 |---|---|---|
-| F2 | LED1, J3, `ESTOP_N`, K1 | LED1 off, J3 0 V, `ESTOP_N` 3.3 V, K1 does not close |
+| F2 | LED1, J3, `ESTOP_N`, K1 | LED1 off, J3 0 V, `ESTOP_N` 12.0 V, K1 does not close |
 | F1 | K1, LED2, `RAIL_V` | K1 clicks, but LED2 stays off and `RAIL_V` reads 0 |
 
 Put both fuses back. `SERVO_EN` free, supply off.
@@ -321,15 +359,15 @@ Put both fuses back. `SERVO_EN` free, supply off.
 |---|---|---|---|---|
 | 2.2 | supply current | ≈ 2 mA | | |
 | 2.2 | J3 | 12.0 V, pin 1 + | | |
-| 2.2 | `ESTOP_N`, J11 open | 3.3 V | | |
+| 2.2 | `ESTOP_N`, J11 open | 12.0 V | | |
 | 2.3 | `ESTOP_N`, J11 in | < 0.1 V | | |
 | 2.4 | `RAIL_V` at 12.0 V | 2.11 V | | |
 | 2.4 | J4–J7 pin 2 | 12.0 V | | |
 | 2.4 | supply current, rail on | ≈ 0.17 A | | |
 | 2.4 | Q1 saturation | 0.17–0.23 V | | |
-| 2.4 | `SERVO_EN` current | ≈ 5 mA | | |
+| 2.4 | `SERVO_EN` current | ≈ 5.9 mA | | |
 | 2.5 | `SERVO_EN` free / grounded drops K1 | yes / yes | | |
-| 2.6 | E-stop drops K1; `ESTOP_N` | yes; 3.3 V | | |
+| 2.6 | E-stop drops K1; `ESTOP_N` | yes; 12.0 V | | |
 | 2.7 | `RAIL_V` at 12.6 / 9.0 V | 2.21 / 1.58 V | | |
 | 2.7 | K1 holds and re-closes at 9.0 V | yes | | |
 | 2.8 | F2 out: all off, `ESTOP_N` high | yes | | |
@@ -363,8 +401,12 @@ Then meter, with no pack:
 
 ### 3.3 Plug in the pack, switch off
 
-Set up as in Part 2: J3–J8 empty, the J12 test lead with its 3.3 V source and pull-up, and the
+Set up as in Part 2: J4–J8 empty, the J12 test lead with its pull-up and drive row, and the
 **E-stop lead in J11 at STOP**. Remove the lab supply. **Main switch off.**
+- **The + rail now comes from J3 pin 1**, the logic feed: the pack voltage once the main
+  switch is on, nothing while it is off. Plug the J3 lead into J3. Push the 22 AWG solid wire
+  into its far housing's pin 1 (the + wire, harness check P3) and take it to the + rail.
+  Leave the far pin 2 empty.
 
 1. Plug the **balance plug into J2 first**, then the **XT60 into J1**.
 2. Measure:
@@ -376,8 +418,8 @@ Set up as in Part 2: J3–J8 empty, the J12 test lead with its 3.3 V source and 
 | W6 to W2 (pack + to the BMS's output) | the pack voltage | 0 V: the BMS is asleep or tripped |
 | LED1 | off | the switch is off |
 
-**If W6 to W2 reads 0:** wake the BMS the way 1.2 found. With the pack in, that means the
-12.6 V supply, limit 0.2 A, + to W6 and − to W2 for 3 s. Measure again.
+**If W6 to W2 reads 0:** wake the BMS the way 1.2 found. With the pack in, the lab supply is
+free to be the charger: 12.6 V, limit 0.2 A, + to W6 and − to W2 for 3 s. Measure again.
 
 ### 3.4 Switch on
 
@@ -387,9 +429,9 @@ Main switch on.
 |---|---|
 | LED1 | on |
 | J3 | the pack voltage, pin 1 + |
-| `ESTOP_N` (E-stop at STOP) | 3.3 V |
+| `ESTOP_N` (E-stop at STOP) | the pack voltage, the + rail |
 | E-stop to RUN: `ESTOP_N` | below 0.1 V |
-| `SERVO_EN` to 3.3 V: K1, LED2 | clicks, on |
+| `SERVO_EN` to the drive row: K1, LED2 | clicks, on |
 | `RAIL_V` | pack voltage ÷ 5.7 |
 | E-stop to STOP | K1 drops |
 
@@ -421,7 +463,8 @@ short-circuit detector may read that as a short. Its delay is not published.*
 - The robot on its stand, legs hanging free.
 - Servo leads in J4–J7. **J8 empty and the General Driver not connected**, so nothing can
   command the servo bus. Any bus write is a motion command (AGENTS.md, Bench safety).
-- The pack in, as in Part 3. The J12 test lead and its 3.3 V source. The E-stop lead in J11.
+- The pack in, as in Part 3. The J12 test lead with its pull-up and drive row, and the + rail
+  from J3 (3.3). The E-stop lead in J11.
 - Optional: an oscilloscope on SERVO+ (a J4 pin 2) and on J3 (the logic feed), triggered on
   SERVO+ rising.
 - Camera running.
@@ -430,7 +473,7 @@ short-circuit detector may read that as a short. Its delay is not published.*
 
 Main switch on, E-stop at RUN. Then, ten times:
 
-1. `SERVO_EN` to 3.3 V. K1 closes onto the servos.
+1. `SERVO_EN` to the drive row. K1 closes onto the servos.
 2. **Watch that the BMS holds.** LED1 stays on, and J3 (or the meter on `RAIL_V`) does not
    drop to 0. If the board goes dark, the BMS has cut off: record which closure, and go to
    [If the BMS cuts off on closing](#if-the-bms-cuts-off-on-closing).
@@ -475,9 +518,10 @@ Both can be simulated first with `sim/lite_sim.py`. Use the measured BMS values 
   Write the reading down before you change anything.
 - **A supply current far above expected** (in current limit) is a short or a backwards part:
   D2, D3 or C1 first (the assembly guide's diode checks), then a solder bridge.
-- **`ESTOP_N` reads 3.3 V with the E-stop at RUN**: F2, the J11 lead, or Q2's orientation.
-- **K1 does not click with `SERVO_EN` high**: J11 (it must be closed), the 3.3 V source's
-  ground to W2, or Q1's orientation.
+- **`ESTOP_N` reads high (the + rail's voltage) with the E-stop at RUN**: F2, the J11 lead, or
+  Q2's orientation.
+- **K1 does not click with `SERVO_EN` high**: J11 (it must be closed), the drive row (about
+  6 mA flows through it), the − rail to J12 pin 3, or Q1's orientation.
 - **The supply hits its current limit the moment `SERVO_EN` goes high**: D1 may be in
   backwards, shorting the coil's feed through Q1. Turn off at once. D1's band goes on the
   coil's high side (the assembly guide's step 2).

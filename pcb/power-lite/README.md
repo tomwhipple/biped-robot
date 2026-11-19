@@ -100,10 +100,12 @@ The step-by-step procedure, with the expected readings and a results table for e
 2. **Bring up the board without the BMS or the pack.** Put the lab supply at 12.0 V, limited
    to 0.5 A, on W7 (+) and W2 (−).
    - At power-on LED1 lights (it shows the logic feed, after F2) and J3 reads 12 V.
-   - With J11 jumpered, J12.6 (`ESTOP_N`), pulled up to 3.3 V through 47 kΩ, reads below
-     0.1 V. J12.5 (`RAIL_V`) reads 0.
-   - 3.3 V on J12.2 (`SERVO_EN`): K1 clicks, LED2 lights, and `RAIL_V` reads about 2.1 V.
-   - Remove the J11 jumper: K1 drops, and `ESTOP_N` reads 3.3 V.
+   - The supply's + stands in for the ESP32's 3.3 V, so no second supply is needed.
+   - With J11 jumpered, J12.6 (`ESTOP_N`), pulled up to the supply's + through 47 kΩ, reads
+     below 0.1 V. J12.5 (`RAIL_V`) reads 0.
+   - The supply's + through three 470 Ω in series on J12.2 (`SERVO_EN`; with R1, about an
+     ESP32 pin's base current): K1 clicks, LED2 lights, and `RAIL_V` reads about 2.1 V.
+   - Remove the J11 jumper: K1 drops, and `ESTOP_N` reads the supply voltage.
 3. **Check the inrush with the real load.** Wire the BMS and the pack, with the servos
    connected. Switch the rail on with `SERVO_EN` ten times.
    - The BMS must not trip, and the relay must open every time the E-stop is pressed.
