@@ -348,6 +348,14 @@ def make_parser():
                         "with --mimic-sway's lateral shift and no stride. 0 = the "
                         "reference is off during a march (a lifted command gates "
                         "w_mimic). Needs --mimic-lift, the gait clock, no --march-hz")
+    p.add_argument("--mimic-dwell", type=float, default=0.0, metavar="D",
+                   help="double support in the imitation reference and the --w-feet-phase "
+                        "targets: each half cycle keeps the swing foot down for its first "
+                        "and last D/2 and swings in the middle 1-D; with --mimic-sway the "
+                        "torso crosses over in the middle of that band and holds the full "
+                        "shift through the swing (the host stepper's shift-wait-lift shape; "
+                        "walker_env.dwell_swing). 0 = the plain clock. Slow --gait-freq by "
+                        "1-D to keep the swing duration")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -1061,6 +1069,8 @@ def build_env_kw(args):
         env_kw["mimic_sway_lead"] = args.mimic_sway_lead
     if getattr(args, "mimic_march", 0.0):
         env_kw["mimic_march"] = args.mimic_march
+    if getattr(args, "mimic_dwell", 0.0):
+        env_kw["mimic_dwell"] = args.mimic_dwell
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

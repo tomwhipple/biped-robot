@@ -689,6 +689,7 @@ class BimoMJXEnv:
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (walker_env.mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march
+        mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (walker_env.dwell_swing); 0 = the plain clock (bit-exact)
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -1360,6 +1361,9 @@ class BimoMJXEnv:
             if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
                 raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
                                  "(the reference follows the gait clock)")
+        self.mimic_dwell = float(mimic_dwell)
+        if self.mimic_dwell != 0.0 and not (0.0 < self.mimic_dwell < 0.8 and gait_clock):
+            raise ValueError("mimic_dwell must be in (0, 0.8) and needs the gait clock")
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -2091,6 +2095,16 @@ class BimoMJXEnv:
             return cmd3 * self._nominal_h
         return jp.where(moving, cmd3 * self._nominal_h, self._nominal_h - self._crouch_drop(cmd3))
 
+    def _dwell_swing(self, phase):
+        """JAX mirror of walker_env.dwell_swing: ((2,) swing envelopes L/R, lateral profile y)."""
+        a = 0.5 * np.pi * self.mimic_dwell
+        ph = jp.mod(phase, jp.pi)
+        left = jp.mod(phase, 2.0 * jp.pi) < jp.pi
+        u = jp.clip((ph - a) / (np.pi - 2.0 * a), 0.0, 1.0)
+        e = jp.sin(jp.pi * u)
+        y = jp.clip(jp.sin(phase) / float(np.sin(0.5 * a)), -1.0, 1.0)
+        return jp.stack([jp.where(left, e, 0.0), jp.where(left, 0.0, e)]), y
+
     def _mimic_ref(self, cmd, phase, freq, march=None):
         """Joint-space procedural gait reference (plan-v2 Phase B).
         Stride amplitude ~ KX*v_leg/f (foot excursion ~0.18 m leg * A matches
@@ -2106,6 +2120,9 @@ class BimoMJXEnv:
         d = self._default
         s, c = jp.sin(phase), jp.cos(phase)
         sw = jp.stack([jp.clip(s, 0.0, None), jp.clip(-s, 0.0, None)])
+        if self.mimic_dwell != 0.0:
+            # double-support dwell (walker_env.dwell_swing, mirrored here)
+            sw, y_dw = self._dwell_swing(phase)
         xn = jp.stack([-c, c])                 # foot fore-aft normal (L, R)
         A = jp.clip(1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2])
                     / f, -0.45, 0.45)
@@ -2138,8 +2155,9 @@ class BimoMJXEnv:
             g = jp.where(self._cmd_is_moving(cmd), 1.0, 0.0)
             if self.mimic_march != 0.0 and march is not None:
                 g = jp.where(march, 1.0, g)
-            roll = roll + self._sway_k * (-self.mimic_sway * g
-                                          * jp.sin(phase + self.mimic_sway_lead))
+            prof = (y_dw if self.mimic_dwell != 0.0
+                    else jp.sin(phase + self.mimic_sway_lead))
+            roll = roll + self._sway_k * (-self.mimic_sway * g * prof)
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain;
             # the ankle cancels the hip and knee (the knee axis is -y)
@@ -3659,6 +3677,10 @@ class BimoMJXEnv:
             # (left swings on sin(phase) > 0, right on the opposite half)
             rz_l = self.swing_height * jp.clip(jp.sin(gait_phase), 0.0, None)
             rz_r = self.swing_height * jp.clip(-jp.sin(gait_phase), 0.0, None)
+            if self.mimic_dwell != 0.0:
+                sw_d, _ = self._dwell_swing(gait_phase)
+                rz_l = self.swing_height * sw_d[0]
+                rz_r = self.swing_height * sw_d[1]
             z_l = data.geom_xpos[self._sole_gids[0]][2] - self._sole_z0
             z_r = data.geom_xpos[self._sole_gids[1]][2] - self._sole_z0
             r_phase = jp.exp(-((z_l - rz_l) ** 2 + (z_r - rz_r) ** 2)

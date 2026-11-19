@@ -237,6 +237,26 @@ def mimic_lift_coefs(model, sg_pitch=None, hmax=0.08, n=33):
     return np.array(ch), np.array(ck)
 
 
+def dwell_swing(phase, dwell):
+    """The gait clock's swing envelopes with a double-support DWELL (numpy; env_mjx mirrors it).
+
+    Returns (sw_L, sw_R, y). Each half cycle keeps the swing foot DOWN for its first and last
+    dwell/2 (both feet on the floor) and runs the sin-shaped swing in the middle 1 - dwell; L
+    swings on the half where sin(phase) > 0, as the plain clock. y in [-1, 1] is the lateral
+    shift profile: +1 = the torso fully over R (L swinging), -1 = over L; it crosses over in the
+    middle half of each double-support band and holds the full shift through the dwell and the
+    swing (the host stepper's gait: shift with both feet down, wait, raise, move, lower;
+    2026-11-19). dwell = 0 is NOT handled here (the callers keep the plain clip(+-sin) path, so
+    the default stays bit-exact)."""
+    a = 0.5 * np.pi * float(dwell)
+    ph = float(np.mod(phase, np.pi))
+    left = float(np.mod(phase, 2.0 * np.pi)) < np.pi
+    u = min(1.0, max(0.0, (ph - a) / (np.pi - 2.0 * a)))
+    e = float(np.sin(np.pi * u))
+    y = min(1.0, max(-1.0, float(np.sin(phase)) / float(np.sin(0.5 * a))))
+    return (e if left else 0.0), (0.0 if left else e), y
+
+
 def mimic_sway_coefs(model, sg_roll):
     """Calibration for the imitation reference's lateral weight shift
     (mimic_sway): per leg (L, R), the hip-roll offset from the home pose
@@ -905,6 +925,7 @@ class BimoWalkerEnv(gym.Env):
         mimic_sway: float = 0.0,         # m: imitation lateral torso shift toward the stance foot while walking (mimic_sway_coefs), 0 = none
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march (mirror of env_mjx)
+        mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (dwell_swing); 0 = the plain clock (bit-exact)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -1883,6 +1904,9 @@ class BimoWalkerEnv(gym.Env):
             if self.mimic_lift <= 0.0 or not gait_clock or float(march_hz) > 0.0:
                 raise ValueError("mimic_march needs mimic_lift > 0, gait_clock, and march_hz 0 "
                                  "(the reference follows the gait clock)")
+        self.mimic_dwell = float(mimic_dwell)
+        if self.mimic_dwell != 0.0 and not (0.0 < self.mimic_dwell < 0.8 and gait_clock):
+            raise ValueError("mimic_dwell must be in (0, 0.8) and needs the gait clock")
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -2354,6 +2378,10 @@ class BimoWalkerEnv(gym.Env):
         d = self._default
         s, c = np.sin(phase), np.cos(phase)
         sw = np.array([max(0.0, s), max(0.0, -s)])
+        if self.mimic_dwell != 0.0:
+            # double-support dwell (dwell_swing; mirror of env_mjx)
+            sw_l, sw_r, y_dw = dwell_swing(phase, self.mimic_dwell)
+            sw = np.array([sw_l, sw_r])
         xn = np.array([-c, c])
         A = np.clip(1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2])
                     / f, -0.45, 0.45)
@@ -2386,8 +2414,9 @@ class BimoWalkerEnv(gym.Env):
             g = 1.0 if self._cmd_is_moving(cmd) else 0.0
             if self.mimic_march != 0.0 and march:
                 g = 1.0
-            roll = roll + self._sway_k * (-self.mimic_sway * g
-                                          * np.sin(phase + self.mimic_sway_lead))
+            prof = (y_dw if self.mimic_dwell != 0.0
+                    else np.sin(phase + self.mimic_sway_lead))
+            roll = roll + self._sway_k * (-self.mimic_sway * g * prof)
         if self.mimic_sole_level:
             # sole pitch = sum of axis-sign * angle over the pitch chain
             s_h, s_k, s_a = self._sg_pitch
@@ -3470,6 +3499,10 @@ class BimoWalkerEnv(gym.Env):
         if self.w_feet_phase:
             rz_l = self.swing_height * max(0.0, float(np.sin(self._gait_phase)))
             rz_r = self.swing_height * max(0.0, float(-np.sin(self._gait_phase)))
+            if self.mimic_dwell != 0.0:
+                sw_l, sw_r, _ = dwell_swing(self._gait_phase, self.mimic_dwell)
+                rz_l = self.swing_height * sw_l
+                rz_r = self.swing_height * sw_r
             z_l = float(d.geom_xpos[self._sole_gids[0]][2]) - self._sole_z0
             z_r = float(d.geom_xpos[self._sole_gids[1]][2]) - self._sole_z0
             if cmd_moving:
