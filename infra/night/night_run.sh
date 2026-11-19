@@ -25,12 +25,21 @@ exec >> "$N/night.log" 2>&1
 # single-instance guard: an early manual start (user 2026-07-23 "start the
 # simulations now") must not collide with the 22:00 cron firing a second
 # runner over the same queue
-exec 9>"$N/.runner.lock"
-if ! flock -n 9; then
-  echo "=== $(date) night_run: another runner holds the lock; exiting ==="
-  exit 0
+# A runner re-exec'd by install_harness (below) inherits the held lock on fd 9
+# and must not reopen it: reopening closes the locked description and frees the
+# lock for a second runner.
+REEXEC=${HARNESS_REEXEC:-}; unset HARNESS_REEXEC
+if [[ -n $REEXEC && /proc/self/fd/9 -ef "$N/.runner.lock" ]]; then
+  echo "=== $(date) night_run: re-exec'd as the updated harness; lock held ==="
+else
+  REEXEC=
+  exec 9>"$N/.runner.lock"
+  if ! flock -n 9; then
+    echo "=== $(date) night_run: another runner holds the lock; exiting ==="
+    exit 0
+  fi
+  echo "=== $(date) night_run ==="
 fi
-echo "=== $(date) night_run ==="
 PY="$BASE/.venv/bin/python"
 [[ -x "$PY" ]] || { echo "!!! no venv python at $PY"; exit 1; }
 
@@ -43,33 +52,44 @@ PY="$BASE/.venv/bin/python"
 fix() {   # STEP LOG TIMEOUT_MIN <<< detail -> 0 if a Claude session fixed it
   "$N/claude_fix.sh" "$@"
 }
-# The harness scripts and the pre-flight live in the REPO (infra/night/);
-# $N mirrors them so the running copies never sit inside the tree (a reset
-# could rewrite them mid-run) and so jobs queued before an upgrade still
-# meet the code they were checked against. The mirror happens on every
-# runner start, so the clone updating itself also updates these copies.
+# The harness scripts live in the REPO (infra/night/); the cron lines fire the
+# copies in $N, so a feature branch checked out in the clone for a BRANCH= job
+# can never put its own night_stop/plan_morning/runner on the clock. This
+# mirrors infra/night/* into $N, once per runner start and only right after
+# `sync_repo main`: each file goes to a temp file in $N, then `mv -f` renames it
+# over the old one, so a script that is executing keeps its old inode. *.bak-*
+# files are skipped. Sets SELF_UPDATED when it replaced this runner's own file
+# (night_run.sh): the runner then re-execs the new copy once (HARNESS_REEXEC=1, the
+# lock on fd 9 stays held), so one night never mixes versions.
+SELF_UPDATED=
 install_harness() {
-  local f
+  local f b mode tmp
   mkdir -p "$N"
   for f in "$BASE"/infra/night/*; do
-    local b; b=$(basename "$f")
+    [[ -f $f ]] || continue
+    b=$(basename "$f")
     case "$b" in *.bak-*) continue;; esac
-    if ! cmp -s "$f" "$N/$b" 2>/dev/null; then
-      install -m 0755 "$f" "$N/$b.new.$$" && mv -f "$N/$b.new.$$" "$N/$b" \
-        && echo "$(date +%H:%M) harness: $b updated from the clone"
+    cmp -s "$f" "$N/$b" 2>/dev/null && continue
+    mode=0644; [[ -x $f ]] && mode=0755
+    tmp="$N/.$b.new.$$"
+    if install -m "$mode" "$f" "$tmp" && mv -f "$tmp" "$N/$b"; then
+      echo "$(date +%H:%M) harness: $b updated from the clone"
+      [[ $b == night_run.sh ]] && SELF_UPDATED=1
+    else
+      rm -f "$tmp"
+      echo "$(date +%H:%M) !!! harness: could not install $b into $N"
     fi
   done
 }
-# The training inputs are generated: the runner builds them after each sync
-# (issue #144). `make plant-data` (the plant and its CAD meshes + the terrain
-# mosaic) is incremental over build/, which git ignores and the reset leaves
-# alone; an up-to-date build costs seconds. While the repo still tracks the
-# STLs/plants this rewrites nothing that trains (rebuilds are byte-stable,
-# cad/stable_stl.py); after they leave git this is what puts them there.
-# NOT sim-data: the get-up refs are physics recordings, not rebuildable
-# artifacts (a re-record on a newer toolchain diverges from the trained
-# input; mk/sim.mk's plant-data comment). A failed build stops the runner.
+# The training inputs are generated (issue #144): the runner builds them with
+# `make plant-data` (the plant with its CAD meshes, and the terrain mosaic) in
+# the clone. build/ is gitignored and survives the sync's reset, so a build
+# with nothing stale costs seconds. NOT `sim-data`: the get-up references
+# (sim/getup_ref_v6ar*.npz) are physics recordings, not rebuildable artifacts;
+# a re-record on a newer toolchain diverges from the trained input
+# (mk/sim.mk, plant-data). Output goes to $N/make.log.
 build_inputs() {
+  echo "=== $(date) make plant-data @ $(git -C "$BASE" rev-parse --short HEAD)" >> "$N/make.log"
   if (cd "$BASE" && make plant-data PY="$PY") >> "$N/make.log" 2>&1; then
     echo "$(date +%H:%M) make plant-data ok"
   else
@@ -111,15 +131,44 @@ EOF
        "$(git -C "$BASE" rev-parse --short HEAD) -- the morning planner must flag every card from this job"
 }
 sync_repo main
-mkdir -p "$N/queue" "$N/queue/done" "$BASE/sim/runs"
-install_harness
-# Build tonight's inputs once up front, then after each job's sync (a
-# BRANCH= job may change them). A failed build must not train a job, so a
-# failure here stops the runner before pre-flight and leaves the queue
-# intact for the fixer.
-if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]' && ! build_inputs; then
-  echo "$(date +%H:%M) !!! no training inputs; the queue stays queued"
-  exit 1
+mkdir -p "$N/queue" "$N/queue/done" "$N/queue/held" "$BASE/sim/runs"
+if [[ -z $REEXEC ]]; then
+  install_harness
+  if [[ -n $SELF_UPDATED ]]; then
+    echo "$(date +%H:%M) harness: night_run.sh changed; re-exec'ing the new copy"
+    shopt -s execfail   # a failed exec keeps this (old) copy running
+    HARNESS_REEXEC=1 exec "$N/night_run.sh"
+    echo "$(date +%H:%M) !!! re-exec of night_run.sh failed; continuing with the old copy"
+  fi
+fi
+# Build tonight's inputs before pre-flight (it constructs the env from the
+# plant). If the build fails, a Claude session gets one try (fix step
+# build-inputs), then the clone is re-synced and the build runs once more; a
+# second failure refuses the
+# night exactly like a failed pre-flight. Each job rebuilds after its own sync
+# (below).
+if ls "$N/queue" 2>/dev/null | grep -qE '^[0-9]'; then
+  if ! build_inputs \
+     && ! { fix build-inputs "$N/make.log" 20 <<EOF
+night_run.sh's \`make plant-data\` failed in the training clone $BASE (on
+main) with a queue waiting, so no job can launch. Its output is $N/make.log.
+Fix the cause (a generator or CAD source error, a missing tool, a full disk)
+so that \`make plant-data PY=$PY\` succeeds in $BASE. The runner re-syncs the
+clone to origin/main after you exit (a hard reset: an edit in the clone that is
+not pushed is lost), then runs the build once more. Do not touch the get-up
+references (sim/getup_ref_v6ar*.npz): they are recordings, not build outputs.
+EOF
+            sync_repo main; build_inputs; }; then
+    echo "$(date +%H:%M) !!! make plant-data FAILED; refusing to launch the queue" \
+         "(see night/make.log). DM notify is OFF (Tom 2026-11-02);"
+    if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
+      "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+        "Night build FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/make.log; jobs are still queued but the runner refuses to burn the night on them." \
+        || true
+    fi
+    "$N/vision_pause.sh" resume 2>/dev/null || true
+    exit 1
+  fi
 fi
 # Tom 2026-10-23: "Make sure to always test these jobs before spending all
 # night on them." Pre-flight the queue BEFORE the first launch (and before
@@ -224,7 +273,7 @@ wait_gpu() {   # 0 = free; 1 = start deadline passed while waiting
 
 # re-scan the queue after every job (not a startup snapshot): jobs armed
 # while an earlier run trains are picked up the same night (2026-07-31)
-while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -n "$JOB" ]]; do
+while JOB=$(ls "$N/queue" 2>/dev/null | grep -vxE 'done|held' | sort | head -1); [[ -n "$JOB" ]]; do
   JF="$N/queue/$JOB"
   [[ -f "$JF" ]] || break   # vanished mid-scan; a continue would spin forever
   if (( $(date +%s) > START_DEADLINE )); then
@@ -238,8 +287,13 @@ while JOB=$(ls "$N/queue" 2>/dev/null | grep -v '^done$' | sort | head -1); [[ -
   BR=$(sed -n 's/^BRANCH=//p' "$JF" | head -1)
   sync_repo "${BR:-main}"
   if ! build_inputs; then
-    echo "no training inputs; $JOB stays queued"
-    break
+    # nothing trains on a half-built plant, and one bad branch must not burn
+    # the night: park this job and go on with the next
+    echo "$(date +%H:%M) !!! $JOB: make plant-data failed on ${BR:-main}; moved to queue/held/, next job"
+    printf '\n# held by runner %s: make plant-data failed on %s (night/make.log)\n' \
+      "$(date '+%F %H:%M')" "${BR:-main}" >> "$JF"
+    mv -f "$JF" "$N/queue/held/$JOB"
+    continue
   fi
   # CMD= jobs: run an arbitrary command from $BASE instead of train_mjx.py
   # (first need: nightly distill_student.py -- 2026-08-30, after two ad-hoc

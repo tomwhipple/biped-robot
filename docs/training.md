@@ -556,19 +556,25 @@ mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`. The
 harness runs as the user `claw`, out of `/home/claw/code/robot-mjx`.
 Training runs **at night only**; days belong to the box's owner.
 
-- **Window.** claw's cron starts the clone's own `infra/night/night_run.sh` at
-  22:00. No new job starts after 06:45 (start deadline 15 min before the hard
-  stop); `infra/night/night_stop.sh` stops a running job at 07:00, and the
-  last eval checkpoint stands. A `night/MARATHON_UNTIL` file (an epoch) holds
-  the 07:00 stop off for a sanctioned multi-day window.
-- **Harness in the repo (2026-11-19, #144).** Cron fires the scripts out of
-  the training clone's `infra/night/`; on every start the runner mirrors them
-  into the clone's untracked `night/` state directory (queue, logs, locks) so
-  the copies a job was checked against never change under it, and so a `git
-  reset` can never rewrite the executing script. `night_arm.sh` still rsyncs
-  the runner/stop/vision_pause copies as a bootstrap. Deploying a harness
-  change is a merge to `main` followed by the clone's next sync — no separate
-  install step.
+- **Window.** claw's cron starts `night/night_run.sh` at 22:00. No new job
+  starts after 06:45 (the start deadline is 15 min before the hard stop);
+  `night/night_stop.sh` stops a running job at 07:00, and the last eval
+  checkpoint stands. While `night/MARATHON_UNTIL` (an epoch) lies in the
+  future, `night_stop.sh` does nothing, so a sanctioned multi-day window is not
+  cut at 07:00.
+- **Harness in the repo.** The harness scripts (`infra/night/*`) are the source
+  of truth; cron fires their copies in `night/`, the clone's untracked state
+  directory (queue, logs, locks). At the start of each runner (`night_run.sh`,
+  `day_run.sh`), right after the sync to `main`, `install_harness` mirrors
+  `infra/night/*` into `night/`: each file is written to a temp file in
+  `night/` and renamed over the old one, so a running script is never
+  truncated; `*.bak-*` files are skipped. If that replaced the runner's own
+  file, the runner re-execs the new copy once (`HARNESS_REEXEC=1`) with the
+  `night/.runner.lock` flock still held, so one night runs one version of the
+  harness. A `BRANCH=` job never mirrors: a feature branch's harness is never
+  run, and cron never fires a script that a branch checkout could have
+  changed. Deploying a harness change is a merge to `main`; it takes effect at
+  the next runner start.
 - **GPU handover.** The daytime GPU owner is the camera-watcher classifier
   (`llama3.2-vision` via ollama). The runners call `infra/night/vision_pause.sh
   pause` before training, which pauses the classifier container and unloads
@@ -580,19 +586,24 @@ Training runs **at night only**; days belong to the box's owner.
   branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
   is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
   Anything not pushed does not train.
-- **The harness builds its inputs (#144).** After each sync the runner runs
-  `make plant-data` in the clone — the plant with its CAD meshes, plus the
-  terrain mosaic. `build/` is gitignored and survives the reset, so a sync
-  that changed nothing relevant costs seconds; a plant that left git is
-  rebuilt from its sources, byte-stable across machines (cad/stable_stl.py).
-  A failed build leaves the job queued (nothing trains on a missing or
-  half-built plant). The get-up references are *physics recordings*, not
-  rebuildable artifacts — a re-record on a newer toolchain can change the
-  trained input — so they stay tracked and out of the harness path
-  (`sim-data` still builds them by hand; mk/sim.mk's `plant-data` note).
+- **The harness builds its inputs (#144).** The runner runs `make plant-data`
+  in the clone (output in `night/make.log`): the plant with its CAD meshes, and
+  the seeded terrain mosaic. `build/` is gitignored and survives the sync's
+  reset, so a build with nothing stale costs seconds, and a rebuild is
+  byte-stable across machines (`cad/stable_stl.py`). It builds at runner start
+  when jobs are queued, before pre-flight; a failure there goes to
+  `claude_fix.sh` (step `build-inputs`) and one retry, and a second failure
+  refuses the night like a failed pre-flight. Each job rebuilds after its own
+  sync; a job whose build fails is moved to `queue/held/` with a note line,
+  and the runner goes on with the next job. The get-up references
+  (`sim/getup_ref_v6ar*.npz`) are *physics recordings*, not rebuildable
+  artifacts: a re-record on a different toolchain can diverge from the trained
+  input. They stay in git and out of the harness (`make sim-data` builds them
+  by hand).
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
-  <train_mjx.py args>` checks that the branch is pushed, installs the runner,
-  the stop and `vision_pause.sh` and their cron as claw, and queues a job file
+  <train_mjx.py args>` checks that the branch is pushed, writes claw's cron
+  lines (the `night/` copies of `night_run`, `night_stop`, `plan_morning` and
+  `ensure_queue`, and `infra/night_collect_local.sh`), and queues a job file
   `night/queue/<MMDDhhmmss>-<out>`. A job file holds a `BRANCH=` line and one
   line of arguments; lines starting `#` are notes (parent, variable,
   hypothesis), never arguments.
@@ -600,7 +611,8 @@ Training runs **at night only**; days belong to the box's owner.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
   `infra/night_distill.sh`, §9) through the same GPU gate. `--steps` is capped to what the remaining
-  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise).
+  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). A job
+  parked in `queue/held/` is not run.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
@@ -634,7 +646,7 @@ Training runs **at night only**; days belong to the box's owner.
   (07:00 to 22:00) starts nothing. Tests: `tests/test_night_continue.py`.
   `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
   from `night/fallback.job` with fresh seeds if the planner left it short.
-  Installed copies of both live beside the runner in `night/`.
+  Both run from their `night/` copies.
 - **Fix and continue.** When a harness step fails, `infra/night/claude_fix.sh`
   starts a headless Claude Code session (Opus) with the failure and the log
   tail, and waits for it. The step is retried once if the session reports

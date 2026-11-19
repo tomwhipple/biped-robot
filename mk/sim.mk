@@ -14,12 +14,11 @@ GETUP_REFS := sim/getup_ref_v6ar.npz sim/getup_ref_v6ar_prone.npz sim/getup_ref_
 
 plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) $(V6_HANG_PLANT) ## what the simulator loads: the dressed v6 plant (and the legs-only as-built one, both with the measured joint stops, the legs one with the measured sole friction, and the legs one hanging) and their CAD meshes
 	$(v6_parts_listed)
-# What the night harness builds (#144): the plant + the terrain. The get-up
-# references are NOT here -- they are physics recordings, not rebuildable
-# artifacts: a re-record on a newer toolchain can change the trained input
-# (committed final_up 0.996 vs a 2026-11-19 re-record's -0.020; tracked by
-# the follow-up to #144). sim-data still builds them by hand, below.
-plant-data: plant sim/terrain_mosaic.npz ## what the night harness builds before each job: plant + terrain (deterministic)
+# What the night harness builds (#144): the plant, its meshes and the terrain
+# mosaic. The get-up references are NOT here: they are physics recordings, not
+# rebuildable artifacts -- a re-record on a different toolchain can diverge
+# from the trained input. `sim-data` builds them, by hand.
+plant-data: plant sim/terrain_mosaic.npz ## what the night harness builds before each job: plant + meshes + the seeded terrain mosaic
 sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) ## the terrain and get-up references the trainer loads (slow; changes what trains -- run by hand, not from the harness)
 
 $(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)

@@ -3,16 +3,15 @@
 # nightly Mira window instead of RunPod). Since 2026-07-31 Mira's
 # ~/code/robot-mjx is a git clone and night_run.sh pulls the committed
 # tree before EVERY job -- this script no longer ships code. It verifies
-# the branch is pushed, installs the runner scripts + cron (idempotent),
-# and queues the train_mjx args.
+# the branch is pushed, installs the cron lines (idempotent), and queues the
+# train_mjx args.
 #
 # The harness runs as claw (moved from tw 2026-08-05); `ssh mira` lands as
 # tw, so every step on mira goes through `sudo -n -u claw`.
 #
-# Since 2026-11-19 (issue #144) the runner the cron fires is the clone's own
-# infra/night/night_run.sh -- crontab points into the git clone, and the
-# runner mirrors the scripts into the untracked night/ state dir on every
-# start, so an upgrade of the harness is a clone sync, not an rsync here.
+# Cron fires the scripts in night/ on mira (~claw/code/robot-mjx/night/), which
+# the runner mirrors from the clone's infra/night/ (main) at every start; this
+# script ships no scripts. A harness change is a merge to main.
 #
 # Usage: infra/night_arm.sh [--branch <name>] <train_mjx.py args>
 #   --branch: train a one-off from a pushed branch instead of main.
@@ -53,26 +52,25 @@ if [[ -n "$(git -C "$REPO" status --porcelain --untracked-files=no -- sim infra)
 fi
 echo "    origin/$BRANCH @ $(git -C "$REPO" rev-parse --short "origin/$BRANCH")"
 
-echo "=== installing runner scripts + cron on mira (idempotent) ==="
-# the runner lives OUTSIDE the clone (night/ is untracked) so a mid-run
-# git reset can never rewrite the executing script; the clone's
-# infra/night/ mirrors itself into night/ on every start. Crontab fires
-# the clone's own runner -- it exists only once this branch's
-# infra/night/ is on origin/main (it is: night_run.sh is tracked).
-rsync -qp --rsync-path="sudo -n -u claw rsync" \
-  "$HERE/night/night_run.sh" "$HERE/night/night_stop.sh" \
-  "$HERE/night/vision_pause.sh" "mira:$NIGHT/"
+echo "=== installing the cron lines on mira (idempotent) ==="
+# Cron fires the copies in night/ (the clone's untracked state directory), never
+# the clone's own infra/night/: a BRANCH= job checks a feature branch out in the
+# clone, and cron must not then run that branch's night_stop or plan_morning.
+# night/'s scripts are mirrored from main's infra/night/ by the runner at its
+# start (night_run.sh install_harness), so this script ships none.
 ssh mira "sudo -n -u claw bash -s" <<EOF
-chmod 755 $NIGHT/night_run.sh $NIGHT/night_stop.sh $NIGHT/vision_pause.sh
-TAB=\$(crontab -l 2>/dev/null | grep -v robot-mjx)
+for f in night_run night_stop plan_morning ensure_queue; do
+  [[ -x $NIGHT/\$f.sh ]] || { echo "!!! $NIGHT/\$f.sh is missing: the harness is not deployed (docs/training.md)"; exit 1; }
+done
+TAB=\$(crontab -l 2>/dev/null | grep -v -e robot-mjx -e night_collect_local || true)
 printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "\$TAB" \
-  "0 22 * * * $BASE/infra/night/night_run.sh" \
-  "0 7 * * * $BASE/infra/night/night_stop.sh" \
+  "0 22 * * * $NIGHT/night_run.sh" \
+  "0 7 * * * $NIGHT/night_stop.sh" \
   "15 7 * * * /home/claw/code/robot/infra/night_collect_local.sh" \
-  "30 7 * * * $BASE/infra/night/plan_morning.sh" \
-  "30 21 * * * $BASE/infra/night/ensure_queue.sh" \
-  "30 5 * * * $BASE/infra/night/plan_morning.sh" | crontab -
-crontab -l | grep robot-mjx
+  "30 7 * * * $NIGHT/plan_morning.sh" \
+  "30 21 * * * $NIGHT/ensure_queue.sh" \
+  "30 5 * * * $NIGHT/plan_morning.sh" | crontab -
+crontab -l | grep -e robot-mjx -e night_collect_local
 EOF
 
 OUT="job"
