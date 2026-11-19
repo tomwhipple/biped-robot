@@ -33,8 +33,10 @@ pack balance lead (J2) ─ BMS cell taps                                      �
     W2.
   - It switches the negative lead, so the system ground is its P−. The pack's balance lead
     goes only to the BMS, through J2.
-  - Its thresholds are not documented, so it is characterised on the bench before it goes in
-    the robot (below).
+  - Its thresholds are not documented. **On the bench it has no under-voltage cut-off**: its
+    output stayed on down to 2.13 V a cell
+    ([2026-11-19 record](../../docs/design-v6/2026-11-19-power-lite-bms-bench.md)). So it does
+    not protect the pack if the robot is left on, and a replacement is open (#207).
 - **The main switch** is a 20 A panel toggle on W6 and W7, in the power bay's switch pod
   (#213). It is marked 20 A 125 VAC, with no DC rating: carrying 15 A is within it, but
   breaking DC under load is not rated. So turn it off only after the E-stop has dropped the
@@ -319,6 +321,7 @@ The other parts use KiCad's stock models; LED1 uses the green one.
 
 ## Open
 
-- **The BMS bench check** (above).
+- **The pack's under-voltage protection:** the ShillehTek BMS has none (above). A replacement
+  BMS with a maker's specification, or a cut-off on the board, is open (#207).
 - **The torso mounting:** the power bay (#213) holds the board on the torso's aft bosses, the
   BMS on a bracket over its +y end, and the switches on the cap.
