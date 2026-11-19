@@ -779,7 +779,7 @@ PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 de
 # (clear of the B1+ pad's solder there) and 1.2 under its parts (BMS_EDGE
 # over its bottom edge); the BMS stands on its ledge right over the torso's
 # bottom, so the tab could not also pass under the PCB itself
-PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 2.9            # -71.01 its forward end
+PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 2.9            # -71.31 its forward end
 PCAP_TAB_H = V.BMS_Z[0] + V.BMS_EDGE - 1.2 - V.TORSO_BOT_Z             # 2.75 tall
 
 
@@ -842,7 +842,7 @@ PBR_SCREW_L = 6.0                 # M2.5 x 6 machine screws into each standoff's
 PBR_HOLES_YZ = [(y, z) for y, z in V.PWRB_HOLES_YZ if y > 0]           # H1 (top), H3 (bottom)
 PBR_EDGE_IN = (3.5, 2.5)          # the plate stops this far inside the BMS's -y edge (finger room at
                                   # the fuses) and +y edge (the skin)
-PBR_RIM_H = V.BMS_TAPE + V.BMS_PCB_T   # 2.2: the ledge and the hooks' risers stand to the PCB's aft face
+PBR_RIM_H = V.BMS_TAPE + V.BMS_PCB_T   # 2.5: the ledge and the hooks' risers stand to the PCB's aft face
 PBR_RIM_T = 1.6
 PBR_RIM_CLR = 0.3
 PBR_SPINE_HW = 4.5                # solid either side of the standoffs' line

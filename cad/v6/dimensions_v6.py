@@ -635,8 +635,8 @@ assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
 # The BMS: ShillehTek CF-3SJH25A-C ("3S 12V 18650 Lithium Battery Protection
 # Board with Balancing 25A", Tom 2026-11-02), wired to the board's W1-W5 (no
 # connectors). MEASURED (Tom, 2026-11-19, caliper): its PCB is 56.8 x 44.8 mm
-# (its silkscreen says 56 x 45), and its thickest part stands 4.0 mm with the
-# PCB. The PCB's own 1.2 is the silkscreen's, and the 2 mm part-free margin
+# (its silkscreen says 56 x 45), 1.5 mm thick (the silkscreen says 1.2), and
+# its thickest part stands 4.0 mm with the PCB. The 2 mm part-free margin
 # round its edge is still assumed. No drawing, no mounting holes, only the four corner pads,
 # live at pack potential, with a plated hole each (DS-NA405). It goes component
 # side aft on the bracket, held by its hooks over a foam pad, 45 across (y), its P+/P-
@@ -644,7 +644,7 @@ assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
 # B3 bottom -y, B1+ bottom +y, P- and P+ along the top edge.
 BMS_L = 56.8                                  # tall (z), measured
 BMS_W = 44.8                                  # across (y), measured
-BMS_PCB_T = 1.2
+BMS_PCB_T = 1.5                               # measured, 2026-11-19
 BMS_H = 4.0                                   # overall: PCB + its thickest part, measured
 BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
 BMS_MASS = 15.0                               # the listing's
