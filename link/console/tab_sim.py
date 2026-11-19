@@ -282,7 +282,9 @@ class SimTab(QtWidgets.QWidget):
             fl = "flight rec off (this sil_twin has no --flight)"
         else:
             fl = "flight rec off (port 0)"
-        self.ports.setText(f"cmd {p.cmd_port} · tlm {p.tlm_port} · stream {o.stream_port} · {fl}")
+        # Two lines: on one, the mono text was 657 px wide in DejaVu Sans Mono and pushed
+        # the tab past its pane at 1280 x 800 (test_every_tab_fits_its_pane on Linux).
+        self.ports.setText(f"cmd {p.cmd_port} · tlm {p.tlm_port} · stream {o.stream_port}\n{fl}")
         lead = "listening on " if sim.proc.running() else "Start listens on "
         self.ports_why.setText(lead + p.why
                                + ("" if p.own or p.flight is None else
