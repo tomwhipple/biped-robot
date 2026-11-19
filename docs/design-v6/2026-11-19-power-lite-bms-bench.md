@@ -41,6 +41,35 @@ as the cell divider, one 1 kΩ across P+ and P− as the load.
 - **Not run:** 1.5 (no trip to recover from), 1.6 as written, and 1.7 (12 A for 2 s).
 - **The standing current is negligible:** 5 µA would take decades to drain the 4.2 Ah pack.
 
+## The board is not the one its datasheet describes
+
+![The BMS as received](figs/2026-11-19-bms-board.jpg)
+
+| | DS-NA405 (CF-3SJH25A-C) | the board received |
+|---|---|---|
+| MOSFETs | NIKO-SEM P75N02LDG | eight marked "A09 N03N" (one "B09 N03"), another maker's logo |
+| shunts | two R004 (4 mΩ) | two R005 (5 mΩ) |
+| tap labels | B−, B3 3.7V, B2 7.4V, B1+ 11.1V | B−, B1, B2, B+, no voltages printed |
+| other | — | a 2-pin "T" connection |
+
+- **The taps number upward on this board:** B1 is the bottom cell (3.7 V), B+ the pack's top.
+  bringup.md and the assembly guide follow the datasheet (B3 = 3.7 V, B1+ = 11.1 V), which
+  does not match this board.
+- **Each cell has two 6-pin chips**, two SOT-23 transistors and a 100 Ω (101) bleed resistor;
+  the chips' markings are not legible in the photo, so what they are and their thresholds are
+  not known.
+
+## It was not damaged
+
+Rechecked after the sweep, at 11.1 V with the 1 kΩ load, all by the meter: B+–B− 11.1 V,
+B2–B− 7.4 V, B1–B− 3.7 V, P+–P− 11.1 V, **B−–P− 0 V**. The taps were wired by voltage, the
+cells were equal, and the MOSFETs are fully on. The supply may have reached about 14 V (4.7 V a
+cell) at some point, well inside what such parts take; Tom saw the output held below the supply
+when it was high, which fits an over-charge cut-off switching the charge MOSFETs off. So the
+board works as built, and it was built without an under-voltage cut-off at or above 2.13 V a
+cell. A later 1–2 V gap between the supply's display and P+/P− was not across the BMS (B−–P−
+read 0 V).
+
 ## Bench notes
 
 - **The lab supply's current display reads low at milliamps.** It showed 6 mA where 11.11 V
