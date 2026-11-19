@@ -772,7 +772,6 @@ PCAP_VENT_Y = (-50.0, 50.0)       # its vent slots, either side of the switch po
 SWP_SCREWS_YZ = [(sy * (V.SWP_HW - V.SWP_SIDE / 2), ez) for sy in (1, -1) for ez in (-12.0, -62.0)]   # in the
                                   # switch pod's side walls' front edges
 SWP_SCREW_L = 8.0                 # M2.5 x 8 flat head, in through the cap's plate from inside: 5.4 into an ear
-PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 deep, as the flat cover's
 # the TAB in the cap's +y bottom corner (Tom, 2026-11-18): a tongue as wide
 # as a corner block that reaches forward inside the +y skin, so that corner is
 # held to the skin like the other three. It stops 2.9 short of the BMS's PCB
@@ -854,30 +853,32 @@ PWRB_SO_R = 2.9                   # a standoff's 5 mm (M2.5) hex, round its corn
 # over the PCB's aft face, inside its part-free margin (BMS_EDGE, 2.0), its
 # catch face PBR_HOOK_CLR off it: the foam tape (now a pad between the PCB and
 # the plate, clear of the edges) presses the board back onto the catches.
-# The top hook is fixed; the bottom two and the -y one are snaps on beams cut
-# free of the plate, each with a 45 deg ramp facing the way the board comes.
-# The board goes in top edge first, tilted, under the top hook, then swings
-# in about it: the snaps' ramps let its bottom and -y edges by and they click
-# over them. To take it out, press the snaps off (the bottom two down, the -y
-# one outward) and swing it out. Every catch face is a ledge of 1.1 (<=
-# check_printability LEDGE_OK) as it prints, plate down.
+# The two top hooks are fixed; the bottom two are snaps on beams cut free of
+# the plate, each with a 45 deg ramp facing the way the board comes. The board
+# goes in top edge first, tilted, under the top hooks, then swings in about
+# them: the snaps' ramps let its bottom edge by and they click over it. To
+# take it out, press the snaps down and swing it out. A solid stop beside its
+# -y edge, low on the bracket, locates it across (the +y skin is the other
+# side). Every catch face is a ledge of 1.1 (<= check_printability LEDGE_OK)
+# as it prints, plate down.
 PBR_HOOK_OVER = 0.8
 PBR_HOOK_CLR = 0.1
 PBR_HOOK_T = 1.2                  # the lips' thickness (x)
 PBR_SLOT = 0.6                    # the printed slot round a snap beam
-PBR_TOP_HOOK_Y = (41.5, 46.5)     # over its top edge, between its P+ and B2 pads (the old top stop's place)
+# over its top edge: one between its P+ and B2 pads, one between the 14 AWG
+# pair's run over the edge (y <= 26.5) and the top standoff's pad
+PBR_TOP_HOOKS_Y = ((27.5, 32.5), (41.5, 46.5))
 PBR_PAD_Y = (PBR_HOLES_YZ[0][0] - PBR_PAD_HW, PBR_HOLES_YZ[0][0] + PBR_PAD_HW)    # 33.04..40.64
 # the bottom snaps, on the ledge's two outer stretches either side of the
 # bottom standoff's pad: (root's inner end y, hook y0, y1, beam thickness z).
 # Their hooks keep clear of the corner pads B3 and B1+.
 PBR_SNAPS_BOT = ((V.BMS_Y[0] + PBR_EDGE_IN[0] + 1.5, PBR_PAD_Y[0] - PBR_SLOT - 4.0, PBR_PAD_Y[0] - PBR_SLOT, 1.2),
                  (V.BMS_Y[1] - PBR_EDGE_IN[1] - 1.5, PBR_PAD_Y[1] + PBR_SLOT, PBR_PAD_Y[1] + PBR_SLOT + 2.5, 1.0))
-# the -y snap: a beam standing along z beside the BMS's -y edge, rooted on a
-# bar off the plate at its bottom, its hook at its top end below F2 and
-# clear of W7's lead (the old side stop's place)
-PBR_SNAP_SIDE_T = 1.2
-PBR_SNAP_SIDE_ROOT_Z = (-61.5, -60.0)
-PBR_SNAP_SIDE_HOOK_Z = (-49.0, -45.0)
+# the -y stop: a block beside the BMS's -y edge, from the plate's forward face
+# to the PCB's aft face, on a bar off the plate along its whole height; low,
+# clear of the fuses and W7's lead
+PBR_STOP_SIDE_T = 1.6
+PBR_STOP_SIDE_Z = (-61.5, -55.0)
 
 
 def _xc():
@@ -889,24 +890,21 @@ def pbr_snap_strains():
     """{name: peak bending strain} of each snap beam deflected by its lip's
     reach over the board (PBR_HOOK_OVER): a cantilever from its root to its
     hook's middle, t its thickness in the way it bends."""
-    out = {}
-    for k, (root, h0, h1, t) in zip(("bottom -y", "bottom +y"), PBR_SNAPS_BOT):
-        out[k] = 1.5 * t * PBR_HOOK_OVER / abs((h0 + h1) / 2 - root) ** 2
-    L = (sum(PBR_SNAP_SIDE_HOOK_Z) / 2) - PBR_SNAP_SIDE_ROOT_Z[1]
-    out["-y edge"] = 1.5 * PBR_SNAP_SIDE_T * PBR_HOOK_OVER / L ** 2
-    return out
+    return {k: 1.5 * t * PBR_HOOK_OVER / abs((h0 + h1) / 2 - root) ** 2
+            for k, (root, h0, h1, t) in zip(("bottom -y", "bottom +y"), PBR_SNAPS_BOT)}
 
 
 def power_bracket_v8(snaps=True):
     """THE BMS BRACKET: a plate on the two M2.5 standoffs in the power
     board's +y holes, held by an M2.5 x 6 button head at the top and an
     M2.5 x 6 flat head at the bottom (under the BMS), and the BMS on it component side aft on a
-    foam pad (dimensions_v6 BMS_*), held by four hooks (PBR_HOOK_*): fixed
-    over its top edge, snaps under its bottom edge and at its -y edge. A ledge
-    under its bottom edge carries it. Two windows leave its bare side to the
-    air; its four corner pads overhang the plate, so their wires come up to
-    them from the board. snaps=False leaves the three snap lips off (the
-    install sweep: they ride aside by design)."""
+    foam pad (dimensions_v6 BMS_*), held by four hooks (PBR_HOOK_*): two
+    fixed over its top edge, two snaps under its bottom edge. A ledge under
+    its bottom edge carries it, and a stop beside its -y edge locates it
+    across. Two windows leave its bare side to the air; its four corner pads
+    overhang the plate, so their wires come up to them from the board.
+    snaps=False leaves the two snap lips off (the install sweep: they ride
+    aside by design)."""
     xf, xa = V.PBR_X
     xc = _xc()
     xl = xc - PBR_HOOK_T                                               # the lips' aft faces
@@ -914,7 +912,7 @@ def power_bracket_v8(snaps=True):
     y0, y1 = V.BMS_Y[0] + PBR_EDGE_IN[0], V.BMS_Y[1] - PBR_EDGE_IN[1]
     zl1 = V.BMS_Z[0] - PBR_RIM_CLR                                     # the ledge's top
     zl0 = zl1 - PBR_RIM_T
-    zt0 = V.BMS_Z[1] + PBR_RIM_CLR                                     # the top hook's underside
+    zt0 = V.BMS_Z[1] + PBR_RIM_CLR                                     # the top hooks' underside
     p = box(xa, xf, y0, y1, zl0, V.BMS_Z[1])
     hy, hz_bot = min(PBR_HOLES_YZ, key=lambda h: h[1])
     p += box(xa, xf, *PBR_PAD_Y, V.BMS_Z[1] - 1.0, V.PWRB_TOP_Z)
@@ -931,20 +929,18 @@ def power_bracket_v8(snaps=True):
         p -= box(xr[1] - 1, xf + 1, *free, zl1, zl1 + PBR_SLOT)        # over the beam
         p -= box(xr[1] - 1, xf + 1, *free, zl0 - 1, zl1 - t)           # under it: thinned to t
         p -= box(xr[1] - 1, xf + 1, *gap, zl0 - 1, zl1 + PBR_SLOT)     # its free end off the pad
-    # the top hook: the plate up over the top edge, a riser to the catch, the lip down over the PCB
-    ty0, ty1 = PBR_TOP_HOOK_Y
-    p += box(xa, xf, ty0, ty1, V.BMS_Z[1] - 1.0, zt0 + PBR_RIM_T)
-    p += box(xa + 0.3, xc, ty0, ty1, zt0, zt0 + PBR_RIM_T)
-    p += box(xc, xl, ty0, ty1, V.BMS_Z[1] - PBR_HOOK_OVER, zt0 + PBR_RIM_T)
-    zb = V.BMS_Z[1] - PBR_HOOK_OVER                                    # a lead-in on its lip's aft bottom edge
-    p -= wedge_y([(xl - 0.01, zb - 0.01), (xl + 0.6, zb - 0.01), (xl - 0.01, zb + 0.6)], ty0 - 1, ty1 + 1)
-    # the -y snap: a bar off the plate, the beam up from it beside the edge
+    # the top hooks: the plate up over the top edge, a riser to the catch, the lip down over the PCB
+    zb = V.BMS_Z[1] - PBR_HOOK_OVER                                    # a lead-in on each lip's aft bottom edge
+    for ty0, ty1 in PBR_TOP_HOOKS_Y:
+        p += box(xa, xf, ty0, ty1, V.BMS_Z[1] - 1.0, zt0 + PBR_RIM_T)
+        p += box(xa + 0.3, xc, ty0, ty1, zt0, zt0 + PBR_RIM_T)
+        p += box(xc, xl, ty0, ty1, zb, zt0 + PBR_RIM_T)
+        p -= wedge_y([(xl - 0.01, zb - 0.01), (xl + 0.6, zb - 0.01), (xl - 0.01, zb + 0.6)], ty0 - 1, ty1 + 1)
+    # the -y stop: a bar off the plate to beside the edge, the block on it out to the PCB's aft face
     ys1 = V.BMS_Y[0] - PBR_RIM_CLR
-    ys0 = ys1 - PBR_SNAP_SIDE_T
-    p += box(xa, xf, ys0, y0 + 1.0, *PBR_SNAP_SIDE_ROOT_Z)
-    p += box(xa, xf, ys0, ys1, PBR_SNAP_SIDE_ROOT_Z[0], PBR_SNAP_SIDE_HOOK_Z[1])
-    p += box(xa + 0.3, xr[1], ys0, ys1, PBR_SNAP_SIDE_ROOT_Z[1], PBR_SNAP_SIDE_HOOK_Z[1])
-    p += box(xf, xr[1], ys0 - 0.5, ys0, PBR_SNAP_SIDE_HOOK_Z[0] - 1.5, PBR_SNAP_SIDE_HOOK_Z[1])   # its tip, 0.5 thicker
+    ys0 = ys1 - PBR_STOP_SIDE_T
+    p += box(xa, xf, ys0, y0 + 1.0, *PBR_STOP_SIDE_Z)
+    p += box(xr[1], xf, ys0, ys1, *PBR_STOP_SIDE_Z)
     if snaps:
         for root, h0, h1, t in PBR_SNAPS_BOT:
             zo = V.BMS_Z[0] + PBR_HOOK_OVER
@@ -952,11 +948,6 @@ def power_bracket_v8(snaps=True):
             p += box(xc, xl, h0, h1, zl1, zo)
             # the ramp: 45 deg, facing aft and up, from the lip's aft face at the ledge's top
             p -= wedge_y([(xl - 0.01, zl1), (xl - 0.01, zo + 0.01), (xl + (zo - zl1), zo + 0.01)], h0 - 1, h1 + 1)
-        z0, z1 = PBR_SNAP_SIDE_HOOK_Z
-        yo = V.BMS_Y[0] + PBR_HOOK_OVER
-        p += box(xr[1], xl, ys0, ys1, z0, z1)
-        p += box(xc, xl, ys0, yo, z0, z1)
-        p -= wedge_z([(xl - 0.01, ys1), (xl - 0.01, yo + 0.01), (xl + (yo - ys1), yo + 0.01)], z0 - 1, z1 + 1)
     for sy, sz in PBR_HOLES_YZ:
         p -= cyl_x(D.CASE_SCREW_CLEAR / 2, xf + 1, xa - 1, sy, sz)
         if sz == hz_bot:                                               # under the BMS: flush
@@ -1623,13 +1614,13 @@ POWER_BAY_GAPS = (("the cap over the board's parts (K1 2.0 under its plate)", "c
                   ("the switch pod vs the cap's vent slot", "pod", "vent", 2.0))
 
 
-BMS_TILT = 25.0         # deg: the BMS's tilt as its top edge goes under the bracket's top hook
+BMS_TILT = 25.0         # deg: the BMS's tilt as its top edge goes under the bracket's top hooks
 
 
 def bms_swing_poses(n=30):
     """The BMS's way onto its bracket, as (deg, dx, dz) about its PCB's
     bare-face top corner: in from aft tilted BMS_TILT (its bottom out aft) and
-    low enough to pass under the top hook's lip, to the plate (the foam pad
+    low enough to pass under the top hooks' lips, to the plate (the foam pad
     pressed), up so its top edge is under the hook, then swung in, rising the
     last 0.3 to its seat."""
     lift, low = -PBR_RIM_CLR, -(PBR_HOOK_OVER + PBR_RIM_CLR + 0.7)
@@ -1655,7 +1646,7 @@ def _bms_swing(bms, fixed, tol=0.5):
         if v > worst:
             worst, at = v, (a, dx, dz)
     ok = worst < tol
-    print(f"  BMS onto its bracket, top edge under the top hook, swung in (snap lips aside): worst intersection "
+    print(f"  BMS onto its bracket, top edge under the top hooks, swung in (snap lips aside): worst intersection "
           f"{worst:.2f} mm3{'' if at is None else ' at %.1f deg, dx %.2f, dz %.2f' % at} ({'PASS' if ok else 'FAIL'})")
     return ok
 
@@ -1666,7 +1657,7 @@ def check_fits(pieces):
       standoffs (front cover off), and the power board from aft (the cap
       off), each with its parts and its solder side; then, from aft, the
       balance park onto the aft wall, the BMS bracket onto its two standoffs,
-      the BMS onto the bracket (top edge under its top hook, swung in) and
+      the BMS onto the bracket (top edge under its top hooks, swung in) and
       the cap over them;
     - the pelvis goes up into the torso from below -- the barbs are left out,
       they ride the webs by design (SNAP_BARB);
@@ -1945,15 +1936,15 @@ def render_power_bay(pieces, out_dir):
 def render_bms_hooks(pieces, out_dir):
     """power_bay_hooks_v8.png: close-ups for the hooks, the inserts and the
     cap's fourth tab: the bracket alone from aft and -y; the BMS on it from
-    aft; a section at y = 30.4 through the bottom -y snap and the top hook
-    (seen from -y); a section at z = -47 through the -y snap (seen from
+    aft; a section at y = 30.4 through the bottom -y snap and the -y top hook
+    (seen from -y); a section at z = -58 through the -y stop (seen from
     above); the power board's bosses with their inserts, the board off (from
     aft); the cap from inside, its fourth corner's tab at the lower left."""
     pel, tor, pc, br = (pieces[n] for n in ("pelvis_v8", "torso_v8", "power_cover_v8", "power_bracket_v8"))
     so, bms, ins = mock_pwrb_standoffs(), mock_bms(), mock_pwrb_inserts()
     aft = box(-120.0, -20.0, -200, 200, -200, 200)
     ysec = box(-200, 200, -200, sum(PBR_SNAPS_BOT[0][1:3]) / 2, -200, 200)
-    zsec = box(-200, 200, -200, 200, -200, sum(PBR_SNAP_SIDE_HOOK_Z) / 2)
+    zsec = box(-200, 200, -200, 200, -200, sum(PBR_STOP_SIDE_Z) / 2)
     pcb, parts = mock_pwrb_split()
 
     def cut(parts_, keep):

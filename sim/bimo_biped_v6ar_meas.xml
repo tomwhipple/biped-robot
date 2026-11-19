@@ -87,7 +87,7 @@
     <!-- torso origin = hip yaw axis height, on the centreline -->
       <body name="torso" pos="0 0 0.39147">
       <freejoint/>
-        <inertial pos="-0.0162 0.0007 0.0483" quat="0.7062 0.0149 -0.0226 -0.7075" mass="1.1381" diaginertia="2.3241e-03 3.2667e-03 3.5380e-03"/>
+        <inertial pos="-0.0162 0.0007 0.0483" quat="0.7063 0.0148 -0.0226 -0.7074" mass="1.1381" diaginertia="2.3243e-03 3.2668e-03 3.5382e-03"/>
         <geom name="torso_cad_pelvis_v8" class="cad" mesh="cad_pelvis_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_torso_v8" class="cad" mesh="cad_torso_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>
         <geom name="torso_cad_front_cover_v8" class="cad" mesh="cad_front_cover_v8" pos="0.00000 0.00000 0.07380" rgba="0.82 0.84 0.87 1"/>

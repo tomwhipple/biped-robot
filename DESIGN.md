@@ -415,9 +415,9 @@ machine screws and standoffs into heat-set inserts (Tom, 2026-11-18).
   standoffs, an M2.5 × 6 button head and an M2.5 × 6 flat head), component side
   aft on a foam pad, 18.5 mm off the board: over J1, J2 and the W pads, beside
   the fuses (1.0 mm past their ends, 2.2 mm over their tops), 0.9 mm off the
-  +y skin. A ledge carries it, and four hooks hold it: a fixed one over its
-  top edge, snaps under its bottom edge and at its −y edge, each lip 0.8 mm
-  over its PCB. It stands on the ledge just over the torso's bottom, which
+  +y skin. A ledge carries it, and four hooks hold it, each lip 0.8 mm over
+  its PCB: two fixed over its top edge and two snaps under its bottom edge. A
+  solid stop beside its −y edge locates it across. It stands on the ledge just over the torso's bottom, which
   leaves 7.75 mm over its top edge for its two 14 AWG wires. The cap is
   6.2 mm off its parts.
 - **The balance lead:** J2 is under the BMS and below the door's sill, so a

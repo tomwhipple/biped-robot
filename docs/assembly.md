@@ -523,19 +523,19 @@ the main switch and the E-stop side by side in the **switch pod**
    BMS, so it goes in first), and an **M2.5 × 6 button head** into the top
    one.
 5. **The BMS** onto the bracket, component side aft. It is held by **four
-   hooks** whose lips reach 0.8 mm over its PCB's aft face: a fixed hook over
-   its top edge, two snaps under its bottom edge and one at its −y edge.
+   hooks** whose lips reach 0.8 mm over its PCB's aft face: two fixed hooks
+   over its top edge and two snaps under its bottom edge. A solid stop beside
+   its −y edge, low on the bracket, locates it across.
    - Stick a 1 mm foam pad on its bare side, clear of its edges by 4 mm. The
      pad presses it back onto the hooks so it cannot rattle; it does not
      need to hold.
-   - Tilt it about 25°, its bottom out toward you. Put its top edge in under
-     the top hook: low enough to pass under the lip, then up against the
-     bracket.
-   - Swing its bottom in. The two bottom snaps and the −y snap ride aside on
-     their ramps and click over its edges.
-   - **To take it out:** press the two bottom snaps down and the −y snap
-     outward (−y), swing its bottom out, and lift its top edge out of the
-     top hook.
+   - Tilt it about 25°, its bottom out toward you, its −y edge against the
+     stop. Put its top edge in under the two top hooks: low enough to pass
+     under the lips, then up against the bracket.
+   - Swing its bottom in. The two bottom snaps ride aside on their ramps and
+     click over its edge.
+   - **To take it out:** press the two bottom snaps down, swing its bottom
+     out, and lift its top edge out of the top hooks.
    - The +y skin is 0.9 mm off its other edge, and the cap is 2.2 mm off its
      parts.
    - Its four corner pads carry pack voltage: nothing metal may touch them.

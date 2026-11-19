@@ -559,7 +559,6 @@ HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
-PWRB_HOLE_D = 2.7                             # M2.5, as made
 PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_M25_D): 2.1 of wall
 PWRB_T = 1.6
 PWRB_UNDER = 2.5                              # THT leads below the board
@@ -573,8 +572,6 @@ PWRB_BOT_Z = PWRB_TOP_Z - PWRB_OUTLINE[1]     # -70.0
 assert PWRB_BOT_Z >= TORSO_BOT_Z, "power board hangs below the torso"
 PWRB_HOLES_YZ = [(y, z) for y in (PWRB_Y[0] + PWRB_HOLE_INSET, PWRB_Y[1] - PWRB_HOLE_INSET)
                  for z in (PWRB_BOT_Z + PWRB_HOLE_INSET, PWRB_TOP_Z - PWRB_HOLE_INSET)]
-# room beside the board's +y edge for the pack's XT60 plug and the loop of its lead
-PWRB_XT60_ROOM = TORSO_IN_HW - PWRB_Y[1]      # 17.42
 
 
 def pwrb_yz(bx, by):
