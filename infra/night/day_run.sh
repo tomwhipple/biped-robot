@@ -57,12 +57,14 @@ install_harness() {
   done
 }
 # The training inputs are generated: build them after the sync (issue #144).
-# Incremental over build/; a failed build must not train a job.
+# `make plant-data` (the plant and its CAD meshes + the terrain mosaic) is
+# incremental over build/; a failed build must not train a job. NOT sim-data:
+# the get-up refs are physics recordings, not rebuildable artifacts.
 build_inputs() {
-  if (cd "$BASE" && make plant sim-data PY="$PY") >> "$N/make.log" 2>&1; then
-    echo "$(date +%H:%M) make plant sim-data ok"
+  if (cd "$BASE" && make plant-data PY="$PY") >> "$N/make.log" 2>&1; then
+    echo "$(date +%H:%M) make plant-data ok"
   else
-    echo "$(date +%H:%M) !!! make plant sim-data failed (night/make.log)"
+    echo "$(date +%H:%M) !!! make plant-data failed (night/make.log)"
     return 1
   fi
 }

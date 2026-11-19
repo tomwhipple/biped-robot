@@ -581,12 +581,15 @@ Training runs **at night only**; days belong to the box's owner.
   is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
   Anything not pushed does not train.
 - **The harness builds its inputs (#144).** After each sync the runner runs
-  `make plant sim-data` in the clone. `build/` is gitignored and survives the
-  reset, so a sync that changed nothing relevant costs seconds; a plant or
-  reference that left git is rebuilt from its sources. A failed build leaves
-  the job queued (nothing trains on a missing or half-built plant). What the
-  envs and the referee load is the generated output
-  (`build/v6/stl`, `build/v6/sim`), never a committed copy.
+  `make plant-data` in the clone — the plant with its CAD meshes, plus the
+  terrain mosaic. `build/` is gitignored and survives the reset, so a sync
+  that changed nothing relevant costs seconds; a plant that left git is
+  rebuilt from its sources, byte-stable across machines (cad/stable_stl.py).
+  A failed build leaves the job queued (nothing trains on a missing or
+  half-built plant). The get-up references are *physics recordings*, not
+  rebuildable artifacts — a re-record on a newer toolchain can change the
+  trained input — so they stay tracked and out of the harness path
+  (`sim-data` still builds them by hand; mk/sim.mk's `plant-data` note).
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
   <train_mjx.py args>` checks that the branch is pushed, installs the runner,
   the stop and `vision_pause.sh` and their cron as claw, and queues a job file

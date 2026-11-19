@@ -61,18 +61,19 @@ install_harness() {
   done
 }
 # The training inputs are generated: the runner builds them after each sync
-# (issue #144). `make plant sim-data` is incremental over build/, which git
-# ignores and the reset leaves alone; an up-to-date build costs seconds.
-# While the repo still tracks the STLs/plants/npz refs this rewrites nothing
-# that trains (rebuilds are byte-stable, cad/stable_stl.py); after they
-# leave git this is what puts them there. A target that needs OCC (the v6
-# STLs, the plant) soft-fails on a machine without the CAD stack only until
-# PR2 lands; check with `make plant` in a scratch clone first.
+# (issue #144). `make plant-data` (the plant and its CAD meshes + the terrain
+# mosaic) is incremental over build/, which git ignores and the reset leaves
+# alone; an up-to-date build costs seconds. While the repo still tracks the
+# STLs/plants this rewrites nothing that trains (rebuilds are byte-stable,
+# cad/stable_stl.py); after they leave git this is what puts them there.
+# NOT sim-data: the get-up refs are physics recordings, not rebuildable
+# artifacts (a re-record on a newer toolchain diverges from the trained
+# input; mk/sim.mk's plant-data comment). A failed build stops the runner.
 build_inputs() {
-  if (cd "$BASE" && make plant sim-data PY="$PY") >> "$N/make.log" 2>&1; then
-    echo "$(date +%H:%M) make plant sim-data ok"
+  if (cd "$BASE" && make plant-data PY="$PY") >> "$N/make.log" 2>&1; then
+    echo "$(date +%H:%M) make plant-data ok"
   else
-    echo "$(date +%H:%M) !!! make plant sim-data failed (night/make.log)"
+    echo "$(date +%H:%M) !!! make plant-data failed (night/make.log)"
     return 1
   fi
 }
