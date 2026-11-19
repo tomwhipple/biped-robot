@@ -489,8 +489,8 @@ void testClockWrap() {
     CHECK_EQ(static_cast<int>(h.fault()), static_cast<int>(Fault::kStuck));
 }
 
-// A commander's ESTOP frame takes the rail from any state, and it stays refused while
-// the commander holds the flag.
+// A commander's ESTOP edge takes the rail from any state; a flag held after that
+// blocks nothing (Tom 2026-11-19, #229: no human needed at the console).
 void testCommanderEstopFrame() {
     uint32_t now = 5000;
     Guard on = railOn(now);
@@ -517,7 +517,8 @@ void testCommanderEstopFrame() {
     settling.commanderFrame(true);
     CHECK(!settling.servoEn());
 
-    // Held: no request gets through, so a doomed one does not click K1.
+    // Just pressed: refused for a moment, so a request in flight does not click K1
+    // right after the stop.
     now = 5000;
     Guard g = booted(now);
     g.commanderFrame(true);
@@ -525,17 +526,67 @@ void testCommanderEstopFrame() {
     CHECK(!g.servoEn());
     feed(g, now, 100, false, 0);
     g.commanderFrame(true);
-    feed(g, now, railguard::kCommanderEstopHoldMs - 2 * kDt, false, 0);
+    feed(g, now, railguard::kCommanderEstopHoldMs - 100 - 2 * kDt, false, 0);
+    g.commanderFrame(true);
     CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
     CHECK(!g.servoEn());
 
-    // Let go: the very next frame without the flag.
+    // Let go at once: the refusal ends with the flag.
+    uint32_t qnow = 5000;
+    Guard quick = booted(qnow);
+    quick.commanderFrame(true);
+    CHECK_EQ(static_cast<int>(quick.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+    quick.commanderFrame(false);
+    CHECK_EQ(static_cast<int>(quick.requestOn()), static_cast<int>(Verdict::kOk));
+
+    // Held past that: the console was left E-stopped. The wireless reset, `rail on`
+    // and the pick-up's home power the rail, and the held flag does not take it back.
+    feed(g, now, 4 * kDt, false, 0);
+    g.commanderFrame(true);
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kOk));
+    CHECK(g.servoEn());
+    for (int i = 0; i < 40; ++i) {          // 2 s of frames at 20 Hz, rail coming up
+        feed(g, now, 50, false, 12000);
+        g.commanderFrame(true);
+    }
+    CHECK(g.busUp());
+
+    // A fresh press is an edge again: let go, then press.
     g.commanderFrame(false);
+    CHECK(g.busUp());
+    g.commanderFrame(true);
+    CHECK(!g.servoEn());
+    CHECK_EQ(static_cast<int>(g.lastDrop()), static_cast<int>(DropWhy::kLinkEstop));
+    CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+
+    // Let go: the very next frame without the flag ends the refusal.
+    g.commanderFrame(false);
+    feed(g, now, railguard::kServoBootMs, false, 0);   // C1 has fallen
     CHECK_EQ(static_cast<int>(g.requestOn()), static_cast<int>(Verdict::kOk));
     CHECK(g.servoEn());
     CHECK_EQ(static_cast<int>(g.state()), static_cast<int>(State::kRising));
 
-    // Gone: a console that held ESTOP and went away does not lock the tether out.
+    // A commander that went quiet and came back still pressed is a new press: the
+    // flag it last sent is not known to be the same operator's.
+    now = 5000;
+    Guard back = railOn(now);
+    back.commanderFrame(true);              // the edge
+    CHECK(!back.servoEn());
+    for (int i = 0; i < 12; ++i) {          // held at 20 Hz past the refusal
+        feed(back, now, 50, false, 0);
+        back.commanderFrame(true);
+    }
+    CHECK_EQ(static_cast<int>(back.requestOn()), static_cast<int>(Verdict::kOk));
+    for (int i = 0; i < 14; ++i) {
+        feed(back, now, 50, false, 12000);
+        back.commanderFrame(true);
+    }
+    CHECK(back.busUp());                    // still held: it does not take it back
+    feed(back, now, railguard::kCommanderEstopHoldMs + kDt, false, 12000);
+    back.commanderFrame(true);              // after a silence: an edge
+    CHECK(!back.servoEn());
+
+    // Gone: a console that pressed ESTOP and went away does not lock the tether out.
     now = 5000;
     Guard gone = booted(now);
     gone.commanderFrame(true);
@@ -547,6 +598,8 @@ void testCommanderEstopFrame() {
     Guard wrap = booted(now);
     wrap.commanderFrame(true);
     CHECK_EQ(static_cast<int>(wrap.requestOn()), static_cast<int>(Verdict::kCommanderEstop));
+    feed(wrap, now, railguard::kCommanderEstopHoldMs + kDt, false, 0);
+    CHECK_EQ(static_cast<int>(wrap.requestOn()), static_cast<int>(Verdict::kOk));
 
     // It does not stand in for the toggle's latch, or clear it.
     now = 5000;

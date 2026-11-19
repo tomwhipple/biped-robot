@@ -459,7 +459,7 @@ void ctrlTask(void*) {
                 // The E-stop latch's way out, as Watchdog::accept's is.
                 if (!msg.cmd.enabled() && !msg.cmd.arm() && !msg.cmd.estop()) rail::disabledFromCtrl();
                 // Benched, the watchdog below never sees this frame. A rail powered for
-                // `rail on` or a home still has to go on the console's E-stop.
+                // `rail on` or a home still has to go on the console's E-stop press.
                 rail::commanderFrame(msg.cmd.estop());
             }
             bool arm_edge = g_arm.update(msg.cmd.flags, want_armed);

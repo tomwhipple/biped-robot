@@ -98,8 +98,9 @@ hardware half `firmware/main/power_rail.cpp`.
   500 ms to boot. Only then is the bus used. On a timeout `SERVO_EN` drops and the fault
   is reported.
 - **The servos are off until something asks.**
-  - An arm (`run`, an ARM edge) powers the rail itself. So does `home` or the wireless
-    reset, which turn it off again when the home has released torque.
+  - An arm (`run`, an ARM edge) powers the rail itself. So do `home`, the wireless reset
+    and the fall pick-up's autohome, which turn it off again when the home has released
+    torque.
   - Bench work (`scan`, `pos`, `cal`, `pose`) needs `rail on` first, over the tether.
     Without it those commands say so. Scripts in `tools/` that talk to the servos need it
     too.
@@ -111,22 +112,25 @@ hardware half `firmware/main/power_rail.cpp`.
   the beacon, or `DISARMED_FALL` / `DISARMED_STOP`. A flail-guard or soft-stop hold keeps
   the rail, because it holds with torque on, until the bench home has released it, or
   `release` does.
-- **A commander's `ESTOP` frame drops it benched too**, whoever powered it, and the rail
-  stays refused until the commander's next frame without the flag (or 500 ms with no
-  frame at all). So a home or a `rail on` ends on the console's E-stop, and a console
-  holding its E-stop has to let go before **RESET SERVOS** does anything: `RAIL_DOWN`
-  until then. An ARM edge in a frame with `ESTOP` is refused the same way.
-- **A rail the firmware powered goes when its reason does**: a home that ends, fails or
-  takes a soft stop, and `release` of all the servos. The robot goes limp where it is.
-  A typed `rail on` stays until `rail off`, `bench` or a drop.
+- **A commander's `ESTOP` press drops it benched too**, whoever powered it. The press is
+  the edge: the frame where the flag goes up, or the first one with it after 500 ms with no
+  frame. The rail is refused until the commander lets go or for 500 ms, whichever is first.
+  A flag still held after that blocks nothing, so a console left E-stopped needs nobody at
+  it (Tom 2026-11-19): **RESET SERVOS** from it, `rail on` and the pick-up's autohome all
+  power the rail, and the held flag does not take it back. A fresh press does. An ARM edge
+  in a frame with `ESTOP` is refused.
+- **A rail the firmware powered goes when its reason does**: a home that ends or fails,
+  and `release` of all the servos, each of which has released torque. A soft stop during a
+  home holds torque, as on a default image, so the rail stays until the next `home` ends,
+  `release` or `bench`. A typed `rail on` stays until `rail off`, `bench` or a drop.
 - **Nothing brings the rail back by itself.**
   - `ESTOP_N` going high latches. Back at RUN, the rail stays off and an arm is refused
     until a disabled command arrives: `bench`, or a frame with `ENABLE`, `ARM` and `ESTOP`
     clear. Then it takes a fresh arm. So: RUN, disarm, arm.
-  - The bench's pick-up autohome does not run on this image, with the rail off or on: a
-    pick-up only says so once. `home`, the wireless reset or an arm is the way back, and a
-    `rail on` gives power and no motion. The fall latch clears when one of those starts,
-    not when it is refused.
+  - Except the pick-up autohome, as on a default image (Tom 2026-11-19): upright and still
+    for 1 s after a fall, it powers the rail, homes, and drops the rail again. `fall
+    autohome off` turns it off. Refused (E-stop latched, a fault), it says why and the fall
+    latch stands. A latch clears when a home starts, not when one is refused.
 - **A welded K1.** `RAIL_V` above 8 V with `SERVO_EN` low, for 8 s with no new low of
   150 mV, raises the stuck-rail fault. It also runs from the first sample after boot. A
   rail that is still falling never raises it, however slowly: without servos it takes
@@ -167,8 +171,10 @@ before the port opens (AGENTS.md). Type on the tether:
    reboot banner ends. Press the EN button with the rail on: the same. Scope J12.2 through a
    power cycle and a reset: it never goes high.
 8. **Console E-stop.** `rail on`, then the console's E-stop: K1 drops, `rail` says `link
-   ESTOP`. `rail on` is refused while the console holds it, and works once it lets go. Benched,
-   run `link/release.py`, whose first frame is an ARM edge with `ESTOP`: K1 stays open.
+   ESTOP`. With the console still holding it, `rail on` works after 0.5 s, and K1 stays shut
+   while the console keeps sending. Release and press the console's E-stop again: K1 drops.
+   Benched, run `link/release.py`, whose first frame is an ARM edge with `ESTOP`: K1 stays
+   open.
 
 Then, with the real servos, as part of step 3 below:
 
@@ -179,13 +185,15 @@ Then, with the real servos, as part of step 3 below:
    servo's goal register has never been written, and the arm writes targets within a tick
    of enabling torque.
 11. **Tick cost.** `stat` armed: the rail's ADC reads land in `other`.
-12. **No motion from `rail on`.** Rail off, tip it past 30 deg until `FALL` prints, stand it
-    up and hold it still for 5 s: it says so once and does not move. `rail on`, and hold it
-    for 5 s more: K1 clicks, nothing moves, `fall` still says FALLEN. `home`: it homes, the
-    rail goes at the end.
+12. **Pick-up autohome.** Rail off, tip it past 30 deg until `FALL` prints, stand it up and
+    hold it still: after 1 s K1 clicks, it homes, and the rail goes at the end. With `fall
+    autohome off`, the same: it does not move until `home`. `rail on` by itself never moves
+    anything.
 13. **Stops during a home.** `home`, then the console's E-stop: limp at once, `RAIL_DOWN` on
-    the beacon. `home`, then `tools/estop.py --soft`: the same, `DISARMED_STOP`. `run`, a soft
-    stop while held, with `fall autohome off`, then `release`: K1 drops.
+    the beacon. `home`, then `tools/estop.py --soft`: it stops and holds, torque on, the rail
+    stays, `DISARMED_STOP`; `release`: K1 drops. From an E-stopped console, **RESET SERVOS**:
+    it homes, and the rail goes at the end. `run`, a soft stop while held, with `fall
+    autohome off`, then `release`: K1 drops.
 
 ## Before it goes in the robot
 
