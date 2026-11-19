@@ -22,7 +22,7 @@ CLAUDE_BIN=${CLAUDE_BIN:-$HOME/.local/bin/claude}
 POLL_S=${PLAN_POLL_S:-120}
 POLL_N=${PLAN_POLL_N:-90}                      # 90 x 120 s = the 3 h cap
 OUTDIR=$N/planner
-TOM=mattermost:xhtnq11nhjn1jpytz1sj4zzimr     # Tom <-> aime DM (model-remediator's target)
+NOTIFY_CMD=${NOTIFY_CMD:-$HOME/code/claude-runs/bin/notify-tom}   # Tom via the Claude app (Mattermost fallback); no Hermes (Tom 2026-11-19)
 mkdir -p "$OUTDIR"
 exec >> "$N/planner.log" 2>&1
 exec 8>"$N/.planner.lock"
@@ -58,8 +58,8 @@ notify() {
   # Tom 2026-11-02: status DMs OFF while Claude Code manages the sim
   # campaigns; re-enable with NIGHT_DM_NOTIFY=1
   if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
-    "$HOME/.local/bin/hermes" send -q -t "$TOM" "Get-up planner: $1" \
-      || echo "!!! Mattermost notify failed; message was: $1"
+    "$NOTIFY_CMD" "Get-up planner: $1" \
+      || echo "!!! notify-tom failed; message was: $1"
   fi
 }
 

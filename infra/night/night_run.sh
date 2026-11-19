@@ -95,7 +95,7 @@ EOF
     echo "$(date +%H:%M) !!! pre-flight FAILED; refusing to launch the queue" \
          "(fix the jobs or move them to queue/held/). DM notify is OFF (Tom 2026-11-02);"
     if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
-      "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+      "${NOTIFY_CMD:-$HOME/code/claude-runs/bin/notify-tom}" \
         "Night pre-flight FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/preflight.log; jobs are still queued but the runner refuses to burn the night on them." \
         || true
     fi

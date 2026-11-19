@@ -41,7 +41,8 @@ BASE = "/home/claw/code/robot"
 CODE = os.environ.get("PREFLIGHT_CODE", "/home/claw/code/robot-mjx")
 Q = os.environ.get("NIGHT_DIR", "/home/claw/code/robot-mjx") + "/night/queue"
 NOTIFY = os.environ.get("NO_NOTIFY", "") == ""
-TOM = "mattermost:xhtnq11nhjn1jpytz1sj4zzimr"
+# Tom via the Claude app (Mattermost fallback); no Hermes (Tom 2026-11-19)
+NOTIFY_CMD = os.environ.get("NOTIFY_CMD", os.path.expanduser("~/code/claude-runs/bin/notify-tom"))
 VENV = os.path.join(CODE, ".venv/bin/python")
 LOG = os.environ.get("PREFLIGHT_LOG", "/home/claw/code/robot-mjx/night/preflight.log")
 
@@ -57,8 +58,7 @@ def notify(text):
     # Tom 2026-11-02: DM notifications OFF while Claude Code manages the sims;
     # re-enable with NIGHT_DM_NOTIFY=1 (NO_NOTIFY still wins)
     if NOTIFY and os.environ.get("NIGHT_DM_NOTIFY", "") == "1":
-        subprocess.run(["/home/claw/.local/bin/hermes", "send", "-q", "-t", TOM,
-                        f"Night pre-flight: {text}"],
+        subprocess.run([NOTIFY_CMD, f"Night pre-flight: {text}"],
                        timeout=60, capture_output=True)
 
 
