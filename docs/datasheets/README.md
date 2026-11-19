@@ -122,4 +122,4 @@ The files are in [`raspberry-pi/`](raspberry-pi/).
 |---|---|
 | Raspberry Pi 4 Model B product brief | [pdf](https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-product-brief.pdf): 21 MB, not committed |
 | Molex 22-03-5035 sales drawing and product spec | [product page](https://www.molex.com/en-us/products/part-detail/22035035): molex.com does not serve the PDFs to scripted clients |
-| 3S LiPo pack (OVONIC 3S 4200 mAh 130C XT60) | no maker spec sheet found |
+| 3S LiPo pack (OVONIC 3S 4200 mAh 130C XT60) | no maker spec sheet found; OVONIC's general [LiPo user manual](https://us.ovonicshop.com/pages/user-manual): never below 3.0 V a cell under load |

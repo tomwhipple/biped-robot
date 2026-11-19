@@ -7,8 +7,13 @@ means it downloaded the maker's document and read the numbers.*
 
 ## What the replacement must do
 
-- **Cut the pack off at low voltage**, between 2.5 and 3.2 V a cell (7.5–9.6 V). The firmware
-  warns at 10.5 V and lands the robot at 9.9 V (3.3 V a cell), so the cut-off is the backstop.
+- **Cut the pack off at low voltage, at no less than 3.0 V a cell (9.0 V).** OVONIC's
+  [user manual](https://us.ovonicshop.com/pages/user-manual), the pack maker's own (no datasheet
+  for the 3S 4200 130C itself): "Under load: Never discharge below 3.0V per cell", "<3.0V per
+  cell causes irreversible damage", a pack that is "Over-discharged (<2.5V per cell)" is "Likely
+  unrecoverable — replace", and the "Resting voltage: Should recover to ≥3.3V after use". The
+  firmware warns at 10.5 V and lands the robot at 9.9 V (3.3 V a cell), so the cut-off is the
+  backstop.
 - **Carry the get-up**, 12 A for about 2 s, without an over-current trip.
 - **Ride through the relay's inrush**, 176–341 A for 52–132 µs (README, Checks): its
   short-circuit delay must be longer than that.
@@ -55,10 +60,11 @@ means it downloaded the maker's document and read the numbers.*
 - **All the boards release on voltage** (3.0 V a cell). Whether a pack that tripped under
   the logic's 1 A recovers past that at rest, and so switches the logic back on, is not known.
   The bench check of the replacement tests it (bringup.md 1.5).
+- **Every documented board trips below OVONIC's 3.0 V floor:** the Bestech D113V1 and D123 at
+  2.50 V, the level OVONIC calls likely unrecoverable, and the D690V3 at 2.7 V.
 - **Not chosen:** BatterySpace and Tenergy are rated under the 12 A get-up and have no
-  document; the LLT has no document. The Victron is four times the bay's height and switches
-  the positive lead; its 250 A is a 30 s rating, and it states nothing for a microsecond
-  inrush.
+  document; the LLT has no document. **The Victron is ruled out** (Tom: it is for a big,
+  non-portable system): four times the bay's height, 200 g, and it switches the positive lead.
 
 ## A cut-off on the board instead
 
@@ -78,11 +84,16 @@ the LM393 is the one to design around.
 
 ## Recommendation
 
-**Bestech HCX-D113V1.** It is the only documented board that is rated above the get-up, rides
-through the inrush (its 200 µs minimum against 132 µs) and is smaller than the bay. Its
-2.50 V trip is the lowest a cell maker allows rather than a hobby margin, so the firmware's
-9.9 V landing stays the working limit and the BMS is the backstop. Ask Bestech, with the quote
-([product page](https://bestechpower.com/product/3s-11-1v-bms-ltn3s15a15a001/)),
-whether they set the trip at 2.8–3.0 V (their sheets head the table "Criteria (Adjustable)").
-The bracket in the power bay is redrawn for 45 × 35 mm, and Part 1 of bringup.md is repeated
-on the new board.
+**The cut-off on the board, at 3.0 V a cell, latched off until the main switch is cycled,**
+from the TL431 and the LM393. It is the only option that meets OVONIC's floor without depending
+on a vendor, and its parts are in stock for about $1.50. With it, the BMS has nothing left to
+do: the hobby charger balances the cells and stops the charge off the robot, and F1 and F2
+cover shorts downstream. It needs a circuit, a simulation in `sim/lite_sim.py`, a new board
+and the CAD's BMS bracket reconsidered.
+
+**The fallback is a Bestech HCX-D113V1 with its trip set to 3.0 V a cell,** if Bestech will
+set it (their sheets head the table "Criteria (Adjustable)"; ask with the quote, from the
+[product page](https://bestechpower.com/product/3s-11-1v-bms-ltn3s15a15a001/)). As delivered,
+its 2.50 V trip does not protect this pack.
+
+**Until either is fitted,** unplug the pack's XT60 after every session.
