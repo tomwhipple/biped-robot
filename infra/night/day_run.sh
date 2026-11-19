@@ -160,7 +160,7 @@ EOF
     echo "$(date +%H:%M) !!! make plant-data FAILED; refusing to launch the queue" \
          "(see night/make.log). DM notify is OFF (Tom 2026-11-02);"
     if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
-      "$HOME/.local/bin/hermes" send -q -t mattermost:xhtnq11nhjn1jpytz1sj4zzimr \
+      "${NOTIFY_CMD:-$HOME/code/claude-runs/bin/notify-tom}" \
         "Night build FAILED at $(date +%H:%M) -- nothing launched tonight. Check $N/make.log; jobs are still queued but the runner refuses to burn the night on them." \
         || true
     fi
