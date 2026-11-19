@@ -774,11 +774,13 @@ SWP_SCREWS_YZ = [(sy * (V.SWP_HW - V.SWP_SIDE / 2), ez) for sy in (1, -1) for ez
 SWP_SCREW_L = 8.0                 # M2.5 x 8 flat head, in through the cap's plate from inside: 5.4 into an ear
 PCAP_SCREW_CLR = 0.15             # the screws' pilots stay COVER_SCREW_L - 2 deep, as the flat cover's
 # the TAB in the cap's +y bottom corner (Tom, 2026-11-18): a tongue as wide
-# as a corner block that reaches forward inside the +y skin, under the BMS
-# (1.0 clear) and short of the BMS bracket's ledge (1.2 clear), so that corner
-# is held to the skin like the other three
-PCAP_TAB_H = V.BMS_Z[0] - 1.0 - V.TORSO_BOT_Z                          # 1.5 tall
-PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 1.2            # -69.31 its forward end
+# as a corner block that reaches forward inside the +y skin, so that corner is
+# held to the skin like the other three. It stops 2.9 short of the BMS's PCB
+# (clear of the B1+ pad's solder there) and 1.2 under its parts (BMS_EDGE
+# over its bottom edge); the BMS stands on its ledge right over the torso's
+# bottom, so the tab could not also pass under the PCB itself
+PCAP_TAB_X1 = V.PBR_X[1] - (V.BMS_TAPE + V.BMS_PCB_T) - 2.9            # -71.01 its forward end
+PCAP_TAB_H = V.BMS_Z[0] + V.BMS_EDGE - 1.2 - V.TORSO_BOT_Z             # 2.75 tall
 
 
 def _pcap_blocks_yz():
@@ -1192,6 +1194,7 @@ def wire_paths():
     j11 = [p for p in V.PWRB_PARTS if p[0] == "J11"][0]
     (j11y0, j11z0), (j11y1, j11z1) = V.pwrb_yz(j11[1], j11[3]), V.pwrb_yz(j11[2], j11[4])
     y_up = 4.0                                                            # the main pair's run up over the fuses
+    z_top = (V.BMS_Z[1] + zd) / 2                                         # the BMS pair's run: mid-way, its top edge to the deck
     es_path = estop_lead_path()
     return [
         ("main switch's pair, in the pod and to the disconnect", [
@@ -1210,7 +1213,7 @@ def wire_paths():
         # BMS's top edge one behind the other, P-'s on along the edge
         ("BMS's 14 AWG pair, W1/W2 over its top edge", [
             (x0 - V.PWRB_LOW_H, w1[0], (w1[1] + w2[1]) / 2), (x0 - 9.5, w1[0], (w1[1] + w2[1]) / 2),
-            (x0 - 9.5, w1[0], -9.0), (x0 - 21.0, w1[0], -9.0), (x0 - 21.0, 26.5, -9.0)],
+            (x0 - 9.5, w1[0], z_top), (x0 - 21.0, w1[0], z_top), (x0 - 21.0, 26.5, z_top)],
          [(WIRE_14_T, WIRE_14_T, WIRE_14_T + (w1[1] - w2[1]) / 2)] + [(WIRE_14_T,) * 3] * 3),
         ("balance extension, J2 to the park", balance_lead_path(),
          (BAL_LEAD_R / 2 + 1.5, BAL_LEAD_R + V.WIRE_MARGIN + 1.0, BAL_LEAD_R + V.WIRE_MARGIN + 1.0)),

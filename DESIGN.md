@@ -409,15 +409,17 @@ machine screws and standoffs into heat-set inserts (Tom, 2026-11-18).
   the BMS.
 - Its servo headers J4–J8 are on its −y edge and J3, J11 and J12 along its
   bottom edge, all reached with the cap off.
-- **The BMS** (a ShillehTek CF-3SJH25A-C, 56 × 45 × 8 mm from its datasheet,
-  not measured) is wired to the board's W pads, with no connectors. It rides
+- **The BMS** (a ShillehTek CF-3SJH25A-C: its PCB measured 56.8 × 44.8 mm,
+  its thickest part 4.0 mm with the PCB) is wired to the board's W pads, with no connectors. It rides
   the **BMS bracket** (`power_bracket_v8`, 4 g, a 2.5 mm plate on the two
   standoffs, an M2.5 × 6 button head and an M2.5 × 6 flat head), component side
   aft on a foam pad, 18.5 mm off the board: over J1, J2 and the W pads, beside
   the fuses (1.0 mm past their ends, 2.2 mm over their tops), 0.9 mm off the
   +y skin. A ledge carries it, and four hooks hold it: a fixed one over its
   top edge, snaps under its bottom edge and at its −y edge, each lip 0.8 mm
-  over its PCB. The cap is 2.2 mm off its parts.
+  over its PCB. It stands on the ledge just over the torso's bottom, which
+  leaves 7.75 mm over its top edge for its two 14 AWG wires. The cap is
+  6.2 mm off its parts.
 - **The balance lead:** J2 is under the BMS and below the door's sill, so a
   3S JST-XH balance extension lead stays plugged into it and parks its male
   end, pins up, in the **balance park** (`balance_park_v8`, a 0.6 g cup
@@ -453,7 +455,8 @@ machine screws and standoffs into heat-set inserts (Tom, 2026-11-18).
   lip in under the deck and inside both skins, and three corner blocks that
   reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
   (+y top, −y top, −y bottom). The fourth corner, +y bottom, has a tab: a
-  1.5 mm tongue 5.7 mm in along the +y skin, under the BMS (1.0 mm). A block
+  2.75 mm tongue 4.0 mm in along the +y skin, 2.9 mm short of the BMS's PCB
+  and 1.2 mm under its parts. A block
   and screw there would stand where the BMS's corner is, so the torso has no
   hole there. The torso's other skin holes, windows and deck pockets are where
   they were for the flat cover.

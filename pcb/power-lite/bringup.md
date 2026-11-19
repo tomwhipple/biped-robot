@@ -77,10 +77,10 @@ supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the
 ## Part 0: Set up
 
 1. **Measure the BMS** before anything is soldered to it, because the bracket in the power bay
-   is drawn from the datasheet's figures, not from a measured board
-   (`BMS_*` in `cad/v6/dimensions_v6.py`). Photograph both faces with a ruler, then measure:
-   - the outline (silkscreen: 56 × 45 mm) and the PCB thickness (1.2 mm);
-   - the overall height over its tallest part (the CAD assumes 8 mm);
+   is drawn from its figures (`BMS_*` in `cad/v6/dimensions_v6.py`). Its PCB outline,
+   56.8 × 44.8 mm, and its height, 4.0 mm over its thickest part with the PCB, are measured
+   (2026-11-19). Photograph both faces with a ruler, then measure what is not:
+   - the PCB's thickness (the silkscreen says 1.2 mm);
    - **the part-free strip along each edge of the component side.** The CAD assumes 2 mm. The
      bracket's hooks and snaps grip 0.8 mm of the PCB's component face: over the P+/P− edge
      between P+ and B2, along the B1+–B3 edge, and on the B3–B− edge. Note anything taller

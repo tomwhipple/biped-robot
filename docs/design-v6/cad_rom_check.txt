@@ -156,7 +156,7 @@ static       power_cover_v8         torso_v8                      0.00      0.00
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
-static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        power_bracket_v8              0.00      2.07          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
 static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
@@ -166,11 +166,11 @@ static       power_standoffs_mock   torso_v8                      0.00      0.80
 static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
 static       power_bracket_v8       power_board_mock              0.00      2.90          ok   the BMS bracket over the board's parts (>= 2.0 mm)
 static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
-static       power_bracket_v8       power_cover_v8                0.00      1.20          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       power_bracket_v8       power_cover_v8                0.00      1.75          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
 static       bms_mock               power_bracket_v8              0.00      0.10          ok   the BMS on the bracket's foam pad, in its hooks: must not intersect
 static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
-static       bms_mock               power_cover_v8                0.00      1.53          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
-static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               power_cover_v8                0.00      1.20          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      1.13          ok   the BMS vs the +y skin (>= 0.5 mm)
 static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
 static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
 static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
@@ -190,7 +190,7 @@ static       switch_pod_v8          battery_door_v8               0.00     25.15
 static       switches_mock          switch_pod_v8                 0.00      0.00          ok   the toggles in the pod, nuts on its panels: must not intersect
 static       switches_mock          power_cover_v8                0.00      3.49          ok   the toggles vs the cap (>= 2.0 mm)
 static       switches_mock          power_board_mock              0.00      8.83          ok   the toggles vs the board's parts, outside the bay through the cap (K1) (>= 5.0 mm)
-static       switches_mock          bms_mock                      0.00      8.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
+static       switches_mock          bms_mock                      0.00     12.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
 static       switches_mock          power_bracket_v8              0.00     14.30          ok   the toggles vs the BMS bracket (outside the bay) (>= 10.0 mm)
 static       switch_pod_v8          shoulder_girdle_v6            0.00     41.26          ok   the switch pod's well vs the neck's mount (>= 5.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
@@ -225,7 +225,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (176 s)
+=> ALL CLEAR  (196 s)
 check_assembly_v6 (default build: arms): PASS
 
 =================== check_assembly_v6 (ARMS=0) ===================
@@ -327,7 +327,7 @@ static       power_cover_v8         torso_v8                      0.00      0.00
 static       battery_door_v8        torso_v8                      0.00      0.20          ok   battery door in its opening, tab behind the power bay's skin: must not intersect
 static       battery_door_v8        pack_mock                     0.00      0.50          ok   the door's ribs 0.5 off the pack's +y end (>= 0.4 mm)
 static       battery_door_v8        power_board_mock              0.00      3.82          ok   battery door vs the power board and J1's plug (>= 0.5 mm)
-static       battery_door_v8        power_bracket_v8              0.00      1.87          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
+static       battery_door_v8        power_bracket_v8              0.00      2.07          ok   battery door's tongue vs the BMS bracket (>= 1.0 mm)
 static       battery_door_v8        bms_mock                      0.00      3.91          ok   battery door's tongue vs the BMS (>= 1.0 mm)
 static       gd_mock                front_cover_v8                0.00     10.80          ok   the General Driver's PCB vs the front cover (>= 9.0 mm)
 static       power_board_mock       torso_v8                      0.00      0.00          ok   power board on its standoffs: must not intersect
@@ -337,11 +337,11 @@ static       power_standoffs_mock   torso_v8                      0.00      0.80
 static       power_bracket_v8       power_standoffs_mock          0.00      0.00          ok   the BMS bracket on its standoffs: must not intersect
 static       power_bracket_v8       power_board_mock              0.00      2.90          ok   the BMS bracket over the board's parts (>= 2.0 mm)
 static       power_bracket_v8       torso_v8                      0.00      0.50          ok   the BMS bracket vs the torso (the deck over it) (>= 0.4 mm)
-static       power_bracket_v8       power_cover_v8                0.00      1.20          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
+static       power_bracket_v8       power_cover_v8                0.00      1.75          ok   the BMS bracket vs the cap's corner blocks (>= 1.0 mm)
 static       bms_mock               power_bracket_v8              0.00      0.10          ok   the BMS on the bracket's foam pad, in its hooks: must not intersect
 static       bms_mock               power_board_mock              0.00      2.42          ok   the BMS over the fuses, J1 and J2 (>= 2.0 mm)
-static       bms_mock               power_cover_v8                0.00      1.53          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
-static       bms_mock               torso_v8                      0.00      0.93          ok   the BMS vs the +y skin (>= 0.5 mm)
+static       bms_mock               power_cover_v8                0.00      1.20          ok   the BMS under the cap (its +y top corner block) (>= 1.0 mm)
+static       bms_mock               torso_v8                      0.00      1.13          ok   the BMS vs the +y skin (>= 0.5 mm)
 static       bms_mock               pack_mock                     0.00     32.16          ok   the BMS vs the pack (>= 1.0 mm)
 static       balance_park_v8        torso_v8                      0.00      1.00          ok   the balance park on its foam tape on the aft wall (>= 0.5 mm)
 static       balance_park_v8        power_board_mock              0.00      0.51          ok   the balance park vs the board's +y edge (>= 0.4 mm)
@@ -361,7 +361,7 @@ static       switch_pod_v8          battery_door_v8               0.00     25.15
 static       switches_mock          switch_pod_v8                 0.00      0.00          ok   the toggles in the pod, nuts on its panels: must not intersect
 static       switches_mock          power_cover_v8                0.00      3.49          ok   the toggles vs the cap (>= 2.0 mm)
 static       switches_mock          power_board_mock              0.00      8.83          ok   the toggles vs the board's parts, outside the bay through the cap (K1) (>= 5.0 mm)
-static       switches_mock          bms_mock                      0.00      8.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
+static       switches_mock          bms_mock                      0.00     12.32          ok   the toggles vs the BMS (outside the bay) (>= 5.0 mm)
 static       switches_mock          power_bracket_v8              0.00     14.30          ok   the toggles vs the BMS bracket (outside the bay) (>= 10.0 mm)
 static       switch_pod_v8          neck_collar                   0.00     34.59          ok   the switch pod's well vs the neck's mount (>= 5.0 mm)
 static       pack_mock              torso_v8                      0.00      0.50          ok   pack between the torso's ribs (>= 0.4 mm)
@@ -387,7 +387,7 @@ interleg     foot_L                 foot_R                        0.00      2.67
 interleg     ankle_link_L           ankle_link_R                  0.00     14.50          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     shin_L                 shin_R                        0.00     10.90          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
 interleg     thigh_L                thigh_R                       0.00     22.42          ok   at {'L_hip_roll': -3.0, 'R_hip_roll': 3.0, 
-=> ALL CLEAR  (118 s)
+=> ALL CLEAR  (133 s)
 check_assembly_v6 (ARMS=0): PASS
 
 =================== audit_torso (report) ===================
@@ -511,11 +511,10 @@ check_assembly_v6 (ARMS=0): PASS
   PASS
 
 == power_bracket_v8  [standoff face on bed]
-  first-layer contact    1318 mm2  (45.3% of 65x44 bbox)
+  first-layer contact    1339 mm2  (45.8% of 66x44 bbox)
     BEAM          6 mm2    1.1 x   5.0 mm  at z   4.8  through-wall strip, 5 mm between anchors
     BEAM          4 mm2    1.1 x   4.0 mm  at z   4.8  end-anchored ribbon, 4 mm between anchors
     bore-top      3 mm2    1.1 x   2.5 mm  at z   4.8  roof of a through-void
-    BEAM          1 mm2    0.5 x   3.3 mm  at z   2.8  through-wall strip, 3 mm between anchors
     LEDGE         4 mm2    4.0 x   1.1 mm  at z   4.8  anchored one side (31% ring)
     BEAM          2 mm2    0.4 x   4.0 mm  at z   4.7  end-anchored ribbon, 4 mm between anchors
     BEAM          1 mm2    0.6 x   2.5 mm  at z   4.7  end-anchored ribbon, 2 mm between anchors

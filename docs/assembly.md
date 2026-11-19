@@ -485,7 +485,7 @@ the main switch and the E-stop side by side in the **switch pod**
      board's parts face, over the W pads, its P−/P+ edge up and its B− and B3
      corners toward the fuses.
    - The two 14 AWG wires loop over the BMS's top edge to B− and P−, one
-     behind the other: there are 8 mm between that edge and the deck.
+     behind the other: there are 7.75 mm between that edge and the deck.
    - The 24 AWG cell taps come up to B3, B2 and B1+ from below, through their
      corner pads' plated holes. The corner pads stand past the bracket's edges.
    - The BMS then hangs on its wires while the board goes in.
@@ -540,11 +540,11 @@ the main switch and the E-stop side by side in the **switch pod**
      parts.
    - Its four corner pads carry pack voltage: nothing metal may touch them.
      The hooks stay clear of them.
-   - **Its size, pads and margins are the datasheet's (DS-NA405), not
-     measured.** Measure it on arrival and put the values in `BMS_*` in
-     `cad/v6/dimensions_v6.py`. The hooks bear on a 2 mm margin at its edge
-     that is assumed to be free of parts; check that before printing the
-     bracket.
+   - **Its PCB (56.8 × 44.8 mm) and its height (4.0 mm with the PCB) are
+     measured; its pads and its part-free edge are not.** The hooks bear on
+     a 2 mm margin at its edge that is assumed to be free of parts: check
+     that before printing the bracket (`BMS_*` in
+     `cad/v6/dimensions_v6.py`).
 
    ![The BMS bracket onto its standoffs, then the BMS into its hooks](assembly/v6_11b_power_bay.png)
 6. **The switch pod onto the cap**, on the bench. The cap carries the main
@@ -599,7 +599,7 @@ the main switch and the E-stop side by side in the **switch pod**
    and J11 first, then drive **3 × M2.5 × 8 flat-heads** in through the
    skins into its corner blocks: the +y top, −y top and −y bottom holes.
    - The fourth corner, +y bottom, has a **tab** instead of a block: it goes
-     in 5.7 mm inside the +y skin, under the BMS. A lip inside each skin and
+     in 4.0 mm inside the +y skin, below the BMS's parts. A lip inside each skin and
      under the deck locates the cap's edges. A block and a skin screw
      there would stand where the BMS's lower corner is, so the torso has no
      hole there.
@@ -942,7 +942,7 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 |---|---|
 | ID map, harness, lead lengths, current budget | #77 |
 | room for the pack's plug and 12 AWG lead at power lite's J1 (17.4 mm to the skin) | §9c; power lite, PR #209 |
-| the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
+| the BMS's pads and part-free edge margin (its PCB, 56.8 × 44.8 mm, and its 4.0 mm height are measured; `BMS_*`) | §9c; #213 |
 | the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
 | the main switch's nut, lever length and throw, and its keyway's width, depth and place (the panel tab, `SW_KEY_*`); the inline disconnect's size and rating | §9c; #213 |
 | the E-stop's hardware (its nut and lockwasher, assumed 7.94 mm across the flats × 2.4 mm and 0.5 mm) and its bushing's thread (the datasheet's B1: 8.89 mm) | §9c; #213 |
