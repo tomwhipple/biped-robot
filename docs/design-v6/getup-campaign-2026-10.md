@@ -360,6 +360,9 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec88_march_both_sagdr (+ _s1, _s2; _s3 extra) | 11-18 | prec74_march_both recipe (init prec16) | plant: `--roll-play-deg` → `--footoff-sag L=3.2:9.6,R=1.45:4.35` (the march line re-opens for one night) | on D: march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls, ≥ 2 of 3 seeds (parent 0/3, one-sided) | | | | | **not held (0/3)**: march5 robot on D lifts R only on every seed (R min 4.9 / 6.6 / 6.2 cm, s3 5.2; L ≤ 0.1 cm; shift on R-up 0.60 – 0.72; roll −5.0 to −7.3 deg, leaning over the stance foot); the same on A, B, C. x1.5 on D 8/8, 0/0, 0/0 (s3 8/8). **The march parks again 11-19** |
 | robot_legs_prec89_march_ul_sagdr (+ _s1, _s2; _s3 extra) | 11-18 | prec73_march_ul recipe (init prec16, no AND term) | plant → the DR sag | as prec88 (parent 0/3, R only) | | | | | **not held (0/3)**: R only on every seed (R min 5.0 / 5.6 / 6.2, s3 4.5 cm; L ≤ 0.0); x1.5 on D 0/0 on all four |
 | robot_legs_prec90_march_both_sagdr_i86 (+ _s1, _s2; _s3 extra) | 11-18 | prec88_march_both_sagdr (arm MB) | warm start robot_legs_prec86_walk_sagdr (a walk trained on the DR sag) instead of prec16 | as prec88, and more two-sided seeds than MB | | | | | **not held (0/3)**: R only on every seed (R min 4.9 / 5.9 / 5.3, s3 6.2; L ≤ 0.2); the sag-trained warm start changes nothing; s2 does not walk (fwd dx 0.32) |
+| robot_legs_prec91_walk_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | the stepper-shaped reference: `--mimic-dwell 0.3 --mimic-sway 0.075 --gait-freq 0.5,0.55` (double support, the same swing duration) | on D: steps5 0.3 robot shift ≥ 0.6 on both feet, WALKS, x1.5 no worse than GD, ≥ 2 of 3 seeds | | | | | |
+| robot_legs_prec92_walk_sagdr_sw75 (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | `--mimic-sway 0.075` only (control: no dwell, the parent's clock) | the shift stays < 0.6 on the weaker foot (as prec82 on the inset sole) | | | | | |
+| robot_legs_prec93_march_both_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec88_march_both_sagdr (MB) recipe | the stepper-shaped reference: `--mimic-dwell 0.3`, sway 0.035 → 0.075, `--gait-freq 0.5,0.55` | on D: march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls, ≥ 2 of 3 seeds (MB 0/4) | | | | | |
 
 ## Nights
 
@@ -3696,17 +3699,23 @@ replay would teach the trims to a plant without the play. `--mimic-dwell D` (0 =
 - the gait clock, the observation and the firmware are unchanged, so a student deploys exactly as today.
 
 At an unchanged clock the dwell would make the swing faster, against the precision rule. So the arms slow the clock by
-1 − D: D = 0.4 and `--gait-freq 0.42,0.48` keep the swing duration the parent's 0.62 – 0.71 s and add 0.42 – 0.48 s of double
-support per step.
+1 − D. `--gait-freq` has a 0.5 Hz floor, so D = 0.3 at `--gait-freq 0.5,0.55`. That keeps the parent's swing duration
+(0.64 – 0.70 s against its 0.63 – 0.71) and adds 0.27 – 0.30 s of double support per step. **Built and on main the same morning
+(151899e, no PR: the ledger push of `HEAD:main` from the planner worktree ran a 35-min pre-push gate, the feature was committed
+in that worktree meanwhile, and the push shipped the new HEAD. Both pushes' gates passed on the feature code; the branch
+train/mimic-dwell holds the same commit):** walker_env.dwell_swing / BimoMJXEnv._dwell_swing, parity R22 (`parity_test.py --mimic-dwell`: the profile and
+the reference CPU vs MJX on 1440 phases, worst 7e-7 rad; airborne walk and march reward parity, worst 6e-8; the dwell is
+live, 40-step reward 94.5 against 88.6 without), tests/test_mimic_dwell.py. The three recipes were parsed by train_mjx,
+built and stepped on CPU, and pre-flight passed 24/24.
 
-**Tonight (2026-11-19), if `--mimic-dwell` is on main with parity and pre-flight passing by 21:00:** three arms × seeds
+**Tonight (2026-11-19; queued, `--mimic-dwell` on main):** three arms × seeds
 14/15/16 + a seed-17 extra each = 12 teacher + distil pairs, 300M, BRANCH=main, plant = the DR sag.
 
 | arm | runs | parent | variable | hypothesis (D, ≥ 2 of 3) |
 |---|---|---|---|---|
-| DW | prec91_walk_sagdr_dw (+ _s1, _s2; _s3 extra) | GD prec86_walk_sagdr (no sway in its reference) | the stepper-shaped reference: `--mimic-dwell 0.4 --mimic-sway 0.075 --gait-freq 0.42,0.48` | steps5 0.3 robot shift ≥ 0.6 on both feet; WALKS; x1.5 no worse than the parent |
+| DW | prec91_walk_sagdr_dw (+ _s1, _s2; _s3 extra) | GD prec86_walk_sagdr (no sway in its reference) | the stepper-shaped reference: `--mimic-dwell 0.3 --mimic-sway 0.075 --gait-freq 0.5,0.55` | steps5 0.3 robot shift ≥ 0.6 on both feet; WALKS; x1.5 no worse than the parent |
 | DS | prec92_walk_sagdr_sw75 (+ …) | GD | `--mimic-sway 0.075` only (no dwell, the parent's clock): the control that separates the dwell from the shift | the shift does NOT reach 0.6 on both feet (as on the inset sole, 11-16); if it does, the sag plant, not the dwell, is the cause |
-| DM | prec93_march_both_sagdr_dw (+ …) | MB prec88_march_both_sagdr | the stepper-shaped reference: `--mimic-dwell 0.4 --mimic-sway 0.075 --gait-freq 0.42,0.48` | march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls |
+| DM | prec93_march_both_sagdr_dw (+ …) | MB prec88_march_both_sagdr | the stepper-shaped reference: `--mimic-dwell 0.3 --mimic-sway 0.075 --gait-freq 0.5,0.55` | march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls |
 
 **Pre-committed:** if neither DW nor DM holds, the clock-reference RL line is finished for both walk and march. The next step
 is then the robot itself (repair, #297) and the #259 gate, not another reference variable. If the build is not on main by 21:00,
