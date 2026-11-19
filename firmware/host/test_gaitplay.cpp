@@ -142,6 +142,58 @@ void testSupportFromPhase() {
     CHECK_EQ(supportFromPhase(NAN, true).stance, 0);
 }
 
+// The lift gate's two hooks on the track: the next gate frame (its time and the stance side its phase leads
+// into) and the abort to rest from a double support.
+void testGateAheadAndAbortToRest() {
+    Track tr;
+    // a step end at 300 with its rest, then a gate frame at 700 (phase 0.7: sin > 0, the left foot swings, so
+    // the stance is R), the lift-off after it
+    CHECK(tr.add(frame(0, 1000, 0.0f)));
+    CHECK(tr.add(frame(300, 1300, 0.7f, gaitplay::kStepEnd)));
+    CHECK(tr.add(frame(300, 1250, 0.0f, gaitplay::kRest)));          // the rest of that step end
+    CHECK(tr.add(frame(500, 1400, 0.6f)));
+    CHECK(tr.add(frame(700, 1500, 0.7f, gaitplay::kGate)));
+    CHECK(tr.add(frame(800, 1600, 0.8f, gaitplay::kLift)));
+    CHECK(tr.add(frame(900, 1700, 0.9f, gaitplay::kLift)));
+    CHECK(tr.start());
+    uint32_t tg = 0;
+    char side = 0;
+    CHECK(!tr.gateAhead(699, &tg, &side));                           // not reached yet
+    CHECK(tr.gateAhead(700, &tg, &side));
+    CHECK_EQ(tg, 700);
+    CHECK_EQ(side, 'R');
+    Sample s;
+    tr.sample(650, &s);
+    CHECK(tr.gateAhead(700, &tg, &side));
+    tr.sample(700, &s);                                              // the frame is passed: gone from the queue
+    CHECK(!tr.gateAhead(5000, &tg, &side));
+    CHECK(tr.state() == State::kPlaying);
+    CHECK(tr.abortToRest(700) == State::kResting);                   // from the goals it holds now ...
+    CHECK(tr.add(frame(1000, 1, 0.0f)) == false);                    // ... and the track takes no more frames
+    tr.sample(700, &s);
+    CHECK_EQ(s.q[0], 1500);                                           // t = 0 of the move: where it was
+    tr.sample(700 + tr.restMs() / 2, &s);
+    CHECK(s.q[0] < 1500 && s.q[0] > 1250);
+    CHECK(tr.sample(700 + tr.restMs(), &s) == State::kDone);
+    CHECK_EQ(s.q[0], 1250);                                           // the rest pose of the step end at 300
+    // no step end passed: nothing to rest to, the goals hold
+    Track t2;
+    CHECK(t2.add(frame(0, 1000, 0.0f)));
+    CHECK(t2.add(frame(100, 1100, 0.7f, gaitplay::kGate)));
+    CHECK(t2.add(frame(200, 1200, 0.8f)));
+    CHECK(t2.start());
+    t2.sample(100, &s);
+    CHECK(t2.abortToRest(100) == State::kDone);
+    t2.sample(150, &s);
+    CHECK_EQ(s.q[0], 1100);
+    // not playing: no-op
+    Track t3;
+    CHECK(t3.abortToRest(0) == State::kIdle);
+    CHECK_EQ(gaitplay::liftStance(0.7f), 'R');
+    CHECK_EQ(gaitplay::liftStance(3.8f), 'L');
+    CHECK_EQ(gaitplay::liftStance(NAN), 0);
+}
+
 }  // namespace
 
 int main() {
@@ -150,5 +202,6 @@ int main() {
     testStopEndsAtStepEndThenRests();
     testDryAtStepEndRestsAndDryMidStepHolds();
     testSupportFromPhase();
+    testGateAheadAndAbortToRest();
     return testutil::report("gaitplay");
 }

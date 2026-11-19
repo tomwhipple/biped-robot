@@ -50,3 +50,6 @@ sim/puppet_sessions/
 
 # macOS
 .DS_Store
+
+# MuJoCo's runtime warning log, written to the CWD
+MUJOCO_LOG.TXT

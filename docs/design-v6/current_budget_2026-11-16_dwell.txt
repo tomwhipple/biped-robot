@@ -1,0 +1,223 @@
+bus-current budget per power-lite branch (J4 R leg, J5 R upper, J6 L leg, J7 L upper; H5 / H6 = the General Driver's ports, J4+J5 / J6+J7)
+servos: STS3250 hip rolls (51, 52; 4.90 N*m, 4.2 A stall at 12 V, unverified), STS3215 elsewhere; upper = motor-current model, lower = lossless bridge (sim/sts_servo_model.py)
+  dwell T 6 s march (fit): walks, lifts 6/6, 12.0 V, 2056 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.36/1.06     2.33/0.72     2.04/0.67     0.00/0.00  
+    J4 R leg      2.19/0.67     1.39/0.35     1.00/0.27     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.03/0.53     1.33/0.33     0.97/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.28/0.76     1.48/0.44     1.09/0.36     0.00/0.00  
+    H6 (B)        2.09/0.59     1.39/0.39     1.03/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.03 A, lower R_ankle_roll 0.32 A
+  dwell T 6 s fwd (fit): walks, lifts 7/6, 12.0 V, 2356 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.35/1.06     2.55/0.72     2.16/0.68     0.00/0.00  
+    J4 R leg      2.24/0.68     1.49/0.35     1.09/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.89/0.52     1.42/0.34     1.00/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.33/0.77     1.58/0.44     1.18/0.37     0.00/0.00  
+    H6 (B)        1.95/0.58     1.48/0.40     1.05/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.01 A, lower R_ankle_roll 0.33 A
+  dwell T 6 s back (fit): walks, lifts 7/6, 12.0 V, 2356 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.51/1.07     2.49/0.73     2.13/0.68     0.00/0.00  
+    J4 R leg      2.24/0.66     1.49/0.35     1.08/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.04/0.55     1.37/0.34     0.98/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.33/0.75     1.58/0.44     1.17/0.37     0.00/0.00  
+    H6 (B)        2.10/0.61     1.43/0.40     1.04/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.02 A, lower R_ankle_roll 0.31 A
+  dwell T 6 s sideL (fit): walks, lifts 6/6, 12.0 V, 2056 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.34/1.08     2.47/0.73     2.11/0.68     0.00/0.00  
+    J4 R leg      2.20/0.68     1.39/0.36     1.03/0.27     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.00/0.53     1.32/0.33     0.99/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.29/0.77     1.48/0.45     1.12/0.36     0.00/0.00  
+    H6 (B)        2.06/0.59     1.38/0.39     1.05/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.05 A, lower R_ankle_roll 0.33 A
+  dwell T 6 s sideR (fit): walks, lifts 7/6, 12.0 V, 2356 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.36/1.06     2.41/0.72     2.10/0.68     0.00/0.00  
+    J4 R leg      2.14/0.65     1.39/0.35     1.05/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.01/0.53     1.35/0.34     0.96/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.23/0.74     1.48/0.44     1.14/0.37     0.00/0.00  
+    H6 (B)        2.07/0.59     1.41/0.40     1.02/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.03 A, lower R_ankle_roll 0.32 A
+  dwell T 6 s turnL (fit): walks, lifts 7/6, 12.0 V, 2356 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.38/1.06     2.45/0.72     2.11/0.67     0.00/0.00  
+    J4 R leg      2.18/0.67     1.45/0.35     1.07/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.96/0.53     1.36/0.33     0.97/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.27/0.76     1.54/0.44     1.15/0.36     0.00/0.00  
+    H6 (B)        2.02/0.59     1.42/0.39     1.03/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.01 A, lower R_ankle_roll 0.32 A
+  dwell T 6 s turnR (fit): walks, lifts 7/6, 12.0 V, 2356 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.34/1.06     2.46/0.72     2.12/0.67     0.00/0.00  
+    J4 R leg      2.20/0.67     1.46/0.35     1.07/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.98/0.54     1.35/0.33     0.97/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.29/0.76     1.55/0.44     1.16/0.37     0.00/0.00  
+    H6 (B)        2.04/0.60     1.41/0.39     1.03/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.02 A, lower R_ankle_roll 0.33 A
+  dwell T 4 s march (fit): walks, lifts 6/6, 12.0 V, 1456 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.58/1.12     2.23/0.74     2.02/0.67     0.00/0.00  
+    J4 R leg      2.19/0.70     1.39/0.36     1.00/0.27     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.96/0.53     1.23/0.32     0.94/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.28/0.79     1.48/0.45     1.09/0.36     0.00/0.00  
+    H6 (B)        2.02/0.59     1.29/0.38     1.00/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.08 A, lower R_ankle_roll 0.35 A
+  dwell T 4 s fwd (fit): walks, lifts 7/6, 12.0 V, 1656 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.58/1.15     2.40/0.74     2.12/0.69     0.00/0.00  
+    J4 R leg      2.21/0.71     1.49/0.37     1.09/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.96/0.53     1.34/0.33     0.96/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.30/0.80     1.58/0.46     1.17/0.37     0.00/0.00  
+    H6 (B)        2.02/0.59     1.40/0.39     1.02/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.11 A, lower R_ankle_roll 0.36 A
+  dwell T 4 s back (fit): walks, lifts 7/6, 12.0 V, 1656 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.74/1.13     2.33/0.74     2.11/0.68     0.00/0.00  
+    J4 R leg      2.29/0.69     1.47/0.37     1.08/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.12/0.57     1.32/0.33     0.96/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.38/0.78     1.56/0.46     1.16/0.37     0.00/0.00  
+    H6 (B)        2.18/0.63     1.38/0.39     1.02/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.08 A, lower R_ankle_roll 0.34 A
+  dwell T 4 s sideL (fit): walks, lifts 6/6, 12.0 V, 1456 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.68/1.13     2.34/0.75     2.07/0.68     0.00/0.00  
+    J4 R leg      2.26/0.65     1.40/0.36     1.03/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.99/0.53     1.21/0.32     0.96/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.35/0.74     1.49/0.45     1.11/0.37     0.00/0.00  
+    H6 (B)        2.05/0.59     1.27/0.38     1.02/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.13 A, lower R_ankle_roll 0.33 A
+  dwell T 4 s sideR (fit): walks, lifts 7/6, 12.0 V, 1656 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.58/1.11     2.27/0.74     2.07/0.68     0.00/0.00  
+    J4 R leg      2.17/0.66     1.39/0.36     1.05/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.08/0.56     1.23/0.32     0.94/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.26/0.75     1.48/0.45     1.14/0.37     0.00/0.00  
+    H6 (B)        2.14/0.62     1.29/0.38     0.99/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.06 A, lower R_ankle_roll 0.35 A
+  dwell T 4 s turnL (fit): walks, lifts 7/6, 12.0 V, 1656 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.61/1.15     2.31/0.74     2.09/0.68     0.00/0.00  
+    J4 R leg      2.24/0.71     1.42/0.36     1.06/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      1.94/0.53     1.28/0.32     0.95/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.33/0.80     1.51/0.45     1.15/0.37     0.00/0.00  
+    H6 (B)        2.00/0.59     1.34/0.38     1.00/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.08 A, lower R_ankle_roll 0.36 A
+  dwell T 4 s turnR (fit): walks, lifts 7/6, 12.0 V, 1656 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.55/1.12     2.35/0.74     2.10/0.68     0.00/0.00  
+    J4 R leg      2.25/0.70     1.46/0.36     1.07/0.28     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.03/0.55     1.27/0.32     0.95/0.26     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.34/0.79     1.55/0.45     1.16/0.37     0.00/0.00  
+    H6 (B)        2.09/0.61     1.33/0.38     1.01/0.32     0.00/0.00  
+    worst servo: upper L_hip_roll 1.08 A, lower R_ankle_roll 0.36 A
+  dwell T 3.2 s march (fit): walks, lifts 6/6, 12.0 V, 1216 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.59/1.12     2.35/0.75     2.08/0.69     0.00/0.00  
+    J4 R leg      2.19/0.67     1.46/0.38     1.05/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.21/0.59     1.24/0.33     0.96/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.28/0.76     1.55/0.47     1.13/0.37     0.00/0.00  
+    H6 (B)        2.27/0.65     1.30/0.39     1.02/0.32     0.00/0.00  
+    worst servo: upper R_hip_roll 1.20 A, lower R_hip_roll 0.37 A
+  dwell T 3.2 s fwd (fit): walks, lifts 7/6, 12.0 V, 1376 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.61/1.13     2.52/0.77     2.19/0.70     0.00/0.00  
+    J4 R leg      2.18/0.67     1.57/0.39     1.13/0.30     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.19/0.58     1.41/0.35     1.00/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.27/0.76     1.66/0.48     1.22/0.39     0.00/0.00  
+    H6 (B)        2.25/0.64     1.47/0.41     1.05/0.33     0.00/0.00  
+    worst servo: upper R_hip_roll 1.19 A, lower R_ankle_roll 0.37 A
+  dwell T 3.2 s back (fit): walks, lifts 7/6, 12.0 V, 1376 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.75/1.14     2.48/0.76     2.18/0.70     0.00/0.00  
+    J4 R leg      2.29/0.71     1.51/0.38     1.11/0.30     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.03/0.58     1.43/0.36     1.01/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.38/0.80     1.60/0.47     1.19/0.38     0.00/0.00  
+    H6 (B)        2.09/0.64     1.49/0.42     1.07/0.33     0.00/0.00  
+    worst servo: upper R_hip_roll 1.20 A, lower R_hip_roll 0.38 A
+  dwell T 3.2 s sideL (fit): walks, lifts 6/6, 12.0 V, 1216 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.67/1.11     2.44/0.77     2.15/0.70     0.00/0.00  
+    J4 R leg      2.22/0.64     1.46/0.38     1.08/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.34/0.64     1.30/0.34     0.99/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.31/0.73     1.55/0.47     1.16/0.38     0.00/0.00  
+    H6 (B)        2.40/0.70     1.36/0.40     1.05/0.33     0.00/0.00  
+    worst servo: upper R_hip_roll 1.21 A, lower L_hip_roll 0.39 A
+  dwell T 3.2 s sideR (fit): walks, lifts 7/6, 12.0 V, 1376 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.51/1.10     2.40/0.76     2.14/0.70     0.00/0.00  
+    J4 R leg      2.19/0.67     1.46/0.38     1.09/0.30     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.20/0.60     1.27/0.34     0.97/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.28/0.76     1.55/0.47     1.18/0.38     0.00/0.00  
+    H6 (B)        2.26/0.66     1.33/0.40     1.02/0.33     0.00/0.00  
+    worst servo: upper R_hip_roll 1.21 A, lower R_hip_roll 0.38 A
+  dwell T 3.2 s turnL (fit): walks, lifts 7/6, 12.0 V, 1376 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.63/1.16     2.43/0.76     2.15/0.69     0.00/0.00  
+    J4 R leg      2.23/0.72     1.48/0.38     1.10/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.15/0.60     1.29/0.34     0.97/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.32/0.81     1.57/0.47     1.18/0.38     0.00/0.00  
+    H6 (B)        2.21/0.66     1.35/0.40     1.03/0.32     0.00/0.00  
+    worst servo: upper R_hip_roll 1.21 A, lower R_hip_roll 0.38 A
+  dwell T 3.2 s turnR (fit): walks, lifts 7/6, 12.0 V, 1376 ticks
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.54/1.15     2.44/0.76     2.15/0.70     0.00/0.00  
+    J4 R leg      2.23/0.71     1.51/0.38     1.10/0.29     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.14/0.55     1.31/0.34     0.97/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.32/0.80     1.60/0.47     1.19/0.38     0.00/0.00  
+    H6 (B)        2.20/0.61     1.37/0.40     1.03/0.32     0.00/0.00  
+    worst servo: upper R_hip_roll 1.19 A, lower R_hip_roll 0.38 A
+  dwell: the max of each figure over the 21 runs that did not fall
+    lead               peak A   worst 2 s A         RMS A  s over limit   (upper / lower; limit 5 A bus, 3 A a lead)
+    bus           3.75/1.16     2.55/0.77     2.19/0.70     0.00/0.00  
+    J4 R leg      2.29/0.72     1.57/0.39     1.13/0.30     0.00/0.00  
+    J5 R upper    0.09/0.09     0.09/0.09     0.09/0.09     0.00/0.00  
+    J6 L leg      2.34/0.64     1.43/0.36     1.01/0.27     0.00/0.00  
+    J7 L upper    0.06/0.06     0.06/0.06     0.06/0.06     0.00/0.00  
+    H5 (A)        2.38/0.81     1.66/0.48     1.22/0.39     0.00/0.00  
+    H6 (B)        2.40/0.70     1.49/0.42     1.07/0.33     0.00/0.00  
+    worst servo: upper R_hip_roll 1.21 A, lower L_hip_roll 0.39 A
+saved -> sim/runs/current_budget_dwell.json

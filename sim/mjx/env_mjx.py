@@ -244,6 +244,9 @@ class State(NamedTuple):
     traj_on: jax.Array        # ()  1.0 while the current command evolves c5/c6
     last_air: jax.Array       # (2,) last completed swing duration per foot
                               # (gait-symmetry penalty compares L vs R)
+    march_cur: jax.Array      # (2,) w_march_both: best score of the commanded swing
+                              # in progress, per foot (walker_env.march_both_update)
+    march_last: jax.Array     # (2,) w_march_both: best score of the last completed one
     swing_peak: jax.Array     # (2,) per-foot sole peak (m above standing) of
                               # the swing in progress (w_low_swing)
     since_move: jax.Array     # ()  seconds since the last moving command
@@ -340,6 +343,10 @@ class State(NamedTuple):
                               # rolls); (0,) when roll_play_deg is off
     rp_off: jax.Array         # (n_servo,) servo shaft - link at the end of the last step
                               # (within +/-rp_h); (0,) when off
+    fs_amp: jax.Array         # (n_servo,) per-episode foot-off sag preload per roll joint, rad
+                              # (sign x share x theta of its side); (0,) when footoff_sag is off
+    fs_defl: jax.Array        # (n_servo,) the sag springs' shaft - link at the end of the last
+                              # step; (0,) when off
     trim: jax.Array           # (10,) the firmware stance trim's state (sim/trim_kernel.py KEYS);
                               # zeros when stance_trim is off
 
@@ -718,6 +725,11 @@ class BimoMJXEnv:
         # reads, the link floats inside +/-play/2 of it. "LO:HI" (all four rolls),
         # "hip=LO:HI,ankle=LO:HI" or {"hip": (lo, hi), ...}, drawn per episode per joint;
         # None = off (walker_env.parse_roll_play_deg / roll_play_substep; walker_env mirror)
+        footoff_sag=None,     # the FOOT-OFF SAG, deg per stance side ("L=6.4,R=2.9", or
+        # "L=LO:HI,R=LO:HI" drawn per episode): preloaded springs in series with the roll servos
+        # beyond the encoder, the preload released as the other foot unloads. Exclusive with
+        # roll_play_deg / roll_series_k. None = off (walker_env.parse_footoff_sag /
+        # footoff_sag_layout / footoff_load_share / footoff_sag_shift; walker_env mirror)
         torso_mass_range: float | None = None,   # batch-level torso mass/inertia
         # scale U(1-r, 1+r) INSTEAD of mass_range for the torso body
         torso_com_y: float = 0.0,     # batch-level lateral torso CoM offset
@@ -841,6 +853,9 @@ class BimoMJXEnv:
         # during a gait-clock march (traj mode 4) the COMMANDED swing foot's static
         # unloading (CoM from the swing sole toward the stance sole) and its sole
         # height, paid whether or not the foot is already up. 0 = off (bit-exact).
+        w_march_both: float = 0.0,    # TWO-FOOT (AND) march term (walker_env.march_both_update):
+        # min over the feet of each foot's best 0.5 (u + h) over its last completed
+        # commanded swing, during a gait-clock march; a one-legged march earns ~nothing. 0 = off
         w_knee_high: float = 0.0,     # knee-high clearance kernel weight: the
         # FRACTION of the commanded swing height (lift_height + c6) the swing
         # sole reaches, on the correct one-foot contact pattern. Linear, not
@@ -1504,6 +1519,24 @@ class BimoMJXEnv:
             lo, hi = roll_play_bounds(self.roll_play_deg, self._servo_names)
             self._rp_lo = jp.asarray(lo, dtype=jp.float32)
             self._rp_hi = jp.asarray(hi, dtype=jp.float32)
+        from walker_env import (parse_footoff_sag, footoff_sag_layout, FOOTOFF_SAG_K,
+                                FOOTOFF_SAG_GAIN)
+        self.footoff_sag = parse_footoff_sag(footoff_sag)
+        self._fs_on = self.footoff_sag is not None
+        if self._fs_on:
+            if self._ser_on or self._rp_on:
+                raise ValueError("footoff_sag is a model of the beyond-encoder roll yield, as "
+                                 "roll_play_deg and roll_series_k are: set one")
+            mask, side, sign, part = footoff_sag_layout(self._servo_names)
+            self._fs_mask = jp.asarray(mask, dtype=jp.float32)
+            self._fs_side = jp.asarray(side, dtype=jp.int32)
+            self._fs_sign = jp.asarray(sign, dtype=jp.float32)
+            self._fs_part = jp.asarray(part, dtype=jp.float32)
+            self._fs_k = float(FOOTOFF_SAG_K)
+            rng_ = [self.footoff_sag.get(s_, (0.0, 0.0)) for s_ in "LR"]
+            self._fs_lo = jp.asarray([FOOTOFF_SAG_GAIN * np.deg2rad(r[0]) for r in rng_], dtype=jp.float32)
+            self._fs_hi = jp.asarray([FOOTOFF_SAG_GAIN * np.deg2rad(r[1]) for r in rng_], dtype=jp.float32)
+            self._fs_pads = jp.asarray(np.array(self._pad_gids), dtype=jp.int32)
         self.torso_mass_range = torso_mass_range
         self.torso_com_y = float(torso_com_y)
         self.floor_contact_range = (None if floor_contact_range is None else
@@ -1589,6 +1622,7 @@ class BimoMJXEnv:
         self.march_lift = float(march_lift)
         self.w_knee_high = w_knee_high
         self.w_march_unload = float(w_march_unload)
+        self.w_march_both = float(w_march_both)
         self.march_hz = float(march_hz)
         self.gait_clock = gait_clock
         self.w_feet_phase = w_feet_phase
@@ -2439,6 +2473,28 @@ class BimoMJXEnv:
         h = (self._rp_lo + u * (self._rp_hi - self._rp_lo)).astype(jp.float32)
         return h, jp.zeros((self._n_servo,), dtype=jp.float32)
 
+    def _draw_fs(self, rng: jax.Array):
+        """Per-episode foot-off sag preload per roll joint (theta uniform per side, fold_in
+        8484 so the other draws keep their streams) and relaxed springs. (0,) when off."""
+        if not self._fs_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        u = jax.random.uniform(jax.random.fold_in(rng, 8484), (2,))
+        th = self._fs_lo + u * (self._fs_hi - self._fs_lo)
+        amp = (self._fs_part * self._fs_sign * th[self._fs_side]).astype(jp.float32)
+        return amp, jp.zeros((self._n_servo,), dtype=jp.float32)
+
+    def _fs_shift(self, data, amp):
+        """The sag springs' rest shift this tick (walker_env.footoff_sag_shift): each roll
+        joint's preload amp x its foot's share of the floor load now (footoff_load_share,
+        the pads' penetration below the local ground). `data` with its kinematics current
+        (a stepped Data's positions lag its qpos by one substep)."""
+        from walker_env import footoff_load_share
+        xyz = data.geom_xpos[self._fs_pads]                      # (2, P, 3)
+        gz = jax.vmap(jax.vmap(self._gz))(xyz[..., 0], xyz[..., 1])
+        share = footoff_load_share(xyz[..., 2] - gz, self._pad_radius, xp=jp)
+        return amp * share[self._fs_side]
+
     def _draw_dq_win(self, rng: jax.Array):
         """Per-episode dq obs window, ticks (fold_in 5858: the other draws keep
         their streams; a fixed window or the feature off consumes no RNG)."""
@@ -2727,6 +2783,7 @@ class BimoMJXEnv:
         dq_win = self._draw_dq_win(r_ep)
         ser_c, ser_defl = self._draw_ser(r_ep)
         rp_h, rp_off = self._draw_rp(r_ep)
+        fs_amp, fs_defl = self._draw_fs(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2820,6 +2877,7 @@ class BimoMJXEnv:
                      last_target=last_target0,
                      step_i=step_i, air_time=jp.zeros(2),
                      last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+                     march_cur=jp.zeros(2), march_last=jp.zeros(2),
                      since_move=jp.full((), 1e3),
                      gait_freq=gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist, cmd=cmd,
@@ -2845,6 +2903,7 @@ class BimoMJXEnv:
                      gyro_gain=gyro_gain, metrics=metrics,
                      dq_qhist=dq_qhist, dq_win=dq_win,
                      ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
+                     fs_amp=fs_amp, fs_defl=fs_defl,
                      trim=self._trim0(r_ep))
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
@@ -2860,6 +2919,7 @@ class BimoMJXEnv:
         dq_win = self._draw_dq_win(r_ep)
         ser_c, ser_defl = self._draw_ser(r_ep)
         rp_h, rp_off = self._draw_rp(r_ep)
+        fs_amp, fs_defl = self._draw_fs(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -2914,6 +2974,7 @@ class BimoMJXEnv:
             prev_action=prev_action, prev_action2=prev_action,
             last_target=chain0, step_i=step_i,
             air_time=jp.zeros(2), last_air=jp.zeros(2), swing_peak=jp.zeros(2),
+            march_cur=jp.zeros(2), march_last=jp.zeros(2),
             since_move=jp.full((), 1e3), gait_freq=gait_freq, gait_phase=gait_phase, obs_hist=obs_hist,
             cmd=cmd, cmd_next=cmd_next, traj=traj,
             traj_on=traj_on, recover_slot=first.recover_slot,
@@ -2936,6 +2997,7 @@ class BimoMJXEnv:
             gyro_hist=gyro_hist, gyro_delay=gyro_delay, gyro_gain=gyro_gain,
             dq_qhist=dq_qhist, dq_win=dq_win,
             ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
+            fs_amp=fs_amp, fs_defl=fs_defl,
             trim=self._trim0(r_ep), metrics=metrics)
 
     def _trim0(self, r_ep):
@@ -3139,6 +3201,13 @@ class BimoMJXEnv:
             x_ser = 1.0 / (1.0 + kp * state.ser_c)
             kp = kp * x_ser
             kd = kd * x_ser
+        if self._fs_on:
+            # foot-off sag springs (quasi-static, as the series spring) on the hip and ankle
+            # rolls: gains x k/(kp+k); their rest shift from the feet's load shares now
+            x_fs = jp.where(self._fs_mask > 0, self._fs_k / (kp + self._fs_k), 1.0)
+            kp = kp * x_fs
+            kd = kd * x_fs
+            fs_shift = self._fs_shift(mjx.kinematics(m, state.data), state.fs_amp)
         lash = state.lash
         last_target = state.last_target
         if self.fw_goal_speed:
@@ -3149,6 +3218,8 @@ class BimoMJXEnv:
                 q_now = q_now + state.ser_defl      # the feedback is the shaft's
             if self._rp_on:
                 q_now = q_now + state.rp_off        # the feedback is the shaft's
+            if self._fs_on:
+                q_now = q_now + state.fs_defl       # the feedback is the shaft's
             gap = jp.abs(goal_written + state.zero_off - q_now)
             v_goal = jp.clip(_GOAL_SPEED_HEADROOM * gap / self.control_dt,
                              _GOAL_SPEED_FLOOR * _TICK_RAD, _GOAL_SPEED_MAX * _TICK_RAD)
@@ -3188,6 +3259,8 @@ class BimoMJXEnv:
                 rp_eng, rp_sg, shaft = roll_play_substep(cur, q, q + off, state.rp_h,
                                                          rp_lim, xp=jp)
                 err = jp.where(rp, cur - shaft, err)
+            if self._fs_on:
+                err = err + fs_shift        # the spring's rest angle, shifted by the preload
             err = jp.sign(err) * jp.maximum(jp.abs(err) - 0.5 * lash, 0.0)
             tau = jp.clip(kp * err - kd * qd, -cap, cap)
             if self._rp_on:
@@ -3223,6 +3296,12 @@ class BimoMJXEnv:
             ser_dq = (ser_defl - state.ser_defl) / self.control_dt
         else:
             ser_defl, ser_dq = None, None
+        if self._fs_on:
+            # the shaft sits at link - rest shift + tau/k (what the encoders read)
+            fs_defl = (self._fs_mask * (tau / self._fs_k - fs_shift)).astype(jp.float32)
+            fs_dq = (fs_defl - state.fs_defl) / self.control_dt
+        else:
+            fs_defl = state.fs_defl
 
         up_z = data.sensordata[self._up_adr + 2]
         if self.tilt_max_deg > 0.0:
@@ -3267,6 +3346,8 @@ class BimoMJXEnv:
         head_err = jp.zeros(())
         knee_frac = jp.zeros(())
         march_unload = jp.zeros(())
+        march_both = jp.zeros(())
+        march_cur, march_last = state.march_cur, state.march_last
         if self.ext_cmd:
             # one-leg modes: lift = -1 (left) / +1 (right). Correct contact
             # pattern (stance down, swing up, >= lift_clear clearance) and
@@ -3342,6 +3423,14 @@ class BimoMJXEnv:
                 march_unload = march_unload_term(
                     data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
                     self.lift_height + state.cmd[6],
+                    ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
+            if self.w_march_both:
+                from walker_env import march_unload_term, march_both_update
+                s_m = march_unload_term(
+                    data.subtree_com[self._torso_bid], stance_w, sole_w, foot_clear,
+                    self.lift_height + state.cmd[6], 1.0, jp)
+                march_cur, march_last, march_both = march_both_update(
+                    state.march_cur, state.march_last, s_m, is_r.astype(jp.float32),
                     ((state.traj_on == 4.0) & lifted).astype(jp.float32), jp)
 
         if self.getup:
@@ -3685,6 +3774,8 @@ class BimoMJXEnv:
             reward += self.w_knee_high * knee_frac
         if self.w_march_unload and self.ext_cmd:
             reward += self.w_march_unload * march_unload
+        if self.w_march_both and self.ext_cmd:
+            reward += self.w_march_both * march_both
 
         # gait symmetry: on touchdown, penalize the swing-duration mismatch
         # vs the OTHER foot's last completed swing (locomotion commands only)
@@ -3963,6 +4054,9 @@ class BimoMJXEnv:
         if self._rp_on:
             # the encoder offset the obs and the dq history add (exclusive with roll_series_k)
             ser_defl, ser_dq = rp_off, rp_dq
+        if self._fs_on:
+            # the same for the foot-off sag springs (exclusive with both)
+            ser_defl, ser_dq = fs_defl, fs_dq
         dq_qhist = self._dq_qhist_push(data, state.dq_qhist, ser_defl)
         frame = self._obs(data, action, cmd, step_i, state.imu_R,
                           state.imu_bias, r_obs, gait_phase, m, zero_off=state.zero_off,
@@ -4009,6 +4103,7 @@ class BimoMJXEnv:
                      prev_action2=state.prev_action,
                      last_target=served_end, step_i=step_i, air_time=air_time,
                      last_air=last_air, swing_peak=swing_peak,
+                     march_cur=march_cur, march_last=march_last,
                      since_move=since_move, gait_freq=state.gait_freq, gait_phase=gait_phase,
                      obs_hist=obs_hist,
                      cmd=cmd, cmd_next=cmd_next, traj=state.traj,
@@ -4029,9 +4124,10 @@ class BimoMJXEnv:
                      gyro_hist=gyro_hist, gyro_delay=state.gyro_delay,
                      gyro_gain=state.gyro_gain, metrics=metrics,
                      dq_qhist=dq_qhist, dq_win=state.dq_win, ser_c=state.ser_c,
-                     ser_defl=(state.ser_defl if ser_defl is None or self._rp_on
+                     ser_defl=(state.ser_defl if ser_defl is None or self._rp_on or self._fs_on
                                else ser_defl),
-                     rp_h=state.rp_h, rp_off=rp_off, trim=trim)
+                     rp_h=state.rp_h, rp_off=rp_off,
+                     fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim)
 
 
 

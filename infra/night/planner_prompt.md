@@ -83,6 +83,15 @@ hold the work. These rules change how you plan:
   sole"). Report all three, side by side; the inset-sole number is the one closest to the robot's lateral margin. The
   `_ppsi` arms (11-12 night) trained on it (`--sole-in-mm L=8,R=-12`); compare them with their `_pp` twins. Judge a march by
   whether the lifts happen WITH a level body (torso roll in single support), both feet, not by lift height alone.
+  **From 2026-11-17 also a fourth grading, on the foot-off sag:** `GRADE_PLANT_TERMS=sag_L=6.4,sag_R=2.9` (no play, no
+  sole_in terms: the sag replaces the play and stands in for the inset sole's edge). It is the robot's release at lift-off
+  (2026-11-16 walks: the body rolls 6.4 deg toward the lifted foot on a left stance, 2.9 on a right one) as preloaded
+  springs beyond the roll encoders. Replaying six 2026-11-16 walks it keeps the three clean walks up and tips the quick-raise
+  walks, which the play plant does not (experiments/roll-balance/README.md, "The foot-off sag"; it tips left stances only,
+  and rings less than the robot). Report it beside the other three.
+  The training flag is `--footoff-sag L=6.4,R=2.9`, or for domain randomisation 0.5-1.5x per side per episode
+  `--footoff-sag L=3.2:9.6,R=1.45:4.35`. It replaces `--roll-play-deg` (exclusive) and is used without `--sole-in-mm`.
+  Whether an arm uses it is your decision.
 - **Tonight's queue (2026-11-11) replaces the spring march arms** (moved to queue/held/, WHY-1111-spring-march-replaced.txt). It runs
   4 arms x 2 seeds on the play plant: P1 prec68_march_pp, P2 prec69_slow_pp (gait 0.5-0.55 Hz, sway 0.05), P3 prec70_slowlift_pp (P2
   + mimic-march 0.05, swing-height 0.035) and P4 prec71_mir_pp (P1 + mirror loss).
@@ -160,6 +169,15 @@ deploy candidate branch deploy/prec16-f075, pushed, NOT flashed):
   longest / most important first; a short job may go last. A job starts while it still fits: the
   runner caps its --steps to (07:00 − now − 15 min) × rate and leaves it (and everything after it)
   queued if that is under half its --steps. A 300M legs teacher takes ~38 min and a distil ~3 min.
+- **Size the queue to reach 07:00: twelve teacher + distil pairs at 300M** (Tom 2026-11-16: "have
+  the planner queue twelve pairs"). Nine pairs ran dry at 04:25 – 05:02 on 11-13, 11-14 and 11-15,
+  and the GPU then idled about two hours before the stop each night, because the next plan is not
+  ready until ~06:20 and nothing new fits after that. For longer or shorter jobs size by time
+  (about 9 h ÷ the pair's measured duration, rounded up; e.g. 500M pairs ran ~65 min, so nine).
+  The last pair may be left queued by the fit rule; it then runs first the next night, which is fine.
+  If the night's test needs fewer pairs than that, fill the rest with a further seed of the same
+  arms (or the control at the same seeds), commented as extra replicates, and say in the plan
+  whether they count toward a pre-committed criterion. Do not pad with new variables.
 - **Latest from GitHub, before you queue:**
   1. `git fetch origin`, and fast-forward `~/code/robot`.
   2. List the open PRs (`gh pr list`), the recently pushed origin branches, and
@@ -373,6 +391,40 @@ referee shows a phase failing is in scope every day.
 - Look at what is already queued (`ls queue/`): jobs left over from an earlier
   plan run tonight unless you move them to `queue/held/` with a
   `WHY-<job>.txt` note.
+
+## The queue may start running the moment you finish (Tom, 2026-11-13)
+
+`plan_morning.sh` restarts `night_run.sh` right after you report `PLAN_STATUS: QUEUED` (or
+`NEEDS_TOM` with jobs queued) if the night window is still open: after 22:00, or before 06:45
+(no job starts later; the hard stop is 07:00). Last night the plan finished at 03:50 and the GPU
+then idled for 3 h, which Tom did not want. So:
+
+- Write every queue file as if it runs in the next minute: **valid as written** (preflight passes,
+  every `BRANCH=` is pushed, merged and on `origin/main` where the job needs it, before you exit).
+  "Merge it before 21:30" is no longer enough.
+- **Order the queue most informative first.** A continued night may only get through the first
+  few jobs before 07:00; the rest wait for 22:00.
+- You do not start anything yourself; the wrapper does, and it takes the runner lock, so no
+  second runner can appear.
+
+### Later pass the same morning
+
+If the context below ends with "THIS IS AN ADDENDUM PASS", your own jobs already ran (the runner
+was restarted after your plan). Do not plan the night from scratch:
+
+- Grade only the runs listed there (their scorecards), and post an **ADDENDUM comment** on the
+  status issue (#137): each run's score vs its parent and the verdict, nothing already said.
+  Add a ledger entry only for what is new.
+- Adjust the remaining queue only if these results change the decision (move a job to
+  `queue/held/` with a `WHY-<job>.txt`, or add one named so it sorts where you want it). If
+  nothing changes, leave the queue alone. Re-run preflight if you touched it.
+- End with a `PLAN_STATUS:` line as usual (`QUEUED <n> jobs — ...` for the queue as it now stands).
+  If jobs remain and the window is still open, the runner is restarted again after this pass.
+
+### Deadline
+
+The user-facing results must be posted by **08:00**. The first plan counts for that; an addendum
+may come later (it is a bonus, never the thing the 08:00 report waits for).
 
 ## Hard limits
 

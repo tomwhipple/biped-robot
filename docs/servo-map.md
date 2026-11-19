@@ -119,9 +119,11 @@ Open (issue #77):
 
 - **The splitter** is not selected. It must be a passive 3-way part for the
   servo's 3-pin lead with manufacturer documentation, like every other part.
-- **Current.** Each board port and its splitter carry that side's whole
-  current: 9 servos on A, 8 on B, on a ~3 A-class connector
-  ([wiring.md](wiring.md#servo-bus)); the budget is open.
+- **Current.** Each branch lead carries its whole chain on a ~3 A-class
+  connector ([wiring.md](wiring.md#servo-bus)). The simulated budget is in
+  [wiring.md](wiring.md#current-measured-budget-issue-77). The walk fits it.
+  The prone get-up puts 7–8.5 A peaks on one leg's lead, and how to carry
+  that is open.
 - **Lead lengths** per hop are measured in
   [wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1): every hop
   fits the stock 150 mm lead with the fold loop folded in **except the
@@ -318,6 +320,19 @@ isolation:
 
 - Roll and knee have `dir` −1 on both legs; yaw, pitch, ankle and ankle roll have +1. The servos are mounted the same way on each side, not mirrored.
 - The neck, shoulder and elbow signs are derived on the robot when they are fitted. **Never carry a sign over from another body.**
+- **The arms, derived 2026-11-16** on the bench (arms mounted upside down on a desk, wired to the old ESP32 controller on the Pi `biped.local`; video `~/arms/sweep_*.mp4` on the Pi). Each arm servo was a factory ID 1 (one had been set to 5) and was re-IDed alone on the bus, its joint identified by a ±100-tick wiggle on camera.
+  - **Zero is the owner's home pose, NOT the plant's 0**: "elbows backward, forearms pulled up", the forearm folded as far as the mechanism allows. `middle` on each servo there (home = 2048, carried in the servo's EEPROM), then `cal set <id> 2048 <dir>` and `cal save`. On the robot's board, `cal set` the same four rows and `cal fit` them.
+  - Signs, read from the fold: the elbow folds forward (plant −), so the side the folded forearm points to is the robot's front. Shoulder positive = back (plant convention). Elbow positive = opening from the fold stop.
+
+  | joint | ID | zero | `dir` | measured travel from home (ticks → degrees) |
+  |---|---|---|---|---|
+  | `R_shoulder` | 14 | 2048 | −1 | +ticks swings forward: free to the encoder end (+179°); −ticks (back) reached the desk at −127° |
+  | `R_elbow` | 15 | 2048 | +1 | +ticks opens: free through +179.3°; −ticks = the fold hard stop at home (23 % load 3.5° in) |
+  | `L_shoulder` | 16 | 2048 | +1 | ±31.6° probed only (objects near the bench); no contact |
+  | `L_elbow` | 17 | 2048 | −1 | −ticks opens: free through 179.3°; +ticks = the fold hard stop at home (26 % load 1.8° in) |
+
+  The elbows at ±1138 ticks from home (≈ 100° open) put each forearm in line with its upper arm, which matches the plant's −100° fold (`ARM_ROM` in `cad/v6/dimensions_v6.py`). The CAD's elbow range (−100 … +10) is far smaller than the 179° the bench elbows open freely. No policy holds or drives the arms yet (`kNumHeld` = 0); one that does must convert from the plant's frame to this one.
+
 - **The v6 legs, derived 2026-10-23** (each joint moved alone, ±8° to ±35° from the standing pose, filmed from the front; `hw_sessions/2026-10-23/calibration/`); every pair agrees across the legs:
 
   | joint | left (ID, `dir`) | right (ID, `dir`) | how it was read |
@@ -355,8 +370,11 @@ in the sim joint frame.
 | ankle | ±45° | plant ctrlrange; not a stop (free to ±78°) |
 | ankle roll (11, 12) | ±25° | plant range; stop at +27.9 L / −26.9 R on the outer-edge-up side only |
 | neck yaw (13) | ±90° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
-| shoulder (14, 16) | −90° … +200° | plant range (`sim/gen_plant_v6.py`: 0 hanging, 90 straight back, 180 up along the torso); never probed |
-| elbow (15, 17) | ±150° | plant range; never probed |
+| shoulder (14, 16) | none (±360°, never clamps) | no software limit, by the owner's choice (2026-11-16); the encoder's 0…4095 is the only bound. Bench sweep: 179° free one way (R), the desk stopped the other at −127° (R); L probed ±31.6° only (objects nearby) |
+| elbow (15, 17) | 0° … +179° | measured 2026-11-16 (§3.2, arms): 0 = home = the fold hard stop; the open side is free through +179.3°, the end of the encoder range from home |
+
+The arm rows are in the arms' own frame (§3.2, arms), whose zero is the
+owner's home pose, not the plant's 0.
 
 The leg rows are the v6 legs plant's policy range, not the robot's stops; the
 robot's **measured** stops lie outside every row and are below. `kMechLo` /
@@ -595,10 +613,10 @@ measured factor.
 | 11 | `R_ankle_roll` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bottles, and the one-leg lift ankle-roll encoder |
 | 12 | `L_ankle_roll` | STS3215 | 32 | 32 | 0 | 2.8 | factory; bottles, and the one-leg lift ankle-roll encoder |
 | 13 | `neck_yaw` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
-| 14 | `R_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
-| 15 | `R_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
-| 16 | `L_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
-| 17 | `L_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory (not on the legs-only body) |
+| 14 | `R_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory gains, re-locked 2026-11-16 after the ID write; `middle`d at home |
+| 15 | `R_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory gains, re-locked 2026-11-16 after the ID write; `middle`d at home |
+| 16 | `L_shoulder` | STS3215 | 32 | 32 | 0 | 2.8 | factory gains, re-locked 2026-11-16 after the ID write; `middle`d at home |
+| 17 | `L_elbow` | STS3215 | 32 | 32 | 0 | 2.8 | factory gains, re-locked 2026-11-16 after the ID write; `middle`d at home |
 
 The gate checks P and D; I is shown by `gains <id>` but not gated (it stays 0
 until the integral fallback, which needs an integral term in the sim first).

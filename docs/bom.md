@@ -149,10 +149,13 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   (about 5 STS3215s, not stalled at once).
 - The robot puts 17 servos on that path. The prototype measured 6.8 A peaks on
   10.
-- The sim budget for the two scripted motions: a **4.54 A** bus peak on the
-  seat-push get-up and a **2.46 A** worst per-port peak on the Gate D walk.
-  It is a sim figure; the bench number with a watt meter on the pack lead is
-  still owed.
+- The sim budget, per power-lite branch, on the robot's servo set:
+  - **The dwell walk:** a 3.8 A bus peak and 2.3 A on a leg's lead (upper
+    model).
+  - **The get-ups:** a 10–14 A bus peak (5.5–8.2 A in the lower model).
+  - **The prone get-up's leg leads:** 7.3–8.5 A peaks.
+  - It is a sim figure; the bench number with a watt meter on the pack lead is
+    still owed.
 - The fix under consideration is to solder the power lead to the inlet pads
   instead of using the XH plug.
 - The fuse and the bulk capacitor are required before the first powered floor
@@ -162,7 +165,7 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 |---|---|---|---|
 | **3S LiPo pack** | 1–2 | OVONIC 3S 4200 mAh 130C, XT60 (#107): 205 g weighed, listed 96 × 44.5 × 25.5 mm; **11.1 V, not 11.4 V HV** | ordered 2026-10-07 |
 | **3S protection board** | 1 | ≥ 15 A continuous; over-discharge cut-off ≈ 3.0 V/cell; balance leads. The torso holds a 56 × 45 × 8 mm one (the ShillehTek CF-3SJH25A-C's datasheet size) on the BMS bracket in its power bay (#213) | |
-| 3S balance extension lead | 1 | JST-XH 4-pin, female (into the power board's J2) to male (pins, takes the pack's balance plug), about 100 mm; parks its male end in `balance_park_v8` ([assembly.md §9c](assembly.md)). Its male end's body is taken as JST's B4B-XH-A (12.4 × 5.75 × 7.0 mm): measure it | |
+| 3S balance extension lead | 1 | JST-XH 4-pin, female (into power lite's J2) to male (pins, takes the pack's balance plug), about 100 mm; parks its male end in `balance_park_v8` ([assembly.md §9c](assembly.md)). Its male end's body is taken as JST's B4B-XH-A (12.4 × 5.75 × 7.0 mm): measure it | |
 | main switch | 1 | heavy-duty SPST toggle, "20A 125VAC", two screw terminals, 11.8 mm bushing with 9.25 mm of thread and a keyway (its width and depth to measure), no washer, body 30 × 15.5 × 19 mm behind the panel, 27 mm with its terminals (Tom's, measured 2026-11-04): on W6/W7, in `switch_pod_v8` on the cap ([assembly.md §9c](assembly.md)) | on hand |
 | E-stop | 1 | E-Switch 100SP1T1B1M1QEH: miniature toggle, SPDT ON-NONE-ON, standard lever, 1/4-40 threaded bushing, solder lugs, silver contacts, epoxy seal, with its hardware ([100 series datasheet](datasheets/switches/e-switch-100-series.pdf)); body 12.70 × 6.86 × 8.89 mm, 12.9 mm behind the panel with its lugs. On J11 (a PHR-2 lead, 24–26 AWG) across terminals 2 and 3, beside the main switch in `switch_pod_v8` ([assembly.md §9c](assembly.md)) | |
 | inline 2-pin disconnect | 1 pair | in the main switch's 14 AWG pair, so the cap comes off; XT30 size assumed (26 × 11 × 6 mm mated): check its current rating against the maker's datasheet | |
@@ -188,8 +191,8 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   - The ShillehTek CF-3SJH25A-C, characterised on the bench before it goes in
     the robot (Tom, 2026-11-02:
     [the power-lite options](design-v6/2026-11-02-power-lite-options.md)).
-  - The torso holds one 56 × 45 × 8 mm board on the BMS bracket over the power
-    board ([DESIGN.md §5.3](../DESIGN.md), [assembly.md §9c](assembly.md)); a
+  - The torso holds one 56 × 45 × 8 mm board on the BMS bracket over power
+    lite ([DESIGN.md §5.3](../DESIGN.md), [assembly.md §9c](assembly.md)); a
     bigger one has no place.
   - The UART "smart" boards that give per-cell telemetry are the JBD SP04S010
     (80 × 60 × 12 mm) and the Daly R05J (100 × 65 × 13 mm).
@@ -288,8 +291,8 @@ M2.5, not M3.
 | M2.5 × 17 male-female standoff, 6 mm male | 4 | the Pi onto its four bosses; the General Driver screws onto them | |
 | M2.5 × 6 pan, machine | 4 | the General Driver onto the Pi's standoffs | |
 | 2 × 20 GPIO riser | 1 | the General Driver on the Pi, 17 mm board to board (`HAT_GAP`): part **open** | |
-| M2.5 × 6 pan self-tap | 2 | the power board onto its −y standoff bosses | |
-| M2.5 × 15 male-female standoff, 6 mm male | 2 | the power board onto its +y standoff bosses; the BMS bracket screws onto them | |
+| M2.5 × 6 pan self-tap | 2 | power lite onto its −y standoff bosses | |
+| M2.5 × 15 male-female standoff, 6 mm male | 2 | power lite onto its +y standoff bosses; the BMS bracket screws onto them | |
 | M2.5 × 6 flat-head (90° countersunk), machine | 2 | the BMS bracket onto its standoffs | |
 | double-sided foam tape, about 1 mm | 1 strip | the BMS onto the BMS bracket, the balance park onto the aft inner wall (#213) | |
 | M2 × 4 self-tap | 4 | Camera Module 3 onto the head face | |

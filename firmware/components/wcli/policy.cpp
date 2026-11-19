@@ -62,7 +62,9 @@ const char* const kBenchAny[] = {
     // the stance-hip trim (#297): status, gains and learned T are RAM only, like `balance`
     "trim",
     // the gait track (#297 B2): frames, play / stop / halt; RAM only, behind the same gates as `pose`
-    "track", nullptr};
+    "track",
+    // the track's lift gate (#297): thresholds and on / off, RAM only, like `trim`
+    "liftgate", nullptr};
 
 }  // namespace
 

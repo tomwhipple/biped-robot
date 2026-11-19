@@ -2,8 +2,8 @@
 
 *A dated record. Tom's question before ordering: "make sure that there's not a substantially
 similar product available off-the-shelf for less money, possibly as an RPi hat or something."
-The custom board is [pcb/power-board](../../pcb/power-board/README.md). Its price is in
-[2026-10-24-power-board-quote.md](2026-10-24-power-board-quote.md): about $101 a board for 2
+The custom board was `pcb/power-board` (removed in #327; in git history at fff467f). Its price was in
+`2026-10-24-power-board-quote.md` (removed in #327; in git history at fff467f): about $101 a board for 2
 assembled, $78 for 3, $60 for 5, from instant quotes. The 2026-10-06 options study is
 [2026-10-06-power-circuit.md](2026-10-06-power-circuit.md) §5.2 and §13.*
 
@@ -71,7 +71,7 @@ assembled, $78 for 3, $60 for 5, from instant quotes. The 2026-10-06 options stu
 - **TI's BQ76922EVM is in stock again**: $232.96 at Digi-Key, 6 units. It was out of stock
   on 2026-10-06.
   - It is 3.0 × 4.9 in, rated 0–10 A continuous and populated for 5 cells (user guide
-    SLVU957A, in `docs/datasheets/power-board/`).
+    SLVU957A, in `docs/datasheets/power-board/`, removed in #327; in git history at fff467f).
   - That rules it out for the robot, but it is again usable for bring-up on the bench:
     design-record decision D6 tests the configuration and sequences on it while the board
     is made.

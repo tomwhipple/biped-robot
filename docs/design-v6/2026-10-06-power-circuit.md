@@ -115,7 +115,7 @@ What changes from the path in [wiring.md](../wiring.md):
 
 ## 5. The power board
 
-One custom PCB, designed here (KiCad, in `pcb/power-board/`) and
+One custom PCB, designed here (KiCad, in `pcb/power-board/`, removed in #327; in git history at fff467f) and
 made and assembled by PCBWay or similar. Every IC on it has a manufacturer
 datasheet. It sits in the redrawn torso (#108).
 
@@ -255,7 +255,7 @@ readings come with the right IC at no extra cost.
 
 ### 5.6 Making it
 
-- **KiCad**, under `pcb/power-board/`: the schematic, the layout, a BOM with
+- **KiCad**, under `pcb/power-board/` (removed in #327; in git history at fff467f): the schematic, the layout, a BOM with
   each part's datasheet link, and the fab and assembly outputs.
 - **Generated outputs** (Gerbers, pick-and-place) are rebuilt from the KiCad
   source, not hand-edited.
@@ -436,7 +436,7 @@ recommended option is the working design until there is a reason to change it.
 | D2 | Cell protection and battery state (§5.2) | working default | option A, the BQ76922 (per-cell voltages come with it) | B (ISL94202 + INA228), C (pack-level only), D/E (JBD modules) |
 | D3 | Servo-rail switch / E-stop (§5.3) | working default | the TPS48111-Q1 with the button's NC contact on `EN` | a relay switched by the button (fail-safe contacts, but a 1.4 W coil); the LM5069 |
 | D4 | POWER button behaviour (§7) | working default | press: on; press while on: orderly shutdown; no hardware hold-off (unplug the pack instead) | hold ≈ 5 s: forced off in hardware, by an RC from POWER to `RST_SHUT` |
-| D5 | Who draws the power board | **decided** | KiCad; Claude drafts the schematic and layout in `pcb/power-board/`, and Tom reviews before ordering | an outside designer from this spec |
+| D5 | Who draws the power board | **decided** | KiCad; Claude drafts the schematic and layout in `pcb/power-board/` (removed in #327; in git history at fff467f), and Tom reviews before ordering | an outside designer from this spec |
 | D6 | Order of work | working default | the schematic first, with the BQ76922EVM on the bench to test the configuration and the sequences while the power board is made | wait for the power board |
 | D7 | Fuse | working default | 15 A until §10 V7 measures the peak | — |
 

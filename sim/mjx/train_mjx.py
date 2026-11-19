@@ -693,6 +693,12 @@ def make_parser():
                         "is up: u = its static unloading (the CoM's progress from the swing "
                         "sole to the stance sole, 0..1), h = its sole height / (lift_height "
                         "+ c6), clipped to 1 (walker_env.march_unload_term)")
+    p.add_argument("--w-march-both", type=float, default=None,
+                   help="TWO-FOOT (AND) march term weight (default off): during a gait-clock "
+                        "march, min over the two feet of each foot's best 0.5 (u + h) (the "
+                        "--w-march-unload score) over its last completed commanded swing, so a "
+                        "one-legged march earns only the planted foot's unloading "
+                        "(walker_env.march_both_update; #137, 2026-11-13)")
     p.add_argument("--w-knee-high", type=float, default=None,
                    help="knee-high clearance kernel weight: fraction of the "
                         "commanded swing height (lift_height + c6) the swing "
@@ -790,6 +796,17 @@ def make_parser():
                         "on that side ('hip=2:3,L_hip=8:10,ankle=4:6'). Exclusive with --roll-series-k (hw 2026-11-11 clamp; "
                         "experiments/policy/weight-transfer-gate). config.json records it; the "
                         "referee and grade.py inherit it")
+    p.add_argument("--footoff-sag", default=None,
+                   help="the FOOT-OFF SAG, deg per STANCE side: 'L=6.4,R=2.9' (the 2026-11-16 "
+                        "fit), or 'L=LO:HI,R=LO:HI' drawn per episode per side. Preloaded springs "
+                        "in series with the hip / ankle roll servos beyond the encoder (the encoders "
+                        "read the shaft); each preload scales with its foot's share of the floor "
+                        "load, so when a foot unloads the body sags toward it about the stance leg "
+                        "(walker_env.footoff_sag_*, both envs; experiments/roll-balance/footoff_sag.py "
+                        "validates it against the robot's walks). Exclusive with --roll-play-deg / "
+                        "--roll-series-k; use it without --sole-in-mm (the inset sole stands in for "
+                        "the same inner edge, and the two together tip clean replayed steps). "
+                        "config.json records it; the referee, grade.py and the distil inherit it")
     p.add_argument("--torso-mass-range", type=float, default=None,
                    help="torso mass/inertia DR +-fraction (replaces the generic "
                         "--mass-range draw for the torso body)")
@@ -1132,6 +1149,11 @@ def build_env_kw(args):
         rp = parse_roll_play_deg(args.roll_play_deg)
         if rp is not None:
             env_kw["roll_play_deg"] = {k: list(v) for k, v in rp.items()}
+    if getattr(args, "footoff_sag", None):
+        from walker_env import parse_footoff_sag   # jax-free, shared with both envs
+        fs = parse_footoff_sag(args.footoff_sag)
+        if fs is not None:
+            env_kw["footoff_sag"] = {k: list(v) for k, v in fs.items()}
     if args.torso_mass_range is not None:
         env_kw["torso_mass_range"] = args.torso_mass_range
     if args.torso_com_y is not None:
@@ -1327,6 +1349,8 @@ def build_env_kw(args):
         env_kw["w_knee_high"] = args.w_knee_high
     if args.w_march_unload is not None:
         env_kw["w_march_unload"] = args.w_march_unload
+    if args.w_march_both is not None:
+        env_kw["w_march_both"] = args.w_march_both
     for _k in ("w_foot_cross", "foot_cross_sep", "swing_height", "w_feet_phase",
                "feet_phase_s2"):
         if getattr(args, _k) is not None:

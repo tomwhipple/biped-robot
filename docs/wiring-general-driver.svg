@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1210" viewBox="0 0 1700 1210" font-family="Helvetica, Arial, sans-serif">
 <rect width="1700" height="1210" fill="#ffffff"/>
 <text x="850" y="32" font-size="20" fill="#1f2937" font-weight="bold" text-anchor="middle">Bimo biped: wiring with power lite on the General Driver for Robots</text>
-<text x="850" y="52" font-size="11" fill="#6b7280" text-anchor="middle">Nets: SERVO+ / pack V+ red, GND black, servo DATA blue, control green, balance lead dashed grey. Sources: pcb/power-lite/README.md, pcb/power-board/harness.md, docs/wiring.md, docs/servo-map.md.</text>
+<text x="850" y="52" font-size="11" fill="#6b7280" text-anchor="middle">Nets: SERVO+ / pack V+ red, GND black, servo DATA blue, control green, balance lead dashed grey. Sources: pcb/power-lite/README.md, pcb/power-lite/harness.md, docs/wiring.md, docs/servo-map.md.</text>
 <rect x="30" y="80" width="320" height="100" rx="8" fill="#fef7ed" stroke="#c2410c" stroke-width="1.5"/>
 <text x="44" y="100" font-size="11" fill="#7c2d12" font-weight="bold">BT1 · OVONIC 3S 4200 mAh 130C</text>
 <text x="44" y="116" font-size="9" fill="#4b5563">11.1 V nominal, 12.6 V full; 205 g weighed</text>
@@ -156,7 +156,7 @@
 <text x="958" y="286" font-size="9" fill="#166534">GPIO34 ← RAIL_V (ADC)</text>
 <text x="958" y="300" font-size="9" fill="#166534">IO4 ← ESTOP_N (internal pull-up on)</text>
 <text x="958" y="322" font-size="8" fill="#6b7280">physical headers: harness.md J12 table</text>
-<text x="958" y="334" font-size="8" fill="#6b7280">(rev B; not verified for power lite)</text>
+<text x="958" y="334" font-size="8" fill="#6b7280">(not verified)</text>
 <rect x="950" y="365" width="230" height="62" rx="5" fill="#ffffff" stroke="#93c5fd" stroke-width="1.2"/>
 <text x="958" y="382" font-size="10" fill="#1e3a8a" font-weight="bold">H5 · bus servo port</text>
 <text x="958" y="396" font-size="8" fill="#4b5563">1 DATA · 2 DC_IN · 3 GND (D V G)</text>
@@ -260,7 +260,7 @@
 <rect x="1240" y="80" width="430" height="345" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
 <text x="1252" y="100" font-size="12" fill="#92400e" font-weight="bold">What this drawing shows, and what it does not</text>
 <text x="1252" y="120" font-size="9" fill="#78350f">Power lite is the robot's battery protection and power distribution; it</text>
-<text x="1252" y="132" font-size="9" fill="#78350f">replaces the rev B power board (#207). It carries the pack connectors, the</text>
+<text x="1252" y="132" font-size="9" fill="#78350f">is the robot's power board (#207). It carries the pack connectors, the</text>
 <text x="1252" y="144" font-size="9" fill="#78350f">BMS and main-switch pads, the fuses, the E-stop relay and the servo</text>
 <text x="1252" y="156" font-size="9" fill="#78350f">distribution. Nothing is soldered on the General Driver.</text>
 <text x="1252" y="176" font-size="9" fill="#78350f">The servo rail is fed through K1 and F1 (15 A). The General Driver and the</text>
@@ -278,14 +278,14 @@
 <text x="1252" y="344" font-size="9" fill="#78350f">are still a proposal. Which General Driver port each leg was plugged into</text>
 <text x="1252" y="356" font-size="9" fill="#78350f">was not checked (servo-map.md); the servo data line is one net, from H5</text>
 <text x="1252" y="368" font-size="9" fill="#78350f">through J8.</text>
-<text x="1252" y="388" font-size="9" fill="#78350f">H6 and H5's DC_IN pin are not used by this harness; the harness tables in</text>
-<text x="1252" y="400" font-size="9" fill="#78350f">pcb/power-board/harness.md list only J8 to H5 for servo data.</text>
+<text x="1252" y="388" font-size="9" fill="#78350f">H6 and H5's DC_IN pin are not used by this harness; the harness table in</text>
+<text x="1252" y="400" font-size="9" fill="#78350f">pcb/power-lite/harness.md lists only J8 to H5 for servo data.</text>
 <text x="1252" y="420" font-size="9" fill="#78350f">Not drawn or not verified: the physical fan-out of J12 to the General</text>
-<text x="1252" y="432" font-size="9" fill="#78350f">Driver's headers (harness.md lists it for the rev B board; J12's pins 2, 3,</text>
-<text x="1252" y="444" font-size="9" fill="#78350f">5 and 6 carry the same signals on power lite, but the header families, check</text>
-<text x="1252" y="456" font-size="9" fill="#78350f">P5, were not verified); the BMS thresholds (to be measured); the relay's</text>
+<text x="1252" y="432" font-size="9" fill="#78350f">Driver's headers (harness.md lists it; J12's pins 2, 3,</text>
+<text x="1252" y="444" font-size="9" fill="#78350f">5 and 6 carry the signals, but the header families (the</text>
+<text x="1252" y="456" font-size="9" fill="#78350f">connector-family check) were not verified); the BMS thresholds (to be measured); the relay's</text>
 <text x="1252" y="468" font-size="9" fill="#78350f">inrush, set by the pack, BMS and wiring, which bring-up step 3 checks; the</text>
 <text x="1252" y="480" font-size="9" fill="#78350f">bench current figure with a watt meter.</text>
-<text x="1252" y="500" font-size="9" fill="#78350f">The old harness's INA219 caveat is unchanged: the board's INA219 sees only</text>
+<text x="1252" y="500" font-size="9" fill="#78350f">One caveat: the General Driver's INA219 sees only</text>
 <text x="1252" y="512" font-size="9" fill="#78350f">the buck's current, none of the servo current.</text>
 </svg>

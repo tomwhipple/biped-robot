@@ -53,6 +53,19 @@ of this board (`tools/asm_figs.py`), so each one shows the board after its step.
 - **Every part goes on the top**, the side printed "BIPED POWER LITE rev A". Solder from the
   bottom, and trim each lead to about 1.5 mm after its joint.
 - **Lowest parts first.** The board then lies flat on the new parts while you solder them.
+- **The wire pads W1, W2, W6 and W7 are named by function on the top**, not by number; only the
+  bottom's legend, near its lower edge, gives their numbers. Seen from the top, with "BIPED
+  POWER LITE rev A" reading upright along the top edge and J1 (silkscreen "PACK") at the left:
+
+  | pad | top silkscreen | where | net |
+  |---|---|---|---|
+  | W6 | SW (one label over the pair) | the left of the two pads along the top edge, right of J1 | pack B+ |
+  | W7 | SW | the right of that pair | switched input (VIN) |
+  | W1 | BMS B- (above it) | right of J1, under W6 | pack − |
+  | W2 | BMS P- (below it) | under W1 | system ground |
+  | W3, W4, W5 | W3, W4, W5 | the column right of J2 (silkscreen "BAL"); W5 at the top | cell taps B3, B2, B1+ |
+
+  A switch has no polarity, so W6 and W7 can take either of its wires. W1 and W2 must not swap.
 - **Some pads take more heat.** These join the bottom ground plane with full copper, not thermal
   spokes, because they carry the return current:
   - W2, C1's − lead, and the unbanded ends of D2 and D3;
@@ -63,9 +76,9 @@ of this board (`tools/asm_figs.py`), so each one shows the board after its step.
   contacts, C1's + lead, and the banded ends of D2 and D3. Use more flux and hold the iron until the solder
   flows through the hole to the top.
 - **Check the bare board** with the meter. Each of these should read open:
-  - W6 to W1, the pack's + and −;
-  - W7 to W2, the switched input and ground;
-  - the + pad of C1 to W2.
+  - W6 (SW, left) to W1 (BMS B-), the pack's + and −;
+  - W7 (SW, right) to W2 (BMS P-), the switched input and ground;
+  - the + pad of C1 to W2 (BMS P-).
 
 ## Solder the parts
 
@@ -200,13 +213,13 @@ then faces the servo headers. A backwards electrolytic on the 12 V rail fails, a
 
 | between | reads | it checks |
 |---|---|---|
-| J1's + pin and W6; J1's − pin and W1 | 0 Ω | J1's polarity |
-| W6 and W1 | open | no short across the pack |
-| diode range, red on W2, black on W7 | a diode drop, about 0.5–0.7 V; open with the leads swapped | D3 the right way round |
-| diode range, red on W2, black on C1's + lead | a diode drop, after a second or two as C1 charges. A reading that keeps climbing to open means D2 is backwards | D2 the right way round |
+| J1's + pin and W6 (SW, left); J1's − pin and W1 (BMS B-) | 0 Ω | J1's polarity |
+| W6 (SW, left) and W1 (BMS B-) | open | no short across the pack |
+| diode range, red on W2 (BMS P-), black on W7 (SW, right) | a diode drop, about 0.5–0.7 V; open with the leads swapped | D3 the right way round |
+| diode range, red on W2 (BMS P-), black on C1's + lead | a diode drop, after a second or two as C1 charges. A reading that keeps climbing to open means D2 is backwards | D2 the right way round |
 | K1's pin 85 (red) and 86 (black) | about 75 Ω: the 90 Ω coil with its built-in 470 Ω | the relay coil |
 | J3 pin 1 and F2's right-hand pins | 0 Ω | J3 the right way round |
-| J3 pin 2, J12 pin 3, and pin 3 of each of J4–J8, to W2 | 0 Ω | the grounds |
+| J3 pin 2, J12 pin 3, and pin 3 of each of J4–J8, to W2 (BMS P-) | 0 Ω | the grounds |
 | pin 2 of each of J4–J7, to C1's + lead | 0 Ω | the servo rail |
 | pin 1 of each of J4–J7, to J8 pin 1 | 0 Ω | the servo data line |
 
@@ -228,13 +241,13 @@ then tug the wire to check it is held.
   terminal 2, the middle one, and terminal 3. Check with the meter that the two wires read 0 Ω
   in the position you call "run" and open in "stop".
 - **J12** uses pins 2, 3, 5 and 6 only. Their far ends follow the
-  [harness](../power-board/harness.md#j9-and-j12-control-to-the-general-driver):
+  [harness](harness.md#j12-control-to-the-esp32):
   - pin 2 `SERVO_EN` to P3 pin 4 (IO16);
   - pin 3 GND to P3 pin 3;
   - pin 5 `RAIL_V` to H3 pin 4 (GPIO34);
   - pin 6 `ESTOP_N` to H2 pin 1 (IO4).
 
-  The far-end housings depend on the General Driver's headers (harness check P5). The elechawk
+  The far-end housings depend on the General Driver's headers (harness.md, J12). The elechawk
   kit has 2.54 mm Dupont housings.
 - **The servo leads** must put the General Driver's GND wire on pin 3 here (harness check P4).
 - **J2 takes the pack's balance plug directly.** Meter the plug first (harness check P2): pin 1
@@ -264,17 +277,17 @@ balance plug ─> J2 ─> W3, W4, W5 ─wires─> BMS B3, B2, B1+   (cell-voltag
 
 The BMS sits in the pack's negative lead, so a trip cuts the whole robot off from the pack.
 
-| pad | to | wire |
-|---|---|---|
-| W1 | the BMS's B− | 14 AWG silicone, black |
-| W2 | the BMS's P−, the system ground | 14 AWG silicone, black |
-| W3, W4, W5 | the BMS's B3, B2 and B1+ | 24 AWG |
-| W6, W7 | the main switch's two terminals | 14 AWG silicone, red |
+| pad | top silkscreen | to | wire |
+|---|---|---|---|
+| W1 | BMS B- | the BMS's B− | 14 AWG silicone, black |
+| W2 | BMS P- | the BMS's P−, the system ground | 14 AWG silicone, black |
+| W3, W4, W5 | W3, W4, W5 | the BMS's B3, B2 and B1+ | 24 AWG |
+| W6, W7 | SW (the pair along the top edge) | the main switch's two terminals | 14 AWG silicone, red |
 
 - **Tin each wire end**, push it through from the top, and solder from the bottom until the hole
   is full.
 - **Keep the heavy wires short**, and tie them down so the joints don't carry their weight.
-- **Without the main switch,** join W6 to W7 with a short 14 AWG link. Unplugging the XT60 is
+- **Without the main switch,** join W6 to W7 (the two SW pads) with a short 14 AWG link. Unplugging the XT60 is
   then the off switch.
 - Then check the inrush with the pack and the servos: the README's step 3.
 

@@ -51,7 +51,7 @@ It is not the bench order; the figures and this text are. The differences:
 2. Build each leg from the foot up (§3–§6).
 3. Seat the yaw servos in the bare pelvis, glue the pelvis into the torso,
    build the rest of the hip stack (§7), then hang the legs on it (§8).
-4. Fit the boards and the power board (§9).
+4. Fit the boards and power lite (§9).
 5. Put the pack in and close the battery door (§10).
 6. Build the neck into the girdle on the bench, then fit the girdle,
    shoulders, arms and head (§11).
@@ -151,7 +151,7 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
 | §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
-| §9c power board: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
+| §9c power lite: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
 | §9c BMS bracket onto the standoffs / power cap | M2.5 × 6 flat / M2.5 × 8 flat | 2 / 3 |
 | §9c BMS onto its bracket / balance park onto the aft wall | double-sided foam tape, 1 mm | — |
 | §9c switch pod onto the cap (from the cap's inner face) | M2.5 × 8 flat | 4 |
@@ -428,11 +428,11 @@ Offer each leg up so that the hip yoke's roll clevis straddles its roll servo:
 
 The Pi and the General Driver go in as one stack, in the bay in front of the
 pelvis, with the front cover off: the Pi on four standoffs off the front inner
-wall, the General Driver plugged onto it as a HAT. The power board goes into
+wall, the General Driver plugged onto it as a HAT. Power lite goes into
 the bay right behind the pelvis, with the cap off, and its BMS on a bracket
 over it.
 
-![The stack in from the front, the power board from aft](assembly/v6_11_boards.png)
+![The stack in from the front, power lite from aft](assembly/v6_11_boards.png)
 
 ### 9a. Raspberry Pi 4B
 
@@ -465,10 +465,10 @@ over it.
 - **The front cover:** set it between the skins' front ends and drive **4 ×
   M2.5 × 8 flat-heads** in through the skins into its corner blocks.
 
-### 9c. Power board, BMS bracket, BMS and cap
+### 9c. Power lite, BMS bracket, BMS and cap
 
-The power bay holds the power board (power lite, PR #209,
-[pcb/power-lite](../pcb/power-lite/README.md)), its BMS (a ShillehTek
+The power bay holds power lite
+([pcb/power-lite](../pcb/power-lite/README.md)), its BMS (a ShillehTek
 CF-3SJH25A-C, wired to it with no connectors) on the **BMS bracket**
 (`power_bracket_v8`), the **balance park** (`balance_park_v8`) for the
 balance lead's free end, and the **cap** (`power_cover_v8`) over them, with
@@ -656,7 +656,7 @@ The pack goes in and out sideways, through the **battery door** in the +y skin
    which locate it fore and aft with 0.5 mm, until its −y end meets the two
    blocks under the deck rail.
 4. **Plug it in:** its lead runs aft from its +y end, through the aft wall's
-   +y end window into the power bay, and loops into J1 on the power board's +y
+   +y end window into the power bay, and loops into J1 on power lite's +y
    edge (§9c), all inside the door's opening. Its balance plug goes onto the
    balance lead's male end in the park, at the opening's sill (§9c).
 5. **Close the door:** hook its tab (the bevelled aft edge) behind the power
@@ -838,7 +838,7 @@ number still owed.
   top windows in the front inner wall into the board-stack bay, to the General
   Driver's bus edge. The deck has no leg-bus slots.
 - **Power bay:** windows at the battery layer's ends in the aft inner wall
-  carry leads to the power board, the pack's lead through the +y one.
+  carry leads to power lite, the pack's lead through the +y one.
 - **Roll servos:** their ports face rearward through the carrier's rear-wall
   window.
 - **Boards:** the General Driver's bus edge faces up, and the upper branch
@@ -917,7 +917,7 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 | item | where |
 |---|---|
 | ID map, harness, lead lengths, current budget | #77 |
-| room for the pack's plug and 12 AWG lead at the power board's J1 (17.4 mm to the skin) | §9c; the power board, PR #209 |
+| room for the pack's plug and 12 AWG lead at power lite's J1 (17.4 mm to the skin) | §9c; power lite, PR #209 |
 | the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
 | the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
 | the main switch's nut, lever length and throw, and its keyway's width, depth and place (the panel tab, `SW_KEY_*`); the inline disconnect's size and rating | §9c; #213 |

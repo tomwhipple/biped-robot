@@ -23,13 +23,29 @@
 #
 # The camera serves one reader: the mediamtx `camera` path
 # (~/code/camera/camera-stream.sh) takes it whenever someone watches the
-# stream, and then this fails at camera_init.
+# stream, and then camera_init fails. This script therefore REFUSES (exit 3,
+# nothing written) when the camera is held -- by tools/vision/camd.py (its
+# flock), or by any other liveview.py -- and removes its files and exits 1 if
+# no frame arrives within 15 s. The checks use a flock and an anchored pgrep
+# pattern (^ + the liveview path); neither can match this script's own command line.
 set -uo pipefail
 OUT=${1:?usage: sony_record.sh <out_base> [seconds] [label]}
 SECS=${2:-0}
 LABEL=${3:-sony}
 LIVEVIEW=${LIVEVIEW:-$HOME/code/camera/liveview.py}
 [[ "$SECS" == 0 ]] && SECS=""
+
+CAMD_LOCK=${CAMD_DIR:-$HOME/cam-segments}/sony.lock
+if [[ -e "$CAMD_LOCK" ]] && ! flock -n "$CAMD_LOCK" true; then
+  echo "sony_record: camd owns the camera (lock $CAMD_LOCK, pid $(cat "$CAMD_LOCK" 2>/dev/null)); cut a clip with tools/vision/clip.py instead. Not recording." >&2
+  exit 3
+fi
+if HOLDERS=$(pgrep -af "^/usr/bin/python3 -u $LIVEVIEW"); then
+  echo "sony_record: the camera is busy, another liveview reader is running:" >&2
+  echo "$HOLDERS" >&2
+  echo "sony_record: not recording (no file written)." >&2
+  exit 3
+fi
 
 FONT=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
 if [[ -f "$FONT" ]]; then FONTOPT="fontfile=$FONT"; else FONTOPT="font=monospace"; fi
@@ -55,4 +71,18 @@ setsid sg plugdev -c "exec /usr/bin/python3 -u '$LIVEVIEW' $SECS" | \
     "${LATEST_OUT[@]}" &
 FF=$!
 trap 'pkill -TERM -f "python3 -u $LIVEVIEW" 2>/dev/null; wait $FF; exit 0' INT TERM HUP
+# no frame within 15 s = the camera never started: leave no empty file behind
+nframes() { local n; n=$(grep -vc '^#' "$OUT.pts" 2>/dev/null) || true; echo "${n:-0}"; }
+for _ in $(seq 30); do
+  [[ $(nframes) -gt 0 ]] && break
+  kill -0 $FF 2>/dev/null || break
+  sleep 0.5
+done
+if [[ $(nframes) -eq 0 ]]; then
+  pkill -TERM -f "python3 -u $LIVEVIEW" 2>/dev/null
+  wait $FF 2>/dev/null
+  rm -f "$OUT.mp4" "$OUT.pts"
+  echo "sony_record: no frame from the camera (busy, off or not in PC Remote mode); no file written." >&2
+  exit 1
+fi
 wait $FF

@@ -434,6 +434,117 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-18 card: night 28 -- the walk on the foot-off sag plant (three arms x three seeds + extras): the weight shift
+# does not move on any of 16 seeds; the prec16-lineage RL walk parks; tonight the march re-opens on the sag plant.
+fig_1118 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec86_walk_sagdr_s5_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec86_walk_sagdr_s5_s128r24_walk_steps_R',
+                 'prec86 seed 19, the walk trained on the randomised foot-off sag, on its own plant: the nearest any student came '
+                 '(0.52 / 0.69 of 62 mm over the stance foot); none of 16 reaches 0.6 on both feet'),
+    video_figure('robot_legs_prec86_walk_sagdr_s2_s128r24', ['sidestep_L'],
+                 'robot_legs_prec86_walk_sagdr_s2_s128r24_sidestep_L',
+                 'what the sag plant does give: prec86 seed 16 sidesteps left on its own plant (16 of 16 sag students sidestep '
+                 '0.4-0.5 m on it; on the play + inset plant the gain mostly vanishes)'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_sidestep_L',
+                 'control: the parent prec72_ppsi on its own plant (play + inset sole), the same probe'),
+] if f)
+# 2026-11-17 card: night 27 -- a robot-sized sway in the walk reference (three parents x three seeds + extras): the weight
+# shift does not move and backward walking is lost on 3 of 9 seeds; the narrow-sole walk parks; tonight the foot-off sag plant.
+fig_1117 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec82_walk_si_sw75_s2_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec82_walk_si_sw75_s2_s128r24_walk_steps_R',
+                 'prec82 seed 16, the 2 cm walk with a 75 mm sway in its reference: the right foot still rises about 2 cm, and '
+                 'the body still moves only ~0.45 of the way over the stance foot (0 of 9 seeds reach 0.6)'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_walk_steps_R',
+                 'control: prec72_ppsi, the same recipe without the sway, on the same probe: the same step'),
+    video_figure('robot_legs_prec82_walk_si_sw75_s2_s128r24', ['backward_1m'],
+                 'robot_legs_prec82_walk_si_sw75_s2_s128r24_backward_1m',
+                 'what the sway cost: asked to walk backward, prec82 seed 16 stays where it is (0.00 m on the direction '
+                 'probe); 3 of 9 sway seeds lost backward'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['backward_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_backward_1m',
+                 'control: prec72_ppsi walks backward (0.73 m on the direction probe)'),
+] if f)
+# 2026-11-16 card: night 26 -- the walk on the robot's narrow sole trained from scratch (two recipes, three seeds each):
+# no student walks at all, so the scratch pivot parks; tonight a sway reference sized from the robot's own weight shift.
+fig_1116 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec81_walk_si_scratch_s1_s128r24', ['line_1m'],
+                 'robot_legs_prec81_walk_si_scratch_s1_s128r24_line_1m',
+                 'prec81, the 2 cm recipe trained from scratch (500M steps): asked to walk forward it stays where it is '
+                 '(0.09 m in 4 s), the feet barely leave the floor; 0 of 7 scratch students walk'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['line_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_line_1m',
+                 'control: prec72_ppsi, the same recipe fine-tuned from the older walk policy, on the same command: it walks'),
+    video_figure('robot_legs_prec80_walk_si_l3_scratch_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec80_walk_si_l3_scratch_s128r24_walk_steps_R',
+                 'prec80, the 3 cm recipe from scratch: the right foot is asked to step and rises well under a centimetre'),
+    video_figure('robot_legs_prec81_walk_si_scratch_s128r24', ['sidestep_L'],
+                 'robot_legs_prec81_walk_si_scratch_s128r24_sidestep_L',
+                 'prec81 seed 14, the one scratch student that moves sideways (0.44 m left on the direction probe), and it '
+                 'falls doing it, 8 of 8'),
+] if f)
+# 2026-11-15 card: night 25 -- the 3 cm reference, more sidestep practice and a slower clock on the robot's narrow sole:
+# none holds on 2 of 3 seeds, so the warm-started walk line pivots to training from scratch.
+fig_1115 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec78_walk_si_side_s128r24', ['sidestep_L'],
+                 'robot_legs_prec78_walk_si_side_s128r24_sidestep_L',
+                 'prec78, trained with 40 % sidestep commands (was 25 %) on the narrow sole: asked to step left it '
+                 'barely moves (dy +0.02 m on the direction probe), on 3 of 3 seeds'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_sidestep_L',
+                 'control: prec72_ppsi, its parent, on the same command (dy +0.02 m): more practice changed nothing'),
+    video_figure('robot_legs_prec77_walk_si_l3_full_s128r24', ['walk_steps_R'],
+                 'robot_legs_prec77_walk_si_l3_full_s128r24_walk_steps_R',
+                 'prec77, the 3 cm lift reference (full length): the right foot rises 2.0-2.2 cm on the one-stride robot '
+                 'probe (parent 1.6), still under 3 cm on every seed'),
+    video_figure('robot_legs_prec79_walk_si_slow_s128r24', ['line_1m'],
+                 'robot_legs_prec79_walk_si_slow_s128r24_line_1m',
+                 'prec79, the slower gait clock (0.55-0.65 Hz): no larger weight shift, slower forward (2 of 3 seeds '
+                 'fail the walk test), but the x1.5 servo-speed probe on the narrow-sole plant is clean on 3 of 3'),
+] if f)
+# 2026-11-14 card: night 24 -- the two-foot (AND) march term is one-sided again (0/3 seeds), so the march RL line parks;
+# the firmware stance trim in the training loop costs backward walking on 3/3 seeds. Tonight: the walk on the robot's sole.
+fig_1114 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec74_march_both_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec74_march_both_s128r24_walk_steps',
+                 'prec74, the march with the two-foot term (pays only the weaker foot): it still marches on the RIGHT '
+                 'foot only (5.7 cm; left 0.1 cm)'),
+    video_figure('robot_legs_prec74_march_both_s2_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec74_march_both_s2_s128r24_walk_steps',
+                 'the same recipe, third seed: LEFT foot only (6.3 cm). 23 of 23 marching seeds are one-legged; the '
+                 'march RL line parks'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['backward_1m'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_backward_1m',
+                 'control: prec72_ppsi, the walk on the narrow (inset) sole without the stance trim, walking backward '
+                 '(dx -0.73 m on the direction probe)'),
+    video_figure('robot_legs_prec76_walk_ppsi_trim_s128r24', ['backward_1m'],
+                 'robot_legs_prec76_walk_ppsi_trim_s128r24_backward_1m',
+                 'prec76, the same walk trained with the firmware stance trim in the loop: asked to walk backward it '
+                 'stays put (dx -0.01 m), on 3 of 3 seeds'),
+] if f)
+# 2026-11-13 card: night 23 -- the walk on the play plant (arm W) and on the inset sole (ppsi), 3 seeds each, and
+# the last march replicates. W: side L back in 2/3, side R lost 3/3; ppsi: shifts more, both sidesteps lost 3/3.
+# All 20 marching seeds are one-legged; tonight the two-foot AND term (--w-march-both) gets one night, then the line parks.
+fig_1113 = "\n    ".join(f for f in [
+    video_figure('robot_legs_prec72_walk_pp_s128r24', ['sidestep_L'],
+                 'robot_legs_prec72_walk_pp_s128r24_sidestep_L',
+                 'prec72, the walk retrained on the play plant (no march): sidestep left is back (dy +0.31 m; the '
+                 'march students had +0.01), in 2 of 3 seeds'),
+    video_figure('robot_legs_prec72_walk_pp_s128r24', ['sidestep_R'],
+                 'robot_legs_prec72_walk_pp_s128r24_sidestep_R',
+                 'the same student asked to sidestep right: it barely moves (dy -0.06 m; prec16 -0.49). Side R is lost '
+                 'on 3 of 3 seeds: the play plant takes it'),
+    video_figure('robot_legs_prec72_walk_ppsi_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec72_walk_ppsi_s128r24_walk_steps',
+                 'prec72_ppsi, the same walk on the robot-calibrated narrow (inset) sole: it shifts its weight much '
+                 'more per step (0.4-0.5 of the way to the stance foot vs 0.1-0.3), but loses both sidesteps (3/3 seeds)'),
+    video_figure('robot_legs_prec71_mir_pp_s2_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec71_mir_pp_s2_s128r24_walk_steps',
+                 'prec71_s2, the third seed of the mirror-loss march: R only again (5.4 cm), torso within 3 deg of level '
+                 'on that foot; 20 of 20 marching seeds are one-legged'),
+] if f)
 # 2026-11-12 card: night 22 -- the march on the play plant (the 11-11 stepper fit). 10 of 10 students march on ONE leg
 # (P1-P3 L, the warm start's side; the mirror loss flips it to R), lean 5-6 deg over the stance foot, and lost both sidesteps.
 # Rule 4: the line stops for Tom; tonight the walk on the play plant (arm W) + two replicates.
@@ -1085,6 +1196,111 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
+
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·18 · night 28: the foot-off sag plant does not move the weight shift either; the RL walk parks, the march gets one night on the new plant</span></p>
+    <p><b>Three walk arms on the foot-off sag plant (the fitted sag, the sag randomised 0.5-1.5x, and the sag with the 3 cm
+    lift), three seeds each plus extras, 16 policies in all: none moves its body further over the stance foot.</b> They move
+    0.4-0.55 of the model's 62 mm, where the robot needs ~1.1-1.3. The right foot rises a little more with the randomised sag
+    (2.3-3.1 cm when walking, against 2.1), but not on the single stride, and never 3 cm. The new thing: on the sag plant
+    every one of them sidesteps 0.4-0.5 m both ways, which the earlier policies could not. On the older plant that gain mostly
+    disappears, so it says as much about the plant as about the policy.</p>
+    <p><b>Decision:</b> after six nights and 43 seeds in which no plant or reference change moved the weight shift, the RL walk
+    on the current reference parks. The next walk reference will be taken from the host stepper's slow gait, which the robot
+    does walk (it shifts, waits, then lifts). That is a day job and is not built yet. <b>Tonight:</b> the march in place
+    (milestone 1) gets one night on the sag plant, where a lift without a shift tips. It was parked on 11-14 because every
+    march lifted only one foot. Three arms run, on three seeds each plus one extra. The robot is out of service (broken hip
+    joint), and nothing here is a robot candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1118}
+    </div>
+  </div>
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·17 · night 27: the sway reference does not move the weight shift; the walk moves to the foot-off sag plant</span></p>
+    <p><b>A 75 mm side-to-side sway in the walk reference, on three parents (2 cm lift, 3 cm lift, slower clock), three seeds
+    each plus one extra: none of the twelve policies moves its body further over the stance foot.</b> They still move
+    ~0.35-0.5 of the model's 62 mm, where the robot needs ~1.1-1.3. The right foot still rises 1.5-2.5 cm. All still walk
+    forward. Three seeds lost walking backward. As decided on 11-16, the walk on the narrow-sole plant parks after five nights
+    and 27 seeds.</p>
+    <p><b>Tonight: the same walk on the foot-off sag plant.</b> This plant model was fitted last evening to what the robot does
+    when a foot leaves the floor: the body sags toward the lifted foot (6.4 deg on a left stance, 2.9 on a right). Replayed,
+    it keeps the robot's clean walks up and tips the quick-raise walks the way the robot did, which no earlier plant did. No
+    policy has trained on it yet. The test is whether a plant that punishes a small shift makes the policy shift more. Three
+    arms run: the fitted sag, the sag randomised 0.5-1.5x, and the sag with the 3 cm lift, each on three seeds plus one extra.
+    The robot is out of service (a printed hip joint broke on 11-16), and nothing here is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1117}
+    </div>
+  </div>
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·16 · night 26: from scratch, the walk does not appear; next, a robot-sized weight shift</span></p>
+    <p><b>Two walk recipes on the robot's narrow sole, trained from scratch for 500M steps, three seeds each, plus a short
+    pilot: not one of the seven policies walks.</b> They learn to stand and turn on the spot. Asked to walk at 0.3 m/s they
+    move 0-9 cm in four seconds, and the feet rise less than a centimetre. The fine-tuned parent walks 0.7 m on the same
+    probe. So the warm start is what makes these recipes walk at all; starting over does not fix the weight shift.</p>
+    <p><b>Decision: the from-scratch line parks, and the narrow-sole walk gets one more night, on the reference.</b> The
+    imitation reference keeps the hip and ankle rolls at the standing pose, so it never asks the body to move over the stance
+    foot. On the robot's narrow sole the body has to move about 75 mm (1.2 times the model's 62 mm, measured on the robot by
+    the stepper and the dwell walks), and every narrow-sole policy so far moves only 20-35 mm and lifts the right foot 1.4-2.3 cm.
+    An earlier sway test (35 and 50 mm) ran on the old wide-sole plant, which never needed the shift. Tonight: a 75 mm sway in
+    the reference on three parents (2 cm lift, 3 cm lift, slower clock), three seeds each. If none moves the shift, the RL walk
+    on this sole parks until the simulation reproduces the robot. Nothing is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1116}
+    </div>
+  </div>
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·15 · night 25: the walk line starts over from scratch</span></p>
+    <p><b>Three changes against the narrow-sole walk's three faults, three seeds each: none holds.</b> A 3 cm lift reference raises
+    the right foot by about half a centimetre (to 2.0-2.2 cm on the one-stride robot probe) but not to 3 cm, and costs falls on
+    the fast one-stride probe on 3 of 3 seeds. Doubling the share of sidestep commands leaves both sidesteps lost (2-10 cm of
+    the 15 asked) and adds backward falls. A slower gait clock does not shift the weight further and walks slower, though on the
+    narrow-sole plant it is clean on the x1.5 servo-speed probe on all three seeds.</p>
+    <p><b>Decision: start the walk over from scratch.</b> This line has now run three nights with no change moving the weight
+    shift, the right-foot lift or the sidesteps. Every walk policy since late October is fine-tuned from the one before, back
+    through plants with a wider sole and stiffer joints, and none was ever trained from scratch on the plant that matches the
+    robot. Tonight: the same two recipes (3 cm and 2 cm lift) with no warm start, a longer run (500M steps), three seeds each.
+    Nothing is a robot candidate; the robot walks on the scripted dwell gait meanwhile.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1115}
+    </div>
+  </div>
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·14 · night 24: the march line parks</span></p>
+    <p><b>Paying only the weaker foot did not make the march two-legged.</b> The new two-foot term rewards a march by its
+    worse foot, so a one-legged march should earn nothing for lifting. Three seeds: one marches on the right foot only, one on
+    the left only, one stopped marching. On the narrow sole it was worse (two of three never march). Across six nights, 23
+    seeds found a march and every one is one-legged: the rewards, the mirror loss, the warm start and the seed only pick the
+    side. As decided yesterday, <b>the march RL line parks</b>; the robot marches and walks on the scripted dwell gait meanwhile.</p>
+    <p><b>The firmware's stance trim in the training loop costs backward walking.</b> The right foot lifts a little more
+    (about 2.2 cm against 1.6) but the torso tilts more (12-13 deg against 10) and none of the three seeds walks backward any
+    more. Tonight all three arms are the walk on the robot's narrow sole, each with one change against its three faults:
+    a 3 cm lift reference (the right foot is under 3 cm everywhere), more sidestep practice (both sidesteps are lost), and a
+    slower gait clock (closer to the slow gait that works on the robot). Nothing is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1114}
+    </div>
+  </div>
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·13 · night 23: the walk on the robot's roll play and sole</span></p>
+    <p><b>The walk, retrained on the play plant, gets sidestep left back but not right.</b> Without the march, three seeds of
+    prec16's walk on the 11-11 roll-play fit recover sidestep left on 2 of 3 seeds and lose sidestep right on 3 of 3, and fall
+    2 of 8 at loop gain x1.5 (prec16 on that plant: 8 of 8). So the march took side L and the plant takes side R.
+    The same walk on the narrow inset sole (the robot's single-support window, #308) shifts its weight much more per step,
+    which the robot needs, but loses both sidesteps on all three seeds. No student lifts the right foot 3 cm on the stride probe.</p>
+    <p><b>The march:</b> the last two replicates kept their side (left-only and right-only). All 20 seeds that found a march
+    are one-legged. Every march reward pays each foot on its own and they add up, so one good leg earns half. Tonight's arm
+    pays only the weaker foot (the new --w-march-both term), on two plants; if it is one-legged again the march line parks.
+    The third arm trains the walk with the firmware's stance trim in the loop, as the robot will run it. Nothing is a robot
+    candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1113}
+    </div>
+  </div>
 
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·12 · night 22: the march stays one-legged on the play plant</span></p>

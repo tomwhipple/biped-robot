@@ -1,7 +1,7 @@
 """Stance-leg IMU roll balance for the one-leg stand: the controller as the sim
 runs it, and the run metrics.
 
-Mirrors firmware/components/balance/roll_pi.h (the pure PI the bench `pose ...
+Mirrors firmware/components/balance/include/balance/roll_pi.h (the pure PI the bench `pose ...
 B<L|R>` streamer calls every poseTick), tick for tick: same error definition,
 same anti-windup, same clamp, same output mixing. Keep the two in step -- the
 host test pins the C++ side against numbers this file produced

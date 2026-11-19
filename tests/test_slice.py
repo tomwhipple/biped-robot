@@ -208,7 +208,8 @@ def enforcer_project(path, names, extra_part=""):
         '<component p:path="/3D/Objects/w.model" objectid="1" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>'
         '\n   </components>\n  </object>' for i in range(len(names)))
     settings = "".join(
-        f'<object id="{2 * i + 2}"><metadata key="name" value="{n}"/>'
+        # attributes after the id, as OrcaSlicer 2.5 writes them
+        f'<object id="{2 * i + 2}" auto_drop="1"><metadata key="name" value="{n}"/>'
         f'<part id="1" subtype="normal_part"><metadata key="name" value="{n}"/></part>{extra_part}'
         '</object>' for i, n in enumerate(names))
     with zipfile.ZipFile(path, "w") as z:
@@ -292,7 +293,7 @@ def layout_files(objects):
         for deg, x, y in items:
             c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
             build += f'<item objectid="{oid}" transform="{c} {s} 0 {-s} {c} 0 0 0 1 {x} {y} 0" printable="1"/>'
-        settings += f'<object id="{oid}"><metadata key="name" value="{name}"/></object>'
+        settings += f'<object id="{oid}" auto_drop="1"><metadata key="name" value="{name}"/></object>'
     files["3D/3dmodel.model"] = (f'<model><resources>{resources}</resources><build>{build}</build></model>').encode()
     files["Metadata/model_settings.config"] = f"<config>{settings}</config>".encode()
     return files

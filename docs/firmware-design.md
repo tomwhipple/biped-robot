@@ -653,13 +653,38 @@ Ticks are Catmull-Rom between frames, φ linear.
   pose. A trim abort freezes and fades only the correction; the track goes
   on. Anything that ends the trim (move, home, STOP, a fall, torque, arming)
   ends the track; `pose` and `sweep` are refused while it plays.
+- **Lift gate** (`gaitplay/lift_gate.h`, CLI `liftgate`). A frame flagged
+  `kGate` (flag bit 8: the host sets it on the last double-support frame at
+  or before each lift-off) makes the player look at the body when its clock
+  reaches that frame: level, |roll - roll_ds| <= lvl, and quiet, |roll rate|
+  <= rate. Both: the clock goes on, no latency. Otherwise the clock is parked
+  at that frame (every joint keeps its goal; the rolling upload goes on, the
+  queue does not drain, `play t` stands still) until both have held for
+  `dwell_ms` in a row; a hold past `timeout_ms` ends the track from this
+  double support (`Track::abortToRest`: the rest pose of the last step end,
+  or the pose as it is when none has passed; nothing is lifted) and prints
+  `TS <n> <L|R> GATE-TIMEOUT held <ms> ms dev <deg> rate <deg/s>`, repeated
+  by the `track` reply. While parked the trim sees double support, so no
+  chain begins on an off-level body. roll_ds is a per-stance-side slow
+  reference: seeded with the roll of the track's first tick, the first
+  accepted gate of a side takes that side's roll, later ones move it by a
+  quarter of the difference; only accepted rolls move it. No IMU attitude is
+  not level (a gate frame holds). Defaults 3 deg, 15 deg/s, 150 ms, 3000 ms;
+  `liftgate set <lvl> <rate> <dwell_ms> <timeout_ms>`, `liftgate on|off`,
+  `liftgate` shows the thresholds, roll_ds and the counters (gates, holds,
+  held ms, timeouts) since the last `track play`. A track with no `kGate`
+  frame, or `liftgate off`, plays as without the gate. A `track stop` during
+  a hold ends it at once (both feet down).
 - **Telemetry.** One line per single support, printed when it ends:
-  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT[ Tback]` (peak
+  `TS <n> <L|R> in <deg> out <deg> e <deg> T <deg> hike <deg> ok|ABORT[ Tback][ G <ms>]` (peak
   lean toward the swing foot and toward the stance side; e, T and hike at the
-  end of the raise). `track steps` repeats the last 16. The flight record
-  carries the trim per tick, as for S poses.
+  end of the raise; `G` = the ms the lift gate held before this lift-off, 0 =
+  none, absent on an ungated step). `track steps` repeats the last 16. The
+  flight record carries the trim per tick, as for S poses, and the gate's
+  hold / release / timeout lines as CLI output events.
 - **Tests.** `host/test_gaitplay` (parse, rolling append, interpolation,
-  stop / dry / rest, the phase map) and the TrimDriver cases in
+  stop / dry / rest, the phase map, the gate hooks), `host/test_lift_gate`
+  (golden rows from `sim/lift_gate.py`, the twin) and the TrimDriver cases in
   `host/test_stance_trim`. `host/sil_gait.cpp` exposes the track + trim to
   Python: `experiments/roll-balance/sil_gait.py` plays the sway gait through
   them against the sim plant.

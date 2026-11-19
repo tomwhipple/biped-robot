@@ -1,8 +1,7 @@
 """The power-lite board in ngspice (pcb/power-lite/sim/lite_sim.py, built from tools/parts.py).
 
 Limits: TE V23134 (operate 7.2 V, release 1.6 V), onsemi PN2222A (VCEO 40 V, VEBO 6 V), ESP32 (VIL <= 0.25 VDD,
-VIH >= 0.75 VDD at 3.3 V, ADC to ~3.1 V at 11 dB, a pin sourcing <= 20 mA), Littelfuse 0297015 (135 A^2s melting,
-rev B record C13). The pack spans 9.0-12.6 V (3.0-4.2 V a cell).
+VIH >= 0.75 VDD at 3.3 V, ADC to ~3.1 V at 11 dB, a pin sourcing <= 20 mA), Littelfuse 0297015 (135 A^2s melting). The pack spans 9.0-12.6 V (3.0-4.2 V a cell).
 """
 import sys
 from pathlib import Path

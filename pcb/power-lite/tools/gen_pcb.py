@@ -32,7 +32,7 @@ def rect(x0, y0, x1, y1):
 # ref: (x, y, rotation) in board mm, y down, rotation CCW as KiCad
 PLACE = {
     # pack, BMS and switch pads (left)
-    # J1 as rev B's board: the mating face (the footprint's straight edge) 0.25 mm past the left edge,
+    # J1: the mating face (the footprint's straight edge) 0.25 mm past the left edge,
     # the pins 16.1 mm in; pin 2 (B+) above pin 1 (B-)
     "J1": (16.1, 19.0, 90), "W6": (23.0, 9.0, 0), "W7": (31.0, 9.0, 0), "W1": (23.0, 19.0, 0),
     "W2": (23.0, 26.0, 0), "J2": (4.0, 43.5, 90), "W5": (11.0, 34.5, 0), "W4": (11.0, 38.5, 0),

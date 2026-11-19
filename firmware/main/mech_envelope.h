@@ -59,9 +59,18 @@ inline constexpr float kDeg = 0.0174532925f;
 //                +27.9 L / -26.9 R (the roll and pitch servo cases meet), the
 //                inner side free past 46 -- so +-25 sits 2-3 deg inside it
 //  neck yaw   +-90   plant range (sim/bimo_biped_v6ar.xml); not probed
-//  shoulder   -90..+200  plant range (sim/gen_plant_v6.py: 0 hanging, 90
-//                straight back, 180 up along the torso); not probed
-//  elbow      +-150  plant range (sim/gen_plant_v6.py); not probed
+//  ARMS (14-17): zero is the owner's HOME pose, NOT the plant's 0 (Tom
+//                2026-11-16: "elbows backward, forearms pulled up" -- each
+//                servo `middle`d there, so home = 2048; cal zero 2048, dir
+//                R_sh -1 / R_el +1 / L_sh +1 / L_el -1). Measured on the
+//                bench 2026-11-16 (arms on the desk, 20-tick steps, stop at
+//                25 ticks lag or 30 % load; docs/servo-map.md 3.2/3.3):
+//  shoulder   NO software limit (Tom 2026-11-16): +-360 here never clamps,
+//                the encoder's 0..4095 is the only bound. Swept 179 deg free
+//                one way; the desk, not the joint, stopped the other at -127
+//  elbow      0 .. +179: 0 = home = the FOLD HARD STOP (load 23 % 3.5 deg
+//                into it); the open side runs free through +179.3, the end of
+//                the encoder range from home, on both elbows
 inline constexpr float kMechLo[obs::kNumBusJoints] = {
     -55.0f * kDeg,   //  1 R_hip_roll   abduction, CAD-verified 55 (see above)
     -110.0f * kDeg,  //  2 R_hip_pitch
@@ -77,10 +86,10 @@ inline constexpr float kMechLo[obs::kNumBusJoints] = {
     -25.0f * kDeg,   // 11 R_ankle_roll
     -25.0f * kDeg,   // 12 L_ankle_roll
     -90.0f * kDeg,   // 13 neck_yaw
-    -90.0f * kDeg,   // 14 R_shoulder
-    -150.0f * kDeg,  // 15 R_elbow
-    -90.0f * kDeg,   // 16 L_shoulder
-    -150.0f * kDeg,  // 17 L_elbow
+    -360.0f * kDeg,  // 14 R_shoulder  no software limit (Tom 2026-11-16)
+    0.0f * kDeg,     // 15 R_elbow     fold hard stop = home, measured
+    -360.0f * kDeg,  // 16 L_shoulder  no software limit (Tom 2026-11-16)
+    0.0f * kDeg,     // 17 L_elbow     fold hard stop = home, measured
 };
 inline constexpr float kMechHi[obs::kNumBusJoints] = {
     25.0f * kDeg,    //  1 R_hip_roll
@@ -96,10 +105,10 @@ inline constexpr float kMechHi[obs::kNumBusJoints] = {
     25.0f * kDeg,    // 11 R_ankle_roll
     25.0f * kDeg,    // 12 L_ankle_roll
     90.0f * kDeg,    // 13 neck_yaw
-    200.0f * kDeg,   // 14 R_shoulder
-    150.0f * kDeg,   // 15 R_elbow
-    200.0f * kDeg,   // 16 L_shoulder
-    150.0f * kDeg,   // 17 L_elbow
+    360.0f * kDeg,   // 14 R_shoulder
+    179.0f * kDeg,   // 15 R_elbow     free through +179.3 (encoder end)
+    360.0f * kDeg,   // 16 L_shoulder
+    179.0f * kDeg,   // 17 L_elbow     free through +179.3 (encoder end)
 };
 
 // The v6 robot's legs, bus order like the rows above. Evidence: the v6 legs
@@ -141,10 +150,10 @@ inline constexpr float kMechLoV6Legs[obs::kNumBusJoints] = {
     -25.0f * kDeg,   // 11 R_ankle_roll
     -25.0f * kDeg,   // 12 L_ankle_roll
     -90.0f * kDeg,   // 13 neck_yaw     (as kMechLo: not on the legs-only body)
-    -90.0f * kDeg,   // 14 R_shoulder
-    -150.0f * kDeg,  // 15 R_elbow
-    -90.0f * kDeg,   // 16 L_shoulder
-    -150.0f * kDeg,  // 17 L_elbow
+    -360.0f * kDeg,  // 14 R_shoulder  no software limit (Tom 2026-11-16)
+    0.0f * kDeg,     // 15 R_elbow     fold hard stop = home, measured
+    -360.0f * kDeg,  // 16 L_shoulder  no software limit (Tom 2026-11-16)
+    0.0f * kDeg,     // 17 L_elbow     fold hard stop = home, measured
 };
 inline constexpr float kMechHiV6Legs[obs::kNumBusJoints] = {
     30.0f * kDeg,    //  1 R_hip_roll   adduction
@@ -160,10 +169,10 @@ inline constexpr float kMechHiV6Legs[obs::kNumBusJoints] = {
     25.0f * kDeg,    // 11 R_ankle_roll
     25.0f * kDeg,    // 12 L_ankle_roll
     90.0f * kDeg,    // 13 neck_yaw
-    200.0f * kDeg,   // 14 R_shoulder
-    150.0f * kDeg,   // 15 R_elbow
-    200.0f * kDeg,   // 16 L_shoulder
-    150.0f * kDeg,   // 17 L_elbow
+    360.0f * kDeg,   // 14 R_shoulder
+    179.0f * kDeg,   // 15 R_elbow     free through +179.3 (encoder end)
+    360.0f * kDeg,   // 16 L_shoulder
+    179.0f * kDeg,   // 17 L_elbow     free through +179.3 (encoder end)
 };
 
 namespace detail {

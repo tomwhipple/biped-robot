@@ -20,6 +20,11 @@
 // queued after it, then moves to the last kRest pose over rest_ms (min-jerk) and holds: done. A queue that
 // runs dry with no kStepEnd ahead holds the last frame (the host must append whole steps). Nothing ever
 // returns to a pre-lift pose.
+//
+// Lift gate. A frame with kGate marks the last double-support frame before a lift-off (the host sets it;
+// gaitplay/lift_gate.h decides). The clock owner asks gateAhead() before it samples and may park the clock at
+// that frame's time; abortToRest() ends a track from there (both feet down, so a rest is valid) -- the
+// step-end rule of stop() would lift the foot first.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
@@ -36,7 +41,7 @@ inline constexpr const char* kLegJoints[kJoints] = {
 // a static 256-frame queue took the image to 99.8 % of static DRAM).
 constexpr int kCap = 128;
 
-enum Flags : uint8_t { kLift = 1, kStepEnd = 2, kRest = 4 };
+enum Flags : uint8_t { kLift = 1, kStepEnd = 2, kRest = 4, kGate = 8 };
 
 struct Frame {
     uint32_t t_ms = 0;
@@ -85,6 +90,13 @@ class Track {
     void setRestMs(uint32_t ms) { rest_ms_ = ms < 200 ? 200 : ms > 5000 ? 5000 : ms; }
     uint32_t startTime() const { return t_start_; }
     uint32_t steps() const { return steps_; }             // kStepEnd frames passed
+    // The first queued frame (not yet passed) with kGate whose time is <= t_ms: its time and the stance
+    // side of the single support it leads into (gaitplay::liftStance of its phase). false when none.
+    bool gateAhead(uint32_t t_ms, uint32_t* t_gate, char* stance) const;
+    // End the track NOW, from a double support: move from the current goals to the rest pose of the last
+    // step end passed (min-jerk over rest_ms), or just hold them when there is none (the first step). No-op
+    // unless playing / stopping. Returns the state after (kResting or kDone).
+    State abortToRest(uint32_t t_ms);
 
   private:
     int idx(int k) const { return (head_ + k) % kCap; }
@@ -120,6 +132,11 @@ struct Support {
     bool lowering;      // the last 35 % of the single support
 };
 Support supportFromPhase(float phi, bool lift);
+
+// The stance side of the single support the half cycle containing `phi` leads into: the left foot swings
+// while sin(phi) > 0, so the stance is 'R' there and 'L' in the other half. (A gate frame sits at the start
+// of that half cycle's double support-to-single transition, u in [0, 0.25].)
+char liftStance(float phi);
 
 // The policy path's lift gate for the trim (the training envs' walker_env._trim_walking): vx, vy or wz
 // past 0.05, or the lift channel past 0.5. cmd in the link's layout ([0] vx, [1] vy, [2] wz, [4] lift).

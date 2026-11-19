@@ -46,6 +46,10 @@ Gates (float64, so precision is not the limiter):
       grounded stance, the encoder obs reading the servo shaft (link + offset)
   R17 the ungated march lift term (w_march_unload): airborne arithmetic, the term live,
       and paid on a grounded march stand (not gated on the foot being up)
+  R20 the two-foot (AND) march term (w_march_both): airborne arithmetic with the
+      per-foot latch state carried, the term live once both feet's swings latched
+  R21 the foot-off sag (footoff_sag): grounded stance with the per-side preloads and the
+      load shares live, the encoder obs reading the servo shaft (link + deflection)
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -55,6 +59,8 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --roll-play   # R16 only
       python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
+      python parity_test.py --march-both     # R20 only
+      python parity_test.py --footoff-sag    # R21 only
 """
 import os
 import sys
@@ -98,6 +104,8 @@ def sync(state, cpu, gpu_env):
         air_time=jp.asarray(np.array(cpu._air_time)),
         last_air=jp.asarray(np.array(cpu._last_air)),
         swing_peak=jp.asarray(np.array(cpu._swing_peak)),
+        march_cur=jp.asarray(np.array(cpu._march_cur)),
+        march_last=jp.asarray(np.array(cpu._march_last)),
         cmd=jp.asarray(np.array(cpu._cmd)),
         traj=jp.asarray(np.array(cpu._traj)),
         traj_on=jp.asarray(float(cpu._traj_on)),
@@ -117,6 +125,10 @@ def sync(state, cpu, gpu_env):
               if getattr(cpu, "_rp_h", None) is not None else state.rp_h),
         rp_off=(jp.asarray(np.array(cpu._rp_off))
                 if getattr(cpu, "_rp_h", None) is not None else state.rp_off),
+        fs_amp=(jp.asarray(cpu._fs_part * cpu._fs_sign * cpu._fs_theta[cpu._fs_side])
+                if getattr(cpu, "_fs_theta", None) is not None else state.fs_amp),
+        fs_defl=(jp.asarray(np.array(cpu._fs_defl))
+                 if getattr(cpu, "_fs_theta", None) is not None else state.fs_defl),
         dq_qhist=(jp.asarray(np.array(cpu._dq_qhist))
                   if getattr(cpu, "_dq_qhist", None) is not None else state.dq_qhist),
         dq_win=(jp.asarray(cpu._dq_win, dtype=jp.int32)
@@ -673,6 +685,41 @@ def march_unload_block():
     return ok
 
 
+# -- R20: the two-foot (AND) march term (w_march_both) ----------------------------
+#     per foot: cur = running max of 0.5 (u + h) over its commanded swing, latched into
+#     last when the command moves to the other foot; r = w * on * min(last_L, last_R)
+# (walker_env.march_both_update, shared by both engines). Airborne: every reward term
+# compared CPU vs MJX at arithmetic tolerance over 120 steps (> 3 march half cycles, so both
+# latches fire); the twin with the weight 0 must differ (the term is live).
+def march_both_block():
+    kw = rob_kw(w_knee_high=1.0, w_march_both=1.0, ext_mix=(0.0,) * 7, march_mix=1.0)
+    kw.pop("cmd_fixed")
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    ok = run_block("R20. two-foot march term (w_march_both, airborne)", 120,
+                   air_acts(c, 0.359), hoist, AIR_GATES, (c, g, s))
+    c0, _, _ = envs_for(dict(kw, w_march_both=0.0), solver_tol=ARITH_TOL)
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = mb_sum = 0.0
+    lasts = []
+    for _ in range(120):
+        _, r1, t1, tr1, info = c.step(z)
+        _, r0, t0, tr0, _ = c0.step(z)
+        if t1 or tr1 or t0 or tr0:
+            break
+        r_on += r1
+        r_off += r0
+        mb_sum += float(info.get("march_both", 0.0))
+        lasts.append(np.array(c._march_last))
+    live = abs((r_on - r_off) - mb_sum) < 1e-6 and mb_sum > 1e-3
+    both = bool(lasts) and float(np.max(np.min(np.array(lasts), axis=1))) > 0.0
+    ok = ok and live and both
+    print(f"   term live: {len(lasts)}-step reward with / without {r_on:.3f} / {r_off:.3f}, "
+          f"difference {r_on - r_off:.4f} = summed term {mb_sum:.4f}; both feet latched: {both}")
+    return ok
+
+
 # -- R14: torso-pitch hinge -----------------------------------------------------
 #     w * max(0, |pitch| - deadband)^2,   pitch = asin(2(qw*qy - qz*qx))
 # Pitch only (sidestep gaits legitimately roll), off while DOWN in a recovery
@@ -931,7 +978,46 @@ def manifold_stats():
     print("    Settled stance manifolds are identical. Referee: CPU evals.)")
 
 
+# -- R21: the foot-off sag (footoff_sag) ------------------------------------------
+# preloaded springs in series with the four roll servos beyond the encoder; each joint's
+# rest angle is shifted by its side's preload x that foot's share of the floor load (the
+# pads' penetration, walker_env.footoff_load_share / footoff_sag_shift, shared). Grounded
+# stance (both feet loaded, the shares and the shifts live) with the 2026-11-16 fit;
+# liveness: the roll joints' shaft - link deflection is non-zero, the encoder obs reads
+# link + deflection, and no other joint carries one.
+FOOTOFF_SAG_PARITY = "L=6.4,R=2.9"
+
+
+def footoff_sag_block():
+    over = dict(footoff_sag=FOOTOFF_SAG_PARITY)
+    c, g, s = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0), **over))
+    n = c._nq_act
+    ok_b = run_block(
+        "R21. foot-off sag (L 6.4, R 2.9 deg), grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c, g, s), matched_only=True, min_frac=0.5)
+    roll = [i for i, nm in enumerate(c._servo_names) if nm.endswith("roll")]
+    other = [i for i in range(c._n_servo) if i not in roll]
+    defl = np.degrees(np.abs(c._fs_defl[roll]))
+    q_obs = c._obs()[:n]
+    zo = c._p(c._zero_off) if c._zero_off is not None else 0.0
+    q_link = c.data.qpos[c._jqpos] - zo
+    gap = float(np.max(np.abs(q_obs - q_link - c._p(c._fs_defl))))
+    share = c._footoff_share()
+    ok_c = (float(defl.max()) > 0.05 and gap < 1.6e-3      # one tick of quantization
+            and float(np.max(np.abs(c._fs_defl[other]))) == 0.0
+            and abs(float(share.sum()) - 1.0) < 1e-9)
+    print(f"== R21-c. foot-off sag liveness: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   roll shaft - link {np.round(defl, 3).tolist()} deg; load shares L/R "
+          f"{np.round(share, 3).tolist()}; |obs q - (link + deflection)| max {gap:.1e} rad (quantized)")
+    return ok_b and ok_c
+
+
 def main():
+    if "--footoff-sag" in sys.argv:
+        ok = footoff_sag_block()
+        print("\nPARITY (R21):", "PASS" if ok else "FAIL")
+        return ok
     if "--roll-series" in sys.argv:
         ok = roll_series_block()
         print("\nPARITY (R15):", "PASS" if ok else "FAIL")
@@ -943,6 +1029,10 @@ def main():
     if "--march-unload" in sys.argv:
         ok = march_unload_block()
         print("\nPARITY (R17):", "PASS" if ok else "FAIL")
+        return ok
+    if "--march-both" in sys.argv:
+        ok = march_both_block()
+        print("\nPARITY (R20):", "PASS" if ok else "FAIL")
         return ok
     if "--stance-trim" in sys.argv:
         ok = stance_trim_block()
@@ -959,7 +1049,8 @@ def main():
     results = [robot_blocks(), ext_cmd_blocks(), getup_block(),
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
-               roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block()]
+               roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
+               march_both_block(), footoff_sag_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
