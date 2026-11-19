@@ -329,7 +329,8 @@ the fast actuator.
    number that counts) and its `progress.jsonl` (the MJX training curve).
 5. What changed upstream since the last plan: `git log --since=36.hours origin/main`
    (plant, servo or env changes invalidate comparisons — say so when they do),
-   `hermes kanban list` (the collective's board), and anything Tom committed.
+   open issues labelled `agent:daytime` (daytime work that may land in the harness), and
+   anything Tom committed.
 
 ## Evaluate
 
