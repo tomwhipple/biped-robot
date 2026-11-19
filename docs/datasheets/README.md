@@ -78,8 +78,9 @@ file is in [`switches/`](switches/).
 
 The files are in [`power-lite/`](power-lite/). The BOM is
 [`pcb/power-lite/fab/power-lite-bom.csv`](../../pcb/power-lite/fab/power-lite-bom.csv).
-The ShillehTek CF-3SJH25A-C protection board is off-board and has no maker
-datasheet; it was accepted on a bench check.
+The ShillehTek CF-3SJH25A-C protection board is off-board. Its seller's datasheet
+(below) is preliminary and publishes none of its thresholds or current rating, so it was
+accepted on a bench check ([bringup.md](../../pcb/power-lite/bringup.md), Part 1).
 
 | file | what it is (parts, revision/date, key pages) | source |
 |---|---|---|
@@ -96,6 +97,7 @@ datasheet; it was accepted on a bench check.
 | `kingbright-wp710a10gd.pdf` | LED1, WP710A10GD (green T-1 lamp), 5 pp., Rev V.10B, 04/18/2020 | [Kingbright](https://www.kingbrightusa.com/images/catalog/SPEC/WP710A10GD.pdf) |
 | `kingbright-wp710a10id.pdf` | LED2, WP710A10ID (high-efficiency red T-1 lamp), 5 pp., Rev V.12A, 08/11/2023 | [Kingbright](https://www.kingbrightusa.com/images/catalog/SPEC/WP710A10ID.pdf) |
 | `onsemi-pn2222a.pdf` | Q1, Q2, PN2222A, 8 pp., Rev. 1.1.0, July 2014 (Fairchild datasheet carried by onsemi) | [onsemi](https://www.onsemi.com/pdf/datasheet/pn2222a-d.pdf) |
+| `shillehtek-na405.pdf` | The BMS, ShillehTek CF-3SJH25A-C (SKU NA405). DS-NA405 rev 1.0, 2026-09-17, preliminary, 12 pp.: pads and the downward tap numbering (B1+ 11.1 V, B2 7.4 V, B3 3.7 V) §3, the sleep-until-charger note §4, wiring order (B− first) §6.2, 56 × 45 × 1.2 mm silkscreen §7. Thresholds, current rating and quiescent current are "not specified" | [ShillehTek](https://cdn.shopify.com/s/files/1/0837/4340/8415/files/shillehtek-na405-datasheet.pdf?v=1790018568), retrieved 2026-11-19 |
 | `yageo-mfr.pdf` | R1-R8, MFR-25 metal film resistors, 4 pp., Revision 201304 | Yageo, via [ChipDip](https://static.chipdip.ru/lib/469/DOC013469277.pdf); yageo.com's own PDF link serves a web page |
 
 ## Raspberry Pi 4 Model B and Camera Module 3

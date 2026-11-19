@@ -84,6 +84,9 @@ pack balance lead (J2) ─ BMS cell taps                                      �
 
 ## Before it goes in the robot
 
+The step-by-step procedure, with the expected readings and a results table for each part, is
+[bringup.md](bringup.md). In outline:
+
 1. **Check the BMS on the bench** (the exception to the datasheet rule, Tom 2026-11-02). Use
    the lab supply as the pack: its + to B1+, its − to B−. Feed B3 and B2 from a divider of
    three 1 kΩ resistors across the supply, so each "cell" is a third of the supply voltage.
@@ -96,8 +99,9 @@ pack balance lead (J2) ─ BMS cell taps                                      �
      and F2 protect against shorts downstream.
 2. **Bring up the board without the BMS or the pack.** Put the lab supply at 12.0 V, limited
    to 0.5 A, on W7 (+) and W2 (−).
-   - With J11 jumpered: LED1 lights and J3 reads 12 V. J12.6 (`ESTOP_N`), pulled up to 3.3 V
-     through 47 kΩ, reads below 0.1 V. J12.5 (`RAIL_V`) reads 0.
+   - At power-on LED1 lights (it shows the logic feed, after F2) and J3 reads 12 V.
+   - With J11 jumpered, J12.6 (`ESTOP_N`), pulled up to 3.3 V through 47 kΩ, reads below
+     0.1 V. J12.5 (`RAIL_V`) reads 0.
    - 3.3 V on J12.2 (`SERVO_EN`): K1 clicks, LED2 lights, and `RAIL_V` reads about 2.1 V.
    - Remove the J11 jumper: K1 drops, and `ESTOP_N` reads 3.3 V.
 3. **Check the inrush with the real load.** Wire the BMS and the pack, with the servos
