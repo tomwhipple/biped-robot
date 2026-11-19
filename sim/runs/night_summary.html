@@ -104,6 +104,40 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·19 · night 29: the march on the sag plant lifts only the right foot, on all 12 policies; it parks, and tonight's reference gets a double-support pause</span></p>
+    <p><b>Three march arms on the foot-off sag plant, three seeds each plus one extra, 12 policies: every one marches on the
+    right foot only.</b> The right foot rises 4.5-6.6 cm with the body shifted 0.6-0.7 of the way over the left foot and leaning
+    5-9 degrees over it. The left foot never leaves the floor. On the older plants the seed chose the side; on the sag plant every
+    seed chooses the right. They all still walk, and their weight shift while walking is unchanged (at most 0.57 on the weaker
+    foot, where the robot needs about 1.1-1.3).</p>
+    <p><b>Decision:</b> the march parks again, as committed yesterday (eight nights, 47 policies, all one-sided). What every
+    reference so far has in common: the swing foot starts to rise the moment the other one lands, with no time on both feet,
+    so the weight shift has to happen while a foot is already lifting. The robot's own stepper does the opposite: it shifts
+    fully, waits, then lifts. <b>Tonight:</b> a reference with that pause (built today: the body crosses over with both feet
+    down, holds, then the foot lifts, at the same swing speed), on the walk and on the march, plus a control with the bigger
+    shift and no pause. If neither the walk nor the march moves, the clock-reference line is finished and the next step needs
+    the robot. The robot is out of service (broken hip joint); nothing here is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec88_march_both_sagdr_s1_s128r24_walk_steps_L.jpg" src="_clips/robot_legs_prec88_march_both_sagdr_s1_s128r24_walk_steps_L.mp4"></video>
+      <figcaption><b>robot_legs_prec88_march_both_sagdr_s1_s128r24</b> · prec88 seed 15, the march recipe trained on the randomised foot-off sag: it still walks; asked to march, it lifts the right foot 6.6 cm on every step and never the left (all 12 students are right-only)<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 7s</figcaption>
+    </figure>\n    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec90_march_both_sagdr_i86_s1_s128r24_walk_steps_R.jpg" src="_clips/robot_legs_prec90_march_both_sagdr_i86_s1_s128r24_walk_steps_R.mp4"></video>
+      <figcaption><b>robot_legs_prec90_march_both_sagdr_i86_s1_s128r24</b> · prec90 seed 15, the same recipe warm-started from the sag-trained walk: no different<br>walk_steps_R 0/8
+        · seed 1/8 takes, verdict burned in · 6s</figcaption>
+    </figure>\n    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec74_march_both_s128r24_walk_steps_L.jpg" src="_clips/robot_legs_prec74_march_both_s128r24_walk_steps_L.mp4"></video>
+      <figcaption><b>robot_legs_prec74_march_both_s128r24</b> · control: the parent prec74 (play plant), the same probe<br>walk_steps_L 0/8
+        · seed 1/8 takes, verdict burned in · 6s</figcaption>
+    </figure>
+    </div>
+  </div>
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·18 · night 28: the foot-off sag plant does not move the weight shift either; the RL walk parks, the march gets one night on the new plant</span></p>
     <p><b>Three walk arms on the foot-off sag plant (the fitted sag, the sag randomised 0.5-1.5x, and the sag with the 3 cm
     lift), three seeds each plus extras, 16 policies in all: none moves its body further over the stance foot.</b> They move
