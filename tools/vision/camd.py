@@ -62,7 +62,11 @@ def source_cmd(name, size="1920x1080", fps=15):
 
 
 def segment_cmd(base, label):
-    """ffmpeg: JPEGs on stdin -> base.mp4 + base.pts (wall clock at read time)."""
+    """ffmpeg: JPEGs on stdin -> base.mp4 + base.pts (wall clock at read time).
+
+    -fps_mode is an output option: it is given once per output. -vsync was global but is gone in
+    ffmpeg 9; with -fps_mode on the mp4 only, ffmpeg 6.1 fills the .pts output at 1 ms steps.
+    """
     font = f"fontfile={FONT}" if os.path.exists(FONT) else "font=monospace"
     stamp = r"%{pts\:gmtime\:0\:%Y-%m-%dT%H\\\:%M\\\:%S}.%{eif\:mod(t*1000\,1000)\:d\:3}Z"
     dtxt = f"drawtext={font}:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.6:x=8:y=8:text='{label} {stamp}'"
@@ -71,7 +75,7 @@ def segment_cmd(base, label):
             "-filter_complex", f"[0:v]{dtxt},split[a][b];[a]setpts=PTS-STARTPTS[mp4]",
             "-map", "[mp4]", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
             "-movflags", "+frag_keyframe+empty_moov", base + ".mp4",
-            "-map", "[b]", "-c:v", "rawvideo", "-enc_time_base", "1/1000000",
+            "-map", "[b]", "-fps_mode", "passthrough", "-c:v", "rawvideo", "-enc_time_base", "1/1000000",
             "-f", "mkvtimestamp_v2", base + ".pts"]
 
 
