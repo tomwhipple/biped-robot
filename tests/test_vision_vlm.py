@@ -1,5 +1,5 @@
-"""Layer E (#316): the VLM client, the bake-off scoring and set extraction, and run_report's optional pass.
-No model and no network: a fake ollama endpoint on 127.0.0.1 or a fake `ask`."""
+"""Layer E (#316): the VLM client, the bake-off scoring and set extraction; run_report's clip cut across camd segments.
+No model and no network: a fake ollama endpoint on 127.0.0.1."""
 import base64
 import http.server
 import json
@@ -159,49 +159,6 @@ def test_run_model_resumes_and_scores(tmp_path, fake_ollama):
     assert "| f3 |  | P u o | P u o |" in tab                  # the fake agrees with both labels
 
 
-def test_vlm_moments_prefer_start_end_and_the_anomaly_itself():
-    mom = [("start", 0.0), ("end", 60.0)]
-    for k, t in enumerate((10.0, 10.2, 30.0)):
-        for d in (-1, 0, 1):
-            mom.append((f"kind{k} {d:+d}s x", t + d))
-    got = RR.vlm_moments(mom, max_frames=4)
-    assert [g[0] for g in got] == ["start", "kind0 +0s x", "kind2 +0s x", "end"]      # kind1 is 0.2 s from kind0
-    assert len(RR.vlm_moments(mom, max_frames=20)) == 8         # kind1 (0.2 s after kind0) collides at -1, 0, +1
-
-
-def test_measured_at_interpolates_imu_and_takes_the_nearest_tag_row():
-    imu = dict(t=np.array([0.0, 1.0]), roll_deg=np.array([0.0, 20.0]), pitch_deg=np.array([2.0, 2.0]))
-    rows = [dict(t=0.4, stale=False, roll_deg=5.0, pitch_deg=1.0, x_mm=100.0, y_mm=200.0, margin_min_mm=300.0),
-            dict(t=0.6, stale=True, roll_deg=50.0, pitch_deg=1.0, x_mm=0.0, y_mm=0.0, margin_min_mm=0.0)]
-    m = RR.measured_at(0.5, imu, rows)
-    assert m == dict(imu_tilt_deg=10.0, tag_roll_deg=5.0, tag_pitch_deg=1.0, x_mm=100.0, y_mm=200.0, edge_margin_mm=300.0)
-    assert RR.measured_at(5.0, imu, rows) == {}
-
-
-def test_vlm_pass_puts_answers_beside_measured_values_and_captions_the_sheet(tmp_path):
-    path, times = _video(tmp_path)
-    asked = []
-
-    def fake_ask(jpg, model, host, num_thread=12):
-        asked.append((jpg, model, host, num_thread))
-        if len(asked) == 2:
-            return dict(answer=None, error="unparseable answer", total_s=1.0)
-        return dict(answer=dict(person_or_animal=False, robot_upright=True, object_on_board=False, note=""), error=None, total_s=3.0)
-
-    imu = dict(t=np.array(times), roll_deg=np.zeros(len(times)), pitch_deg=np.full(len(times), 4.0))
-    mom = [("start", times[2]), ("end", times[45]), ("tip_over +0s x", times[20])]
-    vp = RR.vlm_pass(path, mom, str(tmp_path), "run", "fake:1", "http://h", imu=imu, ask=fake_ask)
-    assert [f["moment"] for f in vp["frames"]] == ["start", "tip_over +0s x", "end"]
-    assert all(os.path.exists(f["frame"]) for f in vp["frames"]) and asked[0][1:] == ("fake:1", "http://h", 12)
-    assert vp["frames"][0]["measured"] == {"imu_tilt_deg": 4.0} and vp["frames"][1]["error"] == "unparseable answer"
-    caps = {f["moment"]: RR.vlm_caption(f["answer"]) for f in vp["frames"]}
-    assert caps["tip_over +0s x"] == "vlm: no answer" and caps["start"] == "vlm: no person, upright, no object"
-    out = RR.contact_sheet(path, mom, str(tmp_path / "s.jpg"), captions=caps)
-    assert out and cv2.imread(out) is not None
-    txt = RR.vlm_table(vp)
-    assert "no answer: unparseable answer" in txt and "not a measurement" in txt
-
-
 def test_labelled_set_manifest_is_well_formed():
     m = B.load_manifest()
     ids = [f["id"] for f in m["frames"]]
@@ -215,14 +172,6 @@ def test_labelled_set_manifest_is_well_formed():
         assert vals.count(False) >= 10
     assert sum(f["labels"]["person_or_animal"] is True for f in m["frames"]) >= 10
     assert sum(f["labels"]["robot_upright"] is False for f in m["frames"]) >= 10
-
-
-def test_vlm_pass_does_not_ask_about_a_moment_the_video_does_not_cover(tmp_path):
-    path, times = _video(tmp_path)
-    asked = []
-    vp = RR.vlm_pass(path, [("start", times[3]), ("end", times[-1] + 30.0)], str(tmp_path), "run", "m", "h",
-                     ask=lambda *a, **k: asked.append(a) or dict(answer=None, error="x", total_s=0))
-    assert len(asked) == 1 and vp["frames"][-1]["error"] == "no video frame within 0.5 s"
 
 
 @pytest.mark.skipif(__import__("shutil").which("ffmpeg") is None, reason="ffmpeg not installed")

@@ -3,7 +3,6 @@
 
     tools/vision/run_report.py track_20261116T093534.jsonl --video-dir hw_sessions/2026-11-16
         [--frec-dir hw_sessions] [--out-dir DIR] [--config vision.json] [--no-video]
-        [--vlm-model qwen2.5vl:7b [--vlm-host http://127.0.0.1:11500] [--vlm-max-frames 8]]
 
 Takes the roll-balance track log of one run, finds its UTC window (the flight record's
 `cal show` command stamps t=0), cuts the video for that window from --video-dir (camd
@@ -26,11 +25,6 @@ segments or hand-recorded mp4+.pts), and writes:
                         every step); position_method says how each was obtained
   tilt_video_vs_imu     max |tag roll/pitch - IMU roll/pitch| (needs tags); null without
   contact sheet         start, end and +-1 s around every anomaly
-  vlm_second_opinion    OPTIONAL (--vlm-model, default off): a local vision-language model's yes/no answers on the
-                        key frames (person/animal at the robot, upright, object on the board), each shown next to the
-                        measured values at that moment (IMU tilt, tag tilt and edge margin) and as a second caption
-                        line on the contact sheet. A hint for a person to look, never a measurement, never a gate:
-                        nothing above reads it. CPU by default (tools/vision/vlm.py, README "Layer E")
 
 Time of a TS step = the log time of the first `track steps` poll that lists it (up to one poll
 period late); gate hold = the first `HOLDING` line; both +- ~1 s.
@@ -56,7 +50,6 @@ import foreign  # noqa: E402
 import implausible as IM  # noqa: E402
 import tag_track as T  # noqa: E402
 import vgeom as G  # noqa: E402
-import vlm as V  # noqa: E402
 
 LEAN_IN_DEG, LEAN_OUT_DEG = 8.0, 6.0
 ENDING_KINDS = ("fall_latch", "firmware_abort", "stop_rule", "gate_timeout", "short_run", "abort_or_fall")
@@ -164,9 +157,8 @@ def _frame_at(cap_cache, path, ts, t):
     return f if ok else None
 
 
-def contact_sheet(video, moments, out_jpg, cols=4, tw=320, captions=None):
-    """moments: [(label, t_utc)] -> JPEG grid of the frames nearest those times. captions: {label: text} drawn as a
-    second line at the top of that tile (the VLM's answer)."""
+def contact_sheet(video, moments, out_jpg, cols=4, tw=320):
+    """moments: [(label, t_utc)] -> JPEG grid of the frames nearest those times."""
     pts = C.read_pts(os.path.splitext(video)[0] + ".pts")
     caches, tiles = {}, []
     for label, t in moments:
@@ -176,9 +168,6 @@ def contact_sheet(video, moments, out_jpg, cols=4, tw=320, captions=None):
         f = cv2.resize(f, (tw, int(f.shape[0] * tw / f.shape[1])))
         cv2.rectangle(f, (0, f.shape[0] - 18), (tw, f.shape[0]), (0, 0, 0), -1)
         cv2.putText(f, label[:48], (3, f.shape[0] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1)
-        if captions and captions.get(label):
-            cv2.rectangle(f, (0, 0), (tw, 16), (0, 0, 0), -1)
-            cv2.putText(f, captions[label][:52], (3, 12), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 255, 255), 1)
         tiles.append(f)
     if not tiles:
         return None
@@ -264,84 +253,7 @@ def tag_flags(rows, imu):
     return out
 
 
-VLM_MAX_FRAMES = 8
-
-
-def vlm_moments(moments, max_frames=VLM_MAX_FRAMES, min_gap_s=0.5):
-    """The key frames the VLM is asked about: start, end, then each anomaly's own moment (+0 s), then the +-1 s
-    frames, at most max_frames, none closer than min_gap_s to one already chosen. Keeps the moments' labels."""
-    first = [m for m in moments if m[0] in ("start", "end")]
-    zero = [m for m in moments if " +0s " in m[0]]
-    rest = [m for m in moments if m not in first and m not in zero]
-    out = []
-    for m in first + zero + rest:
-        if len(out) >= max_frames:
-            break
-        if all(abs(m[1] - o[1]) >= min_gap_s for o in out):
-            out.append(m)
-    return sorted(out, key=lambda m: m[1])
-
-
-def measured_at(t, imu=None, trows=None, tol_s=0.5):
-    """The measured values at UTC t, for showing beside the VLM's answer: IMU tilt (max |roll|, |pitch|) from the
-    flight record, and the nearest tag-tracker row within tol_s (tag roll/pitch, position, closest edge)."""
-    out = {}
-    if imu is not None and len(imu["t"]) and imu["t"][0] - tol_s <= t <= imu["t"][-1] + tol_s:
-        r, p = (float(np.interp(t, imu["t"], imu[k])) for k in ("roll_deg", "pitch_deg"))
-        out["imu_tilt_deg"] = round(max(abs(r), abs(p)), 1)
-    good = [r for r in (trows or []) if r.get("stale") is False and abs(r["t"] - t) <= tol_s]
-    if good:
-        r = min(good, key=lambda q: abs(q["t"] - t))
-        out.update(tag_roll_deg=round(r["roll_deg"], 1), tag_pitch_deg=round(r["pitch_deg"], 1),
-                   x_mm=round(r["x_mm"], 1), y_mm=round(r["y_mm"], 1), edge_margin_mm=round(r["margin_min_mm"], 1))
-    return out
-
-
-def vlm_caption(ans):
-    """Short contact-sheet caption: what the model says, flagged items in capitals."""
-    if not ans:
-        return "vlm: no answer"
-    bits = ["PERSON/ANIMAL" if ans.get("person_or_animal") else "no person",
-            "upright" if ans.get("robot_upright") else ("NOT UPRIGHT" if ans.get("robot_upright") is False else "upright ?"),
-            "OBJECT" if ans.get("object_on_board") else "no object"]
-    return "vlm: " + ", ".join(bits)
-
-
-def vlm_pass(video, moments, out_dir, name, model, host=V.DEFAULT_HOST, imu=None, trows=None,
-             max_frames=VLM_MAX_FRAMES, num_thread=12, ask=V.ask):
-    """Ask the VLM about the key frames of one run. -> dict for the report (answers next to measured values).
-    Never raises for the model: a failed or unparseable answer is reported as such."""
-    pts = C.read_pts(os.path.splitext(video)[0] + ".pts")
-    fdir = os.path.join(out_dir, f"{name}_vlm")
-    os.makedirs(fdir, exist_ok=True)
-    caches, frames = {}, []
-    t_all = dt.datetime.now().timestamp()
-    for k, (label, t) in enumerate(vlm_moments(moments, max_frames)):
-        if not pts or min(abs(q - t) for q in pts) > 0.5:
-            frames.append(dict(moment=label, t_utc=_hms(t), frame=None, answer=None, error="no video frame within 0.5 s",
-                               seconds=None, measured=measured_at(t, imu, trows)))
-            continue
-        f = _frame_at(caches, video, pts, t)
-        if f is None:
-            continue
-        h, w = f.shape[:2]
-        if w > 1280:
-            f = cv2.resize(f, (1280, round(h * 1280 / w)), interpolation=cv2.INTER_AREA)
-        jpg = os.path.join(fdir, f"{k:02d}.jpg")
-        cv2.imwrite(jpg, f, [cv2.IMWRITE_JPEG_QUALITY, 88])
-        r = ask(jpg, model, host, num_thread=num_thread)
-        frames.append(dict(moment=label, t_utc=_hms(t), frame=jpg, answer=r.get("answer"), error=r.get("error"),
-                           seconds=r.get("total_s"), measured=measured_at(t, imu, trows)))
-    for c in caches.values():
-        c.release()
-    return dict(model=model, host=host, video=video, frames=frames,
-                seconds_total=round(dt.datetime.now().timestamp() - t_all, 1),
-                reliability="second opinion only: a hint to look at the frame; never a measurement, never a gate "
-                            "(bake-off: tools/vision/README.md, Layer E)")
-
-
-def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_path=None, use_video=True, wait_s=90.0,
-               vlm_model=None, vlm_host=V.DEFAULT_HOST, vlm_max_frames=VLM_MAX_FRAMES):
+def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_path=None, use_video=True, wait_s=90.0):
     rows = [json.loads(l) for l in open(track)]
     name = os.path.splitext(os.path.basename(track))[0]
     out_dir = out_dir or os.path.dirname(os.path.abspath(track))
@@ -394,14 +306,7 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
             for a in anomalies:
                 for dtm in (-1, 0, 1):
                     moments.append((f"{a['kind']} {dtm:+d}s {_hms(a['t_utc'])[:8]}", a["t_utc"] + dtm))
-            captions = None
-            if vlm_model:
-                vp = vlm_pass(clip_mp4, moments, out_dir, name, vlm_model, vlm_host, imu=imu, trows=trows,
-                              max_frames=vlm_max_frames)
-                rep["vlm_second_opinion"] = vp
-                captions = {f["moment"]: vlm_caption(f["answer"]) for f in vp["frames"]}
-            rep["contact_sheet"] = contact_sheet(clip_mp4, moments, os.path.join(out_dir, f"{name}_vision.jpg"),
-                                                 captions=captions)
+            rep["contact_sheet"] = contact_sheet(clip_mp4, moments, os.path.join(out_dir, f"{name}_vision.jpg"))
             if context:
                 ctx_mp4 = os.path.join(out_dir, f"{name}_context_clip.mp4")
                 if cut_clip(context, t0 - 1, t1 + 1, ctx_mp4):
@@ -422,32 +327,12 @@ def main(argv=None):
     ap.add_argument("--config")
     ap.add_argument("--no-video", action="store_true")
     ap.add_argument("--wait-s", type=float, default=90.0, help="wait for the flight record to cover the run's end")
-    ap.add_argument("--vlm-model", help="optional second opinion on the key frames by this ollama vision model "
-                                        "(default off; see README, Layer E)")
-    ap.add_argument("--vlm-host", default=V.DEFAULT_HOST, help="ollama server (default: the CPU-only one, %(default)s)")
-    ap.add_argument("--vlm-max-frames", type=int, default=VLM_MAX_FRAMES, help="key frames asked about (%(default)s)")
     a = ap.parse_args(argv)
-    rep = run_report(a.track, a.video_dir, a.frec_dir, a.out_dir, a.config, not a.no_video, a.wait_s,
-                     a.vlm_model, a.vlm_host, a.vlm_max_frames)
+    rep = run_report(a.track, a.video_dir, a.frec_dir, a.out_dir, a.config, not a.no_video, a.wait_s)
     # foreign_motion_hints stays in the JSON file only: it fires on the robot itself
-    print(json.dumps({k: v for k, v in rep.items() if k not in ("anomalies", "foreign_motion_hints", "vlm_second_opinion")},
-                     indent=1, default=float))
+    print(json.dumps({k: v for k, v in rep.items() if k not in ("anomalies", "foreign_motion_hints")}, indent=1, default=float))
     print(f"{len(rep['anomalies'])} anomalies")
-    if rep.get("vlm_second_opinion"):
-        print(vlm_table(rep["vlm_second_opinion"]))
     return 0
-
-
-def vlm_table(vp):
-    """Plain-text table: per key frame, the measured values and the VLM's answer side by side."""
-    lines = [f"second opinion ({vp['model']}, {vp['seconds_total']:.0f} s; a hint, not a measurement):",
-             f"  {'moment':34s} {'IMU tilt':>8s} {'tag r/p':>11s} {'edge mm':>7s} | vlm"]
-    for f in vp["frames"]:
-        m = f["measured"]
-        rp = f"{m['tag_roll_deg']:.0f}/{m['tag_pitch_deg']:.0f}" if "tag_roll_deg" in m else "-"
-        lines.append(f"  {f['moment'][:34]:34s} {m.get('imu_tilt_deg', '-')!s:>8s} {rp:>11s} {m.get('edge_margin_mm', '-')!s:>7s}"
-                     f" | {vlm_caption(f['answer'])[5:] if f['answer'] else 'no answer: ' + str(f['error'])}")
-    return "\n".join(lines)
 
 
 if __name__ == "__main__":
