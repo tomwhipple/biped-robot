@@ -39,6 +39,18 @@
 # CI jobs: run-clang-tidy honours WarningsAsErrors from .clang-tidy;
 # cppcheck.sh fails on ANY finding).
 #
+# The gates run concurrently where they share nothing (#329): [1] host starts
+# with [4]+[5] (cmake-check, then tidy: both use build/host-cmake), [7] and
+# [8-9] (firmware, then firmware-powerlite: both use firmware/sdkconfig); [2]
+# and [3] start when [1] is done (they read what it built in
+# firmware/host/build) and run side by side; [6] starts when [1], [2] and [3] are
+# done (it may delete firmware/host/build). [2] runs pytest-xdist workers
+# (`make pytest`: PYTEST_WORKERS, default 8; 0 = one process). Each gate keeps
+# its own log, <git dir>/prepush-logs/<stamp>-<pid>/<target>.log, next to the
+# combined <stamp>-<pid>.log; a failing gate prints "FAIL: <gate>" with its
+# log path. Every gate runs, whatever the others did, and the same pass/fail
+# and SKIP rules apply. PREPUSH_SERIAL=1 runs the gates one at a time.
+#
 # Enable once per clone:
 #   git config core.hooksPath .githooks
 
@@ -160,63 +172,162 @@ echo "== pre-push: making sure everything compiles, links and passes =="
 
 # Each gate is a make target (`make help`, Tests and Firmware), so a gate runs
 # the same here as by hand. A target whose tool is missing prints SKIP and passes.
-# Every gate's output is kept: tee'd into one log per push under the git dir
-# (shared by all worktrees), newest PREPUSH_KEEP (default 10) kept, and the
-# path printed on failure -- a flake seen once in the gate (#148) was gone
-# with the terminal scrollback before anyone could read it.
+# Every gate's output is kept: one log per gate in <git dir>/prepush-logs/<stamp>-<pid>/
+# plus the combined log <stamp>-<pid>.log (gate outputs in the order the gates
+# finish), the newest PREPUSH_KEEP (default 10) pushes kept, and the path
+# printed on failure -- a flake seen once in the gate (#148) was gone with the
+# terminal scrollback before anyone could read it.
 GITC="$(git rev-parse --git-common-dir 2>/dev/null)" || GITC=""
-LOGDIR="" LOG=/dev/null
+LOGDIR="" LOG=/dev/null GDIR=""
 if [ -n "$GITC" ]; then
   LOGDIR="$(cd "$GITC" && pwd)/prepush-logs"
   if mkdir -p "$LOGDIR" 2>/dev/null; then
-    LOG="$LOGDIR/$(date +%Y%m%d-%H%M%S)-$$.log"
-    ls -1t "$LOGDIR"/*.log 2>/dev/null | tail -n +"$(( ${PREPUSH_KEEP:-10} + 1 ))" | while read -r old; do rm -f "$old"; done
+    stem="$LOGDIR/$(date +%Y%m%d-%H%M%S)-$$"
+    LOG="$stem.log"
+    ls -1t "$LOGDIR"/*.log 2>/dev/null | tail -n +"$(( ${PREPUSH_KEEP:-10} + 1 ))" | while read -r old; do
+      rm -rf "$old" "${old%.log}"
+    done
+    GDIR="$stem"
+    mkdir -p "$GDIR" 2>/dev/null || GDIR=""
   fi
 fi
-RCF="$(mktemp)"
-trap 'rm -f "$RCF"' EXIT
+CLEAN_GDIR=""
+if [ -z "$GDIR" ]; then
+  GDIR="$(mktemp -d)"
+  CLEAN_GDIR=1
+fi
+trap '[ -z "$CLEAN_GDIR" ] || rm -rf "$GDIR"' EXIT
+trap 'kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
 
-gate() {
-  echo "" >&2
-  echo "== [$1] make $2 ==" | tee -a "$LOG"
-  { make -C "$ROOT" PY="$PY" "$2"; echo $? > "$RCF"; } 2>&1 | tee -a "$LOG"
-  if [ "$(cat "$RCF")" != 0 ]; then
-    echo "FAIL: $1 (make $2)" >&2
-    rc=1
+# --- running the gates ------------------------------------------------------------
+# Independent gates run side by side (#329); PREPUSH_SERIAL=1 runs them one at
+# a time instead. A gate's output goes to its own log and is replayed, whole,
+# when the gate finishes, so concurrent gates never interleave. What shares a
+# build tree stays ordered:
+#   [1] host builds firmware/host/build, which [2]'s console tests and [3]'s
+#       SIL library read, so [2] and [3] start once [1] is done;
+#   [6] tidy-gui configures firmware/host/build itself and may delete it again,
+#       so it starts once [2] and [3] are done;
+#   [4] and [5] share build/host-cmake, so [5] follows [4].
+# [7] cppcheck reads sources only; [8-9] runs firmware, then firmware-powerlite
+# (build/firmware*, one sdkconfig). They share nothing with the rest and start
+# with [1]. Every gate runs whatever another gate did, as before.
+STARTED=""   # tags of the gates launched, in launch order
+REPORTED=""  # tags whose output has been replayed
+
+# run_one "<label>" <make target>: runs the gate in the foreground, leaving
+# <tag>.log, <tag>.secs and (last) <tag>.rc in $GDIR.
+run_one() {
+  _tag="$2"
+  _t0="$(date +%s)"
+  make -C "$ROOT" PY="$PY" "$2" > "$GDIR/$_tag.log" 2>&1
+  _rc=$?
+  echo "$(( $(date +%s) - _t0 ))" > "$GDIR/$_tag.secs"
+  echo "$_rc" > "$GDIR/$_tag.rc.tmp"
+  mv "$GDIR/$_tag.rc.tmp" "$GDIR/$_tag.rc"
+}
+# launch "<label>" <target> [ "<label>" <target> ... ]: a chain of gates, one
+# after another, in the background (the foreground with PREPUSH_SERIAL=1).
+launch() {
+  _chain=""
+  _args=""
+  while [ "$#" -ge 2 ]; do
+    STARTED="$STARTED $2"
+    echo "$1" > "$GDIR/$2.label"
+    _chain="$_chain run_one '$1' $2;"
+    shift 2
+  done
+  if [ "${PREPUSH_SERIAL:-0}" != "0" ]; then
+    eval "$_chain"
+  else
+    eval "( $_chain ) &"
   fi
+}
+# report_done: replay the output of every gate that has finished since the last call.
+report_done() {
+  for _tag in $STARTED; do
+    case " $REPORTED " in *" $_tag "*) continue ;; esac
+    [ -f "$GDIR/$_tag.rc" ] || continue
+    REPORTED="$REPORTED $_tag"
+    _label="$(cat "$GDIR/$_tag.label")"
+    _rc="$(cat "$GDIR/$_tag.rc")"
+    echo "" >&2
+    echo "== [$_label] make $_tag ($(cat "$GDIR/$_tag.secs") s) ==" | tee -a "$LOG"
+    tee -a "$LOG" < "$GDIR/$_tag.log"
+    if [ "$_rc" != 0 ]; then
+      echo "FAIL: $_label (make $_tag) -- its log: $GDIR/$_tag.log" >&2
+      rc=1
+    fi
+  done
+}
+# await <tag>...: wait until those gates have finished, replaying output as it
+# arrives, and a heartbeat every 30 s (an idle SSH session to GitHub is dropped).
+await() {
+  _beat=0
+  while :; do
+    report_done
+    _wait=""
+    for _tag in "$@"; do
+      [ -f "$GDIR/$_tag.rc" ] || _wait="$_wait $_tag"
+    done
+    [ -n "$_wait" ] || return 0
+    sleep 1
+    _beat=$((_beat + 1))
+    if [ "$_beat" -ge 30 ]; then
+      _beat=0
+      echo "... still running:$_wait" >&2
+    fi
+  done
 }
 
 # [1/9] the host checks (the mjpeg.cpp lesson) and the consoles; without C/C++
 # changes only the SIL library that [3/9] loads.
 if [ -n "$cpp" ]; then
-  gate "1/9 host" host
+  launch "1/9 host" host
 elif [ -n "$py" ]; then
-  gate "1/9 sil-lib" sil-lib
+  launch "1/9 sil-lib" sil-lib
+fi
+
+if [ -n "$cpp" ]; then
+  launch "4/9 cmake-ctest" cmake-check "5/9 clang-tidy" tidy
+  launch "7/9 cppcheck" cppcheck
+  if [ "${SKIP_ESP32:-0}" != "0" ]; then
+    echo "SKIP: esp32-build (SKIP_ESP32=$SKIP_ESP32 in env)" >&2
+  else
+    launch "8-9/9 esp32-build" firmware "8-9/9 esp32-build power lite" firmware-powerlite
+  fi
+else
+  echo "" >&2
+  echo "SKIP: cmake-ctest, clang-tidy, clang-tidy-gui, cppcheck, esp32-build (no C/C++ changes)" >&2
 fi
 
 if [ -n "$py" ]; then
-  gate "2/9 link-tests" pytest
-  # Tests that need the deployed run's gitignored artifacts (sim/runs/<run>/,
-  # the .silw) skip with a reason where they are absent (issue #89).
-  gate "3/9 sil-suite" sil-suite
+  if [ -n "$cpp" ]; then await host; else await sil-lib; fi
+  # Tests that need the deployed run's gitignored artifacts skip with a reason
+  # where they are absent (issue #89). make pytest runs xdist workers
+  # (PYTEST_WORKERS, default 8; 0 = one process).
+  launch "2/9 link-tests" pytest
+  launch "3/9 sil-suite" sil-suite
+  await pytest sil-suite
 else
   echo "SKIP: host-check, sil-lib, link-tests, sil-suite (only docs, images and the like changed)" >&2
 fi
 
 if [ -n "$cpp" ]; then
-  gate "4/9 cmake-ctest" cmake-check
-  gate "5/9 clang-tidy" tidy
-  gate "6/9 clang-tidy-gui" tidy-gui
-  gate "7/9 cppcheck" cppcheck
-  if [ "${SKIP_ESP32:-0}" != "0" ]; then
-    echo "SKIP: esp32-build (SKIP_ESP32=$SKIP_ESP32 in env)" >&2
-  else
-    gate "8-9/9 esp32-build" firmware
-    gate "8-9/9 esp32-build power lite" firmware-powerlite
-  fi
-else
+  # without Python changes nothing above waited for [1]; tidy-gui must not
+  # touch firmware/host/build while host is still building it
+  await host
+  launch "6/9 clang-tidy-gui" tidy-gui
+fi
+await $STARTED
+wait
+
+if [ -n "$STARTED" ]; then
   echo "" >&2
-  echo "SKIP: cmake-ctest, clang-tidy, clang-tidy-gui, cppcheck, esp32-build (no C/C++ changes)" >&2
+  echo "== gate times (s) ==" | tee -a "$LOG"
+  for _tag in $STARTED; do
+    printf '%-12s %5s  rc=%s\n' "$_tag" "$(cat "$GDIR/$_tag.secs")" "$(cat "$GDIR/$_tag.rc")" | tee -a "$LOG"
+  done
 fi
 
 if [ "$rc" -eq 0 ]; then

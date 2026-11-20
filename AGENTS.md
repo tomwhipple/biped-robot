@@ -68,9 +68,25 @@ git config core.hooksPath .githooks
 The hook runs each gate as its make target, so the target runs it the same
 way by hand; `make prepush` runs every gate the hook can.
 
+The hook runs the gates that share nothing at the same time: `host` starts
+with `cmake-check` then `tidy`, `cppcheck` and `firmware` then
+`firmware-powerlite`; `pytest` and `sil-suite` start once `host` is done (they
+read what it built); `tidy-gui` starts once all three are done (it may delete
+`firmware/host/build`). Each gate's output goes to its own log in
+`<git dir>/prepush-logs/<stamp>-<pid>/`, next to the combined
+`<stamp>-<pid>.log`, and a failing gate prints `FAIL: <gate>` and its log path.
+`PREPUSH_SERIAL=1` runs the gates one at a time. `make pytest` runs `tests/` in
+`PYTEST_WORKERS` pytest-xdist workers (default 8, a capped count: never
+`-n auto`; `PYTEST_WORKERS=0` runs one process) with `--dist loadgroup`. A test
+module that cannot share a process with another (fixed ports, a fixed shared
+path) is listed in `XDIST_GROUPS` in `tests/conftest.py`, which keeps it on one
+worker; a new test takes its ports from `free_udp_ports` (per-worker) or port 0,
+and its files from `tmp_path`. `pytest` is pinned in `requirements.txt`: 9.2.0
+breaks `--dist loadgroup` (pytest-dev/pytest-xdist #1386, #1407).
+
 | gate                                                                   | covers                                                                                                                                                                                                                                       | in the hook                                                     |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `make pytest` (`pytest tests/`)                                        | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B); power lite's circuit in ngspice (`tests/test_power_lite_sim.py`; skips without a libngspice) | hard, unless the push is docs only                              |
+| `make pytest` (`pytest tests/`, in 8 xdist workers)                    | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B); power lite's circuit in ngspice (`tests/test_power_lite_sim.py`; skips without a libngspice) | hard, unless the push is docs only                              |
 | `make host` (`make -C firmware/host check`)                            | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                                                                                                             | hard, on C/C++ pushes (otherwise only the SIL library is built) |
 | `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason                                                                                      | hard, unless the push is docs only                              |
 | `make cmake-check`: cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree                                                                                                                                                                                                        | C/C++ pushes, when cmake is installed                           |

@@ -39,7 +39,10 @@ def test_camd_segments_lock_clip_and_latest(tmp_path):
     p = subprocess.Popen([PY, os.path.join(VIS, "camd.py"), "--source", "lavfi", "--dir", d,
                           "--segment-s", "2", "--duration", "6"])
     try:
-        time.sleep(2.5)
+        latest = os.path.join(d, "lavfi_latest.jpg")
+        deadline = time.time() + 4.0      # the first camd's start-up is slow on a busy box
+        while time.time() < deadline and not (os.path.exists(latest) and os.path.getsize(latest) > 100):
+            time.sleep(0.1)
         second = subprocess.run([PY, os.path.join(VIS, "camd.py"), "--source", "lavfi", "--dir", d, "--duration", "1"],
                                 capture_output=True, text=True)
         assert second.returncode == 3 and "refusing" in second.stderr
