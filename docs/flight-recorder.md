@@ -212,7 +212,7 @@ us_net, us_write, us_other, uptime ms, NTP syncs, reserved), u8 17 + 3 pad,
 then per bus joint: u8 id, u8 fitted, i8 dir, i16 zero.
 
 The C++ encoder is pinned to `tools/flightrec.py` byte for byte
-(`make vectors` → `firmware/host/vectors/flightrec_vectors.h`, checked by
+(`make vectors` → `build/host/vectors/flightrec_vectors.h`, checked by
 `firmware/host/test_flightrec.cpp`). A layout change bumps the version on
 both sides.
 

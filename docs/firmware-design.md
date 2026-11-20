@@ -1078,10 +1078,11 @@ SIL scorecard, float vs int8 through the firmware stack, is recorded in
 - **SIL.** The same component sources are linked into `libctrl_sil` and run
   against the CPU plant, scored by the same referee
   ([sil-harness.md](sil-harness.md)).
-- **Deploy.** `make -C firmware/host deploy-headers RUN=<run>` regenerates
-  `obs_spec.h` and `weights.h` (and their vectors) together, from one run;
-  then `make -C firmware/host test`, `idf.py -C firmware build`, flash. The
-  path from a trained run to the flash is [training.md](training.md) §9.
+- **Deploy.** `make deploy RUN=<run>` puts one run's inputs in
+  `firmware/deployed/`; `make policy` generates `obs_spec.h`, `weights.h` and
+  `cmd_envelope.h` (and their vectors) together from them, into
+  `build/policy/<set>/`. Then `make host`, `make firmware`, flash. The path
+  from a trained run to the flash is [training.md](training.md) §9.
 - **On the robot**: bring-up order and checks are
   [bringup.md](bringup.md).
 

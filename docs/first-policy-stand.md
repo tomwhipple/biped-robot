@@ -10,7 +10,7 @@ it.*
 |---|---|
 | policy | `robot_legs_walk16_act_s128r24` (from 2026-11-02; the 11-01 stand ran `robot_legs_walk14_s1_s128r24`): (128, 128) student of `robot_legs_walk16_act`, action map `full`, as-built (factory P 32 / D 32) stiffness, trained with actuator DR (per-servo dead time, kp/kd ranges; branch `policy-stand-rca`) -- [§8, walk16](#walk16_act_s128r24-the-second-stand-2026-11-02) |
 | image | `make firmware POLICY=v6legs` → `build/firmware-v6legs/bimo_firmware.bin` (or `idf.py -C firmware -B build/firmware-v6legs -DBIMO_POLICY=v6legs build`) |
-| headers | `firmware/policies/v6legs/` (`make deploy RUN=robot_legs_walk16_act_s128r24 POLICY=v6legs`) |
+| headers | `build/policy/v6legs/`, from `firmware/deployed/` (`make deploy RUN=robot_legs_walk16_act_s128r24 POLICY=v6legs`) |
 | sim evidence | `sim/mjx/eval_stand_arm.py` (below) |
 
 The mechanics described here are the code as of this branch: `ctrl_task.cpp`,

@@ -409,11 +409,12 @@ Checking it:
 The policy was trained on a stand, or a walk inside a band per direction,
 and nothing else. The bands come from the deployed run's `config.json` and
 the env's defaults (`tools/gen_envelope.py`, [training.md §4](training.md)),
-and are **generated**, never typed: `firmware/components/linkproto/include/linkproto/cmd_envelope.h`
+and are **generated**, never typed: `linkproto/cmd_envelope.h`
 (`kVFwdMin`, `kVFwdMax`, `kVBackMin`, `kVBackMax`, `kVyMin`, `kVyMax`, `kWMax`,
-`kCrouchMin`) and its Python twin `link/cmd_envelope.py`, which
-`protocol.py` reads, one set per policy profile (`make deploy RUN=...
-[POLICY=<profile>]`). The profile `v6legs`, `v6legs256` and the deployed set
+`kCrouchMin`) and its Python twin `linkproto/cmd_envelope.py`, which
+`protocol.py` reads, built by `make policy` (`make envelope` for just these)
+into `build/policy/<set>/`, one set per policy profile (`make deploy RUN=...
+[POLICY=<profile>]` changes a set). The profile `v6legs`, `v6legs256` and the deployed set
 all carry the `walk16_act` students' envelope:
 
 | channel | trained band | from |
