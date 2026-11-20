@@ -109,8 +109,11 @@ The INA219 shares the I²C bus with the IMU (one mutex, `imu/qmi8658.h`
   beacon and to the guard; `ctrl` also treats a read count that has not moved
   for 50 ticks as none, so a blocked `housekeeping` cannot hand the guard an
   old value.
-- **`imu reinit`** deletes the bus; the INA219's handle is dropped first and
-  re-attached on the next read. Both run on `housekeeping`.
+- **One device handle.** It is made once and kept across failed reads (no
+  allocation per retry). `imu reinit` deletes the bus, so the handle is
+  removed first, under the bus lock and checked (a refusal keeps the handle
+  and the reinit is not done), and re-made on the next read. Both run on
+  `housekeeping`.
 
 ### The IMU
 
@@ -457,10 +460,12 @@ p += v dt
   before the CLI may touch the bus.
 - **The pack guard watches the bench too.** Benched, `ctrl` feeds it the
   INA219's reading alone (the bench's register 62 is one servo once a second,
-  and none with power lite's rail off). Nothing moves on a trip; the latch
+  and none with power lite's rail off). Nothing moves on a trip, which goes
+  straight to `VSAFE` (`Guard::benchUpdate`: no crouch to ride, so no 1.5 s
+  landing in which the refusals do not yet hold); the latch
   refuses `rail on` and `home`, a hold that comes upright and still is
-  released instead of homed (no home on a flat pack), and an arm lands at
-  once and goes limp
+  released instead of homed (no home on a flat pack), and an arm goes limp
+  at once
   (power lite: the rail drops, `RAIL_DOWN`). `ctrl` is the guard's one writer
   in both modes, so `batt reset` is a request it applies on its next tick.
 - **One decision point.** `cmdMode()`, on the housekeeping task, decides every
@@ -510,7 +515,8 @@ In the order the tick applies them:
    protection: the pack has none, power lite's BMS has no under-voltage
    cut-off, and the servos' own under-voltage flag trips near 6 V. Its input
    each tick is the lower of servo register 62 and the INA219's pack voltage
-   (truncated to 0.1 V), or whichever of the two there is
+   (truncated to 0.1 V: on it, warn below 10.6 V and land below 10.0 V), or
+   whichever of the two there is
    (`battguard::inputDv`). On 3S it warns at 10.5 V and lands at 9.9 V held
    for 25 ticks (0.5 s): travel commands go to zero and crouch ramps to 0.60
    (the lowest trained stance) over 1.5 s (`VLAND`), then torque goes off

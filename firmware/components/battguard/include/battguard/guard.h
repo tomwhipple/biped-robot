@@ -72,6 +72,13 @@ class Guard {
     // sitting the robot down every time one arrives late.
     void update(uint8_t dv, float now_ms);
 
+    // A BENCHED tick: update(), except that a landing -- a confirmed trip on
+    // this tick, or one left over from an armed trip -- goes straight to kSafe.
+    // Benched there is no crouch to ride, and the landing's 1.5 s would be a
+    // window in which the latch's refusals (rail, home, autohome) that test
+    // torqueMustRelease() do not yet hold.
+    void benchUpdate(uint8_t dv, float now_ms);
+
     Level level() const { return level_; }
 
     // True once the pack has tripped, through both the landing and the limp

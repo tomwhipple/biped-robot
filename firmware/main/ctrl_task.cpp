@@ -536,10 +536,11 @@ void ctrlTask(void*) {
             // The pack guard watches the bench too (issue #109), on the INA219
             // alone: the bench's servo reading is one servo once a second, and
             // none at all on power lite with the rail off. Nothing moves here;
-            // a trip latches, and a latched guard refuses the rail, a home and
+            // a trip latches straight to SAFE (no crouch to ride benched, so no
+            // landing window), and a latched guard refuses the rail, a home and
             // the next arm (it lands at once and goes limp), as after an armed
             // trip. No pack reading (no chip, USB power): the guard holds.
-            g_batt.update(battguard::inputDv(0, pack_mv), now_ms);
+            g_batt.benchUpdate(battguard::inputDv(0, pack_mv), now_ms);
             continue;
         }
 

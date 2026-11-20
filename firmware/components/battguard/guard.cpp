@@ -51,6 +51,14 @@ void Guard::update(uint8_t dv, float now_ms) {
     level_ = (below_warn_ >= confirm_) ? Level::kWarn : Level::kOk;
 }
 
+void Guard::benchUpdate(uint8_t dv, float now_ms) {
+    update(dv, now_ms);
+    if (level_ == Level::kLanding) {
+        level_ = Level::kSafe;
+        crouch_ = kCrouchFloor;
+    }
+}
+
 void Guard::reset() {
     level_ = Level::kOk;
     crouch_ = 1.0f;

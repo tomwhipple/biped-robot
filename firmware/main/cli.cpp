@@ -1654,7 +1654,7 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     // block), so it outranks this too: a flat pack is exactly when powering
     // the servos to hold a stand is the wrong answer, and unlike the E-stop
     // this latch is the ROBOT's, not the operator's, to clear.
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("REFUSED: the pack under-voltage guard has torque latched off. "
             "Swap the pack, then `batt reset` -- see `batt`.\r\n");
         return linkproto::ArmResult::kHomeLowBatt;
@@ -1743,7 +1743,7 @@ bool railEnsureUp(Sink out, bool& powered) {
         return false;
     }
     // The pack guard's latch outranks this, as it does a home (homeAll).
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("REFUSED: the pack under-voltage guard is latched; the rail stays off. Swap the "
             "pack, then `batt reset`.\r\n");
         return false;
@@ -2079,7 +2079,7 @@ void flailTickImpl(Sink out) {
     // The pack guard watches the bench too (issue #109) and refuses a home once it
     // has latched, so this hold would never end. Upright and still, it ends the way a
     // home would have, released, without the move (and, on power lite, the rail goes).
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("HOLD: upright and still for 1 s, but the pack guard has latched -- releasing, "
             "no home on a flat pack\r\n");
         char rel[] = "release";
@@ -2407,8 +2407,15 @@ void cmdBatt(Sink out, int argc, char** argv) {
         }
         robot::g_batt_reset_req.fetch_add(1);
         vTaskDelay(pdMS_TO_TICKS(60));            // ctrl applies it within a tick
-        out("pack guard cleared -- do this ONLY after swapping in a fresh pack; "
-            "a pack still at the line trips it again within a second\r\n");
+        // Report what the guard says now, not what was asked: ctrl drops a request
+        // that finds the loop armed, and a pack still at the line re-trips it.
+        if (g.latched()) {
+            out("pack guard NOT cleared: still latched (armed meanwhile, or the pack is "
+                "still at the line) -- see `batt`\r\n");
+        } else {
+            out("pack guard cleared -- do this ONLY after swapping in a fresh pack; "
+                "a pack still at the line trips it again within a second\r\n");
+        }
         return;
     }
     // `batt pack off`: the guard stops taking the INA219 (servos only, as before

@@ -54,7 +54,8 @@ constexpr uint16_t kPackMaxMv = 16000;
 constexpr uint16_t kPackFloorMv = 6000;
 
 // Millivolts -> the guard's decivolts. TRUNCATES, so the guard never sees the
-// pack higher than measured (10.59 V is 105: warn), and saturates at 255.
+// pack higher than measured (10.59 V is 105: warn), and saturates at 255. On
+// the INA219 the guard therefore warns below 10.6 V and lands below 10.0 V.
 constexpr uint8_t dvFromMv(uint16_t mv) {
     return mv / 100u > 255u ? uint8_t{255} : static_cast<uint8_t>(mv / 100u);
 }

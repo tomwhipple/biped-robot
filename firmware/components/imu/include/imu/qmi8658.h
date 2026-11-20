@@ -103,6 +103,10 @@ class Qmi8658Imu : public Imu {
     // itself; a caller that must not stall (the INA219 read, main/pack_sense.cpp)
     // passes short ones.
     void* addDevice(uint8_t addr, uint32_t hz);
+    // Remove a device addDevice() made, under the same lock, so no transaction
+    // is in flight. False (the device is still registered) if the lock or the
+    // driver refused: keep the handle and try again.
+    static bool rmDevice(void* dev);
     static bool devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len,
                         int lock_ms = 50, int xfer_ms = 100);
     static bool devWrite(void* dev, uint8_t reg, uint8_t val);

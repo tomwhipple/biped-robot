@@ -293,6 +293,65 @@ void testPackSenseRefusesTheImplausible() {
     CHECK_EQ(s.packMv(100), battguard::kPackMaxMv);
 }
 
+// Benched there is no crouch to ride: a confirmed trip is SAFE on that very
+// tick, so the latch's refusals (rail, home, autohome test torqueMustRelease)
+// hold from the trip, with no 1.5 s landing window in which the robot could move.
+void testBenchTripGoesStraightToSafe() {
+    Guard g;
+    float now = 0.0f;
+    for (int i = 0; i < battguard::kConfirmTicks - 1; ++i) {
+        g.benchUpdate(battguard::inputDv(0, 9800), now);
+        now += kDt;
+    }
+    CHECK(!g.latched());                        // not confirmed yet
+    g.benchUpdate(battguard::inputDv(0, 9800), now);
+    CHECK(g.level() == Level::kSafe);
+    CHECK(g.latched());
+    CHECK(g.torqueMustRelease());
+    // ... and it stays latched when the bench pack rebounds.
+    now += kDt;
+    for (int i = 0; i < 200; ++i) {
+        g.benchUpdate(battguard::inputDv(0, 12000), now);
+        now += kDt;
+    }
+    CHECK(g.torqueMustRelease());
+}
+
+// An armed trip disarmed mid-landing finishes at once on the bench.
+void testArmedLandingFinishesOnTheBench() {
+    Guard g;
+    float now = 0.0f;
+    feed(g, 98, battguard::kConfirmTicks, now);
+    CHECK(g.level() == Level::kLanding);
+    CHECK(!g.torqueMustRelease());
+    g.benchUpdate(0, now);                      // no reading: still finishes
+    CHECK(g.level() == Level::kSafe);
+    CHECK(g.torqueMustRelease());
+}
+
+// Warn is still a live indicator on the bench, not a latch.
+void testBenchWarnClears() {
+    Guard g;
+    float now = 0.0f;
+    for (int i = 0; i < battguard::kConfirmTicks; ++i) {
+        g.benchUpdate(battguard::inputDv(0, 10450), now);
+        now += kDt;
+    }
+    CHECK(g.level() == Level::kWarn);
+    g.benchUpdate(battguard::inputDv(0, 11500), now);
+    CHECK(g.level() == Level::kOk);
+    CHECK(!g.latched());
+}
+
+// The INA219 is truncated to tenths: it warns below 10.6 V and lands below
+// 10.0 V (9.999 V is 99 dV), never above. Pinned so the docs' numbers hold.
+void testInaTruncationLines() {
+    CHECK_EQ(battguard::inputDv(0, 9999), battguard::kLand3S);
+    CHECK(battguard::inputDv(0, 10000) > battguard::kLand3S);
+    CHECK_EQ(battguard::inputDv(0, 10599), battguard::kWarn3S);
+    CHECK(battguard::inputDv(0, 10600) > battguard::kWarn3S);
+}
+
 // The clock wraps (uint32 ms, 49.7 days): still due on time, still fresh.
 void testPackSenseWraps() {
     battguard::PackSense s;
@@ -324,5 +383,9 @@ int main() {
     testPackSenseSchedule();
     testPackSenseRefusesTheImplausible();
     testPackSenseWraps();
+    testBenchTripGoesStraightToSafe();
+    testArmedLandingFinishesOnTheBench();
+    testBenchWarnClears();
+    testInaTruncationLines();
     return testutil::report("battguard");
 }

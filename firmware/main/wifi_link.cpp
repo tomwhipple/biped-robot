@@ -105,6 +105,11 @@ void wifiLinkTask(void*) {
     };
     Commander cmdr = {};
     bool have_cmdr = false;
+    // The INA219's read count, as last seen, and when it last moved: the beacon's
+    // pack_mv is 0 once it has not moved for 1 s, whatever g_pack_mv still holds
+    // (housekeeping zeroes that, but not while a long CLI command blocks it).
+    uint32_t pack_reads_seen = 0;
+    int64_t pack_moved_us = -10 * 1000 * 1000;
     // The g_joint_pose publish count of the last pose we beaconed. The loop
     // publishes at 50 Hz and this beacons at 10 Hz, so while armed the count
     // always moves between beacons; the same value twice means ctrl is
@@ -233,6 +238,13 @@ void wifiLinkTask(void*) {
                 t.up_x = g_telemetry.up_x.load();
                 t.up_y = g_telemetry.up_y.load();
             }
+            {
+                const uint32_t pr = g_pack_reads.load();
+                if (pr != pack_reads_seen) {
+                    pack_reads_seen = pr;
+                    pack_moved_us = now_us;
+                }
+            }
             if (cmdr.pwr) {
                 // The battery (issue #109): the INA219's pack voltage, which
                 // the base frame's vbat (register 62, 0 with the servos off)
@@ -240,7 +252,8 @@ void wifiLinkTask(void*) {
                 // is a single load: a torn read across them is a 10 Hz
                 // human/Pi-facing report, the TelemetrySnapshot rule.
                 t.have_pwr = 1;
-                t.pack_mv = g_pack_mv.load();
+                t.pack_mv = now_us - pack_moved_us <= 1000 * 1000 ? g_pack_mv.load()
+                                                                  : uint16_t{0};
                 t.batt = static_cast<uint8_t>(battGuard().level());
                 uint8_t f = g_pack_guarding.load() ? linkproto::kPwrGuardPack : uint8_t{0};
                 if constexpr (rail::kFitted) {

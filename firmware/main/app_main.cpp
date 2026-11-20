@@ -148,8 +148,9 @@ void applyImuCalFromNvs() {
 
 bool imuReinitLive() {
     // reinit() deletes the I2C bus; the INA219's device handle on it goes first
-    // (pack_sense.h). Both run on the housekeeping task, so no read is in flight.
-    packSenseDetach();
+    // (pack_sense.h), under the bus lock. Should the driver refuse, the bus is
+    // left alone: deleting it would leave that handle dangling.
+    if (!packSenseDetach()) return false;
     const bool ok = g_qmi.reinit();
     if (ok) {
         g_imu = &g_qmi;

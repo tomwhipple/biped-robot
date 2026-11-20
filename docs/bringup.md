@@ -87,7 +87,7 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 - **Land the robot by 10.5 V** (3.5 V/cell on 3S). battguard warns at 10.5 V and lands the robot at 9.9 V ([wiring.md](wiring.md#battery-protection)).
 - The firmware reads the pack two ways: the board's INA219 at 4 mV (`volt`'s first line, `batt`, the beacon's power block), which needs no servo; and a servo's register 62 at 0.1 V (`scan`, `pos`, `volt`). The guard takes the lower of the two.
 - Compare both with the supply and a meter at the inlet; with one servo connected, the servo's too. A constant offset in either is worth knowing now, because the guard trips on the lower.
-- **The guard runs benched**, on the INA219. A supply at or below 9.9 V for half a second latches it: `rail on`, `home` and the next arm are refused or land at once. Raise the supply, then `batt reset`. Sweeping the supply low on purpose (a BMS test) is the same; `batt pack off` keeps the INA219 out of the guard until the next boot.
+- **The guard runs benched**, on the INA219. A supply below 10.0 V (the INA219 is truncated to 0.1 V) for half a second latches it, straight to SAFE: `rail on` and `home` are refused and the next arm goes limp at once. Raise the supply, then `batt reset`. With USB attached, switching the pack off can latch it the same way while `VIN` decays. Sweeping the supply low on purpose (a BMS test) is the same; `batt pack off` keeps the INA219 out of the guard until the next boot.
 
 ## 2. Servo IDs and gains
 

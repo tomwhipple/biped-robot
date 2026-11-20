@@ -14,7 +14,8 @@
 //   * the lock wait and the transfer each time out at kI2cTimeoutMs, so a held bus
 //     stalls housekeeping by at most ~2x that per attempt;
 //   * a chip that NAKs or is missing is "missing" after 3 failures and is then tried
-//     once every 2 s: one NAK (tens of us) every 2 s. The reading meanwhile is 0,
+//     once every 2 s: one NAK (tens of us) every 2 s, on the same device handle (it
+//     is made once; only `imu reinit` removes it). The reading meanwhile is 0,
 //     "unknown", and the guard holds on the servos alone.
 #pragma once
 #include <stdint.h>
@@ -22,9 +23,10 @@
 namespace robot {
 
 void packSenseTick();
-// Drop the device handle before the bus it lives on is deleted (imuReinitLive).
-// The next tick attaches again.
-void packSenseDetach();
+// Drop the device handle before the bus it lives on is deleted (imuReinitLive),
+// under the bus lock. False: the driver refused and the handle is kept, so the
+// bus must not be deleted. The next tick attaches again.
+bool packSenseDetach();
 
 struct PackSenseStatus {
     bool attached = false;

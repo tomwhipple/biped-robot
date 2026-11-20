@@ -214,6 +214,16 @@ bool Qmi8658Imu::devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len, int l
     return ok;
 }
 
+bool Qmi8658Imu::rmDevice(void* dev) {
+    if (dev == nullptr) return true;
+    lockInit();
+    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(100)) != pdTRUE) return false;
+    const bool ok =
+        i2c_master_bus_rm_device(static_cast<i2c_master_dev_handle_t>(dev)) == ESP_OK;
+    xSemaphoreGive(s_i2c_lock);
+    return ok;
+}
+
 bool Qmi8658Imu::devWrite(void* dev, uint8_t reg, uint8_t val) {
     if (dev == nullptr) return false;
     lockInit();

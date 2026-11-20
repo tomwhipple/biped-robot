@@ -186,8 +186,11 @@ The pack sense (#109), on the same supply, with a console asking for the power b
 - **Reading.** `volt` and the console's `pack` line against a meter at J3: note the error.
   `rail on` and `rail off` should move it by no more than the drop on the logic's path.
 - **The guard, benched.** Lower the supply to 10.4 V: `batt` says WARN, the beacon's level
-  is 1. To 9.8 V for a second: LANDING, then SAFE, latched; `rail on` and `home` are
-  refused. Back to 12.0 V: still latched; `batt reset` clears it.
+  is 1. To 9.8 V for a second: SAFE at once (benched there is no landing), latched;
+  `rail on` and `home` are refused. Back to 12.0 V: still latched; `batt reset` clears it.
+- **Pack off with USB attached.** With the USB tether powering the logic, switch the pack
+  off (or unplug it): if `VIN` decays slowly through 9.9-6.0 V the bench guard may latch
+  on the way down (then `batt reset`). Check whether it does, and how long `VIN` takes.
 - **No chip.** Not testable without lifting U2; the host tests cover it (`batt` would say
   "not answering" and the guard falls back to the servos).
 
