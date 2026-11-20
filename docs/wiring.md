@@ -418,7 +418,7 @@ releases torque.
 - the four servo branches (J4–J7) with the servo IDs of [servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled);
 - the control signals to the ESP32 (`SERVO_EN`, `RAIL_V`, `ESTOP_N`).
 
-It leaves off what the sources do not settle: the physical fan-out of J12 to the General Driver's headers (listed in [pcb/power-lite/harness.md](../pcb/power-lite/harness.md), not yet verified against the headers) and the neck and arm IDs, which are drawn as a proposal.
+It leaves off what the sources do not settle: the physical fan-out of J12 to the General Driver's headers (drawn on Waveshare's photo in [pcb/power-lite/harness.md](../pcb/power-lite/harness.md#j12-control-to-the-esp32); not yet checked on the board in hand) and the neck and arm IDs, which are drawn as a proposal.
 
 ## Bring-up checklist
 
