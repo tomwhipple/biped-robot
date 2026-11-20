@@ -192,7 +192,20 @@ was built (`--vlm-model`: answers next to the IMU / tag values per key frame, a 
 contact sheet, never a gate) is kept on the branch `tools/316-vlm-run-report-pass` for when a
 better model is available.
 
-RESULTS_README
+Result of the 2026-11-20 bake-off on 55 labelled frames from the 11-12/13/16 footage (record:
+[docs/design-v6/2026-11-20-vlm-second-opinion-bakeoff.md](../../docs/design-v6/2026-11-20-vlm-second-opinion-bakeoff.md)),
+on the CPU (12 threads) with night training running:
+
+| model (prompt) | frames | person/animal P / R | not upright P / R | object: false alarms | CPU s/frame (median, max) |
+|---|---|---|---|---|---|
+| qwen2.5vl:7b (answer-first) | 55 | 1.00 / 0.24 | 1.00 / 0.50 | 1 of 51 | 63, 123 |
+| qwen2.5vl:7b (describe-first) | 18 | – / 0.00 | – / 0.00 | 0 of 16 | 62, 72 |
+| minicpm-v:8b (describe-first) | 55 | 1.00 / 0.33 | 0.57 / 0.22 | 29 of 51 | 74, 130 |
+| granite3.2-vision:2b (describe-first) | 6 | – / 0.00 | – / 0.00 | 0 of 6 | 96, 98 |
+
+None of them saw the dog (0 of 7 frames) or a fallen robot with nobody near it (0-4 of 10); their
+"person" hits are big hands on the robot, which nobody would miss on the contact sheet. qwen3-vl:8b,
+the best model of the 11-16 GPU test, could not be pulled by the installed ollama.
 
 **CPU, not the GPU.** The GPU belongs to night training (22:00-07:00) and by day to
 camera-watcher, so models run on a separate CPU-only ollama (its own model store, port 11500),
