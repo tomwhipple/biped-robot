@@ -32,7 +32,6 @@ import paths  # noqa: E402
 import re
 import socket
 import struct
-import sys
 import threading
 import time
 
@@ -259,13 +258,13 @@ def up_to_quat(up):
 
 
 def _local_xml(xml):
-    """A run's config.json may store the plant relative to sim/ (or just its
-    basename: train_mjx.py on a remote host) -- resolve it against the local
-    sim/ directory, as eval_precision does, so the twin starts from any cwd."""
+    """A run's config.json may store the plant by basename (train_mjx.py on a
+    remote host) or by an old sim/ path -- resolve it against the local
+    build/v6/sim, as eval_precision does, so the twin starts from any cwd."""
     if not xml or os.path.isabs(xml) or os.path.exists(xml):
         return xml
     for cand in (os.path.join(HERE, xml),
-                 os.path.join(HERE, os.path.basename(xml))):
+                 paths.v6_plant(xml)):
         if os.path.exists(cand):
             return cand
     return xml

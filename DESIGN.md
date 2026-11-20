@@ -777,7 +777,7 @@ flies the parts in along their insertion paths to prove they assemble.
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
 drawn (17 actuators, arms at their folded rest pose, the servo set's masses,
-the bearing housing, the hip-yaw bearings split between it and the carriers); `build/v6/sim/bimo_biped_v6ar.xml` is the committed plant,
+the bearing housing, the hip-yaw bearings split between it and the carriers); `build/v6/sim/bimo_biped_v6ar.xml` is the plant (built by `make plant`),
 pinned by the tests. `build/v6/sim/bimo_biped_v6legs.xml` (`build_v6_inertia.py --asbuilt-legs`) is the body as it stands on the bench: the 12 leg servos and the control board on the torso frame, no pack, Pi, head, neck or arms (tethered); it is the plant the nightly walk and balance runs train on while the body is in that state.
 
 ## 11. Software

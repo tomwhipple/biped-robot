@@ -35,9 +35,11 @@ import argparse
 import hashlib
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import pickle
 import struct
-import sys
 
 import numpy as np
 
@@ -317,8 +319,7 @@ def main():
     if not xml:
         raise SystemExit(f"{run_dir}/config.json has no xml_path: a run that "
                          "predates recording its plant is not exportable")
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        xml = os.path.join(ROOT, "sim", os.path.basename(xml))
+    xml = paths.resolve_plant(xml)
     env = make_env(cfg, 12.0, True, xml)
     env_obs = int(env.observation_space.shape[0])
     env_act = int(env.action_space.shape[0])

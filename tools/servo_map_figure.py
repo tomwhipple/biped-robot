@@ -15,7 +15,6 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths  # noqa: E402
-import sys
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 import matplotlib

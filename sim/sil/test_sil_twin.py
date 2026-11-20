@@ -15,7 +15,6 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import paths  # noqa: E402
-import sys
 
 import numpy as np
 import pytest
@@ -252,7 +251,7 @@ def test_the_free_plant_root_is_found_and_takes_the_reported_tilt(xml):
     drawn torso's own z axis must BE that vector -- the mirror/--viewer
     mannequin tilts as the robot does."""
     import mujoco
-    m = mujoco.MjModel.from_xml_path(os.path.join(SIM, xml))
+    m = mujoco.MjModel.from_xml_path(paths.v6_plant(xml))
     d = mujoco.MjData(m)
     adr = sil_twin.root_qposadr(m)
     free = [j for j in range(m.njnt)

@@ -589,8 +589,8 @@ Training runs **at night only**; days belong to the box's owner.
 - **The harness builds its inputs (#144).** The runner runs `make plant-data`
   in the clone (output in `night/make.log`): the plant with its CAD meshes, and
   the seeded terrain mosaic. `build/` is gitignored and survives the sync's
-  reset, so a build with nothing stale costs seconds, and a rebuild is
-  byte-stable across machines (`cad/stable_stl.py`). It builds at runner start
+  reset, so a build with nothing stale costs seconds, and a rebuild on any
+  machine gives the same plant bytes (`cad/stable_stl.py`). It builds at runner start
   when jobs are queued, before pre-flight; a failure there goes to
   `claude_fix.sh` (step `build-inputs`) and one retry, and a second failure
   refuses the night like a failed pre-flight. Each job rebuilds after its own
@@ -599,7 +599,9 @@ Training runs **at night only**; days belong to the box's owner.
   (`sim/getup_ref_v6ar*.npz`) are *physics recordings*, not rebuildable
   artifacts: a re-record on a different toolchain can diverge from the trained
   input. They stay in git and out of the harness (`make sim-data` builds them
-  by hand).
+  by hand). The plant (`build/v6/sim`), its servo meshes and the printed parts'
+  STLs (`build/v6/stl`) are not in git at all: `make plant-data` is the only way
+  they exist on the training box.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
   <train_mjx.py args>` checks that the branch is pushed, writes claw's cron
   lines (the `night/` copies of `night_run`, `night_stop`, `plan_morning` and
@@ -624,8 +626,9 @@ Training runs **at night only**; days belong to the box's owner.
   safety net. `COLLECT_JOBS` (default 6) runs are collected at once, each into
   its own log that is appended to `night_collect.log` in a stable order; a
   second collector exits at once on `night/.collect.lock`. The lag column is run by hand (§8). It
-  fast-forwards the checkout to `origin/main` first, so the references and
-  plants a run trained against are there to referee it. If uncommitted files
+  fast-forwards the checkout to `origin/main` first, then runs `make plant-data`
+  there, so the references and the plant a run trained against (built into
+  `build/v6/sim`) are there to referee it. If uncommitted files
   block the fast-forward, it stashes only the paths upstream also changed, under
   a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
 - **Re-planning.** `infra/night/plan_morning.sh` (cron 05:30 and 07:30; also

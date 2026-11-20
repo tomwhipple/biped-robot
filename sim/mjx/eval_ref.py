@@ -30,7 +30,6 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import paths  # noqa: E402
 import pickle
-import sys
 
 import numpy as np
 

@@ -7,6 +7,7 @@ obs::kGaitFreqHz. Off by default: without the flag nothing changes, draw for dra
 import json
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import pickle
 import re
 import sys
@@ -52,7 +53,7 @@ def mjx_slow(mjx_kw):
 
 def _cpu_env(**over):
     from walker_env import BimoWalkerEnv
-    kw = dict(xml_path=os.path.join(ROOT, "sim", XML), actuator_model="sts3215", command_mode=True,
+    kw = dict(xml_path=paths.v6_plant(XML), actuator_model="sts3215", command_mode=True,
               ext_cmd=True, imu_obs=True, gait_clock=True, domain_rand=False, obs_hist_len=3,
               render_mode=None)
     kw.update(over)
@@ -324,7 +325,7 @@ def test_referee_inherits_the_range_from_config():
     import eval_precision as E
     cfg = json.loads(json.dumps(dict(_kw("--gait-freq", "0.9,1.1"), mjx_impl=None,
                                      xml_path=None, warp_envs=None), default=list))
-    env = E.make_env(cfg, 5.0, True, os.path.join(ROOT, "sim", XML))
+    env = E.make_env(cfg, 5.0, True, paths.v6_plant(XML))
     assert env.gait_freq_range == SLOW and env.deploy_gait_freq == pytest.approx(1.0)
 
 

@@ -13,7 +13,6 @@ The robot's parametric CAD, written in Python with
 ```
 cad/
 ├── v6/                     the robot: part modules, assembly, gates (map below)
-│   └── stl/                the exported parts (generated; committed: the plant meshes them)
 ├── common/                 the library the parts build on (below)
 │   ├── dimensions.py       servo ground truth and shared constants
 │   ├── shapes.py           solid helpers

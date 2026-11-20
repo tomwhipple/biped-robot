@@ -47,7 +47,6 @@ import paths  # noqa: E402
 import pickle
 import re
 import subprocess
-import sys
 
 import numpy as np
 
