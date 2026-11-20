@@ -165,8 +165,9 @@ def calibration_obs(root, run, mean, std, layers, act_dim,
     import eval_precision as E
     cfg = json.load(open(os.path.join(root, "sim", "runs", run,
                                       "config.json")))
-    env = E.make_env(cfg, 12.0, True, os.path.join(root, "sim",
-                                                   cfg["xml_path"]))
+    sys.path.insert(0, root)
+    import paths
+    env = E.make_env(cfg, 12.0, True, paths.resolve_plant(cfg["xml_path"]))
     obs = []
     for k, seed in enumerate(seeds):
         o, _ = env.reset(seed=seed)

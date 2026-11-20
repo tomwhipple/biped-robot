@@ -272,3 +272,18 @@ def test_the_hung_plant_has_no_root_pose_to_set():
     m = mujoco.MjModel.from_xml_path(
         paths.v6_plant("bimo_biped_v6legs_hang.xml"))
     assert sil_twin.root_qposadr(m) == -1
+
+
+def test_local_xml_resolves_plants_that_are_not_where_the_config_says():
+    """A config.json's plant may be a bare name, the old sim/ path, or an
+    absolute path from another host; all resolve to build/v6/sim/<name>.
+    An existing path and an empty one pass through."""
+    name = "bimo_biped_v6ar.xml"
+    want = paths.v6_plant(name)
+    assert sil_twin._local_xml(name) == want
+    assert sil_twin._local_xml("/nonexistent/host/robot/sim/" + name) == want
+    assert sil_twin._local_xml(os.path.join(paths.ROOT, "sim", name)) == want
+    assert sil_twin._local_xml("") == ""
+    assert sil_twin._local_xml(None) is None
+    if os.path.exists(want):
+        assert sil_twin._local_xml(want) == want

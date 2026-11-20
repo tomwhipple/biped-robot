@@ -261,13 +261,11 @@ def _local_xml(xml):
     """A run's config.json may store the plant by basename (train_mjx.py on a
     remote host) or by an old sim/ path -- resolve it against the local
     build/v6/sim, as eval_precision does, so the twin starts from any cwd."""
-    if not xml or os.path.isabs(xml) or os.path.exists(xml):
+    if not xml or os.path.exists(xml):
         return xml
-    for cand in (os.path.join(HERE, xml),
-                 paths.v6_plant(xml)):
-        if os.path.exists(cand):
-            return cand
-    return xml
+    if not os.path.isabs(xml) and os.path.exists(os.path.join(HERE, xml)):
+        return os.path.join(HERE, xml)
+    return paths.v6_plant(xml)
 
 
 def run(args):
