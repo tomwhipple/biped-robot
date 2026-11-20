@@ -109,11 +109,10 @@ oriented with the ESP32 module at the top and the USB-C ports at the bottom. Dra
 - **Unwired header pins:** H3 pins 1 and 6 are motor A outputs, and H2 pin 2 is 5 V. None of them
   is wired.
 - **Connector families:** in Waveshare's product photos, P3 and H2 are a fitted 1×10 male pin
-  header at 2.54 mm, so 2.54 mm Dupont housings (the elechawk kit's) plug onto them. H3 is a
-  top-entry white 6-pin housing whose contacts are 2.0 mm apart, scaled from the 2.54 mm header in
-  the same photo, like the PH LiDAR connector. Its wire takes a 6-way housing with one contact in
-  position 4, a PHR-6 if H3 is PH. Check the pitch and a housing's fit on the board in hand
-  before crimping. The J12 end is a PHR-8.
+  header at 2.54 mm, so 2.54 mm Dupont housings (the elechawk kit's) plug onto them. H3 is a JST
+  PH 2.0 mm 6-pin header (Waveshare's wiki: "Motor interface PH2.0 6P"), so its wire takes a PHR-6
+  with one contact in position 4. The J12 end is a PHR-8. Both PH ends take SPH-002T-P0.5S
+  contacts (24–30 AWG).
 
 ## A bench supply instead of the pack
 

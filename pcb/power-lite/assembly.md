@@ -258,7 +258,7 @@ then tug the wire to check it is held.
   
   The figure in [harness.md, J12](harness.md#j12-control-to-the-esp32) shows where each one
   plugs in. P3 and H2 are 2.54 mm pin headers, which take the elechawk kit's Dupont
-  housings; H3 is a 2.0 mm 6-pin housing (harness.md, "Connector families").
+  housings; H3 is a JST PH 6-pin header, which takes a PHR-6 (harness.md, "Connector families").
 
 - **The servo leads** must put the General Driver's GND wire on pin 3 here (harness check P4).
 
