@@ -21,6 +21,7 @@
 
 #include "cal_store.h"
 #include "flight_rec.h"
+#include "pack_sense.h"
 #include "policy/mlp.h"
 #include "power_rail.h"
 #include "scs_port_idf.h"
@@ -61,6 +62,11 @@ std::atomic<float> g_heading_err{0.0f};
 std::atomic<float> g_heading_corr{0.0f};
 std::atomic<uint32_t> g_op_stops{0};
 std::atomic<uint32_t> g_op_estops{0};
+std::atomic<uint16_t> g_pack_mv{0};
+std::atomic<uint32_t> g_pack_reads{0};
+std::atomic<bool> g_pack_guard_on{true};
+std::atomic<bool> g_pack_guarding{false};
+std::atomic<uint32_t> g_batt_reset_req{0};
 
 bool takeOperatorStop(const linkproto::Command& cmd) {
     if (!cmd.stop()) return false;
@@ -141,6 +147,9 @@ void applyImuCalFromNvs() {
 }
 
 bool imuReinitLive() {
+    // reinit() deletes the I2C bus; the INA219's device handle on it goes first
+    // (pack_sense.h). Both run on the housekeeping task, so no read is in flight.
+    packSenseDetach();
     const bool ok = g_qmi.reinit();
     if (ok) {
         g_imu = &g_qmi;
@@ -157,6 +166,9 @@ bool g_imu_cal_from_nvs = false;
 imu::Qmi8658Imu* onboardImu() {
     return (g_imu == static_cast<imu::Imu*>(&g_qmi)) ? &g_qmi : nullptr;
 }
+
+// The board's I2C bus, whether or not the IMU answered (shared.h).
+imu::Qmi8658Imu& boardI2c() { return g_qmi; }
 
 namespace {
 

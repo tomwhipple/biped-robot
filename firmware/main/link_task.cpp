@@ -13,6 +13,7 @@
 #include "board.h"
 #include "cli.h"
 #include "flight_rec.h"
+#include "pack_sense.h"
 #include "wcli/wcli.h"
 #include "wifi_cli.h"
 #include "driver/uart.h"
@@ -186,6 +187,8 @@ void houseTask(void*) {
         cli::fallTick(&houseSay);
         cli::servoRamTick(&houseSay);
         cli::benchVbatTick();
+        // The INA219's pack voltage (pack_sense.h): 10 Hz, self-scheduled, bounded.
+        packSenseTick();
         cli::flailTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);

@@ -99,12 +99,17 @@ class Qmi8658Imu : public Imu {
     // 7-bit device on THIS bus -- e.g. a BNO055 breakout on header P1 -- and
     // read/write its registers under the same lock the IMU sampler uses.
     // addDevice() initialises the bus if needed; it returns nullptr on failure.
+    // `lock_ms` bounds the wait for the shared lock and `xfer_ms` the transfer
+    // itself; a caller that must not stall (the INA219 read, main/pack_sense.cpp)
+    // passes short ones.
     void* addDevice(uint8_t addr, uint32_t hz);
-    static bool devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len);
+    static bool devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len,
+                        int lock_ms = 50, int xfer_ms = 100);
     static bool devWrite(void* dev, uint8_t reg, uint8_t val);
     // Register-less transfers (a BNO08x speaks SHTP packets, not registers).
     static bool devRawRead(void* dev, uint8_t* buf, size_t len);
-    static bool devRawWrite(void* dev, const uint8_t* buf, size_t len);
+    static bool devRawWrite(void* dev, const uint8_t* buf, size_t len,
+                            int lock_ms = 50, int xfer_ms = 100);
 
     // Raw sensor-frame readings, mount NOT applied: m/s^2 and rad/s. This is
     // the call that tells you which physical axis is which, which is the

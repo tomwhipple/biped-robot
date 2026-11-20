@@ -293,6 +293,26 @@ extern std::atomic<bool> g_cal_from_nvs;
 // bench-only, exactly like the mutating `cal` subcommands: in bench mode ctrl
 // returns before touching the guard, so there is no cross-core race.
 battguard::Guard& battGuard();
+// The guard is fed in BOTH modes since issue #109 (benched, on the INA219
+// alone), so the CLI no longer writes it: `batt reset` bumps this and ctrl
+// resets the guard on its next tick, benched only. One writer each side.
+extern std::atomic<uint32_t> g_batt_reset_req;
+
+// -- the pack voltage from the board's INA219 (housekeeping -> ctrl, beacon) --
+// main/pack_sense.cpp reads the chip on the I2C bus at 10 Hz from the
+// housekeeping task (never on core 1) and stores the reading, then bumps the
+// count. g_pack_mv is 0 when there is no fresh reading (no chip, a NAK, stale
+// for 1 s). ctrl judges freshness by the count (ctrl_task.cpp packMvForGuard),
+// so a stalled housekeeping cannot hand the guard an old value as a new one.
+extern std::atomic<uint16_t> g_pack_mv;
+extern std::atomic<uint32_t> g_pack_reads;
+// `batt pack on|off` (CLI writes, ctrl reads every tick): whether the guard
+// takes the INA219 at all. On at boot; off is the escape hatch should the
+// chip misread on a robot (RAM only, back on at the next boot).
+extern std::atomic<bool> g_pack_guard_on;
+// ctrl writes every tick: the guard took the INA219's reading (the beacon's
+// kPwrGuardPack).
+extern std::atomic<bool> g_pack_guarding;
 
 // The fitted bus joints, from the live calibration: their bus indices and
 // servo IDs in bus order. Returns the count. Housekeeping and ctrl both call
@@ -311,6 +331,11 @@ int fittedBusJoints(const obs::Calibration& cal, int* bus_out,
 // follow the TelemetrySnapshot rule -- a torn value is a human's problem, not
 // the control loop's.
 imu::Qmi8658Imu* onboardImu();
+// The board's I2C bus object, whether or not the IMU answered at boot: the
+// INA219 (main/pack_sense.cpp) and the bench's extra devices hang off it, under
+// the same lock as the IMU sampler. Its bus may still be down (busInit failed):
+// addDevice() then returns null and the caller degrades.
+imu::Qmi8658Imu& boardI2c();
 
 // True when boot found a valid IMU calibration in NVS. False means the gyro
 // bias is zero and the mount is identity, which on this robot is wrong on

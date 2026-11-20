@@ -203,12 +203,13 @@ void* Qmi8658Imu::addDevice(uint8_t addr, uint32_t hz) {
     return dev;
 }
 
-bool Qmi8658Imu::devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len) {
+bool Qmi8658Imu::devRead(void* dev, uint8_t reg, uint8_t* buf, size_t len, int lock_ms,
+                         int xfer_ms) {
     if (dev == nullptr) return false;
     lockInit();
-    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(lock_ms)) != pdTRUE) return false;
     const bool ok = i2c_master_transmit_receive(static_cast<i2c_master_dev_handle_t>(dev),
-                                                &reg, 1, buf, len, 100) == ESP_OK;
+                                                &reg, 1, buf, len, xfer_ms) == ESP_OK;
     xSemaphoreGive(s_i2c_lock);
     return ok;
 }
@@ -234,12 +235,13 @@ bool Qmi8658Imu::devRawRead(void* dev, uint8_t* buf, size_t len) {
     return ok;
 }
 
-bool Qmi8658Imu::devRawWrite(void* dev, const uint8_t* buf, size_t len) {
+bool Qmi8658Imu::devRawWrite(void* dev, const uint8_t* buf, size_t len, int lock_ms,
+                             int xfer_ms) {
     if (dev == nullptr) return false;
     lockInit();
-    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(50)) != pdTRUE) return false;
+    if (xSemaphoreTake(s_i2c_lock, pdMS_TO_TICKS(lock_ms)) != pdTRUE) return false;
     const bool ok = i2c_master_transmit(static_cast<i2c_master_dev_handle_t>(dev), buf, len,
-                                        100) == ESP_OK;
+                                        xfer_ms) == ESP_OK;
     xSemaphoreGive(s_i2c_lock);
     return ok;
 }

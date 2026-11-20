@@ -17,10 +17,11 @@
 
 namespace battguard {
 
-// Thresholds in DECIVOLTS -- the resolution of the servos' register 62, which
-// is the only pack-voltage sense on this robot (the driver board has no ADC
-// divider; see docs/wiring.md). Per-cell figures are the standard LiPo ones:
-// 3.5 V/cell is "land now", 3.3 V/cell is the last point before the knee.
+// Thresholds in DECIVOLTS -- the resolution of the servos' register 62. The
+// other sense, the board's INA219 (4 mV), arrives truncated to decivolts and
+// the guard takes the lower of the two (battguard/pack.h inputDv). Per-cell
+// figures are the standard LiPo ones: 3.5 V/cell is "land now", 3.3 V/cell is
+// the last point before the knee.
 constexpr uint8_t kWarn3S = 105;   // 10.5 V = 3.50 V/cell
 constexpr uint8_t kLand3S = 99;    //  9.9 V = 3.30 V/cell
 constexpr uint8_t kWarn2S = 70;    //  7.0 V
@@ -64,8 +65,9 @@ class Guard {
         return land_dv_ <= warn_dv_ && confirm_ > 0 && land_ms_ > 0.0f;
     }
 
-    // One control tick. `dv` is the freshest pack reading in decivolts, or 0
-    // when no servo answered this tick -- 0 means "no data", NEVER "0 volts",
+    // One control tick. `dv` is the freshest pack reading in decivolts
+    // (battguard/pack.h inputDv), or 0 when there is none this tick -- no
+    // servo answered and no fresh INA219 reading. 0 means "no data", NEVER "0 volts",
     // which is the difference between riding out a dropped bus frame and
     // sitting the robot down every time one arrives late.
     void update(uint8_t dv, float now_ms);

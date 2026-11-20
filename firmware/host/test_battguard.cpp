@@ -7,6 +7,7 @@
 //   * a recovery after it HAS tripped must not un-trip it (the rail rebounds
 //     as soon as torque drops, which is exactly when it must stay down)
 #include "battguard/guard.h"
+#include "battguard/pack.h"
 
 #include "test_util.h"
 
@@ -186,6 +187,125 @@ void testInvalidConfig() {
 
 }  // namespace
 
+// -- the pack sense (battguard/pack.h; issue #109) ---------------------------
+namespace {
+
+// The INA219's bus register, decoded as the datasheet's Figure 27 (TI SBOS448):
+// bits 15..3, 4 mV a count, CNVR/OVF ignored.
+void testIna219BusDecode() {
+    namespace ina = battguard::ina219;
+    CHECK_EQ(ina::busMv(0x0000), 0);
+    CHECK_EQ(ina::busMv(0x0007), 0);                   // only CNVR, OVF, reserved
+    CHECK_EQ(ina::busMv(static_cast<uint16_t>(3150u << 3)), 12600);   // 12.6 V
+    CHECK_EQ(ina::busMv(static_cast<uint16_t>((2775u << 3) | 0x3)), 11100);
+    CHECK_EQ(ina::busMv(0xFFF8), 32764);               // full scale: 8191 counts
+    const uint8_t be[2] = {0x5D, 0x4A};                // MSB first on the wire
+    CHECK_EQ(ina::reg16(be), 0x5D4A);
+    CHECK_EQ(ina::busMv(ina::reg16(be)), (0x5D4A >> 3) * 4);
+    // Only a mode that converts the bus continuously is left alone.
+    CHECK(ina::busContinuous(ina::kConfigDefault));    // 0x399F: MODE 111
+    CHECK(ina::busContinuous(0x399E));                 // 110: bus continuous
+    CHECK(!ina::busContinuous(0x3998));                // 000: power-down
+    CHECK(!ina::busContinuous(0x399A));                // 010: bus triggered
+    CHECK(!ina::busContinuous(0x399B));                // 011: triggered
+    CHECK(!ina::busContinuous(0x399D));                // 101: shunt only
+}
+
+void testDvFromMvTruncates() {
+    CHECK_EQ(battguard::dvFromMv(10599), 105);   // never reads the pack higher
+    CHECK_EQ(battguard::dvFromMv(10500), 105);
+    CHECK_EQ(battguard::dvFromMv(9999), 99);
+    CHECK_EQ(battguard::dvFromMv(0), 0);
+    CHECK_EQ(battguard::dvFromMv(65535), 255);   // saturates
+}
+
+// Either sense alone, or the lower of the two; a pack reading under the floor
+// (the board on USB) is no reading, never a flat pack.
+void testInputDvTakesTheLower() {
+    using battguard::inputDv;
+    CHECK_EQ(inputDv(0, 0), 0);                  // no data at all
+    CHECK_EQ(inputDv(118, 0), 118);              // servos only: today's guard
+    CHECK_EQ(inputDv(0, 11840), 118);            // the bus is down: the INA219 guards
+    CHECK_EQ(inputDv(117, 11840), 117);          // under load the servos read lower
+    CHECK_EQ(inputDv(118, 9950), 99);            // the pack reads lower: it wins
+    CHECK_EQ(inputDv(118, battguard::kPackFloorMv - 1), 118);   // USB: ignored
+    CHECK_EQ(inputDv(0, 4400), 0);
+    CHECK_EQ(inputDv(0, battguard::kPackFloorMv), 60);
+}
+
+// The bus fails, the INA219 keeps guarding: the same trip, on the same ticks,
+// as the servos would have given.
+void testGuardTripsOnThePackAlone() {
+    Guard g;
+    float now = 0.0f;
+    for (int i = 0; i < battguard::kConfirmTicks; ++i) {
+        g.update(battguard::inputDv(0, 9850), now);
+        now += kDt;
+    }
+    CHECK(g.level() == Level::kLanding);
+    CHECK_EQ(g.lastDv(), 98);
+}
+
+void testPackSenseSchedule() {
+    battguard::PackSense s;
+    using P = battguard::PackSense;
+    CHECK(s.due(0));                             // the first read is due at once
+    CHECK_EQ(s.packMv(0), 0);                    // and nothing is known yet
+    s.ok(11840, 0);
+    CHECK_EQ(s.packMv(0), 11840);
+    CHECK(!s.due(P::kPeriodMs - 1));
+    CHECK(s.due(P::kPeriodMs));
+    // Fresh up to kStaleMs, unknown after: never the last value forever.
+    CHECK_EQ(s.packMv(P::kStaleMs), 11840);
+    CHECK_EQ(s.packMv(P::kStaleMs + 1), 0);
+
+    // A failure keeps the 10 Hz retry until kMissAfter in a row ...
+    uint32_t t = 100;
+    for (int i = 0; i < P::kMissAfter - 1; ++i) {
+        s.fail(t);
+        CHECK(!s.missing());
+        CHECK(s.due(t + P::kPeriodMs));
+        t += P::kPeriodMs;
+    }
+    s.fail(t);
+    CHECK(s.missing());
+    // ... then one try every kRetryMs: a chip that NAKs costs nearly nothing.
+    CHECK(!s.due(t + P::kRetryMs - 1));
+    CHECK(s.due(t + P::kRetryMs));
+    CHECK_EQ(s.failures(), static_cast<uint32_t>(P::kMissAfter));
+    // The last good value has gone stale by now, and says so.
+    CHECK_EQ(s.packMv(t + P::kRetryMs), 0);
+    // One good read is back to 10 Hz.
+    s.ok(11800, t + P::kRetryMs);
+    CHECK(!s.missing());
+    CHECK_EQ(s.packMv(t + P::kRetryMs), 11800);
+    CHECK(s.due(t + P::kRetryMs + P::kPeriodMs));
+}
+
+// A reading no 3S pack can give is a failed read, not a pack voltage.
+void testPackSenseRefusesTheImplausible() {
+    battguard::PackSense s;
+    s.ok(battguard::kPackMaxMv + 4, 0);
+    CHECK_EQ(s.packMv(0), 0);
+    CHECK_EQ(s.failures(), 1u);
+    CHECK_EQ(s.reads(), 0u);
+    s.ok(battguard::kPackMaxMv, 100);
+    CHECK_EQ(s.packMv(100), battguard::kPackMaxMv);
+}
+
+// The clock wraps (uint32 ms, 49.7 days): still due on time, still fresh.
+void testPackSenseWraps() {
+    battguard::PackSense s;
+    const uint32_t t0 = 0xFFFFFFC0u;
+    s.ok(11100, t0);
+    CHECK(!s.due(t0 + 50));
+    CHECK(s.due(t0 + battguard::PackSense::kPeriodMs));   // past the wrap
+    CHECK_EQ(s.packMv(t0 + 500), 11100);
+    CHECK_EQ(s.packMv(t0 + 1001), 0);
+}
+
+}  // namespace
+
 int main() {
     testHealthyPackIsSilent();
     testWarnAssertsAndClears();
@@ -197,5 +317,12 @@ int main() {
     testResetClearsTheLatch();
     test2SThresholds();
     testInvalidConfig();
+    testIna219BusDecode();
+    testDvFromMvTruncates();
+    testInputDvTakesTheLower();
+    testGuardTripsOnThePackAlone();
+    testPackSenseSchedule();
+    testPackSenseRefusesTheImplausible();
+    testPackSenseWraps();
     return testutil::report("battguard");
 }

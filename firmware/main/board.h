@@ -19,13 +19,11 @@
 //   * There is NO OLED. The old board's SSD1306 at 0x3C does not exist here,
 //     so the display constants are gone rather than wrong.
 //
-//   * There IS a battery-voltage sense. The old header stated flatly that
-//     the board had no ADC and that pack voltage therefore had to come off
-//     the servo bus at 0.1 V resolution; the INA219 at 0x42 makes that false.
-//     battguard still reads the servo bus today -- switching it is a separate
-//     job (the INA219 shunt sits between DC_IN and the buck's VIN, so it sees
-//     pack voltage even with the servo bus released, which is strictly better
-//     than register 62).
+//   * There IS a battery-voltage sense: the INA219 at 0x42. Its shunt sits
+//     between DC_IN and the buck's VIN, so it sees the pack with the servo
+//     bus released (and, on power lite, with the servo rail off).
+//     main/pack_sense.cpp reads it at 10 Hz; battguard takes the lower of it
+//     and the servos' register 62 (battguard/pack.h).
 //
 //   * GPIO 4 reaches header H2 through a 10 R series resistor. The schematic
 //     puts a WS2812 on that net; power lite's ESTOP_N uses it (kEstopN below).
@@ -73,7 +71,7 @@ constexpr uint8_t kImuAddr = 0x6B;           // QMI8658C (SA0 high)
 constexpr uint8_t kImuAddrAlt = 0x6A;        // QMI8658C (SA0 low)
 constexpr uint8_t kMagAddr = 0x0C;           // AK09918C -- unused, see below
 constexpr uint8_t kBaroAddr = 0x77;          // BMP280 -- unused
-constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- unused (battguard TODO)
+constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- pack voltage (main/pack_sense.cpp)
 
 // The magnetometer is deliberately NOT used. The obs frame needs an up-vector
 // and body rates, never a heading, and a magnetometer bolted to the same PCB
@@ -102,8 +100,8 @@ constexpr gpio_num_t kRailV = GPIO_NUM_34;    // H3 pin 4: ADC1, the rail throug
 // Land the robot at 3.5 V/cell: 10.5 V on 3S, 7.0 V on 2S.
 //
 // These are the ADVISORY thresholds -- what a human is told to do. The robot
-// enforces its own in battguard::kWarn3S / kLand3S (decivolts, because the
-// sense is the servos' register 62). They must agree: kWarn3S == 105 is this
+// enforces its own in battguard::kWarn3S / kLand3S (decivolts, the servos'
+// register 62's resolution). They must agree: kWarn3S == 105 is this
 // same 10.5 V. battguard is pure and cannot include this header, so the link
 // is this comment.
 constexpr float kLandVoltage3s = 10.5f;
