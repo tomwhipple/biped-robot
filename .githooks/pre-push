@@ -20,6 +20,8 @@
 # Per Tom (2026-09-16): "disable all CI on this project and make it run as a
 # pre-push hook instead." ALL gates the old CI ran execute here, each as a
 # make target, so `make <target>` runs a gate the same way by hand:
+#   [0/9] generated       make generated  (first, alone: the plant, the policy
+#                         sets and the test vectors every later gate reads)
 #   [1/9] host check      make host       (hard; C/C++ pushes, else make sil-lib
 #                         when [3/9] runs)
 #   [2/9] link-tests      make pytest     (hard; non-inert pushes)
@@ -279,6 +281,19 @@ await() {
     fi
   done
 }
+
+# [0/9] what the gates build from, once, before they run side by side: the
+# plant, the policy sets of firmware/deployed/ and the test vectors (`make
+# generated`). Every gate below depends on some of it; built here first, it is
+# up to date for all of them, and no two gates write it at once.
+if [ -n "$cpp" ] || [ -n "$py" ]; then
+  launch "0/9 generated" generated
+  await generated
+  if [ "$(cat "$GDIR/generated.rc")" != 0 ]; then
+    echo "FAIL: the generated inputs did not build; no other gate ran" >&2
+    exit 1
+  fi
+fi
 
 # [1/9] the host checks (the mjpeg.cpp lesson) and the consoles; without C/C++
 # changes only the SIL library that [3/9] loads.
