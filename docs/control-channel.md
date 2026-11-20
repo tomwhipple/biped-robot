@@ -60,6 +60,7 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 4 | `HOME` | reset the servos to the stand (rising edge) |
 | 5 | `ATT` | beacon the torso up vector too (a level) |
 | 6 | `STOP` | operator stop, out of band ([below](#operator-stop-out-of-band)): with `ESTOP` hard (torque off), without soft (hold) |
+| 7 | `PWR` | beacon the power block too (a level); the last free bit |
 
 **Telemetry**, robot → the last console that commanded it, UDP port 4211,
 10 Hz:
@@ -79,12 +80,39 @@ only when an extra is off its default. The UART path takes 14 B frames only.
 | 21 | 8 | t_us | u64 µs since the Unix epoch, UTC, robot clock; **0 = not synced** |
 | 29 | 34 | joints | 17 × i16 milli-rad, one per bus servo in servo-ID order (`JOINT_NAMES`); 0 for a servo the robot does not carry; **only when asked with `POSE`** |
 | next | 4 | up_x, up_y | 2 × i16 milli; **only when asked with `ATT`** |
+| next | 6 | power | the [power block](#the-power-block); **only when asked with `PWR`** |
 | last | 2 | crc16 | over everything before it |
 
-Four lengths: 31 base, 35 + attitude, 65 + joints, 69 + both. Every block
-has a fixed size, so the length alone selects the layout. The UART tether
-sends the 31 B frame only, and only while armed: it shares 115200 baud with
-CLI text and the observation dump.
+Eight lengths: 31 base, 35 + attitude, 65 + joints, 69 + both, and each of
+them + 6 with the power block (37, 41, 71, 75). Every block has a fixed size,
+so the length alone selects the layout. The UART tether sends the 31 B frame
+only, and only while armed: it shares 115200 baud with CLI text and the
+observation dump.
+
+### The power block
+
+The battery's state, independent of the servo bus (issue #109). `vbat` in the
+base block is the servos' register 62, which is 0 with the servos unpowered
+(power lite's rail off) and goes blind with the bus; this block is not.
+
+| off | size | field | notes |
+|---|---|---|---|
+| +0 | 2 | pack_mv | u16 mV, the pack from the General Driver's INA219 (0x42, the bus voltage at `VIN`: [wiring.md](wiring.md#what-the-ina219-measures)), read at 10 Hz in both modes; **0 = no reading** (no chip, stale for 1 s, or USB power, where it reads near 0 V) |
+| +2 | 1 | batt | battguard's level: 0 ok, 1 warn, 2 landing, 3 safe (latched); [wiring.md](wiring.md#battery-protection) |
+| +3 | 1 | flags | below |
+| +4 | 2 | rail_mv | u16 mV, power lite's `RAIL_V` (SERVO+); 0 unless `LITE` and `RAIL_VALID` |
+
+| bit | flag | meaning |
+|---|---|---|
+| 0 | `LITE` | a power-lite image: the bits below and `rail_mv` mean something |
+| 1 | `SERVO_EN` | IO16 is high: the firmware asks for the servo rail |
+| 2 | `ESTOP` | `ESTOP_N` (IO4) reads stop: pressed, unplugged, or not yet seen low |
+| 3 | `ESTOP_LATCHED` | the E-stop latch stands ([power lite](../pcb/power-lite/README.md#the-firmware)) |
+| 4 | `RAIL_VALID` | `rail_mv` is a reading |
+| 5 | `GUARD_PACK` | battguard is taking `pack_mv` this tick, as well as the servos |
+
+The consoles (`bimo_tui`, `bimo_gui`) always ask for it and print one line
+(`bimo::powerText`): `pack 11.84 V  batt ok`, and on power lite the rail.
 
 The rules behind the format:
 
@@ -95,7 +123,7 @@ The rules behind the format:
   `crc16_ccitt(b"123456789") == 0x29B1`, the standard check value, so a C
   port can be diffed against a number rather than against "whatever Python
   said".
-- **Telemetry blocks are requested, never volunteered** (`POSE`, `ATT`). The
+- **Telemetry blocks are requested, never volunteered** (`POSE`, `ATT`, `PWR`). The
   robot is the sender and every client rejects a length it does not know, so
   an unrequested new length would blind every console at once. A client that
   asks is by construction one that can read the answer.

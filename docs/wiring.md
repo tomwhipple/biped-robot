@@ -71,6 +71,7 @@ few days, storage-charge it to 3.8 V/cell.
 
 - 3S, ≥ 15 A continuous on the pack lead, over-discharge cut-off about 3.0 V/cell, on the balance leads.
 - It is the backstop that does not depend on the firmware, below battguard's 3.3 V/cell landing line ([Battery protection](#battery-protection)).
+- **The board fitted to power lite (ShillehTek) has no under-voltage cut-off** ([bench record, 2026-11-19](design-v6/2026-11-19-power-lite-bms-bench.md)). Until it is replaced (#207), battguard is the pack's only under-voltage protection.
 - A UART "smart" BMS (JBD/Daly 3S class) in its place would report per-cell voltages. Whether that is wanted is **open**.
 - The torso has no pocket for a separate protection board and buck. It holds power lite in the bay right behind the pelvis, beside the pack, on four standoffs off the aft inner wall (`cad/v6/torso_v8.py`).
 
@@ -115,8 +116,10 @@ This was checked against the schematic and the firmware.
 - **Where the servos tap in.** H5 and H6 tap `DC_IN` upstream of R11.
 - **What it measures.** Pack voltage at `VIN`, behind the reverse-polarity FET, SW1 and the shunt. That reading does not depend on the servo bus and is valid with torque released. It also measures the current into the board's own logic supply, the Pi's included.
 - **What it does not see.** None of the servo current.
-- **The firmware does not read it.** `board::kPowerAddr` is marked unused, `imu scan` labels 0x42 "(unused)", and battguard reads the servos' register 62 instead.
-- **Open:** reading the INA219 in firmware, and getting pack voltage to the Pi for a low-battery shutdown.
+- **The firmware reads its bus voltage** (`main/pack_sense.cpp`): 10 Hz, in both modes, off the control loop ([firmware-design.md](firmware-design.md#the-pack-sense)). It goes to battguard (below), to `volt` and `batt`, and into the telemetry beacon's power block ([control-channel.md](control-channel.md#the-power-block)). The current is not read.
+- **Below 6.0 V it is no pack**, not a flat one: on USB power `DC_IN` is unpowered and the chip, on the 3V3 rail, reads near 0 V.
+- **Not measured yet:** its reading against a meter at the pack, and how far the logic's load (the Pi's peaks) sags `VIN` below the pack.
+- **Open:** getting pack voltage to the Pi for a low-battery shutdown (#87).
 
 ## Current: measured budget (issue #77)
 
@@ -364,11 +367,11 @@ from `dimensions_v6.py` and `docs/design-v6/arms.md` §5.
 
 ## Battery protection
 
-The pack has three layers of protection against over-discharge:
+The pack is protected against over-discharge by:
 
-1. **The protection board** cuts off at about 3.0 V/cell. This is hardware and does not depend on the firmware.
+1. **The protection board**, which should cut off at about 3.0 V/cell, in hardware. **Power lite's BMS has no under-voltage cut-off** ([bench record, 2026-11-19](design-v6/2026-11-19-power-lite-bms-bench.md)); a replacement is open (#207). Until then the two layers below are all there is.
 2. **battguard** (`firmware/components/battguard/`) is the firmware supervisor. It is pure, and its behaviour is asserted on the host in `firmware/host/test_battguard.cpp`.
-3. **The operator** lands the robot by 10.5 V. Pack voltage arrives in the 10 Hz telemetry (`vbat`, mV) and from `volt` on the CLI.
+3. **The operator** lands the robot by 10.5 V. Pack voltage arrives in the 10 Hz telemetry (the power block's `pack_mv` from the INA219, and `vbat` from the servos) and from `volt` on the CLI; the power block also carries battguard's level.
 
 Nothing else stops a discharge. The servos' own under-voltage protection sits at 4 V
 (C018 sheet), far below the ~9 V (3.0 V/cell) at which a 3S pack is damaged.
@@ -387,12 +390,14 @@ These design points carry load:
 
 - **Debounced.** A trip needs 25 consecutive ticks (0.5 s at 50 Hz) at or below the line. Gait transients sag the rail through the pack leads and the inlet, so an instantaneous comparator would false-fire mid-stride.
 - **Latched.** An unloaded flat 3S pack rebounds above 10.5 V within seconds of torque dropping. A guard that cleared on recovery would cycle the robot up and down on a ruined pack.
-  - To clear it, swap the pack, then run `batt reset` (bench mode) or reboot.
+  - To clear it, swap the pack, then run `batt reset` (bench mode) or reboot. A pack still at the line latches it again within a second.
   - While it holds, `home` refuses.
 - **Landing stays in distribution.** 0.60 is `walker_env`'s `crouch_range[0]`, the lowest stance the deployed policy was trained to hold. The guard does not cut torque on a standing biped.
-- **A dropped bus frame is not 0 V.** The voltage comes from servo feedback, specifically register 62 of the first servo that answers each tick. A tick in which no servo answered counts as "no data".
-- **It guards only while armed.** The benched loop reads no servos. On the bench, only the protection board guards the pack.
-- **It shares the bus's failure.** Lose the bus and the guard goes blind. The INA219 would remove that coupling, and it is not read.
+- **Two senses, the lower wins.** Each tick the guard takes register 62 of the first servo that answers and the INA219's pack voltage (truncated to 0.1 V), and judges the lower of the two, or whichever there is (`battguard::inputDv`). It therefore trips no later than it would on the servos alone. The INA219 sits on the logic's path, so under the Pi's load it may read a little below the pack and trip a little earlier; how much is not measured yet.
+- **No reading is not 0 V.** A tick in which no servo answered and the INA219 has no fresh reading (none for 1 s, a missing chip, or under 6.0 V: USB power) counts as "no data".
+- **It does not share the bus's failure.** Lose the servo bus and the INA219 keeps it guarding.
+- **It guards on the bench too**, on the INA219 alone; nothing moves on a trip, but the latch holds: `rail on` and `home` are refused, a hold that comes upright and still is released instead of homed, and an arm lands at once and goes limp. It cannot turn the logic off: the ESP32, the board and the Pi keep drawing about 1 A until the main switch is turned off.
+- **`batt pack off`** (tether, RAM only) takes the INA219 out of the guard until the next boot, should it misread on a robot.
 
 The advisory landing voltage (`board::kLandVoltage3s` = 10.5 V) and `battguard::kWarn3S` (105 dV) are the same number, and they must agree.
 

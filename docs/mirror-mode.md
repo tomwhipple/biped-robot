@@ -6,7 +6,8 @@ The wire protocol it rides on is [control-channel.md](control-channel.md).*
 `bimo_gui --mirror` (or the mirror toggle) does three things:
 
 1. sets `POSE` and `ATT` in its command frames, so the robot's beacon
-   carries its measured joint angles and torso up vector (the 69 B frame);
+   carries its measured joint angles and torso up vector (the 69 B frame,
+   75 B with the power block every console also asks for);
 2. starts `sim/sil_twin.py --viewer` as a child process;
 3. for each beacon that carries joints, writes one line to the child's stdin:
    `pose q1 … q17 [ux uy uz]` (radians, servo-ID order, then the up vector
@@ -61,6 +62,10 @@ that sets `POSE` is by construction one that can read the answer.
 | 35 | base + attitude | `ATT` |
 | 65 | base + joints | `POSE` |
 | 69 | base + joints + attitude | both |
+
+Each of these is 6 B longer with the power block (`PWR`;
+[control-channel.md](control-channel.md#the-power-block)), which the consoles
+always ask for: 37, 41, 71, 75.
 
 - The joint block is 17 × i16 milli-radians, one per **bus** servo in
   **bus order** (`protocol.JOINT_NAMES`, `obs/bus_map.h`): ten leg joints, then
