@@ -8,6 +8,7 @@ shaping on for that long after a moving command. Reward only: the clock
 freeze and the obs keep the raw command (the referee's CPU env has no grace).
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -20,7 +21,7 @@ sys.path.insert(0, SIM)
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 os.environ.setdefault("MUJOCO_GL", "disabled")
 
-XML = os.path.join(SIM, "bimo_biped_v6legs.xml")
+XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def _step(grace, since_move, moving=False):

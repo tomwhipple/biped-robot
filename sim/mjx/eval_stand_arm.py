@@ -66,6 +66,9 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
+import sys
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -86,9 +89,7 @@ PUSH_DIR = ((1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0))
 
 def _xml(cfg):
     xml = cfg.get("xml_path")
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        xml = os.path.join(HERE, "..", os.path.basename(xml))
-    return xml
+    return paths.resolve_plant(xml)
 
 
 def apply_fitted_plant(env, pl):

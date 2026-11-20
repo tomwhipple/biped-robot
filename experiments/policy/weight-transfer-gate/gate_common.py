@@ -1,7 +1,7 @@
 """Shared pieces of the weight-transfer gate (issue #259): the walking plants, the opt-in probe
 terms, and the metrics both checks use.
 
-Plants (all on sim/bimo_biped_v6legs_meas_sole.xml, the plant every prec recipe trains on):
+Plants (all on build/v6/sim/bimo_biped_v6legs_meas_sole.xml, the plant every prec recipe trains on):
 
   train      the prec16 recipe's training actuator chain at the CENTRE of its domain
              randomisation, on the CPU walker_env (EP.make_env from the run's config.json, DR off).

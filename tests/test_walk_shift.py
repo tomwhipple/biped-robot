@@ -15,6 +15,7 @@ clearance over --low-swing-clear: leaning with both feet down pays nothing.
 """
 import inspect
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -63,7 +64,7 @@ def test_defaults_and_cli():
 def _cpu_reward(clear, peak):
     """Step reward of a standing CPU env (w_low_swing 2) whose left foot touches
     down after a 10-tick swing that peaked at `peak` m."""
-    env = W.BimoWalkerEnv(xml_path=os.path.join(SIM, "bimo_biped_v6legs.xml"), command_mode=True,
+    env = W.BimoWalkerEnv(xml_path=paths.v6_plant("bimo_biped_v6legs.xml"), command_mode=True,
                           ext_cmd=True, actuator_model="sts3215", domain_rand=False,
                           w_low_swing=2.0, low_swing_clear=clear)
     env.reset(seed=5)
@@ -83,7 +84,7 @@ def test_mjx_env_low_swing_clear():
     import jax
     import jax.numpy as jp
     from env_mjx import BimoMJXEnv
-    xml = os.path.join(SIM, "bimo_biped_v6legs.xml")
+    xml = paths.v6_plant("bimo_biped_v6legs.xml")
     rewards = {}
     for clear in (0.03, 0.02):
         e = BimoMJXEnv(xml_path=xml, ext_cmd=True, domain_rand=False, w_low_swing=2.0,

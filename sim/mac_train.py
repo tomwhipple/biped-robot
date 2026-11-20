@@ -64,7 +64,7 @@ def cpu_env_kwargs(env_kw: dict) -> dict:
     if env_kw.get("act_lag_hz_max") is not None:
         kw["act_lag_dr_max"] = float(env_kw["act_lag_hz_max"])
     if "xml_path" in kw and not os.path.isabs(kw["xml_path"]) and not os.path.exists(kw["xml_path"]):
-        kw["xml_path"] = os.path.join(HERE, os.path.basename(kw["xml_path"]))
+        kw["xml_path"] = os.path.join(HERE, "..", "build", "v6", "sim", os.path.basename(kw["xml_path"]))
     return kw
 
 

@@ -4,7 +4,7 @@ Randomly samples the conditions the robot could meet -- floor friction and
 tilt, roll-joint play and gear backlash, servo strength and stiffness, the
 actuation lag and dead time, mass and payload errors -- and the gait itself
 (step length, lift height, swing / shift timing, turn per step), walks
-static_gait's kinematic gait on the committed plant (sim/bimo_biped_v6ar.xml:
+static_gait's kinematic gait on the committed plant (build/v6/sim/bimo_biped_v6ar.xml:
 the robot as drawn, its servo set, the arms held at their rest pose), and
 classifies every failure. The point is to find HOW the walk fails, not to
 grade it: a gate that passes says nothing about the cases nobody listed.
@@ -35,6 +35,9 @@ import datetime as dt
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
+import sys
 import time
 
 import numpy as np
@@ -46,7 +49,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
 sys.path.insert(0, os.path.join(HERE, "..", "cad"))
 
-PLANT = os.path.join(HERE, "bimo_biped_v6ar.xml")
+PLANT = paths.v6_plant("bimo_biped_v6ar.xml")
 
 # sampled ranges: (low, high) uniform, or a tuple of choices
 SPACE = {
@@ -255,7 +258,7 @@ def report(out):
     has = {c: np.array([c in f.split(";") for f in fl]) for c in cats}
     pct = lambda m: f"{100.0 * np.mean(m):.1f} %" if len(m) else "-"
     lines = [f"# Failure sweep: {os.path.basename(os.path.normpath(out))}", "",
-             f"{n} walks of the kinematic gait (8 steps) on `sim/bimo_biped_v6ar.xml`, conditions sampled "
+             f"{n} walks of the kinematic gait (8 steps) on `build/v6/sim/bimo_biped_v6ar.xml`, conditions sampled "
              f"uniformly from `sim/failure_sweep.py` (SPACE or SPACE_REALISTIC, see --space). Written {dt.datetime.now():%Y-%m-%d %H:%M}.", "",
              f"- **clean** (no failure category): {pct(np.array([f == '' for f in fl]))}",
              f"- **errors** (gait not solvable): {pct(np.array([f.startswith('error') for f in fl]))}", "",

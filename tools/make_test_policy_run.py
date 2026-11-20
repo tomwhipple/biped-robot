@@ -23,7 +23,7 @@ tools run unchanged: export_policy_weights.py -> gen_obs_spec.py ->
 gen_policy_weights.py (with --profile, docs/training.md section 9).
 
 The default recipe is the robot's legs-only walk (the robot_legs_walk* runs:
---robot on sim/bimo_biped_v6legs.xml, the 7-channel precision command set,
+--robot on build/v6/sim/bimo_biped_v6legs.xml, the 7-channel precision command set,
 the loco family) with the deployable action map `full`. Only the flags that
 shape the observation and the action map matter to the firmware; the rest
 make config.json read like a run of that recipe.

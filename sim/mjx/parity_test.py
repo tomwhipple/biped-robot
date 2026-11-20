@@ -1,6 +1,6 @@
 """Parity test: MJX env vs CPU BimoWalkerEnv, on the robot's plant.
 
-Every block runs on sim/bimo_biped_v6ar.xml under the robot preset
+Every block runs on build/v6/sim/bimo_biped_v6ar.xml under the robot preset
 (robot_plant.robot_env_kwargs): the 12 leg joints as the policy, the neck and
 arms HELD, Plan B per-servo stiffness, hip flexion -120, the sole-level
 imitation reference, tick quantization.
@@ -447,7 +447,7 @@ def recovery_block():
 
 
 # -- R9: terrain mosaic + knee-weighted mimic ------------------------------------
-# The mosaic ground-height lookup (bilinear on sim/terrain_mosaic.npz) enters
+# The mosaic ground-height lookup (bilinear on build/v6/sim/terrain_mosaic.npz) enters
 # height/foot_clear/obs, and the mimic kernel carries a per-joint knee weight.
 # Airborne over a rough tile so the lookup is live in every step.
 def terrain_block():

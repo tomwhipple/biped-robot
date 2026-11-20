@@ -26,6 +26,9 @@ import argparse
 import json
 import inspect
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import pickle
 import sys
 
@@ -37,7 +40,7 @@ RUNS = os.path.join(HERE, "..", "runs")
 # Fallback only (the trainer's default plant). The plant a run is refereed on
 # comes from the run's OWN config.json ("xml_path"), because refereeing a
 # policy on a different robot than it was trained on scores nothing.
-DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")
+DEFAULT_XML = paths.v6_plant("bimo_biped_v6ar.xml")
 
 import jax
 from brax.training.acme import running_statistics
@@ -64,9 +67,7 @@ def plant_xml(cfg):
     host), so an unqualified name resolves against sim/.
     """
     xml = cfg.get("xml_path") or DEFAULT_XML
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        xml = os.path.join(HERE, "..", os.path.basename(xml))
-    return xml
+    return paths.resolve_plant(xml)
 
 
 def _hidden_sizes(net_params, fallback):

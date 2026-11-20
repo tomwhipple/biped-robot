@@ -1,8 +1,8 @@
 """CAD-true inertials for the v6 plant: per-body <inertial> from the printed
-parts' STLs (cad/v6/stl, PETG density x print factor), the servos from their
+parts' STLs (build/v6/stl, PETG density x print factor), the servos from their
 case mocks at their CAD places, and the pack, boards and bearings at their real
 places (cad/v6/dimensions_v6.py), in the body frames sim/gen_plant_v6.py uses.
-Prints the per-body table and, with --write, writes sim/bimo_biped_v6ar.xml --
+Prints the per-body table and, with --write, writes build/v6/sim/bimo_biped_v6ar.xml --
 the committed plant, which is THE ROBOT AS DRAWN:
 
   * 17 joints and 17 position actuators: 6 per leg, the neck, and per arm the
@@ -22,16 +22,16 @@ the committed plant, which is THE ROBOT AS DRAWN:
     split between the housing and the carriers.
 
     .venv/bin/python sim/build_v6_inertia.py                      # print the per-body table
-    .venv/bin/python sim/build_v6_inertia.py --write              # regenerate sim/bimo_biped_v6ar.xml (+ CAD meshes, CAD-fitted collision)
+    .venv/bin/python sim/build_v6_inertia.py --write              # regenerate build/v6/sim/bimo_biped_v6ar.xml (+ CAD meshes, CAD-fitted collision)
     .venv/bin/python sim/build_v6_inertia.py --armless -o /tmp/armless.xml --write
     .venv/bin/python sim/build_v6_inertia.py --measured-stops [--asbuilt-legs] --write
-                       # sim/bimo_biped_v6ar_meas.xml [v6legs_meas]: the joint stops measured on
+                       # build/v6/sim/bimo_biped_v6ar_meas.xml [v6legs_meas]: the joint stops measured on
                        # the robot 2026-11-02 (gen_plant_v6.measured_stops), policy ranges unchanged
     .venv/bin/python sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write
-                       # sim/bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction
+                       # build/v6/sim/bimo_biped_v6legs_meas_sole.xml: v6legs_meas with the sole friction
                        # measured on the robot 2026-11-04 (gen_plant_v6.measured_sole)
     .venv/bin/python sim/build_v6_inertia.py --hang --asbuilt-legs --write
-                       # sim/bimo_biped_v6legs_hang.xml: the legs-only body on the test stand
+                       # build/v6/sim/bimo_biped_v6legs_hang.xml: the legs-only body on the test stand
 
 Body frames (torso origin = the hip yaw axis on the centreline, at the yaw horn
 face; leg and arm bodies at their joint axes; see gen_plant_v6): each mass
@@ -67,12 +67,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
 sys.path.insert(0, os.path.join(HERE, "..", "cad"))
+sys.path.insert(0, os.path.join(HERE, ".."))
 
 import trimesh  # noqa: E402
+import paths  # noqa: E402
 import dimensions_v6 as V  # noqa: E402
 from gen_plant_v6 import DesignParams, build_xml, measured_sole, measured_stops, SV_T  # noqa: E402
 
-STL = os.path.join(HERE, "..", "cad", "v6", "stl")
+STL = paths.V6_STL
 RHO = V.D.FILAMENT_RHO * V.D.PRINT_MASS_FACTOR * 1e-3   # kg/mm^3
 # the sole is a 2 mm silicone sheet cut to the outline (not printed): solid,
 # so no print factor; 1.21 g/cm^3 stands until a cut sole is weighed (silicone 1.1-1.2)
@@ -348,17 +350,17 @@ def dress(src, out_path, arms=True, collision=True, head=True, legcol_r=None):
     return src
 
 
-def committed_xml(path=os.path.join(HERE, "bimo_biped_v6ar.xml")):
-    """exactly what `build_v6_inertia.py --write` writes to sim/bimo_biped_v6ar.xml."""
+def committed_xml(path=paths.v6_plant("bimo_biped_v6ar.xml")):
+    """exactly what `build_v6_inertia.py --write` writes to build/v6/sim/bimo_biped_v6ar.xml."""
     src, _ = plant_xml(DesignParams(), None)
     return dress(src, path)
 
 
-LEGS_XML = os.path.join(HERE, "bimo_biped_v6legs.xml")
+LEGS_XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def committed_legs_xml(path=LEGS_XML):
-    """exactly what `build_v6_inertia.py --asbuilt-legs --write` writes to sim/bimo_biped_v6legs.xml."""
+    """exactly what `build_v6_inertia.py --asbuilt-legs --write` writes to build/v6/sim/bimo_biped_v6legs.xml."""
     src, _ = plant_xml(asbuilt_legs(), None, arms=False)
     return dress(src, path, arms=False, head=False)
 
@@ -366,8 +368,8 @@ def committed_legs_xml(path=LEGS_XML):
 # ---- the measured-stops plants (2026-11-02): gen_plant_v6.measured_stops() on the
 # committed plants' parameters, written next to them. bimo_biped_v6legs.xml and
 # bimo_biped_v6ar.xml are NOT touched (tests/test_plant_measured.py regenerates both).
-LEGS_MEAS_XML = os.path.join(HERE, "bimo_biped_v6legs_meas.xml")
-AR_MEAS_XML = os.path.join(HERE, "bimo_biped_v6ar_meas.xml")
+LEGS_MEAS_XML = paths.v6_plant("bimo_biped_v6legs_meas.xml")
+AR_MEAS_XML = paths.v6_plant("bimo_biped_v6ar_meas.xml")
 # Inter-leg capsule radius for the measured plants. Onset (deg) of the first inter-leg
 # contact, one hip rolled INWARD, the leg geoms only (thigh + shank), against the CAD
 # parts' convex hulls in the same MuJoCo poses (which reproduce cad_probe2: 27.94 mm at
@@ -397,7 +399,7 @@ def committed_meas_xml(legs=True):
 # ---- the measured-sole plant (2026-11-04): gen_plant_v6.measured_sole() on the legs-only
 # measured-stops plant -- the sole friction measured on the robot (mu 0.5, no torsional brake,
 # pad priority) on "flat" pads. Every other plant is untouched (tests/test_plant_sole.py).
-LEGS_MEAS_SOLE_XML = os.path.join(HERE, "bimo_biped_v6legs_meas_sole.xml")
+LEGS_MEAS_SOLE_XML = paths.v6_plant("bimo_biped_v6legs_meas_sole.xml")
 
 
 def committed_meas_sole_xml():
@@ -408,7 +410,7 @@ def committed_meas_sole_xml():
 
 # ---- the hanging plant: the legs-only body with its torso welded to the world HANG_RAISE_M above
 # stand height, feet free -- the test-stand analogue `sim/sil_twin.py --hang` compares to the bench.
-LEGS_HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+LEGS_HANG_XML = paths.v6_plant("bimo_biped_v6legs_hang.xml")
 HANG_RAISE_M = 0.1
 
 
@@ -423,7 +425,7 @@ def hung(src):
 
 
 def committed_hang_xml():
-    """exactly what `build_v6_inertia.py --hang --asbuilt-legs --write` writes to sim/bimo_biped_v6legs_hang.xml."""
+    """exactly what `build_v6_inertia.py --hang --asbuilt-legs --write` writes to build/v6/sim/bimo_biped_v6legs_hang.xml."""
     return hung(committed_legs_xml(LEGS_HANG_XML))
 
 
@@ -442,19 +444,19 @@ def main(argv=None):
     ap.add_argument("--asbuilt-legs", action="store_true",
                     help="the body as built on 2026-10-24: the 12 leg servos and the control board on the "
                          "torso frame, no pack, Pi, head, neck or arms (asbuilt_legs); writes "
-                         "sim/bimo_biped_v6legs.xml unless -o is given")
+                         "build/v6/sim/bimo_biped_v6legs.xml unless -o is given")
     ap.add_argument("--measured-stops", action="store_true",
                     help="the joint stops measured on the robot 2026-11-02 (gen_plant_v6.measured_stops) "
                          "and the fitted inter-leg capsules (MEAS_LEGCOL_R), policy ranges unchanged; "
-                         "writes sim/bimo_biped_v6legs_meas.xml (--asbuilt-legs) or "
-                         "sim/bimo_biped_v6ar_meas.xml unless -o is given")
+                         "writes build/v6/sim/bimo_biped_v6legs_meas.xml (--asbuilt-legs) or "
+                         "build/v6/sim/bimo_biped_v6ar_meas.xml unless -o is given")
     ap.add_argument("--measured-sole", action="store_true",
                     help="the sole friction measured on the robot 2026-11-04 (gen_plant_v6.measured_sole: "
                          "mu 0.5, torsional 0, pad priority, 'flat' pads); appends _sole to the output "
-                         "name (sim/bimo_biped_v6legs_meas_sole.xml with --measured-stops --asbuilt-legs)")
+                         "name (build/v6/sim/bimo_biped_v6legs_meas_sole.xml with --measured-stops --asbuilt-legs)")
     ap.add_argument("--hang", action="store_true",
                     help="weld the torso to the world HANG_RAISE_M above stand height, feet free (the test "
-                         "stand); appends _hang to the output name (sim/bimo_biped_v6legs_hang.xml with "
+                         "stand); appends _hang to the output name (build/v6/sim/bimo_biped_v6legs_hang.xml with "
                          "--asbuilt-legs)")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args(argv)
@@ -462,7 +464,7 @@ def main(argv=None):
         if a.measured_stops:
             a.out = LEGS_MEAS_XML if a.asbuilt_legs else AR_MEAS_XML
         else:
-            a.out = LEGS_XML if a.asbuilt_legs else os.path.join(HERE, "bimo_biped_v6ar.xml")
+            a.out = LEGS_XML if a.asbuilt_legs else paths.v6_plant("bimo_biped_v6ar.xml")
         if a.measured_sole:
             a.out = a.out[:-len(".xml")] + "_sole.xml"
         if a.hang:
@@ -482,6 +484,7 @@ def main(argv=None):
     if a.hang:
         src = hung(src)
     if a.write:
+        os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
         with open(a.out, "w") as f:
             f.write(src)
         import mujoco

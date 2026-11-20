@@ -78,7 +78,7 @@ import paths  # noqa: E402
 D = V.D
 box, cyl_z, wedge_y = P.box, P.cyl_z, P.wedge_y
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 
 IDENT = np.eye(3)

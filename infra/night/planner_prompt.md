@@ -262,7 +262,7 @@ Tom's priority since 2026-10-24 is the as-built body (the legs only, no pack,
 Pi, head, neck or arms) standing on either foot and taking short walks, with a
 hard check that every foot lifts at least 3 cm on every step. Tonight's
 queue-setter put those jobs FIRST (`robot_legs_*`, plant
-`sim/bimo_biped_v6legs.xml`, record
+`build/v6/sim/bimo_biped_v6legs.xml`, record
 `docs/design-v6/roll-compliance-2026-10-24.md`) and kept the get-up lead job
 after them. You evaluate and plan **both tracks every morning**, and you do not
 re-queue get-up over the one-leg / walk jobs: the night's queue order is the

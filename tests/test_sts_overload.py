@@ -7,6 +7,7 @@ profile (the STS3250 hip rolls, the 2026-11-03 refit) in the load fraction,
 and the 2026-11-10 record's claim on the current supine reference.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 from types import SimpleNamespace
 
@@ -130,7 +131,7 @@ def test_walker_env_profile_is_read():
     """a real WalkerEnv with STS3250 hip rolls: the protection's per-joint
     maximum is the envelope the step clamps to"""
     from walker_env import BimoWalkerEnv, SERVO_TYPES
-    env = BimoWalkerEnv(xml_path=os.path.join(SIM, "bimo_biped_v6ar_meas.xml"), actuator_model="sts3215",
+    env = BimoWalkerEnv(xml_path=paths.v6_plant("bimo_biped_v6ar_meas.xml"), actuator_model="sts3215",
                         supply_voltage=12.0, servo_types={"hip_roll": "sts3250"}, domain_rand=False)
     env.reset(seed=0)
     names = [env.model.actuator(i).name for i in range(env._nq_act)]

@@ -26,6 +26,9 @@ import io
 import select
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import re
 import socket
 import struct
@@ -73,7 +76,7 @@ def _deployed_run():
 
 
 DEFAULT_RUN = _deployed_run()
-HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+HANG_XML = paths.v6_plant("bimo_biped_v6legs_hang.xml")
 
 
 # -- the armed loop's fall guard ---------------------------------------------

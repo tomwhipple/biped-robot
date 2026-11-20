@@ -48,6 +48,9 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
+import sys
 from multiprocessing import Pool
 
 import numpy as np
@@ -59,7 +62,7 @@ import mujoco  # noqa: E402
 import getup_v6 as G  # noqa: E402
 import getup_v6_shoulder as S  # noqa: E402
 
-XML = os.path.join(HERE, "bimo_biped_v6ar.xml")
+XML = paths.v6_plant("bimo_biped_v6ar.xml")
 ROLL_JSON = os.path.join(HERE, "getup_ref_analytic_roll.json")   # search-roll's winner
 H_STOP, K_STOP = -120.0, -130.0         # the hip's real stop; the knee's (dimensions_v6.ROM)
 REC_FRIC = 0.35                         # references record at the training plant's --joint-frictionloss

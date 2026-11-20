@@ -28,7 +28,7 @@ Projects slice in parallel (`--jobs`, default half the cores).
 
 ## What one slice does
 
-1. **Orient.** Each part's STL from `cad/v6/stl` is rotated into its print
+1. **Orient.** Each part's STL from `build/v6/stl` is rotated into its print
    orientation (`cad/v6/print_settings.json`) and written to `.work/<name>/`.
    A plate (`plates` in the JSON) hands all its parts to one CLI run, which
    arranges them on the bed.

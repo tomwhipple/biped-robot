@@ -16,6 +16,9 @@ import argparse
 import functools
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import pickle
 import subprocess
 import time
@@ -281,7 +284,7 @@ def make_parser():
     p.add_argument("--cmd-dense", action="store_true")
     p.add_argument("--terrain", action="store_true",
                    help="train on the tiled terrain mosaic (2-6 mm carpet-like "
-                        "ground, sim/terrain_mosaic.npz; per-episode spawn = "
+                        "ground, build/v6/sim/terrain_mosaic.npz; per-episode spawn = "
                         "per-episode roughness)")
     p.add_argument("--mimic-knee-w", type=float, default=1.0,
                    help="knee weight in the gait-imitation kernel (the "
@@ -303,7 +306,7 @@ def make_parser():
                         "circles; severe fall cost")
     p.add_argument("--xml", default=None,
                    help="the plant (default: bimo_biped_v6ar.xml, the env's and "
-                        "--robot's). A basename resolves in sim/. bimo_biped_v6legs_meas.xml / "
+                        "--robot's). A basename resolves in build/v6/sim/ (make plant). bimo_biped_v6legs_meas.xml / "
                         "bimo_biped_v6ar_meas.xml: the v6 plants with the joint stops "
                         "measured on the robot 2026-11-02; under --ctrl-within-stops "
                         "their action map is the old plants', so --init-from a "
@@ -1006,13 +1009,12 @@ def build_env_kw(args):
         env_kw["joint_frictionloss_range"] = tuple(
             float(x) for x in args.joint_frictionloss_range.split(","))
     if args.xml:
-        # accept a bare basename (resolved against sim/, where the plants
-        # live) or an explicit path -- night-queue args use basenames
-        env_kw["xml_path"] = (args.xml if os.path.exists(args.xml)
-                              else os.path.join(HERE, "..", args.xml))
+        # accept a bare basename (resolved against build/v6/sim/, where the plants
+        # are built) or an explicit path -- night-queue args use basenames
+        env_kw["xml_path"] = paths.resolve_plant(args.xml)
     else:
         # the env's default plant, written down so config.json names it
-        env_kw["xml_path"] = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")
+        env_kw["xml_path"] = paths.v6_plant("bimo_biped_v6ar.xml")
     if args.robot:
         # the robot's plant, resolved against its own actuators -- held_joints
         # and the stiffness map land in config.json explicitly per actuator

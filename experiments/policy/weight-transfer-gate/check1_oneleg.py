@@ -143,7 +143,7 @@ def run_replay(job):
                  kh=g.get("kh", -1.0), clamp_deg=g.get("clamp_deg", 10.0), abort_deg=g.get("abort_deg", 12.0))
     if plant.startswith("oneleg"):
         # reference rows, NOT the walking plant: the one-leg fit's own harness plant
-        # (sim/bimo_biped_v6legs.xml, simfit_sim.Plant), "oneleg:fit" = simfit_plant.json's fit,
+        # (build/v6/sim/bimo_biped_v6legs.xml, simfit_sim.Plant), "oneleg:fit" = simfit_plant.json's fit,
         # "oneleg:base" = simfit_sim's training-plant defaults -- a check of this harness
         pl = SS.Plant(**oneleg_fit()) if plant == "oneleg:fit" else SS.Plant()
         SS.CTRL_DT = 0.024

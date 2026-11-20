@@ -1,15 +1,17 @@
 ##@ Sim: build its inputs, then run it
 .PHONY: plant plant-data sim-data sim puppet eval train report
 
-V6_PLANT := sim/bimo_biped_v6ar.xml
-V6_LEGS_PLANT := sim/bimo_biped_v6legs.xml
+V6_PLANT := build/v6/sim/bimo_biped_v6ar.xml
+V6_LEGS_PLANT := build/v6/sim/bimo_biped_v6legs.xml
 # the same two bodies with the joint stops MEASURED on the robot 2026-11-02 (policy ranges unchanged)
-V6_MEAS_PLANTS := sim/bimo_biped_v6ar_meas.xml sim/bimo_biped_v6legs_meas.xml
+V6_MEAS_PLANTS := build/v6/sim/bimo_biped_v6ar_meas.xml build/v6/sim/bimo_biped_v6legs_meas.xml
 # the legs-only measured-stops body with the sole friction MEASURED on the robot 2026-11-04
-V6_SOLE_PLANTS := sim/bimo_biped_v6legs_meas_sole.xml
+V6_SOLE_PLANTS := build/v6/sim/bimo_biped_v6legs_meas_sole.xml
 # the legs-only body with its torso welded above stand height: sil_twin --hang, the test stand
-V6_HANG_PLANT := sim/bimo_biped_v6legs_hang.xml
-SERVO_MESHES := $(wildcard sim/meshes/v6/servo_*.stl)
+V6_HANG_PLANT := build/v6/sim/bimo_biped_v6legs_hang.xml
+# add_cad_meshes.SERVOS' mock keys; --export-servos writes them all in one run
+SERVO_MESHES := $(foreach k,yaw_L yaw_R neck shoulder_L shoulder_R roll pitch foot_L foot_R elbow_L elbow_R,build/v6/sim/meshes/servo_$(k).stl)
+TERRAIN := build/v6/sim/terrain_mosaic.npz
 GETUP_REFS := sim/getup_ref_v6ar.npz sim/getup_ref_v6ar_prone.npz sim/getup_ref_v6ar_roll.npz
 
 plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) $(V6_HANG_PLANT) ## what the simulator loads: the dressed v6 plant (and the legs-only as-built one, both with the measured joint stops, the legs one with the measured sole friction, and the legs one hanging) and their CAD meshes
@@ -18,27 +20,26 @@ plant: $(V6_PLANT) $(V6_LEGS_PLANT) $(V6_MEAS_PLANTS) $(V6_SOLE_PLANTS) $(V6_HAN
 # mosaic. The get-up references are NOT here: they are physics recordings, not
 # rebuildable artifacts -- a re-record on a different toolchain can diverge
 # from the trained input. `sim-data` builds them, by hand.
-plant-data: plant sim/terrain_mosaic.npz ## what the night harness builds before each job: plant + meshes + the seeded terrain mosaic
-sim-data: sim/terrain_mosaic.npz $(GETUP_REFS) ## the terrain and get-up references the trainer loads (slow; changes what trains -- run by hand, not from the harness)
+plant-data: plant $(TERRAIN) ## what the night harness builds before each job: plant + meshes + the seeded terrain mosaic
+sim-data: $(TERRAIN) $(GETUP_REFS) ## the terrain and get-up references the trainer loads (slow; changes what trains -- run by hand, not from the harness)
 
-$(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --write | tail -1
-$(V6_LEGS_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_LEGS_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --asbuilt-legs --write | tail -1
-sim/bimo_biped_v6ar_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+build/v6/sim/bimo_biped_v6ar_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --write | tail -1
-sim/bimo_biped_v6legs_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+build/v6/sim/bimo_biped_v6legs_meas.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --asbuilt-legs --write | tail -1
-sim/bimo_biped_v6legs_meas_sole.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+build/v6/sim/bimo_biped_v6legs_meas_sole.xml: $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write | tail -1
-$(V6_HANG_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(SERVO_MESHES)
+$(V6_HANG_PLANT): $(PYDEPS_sim/build_v6_inertia.py) $(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(SERVO_MESHES)
 	set -o pipefail; $(PY) sim/build_v6_inertia.py --hang --asbuilt-legs --write | tail -1
-ifneq ($(SERVO_MESHES),)
-$(subst sim/meshes/v6/,sim/meshes/%/,$(SERVO_MESHES)): $(PYDEPS_sim/add_cad_meshes.py)
+# one run writes all the servo meshes: a pattern rule (stem "es") so make runs it once
+$(subst /meshes/,/mesh%/,$(SERVO_MESHES)): $(PYDEPS_sim/add_cad_meshes.py)
 	$(PY) sim/add_cad_meshes.py --export-servos
-endif
 
-sim/terrain_mosaic.npz: $(PYDEPS_sim/mjx/gen_terrain_mosaic.py)
+$(TERRAIN): $(PYDEPS_sim/mjx/gen_terrain_mosaic.py)
 	cd sim/mjx && $(PY) gen_terrain_mosaic.py
 sim/getup_ref_v6ar.npz: START = supine
 sim/getup_ref_v6ar_prone.npz: START = prone

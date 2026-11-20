@@ -9,6 +9,7 @@ below 3 cm, under any command. One jax-free kernel in walker_env is shared by
 both envs (env_mjx imports it).
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -23,7 +24,7 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import walker_env as W  # noqa: E402
 
-XML = os.path.join(SIM, "bimo_biped_v6legs.xml")
+XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def test_constants_match_the_referee():

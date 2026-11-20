@@ -1,7 +1,7 @@
 """Replay a recorded one-leg stand on the TRAINING plant, tick for tick, with the firmware's
 streamer and roll PI in the loop, and log what the sim predicts in the recording's own terms.
 
-Plant: sim/bimo_biped_v6legs.xml in walker_env.BimoWalkerEnv (the CPU twin of env_mjx), set up
+Plant: build/v6/sim/bimo_biped_v6legs.xml in walker_env.BimoWalkerEnv (the CPU twin of env_mjx), set up
 as train_mjx --robot --xml bimo_biped_v6legs.xml --servo-kp-scale asbuilt --quantize
 --joint-frictionloss 0.35 sets it up, minus the domain randomisation (every value fixed, below).
 The fitted parameters (simfit_fit.py) change it through `Plant`:

@@ -29,6 +29,9 @@ arithmetic DO -- verified by sim/mjx/parity_test.py before any training.
 from __future__ import annotations
 
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import re
 from typing import Any, NamedTuple
 
@@ -39,7 +42,7 @@ import numpy as np
 from mujoco import mjx
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_XML = os.path.join(_HERE, "..", "bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
+_XML = paths.v6_plant("bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
 
 
 def _actuated_slices(m):
@@ -1163,8 +1166,7 @@ class BimoMJXEnv:
         self._terrain_spec = None
         self._hf_field = None
         if terrain:
-            _tm = np.load(os.path.join(os.path.dirname(xml_path),
-                                       "terrain_mosaic.npz"))
+            _tm = np.load(paths.V6_TERRAIN)
             self._terrain_spec = {k: float(_tm[k]) for k in
                                   ("nrow", "ncol", "rx", "ry", "cx",
                                    "max_amp")}

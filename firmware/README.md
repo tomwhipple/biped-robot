@@ -20,7 +20,7 @@ block and the SIL arrays are all 17 wide. The **policy** is what the compiled
 network observes and commands, from the generated `obs_spec.h`: the
 v6 legs' 12 joints (`kNumJoints = 12`,
 `kServoId = {9, 51, 2, 3, 4, 12, 10, 52, 6, 7, 8, 11}`, plant
-`sim/bimo_biped_v6legs.xml`), policy `robot_legs_walk16_act_s128r24`. The loop drives
+`build/v6/sim/bimo_biped_v6legs.xml`), policy `robot_legs_walk16_act_s128r24`. The loop drives
 the policy's joints and holds every other fitted servo; the legs-only robot's
 calibration marks the neck and arms (IDs 13–17) not fitted
 ([docs/firmware-design.md](../docs/firmware-design.md) §5.8).

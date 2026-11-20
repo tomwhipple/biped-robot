@@ -13,6 +13,9 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
+import sys
 
 import numpy as np
 import pytest
@@ -268,5 +271,5 @@ def test_the_hung_plant_has_no_root_pose_to_set():
     """--hang welds the torso to the world: the twin draws joints only."""
     import mujoco
     m = mujoco.MjModel.from_xml_path(
-        os.path.join(SIM, "bimo_biped_v6legs_hang.xml"))
+        paths.v6_plant("bimo_biped_v6legs_hang.xml"))
     assert sil_twin.root_qposadr(m) == -1

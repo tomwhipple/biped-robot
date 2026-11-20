@@ -25,7 +25,7 @@ electrical bus -- the split is a routing choice, not an electrical one.
 Modes (issue #77):
 
   --trace refs      the campaign's get-up references (getup_ref_overload.py:
-                    prone_ikc, supine_ik) on sim/bimo_biped_v6ar_meas.xml,
+                    prone_ikc, supine_ik) on build/v6/sim/bimo_biped_v6ar_meas.xml,
                     STS3250 hip rolls, kp as built, 11.1 V and the 12 V refit
                     (--all-conds: that study's ten robustness conditions)
   --trace dwell     the track player's dwell walk (experiments/roll-balance:
@@ -51,6 +51,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import sys
 
 import numpy as np
@@ -153,14 +156,14 @@ def rollout_amps(env, act, v, w, seed, volts):
 def trace_walk(volts):
     """Gate D's own walk: the 8-step nominal-cadence gait from
     `static_gait.walk_timeline` on the committed 17-servo plant
-    (sim/bimo_biped_v6ar.xml), at the deploy servo model the design uses.
+    (build/v6/sim/bimo_biped_v6ar.xml), at the deploy servo model the design uses.
     The arms hang at the walking pose (the plant holds them through the same
     electrical model)."""
     from gen_plant_v6 import DesignParams
     import static_gait as SG
 
     p = DesignParams()
-    xml = os.path.join(HERE, "bimo_biped_v6ar.xml")
+    xml = paths.v6_plant("bimo_biped_v6ar.xml")
     tl, _windows = SG.walk_timeline(p, n_steps=8, step=0.06, lift_h=0.04)
     env = SG.make_env(p, xml)
     env.reset(seed=0)
@@ -396,7 +399,7 @@ def _ref_job(a):
 def trace_refs(all_conds=False, workers=None):
     """The campaign's get-up references (sim/getup_ref_overload.py REFS:
     prone_ikc, the w19k candidate's, and supine_ik) replayed open loop on
-    sim/bimo_biped_v6ar_meas.xml with STS3250 hip rolls, kp as built, under
+    build/v6/sim/bimo_biped_v6ar_meas.xml with STS3250 hip rolls, kp as built, under
     both supply envelopes; the nominal condition, or every robustness
     condition of that study (all_conds)."""
     import getup_ref_overload as O
@@ -520,7 +523,7 @@ def run_policy_budget(args):
     run_dir = os.path.join(RUNS, args.run)
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
-    xml = os.path.join(HERE, cfg.get("xml_path", "bimo_biped_v6ar.xml"))
+    xml = paths.resolve_plant(cfg.get("xml_path", "bimo_biped_v6ar.xml"))
     env = make_env(cfg, episode_seconds=10.0, nominal=False, xml=xml)
     act = load_policy(run_dir, obs_size=env.observation_space.shape[0],
                       act_size=env.action_space.shape[0])
@@ -637,7 +640,7 @@ def main():
         return
     if args.trace == "walk":
         t, a, b, j = trace_walk(args.volts)
-        row = report("trace=walk (Gate D, sim/bimo_biped_v6ar.xml, deploy "
+        row = report("trace=walk (Gate D, build/v6/sim/bimo_biped_v6ar.xml, deploy "
                      "servo model)", args.volts, t, a, b, j)
         row["trace"] = "walk"
         out = args.out or os.path.join(HERE, "runs", "current_budget_walk.json")

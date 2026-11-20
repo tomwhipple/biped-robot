@@ -14,7 +14,7 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
   mechanical envelope, `pose`/`home`, the readback, the gain check, the
   telemetry joint block and the SIL arrays are all 17 wide;
 - the **policy joint set** is what the compiled policy observes and commands:
-  the v6 legs' 12 joints (6 per leg, plant `sim/bimo_biped_v6legs.xml`),
+  the v6 legs' 12 joints (6 per leg, plant `build/v6/sim/bimo_biped_v6legs.xml`),
   policy `robot_legs_walk16_act_s128r24`.
 
 The legs-only robot carries 12 servos, and its calibration marks the neck and

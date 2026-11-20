@@ -1,6 +1,6 @@
 """Stage-2a: Gymnasium environment for the biped (CPU MuJoCo).
 
-Wraps a plant (default sim/bimo_biped_v6ar.xml) as a standard RL env so a policy can learn to walk
+Wraps a plant (default build/v6/sim/bimo_biped_v6ar.xml) as a standard RL env so a policy can learn to walk
 forward. Kept deliberately framework-light (plain MuJoCo, no MJX) so it runs on
 the Mac for fast iteration; the reward/obs design carries over to the MJX port
 (Stage 2b) unchanged.
@@ -36,13 +36,16 @@ Dash    : dash=True adds the 2 m dash objective -- the episode succeeds
 """
 from __future__ import annotations
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import re
 import numpy as np
 import mujoco
 import gymnasium as gym
 from gymnasium import spaces
 
-_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
+_XML = paths.v6_plant("bimo_biped_v6ar.xml")   # robot_plant.ROBOT_XML
 
 # qpos/qvel layout: freejoint (7 pos+quat / 6 vel) then the hinge joints. The
 # actuated-joint slices/index maps are derived per-instance from the loaded
@@ -965,7 +968,7 @@ class BimoWalkerEnv(gym.Env):
         # height is drawn uniform(min, amplitude) -- mixes easy/hard episodes
         # (a built-in curriculum) instead of every episode at max roughness
         terrain_mosaic: bool = False,  # loco_v7knee (2026-07-29): load the
-        # SHARED static tiled mosaic (sim/terrain_mosaic.npz, 0-20 mm tiles)
+        # SHARED static tiled mosaic (build/v6/sim/terrain_mosaic.npz, 0-20 mm tiles)
         # instead of regenerating noise -- per-episode roughness variation
         # comes from a random spawn location. Mirrors sim/mjx exactly (the
         # npz is the single source of ground truth).
@@ -1557,8 +1560,7 @@ class BimoWalkerEnv(gym.Env):
         self.terrain_mosaic = terrain_mosaic
         self._mosaic = None
         if terrain_mosaic:
-            _tm = np.load(os.path.join(os.path.dirname(os.path.abspath(
-                xml_path)), "terrain_mosaic.npz"))
+            _tm = np.load(paths.V6_TERRAIN)
             self._mosaic = _tm
             xml_src = self._terrain_xml(
                 xml_path, float(_tm["max_amp"]),

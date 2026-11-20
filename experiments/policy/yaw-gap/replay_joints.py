@@ -16,7 +16,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-XML = os.path.join(ROOT, "sim", "bimo_biped_v6legs_meas_sole.xml")
+XML = os.path.join(ROOT, "build", "v6", "sim", "bimo_biped_v6legs_meas_sole.xml")
 RECORDS = dict(w18=("w18_1103.npz", 240), o5=("o5_1106_t1.npz", 239))      # file, tick of the walk command
 REC = os.path.join(HERE, RECORDS[os.environ.get("YAW_REC", "w18")][0])
 REC_JOINTS = ["R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "L_hip_roll", "L_hip_pitch",

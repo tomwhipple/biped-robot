@@ -1,5 +1,5 @@
 """Printability audit for the torso parts on cad/common/check_printability.py
-(its thresholds and algorithm) against cad/v6/stl/: this module registers the
+(its thresholds and algorithm) against build/v6/stl/: this module registers the
 parts' ORIENT entries and audits each.
 
     .venv/bin/python cad/v6/audit_torso.py                # pelvis_v8, torso_v8, the covers, the BMS bracket, yaw_bearing_housing, head parts
@@ -11,11 +11,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+import paths  # noqa: E402
 
 import numpy as np  # noqa: E402
 from common import check_printability as CP  # noqa: E402
 
-CP.STL = os.path.join(HERE, "stl")
+CP.STL = paths.V6_STL
 # the torso prints with slicer support in its wide windows and its battery
 # door's opening, inside cad/v6/print_settings.json's enforcer boxes and
 # nowhere else; torso_v8.py audits it with those windows filled (no waiver)

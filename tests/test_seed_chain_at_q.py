@@ -9,6 +9,7 @@ pose's q (env_mjx at reset and reseed, walker_env on the first step, which IS
 the reset state). Off by default = every past run's chain.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -66,7 +67,7 @@ def _mjx(seed):
     kw = robot_plant.robot_env_kwargs("bimo_biped_v6ar.xml")
     kw["held_joints"] = {k: v for k, v in (kw.get("held_joints") or {}).items()
                          if robot_plant._role(k) not in ("shoulder", "elbow")}
-    kw.update(xml_path=os.path.join(SIM, "bimo_biped_v6ar.xml"), ext_cmd=True, recover_mix=1.0,
+    kw.update(xml_path=paths.v6_plant("bimo_biped_v6ar.xml"), ext_cmd=True, recover_mix=1.0,
               domain_rand=False, rise_ref_npz=REF, rise_ref_hold=True,
               act_lag_hz=8.0, seed_chain_at_q=seed, **CHAIN)
     return BimoMJXEnv(**kw)

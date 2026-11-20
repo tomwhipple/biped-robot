@@ -42,7 +42,7 @@ import paths  # noqa: E402
 
 box, cyl_x, cyl_y, cyl_z = P.box, P.cyl_x, P.cyl_y, P.cyl_z
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 

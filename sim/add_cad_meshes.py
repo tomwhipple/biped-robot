@@ -1,4 +1,4 @@
-"""Dress the v6 plant in its CAD parts: every printed part's STL (cad/v6/stl)
+"""Dress the v6 plant in its CAD parts: every printed part's STL (build/v6/stl)
 and every servo case mock, as visual-only mesh geoms in the body that carries
 them, at the same body-frame placements sim/build_v6_inertia.py uses for the
 inertials. The physics is untouched: the meshes have no mass and no contacts
@@ -8,7 +8,7 @@ the robot as drawn (toggle group 3 to see the collision boxes).
 
     .venv/bin/python sim/build_v6_inertia.py --write             # the committed plant, dressed (calls dress())
     .venv/bin/python sim/add_cad_meshes.py -i X.xml -o Y.xml     # dress any undressed v6 plant
-    .venv/bin/python sim/add_cad_meshes.py --export-servos      # (re)write sim/meshes/v6/servo_*.stl from the CAD mocks
+    .venv/bin/python sim/add_cad_meshes.py --export-servos      # (re)write build/v6/sim/meshes/servo_*.stl from the CAD mocks
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import build_v6_inertia as B  # noqa: E402  (also puts cad/ and cad/v6 on sys.pa
 from stable_stl import replace_if_changed  # noqa: E402
 
 V = B.V
-SERVO_DIR = os.path.join(HERE, "meshes", "v6")
+SERVO_DIR = B.paths.V6_SERVO_MESHES
 PLA = "0.82 0.84 0.87 1"
 SERVO = "0.12 0.12 0.14 1"
 SOLE = "0.93 0.93 0.91 1"     # the white 2 mm silicone sheet

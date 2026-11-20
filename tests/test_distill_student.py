@@ -5,6 +5,7 @@ lets a Warp teacher distill on the CPU leaves the plant untouched.
 The run itself (DAgger rounds, export) is exercised end-to-end by
 infra/night_distill.sh; this pins the config plumbing it depends on."""
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import pytest
@@ -31,7 +32,7 @@ LEGS_CFG = {
 def test_env_kwargs_keeps_warp_and_resizes_its_pool():
     kw = ds.env_kwargs(LEGS_CFG, None, 512)
     assert kw["mjx_impl"] == "warp" and kw["warp_envs"] == 512
-    assert kw["xml_path"].endswith(os.path.join("sim", "bimo_biped_v6legs.xml"))
+    assert kw["xml_path"].endswith(paths.v6_plant("bimo_biped_v6legs.xml"))
     assert kw["cmd_v_range"] == (0.05, 0.7)
     for k in ("train", "git_sha", "git_dirty", "distill", "distill_physics"):
         assert k not in kw
