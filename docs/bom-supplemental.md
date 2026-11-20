@@ -23,10 +23,9 @@ the robot is complete and functional without any of it.
 
 This is the highest-value part on the page and it costs about as much as a
 coffee. It is the **only** protection that is independent of the firmware: it
-still sounds if the ESP32 hangs, if the control loop wedges, or if the servo
-bus drops — and the bus dropping is precisely how the firmware guard goes
-blind, because the robot's only voltage sense is the servos' register 62
-(no ADC on the driver board).
+still sounds if the ESP32 hangs or the control loop wedges. (The firmware
+guard no longer goes blind with the servo bus: it reads the board's INA219 as
+well as the servos' register 62.)
 
 It also monitors **per cell**, which pack voltage fundamentally cannot. One
 weak cell sitting at 2.9 V while the other two are healthy still reads ~10.6 V
@@ -144,8 +143,9 @@ The protection story is ~$31 (S1–S4). The rest is instrumentation and hygiene.
   weighs more than the problem justifies, on a 0.9 kg robot where mass is the
   binding constraint. The firmware guard plus the balance-lead alarm covers the
   same failure at ~10 g.
-- **A current sensor (INA219 etc.).** The driver board has no sense resistor
-  and no free path to add one without cutting the servo V+ net. S5 does the same
+- **A current sensor (INA219 etc.).** The driver board's own INA219 sees only
+  the logic's current, and there is no free path for a pack-line shunt without
+  cutting the servo V+ net. S5 does the same
   job on the bench, which is where the question actually lives.
 - **An anti-spark connector.** At 3S and this capacitance, XT30 connection arc
   is negligible. This matters at 6S and multi-thousand-µF, not here.

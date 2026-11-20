@@ -107,8 +107,9 @@ Decision classify(const char* line, bool armed) {
     // -- allowed in some forms only ------------------------------------------
     if (is(c, "batt")) {
         if (argc == 1) return allow();
-        return tether("`batt reset` clears the pack-guard latch: swap the pack "
-                      "at the robot, then reset it on the tether (or reboot)");
+        return tether("`batt reset` clears the pack-guard latch (swap the pack "
+                      "at the robot, then reset it on the tether, or reboot); "
+                      "`batt pack` changes what the guard reads");
     }
     if (is(c, "gains")) {
         if (argc <= 2) return allow();   // the table, or one servo's read

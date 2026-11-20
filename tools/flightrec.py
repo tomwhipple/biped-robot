@@ -43,7 +43,8 @@ EVENT_NAMES = {EV_CMD: "cmd", EV_OUT: "out", EV_ARM_EDGE: "arm_edge",
 # cmd / out events: `a` is the channel the line came in / went out on.
 CHAN_TETHER, CHAN_WIFI = 0, 1     # cmd over Wi-Fi: b = the Wi-Fi CLI seq
 # EV_FLAIL: an armed-loop HOLD (firmware/components/flailguard): a = the trip,
-# b = 1 torque held / 0 already limp / 2 the hold's autohome started.
+# b = 1 torque held / 0 already limp / 2 the hold's autohome started / 3 a walk
+# trip recovered / 4 the hold released because the pack guard latched.
 FLAIL_TRIPS = {1: "pose", 2: "rate", 3: "tilt", 4: "chatter", 255: "operator_soft_stop"}
 # EV_STOP: an operator stop (FLAG_STOP), once per burst: a = 1 hard / 0 soft,
 # b = 1 armed / 0 benched.

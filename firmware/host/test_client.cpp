@@ -85,7 +85,8 @@ void test_disarmed_refuses_motion() {
     Ext ext;
     uint8_t flags;
     in.frame(s, vx, vy, wz, ext, flags);
-    CHECK_EQ(flags, 0);                       // no ARM, no ENABLE
+    // no ARM, no ENABLE: nothing but the power-block request (kFlagPwr)
+    CHECK_EQ(flags, linkproto::kFlagPwr);
 }
 
 // A window has real key-release, so this is the whole dead-man: press sets,
@@ -845,13 +846,26 @@ void test_poll_reads_the_longest_beacon_whole() {
     CHECK_NEAR(link.tlm.up_x, 0.3, 1e-3);
     CHECK_NEAR(link.tlm.up_y, -0.2, 1e-3);
 
+    // The longest: + the power block (issue #109).
+    t.have_pwr = 1;
+    t.pack_mv = 11840;
+    n = encodeTelemetry(wire, t);
+    CHECK_EQ(n, linkproto::kTlmLenExtAttPwr);
+    CHECK_EQ(n, linkproto::kTlmLenMax);
+    deliver(link, wire, n);
+    link.poll(1030.0);
+    CHECK_EQ(link.tlm_count, 3);
+    CHECK_EQ(link.tlm_bad, 0);
+    CHECK(link.tlm.have_pwr);
+    CHECK_EQ(link.tlm.pack_mv, 11840);
+
     // One byte past the longest frame must arrive as one byte too many. A
-    // buffer of exactly kTlmLenMax would cut it back to a valid 69 B frame,
+    // buffer of exactly kTlmLenMax would cut it back to a valid 75 B frame,
     // whose CRC still matches, and accept a datagram the robot never sent.
     wire[n] = 0xA5;
     deliver(link, wire, n + 1);
     link.poll(1040.0);
-    CHECK_EQ(link.tlm_count, 2);
+    CHECK_EQ(link.tlm_count, 3);
     CHECK_EQ(link.tlm_bad, 1);
     link.close();
 }
@@ -862,6 +876,35 @@ void test_poll_reads_the_longest_beacon_whole() {
 // consoles print each joint's SERVO ID (obs/bus_map.h kBusServoId -- not
 // b + 1 since the v6 assembly), and a too-small buffer truncates, never
 // overruns.
+// The power block as the consoles print it (issue #109).
+void test_power_text() {
+    char buf[96];
+    linkproto::Telemetry t = {};
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf),
+                 "pack: no power block (older firmware, or a twin)") == 0);
+    t.have_pwr = 1;
+    t.pack_mv = 11840;
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf), "pack 11.84 V  batt ok") == 0);
+    t.pack_mv = 0;
+    t.batt = 3;
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf), "pack --  batt SAFE (latched)") == 0);
+    t.batt = 9;                                   // a newer firmware's level
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf), "pack --  batt ?") == 0);
+    t.batt = 1;
+    t.pack_mv = 10480;
+    t.pwr_flags = linkproto::kPwrLite | linkproto::kPwrRailValid | linkproto::kPwrServoEn;
+    t.rail_mv = 10360;
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf),
+                 "pack 10.48 V  batt WARN (land it)  rail 10.36 V SERVO_EN") == 0);
+    t.pwr_flags = linkproto::kPwrLite | linkproto::kPwrEstop | linkproto::kPwrEstopLatched;
+    CHECK(strcmp(bimo::powerText(t, buf, sizeof buf),
+                 "pack 10.48 V  batt WARN (land it)  rail -- E-STOP latched") == 0);
+    // A short buffer truncates, never overruns.
+    char tiny[8];
+    bimo::powerText(t, tiny, sizeof tiny);
+    CHECK(strlen(tiny) < sizeof tiny);
+}
+
 void test_fault_ids_name_the_servos() {
     char buf[96];
     CHECK(strcmp(bimo::faultIds(0u, buf, sizeof buf), "") == 0);
@@ -1140,6 +1183,7 @@ void test_recorder_keeps_bench_rows_and_sink() {
 
 int main() {
     test_fault_ids_name_the_servos();
+    test_power_text();
     test_frame_length_rule();
     test_ext_clamped_to_the_trained_draw();
     test_disarmed_refuses_motion();

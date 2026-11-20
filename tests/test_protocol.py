@@ -840,6 +840,88 @@ def test_attitude_frame_matches_firmware():
     assert got == want
 
 
+# -- the power block (issue #109) --------------------------------------------
+# FLAG_PWR adds the INA219 pack voltage, battguard's level, and power lite's
+# RAIL_V / ESTOP_N / SERVO_EN, so the operator and the Pi see the battery
+# whether or not the servo bus is up.
+
+def test_power_block_is_additive():
+    base = dict(seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.4,
+                up_z=0.887, vx_est=0.4, wz_est=-0.25, servo_err=0,
+                loop_late_pct=3)
+    pwr = P.Power(pack_mv=11840, batt=P.BattLevel.WARN.value,
+                  flags=P.PWR_LITE | P.PWR_SERVO_EN | P.PWR_RAIL_VALID,
+                  rail_mv=11720)
+    joints = tuple(0.1 * i - 0.4 for i in range(P.NUM_JOINTS))
+    for kw, want_len in ((dict(), P.TLM_LEN), (dict(up_xy=(0.45, -0.1)), P.TLM_LEN_ATT),
+                         (dict(joints=joints), P.TLM_LEN_EXT),
+                         (dict(joints=joints, up_xy=(0.45, -0.1)), P.TLM_LEN_EXT_ATT)):
+        plain = P.encode_telemetry(P.Telemetry(**base, **kw))
+        withp = P.encode_telemetry(P.Telemetry(**base, **kw, pwr=pwr))
+        assert len(plain) == want_len
+        assert len(withp) == want_len + P.TLM_PWR_BYTES
+        assert withp[:want_len - 2] == plain[:want_len - 2]   # only the CRC moved
+        got = P.decode_telemetry(withp)
+        assert got.pwr == pwr
+        assert len(got.joints) == len(kw.get("joints", ()))
+        assert len(got.up_xy) == len(kw.get("up_xy", ()))
+        # A frame nobody asked power for reports none, not a 0 V pack.
+        assert P.decode_telemetry(plain).pwr is None
+    assert len(set(P.TLM_LENS)) == 8
+    assert max(P.TLM_LENS) == 75
+
+
+def test_power_fields():
+    p = P.Power(pack_mv=11840, batt=1, flags=P.PWR_LITE | P.PWR_RAIL_VALID,
+                rail_mv=11720)
+    assert p.pack_v == pytest.approx(11.84)
+    assert p.level is P.BattLevel.WARN
+    assert p.lite and p.rail_v == pytest.approx(11.72)
+    none = P.Power(pack_mv=0, batt=0, flags=0, rail_mv=11720)
+    assert none.pack_v is None          # 0 is "no reading"
+    assert none.rail_v is None          # not a power-lite image
+    assert P.Power(0, 9, 0, 0).level is None   # a newer firmware's level
+    with pytest.raises(P.ProtocolError):
+        P.encode_telemetry(P.Telemetry(
+            seq_echo=1, state=P.LinkState.LIVE, vbat_v=11.4, up_z=1.0,
+            vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+            pwr=P.Power(70000, 0, 0, 0)))
+
+
+def test_power_block_rejects_bad_lengths_and_bits():
+    t = P.Telemetry(seq_echo=1, state=P.LinkState.BENCH, vbat_v=0.0, up_z=1.0,
+                    vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+                    pwr=P.Power(11840, 0, 0, 0))
+    wire = P.encode_telemetry(t)
+    for bad_len in (P.TLM_LEN + P.TLM_PWR_BYTES - 1, P.TLM_LEN + P.TLM_PWR_BYTES + 1,
+                    max(P.TLM_LENS) + 1):
+        with pytest.raises(P.ProtocolError):
+            P.decode_telemetry((wire + b"\x00" * 64)[:bad_len])
+    bad = bytearray(wire)
+    bad[P.TLM_LEN - 2] ^= 0x01            # inside the block
+    with pytest.raises(P.ProtocolError):
+        P.decode_telemetry(bytes(bad))
+
+
+def test_pwr_flag_is_its_own_bit():
+    assert P.FLAG_PWR == 0x80
+    c = P.decode_command(P.encode_command(1, 0.0, 0.0, P.FLAG_PWR))
+    assert c.pwr and not (c.pose or c.att or c.arm or c.home or c.stop
+                          or c.estop or c.enabled)
+
+
+def test_power_frame_matches_firmware():
+    """Pinned to the same literal firmware/host/test_protocol.cpp asserts."""
+    want = bytes.fromhex(
+        "42540207310000000000e8030000000000000000"
+        "000000000000000000402e0115d400e785")
+    got = P.encode_telemetry(P.Telemetry(
+        seq_echo=0x31, state=P.LinkState.BENCH, vbat_v=0.0, up_z=1.0,
+        vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+        pwr=P.Power(11840, 1, P.PWR_LITE | P.PWR_ESTOP | P.PWR_RAIL_VALID, 212)))
+    assert got == want
+
+
 def test_vbat_millivolt_round_trip():
     """mV -> float32 -> wire -> mV is the identity (issue #54).
 

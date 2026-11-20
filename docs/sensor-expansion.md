@@ -42,7 +42,7 @@ The on-board I²C bus (GPIO 32/33, 400 kHz) already carries these parts:
 | 0x6B | QMI8658C 6-axis IMU | the robot's IMU. It sits behind an LSF0204 level shifter. If the bus is flaky at 400 kHz, try 100 kHz before suspecting the driver (`board.h`) |
 | 0x0C | AK09918C magnetometer | unused. Beside the servos it measures their current, not north |
 | 0x77 | BMP280 barometer | on the schematic; it did not answer the bench scan |
-| 0x42 | INA219 | unused. It measures pack voltage and the board's own logic current, never servo current ([wiring.md](wiring.md#what-the-ina219-measures)) |
+| 0x42 | INA219 | the pack voltage, read at 10 Hz (`volt`, `batt`, the beacon's power block). It also could measure the board's own logic current, never servo current; that is not read ([wiring.md](wiring.md#what-the-ina219-measures)) |
 | 0x4A / 0x4B | reserved | for a BNO085 on P1, the firmware's named upgrade path from the QMI8658C. `imu scan` recognises it |
 
 What the robot uses: H1, SW1, H5/H6, the `USB` port and the on-board IMU.
@@ -102,9 +102,10 @@ The tick has room, though the robot's figure is unmeasured:
 | USB to the `USB` port | one cable | The CP2102N reaches UART0, the CLI console at 115200. Needs a binary host mode in firmware | Opening the port toggles DTR/RTS, which the auto-program circuit turns into an ESP32 reset. UART0 is also the console |
 | Wired UART | 3–4 wires | Option 1: UART0, on P3 pin 7 (`U0RX`) and on the 40-pin's `P_TX`/`P_RX`, shared with the `USB` bridge through 1 kΩ. Option 2: a second UART (the ESP32's UART2 through the GPIO matrix) on P3's IO16/IO27/IO5. Both sides are 3.3 V logic | Either option needs firmware work. The Pi is not on the header, so it is a small harness |
 
-Also open: pack voltage for the Pi's low-battery shutdown. The telemetry beacon
-carries `vbat` from register 62, so the Wi-Fi option gets it for free. The INA219 is
-not read.
+Also open: pack voltage for the Pi's low-battery shutdown. The telemetry beacon's
+power block carries the INA219's pack voltage and the guard's level when a commander
+asks for it (`PWR`, [control-channel.md](control-channel.md#the-power-block)), so the
+Wi-Fi option gets it for free. The UART tether's beacon is the 31 B frame only.
 
 ## 4. Other sensors, by connector
 

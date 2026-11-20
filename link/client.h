@@ -60,6 +60,12 @@ const char* stateName(LinkState s);
 // 17-bit string is not something an operator can read at a glance.
 const char* faultIds(uint32_t servo_err, char* buf, size_t cap);
 
+// The power block (kFlagPwr, issue #109) as one line for both consoles:
+// "pack 11.84 V  batt ok" plus, on power lite, "rail 11.72 V SERVO_EN E-STOP".
+// Without the block (an older firmware, the sim twins): "pack: no power block ...".
+// Returns buf.
+const char* powerText(const Telemetry& t, char* buf, size_t cap);
+
 // "192.0.2.30" or "192.0.2.30:9101" -> address and port, for --watch.
 // `port` is left UNTOUCHED when the spec carries none, so the caller's
 // default -- the telemetry port it is already bound to, which is what a
@@ -230,6 +236,10 @@ struct Intent {
     // a mirror that draws one without the other draws a robot lying on its
     // face standing to attention.
     bool want_att = false;
+    // "Beacon the power block too" (kFlagPwr): the INA219's pack voltage, the
+    // pack guard's level and power lite's rail. On by default: it requests
+    // telemetry only, and an older firmware ignores the bit.
+    bool want_pwr = true;
     // Frames left to spend asking for a servo reset (kFlagHome). See
     // kHomeFrames; sendIntent spends one per frame.
     int home_frames = 0;

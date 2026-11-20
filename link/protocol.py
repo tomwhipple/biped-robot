@@ -80,13 +80,27 @@ TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS              # 65
 # frame, but alone it is only the tilt MAGNITUDE -- how far from upright,
 # never which way. Requested with FLAG_ATT, for the same reason FLAG_POSE
 # exists. Four lengths, unambiguous because every block is fixed size:
-# 31 base, 35 +att, 65 +joints, 69 +joints+att.
+# 31 base, 35 +att, 65 +joints, 69 +joints+att (and each of them +6 with the
+# power block below).
 # Firmware reference: linkproto::kTlmLenAtt / kTlmLenExtAtt.
 TLM_ATT_BYTES = 4
 TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
 TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
+# POWER (issue #109): the battery's state, appended LAST, after the attitude
+# pair. Requested with FLAG_PWR, for the reason FLAG_POSE exists. Six bytes:
+#   u16 pack_mv  the pack voltage from the board's INA219 (0x42, across R11 on
+#                DC_IN -> VIN), mV; read off the I2C bus, so it does not depend
+#                on the servo bus. 0 = no reading (no chip, stale, or off).
+#   u8  batt     battguard's level: 0 ok, 1 warn, 2 landing, 3 safe (latched)
+#   u8  flags    PWR_* below
+#   u16 rail_mv  power lite's RAIL_V (SERVO+), mV; 0 unless PWR_LITE and
+#                PWR_RAIL_VALID
+# Six, so every length stays unambiguous: 37, 41, 71, 75 with the block.
+# Firmware reference: linkproto::kTlmPwrBytes / kTlmLenPwr*.
+TLM_PWR_BYTES = 6
+_TLM_LENS_NO_PWR = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
 # Every length a decoder accepts.
-TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+TLM_LENS = _TLM_LENS_NO_PWR + tuple(n + TLM_PWR_BYTES for n in _TLM_LENS_NO_PWR)
 # recvfrom() size for every telemetry receiver. UDP truncates silently, so +1:
 # an oversize datagram then arrives oversize and is refused, never cut back to
 # a valid length. The C++ consoles' twin: link/client.cpp Link::poll.
@@ -127,6 +141,18 @@ FLAG_ATT = 1 << 5
 # on, run ended, the bench homes it). A level: repeats are harmless. Firmware
 # reference: linkproto::kFlagStop (protocol.h has the long form).
 FLAG_STOP = 1 << 6
+# "Beacon the power block too" (issue #109) -- a LEVEL, like FLAG_POSE and
+# FLAG_ATT. Requests telemetry, commands nothing. The last free bit: a new
+# request after this one needs a block of its own design, not a flag.
+FLAG_PWR = 1 << 7
+
+# The power block's flag bits (Power.flags).
+PWR_LITE = 1 << 0          # a power-lite image: the bits below and rail_mv mean something
+PWR_SERVO_EN = 1 << 1      # SERVO_EN (IO16) is high: the rail is asked for
+PWR_ESTOP = 1 << 2         # ESTOP_N (IO4) reads stop (pressed, or never seen low)
+PWR_ESTOP_LATCHED = 1 << 3  # the E-stop latch stands (railguard)
+PWR_RAIL_VALID = 1 << 4    # rail_mv is a reading
+PWR_GUARD_PACK = 1 << 5    # battguard is taking pack_mv this tick (else servos only)
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -424,6 +450,50 @@ class Command(NamedTuple):
         """An operator stop (FLAG_STOP): out of band, see the flag."""
         return bool(self.flags & FLAG_STOP)
 
+    @property
+    def pwr(self) -> bool:
+        """"Beacon the power block too" -- a level, like `pose`."""
+        return bool(self.flags & FLAG_PWR)
+
+
+class BattLevel(Enum):
+    """battguard::Level, on the wire as its value."""
+    OK = 0
+    WARN = 1               # at or below 10.5 V: land it yourself
+    LANDING = 2            # confirmed flat: crouching under control, then limp
+    SAFE = 3               # latched, torque off
+
+
+class Power(NamedTuple):
+    """The power block (FLAG_PWR; issue #109). Integers, as on the wire."""
+    pack_mv: int           # INA219 pack voltage, mV; 0 = no reading
+    batt: int              # battguard level (BattLevel value)
+    flags: int             # PWR_* bits
+    rail_mv: int = 0       # power lite's RAIL_V, mV
+
+    @property
+    def pack_v(self):
+        """Pack volts, or None without a reading."""
+        return self.pack_mv / 1000.0 if self.pack_mv else None
+
+    @property
+    def level(self):
+        """The BattLevel, or None for a value from a newer firmware."""
+        try:
+            return BattLevel(self.batt)
+        except ValueError:
+            return None
+
+    @property
+    def lite(self) -> bool:
+        return bool(self.flags & PWR_LITE)
+
+    @property
+    def rail_v(self):
+        """RAIL_V in volts, or None (not power lite, or no reading)."""
+        ok = self.flags & PWR_LITE and self.flags & PWR_RAIL_VALID
+        return self.rail_mv / 1000.0 if ok else None
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -457,6 +527,8 @@ class Telemetry(NamedTuple):
     # and this robot's heading is dead-reckoned, so they give a lean direction
     # in a slowly rotating frame -- an attitude to draw, not a heading.
     up_xy: tuple = ()
+    # The power block (Power), or None unless a commander asked with FLAG_PWR.
+    pwr: "Power" = None
 
     @property
     def diag(self) -> int:
@@ -607,6 +679,13 @@ def encode_telemetry(t: Telemetry) -> bytes:
         if len(t.up_xy) != 2:
             raise ProtocolError(f"up_xy is {len(t.up_xy)} long, want 2")
         body += struct.pack("<2h", *(_milli(v) for v in t.up_xy))
+    if t.pwr is not None:
+        p = t.pwr
+        for name, v, top in (("pack_mv", p.pack_mv, 0xFFFF), ("batt", p.batt, 0xFF),
+                             ("flags", p.flags, 0xFF), ("rail_mv", p.rail_mv, 0xFFFF)):
+            if not 0 <= v <= top:
+                raise ProtocolError(f"power {name} {v} out of range")
+        body += struct.pack("<HBBH", p.pack_mv, p.batt, p.flags, p.rail_mv)
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
@@ -625,25 +704,32 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
-    # Length selects the layout: joints on the two long lengths, the
-    # attitude pair on the two +att ones.
+    # Length selects the layout: the power block on the six +pwr lengths,
+    # then, of what is left, joints on the two long lengths and the attitude
+    # pair on the two +att ones.
+    pwr_len = len(buf) not in _TLM_LENS_NO_PWR
+    n = len(buf) - TLM_PWR_BYTES if pwr_len else len(buf)
     at = _TLM_TIME_OFF
     (t_us,) = struct.unpack("<Q", buf[at:at + 8])
     at += 8
     joints = ()
-    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
+    if n in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
         joints = tuple(v / 1000.0 for v in
                        struct.unpack(f"<{NUM_JOINTS}h",
                                      buf[at:at + 2 * NUM_JOINTS]))
         at += 2 * NUM_JOINTS
     up_xy = ()
-    if len(buf) in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
+    if n in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
         up_xy = tuple(v / 1000.0 for v in struct.unpack("<2h", buf[at:at + 4]))
+        at += TLM_ATT_BYTES
+    pwr = None
+    if pwr_len:
+        pwr = Power(*struct.unpack("<HBBH", buf[at:at + TLM_PWR_BYTES]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
                      servo_err=err, loop_late_pct=late, joints=joints,
-                     t_us=t_us, up_xy=up_xy)
+                     t_us=t_us, up_xy=up_xy, pwr=pwr)
 
 
 # -- robot-side supervisor -------------------------------------------------

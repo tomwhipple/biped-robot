@@ -101,7 +101,8 @@ bimo_test(test_obs test_obs.cpp
 bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp
           ${COMPONENTS}/policy/q8.cpp)
 
-bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
+bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp
+          ${COMPONENTS}/battguard/pack.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 

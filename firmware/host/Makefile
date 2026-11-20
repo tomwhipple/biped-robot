@@ -94,7 +94,7 @@ SRC_LINK  = $(COMPONENTS)/linkproto/protocol.cpp \
 SRC_OBS   = $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/imu/imu.cpp
 SRC_POL   = $(COMPONENTS)/policy/mlp.cpp $(COMPONENTS)/policy/q8.cpp
-SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp
+SRC_BATT  = $(COMPONENTS)/battguard/guard.cpp $(COMPONENTS)/battguard/pack.cpp
 SRC_BAL   = $(COMPONENTS)/balance/roll_pi.cpp
 SRC_TRIM  = $(COMPONENTS)/balance/stance_trim.cpp
 SRC_GAIT  = $(COMPONENTS)/gaitplay/track.cpp

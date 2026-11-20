@@ -551,14 +551,16 @@ void testClassicTelemetryIsUntouched() {
         CHECK(decodeTelemetry(k.wire, kTlmLen, back) == Err::kOk);
         CHECK_EQ(back.n_joints, 0);
     }
-    // Every length that is none of the four is refused -- including the
+    // Every length that is none of the eight is refused -- including the
     // ones a truncated or padded frame of each kind would produce, and the
     // version-1 lengths (28 B classic, 48 B with ten joints).
     Telemetry junk{};
     uint8_t buf[kTlmLenMax + 1] = {0};
     const size_t bad[] = {0,  20, 28, 40, 48, kTlmLen - 1, kTlmLen + 1,
                           kTlmLenAtt + 1, kTlmLenExt - 1, kTlmLenExt + 1,
-                          kTlmLenExtAtt + 1};
+                          kTlmLenExtAtt + 1, kTlmLenPwr - 1, kTlmLenPwr + 1,
+                          kTlmLenAttPwr + 1, kTlmLenExtPwr - 1, kTlmLenExtPwr + 1,
+                          kTlmLenExtAttPwr - 1, kTlmLenExtAttPwr + 1};
     for (size_t n : bad) {
         CHECK(decodeTelemetry(buf, n, junk) == Err::kBadLength);
     }
@@ -794,7 +796,144 @@ void testAttFlagIsItsOwnBit() {
     CHECK(c2.att() && c2.pose());
 }
 
+// -- the power block (issue #109) ---------------------------------------------
+// Every +pwr length against protocol.py's bytes (vectors/protocol_vectors.h
+// kTlmPwr), both ways.
+void testPowerBlockVectors() {
+    CHECK_EQ(V::kNumTlmPwr, 5u);
+    for (size_t c = 0; c < V::kNumTlmPwr; ++c) {
+        const V::TlmPwrCase& k = V::kTlmPwr[c];
+        Telemetry t{};
+        t.seq_echo = k.seq;
+        t.state = static_cast<LinkState>(k.state);
+        t.vbat_v = k.vbat;
+        t.up_z = k.up_z;
+        t.vx_est = k.vx;
+        t.wz_est = k.wz;
+        t.servo_err = k.servo_err;
+        t.loop_late_pct = k.late;
+        t.t_us = k.t_us;
+        t.n_joints = k.n_joints;
+        for (size_t i = 0; i < kNumJoints; ++i) t.joints[i] = k.joints[i];
+        t.have_att = k.have_att;
+        t.up_x = k.up_x;
+        t.up_y = k.up_y;
+        t.have_pwr = 1;
+        t.pack_mv = k.pack_mv;
+        t.batt = k.batt;
+        t.pwr_flags = k.flags;
+        t.rail_mv = k.rail_mv;
+        uint8_t wire[kTlmLenMax] = {0};
+        CHECK_EQ(encodeTelemetry(wire, t), k.len);
+        CHECK_BYTES(wire, k.wire, k.len);
+
+        Telemetry back{};
+        CHECK(decodeTelemetry(k.wire, k.len, back) == Err::kOk);
+        CHECK_EQ(back.have_pwr, 1);
+        CHECK_EQ(back.pack_mv, k.pack_mv);
+        CHECK_EQ(back.batt, k.batt);
+        CHECK_EQ(back.pwr_flags, k.flags);
+        CHECK_EQ(back.rail_mv, k.rail_mv);
+        CHECK_EQ(back.n_joints, k.n_joints);
+        CHECK_EQ(back.have_att, k.have_att);
+        CHECK_EQ(back.t_us, k.t_us);
+    }
+}
+
+// Adding the block changes no byte of the frame it extends; a frame nobody
+// asked for power reports none; a flipped bit in the block fails the CRC.
+void testPowerIsAdditive() {
+    Telemetry t = {};
+    t.state = LinkState::kBench;
+    t.seq_echo = 7;
+    t.vbat_v = 0.0f;
+    t.up_z = 1.0f;
+    t.have_att = 1;
+    t.up_x = 0.1f;
+    t.up_y = -0.1f;
+    uint8_t att[kTlmLenMax] = {0};
+    const size_t n_att = encodeTelemetry(att, t);
+    CHECK_EQ(n_att, kTlmLenAtt);
+
+    t.have_pwr = 1;
+    t.pack_mv = 11840;
+    t.batt = 1;
+    t.pwr_flags = kPwrLite | kPwrEstop;
+    t.rail_mv = 0;
+    uint8_t both[kTlmLenMax] = {0};
+    const size_t n_both = encodeTelemetry(both, t);
+    CHECK_EQ(n_both, kTlmLenAttPwr);
+    CHECK(memcmp(att, both, kTlmLenAtt - 2) == 0);   // all but the CRC
+
+    Telemetry g = {};
+    CHECK(decodeTelemetry(att, n_att, g) == Err::kOk);
+    CHECK_EQ(g.have_pwr, 0);
+    CHECK_EQ(g.pack_mv, 0);
+    Telemetry g2 = {};
+    CHECK(decodeTelemetry(both, n_both, g2) == Err::kOk);
+    CHECK_EQ(g2.have_pwr, 1);
+    CHECK_EQ(g2.have_att, 1);
+    CHECK_NEAR(g2.up_x, 0.1, 1e-3);
+    CHECK_EQ(g2.pack_mv, 11840);
+    CHECK_EQ(g2.pwr_flags, kPwrLite | kPwrEstop);
+
+    uint8_t bad[kTlmLenMax];
+    memcpy(bad, both, n_both);
+    bad[kTlmLenAtt - 2] = static_cast<uint8_t>(bad[kTlmLenAtt - 2] ^ 0x01);
+    CHECK(decodeTelemetry(bad, n_both, g2) == Err::kBadCrc);
+    // The eight lengths are distinct, and the longest is the buffer size.
+    const size_t lens[] = {kTlmLen, kTlmLenAtt, kTlmLenExt, kTlmLenExtAtt,
+                           kTlmLenPwr, kTlmLenAttPwr, kTlmLenExtPwr, kTlmLenExtAttPwr};
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = i + 1; j < 8; ++j) CHECK(lens[i] != lens[j]);
+        CHECK(lens[i] <= kTlmLenMax);
+    }
+    CHECK_EQ(kTlmLenMax, 75u);
+}
+
+// Pinned to the literal tests/test_protocol.py asserts: the base frame, the
+// stamp, then the power block (pack 11.84 V, warn, lite + E-stop + rail
+// valid, RAIL_V 0.212 V), then the CRC.
+void testPowerFrameMatchesPython() {
+    Telemetry t = {};
+    t.state = LinkState::kBench;
+    t.seq_echo = 0x31;
+    t.vbat_v = 0.0f;
+    t.up_z = 1.0f;
+    t.have_pwr = 1;
+    t.pack_mv = 11840;
+    t.batt = 1;
+    t.pwr_flags = kPwrLite | kPwrEstop | kPwrRailValid;
+    t.rail_mv = 212;
+    const uint8_t want[] = {
+        0x42, 0x54, 0x02, 0x07, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE8, 0x03,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x2E, 0x01, 0x15, 0xD4, 0x00,
+        0xE7, 0x85
+    };
+    uint8_t got[kTlmLenMax] = {0};
+    const size_t n = encodeTelemetry(got, t);
+    CHECK(n == sizeof want);
+    for (size_t i = 0; i < sizeof want; ++i) CHECK(got[i] == want[i]);
+}
+
+// kFlagPwr is a request like kFlagPose and kFlagAtt: its own bit.
+void testPwrFlagIsItsOwnBit() {
+    uint8_t wire[kCmdLen];
+    Command c = {};
+    encodeCommand(wire, 1, 0.0f, 0.0f, kFlagPwr);
+    CHECK(decodeCommand(wire, kCmdLen, c) == Err::kOk);
+    CHECK(c.pwr());
+    CHECK(!c.pose() && !c.att() && !c.arm() && !c.estop() && !c.enabled() &&
+          !c.home() && !c.stop());
+    CHECK_EQ(kFlagPwr, 0x80);
+}
+
 int main() {
+    testPowerBlockVectors();
+    testPowerIsAdditive();
+    testPowerFrameMatchesPython();
+    testPwrFlagIsItsOwnBit();
     testAttitudeIsAdditive();
     testAttitudeFrameMatchesPython();
     testAttFlagIsItsOwnBit();

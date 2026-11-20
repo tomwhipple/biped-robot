@@ -31,6 +31,7 @@
 #include "mech_envelope.h"
 #include "net_bench.h"
 #include "power_rail.h"
+#include "pack_sense.h"
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
@@ -1653,7 +1654,7 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     // block), so it outranks this too: a flat pack is exactly when powering
     // the servos to hold a stand is the wrong answer, and unlike the E-stop
     // this latch is the ROBOT's, not the operator's, to clear.
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("REFUSED: the pack under-voltage guard has torque latched off. "
             "Swap the pack, then `batt reset` -- see `batt`.\r\n");
         return linkproto::ArmResult::kHomeLowBatt;
@@ -1742,7 +1743,7 @@ bool railEnsureUp(Sink out, bool& powered) {
         return false;
     }
     // The pack guard's latch outranks this, as it does a home (homeAll).
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("REFUSED: the pack under-voltage guard is latched; the rail stays off. Swap the "
             "pack, then `batt reset`.\r\n");
         return false;
@@ -1957,6 +1958,8 @@ static const char* holdWhy(uint8_t trip) {
     return flailguard::tripName(static_cast<flailguard::Trip>(trip));
 }
 
+void cmdTorque(Sink out, int argc, char** argv, bool on);
+
 void flailTickImpl(Sink out) {
     // -- operator stops ---------------------------------------------------
     const uint32_t stops = robot::g_op_stops.load();      // stops, then estops (shared.h)
@@ -2073,6 +2076,19 @@ void flailTickImpl(Sink out) {
         s_hold_since = now_ms;
     }
     if (static_cast<uint32_t>(now_ms - s_hold_since) < kHoldSettleMs) return;
+    // The pack guard watches the bench too (issue #109) and refuses a home once it
+    // has latched, so this hold would never end. Upright and still, it ends the way a
+    // home would have, released, without the move (and, on power lite, the rail goes).
+    if (robot::battGuard().latched()) {
+        out("HOLD: upright and still for 1 s, but the pack guard has latched -- releasing, "
+            "no home on a flat pack\r\n");
+        char rel[] = "release";
+        char* av[] = {rel};
+        cmdTorque(out, 1, av, false);
+        s_hold_pending = false;           // once, whatever the bus said
+        robot::flight::event(flightrec::Ev::kFlail, "hold: pack guard latched, released", 0, 4);
+        return;
+    }
     out("HOLD: upright and still for 1 s -- homing\r\n");
     if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
         out("home did not start -- still HOLDING (`home` to retry, `release` to go limp)\r\n");
@@ -2346,10 +2362,18 @@ void cmdMiddle(Sink out, int argc, char** argv) {
 }
 
 void cmdVolt(Sink out) {
+    // The INA219 first: it needs neither the bus nor the rail (main/pack_sense.h).
+    const robot::PackSenseStatus ps = robot::packSenseStatus();
+    if (ps.mv != 0) {
+        say(out, "pack %.2f V (INA219, 4 mV)%s\r\n", ps.mv / 1000.0,
+            ps.mv <= battguard::kWarn3S * 100u ? "  *** LAND THE ROBOT (3S floor) ***" : "");
+    } else {
+        say(out, "pack: no INA219 reading (%s)\r\n",
+            ps.missing ? "the chip does not answer at 0x42" : "none yet");
+    }
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
-    // The board has NO voltage divider to an ADC (see main/board.h): the only
-    // pack-voltage sense is each servo's own register 62, at 0.1 V.
+    // Each servo's own register 62, at 0.1 V: the pack at the servo end, under load.
     int n = 0;
     int sum = 0;
     const obs::Calibration& cal = robot::calibration();
@@ -2369,24 +2393,44 @@ void cmdVolt(Sink out) {
             ? "  *** LAND THE ROBOT (3S floor) ***" : "");
 }
 
-// The pack guard. Read-only unless `batt reset` -- see shared.h battGuard()
-// for why the write half is bench-only.
+// The pack guard. Read-only unless `batt reset` or `batt pack on|off`. ctrl
+// owns the guard and feeds it in both modes, so a reset is a request it applies
+// on its next tick (shared.h g_batt_reset_req), benched only.
 void cmdBatt(Sink out, int argc, char** argv) {
-    battguard::Guard& g = robot::battGuard();
+    const battguard::Guard& g = robot::battGuard();
     if (argc >= 2 && !strcmp(argv[1], "reset")) {
         if (tetherOnly(out, "`batt reset` clears the pack-guard latch")) return;
-        // Bench-mode gate, same rule as the mutating `cal` subcommands: this
-        // WRITES state the control task owns, and only in bench mode is ctrl
-        // guaranteed to return before touching it. Checked directly rather
-        // than via claimBus() because this needs the mode, not the bus.
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
             robot::g_ctrl_owns_bus.load()) {
-            out("busy: the control loop owns the guard -- `bench` first\r\n");
+            out("busy: the control loop is armed -- `bench` first\r\n");
             return;
         }
-        g.reset();
-        out("pack guard cleared -- do this ONLY after swapping in a fresh "
-            "pack\r\n");
+        robot::g_batt_reset_req.fetch_add(1);
+        vTaskDelay(pdMS_TO_TICKS(60));            // ctrl applies it within a tick
+        // Report what the guard says now, not what was asked: ctrl drops a request
+        // that finds the loop armed, and a pack still at the line re-trips it.
+        if (g.latched()) {
+            out("pack guard NOT cleared: still latched (armed meanwhile, or the pack is "
+                "still at the line) -- see `batt`\r\n");
+        } else {
+            out("pack guard cleared -- do this ONLY after swapping in a fresh pack; "
+                "a pack still at the line trips it again within a second\r\n");
+        }
+        return;
+    }
+    // `batt pack off`: the guard stops taking the INA219 (servos only, as before
+    // issue #109), for a chip that misreads. RAM only: on again at the next boot.
+    if (argc >= 3 && !strcmp(argv[1], "pack")) {
+        if (tetherOnly(out, "`batt pack` changes what the pack guard reads")) return;
+        const bool on = !strcmp(argv[2], "on");
+        if (!on && strcmp(argv[2], "off") != 0) {
+            out("usage: batt pack on|off\r\n");
+            return;
+        }
+        robot::g_pack_guard_on.store(on);
+        say(out, "pack guard: %s\r\n",
+            on ? "INA219 and servos, the lower of the two"
+               : "servos only; the INA219 is reported, not guarded on (until reboot)");
         return;
     }
     const char* lvl = "?";
@@ -2398,6 +2442,20 @@ void cmdBatt(Sink out, int argc, char** argv) {
     }
     say(out, "pack %s -- last %.1f V, warn %.1f V, land %.1f V\r\n", lvl,
         g.lastDv() / 10.0, g.warnDv() / 10.0, g.landDv() / 10.0);
+    {
+        const robot::PackSenseStatus ps = robot::packSenseStatus();
+        if (ps.mv != 0) {
+            say(out, "  INA219 %.2f V", ps.mv / 1000.0);
+        } else {
+            say(out, "  INA219 no reading (%s)", ps.missing ? "not answering" : "none yet");
+        }
+        say(out, ", %s; %lu reads, %lu failures, config 0x%04X%s\r\n",
+            !robot::g_pack_guard_on.load() ? "NOT guarded on (`batt pack off`)"
+            : robot::g_pack_guarding.load() ? "guarded on (the lower of it and the servos)"
+                                            : "guard on the servos alone",
+            static_cast<unsigned long>(ps.reads), static_cast<unsigned long>(ps.failures),
+            ps.config, ps.config_reset ? " (was reset: not converting)" : "");
+    }
     say(out, "  %d/%d consecutive ticks below the land line, crouch cmd "
              "%.2f\r\n",
         g.belowTicks(), battguard::kConfirmTicks,
@@ -2407,8 +2465,8 @@ void cmdBatt(Sink out, int argc, char** argv) {
             "reboot.\r\n");
     }
     if (g.lastDv() == 0) {
-        out("  (no reading yet -- voltage arrives on servo feedback, so the "
-            "loop must have run)\r\n");
+        out("  (no reading yet: the INA219 has not answered, and no armed tick has "
+            "read the servos)\r\n");
     }
 }
 
@@ -4226,13 +4284,7 @@ int64_t s_bno_t0 = 0;
 uint8_t s_shtp_seq[6] = {0};
 uint8_t s_shtp_pkt[512];
 
-imu::Qmi8658Imu* bnoBus() {
-    imu::Qmi8658Imu* dev = robot::onboardImu();
-    static imu::Qmi8658Imu probe_dev(imu::Qmi8658Imu::Config{
-        board::kI2cSda, board::kI2cScl, static_cast<uint32_t>(board::kI2cHz),
-        board::kImuAddr, false, 8, 1024});
-    return dev ? dev : &probe_dev;
-}
+imu::Qmi8658Imu* bnoBus() { return &robot::boardI2c(); }
 
 // SHTP over I2C: a 4-byte header (length LSB, MSB with bit 15 = continuation,
 // channel, sequence), the length counting the header. Read the header, then
@@ -4559,11 +4611,9 @@ void cmdImu(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "scan")) {
         // Bus scan works even with no IMU: that is the point when the part is
         // NOT answering and you need to know whether anything is out there.
-        static imu::Qmi8658Imu probe_dev(imu::Qmi8658Imu::Config{
-            board::kI2cSda, board::kI2cScl,
-            static_cast<uint32_t>(board::kI2cHz), board::kImuAddr, false, 8,
-            1024});
-        imu::Qmi8658Imu* d = dev ? dev : &probe_dev;
+        // The board's bus object even on the stub: a second object would reset
+        // the pins under the INA219's device (main/pack_sense.cpp).
+        imu::Qmi8658Imu* d = &robot::boardI2c();
         uint8_t found[16];
         const int n = d->scanBus(found, 16);
         if (!n) {
@@ -4583,7 +4633,7 @@ void cmdImu(Sink out, int argc, char** argv) {
                 case 0x6B: case 0x6A: who = "QMI8658C  6-axis IMU"; break;
                 case 0x0C: who = "AK09918C  magnetometer (unused)"; break;
                 case 0x77: who = "BMP280    barometer (unused)"; break;
-                case 0x42: who = "INA219    power monitor (unused)"; break;
+                case 0x42: who = "INA219    pack voltage (`volt`, `batt`)"; break;
                 case 0x4A: case 0x4B: who = "BNO08x    (P1; bench accelerometer, `bno`)"; break;
                 case 0x28: case 0x29: who = "BNO055    (bench accelerometer, `bno`)"; break;
                 default: break;
@@ -5224,8 +5274,9 @@ void banner(Sink out) {
     out("                       then torque RELEASED (friction holds) -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
-    out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
-    out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
+    out("  volt                 pack voltage: the INA219, then off the servos\r\n");
+    out("  batt [reset|pack on|off]  pack guard state; reset after a pack swap;\r\n"
+        "                       pack off: guard on the servos only (until reboot)\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  limit [off|on|vmax [amax [jmax]]]  per-joint motion limiter (deg/s, /s^2, /s^3)\r\n");

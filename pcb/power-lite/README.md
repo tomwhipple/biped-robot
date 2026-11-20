@@ -146,8 +146,11 @@ hardware half `firmware/main/power_rail.cpp`.
   back benched with the rail off. An ARM bit held high makes no edge, so it does not re-arm.
 - **Telemetry.** `stat` and `rail` print the state, `SERVO_EN`, `RAIL_V`, `ESTOP_N`, the
   latch, the fault and the last drop's reason; every change prints and is a flight-recorder
-  event (`rail`). The beacon carries only `RAIL_DOWN`; the fields themselves are #109's.
-  `vbat` reads 0 with the rail off, and the pack guard takes that as no data.
+  event (`rail`). The beacon's power block (asked for with `PWR`;
+  [control-channel.md](../../docs/control-channel.md#the-power-block)) carries `RAIL_V`,
+  `ESTOP_N`, `SERVO_EN` and the E-stop latch, with the INA219's pack voltage and the pack
+  guard's level. `vbat` (the servos' register 62) reads 0 with the rail off; the pack
+  guard then runs on the INA219 alone.
 
 ### The bench check, with the ESP32
 
@@ -177,6 +180,19 @@ before the port opens (AGENTS.md). Type on the tether:
    while the console keeps sending. Release and press the console's E-stop again: K1 drops.
    Benched, run `link/release.py`, whose first frame is an ARM edge with `ESTOP`: K1 stays
    open.
+
+The pack sense (#109), on the same supply, with a console asking for the power block:
+
+- **Reading.** `volt` and the console's `pack` line against a meter at J3: note the error.
+  `rail on` and `rail off` should move it by no more than the drop on the logic's path.
+- **The guard, benched.** Lower the supply to 10.4 V: `batt` says WARN, the beacon's level
+  is 1. To 9.8 V for a second: SAFE at once (benched there is no landing), latched;
+  `rail on` and `home` are refused. Back to 12.0 V: still latched; `batt reset` clears it.
+- **Pack off with USB attached.** With the USB tether powering the logic, switch the pack
+  off (or unplug it): if `VIN` decays slowly through 9.9-6.0 V the bench guard may latch
+  on the way down (then `batt reset`). Check whether it does, and how long `VIN` takes.
+- **No chip.** Not testable without lifting U2; the host tests cover it (`batt` would say
+  "not answering" and the guard falls back to the servos).
 
 Then, with the real servos, as part of step 3 below:
 

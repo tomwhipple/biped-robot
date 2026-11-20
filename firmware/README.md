@@ -103,7 +103,7 @@ hardware-touching files are excluded by construction.
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the motion limiter (bounds, braking, no overshoot, S-curve), the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
-| `battguard` | the pack guard's thresholds, debounce and landing ramp |
+| `battguard` | the pack guard's thresholds, debounce and landing ramp; the INA219's bus-register decode, read schedule (10 Hz, 2 s once missing) and staleness; the guard's input from both senses (the lower) |
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 1 s upright-and-still (25 deg, 1 rad/s) pick-up, the armed-to-bench hand-over -> autohome |
 | `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
@@ -172,6 +172,7 @@ firmware/
     shared.h            the only cross-core state, and the rules for it
     power_rail.cpp      power lite (a build option): SERVO_EN, ESTOP_N, RAIL_V; the rail's
                         hardware half and the reset fail-safe
+    pack_sense.cpp      the INA219's pack voltage, 10 Hz on housekeeping, bounded I2C reads
   components/
     railguard/          power lite's rail state machine: arm, drops, E-stop latch,
                         stuck rail (pure, host-tested)
@@ -184,7 +185,7 @@ firmware/
     policy/             static MLP forward pass; weights.h (generated); q8.h/.cpp and
                         q8_mac16.S, the int8 forward pass of a quantized profile
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
-    battguard/          pack under-voltage guard
+    battguard/          pack under-voltage guard; pack.h: the INA219 sense, pure
     balance/            stance-leg roll PI for the bench one-leg stand (pose B<L|R>), and the
                         stance-hip trim through the lift (pose S<L|R>, `trim`)
     gaitplay/           the gait track (`track`): keyframes appended while playing, the phase ->
@@ -230,8 +231,8 @@ because a flash write stalls the control tick.
 | `home [steps/s]` | every joint to its calibrated zero, hip play take-up, readback, torque released |
 | `release [id]` / `torque [id]` | torque off / on; no id = broadcast |
 | `middle <id>` | latch the current angle as the servo's 2048 (register 40 ← 128), torque off |
-| `volt` | pack voltage, read off the servos |
-| `batt [reset]` | pack guard state; `reset` clears a latched trip after a pack swap (bench) |
+| `volt` | pack voltage: the INA219's (no servo needed), then off the servos |
+| `batt [reset\|pack on\|off]` | pack guard state and both senses; `reset` clears a latched trip after a pack swap (bench); `pack off` guards on the servos only, until reboot (tether) |
 | `cal [show\|zero [j]\|dir j d\|set j z d\|fit j 0\|1\|migrate\|save\|load\|reset]` | per-bus-joint zero, direction and fitted flag in NVS; `j` is a joint name or a servo ID |
 | `shape [hz]` | command-shaper pole; 0 = raw targets |
 | `limit [off\|on\|vmax [amax [jmax]]]` | per-joint motion limiter (deg/s, deg/s², deg/s³; braking look-ahead, optional jerk boxcar; its velocity is the goal speed); off at boot, `on` = 200 / 2000 / no jerk limit |
@@ -249,8 +250,8 @@ because a flash write stalls the control tick.
 ## Known gaps, as they stand
 
 - `vx_est`/`wz_est` are not estimated and go out as 0.
-- `battguard` reads pack voltage from servo register 62 (0.1 V); the on-board
-  INA219 is not read.
+- The INA219's reading is not yet checked against a meter on the robot; until it
+  is, `batt pack off` is the way to take it out of the guard.
 - The velocity observation is servo register 58; whether a finite difference
   fits better is open (reported/differenced slope 0.69 on the bench).
 - The IDF task watchdog on `ctrl` reports only; the loop's own overrun check
