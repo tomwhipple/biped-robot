@@ -267,6 +267,7 @@ def main(argv=None):
     r.add_argument("--host", default=vlm.DEFAULT_HOST)
     r.add_argument("--num-thread", type=int, default=12, help="CPU threads (ollama num_thread); 0 = server default")
     r.add_argument("--prompt", choices=sorted(vlm.PROMPTS), default=vlm.DEFAULT_PROMPT)
+    r.add_argument("--event", action="append", help="only the frames of this event (repeatable); score counts what was asked")
     for p in (r, s):
         p.add_argument("--answers-dir", default=os.path.join(OUT_DIR, "answers"))
     s.add_argument("--md", action="store_true", help="print a markdown table instead of JSON")
@@ -280,6 +281,8 @@ def main(argv=None):
         for p in extract(m, a.root, a.frames):
             print(p)
     elif a.cmd == "run":
+        if a.event:
+            m = dict(m, frames=[f for f in m["frames"] if f.get("event") in a.event])
         for model in a.model:
             run_model(m, model, a.host, a.answers_dir, a.frames, a.num_thread or None, prompt=a.prompt)
     else:
