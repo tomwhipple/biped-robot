@@ -107,7 +107,9 @@ if kw.get("robot_arms"):
                                if robot_plant._role(k) not in ("shoulder", "elbow")}
 kw_robot["recover_mix"] = 0.0
 kw_robot.update(kw["env_kw"])
-kw_robot["xml_path"] = os.path.join(os.getcwd(), "..", kw["xml"])
+sys.path.insert(0, os.path.join(os.getcwd(), "..", ".."))
+import paths
+kw_robot["xml_path"] = paths.resolve_plant(kw["xml"])
 from env_mjx import BimoMJXEnv
 env = BimoMJXEnv(**kw_robot)
 print("OK nq=%d rise_secs=%s" % (env.mj_model.nq, getattr(env, "rise_secs", None)))

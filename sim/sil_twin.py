@@ -26,10 +26,12 @@ import io
 import select
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import re
 import socket
 import struct
-import sys
 import threading
 import time
 
@@ -73,7 +75,7 @@ def _deployed_run():
 
 
 DEFAULT_RUN = _deployed_run()
-HANG_XML = os.path.join(HERE, "bimo_biped_v6legs_hang.xml")
+HANG_XML = paths.v6_plant("bimo_biped_v6legs_hang.xml")
 
 
 # -- the armed loop's fall guard ---------------------------------------------
@@ -256,16 +258,14 @@ def up_to_quat(up):
 
 
 def _local_xml(xml):
-    """A run's config.json may store the plant relative to sim/ (or just its
-    basename: train_mjx.py on a remote host) -- resolve it against the local
-    sim/ directory, as eval_precision does, so the twin starts from any cwd."""
-    if not xml or os.path.isabs(xml) or os.path.exists(xml):
+    """A run's config.json may store the plant by basename (train_mjx.py on a
+    remote host) or by an old sim/ path -- resolve it against the local
+    build/v6/sim, as eval_precision does, so the twin starts from any cwd."""
+    if not xml or os.path.exists(xml):
         return xml
-    for cand in (os.path.join(HERE, xml),
-                 os.path.join(HERE, os.path.basename(xml))):
-        if os.path.exists(cand):
-            return cand
-    return xml
+    if not os.path.isabs(xml) and os.path.exists(os.path.join(HERE, xml)):
+        return os.path.join(HERE, xml)
+    return paths.v6_plant(xml)
 
 
 def run(args):

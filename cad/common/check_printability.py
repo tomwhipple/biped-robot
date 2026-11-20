@@ -30,11 +30,15 @@ fail if wider.
 """
 import os
 import struct
+import sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-STL = os.path.join(HERE, "..", "v6", "stl")
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+import paths  # noqa: E402
+
+STL = paths.V6_STL
 
 # print orientation: model -> print transform (rows = print axes in model coords)
 RX180 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], float)

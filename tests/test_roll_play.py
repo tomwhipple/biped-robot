@@ -12,6 +12,7 @@ contact that pushes only. Drawn per episode per joint. Off by default, bit-exact
 import inspect
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -338,7 +339,7 @@ def test_referee_and_grade_rebuild_the_run_on_its_play(monkeypatch, tmp_path):
     json.dump(cfg, open(tmp_path / run / "config.json", "w"))
     want = [4.0, 4.0, 5.0, 5.0]
     for nominal in (True, False):
-        env = EP.make_env(cfg, 2.0, nominal, os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml"))
+        env = EP.make_env(cfg, 2.0, nominal, paths.v6_plant("bimo_biped_v6legs_meas_sole.xml"))
         env.reset(seed=0)
         assert sorted(np.round(np.degrees(2 * env._rp_h[env._rp_h > 0]), 4).tolist()) == want
     monkeypatch.setattr(ESA, "RUNS", str(tmp_path))

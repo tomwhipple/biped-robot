@@ -10,6 +10,7 @@ worse, would build against a table it never trained on. Pure text + numpy:
 no jax, no plant physics.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import re
 import sys
 
@@ -25,7 +26,7 @@ import walker_env as W  # noqa: E402
 
 GAINS_H = os.path.join(ROOT, "firmware", "main", "servo_gains.h")
 BUS_H = os.path.join(ROOT, "firmware", "components", "obs", "include", "obs", "bus_map.h")
-LEGS_XML = os.path.join(ROOT, "sim", "bimo_biped_v6legs.xml")
+LEGS_XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def _table():

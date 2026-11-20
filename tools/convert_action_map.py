@@ -50,8 +50,10 @@ import argparse
 import inspect
 import json
 import os
-import pickle
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
+import pickle
 import time
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
@@ -75,7 +77,7 @@ def env_from_config(cfg, action_map, overrides=None):
     params = set(inspect.signature(BimoMJXEnv.__init__).parameters)
     kw = {k: (tuple(v) if isinstance(v, list) else v)
           for k, v in cfg.items() if k in params}
-    kw["xml_path"] = os.path.join(ROOT, "sim", os.path.basename(cfg["xml_path"]))
+    kw["xml_path"] = paths.v6_plant(cfg["xml_path"])
     kw["mjx_impl"] = "jax"            # CPU: the Warp backend is CUDA
     kw.pop("warp_envs", None)
     kw["action_map"] = action_map

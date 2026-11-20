@@ -642,7 +642,7 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 ## 7. Mass
 
 The robot as drawn, from the CAD-inertial plant
-(`sim/bimo_biped_v6ar.xml`) and the rollup
+(`build/v6/sim/bimo_biped_v6ar.xml`) and the rollup
 (`build/v6/reports/parts_v6_rollup.txt`, written by `make cad`):
 
 | | |
@@ -777,8 +777,8 @@ flies the parts in along their insertion paths to prove they assemble.
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
 drawn (17 actuators, arms at their folded rest pose, the servo set's masses,
-the bearing housing, the hip-yaw bearings split between it and the carriers); `sim/bimo_biped_v6ar.xml` is the committed plant,
-pinned by the tests. `sim/bimo_biped_v6legs.xml` (`build_v6_inertia.py --asbuilt-legs`) is the body as it stands on the bench: the 12 leg servos and the control board on the torso frame, no pack, Pi, head, neck or arms (tethered); it is the plant the nightly walk and balance runs train on while the body is in that state.
+the bearing housing, the hip-yaw bearings split between it and the carriers); `build/v6/sim/bimo_biped_v6ar.xml` is the plant (built by `make plant`),
+pinned by the tests. `build/v6/sim/bimo_biped_v6legs.xml` (`build_v6_inertia.py --asbuilt-legs`) is the body as it stands on the bench: the 12 leg servos and the control board on the torso frame, no pack, Pi, head, neck or arms (tethered); it is the plant the nightly walk and balance runs train on while the body is in that state.
 
 ## 11. Software
 
@@ -798,7 +798,7 @@ The software stack runs on hardware today and is shared by every body:
   [docs/sil-harness.md](docs/sil-harness.md).
 
 **The deployed policy is `robot_legs_walk16_act_s128r24`**, a distilled
-(128, 128) student on the v6 legs plant (`sim/bimo_biped_v6legs.xml`, the 12
+(128, 128) student on the v6 legs plant (`build/v6/sim/bimo_biped_v6legs.xml`, the 12
 leg joints), on the ESP32 ([docs/first-policy-stand.md](docs/first-policy-stand.md)).
 The training envs and the referee run on the robot's plants (12 leg joints
 driven, neck and arms held, per-servo stiffness;
@@ -868,9 +868,9 @@ See [GitHub issues](https://github.com/tomwhipple/biped-robot/issues)
 | what | file |
 |---|---|
 | every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/common/dimensions.py`) |
-| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `cad/v6/stl`, STEPs to `build/v6/step` |
+| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `build/v6/stl`, STEPs to `build/v6/step` |
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
-| the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |
+| the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `build/v6/sim/bimo_biped_v6ar.xml` |
 | gait, IK, gates | `sim/static_gait.py`, `sim/v6_kin.py`, `sim/design_gates.py`, `sim/gate_no3250.py` |
 | get-up | `sim/getup_v6_shoulder.py` (with `sim/getup_v6.py`) |
 | records and evidence | `docs/design-v6/` |

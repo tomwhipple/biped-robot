@@ -35,6 +35,8 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,7 +50,7 @@ os.environ.setdefault("JAX_PLATFORMS", "cpu")
 os.environ.setdefault("MUJOCO_GL", "disabled")
 
 DEFAULT_CONFIG = os.path.join(HERE, "recipe_prec45_ws1_only.config.json")
-DEFAULT_XML = os.path.join(ROOT, "sim", "bimo_biped_v6legs_meas_sole.xml")
+DEFAULT_XML = paths.v6_plant("bimo_biped_v6legs_meas_sole.xml")
 KEY_HZ = 50.0                      # the control tick the keyframes are written at
 CLOCK_HZ = 0.75                    # the recipe's gait clock is U(0.7, 0.8) Hz
 LEAD = 0.785                       # rad: train_mjx --mimic-sway-lead's default

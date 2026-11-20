@@ -77,7 +77,7 @@ the support does while they print.
 The bearing housing screws into the pelvis only (dimensions_v6
 YAW_HOUSING_SCREWS): the torso is not in the leg's load path.
 
-    .venv/bin/python cad/v6/torso_v8.py     # STL (cad/v6/stl), STEP + renders (build/v6), checks, audits
+    .venv/bin/python cad/v6/torso_v8.py     # STL (build/v6/stl), STEP + renders (build/v6), checks, audits
 """
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ wedge_x, wedge_y, wedge_z = P.wedge_x, P.wedge_y, P.wedge_z
 csk_x, csk_y, csk_z = P.csk_x, P.csk_y, P.csk_z
 teardrop_y = P.teardrop_y
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 

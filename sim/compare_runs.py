@@ -14,6 +14,9 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 from walker_env import BimoWalkerEnv
 from eval_policy import run_env_kwargs
 
@@ -124,8 +127,8 @@ def main():
                    help="evaluate all runs with this FIXED sub-step latency (ms)")
     args = p.parse_args()
     xml = args.xml
-    if xml and not os.path.isabs(xml):
-        xml = os.path.join(os.path.dirname(os.path.abspath(__file__)), xml)
+    if xml:
+        xml = paths.resolve_plant(xml)
     overrides = dict(xml_path=xml, actuator_model=args.actuator_model,
                      supply_voltage=args.voltage, dash=True if args.dash else None)
 

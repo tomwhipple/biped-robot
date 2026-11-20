@@ -33,6 +33,8 @@ import argparse
 import json
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 
 import numpy as np
 
@@ -45,8 +47,8 @@ import mujoco  # noqa: E402
 # the bench, 2026-11-04 (hw_sessions/2026-11-04/NOTES.md)
 HW = dict(load_n=7.5, yaw_nm_max=(0.10, 0.15), mu_slide=(0.45, 0.55))
 
-MEAS = os.path.join(HERE, "bimo_biped_v6legs_meas.xml")
-SOLE = os.path.join(HERE, "bimo_biped_v6legs_meas_sole.xml")
+MEAS = paths.v6_plant("bimo_biped_v6legs_meas.xml")
+SOLE = paths.v6_plant("bimo_biped_v6legs_meas_sole.xml")
 # (label, plant, mu, torsion): None = the plant as drawn
 CASES = [
     ("v6legs_meas as drawn (mu 1, tors 0.02)", MEAS, None, None),

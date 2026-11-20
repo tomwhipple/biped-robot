@@ -7,6 +7,7 @@ and sets solref = (-k, -b) on the floor and every sole pad. Off by default = the
 unchanged; on, only the floor and pad geoms move, each env's within the range and shared by them.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -19,7 +20,7 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import jax  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v6legs.xml")
+XML = paths.v6_plant("bimo_biped_v6legs.xml")
 RANGE = ((300.0, 3.0e5), (10.0, 1000.0))
 
 

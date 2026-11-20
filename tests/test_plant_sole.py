@@ -1,4 +1,4 @@
-"""The measured-sole plant: sim/bimo_biped_v6legs_meas_sole.xml (2026-11-04).
+"""The measured-sole plant: build/v6/sim/bimo_biped_v6legs_meas_sole.xml (2026-11-04).
 
 Run:  .venv/bin/python -m pytest tests/test_plant_sole.py -q
 
@@ -24,6 +24,7 @@ What this file pins, and why each one can drift silently:
 """
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -38,8 +39,8 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import mujoco  # noqa: E402
 
-MEAS = os.path.join(SIM, "bimo_biped_v6legs_meas.xml")
-SOLE = os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml")
+MEAS = paths.v6_plant("bimo_biped_v6legs_meas.xml")
+SOLE = paths.v6_plant("bimo_biped_v6legs_meas_sole.xml")
 
 
 def _m(path):
@@ -63,7 +64,7 @@ def test_sole_plant_is_generated():
     import build_v6_inertia as BI
     with open(SOLE) as f:
         assert f.read() == BI.committed_meas_sole_xml(), \
-            "sim/bimo_biped_v6legs_meas_sole.xml is stale: run make plant " \
+            "build/v6/sim/bimo_biped_v6legs_meas_sole.xml is stale: run make plant " \
             "(sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write)"
 
 

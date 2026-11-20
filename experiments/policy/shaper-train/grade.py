@@ -72,7 +72,9 @@ simh.run_root = _run_root
 
 if os.environ.get("GRADE_XML"):     # grade every run on one plant (e.g. bimo_biped_v6legs_meas.xml)
     _GX = os.environ["GRADE_XML"]
-    simh.ESA._xml = lambda cfg: _GX if os.path.isabs(_GX) else os.path.join(rec.ROOT, "sim", _GX)
+    sys.path.insert(0, rec.ROOT)
+    import paths
+    simh.ESA._xml = lambda cfg: paths.resolve_plant(_GX)
 
 FAST = dict(simh.MEAS_SERVO, dead15=20.0, tau15=33.0)
 # the actuator refit (experiments/policy/actuator-refit, 2026-11-03): the hanging 60 deg max-speed

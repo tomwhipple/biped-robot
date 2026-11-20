@@ -9,10 +9,10 @@ V6_ROLLUP := build/v6/reports/parts_v6_rollup.txt
 # tools/mkdeps.py could not list the v6 parts (no build123d here?)
 v6_parts_listed = $(if $(V6_DEPS_ERROR),$(error $(V6_DEPS_ERROR)))
 
-cad: cad-$(V) ## export the parts: STLs (committed for now) and STEPs in build/<V>/step (PART= for one v6 part)
+cad: cad-$(V) ## export the parts: STLs in build/<V>/stl and STEPs in build/<V>/step (PART= for one v6 part)
 
-cad-v6: $(if $(PART),cad/v6/stl/$(PART).stl build/v6/step/$(PART).step,\
-	$(V6_ALL_PARTS:%=cad/v6/stl/%.stl) $(V6_ALL_PARTS:%=build/v6/step/%.step) $(V6_ROLLUP))
+cad-v6: $(if $(PART),build/v6/stl/$(PART).stl build/v6/step/$(PART).step,\
+	$(V6_ALL_PARTS:%=build/v6/stl/%.stl) $(V6_ALL_PARTS:%=build/v6/step/%.step) $(V6_ROLLUP))
 	$(v6_parts_listed)
 
 # parts_v6 prints a table row per part and still exits 0 for a part it could
@@ -23,9 +23,9 @@ build_part = set -o pipefail; $(V6_ENV) $(PART_ENV_$(1)) $(PY) cad/v6/parts_v6.p
 # One run writes a part's STL and STEP: the STL's rule rebuilds both when a
 # source changes, and the STEP's own rule only runs when the STEP is missing.
 define v6_part
-cad/v6/stl/$(1).stl: $$(PARTDEPS_$(1))
+build/v6/stl/$(1).stl: $$(PARTDEPS_$(1))
 	@$$(call build_part,$(1))
-build/v6/step/$(1).step: | cad/v6/stl/$(1).stl
+build/v6/step/$(1).step: | build/v6/stl/$(1).stl
 	@$$(call build_part,$(1))
 endef
 $(foreach p,$(V6_ALL_PARTS),$(eval $(call v6_part,$(p))))
@@ -93,12 +93,12 @@ endif
 
 docs/img/assembly_v6_arms.png: build/v6/renders/assembly_v6_arms.png
 	cp $< $@
-build/%/renders/servo_map.png: $(PYDEPS_tools/servo_map_figure.py) sim/bimo_biped_v6ar.xml
+build/%/renders/servo_map.png: $(PYDEPS_tools/servo_map_figure.py) build/v6/sim/bimo_biped_v6ar.xml
 	MUJOCO_GL=$${MUJOCO_GL:-cgl} $(PY) tools/servo_map_figure.py > /dev/null
 docs/img/servo_map.png: build/v6/renders/servo_map.png
 	cp $< $@
 # the arm links' side letters, rendered from their STLs
-build/%/renders/arm_side_labels.png: $(PYDEPS_cad/v6/arm_v6.py) $(foreach l,upper fore,$(foreach s,L R,cad/v6/stl/arm_$(l)_v6_$(s).stl))
+build/%/renders/arm_side_labels.png: $(PYDEPS_cad/v6/arm_v6.py) $(foreach l,upper fore,$(foreach s,L R,build/v6/stl/arm_$(l)_v6_$(s).stl))
 	$(PY) cad/v6/arm_v6.py --labels-figure $@ > /dev/null
 docs/img/arm_side_labels.png: build/v6/renders/arm_side_labels.png
 	cp $< $@

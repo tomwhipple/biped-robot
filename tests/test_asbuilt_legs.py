@@ -1,6 +1,6 @@
 """The legs-only as-built body (2026-10-24 bench) and what was calibrated on it.
 
-  * the committed plant sim/bimo_biped_v6legs.xml is build_v6_inertia's output
+  * the committed plant build/v6/sim/bimo_biped_v6legs.xml is build_v6_inertia's output
     (generated files are generated), has the 12 leg actuators and no neck, head,
     pack, Pi or arms, and the masses the record states;
   * the committed 17-servo plant is untouched by the generator's new switches;
@@ -12,6 +12,7 @@
     mount sigma) lands where it should, in the CPU env and the MJX env.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -28,7 +29,7 @@ import mujoco  # noqa: E402
 
 import robot_plant  # noqa: E402
 
-LEGS = os.path.join(SIM, "bimo_biped_v6legs.xml")
+LEGS = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +41,7 @@ def test_legs_plant_is_generated():
     import build_v6_inertia as BI
     src = BI.committed_legs_xml(LEGS)
     with open(LEGS) as f:
-        assert f.read() == src, "sim/bimo_biped_v6legs.xml is stale: run sim/build_v6_inertia.py --asbuilt-legs --write"
+        assert f.read() == src, "build/v6/sim/bimo_biped_v6legs.xml is stale: run sim/build_v6_inertia.py --asbuilt-legs --write"
 
 
 def test_legs_plant_layout(m):
@@ -63,7 +64,7 @@ def test_legs_plant_masses(m):
     torso = float(m.body_mass[m.body("torso").id])
     assert 1.47 < total < 1.53, total
     assert 0.43 < torso < 0.48, torso
-    ar = mujoco.MjModel.from_xml_path(os.path.join(SIM, "bimo_biped_v6ar.xml"))
+    ar = mujoco.MjModel.from_xml_path(paths.v6_plant("bimo_biped_v6ar.xml"))
     assert total < 0.7 * float(ar.body_mass.sum())
 
 

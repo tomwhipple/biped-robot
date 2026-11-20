@@ -2,7 +2,7 @@
 measured-sole plant under the actuator chain of a prec training recipe, over a band of the
 training DR ranges, with what the robot's firmware guards would have seen.
 
-Plant: sim/bimo_biped_v6legs_meas_sole.xml in `walker_env.BimoWalkerEnv`, built from the recipe's
+Plant: build/v6/sim/bimo_biped_v6legs_meas_sole.xml in `walker_env.BimoWalkerEnv`, built from the recipe's
 config.json the way the referee builds it (`eval_precision.make_env`): the per-servo stiffness map,
 the sts2026 per-type lag and dead time, the firmware shaper (`fw_shaper_hz`), integer goal ticks.
 The DR terms the open-loop question depends on are drawn over the recipe's own training ranges

@@ -66,7 +66,7 @@ Reward (mirrors in `walker_env.py` and `env_mjx.py`, parity-gated):
 ## Plant
 
 Trained on the robot's plants ([training.md](training.md) §2):
-`sim/bimo_biped_v6ar.xml` by default, `sim/bimo_biped_v6legs.xml` for the
+`build/v6/sim/bimo_biped_v6ar.xml` by default, `build/v6/sim/bimo_biped_v6legs.xml` for the
 legs-only body as built. No payload: the camera is in the head, which the ar
 plant models.
 

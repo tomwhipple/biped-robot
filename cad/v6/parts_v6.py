@@ -19,7 +19,7 @@ The defaults build THE ROBOT TO PRINT (issue #76):
                                   the six roll + knee joints.
 
 PARTS lists (name, builder, qty, print note). Every entry writes
-cad/v6/stl/<name>.stl and build/v6/step/<name>.step from the same solid in the
+build/v6/stl/<name>.stl and build/v6/step/<name>.step from the same solid in the
 same run (v5 rule: the STEPs went stale once). REFERENCE solids (not printed,
 used by the assembly, the checks and the sim plant) are exported the same way
 but are not in the print total.
@@ -41,7 +41,7 @@ import dimensions_v6 as V  # noqa: E402
 import paths  # noqa: E402
 D = V.D
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 ROLLUP = os.path.join(paths.BUILD, "v6", "reports", "parts_v6_rollup.txt")
 

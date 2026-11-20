@@ -30,7 +30,7 @@ VIEWS = {                # azimuth, elevation
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("stl", help="name under cad/v6/stl/ (without .stl) or a path")
+    ap.add_argument("stl", help="name under build/v6/stl/ (without .stl) or a path")
     ap.add_argument("--views", default="iso,bottom,back")
     ap.add_argument("--out", default=None,
                     help="PNG name (without .png), in build/v6/renders")

@@ -50,7 +50,7 @@ Artifacts, all local:
 | the fold-up pose (shoulder 180, elbow −90) | [`docs/design-v6/figs/assembly_v6_arms_foldup.png`](figs/assembly_v6_arms_foldup.png) |
 | fly-in filmstrip (bottom row = the arms) | [`docs/assembly/assembly_v6_flyin_arms_strip.png`](../assembly/assembly_v6_flyin_arms_strip.png) |
 | per-part renders | `cad/v6/renders/shoulder_mount_v6_L.png`, [`docs/design-v6/figs/arm_upper_v6_L.png`](figs/arm_upper_v6_L.png), [`docs/design-v6/figs/arm_fore_v6_L.png`](figs/arm_fore_v6_L.png) |
-| STL + STEP per part | `cad/v6/stl/`, `build/v6/step/` |
+| STL + STEP per part | `build/v6/stl/`, `build/v6/step/` |
 | full ROM sweep log | `docs/design-v6/arm_check_assembly.txt` |
 
 Everything is behind `ARMS=1`. The default build of `assembly_v6.py`,

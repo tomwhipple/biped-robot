@@ -13,6 +13,8 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 
 import numpy as np
 import pytest
@@ -249,7 +251,7 @@ def test_the_free_plant_root_is_found_and_takes_the_reported_tilt(xml):
     drawn torso's own z axis must BE that vector -- the mirror/--viewer
     mannequin tilts as the robot does."""
     import mujoco
-    m = mujoco.MjModel.from_xml_path(os.path.join(SIM, xml))
+    m = mujoco.MjModel.from_xml_path(paths.v6_plant(xml))
     d = mujoco.MjData(m)
     adr = sil_twin.root_qposadr(m)
     free = [j for j in range(m.njnt)
@@ -268,5 +270,20 @@ def test_the_hung_plant_has_no_root_pose_to_set():
     """--hang welds the torso to the world: the twin draws joints only."""
     import mujoco
     m = mujoco.MjModel.from_xml_path(
-        os.path.join(SIM, "bimo_biped_v6legs_hang.xml"))
+        paths.v6_plant("bimo_biped_v6legs_hang.xml"))
     assert sil_twin.root_qposadr(m) == -1
+
+
+def test_local_xml_resolves_plants_that_are_not_where_the_config_says():
+    """A config.json's plant may be a bare name, the old sim/ path, or an
+    absolute path from another host; all resolve to build/v6/sim/<name>.
+    An existing path and an empty one pass through."""
+    name = "bimo_biped_v6ar.xml"
+    want = paths.v6_plant(name)
+    assert sil_twin._local_xml(name) == want
+    assert sil_twin._local_xml("/nonexistent/host/robot/sim/" + name) == want
+    assert sil_twin._local_xml(os.path.join(paths.ROOT, "sim", name)) == want
+    assert sil_twin._local_xml("") == ""
+    assert sil_twin._local_xml(None) is None
+    if os.path.exists(want):
+        assert sil_twin._local_xml(want) == want

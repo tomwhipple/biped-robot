@@ -59,7 +59,7 @@ from common import shapes as parts  # noqa: E402
 from common import mocks as CA  # noqa: E402
 import paths  # noqa: E402
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 
 AL_DROP = V.AL_DROP
@@ -284,4 +284,4 @@ if __name__ == "__main__":
           f"vol {p.volume/1000:.1f} cm3  mass {mass:.1f} g  ({time.time()-t0:.1f}s build)")
     export_stl(p, os.path.join(OUT_STL, "ankle_link.stl"))
     export_step(p, os.path.join(OUT_STEP, "ankle_link.step"))
-    print("wrote cad/v6/stl/ankle_link.stl, build/v6/step/ankle_link.step")
+    print("wrote build/v6/stl/ankle_link.stl, build/v6/step/ankle_link.step")

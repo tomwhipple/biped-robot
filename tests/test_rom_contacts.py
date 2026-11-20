@@ -15,6 +15,7 @@ Pure kinematics: set qpos, forward, measure. No dynamics, no policy.
 """
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -25,7 +26,7 @@ import mujoco
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "sim"))
 
-PLANT = os.path.join(ROOT, "sim", "bimo_biped_v6legs.xml")
+PLANT = paths.v6_plant("bimo_biped_v6legs.xml")
 COL = ("thigh", "shank", "ankle", "foot")
 
 

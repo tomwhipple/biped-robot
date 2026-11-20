@@ -1,4 +1,4 @@
-"""The hanging plant: sim/bimo_biped_v6legs_hang.xml, the test-stand analogue of sil_twin --hang.
+"""The hanging plant: build/v6/sim/bimo_biped_v6legs_hang.xml, the test-stand analogue of sil_twin --hang.
 
 Run:  .venv/bin/python -m pytest tests/test_plant_hang.py -q
 
@@ -7,6 +7,7 @@ nothing else (same joints, actuators, masses), and that the torso stays where it
 the feet off the floor.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -18,15 +19,15 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import mujoco  # noqa: E402
 
-LEGS = os.path.join(SIM, "bimo_biped_v6legs.xml")
-HANG = os.path.join(SIM, "bimo_biped_v6legs_hang.xml")
+LEGS = paths.v6_plant("bimo_biped_v6legs.xml")
+HANG = paths.v6_plant("bimo_biped_v6legs_hang.xml")
 
 
 def test_hang_plant_is_generated():
     import build_v6_inertia as BI
     with open(HANG) as f:
         assert f.read() == BI.committed_hang_xml(), \
-            "sim/bimo_biped_v6legs_hang.xml is stale: run make plant " \
+            "build/v6/sim/bimo_biped_v6legs_hang.xml is stale: run make plant " \
             "(sim/build_v6_inertia.py --hang --asbuilt-legs --write)"
 
 

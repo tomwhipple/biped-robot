@@ -6,6 +6,7 @@ friction_range draw (0.6..1.4 x the floor's 1.0) never takes a foot contact belo
 env and set it on the floor and every sole pad; nothing else moves. Off by default.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -18,7 +19,7 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import jax  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v6legs_meas.xml")
+XML = paths.v6_plant("bimo_biped_v6legs_meas.xml")
 MU = (0.35, 1.1)
 TOR = (0.001, 0.02)
 

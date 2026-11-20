@@ -23,7 +23,7 @@ tools run unchanged: export_policy_weights.py -> gen_obs_spec.py ->
 gen_policy_weights.py (with --profile, docs/training.md section 9).
 
 The default recipe is the robot's legs-only walk (the robot_legs_walk* runs:
---robot on sim/bimo_biped_v6legs.xml, the 7-channel precision command set,
+--robot on build/v6/sim/bimo_biped_v6legs.xml, the 7-channel precision command set,
 the loco family) with the deployable action map `full`. Only the flags that
 shape the observation and the action map matter to the firmware; the rest
 make config.json read like a run of that recipe.
@@ -36,8 +36,10 @@ servo_gains.h's static_assert then demands the matching gain table.
 import argparse
 import json
 import os
-import pickle
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
+import pickle
 
 import numpy as np
 
@@ -147,7 +149,7 @@ def main():
 
     from eval_precision import make_env
     env = make_env(cfg, 12.0, True,
-                   os.path.join(ROOT, "sim", cfg["xml_path"]))
+                   paths.resolve_plant(cfg["xml_path"]))
     obs_dim = int(env.observation_space.shape[0])
     act_dim = int(env.action_space.shape[0])
     hist = int(cfg.get("obs_hist_len", 1))

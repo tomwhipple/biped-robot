@@ -170,7 +170,7 @@ The method (`sim/current_budget.py --trace refs | dwell`):
   `sim/getup_ref_v6ar_prone_ikc.npz` (the one the get-up candidate tracks) and
   `sim/getup_ref_v6ar_ik.npz` (the supine seat push) are replayed open loop as
   `sim/getup_ref_overload.py` replays them:
-  - on `sim/bimo_biped_v6ar_meas.xml` (17 servos, CAD inertials, measured stops,
+  - on `build/v6/sim/bimo_biped_v6ar_meas.xml` (17 servos, CAD inertials, measured stops,
     sole pads);
   - with the get-up's deploy servo model, kp as built, at the 11.1 V training
     envelope;

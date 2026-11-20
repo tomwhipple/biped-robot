@@ -7,7 +7,7 @@ lumped r5 plant with Plan B servos. This re-runs it on what the get-up is
 now: the campaign's analytic references (sim/getup_ref_analytic.py, #137),
 replayed open loop from their recorded npz targets, on the robot's plant:
 
-  plant    sim/bimo_biped_v6ar_meas.xml (CAD inertials, the measured joint
+  plant    build/v6/sim/bimo_biped_v6ar_meas.xml (CAD inertials, the measured joint
            stops, the sole pads; the get-up policies' training plant,
            robot_getup_w19k), the get-up studies' deploy servo model
            (getup_v6 / static_gait.make_env: 2 Hz lag, 80 ms dead time,
@@ -39,6 +39,8 @@ from __future__ import annotations
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 from multiprocessing import Pool
 
 import numpy as np
@@ -52,7 +54,7 @@ import getup_ref_analytic as R  # noqa: E402
 import sts_servo_model as SM  # noqa: E402
 from walker_env import SERVO_KP_PRESETS, SERVO_TYPES  # noqa: E402
 
-XML = os.path.join(HERE, "bimo_biped_v6ar_meas.xml")
+XML = paths.v6_plant("bimo_biped_v6ar_meas.xml")
 REFS = {"prone_ikc": ("prone", "getup_ref_v6ar_prone_ikc.npz"),
         "supine_ik": ("supine", "getup_ref_v6ar_ik.npz")}
 STALL_12V, W0_12V = 2.94, 4.04          # the STS3215 walker_env models (N*m, rad/s at 12 V)

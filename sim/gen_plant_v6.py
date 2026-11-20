@@ -23,7 +23,7 @@ contact, non-colliding L_sole/R_sole reference boxes, enumerated inter-leg
 contact pairs, IMU site + torso_up/torso_pos sensors.
 
 The output is this lumped-mass plant, never the committed
-sim/bimo_biped_v6ar.xml unless -o names it: that one is the dressed plant
+build/v6/sim/bimo_biped_v6ar.xml unless -o names it: that one is the dressed plant
 sim/build_v6_inertia.py --write generates, and a test compares it byte for byte.
 
     .venv/bin/python sim/gen_plant_v6.py                 # -> build/v6/sim/bimo_biped_v6ar_lumped.xml

@@ -5,8 +5,8 @@ the firmware. The source files named here are the authority for every number;
 each run's `config.json` records the exact configuration it trained under.*
 
 **Current state.** Policies train on the **robot's plants**:
-`sim/bimo_biped_v6ar.xml` (the dressed 17-servo robot, the default plant) and
-`sim/bimo_biped_v6legs.xml` (the legs-only body as built, 12 leg joints).
+`build/v6/sim/bimo_biped_v6ar.xml` (the dressed 17-servo robot, the default plant) and
+`build/v6/sim/bimo_biped_v6legs.xml` (the legs-only body as built, 12 leg joints).
 Walking and get-ups both train there (§11, §13). Distilled students of a legs
 walk run on the ESP32 at 50 Hz, as float and int8 nets (profiles `v6legs` and
 `v6legs256`, §9); the deployed one, `robot_legs_walk16_act_s128r24`, holds the
@@ -35,7 +35,7 @@ backward, sidestep, turn, crouch, balance on one leg and march, depending on a
 command, not by switching policies.
 
 ```
-  sim/bimo_biped_v6ar.xml          the plant (§2; v6legs for the legs-only body)
+  build/v6/sim/bimo_biped_v6ar.xml          the plant (§2; v6legs for the legs-only body)
             |
   sim/mjx/env_mjx.py               MJX world: STS3215 actuator model, DR,
             |                      commands, reward (§2-6)
@@ -73,7 +73,7 @@ estimate (§3).
 
 ## 2. The plant
 
-`sim/bimo_biped_v6ar.xml` is the default plant of `train_mjx.py`, `env_mjx`,
+`build/v6/sim/bimo_biped_v6ar.xml` is the default plant of `train_mjx.py`, `env_mjx`,
 `walker_env` and `eval_precision.py` (`--xml` overrides it):
 `bimo_biped_v6legs.xml` is the legs-only body as built, and the `*_meas.xml`
 variants carry the joint stops measured on the robot. Both engines load the
@@ -116,7 +116,7 @@ Around the PD loop:
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
 | joint-velocity observation | the robot's q̇ is the STS3215 speed register 58: the mean joint velocity over the last ~40 ms (~20 ms late) in 50 steps/s (4.4°/s) steps (the 2026-11-05 kick analysis, `hw_sessions/2026-11-05/kick_analysis.md` §3, not in git). The observed q̇ becomes (q_t − q_t−N) / (N · 20 ms), N fixed or drawn per episode, then rounded to Q steps/s (replacing `--quantize`'s 1-step q̇ rounding). The robot's model is N 2, Q 50. Off by default (the instantaneous q̇). MJX and CPU; `grade.py` probes `… dqlag` and `DQ_OBS_WINDOW` apply it to a trained policy | `--dq-obs-window N` or `lo,hi`, `--dq-obs-quantum Q` |
 | free play | the roll play beyond the encoders is `--roll-play-deg` (the encoders reading the servo shaft, the link free inside the band), fitted per role to the 2026-11-11 clamp session; `--roll-lash-deg` (a deadzone on the servo error, the encoders reading the link) and `--roll-series-k` (a spring, the encoders reading the shaft) are the other two forms. The referee inherits each from `config.json`. Still open: the both-feet-down ladder, where the fitted play falls off the far rungs the robot stands on; the double-stance hysteresis the robot shows (the same shifted pose 4.2° apart by direction; the sim 0.7°); and the stance encoders moving more under load than the robot's (1.9° / 0.8° against 1.1–1.5° / 0.35–0.45°) |
-| rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
+| rough floor | `build/v6/sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
 The bench numbers behind these knobs: the servo's dead time measures ≈ 85 ms
 (4 ticks); a three-stage 2 Hz pole reproduces the joint motion measured in a
@@ -459,7 +459,7 @@ size (`domain_randomize`, the standard MJX pattern):
   half weight on the bench board): the foot slides at μ ≈ 0.45–0.55 and rotates
   under hip yaw with no measurable grip, ≤ 0.10–0.15 N·m at 7.5 N. The edge pads
   at μ 1 / torsion 0.02 grip 0.34 N·m in the same sim test (Coulomb bound
-  0.65). `sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
+  0.65). `build/v6/sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
   measured sole: pads μ 0.5, torsion 0, geom `priority` 1 (the pad's friction is
   the foot contact's, so the floor-only draw above no longer reaches it and
   `--contact-mu` alone sets it), and 8 "flat" pads, 4 on the sole outline and 4
@@ -589,8 +589,8 @@ Training runs **at night only**; days belong to the box's owner.
 - **The harness builds its inputs (#144).** The runner runs `make plant-data`
   in the clone (output in `night/make.log`): the plant with its CAD meshes, and
   the seeded terrain mosaic. `build/` is gitignored and survives the sync's
-  reset, so a build with nothing stale costs seconds, and a rebuild is
-  byte-stable across machines (`cad/stable_stl.py`). It builds at runner start
+  reset, so a build with nothing stale costs seconds, and a rebuild on any
+  machine gives the same plant bytes (`cad/stable_stl.py`). It builds at runner start
   when jobs are queued, before pre-flight; a failure there goes to
   `claude_fix.sh` (step `build-inputs`) and one retry, and a second failure
   refuses the night like a failed pre-flight. Each job rebuilds after its own
@@ -599,7 +599,9 @@ Training runs **at night only**; days belong to the box's owner.
   (`sim/getup_ref_v6ar*.npz`) are *physics recordings*, not rebuildable
   artifacts: a re-record on a different toolchain can diverge from the trained
   input. They stay in git and out of the harness (`make sim-data` builds them
-  by hand).
+  by hand). The plant (`build/v6/sim`), its servo meshes and the printed parts'
+  STLs (`build/v6/stl`) are not in git at all: `make plant-data` is the only way
+  they exist on the training box.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
   <train_mjx.py args>` checks that the branch is pushed, writes claw's cron
   lines (the `night/` copies of `night_run`, `night_stop`, `plan_morning` and
@@ -624,8 +626,9 @@ Training runs **at night only**; days belong to the box's owner.
   safety net. `COLLECT_JOBS` (default 6) runs are collected at once, each into
   its own log that is appended to `night_collect.log` in a stable order; a
   second collector exits at once on `night/.collect.lock`. The lag column is run by hand (§8). It
-  fast-forwards the checkout to `origin/main` first, so the references and
-  plants a run trained against are there to referee it. If uncommitted files
+  fast-forwards the checkout to `origin/main` first, then runs `make plant-data`
+  there, so the references and the plant a run trained against (built into
+  `build/v6/sim`) are there to referee it. If uncommitted files
   block the fast-forward, it stashes only the paths upstream also changed, under
   a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
 - **Re-planning.** `infra/night/plan_morning.sh` (cron 05:30 and 07:30; also
@@ -974,7 +977,7 @@ run the way the robot runs it (coast to π/2, 12 Hz shaper), it holds x1.5 loop 
 Until 2026-11-02 the profile held the walk14 (256, 256) student as a timing and parity
 test net (§6.1 of the firmware design); the timing does not depend on the weights.
 
-**`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
+**`v6legs`**: the robot's legs-only body, `build/v6/sim/bimo_biped_v6legs.xml`,
 `--robot`, action map `full`. 12 policy joints in the sim's actuator order —
 `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
 same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
@@ -1096,7 +1099,7 @@ the obs-spec generator rebuild the same robot:
 
 | piece | on the robot's plant |
 |---|---|
-| plant | `sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries all 17 servos: the 12 leg joints, the neck yaw and the arms (shoulder pitch + elbow per side); every layout is read from the model. No payload: the camera is in the head, which the plant models |
+| plant | `build/v6/sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `build/v6/sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries all 17 servos: the 12 leg joints, the neck yaw and the arms (shoulder pitch + elbow per side); every layout is read from the model. No payload: the camera is in the head, which the plant models |
 | policy joints | the 12 leg joints, 6 per leg with the ankle roll: frame 55, network input 165, action 12 |
 | neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, the arms at their folded rest pose (`dimensions_v6.ARM_REST`: shoulders 15° forward, elbows folded 95°; DESIGN.md §5.4), the pose that clears every leg joint's full range. A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
 | servo stiffness | per servo (`servo_kp_scale`, §2): `--robot` defaults to `planb` (× 4 on the six roll and knee servos); a deployable legs policy trains at `asbuilt`, the factory gains the robot runs (× 4 on the STS3250 hip rolls, × 2.8 on every STS3215; [servo-map.md](servo-map.md) §4), which `servo_gains.h`'s compile check requires. The hip rolls run the STS3250's torque–speed envelope (`servo_types`), every other servo the STS3215's |

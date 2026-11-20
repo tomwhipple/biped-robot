@@ -21,7 +21,7 @@ def probe(run, tilt_deg, seeds=6, secs=8.0, lag=True):
     import inspect
     ok = set(inspect.signature(BimoMJXEnv.__init__).parameters)
     kw = {k: v for k, v in cfg.items() if k in ok}
-    kw["xml_path"] = os.path.expanduser("~/code/robot-mjx/sim/") + os.path.basename(kw["xml_path"])
+    kw["xml_path"] = os.path.expanduser("~/code/robot-mjx/build/v6/sim/") + os.path.basename(kw["xml_path"])
     kw.update(terrain=False, push_prob=0.0, recover_mix=0.0, getup=False, imu_obs=True, ext_cmd=True,
               command_mode=True, payload_mass=0.154, payload_max=None,
               cmd_fixed=None, episode_seconds=12.0)

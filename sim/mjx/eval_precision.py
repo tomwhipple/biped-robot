@@ -41,17 +41,19 @@ import inspect
 import json
 import math
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import pickle
 import re
 import subprocess
-import sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 RUNS = os.path.join(HERE, "..", "runs")
-DEFAULT_XML = os.path.join(HERE, "..", "bimo_biped_v6ar.xml")   # the trainer's default plant
+DEFAULT_XML = paths.v6_plant("bimo_biped_v6ar.xml")   # the trainer's default plant
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
@@ -2421,10 +2423,7 @@ def main():
         cfg["rise_ref_npz"] = args.ref_replay
         cfg["rise_ref_hold"] = True
     xml = args.xml or cfg.get("xml_path") or DEFAULT_XML
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        # train_mjx.py stores the basename (the run may have trained on a
-        # remote host) -- resolve it against the local sim/ directory
-        xml = os.path.join(HERE, "..", os.path.basename(xml))
+    xml = paths.resolve_plant(xml)
 
     reg = _registry(deploy_gait_hz(cfg))
     names = ORDER

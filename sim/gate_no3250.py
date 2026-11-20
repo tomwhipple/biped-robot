@@ -10,7 +10,7 @@ torque-speed clamp at 11.1 V, 2 Hz shaper + 80 ms dead time, integer ticks,
 with only the servo assignment -- and the servo MASS -- changed:
 
   plants (CAD inertials, sim/build_v6_inertia.plant_xml, written to TMPDIR;
-  the committed sim/bimo_biped_v6ar.xml is never touched):
+  the committed build/v6/sim/bimo_biped_v6ar.xml is never touched):
     cad3250   74.5 g servos at the six places (the design)
     cad3215   55.0 g there (-117 g, 1.67 kg)
   and, for `arms` / `getup`, the as-drawn robot with the elbowed arms

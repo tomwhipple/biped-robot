@@ -229,7 +229,7 @@ before supports and brims.
 
 ```bash
 make cad                                               # every part whose source changed, and the mass rollup
-.venv/bin/python cad/v6/parts_v6.py                    # every part -> cad/v6/stl + build/v6/step, bed check, mass rollup
+.venv/bin/python cad/v6/parts_v6.py                    # every part -> build/v6/stl + build/v6/step, bed check, mass rollup
 .venv/bin/python cad/v6/parts_v6.py --only foot_L foot_R
 .venv/bin/python cad/v6/parts_v6.py --no-export        # the rollup alone
 .venv/bin/python cad/v6/head.py                        # head_shell + head_face (+ the fused head), audits

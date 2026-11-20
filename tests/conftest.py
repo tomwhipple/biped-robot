@@ -8,7 +8,9 @@ spawn inherit it. Most test modules set the same default themselves; this
 covers the ones that do not. Set JAX_PLATFORMS explicitly to override.
 """
 import os
+import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))   # `import paths`
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 # torch too (test_mac_train): its trainer runs on the CPU, but torch.accelerator
 # still opens a CUDA context, which OOMs whenever ollama holds the 12 GB card

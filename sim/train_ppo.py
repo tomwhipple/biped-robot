@@ -27,6 +27,9 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 from stable_baselines3.common.callbacks import CheckpointCallback
 
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 from walker_env import BimoWalkerEnv
 
 RUNS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
@@ -166,8 +169,7 @@ def main():
 
     env_kwargs = dict()
     if args.xml:
-        xml = args.xml if os.path.isabs(args.xml) else \
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), args.xml)
+        xml = paths.resolve_plant(args.xml)
         env_kwargs["xml_path"] = xml
     env_kwargs.update(
         actuator_model=args.actuator_model, supply_voltage=args.voltage,

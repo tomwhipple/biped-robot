@@ -1,6 +1,6 @@
 # Weight-transfer gate: does the walking plant reproduce the robot? (2026-11-10, #259)
 
-Two checks of the walking plant (`sim/bimo_biped_v6legs_meas_sole.xml`) against what the robot has
+Two checks of the walking plant (`build/v6/sim/bimo_biped_v6legs_meas_sole.xml`) against what the robot has
 already shown about weight transfer, a first attribution pass, and a second (Round 2: the pipeline's
 yaw sign, the one-fault hypothesis, compliance beyond the encoders, grade.py's roll opt-ins), and a
 refit against the 2026-11-10 robot measurements (Round 3). CPU only; no plant XML, training

@@ -56,7 +56,7 @@ VARIANTS = [
     {"ARMS": "0"},
 ]
 
-V6_STL = "cad/v6/stl"
+V6_STL = "build/v6/stl"
 SETTINGS = "cad/v6/print_settings.json"
 
 

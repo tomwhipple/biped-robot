@@ -28,6 +28,8 @@ import inspect
 import json
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 
 import numpy as np
 
@@ -79,7 +81,7 @@ def build_env(run_dir):
     params = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
     kw = {k: v for k, v in cfg.items() if k in params}
     kw.update(
-        xml_path=os.path.join(ROOT, "sim", cfg["xml_path"]),
+        xml_path=paths.resolve_plant(cfg["xml_path"]),
         command_mode=True, imu_obs=True, actuator_model="sts3215",
         # DR off: we want the identity IMU mount and zero gyro bias, so the
         # frames are a pure function of the scripted inputs.

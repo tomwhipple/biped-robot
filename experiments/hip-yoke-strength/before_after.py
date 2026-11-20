@@ -25,12 +25,12 @@ def stls(ref):
     out = []
     for name in ("hip_yoke_glued_roll", "hip_yoke_glued_pitch"):
         if ref:
-            data = subprocess.run(["git", "show", f"{ref}:cad/v6/stl/{name}.stl"], capture_output=True, check=True).stdout
+            data = subprocess.run(["git", "show", f"{ref}:build/v6/stl/{name}.stl"], capture_output=True, check=True).stdout
             m = trimesh.load(io.BytesIO(data), file_type="stl")
             path = os.path.join(TMP, f"ba_{ref.replace('/', '_')}_{name}.stl")
             m.export(path)
         else:
-            path = os.path.abspath(f"cad/v6/stl/{name}.stl")
+            path = os.path.abspath(f"build/v6/stl/{name}.stl")
         out.append(path)
     return out
 

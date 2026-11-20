@@ -1,7 +1,7 @@
 """The training stack on the ROBOT's plant (issue #86 groundwork).
 
 Builds the CPU referee env (walker_env) and the MJX training env (env_mjx)
-on sim/bimo_biped_v6ar.xml under the robot preset (sim/mjx/robot_plant.py):
+on build/v6/sim/bimo_biped_v6ar.xml under the robot preset (sim/mjx/robot_plant.py):
 the 12 leg joints as the policy, the neck -- and the arms, on a plant that
 has them -- held at the walking pose, Plan B per-servo stiffness, hip
 flexion -120 deg. Nothing is trained; these pin that the stack RUNS on the
@@ -25,6 +25,7 @@ The MJX-vs-CPU arithmetic on the robot plant is gated by
 sim/mjx/parity_test.py (blocks R1-R3; `--robot-only` runs just those).
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -42,7 +43,7 @@ import mujoco  # noqa: E402
 import robot_plant  # noqa: E402
 import walker_env as W  # noqa: E402
 
-ROBOT_XML = os.path.join(SIM, "bimo_biped_v6ar.xml")
+ROBOT_XML = paths.v6_plant("bimo_biped_v6ar.xml")
 # not the robot: legs without the ankle roll (the 6-DOF leg is what tells it apart)
 NOT_ROBOT_MJCF = """<mujoco><worldbody><body name="torso"><freejoint/>
 <geom size="0.05"/><site name="imu"/><body name="L_shin">

@@ -77,7 +77,7 @@ def main():
     # closed-loop rollouts of the int8 net (bit-exact mirror) on the referee's CPU env
     import eval_precision as E
     cfg = json.load(open(os.path.join(rdir, "config.json")))
-    env = E.make_env(cfg, 12.0, True, os.path.join(ROOT, "sim", cfg["xml_path"]))
+    env = E.make_env(cfg, 12.0, True, os.path.join(ROOT, "build", "v6", "sim", os.path.basename(cfg["xml_path"])))
     eq, ep, steps, falls = [], [], 0, 0
     for k, seed in enumerate(SEEDS):
         o, _ = env.reset(seed=seed)
