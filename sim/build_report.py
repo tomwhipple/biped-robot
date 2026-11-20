@@ -434,6 +434,20 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-20 card: night 30 -- the stepper-shaped reference (a double-support dwell) on the walk and the march: neither
+# holds; the clock-reference RL line is finished; tonight replicates only.
+fig_1120 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec91_walk_sagdr_dw_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec91_walk_sagdr_dw_s128r24_walk_steps_L',
+                 'prec91 seed 14, the walk with a double-support pause in its reference: the only seed whose weight shift reaches '
+                 '0.6 on both feet, and it walks too slowly to pass the walk check and loses the left sidestep'),
+    video_figure('robot_legs_prec92_walk_sagdr_sw75_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec92_walk_sagdr_sw75_s128r24_walk_steps_L',
+                 'control: prec92 seed 14, the same bigger sway with no pause, at the parent clock'),
+    video_figure('robot_legs_prec93_march_both_sagdr_dw_s1_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec93_march_both_sagdr_dw_s1_s128r24_walk_steps_L',
+                 'prec93 seed 15, the march with the pause: still the right foot only (all 4 seeds)'),
+] if f)
 # 2026-11-19 card: night 29 -- the march on the foot-off sag plant (three arms x three seeds + extras): all 12 students
 # march on the right foot only; the march parks again; tonight a reference with a double-support dwell.
 fig_1119 = "\\n    ".join(f for f in [
@@ -1211,6 +1225,25 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·20 · night 30: a pause on both feet before each step does not fix the weight shift; the clock-reference line is finished</span></p>
+    <p><b>Last night tested the robot stepper's shape in the training reference: shift the weight with both feet down, wait,
+    then lift.</b> There were three arms (the walk with the pause, the march with the pause, and the walk with the same bigger
+    sway and no pause as the control), three seeds each plus one extra, on the foot-off sag plant. <b>The walk:</b> only 1 of 3
+    seeds shifts 0.6 of the way over each foot. That seed walks too slowly to pass the walk check, loses the left sidestep and
+    falls 6/8 at x1.5. The pause's slower clock costs speed on every seed (forward 0.5-0.65 m against the parent's 0.96).
+    <b>The march:</b> all 4 seeds still lift the right foot only. <b>The control</b> behaves as predicted: the bigger sway
+    alone does not move the shift. On average the pause raised the shift a little (0.60 against 0.35 on the weaker side), but
+    not to the bar, and not on the play + inset-sole plant.</p>
+    <p><b>Decision</b> (committed yesterday): the clock-reference line is finished for both the walk and the march. That is 11
+    nights with no gain the robot confirmed. The next useful step needs the robot: the hip repair, then measuring how far the
+    simulation matches it (#259). <b>Tonight</b> runs replicates only: more seeds of the pause, the control and the parent, to
+    settle whether the small gain from the pause is real. They test no new idea. Nothing here is a robot candidate.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1120}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·19 · night 29: the march on the sag plant lifts only the right foot, on all 12 policies; it parks, and tonight's reference gets a double-support pause</span></p>
     <p><b>Three march arms on the foot-off sag plant, three seeds each plus one extra, 12 policies: every one marches on the
