@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Generate the firmware's obs spec header + golden observation vectors.
 
-Run:  .venv/bin/python tools/gen_obs_spec.py --run <deployed run>
+Run:  `make policy` (tools/policy_profile.py runs it per policy set, with
+      --run firmware/deployed/runs/<run> [--profile <set>])
 
---run is REQUIRED: this header is the deployed obs layout, so it may only
-change because somebody said which run to deploy.
+--run is REQUIRED (a name under sim/runs/ or a run directory): this header is
+the deployed obs layout, so it may only change because somebody said which
+run to deploy (`make deploy`).
 
 docs/firmware-design.md section 5 says the obs SPEC "is exported from the sim
 as a generated header so it cannot drift by hand". This is that exporter. It
 reads the deployed run's config.json and its MJCF, and writes:
 
-  firmware/components/obs/include/obs/obs_spec.h   layout + joint table
-  firmware/host/vectors/obs_vectors.h              real _obs() frames
+  build/policy/<set>/obs/obs_spec.h         layout + joint table
+  build/policy/<set>/vectors/obs_vectors.h  real _obs() frames
 
 The golden frames come from walker_env._obs() itself (domain randomisation
 off, so the IMU misalignment is identity and the gyro bias zero), driven from
@@ -43,7 +45,7 @@ from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
 
-# The deployed set; --profile <name> writes firmware/policies/<name>/ instead
+# The deployed set; --profile <name> writes build/policy/<name>/ instead
 # (tools/policy_profile.py).
 SPEC_OUT = policy_profile.files()["spec_h"]
 VEC_OUT = policy_profile.files()["obs_vectors_h"]
@@ -337,7 +339,7 @@ def main():
     ap.add_argument("--samples", type=int, default=8)
     ap.add_argument("--profile", default=None,
                     help="write policy profile <name>'s set under "
-                         "firmware/policies/<name>/ instead of the deployed "
+                         "build/policy/<name>/ instead of the deployed "
                          "headers (tools/policy_profile.py)")
     args = ap.parse_args()
     profile = policy_profile.check(args.profile)
@@ -353,7 +355,8 @@ def main():
             "the same guard).  The run currently deployed is named in "
             "kRunName in %s." % os.path.relpath(SPEC_OUT, ROOT))
 
-    run_dir = os.path.join(ROOT, "sim", "runs", args.run)
+    run_dir = (args.run if os.path.isdir(args.run)
+               else os.path.join(ROOT, "sim", "runs", args.run))
     cfg, env = build_env(run_dir)
     cfg["_run"] = run_dir
     if not env.imu_obs:

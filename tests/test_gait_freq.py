@@ -392,10 +392,11 @@ def test_gen_obs_spec_emits_the_midpoint(tmp_path):
 
 
 def test_committed_specs_keep_the_clock():
-    """The specs on main regenerate to the same behaviour: 1.5 Hz."""
-    specs = [os.path.join(ROOT, "firmware", "components", "obs", "include", "obs", "obs_spec.h")]
-    pol = os.path.join(ROOT, "firmware", "policies")
-    specs += [os.path.join(pol, d, "obs", "obs_spec.h") for d in sorted(os.listdir(pol))]
+    """The deployed specs (`make policy`) keep the behaviour: 1.5 Hz."""
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import policy_profile
+    specs = [policy_profile.files(p)["spec_h"]
+             for p in [None] + policy_profile.list_profiles()]
     assert len(specs) >= 3
     for s in specs:
         assert _freq_line(s) == 1.5, s

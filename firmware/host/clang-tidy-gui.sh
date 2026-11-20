@@ -37,6 +37,7 @@ GUI_SRCS=(
 # so it is analyzed with an explicit command line. The include paths mirror
 # the Makefile's GUI_INC plus the gl-shim that stands in for <OpenGL/gl3.h>.
 GUI_INC=(
+    -I"$ROOT/build/policy/deployed"
     -I"$HOST_DIR"
     -I"$ROOT/firmware/components/linkproto/include"
     -I"$ROOT/firmware/components/obs/include"

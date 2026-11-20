@@ -10,7 +10,7 @@
 // layout is spelled out field by field in docs/flight-recorder.md and mirrored
 // in tools/flightrec.py; the host test (firmware/host/test_flightrec.cpp)
 // checks this encoder byte-for-byte against vectors generated from the Python
-// side (firmware/host/vectors/flightrec_vectors.h), so the two cannot drift.
+// side (build/host/vectors/flightrec_vectors.h), so the two cannot drift.
 //
 // Loss is detectable: every packet carries one sequence number from a single
 // per-boot counter, so a hole is a lost packet wherever it was lost, and the

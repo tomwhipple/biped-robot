@@ -7,7 +7,7 @@ an edge) or a HELLO (~1 Hz: firmware, calibration, counters). Little-endian,
 float32. docs/flight-recorder.md describes every field.
 
 The C++ encoder is checked byte-for-byte against vectors generated from THIS
-module (tools/gen_flightrec_vectors.py -> firmware/host/vectors/
+module (tools/gen_flightrec_vectors.py -> build/host/vectors/
 flightrec_vectors.h, firmware/host/test_flightrec.cpp), so a field moved on
 one side fails a test on the other.
 

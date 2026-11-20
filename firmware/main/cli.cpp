@@ -2771,7 +2771,7 @@ void cmdGains(Sink out, int argc, char** argv) {
 // verdict and returns true when the arm is refused.
 bool armRefused(Sink out) {
     // The compiled-in net must be a policy. A policy profile (BIMO_POLICY,
-    // firmware/policies/) may carry an untrained test net while its plant has
+    // tools/policy_profile.py) may carry an untrained test net while its plant has
     // no deployable one -- it exists to golden-test this path, and it drives
     // every joint across its full range at random.
     // cppcheck-suppress knownConditionTrueFalse -- generated per build.

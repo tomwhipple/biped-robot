@@ -255,12 +255,18 @@ def _run(cmd, what, cwd=None, env=None):
 
 def sil_profile_for(xml):
     """The policy profile whose compiled spec is this plant's
-    (tools/policy_profile.py): None for the deployed set, else the name under
-    firmware/policies/. Chosen by the spec's kPlantXml, and exported as
-    $BIMO_POLICY so sim/sil/harness.py sizes its ABI from that spec -- which
-    is why this runs BEFORE the harness is first imported."""
+    (tools/policy_profile.py): None for the deployed set, else a profile of
+    firmware/deployed/policies.txt. Chosen by the spec's kPlantXml, and
+    exported as $BIMO_POLICY so sim/sil/harness.py sizes its ABI from that
+    spec -- which is why this runs BEFORE the harness is first imported."""
     sys.path.insert(0, os.path.join(ROOT, "tools"))
     import policy_profile
+    # The specs are generated into build/policy/ from the committed inputs
+    # (firmware/deployed/): build them here when this checkout has not, or
+    # they are stale -- the referee builds what it needs, as it does the SIL
+    # library (sil_setup).
+    _run(["make", "-C", ROOT, "policy", f"PY={sys.executable}"],
+         "generating the policy sets")
     plant = os.path.basename(xml)
     found = []
     for prof in [None] + policy_profile.list_profiles():
@@ -276,7 +282,7 @@ def sil_profile_for(xml):
         # it does not share is refused by sil_check_spec
         print(f"[sil] WARNING: no compiled policy spec is for plant {plant}; "
               "using the deployed one (a new plant gets its own: "
-              "`tools/gen_obs_spec.py --run <a run on it> --profile <name>`)",
+              "`make deploy RUN=<a run on it> POLICY=<name>`)",
               file=sys.stderr)
         found = [None]
     # Several profiles can share a plant (v6legs: the float (128,128) net and
@@ -387,10 +393,10 @@ def sil_setup(run_name, run_dir, verbose=True, profile=None):
         why = "missing" if not os.path.exists(weights) else "older than params.pkl"
         if verbose:
             print(f"[sil] {os.path.basename(weights)} {why} -- exporting")
-        # --no-golden on purpose: sim/sil/golden/*.json are COMMITTED vectors
-        # for the harness's reference run (and the firmware ctests consume
-        # them).  A referee pass must not silently re-point them at whatever
-        # run it is scoring.
+        # --no-golden on purpose: the golden vectors (build/policy/<set>/
+        # golden/, `make policy`) are the deployed run's, and the firmware
+        # ctests consume them.  A referee pass must not silently re-point
+        # them at whatever run it is scoring.
         _run([sys.executable,
               os.path.join(ROOT, "tools", "export_policy_weights.py"),
               "--run", run_name, "--no-golden"],

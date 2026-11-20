@@ -40,8 +40,8 @@ ROOT = os.path.dirname(SIM)
 FIRMWARE = os.path.join(ROOT, "firmware")
 
 # The policy profile this harness drives (tools/policy_profile.py): the
-# DEPLOYED policy's spec by default, or $BIMO_POLICY's (firmware/policies/
-# <name>/, a second plant -- eval_precision --sil sets it from the run's
+# DEPLOYED policy's spec by default, or $BIMO_POLICY's (build/policy/
+# <name>/, `make policy`; a second plant -- eval_precision --sil sets it from the run's
 # plant). Read once at import: the ctypes structs below are sized from it, so
 # a process drives one profile's library.
 if os.path.join(ROOT, "tools") not in sys.path:
@@ -50,6 +50,11 @@ import policy_profile                                       # noqa: E402
 
 POLICY_PROFILE = policy_profile.from_env()
 SPEC_H = policy_profile.files(POLICY_PROFILE)["spec_h"]
+if not os.path.exists(SPEC_H):
+    # generated, not committed: never fall back to a default layout
+    raise ImportError(f"{SPEC_H} is missing: the policy headers are generated "
+                      "from firmware/deployed/ -- run `make policy` at the "
+                      "repo root")
 BUS_MAP_H = os.path.join(FIRMWARE, "components", "obs", "include", "obs",
                          "bus_map.h")
 
@@ -74,7 +79,7 @@ def _parse_run_name(path=SPEC_H):
 # The suite's run is the DEPLOYED run -- the one obs_spec.h and weights.h were
 # generated from -- read out of the header rather than written down a second
 # time. A hand-kept default drifted once (issue #89); reading it here means a
-# `make deploy-headers RUN=...` re-points the suite in the same step.
+# `make deploy RUN=...` re-points the suite in the same step.
 DEPLOYED_RUN = _parse_run_name()
 DEFAULT_RUN = DEPLOYED_RUN or "unknown-run"
 

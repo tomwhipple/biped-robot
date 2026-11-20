@@ -63,14 +63,15 @@ from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
 # from that same pair), and the run must match the compiled-in spec: the
 # DEPLOYED run, obs_spec.h's kRunName -- any other run fails sil_check_spec.
 def _deployed_run():
-    spec_h = os.path.join(ROOT, "firmware", "components", "obs", "include",
-                          "obs", "obs_spec.h")
+    # generated from firmware/deployed/ by `make policy` (tools/policy_profile.py)
+    spec_h = os.path.join(ROOT, "build", "policy", "deployed", "obs",
+                          "obs_spec.h")
     try:
         m = re.search(r'kRunName\s*=\s*"([^"]+)"', open(spec_h).read())
     except OSError:
         m = None
     if m is None:
-        raise SystemExit(f"no kRunName in {spec_h}")
+        raise SystemExit(f"no kRunName in {spec_h} (`make policy` builds it)")
     return m.group(1)
 
 

@@ -268,6 +268,23 @@ def test_clamp_on_a_prec_style_envelope():
     assert clamp_to_envelope(-0.3, 0.0, env0) == (0.0, 0.0)
 
 
+def test_protocol_imports_without_the_generated_envelope():
+    """tools/estop.py and the arm script import protocol.py on a checkout that
+    may not have run `make` yet: the generated envelope loads on first use,
+    and only a clamp needs it."""
+    import subprocess
+    code = ("import sys; sys.path.insert(0, 'link'); import protocol as P\n"
+            "assert len(P.encode_command(1, 0.0, 0.0, P.FLAG_ESTOP)) == P.CMD_LEN\n"
+            "try:\n    P.V_FWD_MAX\nexcept ImportError as e:\n"
+            "    print('missing:', e)\n")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([sys.executable, "-c", code], cwd=root,
+                       env=dict(os.environ, BIMO_POLICY="no_such_set"),
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "missing:" in r.stdout and "make envelope" in r.stdout, r.stdout
+
+
 def test_protocol_reads_the_profile_twin_named_by_the_environment(monkeypatch):
     import protocol
     monkeypatch.setenv("BIMO_POLICY", "v6legs")

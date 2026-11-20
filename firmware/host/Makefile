@@ -14,48 +14,58 @@ CXX      ?= c++
 ROOT      = ..
 COMPONENTS= $(ROOT)/components
 
-# -- policy profile (tools/policy_profile.py) --------------------------------
-# Empty: the DEPLOYED policy, whose generated headers live in the components.
-# POLICY=<name>: the complete second set in ../policies/<name>/ (obs spec,
-# weights, command envelope, golden vectors), first on the include path, built into
-# build/policy-<name>/. `make test` with no POLICY runs every profile after
-# the deployed build; the headers' #error guards make a wrong include order a
-# compile error rather than the wrong policy.
+# -- policy set (tools/policy_profile.py) ------------------------------------
+# The policy headers and test vectors are GENERATED into the repo's build/
+# (`make policy` and `make vectors` at the repo root; `make host` runs both):
+#   ../../build/policy/<set>/   obs spec, weights, command envelope, their
+#                               vectors and SIL golden files, per policy set
+#   ../../build/host/vectors/   the protocol, flight-recorder, Wi-Fi CLI vectors
+# Empty POLICY: the DEPLOYED set. POLICY=<name>: that policy profile's set,
+# with the profile defines, built into build/policy-<name>/. `make test` with
+# no POLICY runs every profile after the deployed build; the headers' #error
+# guards make a wrong include order a compile error rather than the wrong
+# policy. The sets are the lines of ../deployed/policies.txt.
+REPO      = ../..
 POLICY   ?=
-PROFILES  = $(sort $(notdir $(patsubst %/obs/obs_spec.h,%,$(wildcard $(ROOT)/policies/*/obs/obs_spec.h))))
+PROFILES  = $(filter-out deployed,$(shell awk 'NF && substr($$1, 1, 1) != "\043" {print $$1}' $(ROOT)/deployed/policies.txt))
+GEN_POLICY= $(REPO)/build/policy
+GEN_HOST  = $(REPO)/build/host
 ifeq ($(POLICY),)
-  POLICY_FLAGS =
+  SET_DIR      = $(GEN_POLICY)/deployed
+  POLICY_FLAGS = -I$(SET_DIR)
   BUILD        = build
-  SPEC_H       = $(COMPONENTS)/obs/include/obs/obs_spec.h
-  WEIGHTS_H    = $(COMPONENTS)/policy/include/policy/weights.h
-  OBS_VEC_H    = vectors/obs_vectors.h
-  POL_VEC_H    = vectors/policy_vectors.h
-  ENV_H        = $(COMPONENTS)/linkproto/include/linkproto/cmd_envelope.h
-  ENV_VEC_H    = vectors/cmd_envelope_vectors.h
-  GOLDEN_ENV   =
 else
-  PROFILE_DIR  = $(ROOT)/policies/$(POLICY)
-  ifeq ($(wildcard $(PROFILE_DIR)/obs/obs_spec.h),)
-    $(error POLICY=$(POLICY): no $(PROFILE_DIR)/obs/obs_spec.h (profiles: $(PROFILES)))
+  ifeq ($(filter $(POLICY),$(PROFILES)),)
+    $(error POLICY=$(POLICY): not a policy profile in firmware/deployed/policies.txt (profiles: $(PROFILES)))
   endif
-  POLICY_FLAGS = -I$(PROFILE_DIR) -DBIMO_POLICY_OVERLAY \
+  SET_DIR      = $(GEN_POLICY)/$(POLICY)
+  POLICY_FLAGS = -I$(SET_DIR) -DBIMO_POLICY_OVERLAY \
                  -DBIMO_POLICY_PROFILE_$(shell echo $(POLICY) | tr a-z A-Z)
   BUILD        = build/policy-$(POLICY)
-  SPEC_H       = $(PROFILE_DIR)/obs/obs_spec.h
-  WEIGHTS_H    = $(PROFILE_DIR)/policy/weights.h
-  OBS_VEC_H    = $(PROFILE_DIR)/vectors/obs_vectors.h
-  POL_VEC_H    = $(PROFILE_DIR)/vectors/policy_vectors.h
-  ENV_H        = $(PROFILE_DIR)/linkproto/cmd_envelope.h
-  ENV_VEC_H    = $(PROFILE_DIR)/vectors/cmd_envelope_vectors.h
-  # test_sil_golden reads the profile's own sim/sil/golden/<profile>/
-  GOLDEN_ENV   = SIL_GOLDEN_DIR=../../sim/sil/golden/$(POLICY)
 endif
+SPEC_H       = $(SET_DIR)/obs/obs_spec.h
+WEIGHTS_H    = $(SET_DIR)/policy/weights.h
+OBS_VEC_H    = $(SET_DIR)/vectors/obs_vectors.h
+POL_VEC_H    = $(SET_DIR)/vectors/policy_vectors.h
+ENV_H        = $(SET_DIR)/linkproto/cmd_envelope.h
+ENV_VEC_H    = $(SET_DIR)/vectors/cmd_envelope_vectors.h
+# test_sil_golden reads the set's own golden files (and finds its exported
+# .silw beside them, in ../weights/)
+GOLDEN_ENV   = SIL_GOLDEN_DIR=$(SET_DIR)/golden
+PROTO_VEC_H  = $(GEN_HOST)/vectors/protocol_vectors.h
+FREC_VEC_H   = $(GEN_HOST)/vectors/flightrec_vectors.h
+WCLI_VEC_H   = $(GEN_HOST)/vectors/wcli_vectors.h
+
+# Nothing here makes them: say what does.
+$(GEN_POLICY)/% $(GEN_HOST)/%:
+	@echo "$@ is missing: it is generated -- run \`make policy vectors\` (or \`make host\`) at the repo root" >&2
+	@false
 
 CXXFLAGS  = -std=c++17 -O1 -g -ffp-contract=off \
             -Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-conversion \
             -fno-exceptions -fno-rtti \
             $(POLICY_FLAGS) \
-            -I. -I$(COMPONENTS)/scsbus/include \
+            -I. -I$(GEN_HOST) -I$(COMPONENTS)/scsbus/include \
             -I$(COMPONENTS)/linkproto/include \
             -I$(COMPONENTS)/obs/include \
             -I$(COMPONENTS)/policy/include \
@@ -125,7 +135,7 @@ SRC_SILDEP= $(COMPONENTS)/obs/assembler.cpp $(COMPONENTS)/obs/actuation.cpp \
             $(COMPONENTS)/balance/stance_trim.cpp $(COMPONENTS)/balance/roll_pi.cpp \
             $(COMPONENTS)/gaitplay/track.cpp $(COMPONENTS)/gaitplay/lift_gate.cpp
 
-.PHONY: all test test-profiles clean vectors deploy-headers sil tui gui deps check check-gui
+.PHONY: all test test-profiles clean sil tui gui deps check check-gui
 all: $(BINS) $(SIL_LIB) $(WCLI_TWIN)
 
 # The two operator clients share one core (link/client.cpp): the sockets, the
@@ -266,10 +276,11 @@ TESTFLAGS = $(filter-out -fno-exceptions,$(CXXFLAGS))
 # ... and so is every component header (2026-08-02: editing a constant in
 # obs/actuation.h left libctrl_sil.dylib stale and the gate green against the
 # OLD value -- a false pass this line makes impossible).
-COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h)
+# The selected set's generated headers count as component headers too.
+COMP_HDRS = $(wildcard $(COMPONENTS)/*/include/*/*.h) $(SPEC_H) $(WEIGHTS_H) $(ENV_H)
 
 $(BUILD)/test_protocol: test_protocol.cpp $(SRC_LINK) \
-                        vectors/protocol_vectors.h $(ENV_H) $(ENV_VEC_H) \
+                        $(PROTO_VEC_H) $(ENV_H) $(ENV_VEC_H) \
                         test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
@@ -327,15 +338,15 @@ $(BUILD)/test_flailguard: test_flailguard.cpp $(SRC_FLAIL) vectors/flail_vectors
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The flight recorder's wire format against vectors from tools/flightrec.py
-# (`make vectors` at the repo root regenerates them).
-$(BUILD)/test_flightrec: test_flightrec.cpp $(SRC_FREC) vectors/flightrec_vectors.h \
+# (`make vectors` at the repo root generates them into build/host/vectors/).
+$(BUILD)/test_flightrec: test_flightrec.cpp $(SRC_FREC) $(FREC_VEC_H) \
                          test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
 # The Wi-Fi CLI's pure half: SHA-256/HMAC against the published vectors,
 # the wire format against link/wcliproto.py (`make vectors`), the session's
 # auth/replay/at-most-once logic and the Wi-Fi allowlist.
-$(BUILD)/test_wcli: test_wcli.cpp $(SRC_WCLI) vectors/wcli_vectors.h \
+$(BUILD)/test_wcli: test_wcli.cpp $(SRC_WCLI) $(WCLI_VEC_H) \
                     test_util.h $(COMP_HDRS) | $(BUILD)
 	$(CXX) $(TESTFLAGS) $(filter %.cpp,$^) -o $@ $(LDFLAGS)
 
@@ -454,33 +465,9 @@ endif
 check-gui: deps gui
 
 
-# Regenerate the golden PROTOCOL vectors from the Python reference. This is
-# the only generator that has one right answer independent of any policy, so
-# it is the only one safe to run without saying anything.
-vectors:
-	cd ../.. && .venv/bin/python tools/gen_protocol_vectors.py
-
-# The other generators write the DEPLOYED policy: obs_spec.h is the
-# observation layout the flashed weights were trained against, weights.h is the
-# net itself, and cmd_envelope.h the commands it was trained to take
-# (tools/gen_envelope.py). They may only change together, and only
-# because somebody said which run to deploy -- an argument-less run of either
-# silently re-points the firmware at a different policy. Hence:
-#
-#   make -C firmware/host deploy-headers RUN=robot_legs_walk16_act_s128r24
-#
-# ... or, for a policy profile's set in ../policies/<name>/ (a second plant):
-#
-#   make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs
-#
-# QUANT=int8 writes an int8 profile (policy/q8.h; an int8 profile stays int8
-# when regenerated without it).
-#
-deploy-headers:
-	@test -n "$(RUN)" || { echo "name the run: make deploy-headers RUN=<run>"; exit 2; }
-	cd ../.. && .venv/bin/python tools/gen_obs_spec.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
-	cd ../.. && .venv/bin/python tools/gen_envelope.py --run $(RUN) $(if $(POLICY),--profile $(POLICY))
-	cd ../.. && .venv/bin/python tools/gen_policy_weights.py --run $(RUN) $(if $(POLICY),--profile $(POLICY)) $(if $(QUANT),--quant $(QUANT))
+# The generated headers and vectors are made at the repo root: `make policy`
+# (from the deployed runs' inputs in ../deployed/) and `make vectors`. To
+# change the deployed policy: `make deploy RUN=<run> [POLICY=<set>]` there.
 
 clean:
 	rm -rf $(BUILD)

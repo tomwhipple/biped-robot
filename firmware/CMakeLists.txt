@@ -22,21 +22,29 @@ idf_build_set_property(CXX_COMPILE_OPTIONS
                        "-std=gnu++17;-fno-exceptions;-fno-rtti" APPEND)
 
 # Which compiled-in policy the image carries (tools/policy_profile.py).
-# Empty: the DEPLOYED policy, whose generated headers live in the obs and
-# policy components. A profile name (`idf.py -B build/firmware-v6legs
-# -DBIMO_POLICY=v6legs build`, or `make firmware POLICY=v6legs`) selects the
-# complete second set in policies/<name>/: the obs and policy components put
-# it first on their include paths, and these definitions arm the generated
-# headers' #error guards, so a wrong include order cannot build the wrong
-# policy. It is a CMake cache variable -- it sticks to its build directory,
-# so give each profile its own (-B).
+# Empty: the DEPLOYED policy. A profile name (`idf.py -B build/firmware-v6legs
+# -DBIMO_POLICY=v6legs build`, or `make firmware POLICY=v6legs`) selects that
+# policy profile instead. Either way the set's headers are GENERATED into the
+# repo's build/policy/<set>/ (`make policy`, which `make firmware` runs first);
+# the obs, policy and linkproto components put that directory first on their
+# include paths, and a profile's definitions arm the generated headers' #error
+# guards, so a wrong include order cannot build the wrong policy. It is a CMake
+# cache variable -- it sticks to its build directory, so give each profile its
+# own (-B).
 set(BIMO_POLICY "" CACHE STRING
-    "policy profile under firmware/policies/ (empty: the deployed policy)")
+    "policy profile in firmware/deployed/policies.txt (empty: the deployed policy)")
 if(BIMO_POLICY)
-    if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/policies/${BIMO_POLICY}/obs/obs_spec.h")
-        message(FATAL_ERROR "BIMO_POLICY=${BIMO_POLICY}: no "
-                "firmware/policies/${BIMO_POLICY}/obs/obs_spec.h")
-    endif()
+    set(BIMO_POLICY_DIR "${CMAKE_CURRENT_LIST_DIR}/../build/policy/${BIMO_POLICY}")
+else()
+    set(BIMO_POLICY_DIR "${CMAKE_CURRENT_LIST_DIR}/../build/policy/deployed")
+endif()
+get_filename_component(BIMO_POLICY_DIR "${BIMO_POLICY_DIR}" ABSOLUTE)
+if(NOT EXISTS "${BIMO_POLICY_DIR}/obs/obs_spec.h")
+    message(FATAL_ERROR "${BIMO_POLICY_DIR}/obs/obs_spec.h is missing: the "
+            "policy headers are generated -- run `make policy` (or `make "
+            "firmware`) at the repo root")
+endif()
+if(BIMO_POLICY)
     string(TOUPPER "${BIMO_POLICY}" _bimo_policy_uc)
     idf_build_set_property(COMPILE_DEFINITIONS
         "BIMO_POLICY_OVERLAY;BIMO_POLICY_PROFILE_${_bimo_policy_uc}" APPEND)
