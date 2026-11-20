@@ -82,9 +82,14 @@ XDIST_GROUPS = {
 }
 
 
-def pytest_collection_modifyitems(config, items):
-    import pytest
+import pytest
 
+
+# tryfirst: xdist's own modifyitems hook reads the xdist_group markers to tag
+# each nodeid "@<group>"; a marker added after it is silently ignored and the
+# group's tests scatter over the workers.
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
     for item in items:
         group = XDIST_GROUPS.get(item.module.__name__.rsplit(".", 1)[-1])
         if group:

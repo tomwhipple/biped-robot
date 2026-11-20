@@ -43,7 +43,7 @@
 # with [4]+[5] (cmake-check, then tidy: both use build/host-cmake), [7] and
 # [8-9] (firmware, then firmware-powerlite: both use firmware/sdkconfig); [2]
 # and [3] start when [1] is done (they read what it built in
-# firmware/host/build) and run side by side; [6] starts when [2] and [3] are
+# firmware/host/build) and run side by side; [6] starts when [1], [2] and [3] are
 # done (it may delete firmware/host/build). [2] runs pytest-xdist workers
 # (`make pytest`: PYTEST_WORKERS, default 8; 0 = one process). Each gate keeps
 # its own log, <git dir>/prepush-logs/<stamp>-<pid>/<target>.log, next to the
@@ -314,6 +314,9 @@ else
 fi
 
 if [ -n "$cpp" ]; then
+  # without Python changes nothing above waited for [1]; tidy-gui must not
+  # touch firmware/host/build while host is still building it
+  await host
   launch "6/9 clang-tidy-gui" tidy-gui
 fi
 await $STARTED

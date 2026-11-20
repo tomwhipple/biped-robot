@@ -71,7 +71,7 @@ way by hand; `make prepush` runs every gate the hook can.
 The hook runs the gates that share nothing at the same time: `host` starts
 with `cmake-check` then `tidy`, `cppcheck` and `firmware` then
 `firmware-powerlite`; `pytest` and `sil-suite` start once `host` is done (they
-read what it built); `tidy-gui` starts once both are done (it may delete
+read what it built); `tidy-gui` starts once all three are done (it may delete
 `firmware/host/build`). Each gate's output goes to its own log in
 `<git dir>/prepush-logs/<stamp>-<pid>/`, next to the combined
 `<stamp>-<pid>.log`, and a failing gate prints `FAIL: <gate>` and its log path.
