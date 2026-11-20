@@ -94,6 +94,13 @@ End your reply with exactly one line:
 EOF
 } > "$P"
 
+# Stay on the Claude plan, never extra usage (Tom 2026-11-19): no fixer session while
+# the weekly window is at the cap or unknown. The caller treats this as not fixed.
+USAGE_OK_CMD=${USAGE_OK_CMD:-$HOME/code/claude-runs/bin/usage-ok}
+if [[ -x $USAGE_OK_CMD ]] && ! WHY=$("$USAGE_OK_CMD"); then
+  log "fixer skipped: $WHY"
+  exit 1
+fi
 log "fixer start (timeout ${TMIN} min, prompt $P)"
 uid=$(id -u)
 cd "$HOME/code/robot" || cd "$HOME"
