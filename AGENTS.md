@@ -270,9 +270,11 @@ learned by breaking something:
   A released, loaded STS3215 back-drives: the Plan B bench dropped a bottle
   this way (2026-10-01, experiments/plan-b-bench). Any abort away from plumb
   keeps torque on.
-- **Film every hardware session**, from before the port opens until a few
-  seconds after it closes (`tools/cam_record.sh`). Still frames before and
-  after could not show how that drop happened.
+- **Film whenever an agent moves the servos**, from before the port opens
+  until a few seconds after it closes (`tools/cam_record.sh`). Still frames
+  before and after could not show how that drop happened. A session in which
+  no agent moves a servo (a board on the bench, measurements by hand) needs no
+  film.
 
 ## Sourcing and documentation
 

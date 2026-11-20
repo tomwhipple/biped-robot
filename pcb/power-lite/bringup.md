@@ -22,8 +22,11 @@ as you go, and stop at the first reading that is outside its range (see
 | [3. The BMS and the pack on the board](#part-3-the-bms-and-the-pack-on-the-board) | the whole power path, on the real pack | the pack |
 | [4. The relay closing onto the servos](#part-4-the-relay-closing-onto-the-servos) | the inrush does not trip the BMS, and the E-stop always opens the rail | the robot's servos |
 
-**`SERVO_EN` is driven by hand throughout.** The firmware that drives the relay, reads the
-E-stop and checks for a stuck rail is in PR #229 and is not on `main` yet (#218). One lab
+**`SERVO_EN` is driven by hand throughout, with J12's far ends on a breadboard, not on the
+General Driver.** The firmware that drives the relay, reads the E-stop and checks for a stuck
+rail is on `main` behind the power-lite build option (PR #229); the README's
+[bench check with the ESP32](README.md#the-bench-check-with-the-esp32) repeats these checks
+with it. One lab
 supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the breadboard's
 **+ rail**.
 - **`SERVO_EN`** is driven from the + rail through **three 470 Ω in series** (the **drive
@@ -54,8 +57,11 @@ supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the
 - **Never connect the + rail straight to a J12 wire.** `SERVO_EN` goes only through the three
   470 Ω, `ESTOP_N` only through the 47 kΩ. Straight to 12 V, `SERVO_EN` would push about 24 mA
   into Q1's base, and `ESTOP_N` would put the supply across Q2 whenever the E-stop is at RUN.
-- **Film every powered step** (AGENTS.md), from before the first connection until after the
-  last disconnection, with the meter's display in frame where you can.
+- **Film whenever an agent moves the servos** (AGENTS.md), from before the port opens until
+  after it closes. Nothing in this guide does, so filming is optional.
+- **The breadboard rig never goes on a J12 lead that is plugged into the General Driver.** Its
+  pull-up and drive row would put the + rail's 12 V on IO4 and IO16. Unplug J12 from the
+  General Driver first.
 
 ## What you need
 
@@ -71,7 +77,7 @@ supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the
 | 14 AWG wire, clip leads, a small breadboard | rig wiring; 14 AWG for anything carrying 12 A | |
 | the J12 lead and the E-stop lead | from the assembly guide's [Make the leads](assembly.md#make-the-leads) | |
 | a PHR-2 housing with its two contacts joined | a J11 jumper | or the E-stop lead with the toggle at RUN |
-| camera on a stand | filming | |
+| camera on a stand | optional: filming | |
 | optional: an oscilloscope, an IR thermometer | the inrush trace (Part 4); the load and the BMS's temperatures (1.7) | |
 
 ## Part 0: Set up

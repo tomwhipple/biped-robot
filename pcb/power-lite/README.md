@@ -155,8 +155,8 @@ hardware half `firmware/main/power_rail.cpp`.
 ### The bench check, with the ESP32
 
 Bring-up step 2 below, the ESP32 in place of the 3.3 V on J12.2, with the lab supply at
-12.0 V, 0.5 A, no BMS, no pack and no servos. Flash the power-lite image; film it from
-before the port opens (AGENTS.md). Type on the tether:
+12.0 V, 0.5 A, no BMS, no pack and no servos. Flash the power-lite image. No servo is
+connected, so filming is optional (AGENTS.md). Type on the tether:
 
 1. **Boot.** `rail` reads OFF, `SERVO_EN` low, `RAIL_V` about 0 V, `ESTOP_N` low, no
    latch, no fault. J12.2 reads 0 V, and K1 did not click during the reset.

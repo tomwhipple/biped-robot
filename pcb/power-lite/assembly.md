@@ -269,7 +269,6 @@ then tug the wire to check it is held.
 
 1. **Fit the fuses:** 15 A in F1 (the upper holder) and 3 A in F2 (the lower one).
 2. **Bring the board up on the lab supply**, without the BMS or the pack: the README's step 2.
-   Film the session (AGENTS.md).
 
 ## Step 13: wire the BMS and the main switch
 
