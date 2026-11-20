@@ -90,6 +90,20 @@ if [[ $MODE == addendum ]] && [[ -z $(find "$N/queue/done" -maxdepth 1 -type f -
   exit 0
 fi
 
+# Stay on the Claude plan, never extra usage (Tom 2026-11-19): no planner session while
+# the weekly window is at the cap or unknown (~/code/claude-runs/bin/usage-ok). Not
+# "done", so the next trigger (05:30 / 07:15 / 07:30) tries again; if every trigger
+# skips, ensure_queue.sh still tops the night up from fallback.job at 21:30. A missing
+# gate script does not block the planner.
+USAGE_OK_CMD=${USAGE_OK_CMD:-$HOME/code/claude-runs/bin/usage-ok}
+if [[ -x $USAGE_OK_CMD ]] && ! WHY=$("$USAGE_OK_CMD"); then
+  QN=$(ls "$N/queue" | grep -cE '^[0-9]' || true)
+  echo "$(date +%H:%M) planner skipped: $WHY"
+  notify "planner skipped: $WHY. $QN jobs queued; ensure_queue.sh tops the night up at 21:30."
+  echo "=== $(date) plan_morning skipped (Claude usage) ==="
+  exit 0
+fi
+
 # the planner's own worktree, reset to origin/main every morning
 git -C "$RB" fetch -q origin
 if [[ ! -d $WT ]]; then
