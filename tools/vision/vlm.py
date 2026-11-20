@@ -54,21 +54,37 @@ LABEL_RULES = {
                        "cable across the near end on 11-16 before 21:05Z): null.",
 }
 
-PROMPT = (
+_SETUP = (
     "This is a frame from a camera watching a small two-legged robot (about 40 cm tall: a box-shaped torso "
     "on two long legs made of servos and brackets) that walks on a brown wooden board on the floor. Its "
     "red/black tether cable and the square black-and-white printed markers on the board and on the robot "
     "are normal. The camera may show only part of the robot.\n"
-    "Answer each question about this frame with true or false:\n"
-    + "".join(f"- {k}: {q}\n" for k, q in QUESTIONS.items())
-    + "Also give a one-sentence description in \"note\". Reply with JSON only."
 )
 
-SCHEMA = {
-    "type": "object",
-    "properties": {**{k: {"type": "boolean"} for k in QUESTIONS}, "note": {"type": "string"}},
-    "required": [*QUESTIONS, "note"],
+# Two prompt styles (the bake-off ran both, see README "Layer E"):
+#   "answer-first": the three booleans, then a one-sentence note;
+#   "describe-first": the model first describes the robot's pose and everyone/everything near it, then answers
+#   (the JSON keys are generated in schema order, so the description is written before the booleans).
+PROMPTS = {
+    "answer-first": (
+        _SETUP + "Answer each question about this frame with true or false:\n"
+        + "".join(f"- {k}: {q}\n" for k, q in QUESTIONS.items())
+        + "Also give a one-sentence description in \"note\". Reply with JSON only.",
+        {"type": "object",
+         "properties": {**{k: {"type": "boolean"} for k in QUESTIONS}, "note": {"type": "string"}},
+         "required": [*QUESTIONS, "note"]}),
+    "describe-first": (
+        _SETUP + "First, in \"note\", describe in one or two sentences what you see: the robot's pose (standing, "
+        "stepping, leaning, tipping over, lying on its side, being held) and every person, hand, leg, animal or "
+        "loose object on or near the board. Then answer each question with true or false:\n"
+        + "".join(f"- {k}: {q}\n" for k, q in QUESTIONS.items())
+        + "Reply with JSON only.",
+        {"type": "object",
+         "properties": {"note": {"type": "string"}, **{k: {"type": "boolean"} for k in QUESTIONS}},
+         "required": ["note", *QUESTIONS]}),
 }
+DEFAULT_PROMPT = "describe-first"
+PROMPT, SCHEMA = PROMPTS[DEFAULT_PROMPT]
 
 
 def _post(url, body, timeout_s):
@@ -99,10 +115,11 @@ def parse_answer(text):
     return out
 
 
-def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s=600.0, prompt=PROMPT):
+def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s=600.0, prompt=DEFAULT_PROMPT):
     """-> dict(answer={...}|None, raw=str, error=str|None, total_s, load_s, prompt_eval_s, eval_s).
     Never raises on a model or network failure: the error is returned (a second opinion that is down is
     reported as missing, not as a clean frame)."""
+    text, schema = PROMPTS[prompt]
     with open(image_path, "rb") as f:
         img = base64.b64encode(f.read()).decode()
     opts = {"temperature": 0}
@@ -110,8 +127,8 @@ def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s
         opts["num_thread"] = int(num_thread)
     if cpu:
         opts["num_gpu"] = 0
-    body = dict(model=model, stream=False, format=SCHEMA, options=opts, keep_alive="10m",
-                messages=[dict(role="user", content=prompt, images=[img])])
+    body = dict(model=model, stream=False, format=schema, options=opts, keep_alive="10m",
+                messages=[dict(role="user", content=text, images=[img])])
     t = time.time()
     try:
         r = _post(host.rstrip("/") + "/api/chat", body, timeout_s)
@@ -120,6 +137,6 @@ def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s
     raw = (r.get("message") or {}).get("content", "")
     ns = lambda k: round(r.get(k, 0) / 1e9, 2)
     ans = parse_answer(raw)
-    return dict(answer=ans, raw=raw, error=None if ans else "unparseable answer", total_s=ns("total_duration"),
+    return dict(answer=ans, raw=raw, prompt=prompt, error=None if ans else "unparseable answer", total_s=ns("total_duration"),
                 load_s=ns("load_duration"), prompt_eval_s=ns("prompt_eval_duration"), eval_s=ns("eval_duration"),
                 prompt_tokens=r.get("prompt_eval_count"), eval_tokens=r.get("eval_count"))

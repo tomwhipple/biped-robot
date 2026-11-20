@@ -90,7 +90,10 @@ def test_ask_sends_cpu_options_schema_and_image(tmp_path, fake_ollama):
     path, body = _Fake.seen[-1]
     assert path == "/api/chat" and body["model"] == "m:1" and body["stream"] is False
     assert body["options"]["num_gpu"] == 0 and body["options"]["num_thread"] == 12 and body["options"]["temperature"] == 0
-    assert set(body["format"]["required"]) == set(V.QUESTIONS) | {"note"}
+    assert body["format"]["required"] == ["note", *V.QUESTIONS]          # describe-first: the note is generated first
+    assert body["messages"][0]["content"] == V.PROMPTS["describe-first"][0]
+    V.ask(jpg, "m:1", fake_ollama, prompt="answer-first")
+    assert _Fake.seen[-1][1]["format"]["required"] == [*V.QUESTIONS, "note"]
     assert base64.b64decode(body["messages"][0]["images"][0]) == open(jpg, "rb").read()
     # cpu=False leaves num_gpu to the server
     V.ask(jpg, "m:1", fake_ollama, num_thread=None, cpu=False)
@@ -148,10 +151,10 @@ def test_run_model_resumes_and_scores(tmp_path, fake_ollama):
     B.run_model(m, "fake:1", fake_ollama, ad, frames_dir=str(tmp_path / "set"), log=lambda *a: None)
     B.run_model(m, "fake:1", fake_ollama, ad, frames_dir=str(tmp_path / "set"), log=lambda *a: None)
     assert len(_Fake.seen) == 2                                  # the second run had nothing left to do
-    sc = B.score_all(m, ad)["fake:1"]
+    sc = B.score_all(m, ad)["fake:1 (describe-first)"]
     assert sc["frames"] == 2 and sc["labels"]["person_or_animal"]["recall"] == 1.0
     assert sc["labels"]["robot_upright"]["recall"] == 1.0 and sc["s_per_frame_median"] >= 0
-    assert "| fake:1 |" in B.markdown({"fake:1": sc})
+    assert "| fake:1 (describe-first) |" in B.markdown({"fake:1 (describe-first)": sc})
     tab = B.per_frame(m, ad)
     assert "| f3 |  | P u o | P u o |" in tab                  # the fake agrees with both labels
 

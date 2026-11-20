@@ -133,15 +133,16 @@ def grab(video, ats, out_dir):
 
 # ---------------------------------------------------------------- running a model over the set
 
-def answers_path(answers_dir, model):
-    return os.path.join(answers_dir, model.replace(":", "_").replace("/", "_") + ".jsonl")
+def answers_path(answers_dir, model, prompt=vlm.DEFAULT_PROMPT):
+    return os.path.join(answers_dir, model.replace(":", "_").replace("/", "_") + f"__{prompt}.jsonl")
 
 
-def run_model(manifest, model, host, answers_dir, frames_dir=OUT_DIR, num_thread=12, timeout_s=600.0, log=print):
+def run_model(manifest, model, host, answers_dir, frames_dir=OUT_DIR, num_thread=12, timeout_s=600.0, log=print,
+              prompt=vlm.DEFAULT_PROMPT):
     """Ask `model` about every frame; one JSON line per frame (raw text, parsed answer, timings). Frames already in
     the file are skipped, so an interrupted run resumes."""
     os.makedirs(answers_dir, exist_ok=True)
-    path = answers_path(answers_dir, model)
+    path = answers_path(answers_dir, model, prompt)
     done = set()
     if os.path.exists(path):
         done = {json.loads(l)["id"] for l in open(path) if l.strip()}
@@ -150,8 +151,9 @@ def run_model(manifest, model, host, answers_dir, frames_dir=OUT_DIR, num_thread
             if it["id"] in done:
                 continue
             w0 = time.time()
-            r = vlm.ask(frame_path(it, frames_dir), model, host, num_thread=num_thread, timeout_s=timeout_s)
-            r.update(id=it["id"], model=model, host=host, wall_s=round(time.time() - w0, 2), num_thread=num_thread)
+            r = vlm.ask(frame_path(it, frames_dir), model, host, num_thread=num_thread, timeout_s=timeout_s, prompt=prompt)
+            r.update(id=it["id"], model=model, prompt=prompt, host=host, wall_s=round(time.time() - w0, 2),
+                     num_thread=num_thread)
             out.write(json.dumps(r) + "\n")
             out.flush()
             a = r.get("answer") or {}
@@ -160,7 +162,8 @@ def run_model(manifest, model, host, answers_dir, frames_dir=OUT_DIR, num_thread
 
 
 def score(manifest, answers):
-    """answers: {id: parsed answer dict or None}. -> per label: tp fp fn tn, precision, recall, accuracy, unanswered.
+    """answers: {id: parsed answer dict or None (asked, no usable answer)}; frames not in answers were not asked and
+    are left out. -> per label: tp fp fn tn, precision, recall, accuracy, unanswered.
     'Positive' is the event the second opinion is for: person/animal yes, upright NO (= not upright), object yes."""
     pos = vlm.POSITIVE
     res = {}
@@ -168,7 +171,7 @@ def score(manifest, answers):
         c = dict(tp=0, fp=0, fn=0, tn=0, unanswered=0)
         for it in manifest["frames"]:
             truth = it["labels"][k]
-            if truth is None:
+            if truth is None or it["id"] not in answers:
                 continue
             a = (answers.get(it["id"]) or {}).get(k)
             if a is None:
@@ -199,8 +202,9 @@ def score_all(manifest, answers_dir):
         rows = {k: v for k, v in rows.items() if k in ids}
         if not rows:
             continue
-        model = next(iter(rows.values()))["model"]
-        sec = sorted(r["wall_s"] for r in rows.values())
+        r0 = next(iter(rows.values()))
+        model = f"{r0['model']} ({r0.get('prompt', 'answer-first')})"
+        sec = sorted(r["total_s"] if r.get("total_s") else r["wall_s"] for r in rows.values())   # server time, no queueing
         out[model] = dict(frames=len(rows), of=len(ids), errors=sum(1 for r in rows.values() if r.get("error")),
                           s_per_frame_median=sec[len(sec) // 2], s_per_frame_max=sec[-1],
                           labels=score(manifest, {k: v.get("answer") for k, v in rows.items()}))
@@ -226,7 +230,8 @@ def per_frame(manifest, answers_dir):
         if fn.endswith(".jsonl"):
             rows = load_answers(os.path.join(answers_dir, fn))
             if rows:
-                models[next(iter(rows.values()))["model"]] = rows
+                r0 = next(iter(rows.values()))
+                models[f"{r0['model']} ({r0.get('prompt', 'answer-first')})"] = rows
 
     def code(vals, truth=None):
         out = ""
@@ -261,6 +266,7 @@ def main(argv=None):
     r.add_argument("--model", action="append", required=True)
     r.add_argument("--host", default=vlm.DEFAULT_HOST)
     r.add_argument("--num-thread", type=int, default=12, help="CPU threads (ollama num_thread); 0 = server default")
+    r.add_argument("--prompt", choices=sorted(vlm.PROMPTS), default=vlm.DEFAULT_PROMPT)
     for p in (r, s):
         p.add_argument("--answers-dir", default=os.path.join(OUT_DIR, "answers"))
     s.add_argument("--md", action="store_true", help="print a markdown table instead of JSON")
@@ -275,7 +281,7 @@ def main(argv=None):
             print(p)
     elif a.cmd == "run":
         for model in a.model:
-            run_model(m, model, a.host, a.answers_dir, a.frames, a.num_thread or None)
+            run_model(m, model, a.host, a.answers_dir, a.frames, a.num_thread or None, prompt=a.prompt)
     else:
         if a.frames_table:
             print(per_frame(m, a.answers_dir))
