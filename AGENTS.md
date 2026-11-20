@@ -158,7 +158,7 @@ pushed to `main` is invisible to the trainer. This is not a style rule — an
 rsync of a hand-curated file list once silently missed a plant XML and trained
 against a stale robot for two days.
 
-Training runs at night only (22:00, no new job after 05:00, hard stop 07:00);
+Training runs at night only (22:00, no new job after 06:45, hard stop 07:00);
 days belong to the owner of the box. GPU BOUNDARY: the 07:00 hard stop
 binds EVERY GPU job on this box, not just night_run-launched trainings.
 Standalone GPU runs (foot-contacts probes and friends) must wait for the
