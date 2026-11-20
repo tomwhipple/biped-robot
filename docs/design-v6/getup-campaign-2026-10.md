@@ -360,9 +360,12 @@ night 1 measured by hand with the same phase, 11.26 s).
 | robot_legs_prec88_march_both_sagdr (+ _s1, _s2; _s3 extra) | 11-18 | prec74_march_both recipe (init prec16) | plant: `--roll-play-deg` → `--footoff-sag L=3.2:9.6,R=1.45:4.35` (the march line re-opens for one night) | on D: march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls, ≥ 2 of 3 seeds (parent 0/3, one-sided) | | | | | **not held (0/3)**: march5 robot on D lifts R only on every seed (R min 4.9 / 6.6 / 6.2 cm, s3 5.2; L ≤ 0.1 cm; shift on R-up 0.60 – 0.72; roll −5.0 to −7.3 deg, leaning over the stance foot); the same on A, B, C. x1.5 on D 8/8, 0/0, 0/0 (s3 8/8). **The march parks again 11-19** |
 | robot_legs_prec89_march_ul_sagdr (+ _s1, _s2; _s3 extra) | 11-18 | prec73_march_ul recipe (init prec16, no AND term) | plant → the DR sag | as prec88 (parent 0/3, R only) | | | | | **not held (0/3)**: R only on every seed (R min 5.0 / 5.6 / 6.2, s3 4.5 cm; L ≤ 0.0); x1.5 on D 0/0 on all four |
 | robot_legs_prec90_march_both_sagdr_i86 (+ _s1, _s2; _s3 extra) | 11-18 | prec88_march_both_sagdr (arm MB) | warm start robot_legs_prec86_walk_sagdr (a walk trained on the DR sag) instead of prec16 | as prec88, and more two-sided seeds than MB | | | | | **not held (0/3)**: R only on every seed (R min 4.9 / 5.9 / 5.3, s3 6.2; L ≤ 0.2); the sag-trained warm start changes nothing; s2 does not walk (fwd dx 0.32) |
-| robot_legs_prec91_walk_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | the stepper-shaped reference: `--mimic-dwell 0.3 --mimic-sway 0.075 --gait-freq 0.5,0.55` (double support, the same swing duration) | on D: steps5 0.3 robot shift ≥ 0.6 on both feet, WALKS, x1.5 no worse than GD, ≥ 2 of 3 seeds | | | | | |
-| robot_legs_prec92_walk_sagdr_sw75 (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | `--mimic-sway 0.075` only (control: no dwell, the parent's clock) | the shift stays < 0.6 on the weaker foot (as prec82 on the inset sole) | | | | | |
-| robot_legs_prec93_march_both_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec88_march_both_sagdr (MB) recipe | the stepper-shaped reference: `--mimic-dwell 0.3`, sway 0.035 → 0.075, `--gait-freq 0.5,0.55` | on D: march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls, ≥ 2 of 3 seeds (MB 0/4) | | | | | |
+| robot_legs_prec91_walk_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | the stepper-shaped reference: `--mimic-dwell 0.3 --mimic-sway 0.075 --gait-freq 0.5,0.55` (double support, the same swing duration) | on D: steps5 0.3 robot shift ≥ 0.6 on both feet, WALKS, x1.5 no worse than GD, ≥ 2 of 3 seeds | | | | || **not held (1/3)**: steps5 shift on D (L-up / R-up) −0.64/+0.73, −0.54/+0.39, −0.57/+0.54 (s3 −0.53/+0.65); the one seed past 0.6 does NOT walk (walk → stop dx2.5 < 0.3) and is x1.5 6/8 (GD 0/8); 3 of 4 do not walk (slow clock: fwd dx +0.50 – +0.65 vs GD +0.96), side L lost on s14 and s17 (dy −0.01 / +0.01). **The clock-reference line is finished 11-20 (pre-committed)**; seeds 18 – 22 run 11-20 as replicates of the dwell effect only |
+| robot_legs_prec92_walk_sagdr_sw75 (+ _s1, _s2; _s3 extra) | 11-19 | prec86_walk_sagdr (GD) recipe | `--mimic-sway 0.075` only (control: no dwell, the parent's clock) | the shift stays < 0.6 on the weaker foot (as prec82 on the inset sole) | | | | || **held (control, 3/3)**: shift on D −0.53/+0.29, −0.44/+0.53, −0.49/+0.35 (< 0.6 on the weaker foot on every seed); all three WALK, all six directions; x1.5 on D 0/8, 4/8, 0/8. s3 queued 11-20 |
+| robot_legs_prec93_march_both_sagdr_dw (+ _s1, _s2; _s3 extra) | 11-19 | prec88_march_both_sagdr (MB) recipe | the stepper-shaped reference: `--mimic-dwell 0.3`, sway 0.035 → 0.075, `--gait-freq 0.5,0.55` | on D: march5 robot lifts BOTH feet ≥ 3 cm on every step, 0 falls, ≥ 2 of 3 seeds (MB 0/4) | | | | || **not held (0/4)**: march5 robot on D lifts R only on every seed (R min 5.0 / 5.9 / 5.4, s3 8.3 cm; L ≤ 0.2 cm; shift on R-up 0.68 – 0.75; roll −4.9 to −6.8 deg); none walks; side L lost on all four. **The march stays parked** |
+| robot_legs_prec91_walk_sagdr_dw_s4 – _s8 (seeds 18 – 22) | 11-20 | prec91 recipe unchanged | none (replicates) | with DS at the same seeds: DW's median steps5 shift on D over seeds 14 – 21 exceeds DS's by ≥ 0.10 on BOTH feet (the dwell effect is real; a fact for the next reference, not a candidate) | | | | | |
+| robot_legs_prec92_walk_sagdr_sw75_s3 – _s8 (seeds 17 – 22) | 11-20 | prec92 recipe unchanged | none (replicates; the control for the dwell) | as above | | | | | |
+| robot_legs_prec86_walk_sagdr_s6, _s7 (seeds 20, 21) | 11-20 | prec86 recipe unchanged | none (replicates; GD at the same 8 seeds 14 – 21) | GD stays the walk pool on the sag plant (WALKS, six directions) | | | | | |
 
 ## Nights
 
@@ -3720,3 +3723,81 @@ built and stepped on CPU, and pre-flight passed 24/24.
 **Pre-committed:** if neither DW nor DM holds, the clock-reference RL line is finished for both walk and march. The next step
 is then the robot itself (repair, #297) and the #259 gate, not another reference variable. If the build is not on main by 21:00,
 tonight runs extra seeds of GD (prec86_walk_sagdr from s6, the fallback) and the dwell arms move to tomorrow.
+
+### Night of 2026-11-19 (evaluated 2026-11-20)
+
+**The stepper-shaped reference (`--mimic-dwell`): neither the walk arm nor the march arm holds. As pre-committed on 11-19, the
+clock-reference RL line is finished for walk and march.** No new reference variable goes on the queue until the robot is back
+(#297: no hardware session since 11-16) or #259 names a plant. Tonight runs replicates only. Stride only; get-up stays parked.
+Nothing in this entry needs Tom.
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (1ad5dbc, then dc0bf93 from 05:01), origin verified. Seed 14 of
+each arm ran 21:44 – 23:53; the rest ran 23:53 – 05:43. The 40-min reserve installed on 11-19 worked: prec93 s3 was capped at 271M,
+and its distil finished at 05:43 with no exit 4 and **no fixer runs**. DS s3 (seed 17) fitted only 131M of 300M (< 50 %), so it
+stays queued and runs first tonight. Collection ran 05:43 – 05:58, with no STALE REFEREE.
+
+**Merged / branched:** nothing bears on stride. Main gained only the power-lite firmware and BMS records, battery telemetry
+(#109), the vision layer E bake-off (#316) and harness/pre-push plumbing (#329, #330, #333). No plant, env or grade changes, so
+the comparisons stand. Open PRs #334, #325, #206 and #71 do not touch training.
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag `sag_L=6.4,sag_R=2.9`), A (as trained), B (play) and C (play +
+inset sole). Output is in `/tmp/plan1120/grade{A,B,C,D}.*`. The controls are the parents GD prec86_walk_sagdr and MB
+prec88_march_both_sagdr, re-graded.
+
+| student | steps5 0.3 robot shift L-up / R-up, D | same, C | steps5 lift L / R cm, D | WALKS | fwd / back / side L / side R, D | x1.5 falls, D |
+|---|---|---|---|---|---|---|
+| GD prec86_walk_sagdr (parent) | −0.57 / +0.39 | −0.21 / +0.32 | 2.9 / 3.1 | yes | +0.96 −0.80 +0.48 −0.42 | 0/8 |
+| DW prec91_walk_sagdr_dw | **−0.64 / +0.73** | −0.39 / +0.27 | 3.1 / 2.4 | **no** | +0.65 −0.60 **−0.01** −0.22 | 6/8 |
+| DW _s1 | −0.54 / +0.39 | −0.40 / +0.37 | 3.1 / 1.8 | yes | +0.58 −0.58 +0.21 −0.26 | 0/8 |
+| DW _s2 | −0.57 / +0.54 | −0.19 / +0.31 | 2.9 / 2.8 | **no** | +0.63 −0.52 +0.26 −0.23 | 0/8 |
+| DW _s3 (extra) | −0.53 / +0.65 | −0.18 / +0.36 | 3.2 / 2.2 | **no** | +0.50 −0.47 **+0.01** −0.18 | 0/8 |
+| DS prec92_walk_sagdr_sw75 | −0.53 / +0.29 | −0.32 / +0.14 | 3.3 / 2.0 | yes | +0.49 −0.94 +0.39 −0.45 | 0/8 |
+| DS _s1 | −0.44 / +0.53 | −0.28 / +0.20 | 2.7 / 2.4 | yes | +0.91 −0.75 +0.43 −0.32 | 4/8 |
+| DS _s2 | −0.49 / +0.35 | −0.24 / +0.29 | 2.8 / 1.6 | yes | +0.75 −0.82 +0.38 −0.29 | 0/8 |
+| MB prec88_march_both_sagdr (parent) | march5: R only (L 0.1 / R 4.9 cm) | | | yes | +0.87 −0.73 +0.38 −0.36 | 8/8 |
+| DM prec93_march_both_sagdr_dw | march5: R only (L 0.1 / R 5.0), shift R-up 0.68 | | | no | +0.45 −0.61 +0.01 −0.08 | 8/8 |
+| DM _s1 | R only (L 0.1 / R 5.9), 0.75 | | | no | +0.62 −0.45 −0.02 −0.02 | 0/8 |
+| DM _s2 | R only (L −0.1 / R 5.4), 0.75 | | | no | +0.54 −0.64 −0.01 −0.30 | 0/8 |
+| DM _s3 (extra) | R only (L 0.2 / R 8.3), 0.68 | | | no | +0.58 −0.61 −0.01 −0.26 | 8/8 |
+
+Shifts and lifts are means over the 8 grade seeds. "WALKS" is grade.py's walk → stop dx2.5 ≥ 0.3 m. A matches D within 0.06
+everywhere. B is like C: every shift ≤ 0.5 on the weaker foot.
+
+**Hypotheses** (pre-committed: plant D, ≥ 2 of seeds 14 – 16):
+- **DW: not held (1 of 3).** Only seed 14 reaches 0.6 on both feet. That seed does not walk, loses side L, and falls 6/8 at
+  x1.5 (GD: 0/8). Seed 17 (extra) has R-up 0.65 but L-up 0.53. The dwell's slower clock (0.5 – 0.55 Hz) costs speed: fwd travel
+  is +0.50 – +0.65 m against GD's +0.96, so 3 of 4 seeds fail the WALKS rule. Two of 4 seeds lose side L.
+- **DS (the control): held, 3 of 3.** Sway alone does not reach 0.6 on the weaker foot (R-up 0.29 / 0.53 / 0.35), just as on the
+  inset sole on 11-16. All three walk in all six directions.
+- **DM: not held (0 of 4).** Every seed lifts R only, on a left stance, leaning 4.9 – 6.8 deg over it, the same as MB on 11-18.
+  The dwell does not bring the left foot up, and it costs the walk: no DM seed walks, and all four lose side L.
+- **What the dwell did:** it raised the shift over the control on D, by a median of 0.60 vs 0.35 on R-up and 0.56 vs 0.49 on
+  L-up (seeds 14 – 17 vs 14 – 16). It was below the bar, and it did not carry to C (DW −0.18 to −0.40 / +0.27 – +0.37 vs DS
+  −0.24 to −0.32 / +0.14 – +0.29: a small R-up gain only). That is the one open question, and tonight's replicates answer it
+  (below).
+- **Distil gap** (card seed-passes, teacher → student): DW 22→19, 18→22, 26→30, 21→20; DS 28→31, 29→35, 32→20; DM 21→17,
+  21→23, 20→21, 28→18. The median is +0.5 and the range −12 to +6. The distil is not the limit.
+
+**Ranking:** no march, walk or robot candidate. The walk pool on the sag plant stays GD (prec86_walk_sagdr, six seeds that walk
+in six directions, x1.5 0/8 on D). #259 has not passed: its latest comment is still 11-11, and #297 (11-17) has no new plant
+term. The robot is down.
+
+**Stop and decide (rule 4; my choice, rule 0, pre-committed 11-19): the clock-reference RL line is finished.** It covered 11
+nights of walk-shift and march references (sway sizes, lead, lift, march AND terms, mirror loss, play / inset-sole / sag plants,
+and now a double-support dwell), with no hardware-confirmed gain. Seeds pick a side (play plants) or always R (sag plants). The
+weaker foot's shift has not passed ~0.6 in ≥ 2 of 3 seeds on any plant. The next useful step needs the robot: the repair
+(#297), then #259's gate and the sway ladder (#260) on hardware. Tom's direction since 11-11 is that hardware iteration leads.
+So that is not an ask: the robot's return is already on his list.
+
+**Tonight (2026-11-20): replicates only, no new variable.** Arms DW, DS and GD, unchanged recipes, BRANCH=main, the DR sag
+plant, 300M + distil each, interleaved per seed (DW → DS → GD):
+- DS seed 17 (left from last night) first;
+- DW seeds 18 – 22 (prec91_walk_sagdr_dw_s4 – _s8);
+- DS seeds 18 – 22 (prec92_walk_sagdr_sw75_s4 – _s8);
+- GD seeds 20, 21 (prec86_walk_sagdr_s6, _s7).
+That is 13 pairs, and the last (seed 22) may stay queued under the fit rule. Pre-flight passed 26/26.
+
+**Pre-committed (replicates):** across seeds 14 – 21, if DW's median steps5 0.3 robot shift on D exceeds DS's by ≥ 0.10 on
+BOTH feet, the dwell effect is real. That is a fact for whatever reference follows the robot's data, not a candidate. Otherwise
+it was seed noise. Either way, no new reference variable is queued from it. GD at seeds 14 – 21 is the walk pool and the
+control. Fallback: GD (`fallback.job`, seed 23; previous `fallback.job.prec91-20261120`).
