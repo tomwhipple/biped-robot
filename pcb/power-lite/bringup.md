@@ -270,6 +270,8 @@ simulation in the README's [Checks](README.md#checks) where it gives one.*
   - pin 5, `RAIL_V`: free, for the meter;
   - pin 2, `SERVO_EN`: free. Put three 470 Ω in series from the + rail to a spare row, the
     **drive row**. Touching the `SERVO_EN` wire to the drive row is "`SERVO_EN` high".
+  - First, with the lead plugged into J12, meter each of the four wires to its pad on the
+    back of J12 (pin 1 is the square pad): 0 Ω. An open wire reads like a good one in 2.2.
 - **J11:** nothing plugged in yet. Open means "E-stop pressed".
 
 Measure every voltage below against **W2 (ground)**, or J12 pin 3, which is the same net.
