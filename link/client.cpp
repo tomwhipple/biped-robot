@@ -68,6 +68,35 @@ const char* faultIds(uint32_t servo_err, char* buf, size_t cap) {
     return buf;
 }
 
+const char* powerText(const Telemetry& t, char* buf, size_t cap) {
+    if (cap == 0) return buf;
+    if (!t.have_pwr) {
+        snprintf(buf, cap, "pack: no power block (older firmware, or a twin)");
+        return buf;
+    }
+    static const char* const kLevel[] = {"ok", "WARN (land it)", "LANDING", "SAFE (latched)"};
+    const char* lvl = t.batt < 4 ? kLevel[t.batt] : "?";
+    int n = t.pack_mv != 0
+                ? snprintf(buf, cap, "pack %.2f V  batt %s", t.pack_mv / 1000.0, lvl)
+                : snprintf(buf, cap, "pack --  batt %s", lvl);
+    if (n < 0 || static_cast<size_t>(n) >= cap) return buf;
+    if (t.pwr_flags & kPwrLite) {
+        size_t at = static_cast<size_t>(n);
+        if (t.pwr_flags & kPwrRailValid) {
+            n = snprintf(buf + at, cap - at, "  rail %.2f V", t.rail_mv / 1000.0);
+        } else {
+            n = snprintf(buf + at, cap - at, "  rail --");
+        }
+        if (n < 0 || static_cast<size_t>(n) >= cap - at) return buf;
+        at += static_cast<size_t>(n);
+        snprintf(buf + at, cap - at, "%s%s%s",
+                 (t.pwr_flags & kPwrServoEn) ? " SERVO_EN" : "",
+                 (t.pwr_flags & kPwrEstop) ? " E-STOP" : "",
+                 (t.pwr_flags & kPwrEstopLatched) ? " latched" : "");
+    }
+    return buf;
+}
+
 bool splitHostPort(const char* spec, char* host, size_t cap, int& port) {
     if (spec == nullptr || cap == 0) return false;
     const char* colon = strrchr(spec, ':');
@@ -503,6 +532,7 @@ void Intent::frame(const Speeds& s, float& vx, float& vy, float& wz,
     flags = 0;
     if (want_pose) flags |= kFlagPose;    // a request, not a command
     if (want_att) flags |= kFlagAtt;      // likewise
+    if (want_pwr) flags |= kFlagPwr;      // likewise
     // Before every early return below, and gated on nothing: a servo reset
     // must reach the robot from the states that refuse to move -- E-stopped,
     // disarmed, fall-latched. That is the whole reason it is its own bit.

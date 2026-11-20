@@ -184,7 +184,11 @@ void draw(const Options& o, const Link& link, const Intent& in, const Hold& hold
     if (link.have_tlm) {
         const Telemetry& t = link.tlm;
         mvprintw(row++, R, "state    %s", bimo::stateName(t.state));
-        mvprintw(row++, R, "vbat     %.2f V", static_cast<double>(t.vbat_v));
+        mvprintw(row++, R, "vbat     %.2f V (servos)", static_cast<double>(t.vbat_v));
+        {
+            char pw[96];
+            mvprintw(row++, R, "%s", bimo::powerText(t, pw, sizeof pw));
+        }
         mvprintw(row++, R, "up_z     %.2f", static_cast<double>(t.up_z));
         mvprintw(row++, R, "vx_est   %+.2f m/s   wz_est %+.2f rad/s",
                  static_cast<double>(t.vx_est), static_cast<double>(t.wz_est));
