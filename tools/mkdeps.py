@@ -46,6 +46,12 @@ GENERATORS = [
     "sim/render_link_demo.py",
     "tools/gen_protocol_vectors.py",
     "tools/gen_flightrec_vectors.py",
+    "tools/gen_wcli_vectors.py",
+    "tools/policy_profile.py",
+    "tools/gen_envelope.py",
+    "tools/gen_obs_spec.py",
+    "tools/export_policy_weights.py",
+    "tools/gen_policy_weights.py",
     "tools/servo_map_figure.py",
 ]
 

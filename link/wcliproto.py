@@ -3,7 +3,7 @@
 docs/wifi-cli.md is the manual and the threat model. This module is the
 REFERENCE for the wire format: firmware/components/wcli conforms to it byte
 for byte, and tools/gen_wcli_vectors.py freezes this encoder's output into
-firmware/host/vectors/wcli_vectors.h for the C++ host test.
+build/host/vectors/wcli_vectors.h (`make vectors`) for the C++ host test.
 
 Every datagram (little-endian):
 

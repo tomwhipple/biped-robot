@@ -169,14 +169,19 @@ SEQ_RESYNC_GAP = 1000
 
 # -- trained command envelope ----------------------------------------------
 # The envelope is the deployed policy's, GENERATED from its run's config.json
-# by tools/gen_envelope.py (`make deploy RUN=...`) into link/cmd_envelope.py
-# and linkproto/cmd_envelope.h; never edited here. $BIMO_POLICY=<profile>
-# selects that profile's twin (firmware/policies/<profile>/linkproto/), as
-# for sim/sil/harness.py. The policy has only ever seen a stand (0,0), a walk
+# by tools/gen_envelope.py (`make policy`, or `make envelope` for just this)
+# into build/policy/deployed/linkproto/cmd_envelope.py beside the firmware's
+# cmd_envelope.h; never edited here. $BIMO_POLICY=<profile> selects that
+# profile's twin (build/policy/<profile>/linkproto/), as for
+# sim/sil/harness.py. The policy has only ever seen a stand (0,0), a walk
 # with vx in [V_FWD_MIN, V_FWD_MAX] or [-V_BACK_MAX, -V_BACK_MIN], a sidestep
 # with |vy| in [VY_MIN, VY_MAX], and turns |wz| <= W_MAX; a speed in the hole
 # under a band's minimum is an out-of-distribution query, not a slow walk.
 # clamp_to_envelope() closes that hole by snapping; see also sources.py.
+#
+# Loaded on first use, not at import: a tool that never clamps a command
+# (tools/estop.py, the arm script) must import this module on a checkout
+# that has not run `make` yet.
 class Envelope(NamedTuple):
     """Magnitudes, >= 0. A band that was never trained is (0, 0)."""
     v_fwd_min: float
@@ -194,28 +199,55 @@ def load_envelope(mod) -> "Envelope":
     return Envelope(*(getattr(mod, f.upper()) for f in Envelope._fields))
 
 
-def _import_envelope():
-    profile = os.environ.get("BIMO_POLICY") or None
-    if profile is None:
-        import cmd_envelope
-        return cmd_envelope
-    if not re.fullmatch(r"[a-z0-9_]+", profile):
+def envelope_path(profile=None) -> str:
+    """build/policy/<set>/linkproto/cmd_envelope.py (tools/policy_profile.py
+    files()["envelope_py"]; this module stays stdlib-only, so it is spelled
+    out here)."""
+    if profile is not None and not re.fullmatch(r"[a-z0-9_]+", profile):
         raise ValueError("BIMO_POLICY %r: lower-case letters, digits, _" % profile)
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
-        __file__))), "firmware", "policies", profile, "linkproto",
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
+        __file__))), "build", "policy", profile or "deployed", "linkproto",
         "cmd_envelope.py")
+
+
+def _import_envelope():
+    path = envelope_path(os.environ.get("BIMO_POLICY") or None)
+    if not os.path.exists(path):
+        raise ImportError(
+            "%s is missing: the command envelope is generated from the "
+            "deployed run (firmware/deployed/). Run `make envelope` (or "
+            "`make policy`) at the repo root." % path)
     spec = importlib.util.spec_from_file_location("cmd_envelope", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-ENVELOPE = load_envelope(_import_envelope())
-V_FWD_MIN, V_FWD_MAX = ENVELOPE.v_fwd_min, ENVELOPE.v_fwd_max
-V_BACK_MIN, V_BACK_MAX = ENVELOPE.v_back_min, ENVELOPE.v_back_max
-VY_MIN, VY_MAX = ENVELOPE.vy_min, ENVELOPE.vy_max
-W_MAX = ENVELOPE.w_max
-CROUCH_MIN = ENVELOPE.crouch_min
+_ENVELOPE = None
+_ENVELOPE_NAMES = {"ENVELOPE": None,
+                   "V_FWD_MIN": "v_fwd_min", "V_FWD_MAX": "v_fwd_max",
+                   "V_BACK_MIN": "v_back_min", "V_BACK_MAX": "v_back_max",
+                   "VY_MIN": "vy_min", "VY_MAX": "vy_max",
+                   "W_MAX": "w_max", "CROUCH_MIN": "crouch_min"}
+
+
+def envelope() -> "Envelope":
+    """The selected policy's envelope, loaded once."""
+    global _ENVELOPE
+    if _ENVELOPE is None:
+        _ENVELOPE = load_envelope(_import_envelope())
+    return _ENVELOPE
+
+
+def __getattr__(name):
+    # ENVELOPE, V_FWD_MIN ... CROUCH_MIN: module attributes resolved on first
+    # use (PEP 562), so `from protocol import V_FWD_MAX` still works.
+    if name in _ENVELOPE_NAMES:
+        f = _ENVELOPE_NAMES[name]
+        return envelope() if f is None else getattr(envelope(), f)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
 # not from a run's config: the swing-foot offsets are scripted, not drawn
 FOOT_D_MAX = 0.05          # traj_radius hi: air-circle/march foot offsets, m
 
@@ -301,7 +333,7 @@ class ArmResult(Enum):
     # The robot reads registers 21/22 back before every arm and refuses on
     # any difference from its compiled expected table.
     REFUSED_GAINS = 10   # arm refused: a servo's P/D (reg 21/22) is not the expected value
-    # A policy profile (firmware/policies/) can compile in an UNTRAINED test
+    # A policy profile (tools/policy_profile.py) can compile in an UNTRAINED test
     # net while its plant has no deployable policy; the robot will not drive
     # servos with it.
     REFUSED_POLICY = 11  # arm refused: the compiled-in net is not a policy
@@ -596,7 +628,7 @@ def clamp_to_envelope(vx: float, wz: float, env: "Envelope" = None) -> tuple:
     Enforced robot-side (not just at the source) because the robot is the one
     that eats a bad command, and we do not control every future sender.
     """
-    env = ENVELOPE if env is None else env
+    env = envelope() if env is None else env
     wz = max(-env.w_max, min(env.w_max, wz))
     # The untrained band under a minimum: snap to a stand rather than
     # interpolate into it; a turn-in-place (vx=0, wz!=0) IS trained, so wz
@@ -611,7 +643,7 @@ def clamp_ext_to_envelope(pkt: "Command", env: "Envelope" = None) -> tuple:
     """The extended channels, snapped into their trained draws.
 
     Returns (vy, crouch, lift, foot_dx, foot_dz)."""
-    env = ENVELOPE if env is None else env
+    env = envelope() if env is None else env
     vy = _clamp_band(abs(pkt.vy), env.vy_min, env.vy_max)
     return (-vy if pkt.vy < 0.0 and vy else vy,
             max(env.crouch_min, min(1.0, pkt.crouch)),

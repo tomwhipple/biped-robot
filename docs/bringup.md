@@ -254,10 +254,10 @@ No policy is flashed until it passes all of the following, offline:
    - Run the SIL twin, `sim/sil_twin.py` (nominal plant) with `--act-delay-ticks 4` for the servo's dead time.
    - Over the last 3 s of a 6 s stand, every joint must rest **within 2° of home** and the torso **within 1°**.
 4. **Build.** Then run:
-   - `make -C firmware/host deploy-headers RUN=<run>`;
-   - the host tests;
+   - `make deploy RUN=<run>`, and commit `firmware/deployed/`;
+   - the host tests (`make host`);
    - SIL ([sim/sil/README.md](../sim/sil/README.md));
-   - `idf.py -C firmware build`.
+   - `make firmware`.
 5. **Check.** Flash, then check that `stat` names the run, and run `imu reinit` and `imu scan`.
 
 A policy that scores well in the referee can still fail tick 1 or twin rest.

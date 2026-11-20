@@ -28,12 +28,18 @@ calibration marks the neck and arms (IDs 13–17) not fitted
 ## Build and flash
 
 ```sh
+make firmware                           # the policy headers, then the image, in build/firmware
 env -u VIRTUAL_ENV bash                 # export.sh will not run inside a virtualenv
 . ~/esp/esp-idf/export.sh
-idf.py -C firmware set-target esp32     # once, for a fresh build directory
-idf.py -C firmware build
-idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
+idf.py -C firmware -B build/firmware -p /dev/cu.usbserial-XXXX flash monitor
 ```
+
+- The policy headers the image compiles in (`obs/obs_spec.h`,
+  `policy/weights.h`, `linkproto/cmd_envelope.h`) are generated, into
+  `build/policy/<set>/`, from the deployed run's inputs in `deployed/`. `make
+  firmware` runs `make policy` first, so it needs the repo's Python venv and
+  the plant (`make plant-data`) as the tests do. A bare `idf.py build` refuses
+  to configure until `make policy` has run.
 
 - `export.sh` uses the first `python3` on `PATH`, and it must be the Python
   ESP-IDF's `install.sh` was run with. ninja is optional (`brew install
@@ -58,11 +64,12 @@ The pre-push hook (`.githooks/pre-push`) also runs the target build; it finds
 ESP-IDF through `idf.py` on `PATH` or `$IDF_PATH`.
 
 **Which policy.** The image carries the deployed policy unless a **policy
-profile** is named: `idf.py -C firmware -B build/firmware-v6legs
--DBIMO_POLICY=v6legs build` (or `make firmware POLICY=v6legs`) builds the v6
-legs-only robot's 12-joint policy from `policies/v6legs/` instead. Give each
+profile** is named: `make firmware POLICY=v6legs` (`idf.py -C firmware -B
+build/firmware-v6legs -DBIMO_POLICY=v6legs build`) builds the v6 legs-only
+robot's 12-joint policy from `build/policy/v6legs/` instead. Give each
 profile its own build directory: `BIMO_POLICY` is a CMake cache variable. The
-`v6legs` profile holds the (128, 128) walk14 student
+policy sets are the lines of `deployed/policies.txt`. The
+`v6legs` profile holds the (128, 128) walk16_act student
 ([training.md §9](../docs/training.md), "Policy profiles"). `v6legs256` holds an **int8** (256, 256) deploy candidate
 (`robot_legs_walk16_act_s256r24`, the fast-servo distill of walk16_act;
 experiments/policy/int8-256), the way a net wider than (128, 128) fits the tick
@@ -110,7 +117,7 @@ hardware-touching files are excluded by construction.
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
-| `sil_golden` | the firmware against the sim's own numbers in `sim/sil/golden/*.json`. The obs cases always run; the policy cases run only when the golden run's `.silw` is present and are skipped otherwise |
+| `sil_golden` | the firmware against the sim's own numbers in the set's `golden/*.json` (`make policy`). The obs cases always run; the policy cases run against the exported `.silw` beside them (`weights/`), or else against the compiled-in net |
 | `flightrec` | the flight recorder's tick/event/hello encoders byte-for-byte against vectors from `tools/flightrec.py` (the collector's decoder), decode round trips and rejects, the producer ring |
 | `client` | the console core in `link/`: intent, frame-length rule, keymap file, MJPEG parser, recorder, the servo-fault ID list |
 | `wcli` | the Wi-Fi CLI ([docs/wifi-cli.md](../docs/wifi-cli.md)): SHA-256/HMAC against FIPS/RFC 4231 vectors, the wire format against vectors from `link/wcliproto.py`, the session's authentication, replay and cross-session replay, at-most-once execution, cancel, busy, the output window, and the Wi-Fi allowlist |
@@ -125,20 +132,32 @@ Other targets:
 make -C firmware/host sil       # build/libctrl_sil.{dylib,so} only
 make -C firmware/host tui       # build/bimo_tui
 make -C firmware/host deps gui  # build/bimo_gui (fetches pinned Dear ImGui + stb into third_party/)
-make -C firmware/host vectors   # regenerate protocol_vectors.h from link/protocol.py
 make -C firmware/host build/wcli_twin   # the Wi-Fi CLI's robot half on a localhost socket (tests/test_wcli.py)
-make -C firmware/host deploy-headers RUN=<run>   # obs_spec.h + weights.h + cmd_envelope.h (+ vectors) from one run
 make -C firmware/host test POLICY=v6legs   # one policy profile's build (`test` alone runs every profile too)
-make -C firmware/host deploy-headers RUN=<run> POLICY=v6legs   # into policies/v6legs/
 ```
 
-`obs_spec.h`, `weights.h`, `linkproto/cmd_envelope.h` (the command envelope
-the robot enforces; `link/cmd_envelope.py` is its Python twin), the files in
-`host/vectors/` and everything under
-`policies/` are generated (AGENTS.md lists the generators); never hand-edit
-them. The deployed
-headers change only together, and only because somebody named the run to
-deploy.
+At the repo root:
+
+```sh
+make policy                     # every policy set, from deployed/, into build/policy/<set>/
+make vectors                    # protocol, flight-recorder, Wi-Fi CLI vectors into build/host/vectors/
+make deploy RUN=<run>           # deploy a run: its inputs into deployed/, then make policy
+make deploy RUN=<run> POLICY=v6legs   # point a policy profile at a run (QUANT=int8: an int8 net)
+```
+
+`make host` builds both first; `make -C firmware/host` alone does not, and
+says so. The policy headers (`obs/obs_spec.h`, `policy/weights.h`,
+`linkproto/cmd_envelope.h` and its Python twin `cmd_envelope.py`, which
+`link/protocol.py` reads), their vectors and the SIL golden files are
+generated per set into `build/policy/<set>/`, never committed and never
+hand-edited (AGENTS.md lists the generators). Git tracks their inputs in
+`deployed/`: `policies.txt` (each set's run and net format), `runs/<run>/`
+(`config.json`, `params.pkl`), `q8/<set>.npz` (an int8 set's kernels, quantized
+on the plant of its deploy day) and `headers.sha256` (the headers' bytes as
+deployed, which every rebuild must reproduce). The headers change only
+together, and only because somebody ran `make deploy`; commit `deployed/`
+after it. `host/vectors/flail_vectors.h` stays committed: it comes from a
+gitignored recording.
 
 ## Module map
 
@@ -149,7 +168,8 @@ firmware/
                         1 s task watchdog, 4 MB flash / no PSRAM, SNTP settings,
                         the custom partition table
   partitions.csv        nvs + phy_init at the stock offsets, a 3 MB app partition
-  policies/<profile>/   a second compiled-in policy's generated headers (BIMO_POLICY)
+  deployed/             what the policy headers are generated from: policies.txt (the
+                        sets), runs/<run>/ (config.json, params.pkl), q8/, headers.sha256
   main/                 everything that touches ESP-IDF
     board.h             the pinout, from the vendor schematic
     app_main.cpp        NVS, UARTs, IMU, calibration restore, torque off, start tasks
@@ -179,10 +199,10 @@ firmware/
     scsbus/             Feetech SCS/STS protocol: codec, transactions, registers;
                         the guarded gain write and the gain check (gains.h)
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux;
-                        cmd_envelope.h (generated): the trained command envelope
+                        (cmd_envelope.h, generated: the trained command envelope)
     obs/                obs assembler, history, gait clock, actuation maps, shaper;
-                        bus_map.h (the 17-servo bus); obs_spec.h (generated)
-    policy/             static MLP forward pass; weights.h (generated); q8.h/.cpp and
+                        bus_map.h (the 17-servo bus); (obs_spec.h, generated)
+    policy/             static MLP forward pass; (weights.h, generated); q8.h/.cpp and
                         q8_mac16.S, the int8 forward pass of a quantized profile
     imu/                Imu interface, frame maths, Fusion, QMI8658C driver, StubImu
     battguard/          pack under-voltage guard; pack.h: the INA219 sense, pure
@@ -195,16 +215,22 @@ firmware/
     flightrec/          flight-recorder wire format (tick/event/hello) and the lock-free ring
     wcli/               the Wi-Fi CLI: SHA-256/HMAC, wire codec, session logic, allowlist
   host/                 host build: Makefile + CMakeLists, 15 test suites, the SIL
-                        library (sil.h, sil_lib.cpp, sil_net.cpp), wcli_twin, vectors/
+                        library (sil.h, sil_lib.cpp, sil_net.cpp), wcli_twin,
+                        vectors/flail_vectors.h
+build/policy/<set>/     generated (make policy): obs/, policy/, linkproto/, vectors/,
+                        golden/, weights/ -- first on the include path
+build/host/vectors/     generated (make vectors): the protocol, flightrec, wcli vectors
 tools/
-  gen_protocol_vectors.py   link/protocol.py -> host/vectors/protocol_vectors.h
-  gen_flightrec_vectors.py  tools/flightrec.py -> host/vectors/flightrec_vectors.h
-  gen_wcli_vectors.py       link/wcliproto.py -> host/vectors/wcli_vectors.h
+  policy_profile.py         the policy sets: make policy's driver, make deploy
+  gen_protocol_vectors.py   link/protocol.py -> protocol_vectors.h
+  gen_flightrec_vectors.py  tools/flightrec.py -> flightrec_vectors.h
+  gen_wcli_vectors.py       link/wcliproto.py -> wcli_vectors.h
   gen_obs_spec.py           run config + MJCF -> obs/obs_spec.h + obs_vectors.h
   gen_envelope.py           run config.json (+ env defaults) -> linkproto/cmd_envelope.h,
-                            link/cmd_envelope.py + cmd_envelope_vectors.h
+                            linkproto/cmd_envelope.py + cmd_envelope_vectors.h
   gen_policy_weights.py     <run>.silw -> policy/weights.h + policy_vectors.h (--quant int8:
-                            GPTQ-rounded int8, policy_q8.py)
+                            int8 kernels from deployed/q8/, or GPTQ-rounded afresh at
+                            deploy, policy_q8.py)
   policy_q8.py              numpy mirror of the int8 forward pass; offline GPTQ rounding
 ```
 

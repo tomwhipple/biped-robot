@@ -98,7 +98,7 @@ void testWeightsAreTheDeployedPolicy() {
     // is a real, refereed, distilled policy -- not the scaffold. Regenerating
     // the placeholder (`--placeholder`) turns this red on purpose.
     //
-    // A policy PROFILE (firmware/policies/<name>, BIMO_POLICY) may carry an
+    // A policy PROFILE (BIMO_POLICY=<name>, tools/policy_profile.py) may carry an
     // untrained test net instead (tools/make_test_policy_run.py) while its
     // plant has no deployable policy: its golden vectors still pin the
     // arithmetic, and the firmware refuses to arm on it (cli.cpp armRefused).

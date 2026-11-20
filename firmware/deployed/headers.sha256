@@ -1,0 +1,15 @@
+# sha256 of the generated policy headers as deployed (tools/policy_profile.py,
+# `make deploy`); `make policy` checks the files it builds into build/policy/
+# against these. Never edit by hand.
+9e8e7cfe0b8374b3ed053e81b94b18c621cd963d3c0f6af2da959951f9aebae1  deployed/linkproto/cmd_envelope.h
+3b465669653ad53a91169821ea2bca0059b9e1df361a0c80e51e0cf11c58864d  deployed/linkproto/cmd_envelope.py
+69fcd250b338b3f51eeed5f5e73af8af7be0aebd39ec00f1b4b52a4631cd7bfe  deployed/obs/obs_spec.h
+a3845f94758276cd3191748e191765ae609011b6912ad3768150f100a3f6d737  deployed/policy/weights.h
+2d41671e94440fa0c6cab6a42f77b3dd5ead705e203fc9cf10bb95c9d1ea771c  v6legs/linkproto/cmd_envelope.h
+2c25c258e16080664bdd9c7a0ea170b291efffccdfcd4ada7c24e051f2cd614f  v6legs/linkproto/cmd_envelope.py
+cbde5abfd2037d8c1c2c26b0e8930aa9f0a4db345a9fbef3189b10dd3a7d9cac  v6legs/obs/obs_spec.h
+fb2f8f48fe4b541a89446b2e0966804a585722c10e421a8260eb4d69a9d8ca88  v6legs/policy/weights.h
+10434345360d87cbff132839618927be08d0c658f9dcdf0021d4bdd25ce7ded7  v6legs256/linkproto/cmd_envelope.h
+ac090301599286f9c0d01fb42049e338c609379b1dc9022232e8c5355b135d23  v6legs256/linkproto/cmd_envelope.py
+414b87ba1319bbe51582f2e415f55330a7d0a994641731f6d3e99e9ffd8fc198  v6legs256/obs/obs_spec.h
+7402f5c7e2507fec8c674c4a096d994318a020cb79280df2c2c04bed98d719c5  v6legs256/policy/weights.h

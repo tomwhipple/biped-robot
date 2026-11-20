@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(ROOT, "link"))
 
 import protocol as P  # noqa: E402
 
-OUT = os.path.join(ROOT, "firmware", "host", "vectors", "protocol_vectors.h")
+OUT = os.path.join(ROOT, "build", "host", "vectors", "protocol_vectors.h")
 
 # -- the command frames we freeze -------------------------------------------
 CMD_CASES = [

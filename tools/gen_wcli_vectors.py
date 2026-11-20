@@ -6,7 +6,7 @@ Run:  .venv/bin/python tools/gen_wcli_vectors.py     (or `make vectors`)
 The Wi-Fi CLI wire format is written twice: in Python on mira (the client,
 link/wcliproto.py -- the reference) and in C++ on the robot
 (firmware/components/wcli). This writes the key derivation and, per case, the
-fields and the bytes Python produced into firmware/host/vectors/wcli_vectors.h;
+fields and the bytes Python produced into build/host/vectors/wcli_vectors.h;
 firmware/host/test_wcli.cpp encodes the fields and asserts the same bytes,
 and decodes the bytes back. A moved field, a different MAC input or a
 different key label fails there, not on the bench.
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(ROOT, "link"))
 
 import wcliproto as W  # noqa: E402
 
-OUT = os.path.join(ROOT, "firmware", "host", "vectors", "wcli_vectors.h")
+OUT = os.path.join(ROOT, "build", "host", "vectors", "wcli_vectors.h")
 
 KEY = bytes(range(0x40, 0x60))   # 32 bytes, obviously not random
 

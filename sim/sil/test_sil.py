@@ -133,8 +133,7 @@ def test_obs_spec_parsed():
 def _weights_h_source_sha():
     """The sha256 prefix gen_policy_weights.py stamped into weights.h."""
     import re
-    path = os.path.join(ROOT, "firmware", "components", "policy", "include",
-                        "policy", "weights.h")
+    path = H.policy_profile.files()["weights_h"]
     with open(path) as f:
         head = f.read(2000)
     m = re.search(r"Source\s*:\s*\S+\.silw \(sha256 ([0-9a-f]+)\)", head)
@@ -154,7 +153,7 @@ def test_goldens_headers_and_harness_agree_on_one_run():
     for name in ("policy_vectors.json", "obs_vectors.json"):
         g = H.load_golden(name)
         assert g["run"] == H.DEPLOYED_RUN, (
-            f"sim/sil/golden/{name} is {g['run']}, the headers are "
+            f"the golden {name} is {g['run']}, the headers are "
             f"{H.DEPLOYED_RUN}: re-export with tools/export_policy_weights.py "
             f"--run {H.DEPLOYED_RUN}")
     # The committed sidecar is the bridge from the goldens to the flashed

@@ -161,7 +161,7 @@ rows of §3.3 and §4 change in one commit.
 
 The **policy joint set** is the joints the compiled policy observes and
 commands, a subset of the bus joints. Its source of truth is
-`firmware/components/obs/include/obs/obs_spec.h` (`kJointNames`, `kServoId`):
+the generated `obs/obs_spec.h` (`build/policy/<set>/`, `make policy`; `kJointNames`, `kServoId`):
 
 - `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `build/v6/sim/bimo_biped_v6legs.xml`, and `ID_BY_ROLE`.
 - `firmware/host/test_obs.cpp` pins it.

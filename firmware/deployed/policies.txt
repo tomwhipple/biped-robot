@@ -1,0 +1,16 @@
+# The policies the firmware is built with (tools/policy_profile.py).
+#
+# One line per policy set: its name, the run it carries, and its net format.
+# `make policy` generates every set into build/policy/<set>/ from the run's
+# inputs in firmware/deployed/runs/<run>/ (config.json, params.pkl) and, for
+# an int8 set, its quantized kernels in firmware/deployed/q8/<set>.npz.
+# `deployed` is the policy a plain build flashes; any other name is a policy
+# profile (BIMO_POLICY=<set>, `make firmware POLICY=<set>`).
+#
+# Never edit by hand: `make deploy RUN=<run> [POLICY=<set>] [QUANT=int8]`
+# copies the run's inputs here and rewrites its line.
+#
+# set       run                             quant
+deployed    robot_legs_walk16_act_s128r24   float
+v6legs      robot_legs_walk16_act_s128r24   float
+v6legs256   robot_legs_walk16_act_s256r24   int8

@@ -150,9 +150,9 @@ carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
 - The exporter asserts activation and dimensions against the run's config.
   The C reader accepts the headed blob or a headerless `--raw` one,
   cross-checks the sidecar when present, and errors on disagreement.
-- The exporter also writes golden vectors to `sim/sil/golden/` unless given
-  `--no-golden`. Those files are committed and consumed by the firmware host
-  tests, so only a deliberate re-point should overwrite them.
+- The exporter also writes golden vectors (default: the policy set's
+  `build/policy/<set>/golden/`) unless given `--no-golden`. `make policy`
+  generates them from the deployed run; the firmware host tests consume them.
 - `.silw` blobs are gitignored and regenerated from the run's `params.pkl`;
   sidecars, golden vectors and calibration files are committed.
 
@@ -176,7 +176,7 @@ The item numbers are cited from code.
    boundary end to end — angle → ticks → angle within one tick quantum under
    each calibration, the bus permutation, the parsers; `test_sil_golden`
    checks the firmware's frames and actions against the sim's own numbers in
-   `sim/sil/golden/`; `test_policy` checks the compiled-in net against numpy
+   `build/policy/<set>/golden/`; `test_policy` checks the compiled-in net against numpy
    goldens.
 2. **Boundary** (pytest, `sim/sil`): the servo-side view round-trips against
    `walker_env`'s joint state, and the synthesised IMU matches the env's
@@ -308,9 +308,9 @@ deployed one (`robot_legs_walk16_act_s128r24` on `bimo_biped_v6legs.xml`):
 
 - The harness does not keep its own default. `harness.DEFAULT_RUN` is
   `obs::kRunName`, read out of the generated `obs_spec.h`, so
-  `make -C firmware/host deploy-headers RUN=<run>` re-points the suite in
-  the same step (`SIL_RUN` still overrides it).
-- The goldens in `sim/sil/golden/` and the committed sidecar
+  `make deploy RUN=<run>` re-points the suite in the same step (`SIL_RUN`
+  still overrides it).
+- The goldens in `build/policy/deployed/golden/` and the committed sidecar
   `weights/<run>.silw.json` are exported from the same `params.pkl` as
   `weights.h`: the sidecar's blob sha256 is the one `gen_policy_weights.py`
   stamps into the header. `test_goldens_headers_and_harness_agree_on_one_run`

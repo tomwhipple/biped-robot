@@ -25,6 +25,8 @@ cppcheck --inline-suppr \
     --suppress=missingIncludeSystem \
     --suppressions-list="$HOST_DIR/cppcheck-suppressions.txt" \
     --std=c++17 --language=c++ \
+    -I"$ROOT/build/policy/deployed" \
+    -I"$ROOT/build/host" \
     -I"$ROOT/firmware/components/scsbus/include" \
     -I"$ROOT/firmware/components/linkproto/include" \
     -I"$ROOT/firmware/components/obs/include" \

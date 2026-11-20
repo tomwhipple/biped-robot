@@ -2,7 +2,7 @@
 //
 // link/protocol.py is the REFERENCE. This file conforms to it byte for byte,
 // never the other way round, and tools/gen_protocol_vectors.py freezes the
-// Python side's output into host/vectors/protocol_vectors.h so a divergence is
+// Python side's output into build/host/vectors/protocol_vectors.h so a divergence is
 // a failing test rather than a mystery on the bench. See docs/control-channel.md.
 //
 // Everything here is pure: no sockets, no clock (the Watchdog takes now_ms as
@@ -171,10 +171,10 @@ constexpr uint32_t kSeqResyncGap = 1000;   // bigger backwards jump = restart
 // -- trained command envelope ----------------------------------------------
 // The deployed policy's envelope -- forward, backward and lateral speed
 // bands, turn limit, crouch floor -- is GENERATED from its run's config.json
-// by tools/gen_envelope.py (`make deploy RUN=...`) into cmd_envelope.h, and
-// link/cmd_envelope.py is its Python twin. A policy profile
-// (firmware/policies/<profile>/linkproto/) carries its own, first on the
-// include path. Never edit them by hand. clampToEnvelope() below enforces it.
+// by tools/gen_envelope.py (`make policy`) into cmd_envelope.h, and its
+// cmd_envelope.py beside it is the Python twin. Each policy set has its own
+// (build/policy/<set>/linkproto/), first on the include path. Never edit
+// them by hand. clampToEnvelope() below enforces it.
 // Not from a run's config: the swing-foot offsets are scripted, not drawn
 // (protocol.py FOOT_D_MAX).
 constexpr float kFootDMax = 0.05f;  // traj_radius hi: foot offsets, m
@@ -264,7 +264,7 @@ enum class ArmResult : uint8_t {
     // (scsbus::checkPositionGains) and refuses on any difference from the
     // compiled expected table (main/servo_gains.h).
     kRefusedGains = 10,  // arm refused: a servo's P/D is not the expected value
-    // A policy profile (firmware/policies/, BIMO_POLICY) can compile in an
+    // A policy profile (BIMO_POLICY, tools/policy_profile.py) can compile in an
     // UNTRAINED test net while its plant has no deployable policy
     // (policy::kWeightsArePlaceholder). It exists to golden-test the
     // firmware path; driving servos with it is never what anyone meant.

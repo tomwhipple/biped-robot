@@ -47,9 +47,8 @@ command, not by switching policies.
             |                      28 scored scenarios x 8 seeds (§8)
   sim/mjx/distill_student.py       DAgger: teacher -> (128,128) student (§9)
             |
-  tools/export_policy_weights.py   params.pkl -> sim/sil/weights/<run>.silw
-  make -C firmware/host deploy-headers RUN=<run>
-            |                      -> obs_spec.h + weights.h + golden vectors
+  make deploy RUN=<run>            config.json + params.pkl -> firmware/deployed/
+            |                      make policy -> obs_spec.h + weights.h + golden vectors
   eval_precision.py --sil          SIL: the real firmware code driving the CPU plant
             v
       idf.py flash                 50 Hz on the ESP32
@@ -896,31 +895,39 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
 
 **Deployment**, in order:
 
-1. `tools/export_policy_weights.py --run <student>` →
-   `sim/sil/weights/<student>.silw` (little-endian f32 with a self-describing
-   header, plus a JSON sidecar) and golden forward-pass vectors in
-   `sim/sil/golden/`.
-2. `make -C firmware/host deploy-headers RUN=<student>` runs both generators;
-   the headers change together, and only when someone names the run:
-   - `tools/gen_obs_spec.py --run` → `obs_spec.h`: the layout, joint table,
-     limits, home pose, clock settings, and the action-index → bus-ID
+1. `make deploy RUN=<student>` copies the run's `config.json` and
+   `params.pkl` into `firmware/deployed/runs/<student>/`, points the deployed
+   line of `firmware/deployed/policies.txt` at it, generates the set and pins
+   the headers' bytes in `firmware/deployed/headers.sha256`. Commit
+   `firmware/deployed/`: it is the deploy. The headers are never committed;
+   `make policy` (which `make firmware`, `make host` and the tests run) builds
+   them from those inputs into `build/policy/deployed/` and refuses to build
+   a header whose bytes differ from its pin, so they change together, and
+   only when someone names the run. Four generators, in order:
+   - `tools/gen_obs_spec.py --run` → `obs/obs_spec.h`: the layout, joint
+     table, limits, home pose, clock settings, and the action-index → bus-ID
      permutation `kServoId` (from `ID_BY_ROLE` in the generator — a genuine
-     permutation), plus `obs_vectors.h` from `walker_env._obs`.
+     permutation), plus `vectors/obs_vectors.h` from `walker_env._obs`.
    - `tools/gen_envelope.py --run` → `linkproto/cmd_envelope.h`, its Python
-     twin `link/cmd_envelope.py` and `cmd_envelope_vectors.h`: the command
-     envelope the robot enforces (§4).
-   - `tools/gen_policy_weights.py --run` → `weights.h`, plus `policy_vectors.h`
-     computed in numpy under the brax semantics the firmware reproduces:
-     normalize, swish hidden layers, a linear `2·act_dim` head, `tanh` of its
-     first half.
-3. `make -C firmware/host test` (golden vectors, host suites) and the SIL
-   column, `eval_precision.py --run-name <student> --sil`.
-4. **Pre-flash checks**: `stand_10s` 8/8 and `stand_off` ≥ 6/8 on the lag
+     twin `linkproto/cmd_envelope.py` (which `link/protocol.py` loads) and
+     `vectors/cmd_envelope_vectors.h`: the command envelope the robot
+     enforces (§4).
+   - `tools/export_policy_weights.py --run` → `weights/<student>.silw`
+     (little-endian f32 with a self-describing header, plus a JSON sidecar)
+     and golden forward-pass vectors in `golden/`.
+   - `tools/gen_policy_weights.py` → `policy/weights.h` from that `.silw`,
+     plus `vectors/policy_vectors.h` computed in numpy under the brax
+     semantics the firmware reproduces: normalize, swish hidden layers, a
+     linear `2·act_dim` head, `tanh` of its first half.
+2. `make host` (golden vectors, host suites) and the SIL column,
+   `eval_precision.py --run-name <student> --sil`.
+3. **Pre-flash checks**: `stand_10s` 8/8 and `stand_off` ≥ 6/8 on the lag
    column; the first action from the home observation ≤ 0.05 on every joint
    (`sim/sil/harness.silw_forward`); and the SIL twin (`sim/sil_twin.py`, the
    firmware stack behind the real UDP link) resting within 2° of home on every
    joint, torso within 1°, over the last 3 s of a 6 s stand.
-5. Build and flash: `idf.py -C firmware build flash` (toolchain setup in
+4. Build and flash: `make firmware`, then `idf.py -C firmware -B
+   build/firmware flash` (toolchain setup in
    [firmware/README.md](../firmware/README.md)). Flashing reboots the board:
    support the robot first ([AGENTS.md](../AGENTS.md), bench safety).
 
@@ -937,20 +944,23 @@ scorecards and reels are on the results page.
 
 The firmware compiles in exactly one policy, chosen at build time. The
 deployed one's generated files are the ones above; a **policy profile** is a
-complete second set for another plant (`tools/policy_profile.py`):
-`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h}`
-and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
+complete second set, for another plant or another net
+(`tools/policy_profile.py`): a line of `firmware/deployed/policies.txt`, built
+by `make policy` into
+`build/policy/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h, golden/, weights/}`
+like the deployed set's `build/policy/deployed/`. A build selects it with
+`BIMO_POLICY=<name>`:
 
 | | deployed | profile `v6legs` |
 |---|---|---|
-| headers | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
+| inputs | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
 | host tests | `make -C firmware/host test` runs the deployed build, then every profile's | `make -C firmware/host test POLICY=v6legs` (into `build/policy-v6legs/`) |
 | ESP32 image | `make firmware` → `build/firmware` | `make firmware POLICY=v6legs` → `build/firmware-v6legs` (`idf.py -DBIMO_POLICY=v6legs`) |
 | SIL | `eval_precision.py --sil` and `sim/sil_twin.py` pick the profile whose `kPlantXml` is the run's plant (`$BIMO_POLICY` for `sim/sil/harness.py`), build its `libctrl_sil`, and refuse a run whose joints or obs layout differ from the compiled spec | |
 
-The profile's directory goes first on the include path, and every generated
-header carries an `#error` guard against the other kind of build, so an
-include-order mistake cannot compile the wrong policy. `link/protocol.py`
+The selected set's directory goes first on the include path, and every
+generated header carries an `#error` guard against the other kind of build, so
+an include-order mistake cannot compile the wrong policy. `link/protocol.py`
 reads the profile's `cmd_envelope.py` when `$BIMO_POLICY` names it. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
@@ -958,8 +968,13 @@ map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 **Int8 profiles.** `make deploy RUN=<run> POLICY=<name> QUANT=int8`
 (`gen_policy_weights.py --quant int8`) writes the profile's net as int8
 (`policy/q8.h`): GPTQ-rounded on CPU-plant rollouts of the float net, which
-the generator runs itself (~10 s), and the head cut to its mean logits. A
-regeneration keeps an int8 profile int8. This is how a net wider than
+the generator runs itself (~10 s), and the head cut to its mean logits. The
+rounding depends on the plant of the deploy day, so the deploy keeps it:
+the kernels and the self-test observation go to
+`firmware/deployed/q8/<name>.npz`, and `make policy` rebuilds the header from
+that file and `params.pkl`, without rollouts. A redeploy keeps an int8
+profile int8, and keeps its kernels unless the run changes or the deploy says
+`QUANT=int8` again. This is how a net wider than
 (128, 128) fits the 20 ms tick ([firmware-design.md §6.1](firmware-design.md)).
 The SIL library of an int8 build runs the compiled-in int8 net when given
 that run's `.silw` (any other run runs float, and the spec's `policy.quant`
@@ -1077,10 +1092,10 @@ JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/eval_precision.py --run-name loco_vN 
     --out loco_vN_s128r24 --rounds 24
 
 # --- deploy ---
-JAX_PLATFORMS=cpu .venv/bin/python tools/export_policy_weights.py --run loco_vN_s128r24
-make -C firmware/host deploy-headers RUN=loco_vN_s128r24
-make -C firmware/host test
-idf.py -C firmware build flash                  # toolchain: firmware/README.md
+make deploy RUN=loco_vN_s128r24                 # then commit firmware/deployed/
+make host
+make firmware                                   # toolchain: firmware/README.md
+idf.py -C firmware -B build/firmware flash
 
 # --- results page ---
 .venv/bin/python sim/build_report.py            # -> sim/runs/night_summary.html

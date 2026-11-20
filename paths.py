@@ -16,8 +16,16 @@ printed parts' STLs (issue #144):
     V6_SIM   build/v6/sim/   the plant XMLs, the servo meshes they cite
                              (meshes/) and terrain_mosaic.npz (`make plant-data`)
 
+So are the firmware's policy headers, from the deployed runs' committed
+inputs in firmware/deployed/ (tools/policy_profile.py):
+
+    build/policy/<set>/   obs spec, weights, command envelope, their vectors,
+                          the .silw and the SIL golden files (`make policy`)
+    build/host/vectors/   the protocol, flight-recorder, Wi-Fi CLI vectors
+                          (`make vectors`)
+
 Still committed, because they are recordings and not rebuildable: the get-up
-references (sim/getup_ref_v6ar*.npz), and the firmware headers.
+references (sim/getup_ref_v6ar*.npz).
 """
 import os
 
