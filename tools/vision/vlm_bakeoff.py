@@ -218,6 +218,32 @@ def markdown(scores):
     return "\n".join(lines)
 
 
+def per_frame(manifest, answers_dir):
+    """Markdown: each frame's labels and every model's answers (P person/animal, U upright, O object; lower case =
+    no, - = not scored / no answer, * = disagrees with the label)."""
+    models = {}
+    for fn in sorted(os.listdir(answers_dir)):
+        if fn.endswith(".jsonl"):
+            rows = load_answers(os.path.join(answers_dir, fn))
+            if rows:
+                models[next(iter(rows.values()))["model"]] = rows
+
+    def code(vals, truth=None):
+        out = ""
+        for k, ch in zip(LABELS, "PUO"):
+            v = (vals or {}).get(k)
+            c = "-" if v is None else (ch if v else ch.lower())
+            if truth is not None and v is not None and truth[k] is not None and v != truth[k]:
+                c += "*"
+            out += c + " "
+        return out.strip()
+    lines = ["| frame | event | label | " + " | ".join(models) + " |", "|" + "---|" * (3 + len(models))]
+    for it in manifest["frames"]:
+        cells = [code((models[m].get(it["id"]) or {}).get("answer"), it["labels"]) for m in models]
+        lines.append(f"| {it['id']} | {it.get('event', '')} | {code(it['labels'])} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -238,6 +264,7 @@ def main(argv=None):
     for p in (r, s):
         p.add_argument("--answers-dir", default=os.path.join(OUT_DIR, "answers"))
     s.add_argument("--md", action="store_true", help="print a markdown table instead of JSON")
+    s.add_argument("--frames-table", action="store_true", help="markdown: every frame's labels and each model's answers")
     a = ap.parse_args(argv)
     if a.cmd == "grab":
         grab(a.video, a.at, a.out)
@@ -250,6 +277,9 @@ def main(argv=None):
         for model in a.model:
             run_model(m, model, a.host, a.answers_dir, a.frames, a.num_thread or None)
     else:
+        if a.frames_table:
+            print(per_frame(m, a.answers_dir))
+            return 0
         sc = score_all(m, a.answers_dir)
         print(markdown(sc) if a.md else json.dumps(sc, indent=1))
     return 0

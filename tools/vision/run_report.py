@@ -41,6 +41,7 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
 
 import cv2
@@ -49,6 +50,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+import camd  # noqa: E402
 import clip as C  # noqa: E402
 import foreign  # noqa: E402
 import implausible as IM  # noqa: E402
@@ -120,6 +122,25 @@ def find_videos(dirs, t0, t1):
             if cover > 0 and os.path.exists(pts[:-4] + ".mp4"):
                 out.append((cover, pts[:-4] + ".mp4"))
     return sorted(out, reverse=True)
+
+
+def cut_clip(video, t0, t1, out):
+    """Cut [t0, t1] with frame accuracy into out (+ out .pts). A camd segment (<source>_<UTC stamp>.mp4, 60 s each)
+    is cut across all of that source's segments in its directory, so a run that spans a minute boundary is whole;
+    any other recording is cut from that one file. -> number of frames (0 = none in range)."""
+    base = os.path.basename(video)
+    if camd.parse_stamp(base) is not None and "_" in base:
+        return C.make_clip(t0, t1, out, os.path.dirname(video), base.rsplit("_", 1)[0])
+    pts = C.read_pts(os.path.splitext(video)[0] + ".pts")
+    idx = [i for i, t in enumerate(pts) if t0 <= t <= t1]
+    if not idx:
+        return 0
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", video, "-vf",
+                    f"select=between(n\\,{idx[0]}\\,{idx[-1]}),setpts=N/25/TB", "-an", "-c:v", "libx264",
+                    "-preset", "veryfast", "-pix_fmt", "yuv420p", "-r", "25", out], check=True)
+    with open(os.path.splitext(out)[0] + ".pts", "w") as f:
+        f.write("# timecode format v2\n" + "".join(f"{pts[i] * 1000:.3f}\n" for i in idx))
+    return len(idx)
 
 
 def pick_videos(dirs, t0, t1):
@@ -296,6 +317,10 @@ def vlm_pass(video, moments, out_dir, name, model, host=V.DEFAULT_HOST, imu=None
     caches, frames = {}, []
     t_all = dt.datetime.now().timestamp()
     for k, (label, t) in enumerate(vlm_moments(moments, max_frames)):
+        if not pts or min(abs(q - t) for q in pts) > 0.5:
+            frames.append(dict(moment=label, t_utc=_hms(t), frame=None, answer=None, error="no video frame within 0.5 s",
+                               seconds=None, measured=measured_at(t, imu, trows)))
+            continue
         f = _frame_at(caches, video, pts, t)
         if f is None:
             continue
@@ -348,15 +373,7 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
                position_method=None, position_track_extent=None, heading_start=None, heading_end=None, tilt_video_vs_imu=None)
     if video:
         clip_mp4 = os.path.join(out_dir, f"{name}_clip.mp4")
-        # cut with frame accuracy from this one file
-        pts = C.read_pts(os.path.splitext(video)[0] + ".pts")
-        idx = [i for i, t in enumerate(pts) if t0 - 1 <= t <= t1 + 1]
-        if idx:
-            clip_pts = [pts[i] for i in idx]
-            os.system(f"ffmpeg -loglevel error -y -i '{video}' -vf 'select=between(n\\,{idx[0]}\\,{idx[-1]}),setpts=N/25/TB' "
-                      f"-an -c:v libx264 -preset veryfast -pix_fmt yuv420p -r 25 '{clip_mp4}'")
-            with open(os.path.splitext(clip_mp4)[0] + ".pts", "w") as f:
-                f.write("# timecode format v2\n" + "".join(f"{t * 1000:.3f}\n" for t in clip_pts))
+        if cut_clip(video, t0 - 1, t1 + 1, clip_mp4):
             rep["clip"] = clip_mp4
             fm = foreign.foreign_motion(clip_mp4)
             fm.pop("series", None)
@@ -386,7 +403,9 @@ def run_report(track, video_dirs=(), frec_dir="hw_sessions", out_dir=None, cfg_p
             rep["contact_sheet"] = contact_sheet(clip_mp4, moments, os.path.join(out_dir, f"{name}_vision.jpg"),
                                                  captions=captions)
             if context:
-                rep["context_contact_sheet"] = contact_sheet(context, moments, os.path.join(out_dir, f"{name}_vision_context.jpg"))
+                ctx_mp4 = os.path.join(out_dir, f"{name}_context_clip.mp4")
+                if cut_clip(context, t0 - 1, t1 + 1, ctx_mp4):
+                    rep["context_contact_sheet"] = contact_sheet(ctx_mp4, moments, os.path.join(out_dir, f"{name}_vision_context.jpg"))
     else:
         rep["notes"].append("no video covers this run")
     with open(os.path.join(out_dir, f"{name}_vision.json"), "w") as f:

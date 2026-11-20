@@ -4,8 +4,9 @@
 
 For an AI operator supervising the biped on its board: a recorder that owns the camera, a
 clip cutter, an AprilTag tracker (position, heading, tilt, distance to the board edges), a
-per-run report, and a pre-run "where is it / is there room" check. Measurement tools; no
-language model is involved. Everything uses only OpenCV (with `cv2.aruco`), numpy, scipy and
+per-run report, and a pre-run "where is it / is there room" check. Measurement tools; a
+language model appears only as an optional, off-by-default second opinion on the report's key
+frames (layer E, below), and nothing reads its answer. Everything uses only OpenCV (with `cv2.aruco`), numpy, scipy and
 PIL from the project venv.
 
 | file | what |
@@ -19,6 +20,8 @@ PIL from the project venv.
 | `where.py` | one frame -> position, heading, edge margins; exit code for a travel direction |
 | `implausible.py`, `foreign.py` | telemetry-only "somebody helped" check; image-only motion hint |
 | `vgeom.py`, `tagdefs.py`, `vsynth.py`, `detect_study.py` | geometry/config, tag ids, synthetic renderer, detectability study |
+| `vlm.py` | layer E: three yes/no questions about a frame to a local ollama vision model (CPU by default) |
+| `vlm_bakeoff.py`, `vlm_set.json` | layer E: the labelled frame set (rebuilt from footage) and the model bake-off |
 
 ## Commands
 
@@ -178,3 +181,45 @@ the emeet at the far end sees 0-3.
   person in the chair or a sock at the edge of the board, and on the dog (cmd_steer_T4_b at
   16:48:31-16:48:44) and the catch (gate_push_march_T5_b). It cannot tell a hand from a leg. Treat an
   event as "look at the key frames".
+
+## Layer E: a local vision model as a second opinion (optional, off by default)
+
+Measurement does not see a person or an animal at the robot, a cable snag or a thing on the board
+(the dog on 2026-11-16 16:48:33Z showed in no telemetry). `run_report.py --vlm-model M` asks a
+local vision-language model three yes/no questions about each key frame of the run (start, end,
+each anomaly, then the +-1 s frames; `--vlm-max-frames`, default 8): *a person or an animal
+touching the robot / on the board / standing at its edge?*, *robot upright (torso within ~15 deg)?*,
+*a loose object on the board?* The answers go into `<run>_vision.json` as `vlm_second_opinion`,
+each frame's answer next to the measured values at that moment (IMU tilt, tag roll/pitch, edge
+margin), as a second caption line on the contact sheet, and as a small table in the printed
+summary. Nothing reads them: they are a reason for a person to look at a frame, never a
+measurement and never a gate.
+
+**CPU, not the GPU.** The GPU belongs to night training (22:00-07:00) and by day to
+camera-watcher, so the model runs on a separate CPU-only ollama (its own model store, port 11500),
+and every request sends `num_gpu: 0` and `num_thread: 12` (the rest of the box stays with
+training):
+
+```
+mkdir -p ~/.cache/ollama-cpu
+CUDA_VISIBLE_DEVICES= OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \
+  OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 setsid nohup nice -n 19 ollama serve > /tmp/ollama-cpu.log 2>&1 &
+OLLAMA_HOST=127.0.0.1:11500 ollama pull MODEL
+tools/vision/run_report.py track_....jsonl --video-dir ... --vlm-model MODEL     # --vlm-host for another server
+```
+
+Check once after the first load that `nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv`
+lists no ollama process.
+
+**The bake-off** (re-runnable against any ollama endpoint): `vlm_set.json` is a labelled set of
+real frames (video, UTC time, frame index, labels, a one-line note; the label rules are
+`vlm.LABEL_RULES`), rebuilt from the footage in `hw_sessions/` (not in git) into
+`hw_sessions/vlm_set/`:
+
+```
+tools/vision/vlm_bakeoff.py extract                                   # frames -> hw_sessions/vlm_set/<id>.jpg
+tools/vision/vlm_bakeoff.py run --model MODEL [--host URL] [--num-thread 12]   # raw answers -> hw_sessions/vlm_set/answers/
+tools/vision/vlm_bakeoff.py score --md                                # precision / recall per label, s per frame
+tools/vision/vlm_bakeoff.py score --frames-table                      # every frame: labels vs each model
+tools/vision/vlm_bakeoff.py grab VIDEO --at 2026-11-16T16:48:33Z -o /tmp/look   # frames for choosing new labels
+```

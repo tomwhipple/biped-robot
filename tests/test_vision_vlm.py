@@ -152,6 +152,8 @@ def test_run_model_resumes_and_scores(tmp_path, fake_ollama):
     assert sc["frames"] == 2 and sc["labels"]["person_or_animal"]["recall"] == 1.0
     assert sc["labels"]["robot_upright"]["recall"] == 1.0 and sc["s_per_frame_median"] >= 0
     assert "| fake:1 |" in B.markdown({"fake:1": sc})
+    tab = B.per_frame(m, ad)
+    assert "| f3 |  | P u o | P u o |" in tab                  # the fake agrees with both labels
 
 
 def test_vlm_moments_prefer_start_end_and_the_anomaly_itself():
@@ -210,3 +212,26 @@ def test_labelled_set_manifest_is_well_formed():
         assert vals.count(False) >= 10
     assert sum(f["labels"]["person_or_animal"] is True for f in m["frames"]) >= 10
     assert sum(f["labels"]["robot_upright"] is False for f in m["frames"]) >= 10
+
+
+def test_vlm_pass_does_not_ask_about_a_moment_the_video_does_not_cover(tmp_path):
+    path, times = _video(tmp_path)
+    asked = []
+    vp = RR.vlm_pass(path, [("start", times[3]), ("end", times[-1] + 30.0)], str(tmp_path), "run", "m", "h",
+                     ask=lambda *a, **k: asked.append(a) or dict(answer=None, error="x", total_s=0))
+    assert len(asked) == 1 and vp["frames"][-1]["error"] == "no video frame within 0.5 s"
+
+
+@pytest.mark.skipif(__import__("shutil").which("ffmpeg") is None, reason="ffmpeg not installed")
+def test_cut_clip_spans_camd_segments(tmp_path):
+    """A run across a minute boundary: the clip must come from both camd segments, not the better-covering one."""
+    a, ta = _video(tmp_path, n=50, name="emeet_20261116T230000Z")
+    os.rename(str(tmp_path / "emeet_20261116T230000Z.pts"), str(tmp_path / "keep.pts"))
+    b, tb = _video(tmp_path, n=50, name="emeet_20261116T230100Z")
+    os.rename(str(tmp_path / "keep.pts"), str(tmp_path / "emeet_20261116T230000Z.pts"))
+    with open(str(tmp_path / "emeet_20261116T230100Z.pts"), "w") as fh:     # the next minute's segment
+        fh.write("# timecode format v2\n" + "".join(f"{(t + 60.0) * 1000:.3f}\n" for t in tb))
+    out = str(tmp_path / "clip.mp4")
+    n = RR.cut_clip(a, ta[10], tb[10] + 60.0, out)
+    kept = B.C.read_pts(str(tmp_path / "clip.pts"))
+    assert n == 40 + 11 == len(kept) and kept[0] == pytest.approx(ta[10]) and kept[-1] == pytest.approx(tb[10] + 60.0)
