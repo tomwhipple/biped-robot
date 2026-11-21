@@ -114,6 +114,7 @@ hardware-touching files are excluded by construction.
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 1 s upright-and-still (25 deg, 1 rad/s) pick-up, the armed-to-bench hand-over -> autohome |
 | `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
+| `cmdslew` | the operator command's slew limit, bit for bit against `sim/cmd_kernel.golden()` (a literal 120 x 3 table; `tests/test_cmdslew_golden.py` keeps it equal to the Python law), disabled and per-channel zero rate pass through, reset to the stand |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
@@ -196,6 +197,9 @@ firmware/
   components/
     railguard/          power lite's rail state machine: arm, drops, E-stop latch,
                         stuck rail (pure, host-tested)
+    cmdslew/            the operator command's slew limit on (vx, vy, wz), the twin of
+                        sim/cmd_kernel.py (pure, host-tested); envelope_rates.h picks the
+                        deployed run's rates: none generated = off
     scsbus/             Feetech SCS/STS protocol: codec, transactions, registers;
                         the guarded gain write and the gain check (gains.h)
     linkproto/          C++ port of link/protocol.py: frames, Watchdog, latches, UART demux;
@@ -233,6 +237,20 @@ tools/
                             deploy, policy_q8.py)
   policy_q8.py              numpy mirror of the int8 forward pass; offline GPTQ rounding
 ```
+
+### The operator command's path
+
+A link frame is clamped to the trained envelope (`clampToEnvelope` / `clampExtToEnvelope`), accepted
+by the `Watchdog` (which answers the stand once the link is lost), and read each control tick by
+`ctrl_task.cpp`. When the deployed run was trained with `cmd_slew`, `tools/gen_envelope.py` writes
+its rates into `linkproto/cmd_envelope.h` (`LINKPROTO_CMD_SLEW`, `kSlewVx/Vy/Wz`) and
+`cmdslew::CommandSlew` (`g_cmd_slew`) moves (vx, vy, wz) toward the command by at most rate x 20 ms
+per tick, ahead of the observation: a stick step reaches the policy as the ramp it was trained on,
+and a lost link ramps to the stand at the same rates. Without those rates (every run trained
+without `cmd_slew`) the limiter is off and the command passes through unchanged. The slew starts at
+the stand on every (re)arm; disarm, E-stop, the fall and flail guards and the pack latch act outside
+it and are immediate. `libctrl_sil` takes the observation's command as given: slewing it is the
+caller's job.
 
 ## The CLI
 
