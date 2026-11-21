@@ -84,20 +84,36 @@ class _AllServos:
     arms and neck too: the get-up loads the shoulders), and with its own copy of env._servo so a
     measuring meter never writes the env's. STSProtection.tick reads _servo_tau, data.qvel at
     _jqvel and data.ctrl; its load is a fraction of each servo's effective maximum (the episode's
-    DR-drawn stall x the static per-servo profile), at the unsagged supply."""
+    DR-drawn stall x the static per-servo profile). Under --supply-sag-ohm the envelope shrinks
+    with the supply scale s, and the PWM duty is |tau / (s stall) + w / (s w0)|: the view hands
+    the meter tau / s and w / s (s of the tick's last substep), so a servo at its sagged cap reads
+    100 %. Without sag it passes the env's own arrays."""
 
     def __init__(self, env):
         self.env = env
-        self.data = env.data
+        self.data = self
         self._nq_act = env._n_servo
         self._jqvel = env._sqvel
         self._stall_prof = env._stall_prof
         self._w0_prof = env._w0_prof
         self._servo = np.array(list(env._servo), dtype=object)
 
+    def _scale(self):
+        return self.env._sag_s if self.env._sag_r is not None else None
+
     @property
     def _servo_tau(self):
-        return self.env._servo_tau
+        s = self._scale()
+        return self.env._servo_tau if s is None else np.asarray(self.env._servo_tau) / s
+
+    @property
+    def qvel(self):
+        s = self._scale()
+        return self.env.data.qvel if s is None else self.env.data.qvel / s
+
+    @property
+    def ctrl(self):
+        return self.env.data.ctrl
 
 
 def overload_meter(env):
