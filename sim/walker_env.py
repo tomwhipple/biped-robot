@@ -2565,7 +2565,8 @@ class BimoWalkerEnv(gym.Env):
         stand (the robot is armed standing with a zero command). env_mjx _slew_begin mirror."""
         if self.cmd_slew is None:
             return
-        self._cmd_tgt = np.array(self._cmd[:3], dtype=float)
+        self._cmd = np.array(self._cmd, dtype=float)   # own copy: cmd_fixed may be an array
+        self._cmd_tgt = self._cmd[:3].copy()
         self._cmd[:3] = 0.0
 
     def _slew_tick(self, prev3, resampled):
