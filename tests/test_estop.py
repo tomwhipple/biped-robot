@@ -179,6 +179,50 @@ def test_the_fast_encoder_is_byte_exact_with_protocol():
             assert pkt.stop and not pkt.arm and not pkt.enabled and not pkt.home
 
 
+def test_soft_stop_on_a_benched_robot_is_confirmed_without_escalating(tlm_port):
+    """A benched robot's soft stop (firmware cli.cpp flailTickImpl) stops any
+    bench motion and reports no new reason: BENCH, no reset in progress, is
+    the confirmation -- not an escalation to torque off."""
+    twin = Twin(tlm_port, armed=False)
+    twin.start()
+    try:
+        r = run_estop(twin.port, tlm_port, "--soft", "--confirm-ms", "200")
+    finally:
+        twin.close()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "SOFT STOP CONFIRMED" in r.stdout and "escalat" not in r.stdout, r.stdout
+    assert twin.flags_seen == {P.FLAG_STOP}       # never a hard frame
+
+
+def test_soft_stop_during_a_bench_reset_still_escalates(tlm_port):
+    """HOME_PENDING is bench motion, and the firmware leaves it standing after
+    a stop: nothing proves the joints stopped, so the soft stop goes hard."""
+    twin = Twin(tlm_port, armed=False)
+    twin.sup.result = P.ArmResult.HOME_PENDING
+    twin.start()
+    try:
+        r = run_estop(twin.port, tlm_port, "--soft", "--confirm-ms", "200")
+    finally:
+        twin.close()
+    assert "escalating to HARD" in r.stdout, r.stdout
+    assert P.FLAG_STOP | P.FLAG_ESTOP in twin.flags_seen
+
+
+def test_confirmed_rule():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import estop
+    bench = lambda r: P.Telemetry(seq_echo=P.pack_diag(False, True, r),  # noqa: E731
+                                  state=P.LinkState.BENCH, vbat_v=12.0, up_z=1.0,
+                                  vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0)
+    none, stop = bench(P.ArmResult.NONE), bench(P.ArmResult.DISARMED_STOP)
+    assert estop.confirmed(stop, False) and estop.confirmed(stop, True)
+    assert not estop.confirmed(none, False)                 # a run's soft stop: no
+    assert estop.confirmed(none, False, was_bench=True)     # already benched: yes
+    assert not estop.confirmed(bench(P.ArmResult.HOME_PENDING), False, was_bench=True)
+    live = none._replace(state=P.LinkState.LIVE, seq_echo=0)
+    assert not estop.confirmed(live, False, was_bench=True)
+
+
 def test_a_benched_stop_that_ends_a_reset_confirms_soft():
     # Issue #281: the robot reports DISARMED_STOP when a benched stop cuts a
     # servo reset short (linkproto::benchStopResult). That verdict confirms a

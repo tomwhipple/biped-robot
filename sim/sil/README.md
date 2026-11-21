@@ -79,8 +79,12 @@ The firmware MLP matches brax on the same observation to ~3e-7 (`net_err`).
 | `golden/obs_vectors.json` | 8 `walker_env` states → `_obs()` frame + `obs::Inputs`, same run |
 | `cal/cal_{nominal,perturbed}.json` | the two calibrations `sil_init()` takes |
 
-`sim/sil_twin.py` and `bimo_gui`'s SIM panel can run any run that has both
-`sim/runs/<run>/config.json` and `weights/<run>.silw.json`.
+`sim/sil_twin.py`, the console's Sim tab and `bimo_gui`'s SIM panel can run
+any run that has `weights/<run>.silw.json` and a config
+(`sim/runs/<run>/config.json`, else `firmware/deployed/runs/<run>/config.json`). Its
+weights are the run's `.silw`, exported from `sim/runs/<run>/params.pkl`
+when that is present; on a clean clone, the deployed run runs the weights
+compiled into the library (`policy/weights.h`), with nothing exported.
 
 ## The `.silw` layout as written
 

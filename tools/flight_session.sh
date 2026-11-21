@@ -9,7 +9,8 @@
 # Sessions land in <main checkout>/hw_sessions/<local date>/flight_<UTC>[_label].frec
 # with a .summary.json beside each (tools/flight_collector.py). The robot side
 # is `rec <mira-ip>` once over the tether (saved in NVS; docs/flight-recorder.md).
-# FLIGHT_PORT / FLIGHT_OUT override the port and the directory.
+# FLIGHT_PORT / FLIGHT_OUT override the port and the directory; FLIGHT_FORWARD
+# ("host:port host2:port2") re-sends the live stream to each (--forward).
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
@@ -30,7 +31,9 @@ case "${1:-status}" in
     LOG=$OUT/flight_collector_$(date -u +%Y%m%dT%H%M%SZ).log
     LABEL=()
     [[ -n ${2:-} ]] && LABEL=(--label "$2")
-    nohup "$PY" "$HERE/flight_collector.py" --port "$PORT" --out "$OUT" "${LABEL[@]}" \
+    FWD=()
+    for d in ${FLIGHT_FORWARD:-}; do FWD+=(--forward "$d"); done
+    nohup "$PY" "$HERE/flight_collector.py" --port "$PORT" --out "$OUT" "${LABEL[@]}" "${FWD[@]}" \
       > "$LOG" 2>&1 &
     echo $! > "$PIDF"
     echo "$LOG" > "$RUN.log"

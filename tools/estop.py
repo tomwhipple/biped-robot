@@ -24,7 +24,9 @@ frame could be overwritten by a commander's in the same 20 ms tick.
 
 Then it listens for the robot's beacon (it goes to the last sender) and says
 what the robot reports. Exit 0 = the robot confirmed (BENCH with the STOP or
-FLAIL reason, or ESTOP/FALLEN); 2 = frames sent, no confirmation heard.
+FLAIL reason, or ESTOP/FALLEN; for a --soft stop on a robot that was already
+BENCH, BENCH with no servo reset in progress -- see confirmed()); 2 = frames
+sent, no confirmation heard.
 A --soft stop the robot does not confirm within --confirm-ms is ESCALATED to a
 hard stop: older firmware reads a soft frame as a plain stand, and a stop that
 might not have happened is not one.
@@ -133,6 +135,7 @@ class Stopper:
         # within 1000 below the last one it applied (a running commander's).
         self.seq = int(time.time() * 1000) & 0x3FFFFFFF
         self.sent = 0
+        self.last = None      # (the newest beacon, monotonic time heard)
 
     def send(self, hard: bool) -> None:
         wire = encode_stop(self.seq, frame_flags(hard))
@@ -145,7 +148,8 @@ class Stopper:
                 print(f"  send to {t[0]} failed: {e}", flush=True)
 
     def beacons(self):
-        """Every telemetry frame waiting on the socket (non-blocking)."""
+        """Every telemetry frame waiting on the socket (non-blocking). The
+        newest is also kept, with its time, as `last`."""
         out = []
         P = _protocol()
         while self.rx is not None:
@@ -159,17 +163,33 @@ class Stopper:
                 out.append((P.decode_telemetry(data), src[0]))
             except P.ProtocolError:
                 pass
+        if out:
+            self.last = (out[-1][0], time.monotonic())
         return out
 
 
-def confirmed(t, hard: bool) -> bool:
+def confirmed(t, hard: bool, was_bench: bool = False) -> bool:
+    """Whether beacon `t` confirms a stop of this kind.
+
+    `was_bench`: the robot was already BENCH when the stop was pressed. A
+    benched robot's soft stop (firmware cli.cpp flailTickImpl) stops any bench
+    motion where it is -- pose stream, balance, home -- and changes neither
+    the mode nor the reported reason, so DISARMED_STOP never comes. What the
+    beacon CAN show is that it is still BENCH (no run to end) and not in a
+    servo reset (HOME_PENDING, the one bench motion on the wire). A stop
+    during a reset leaves HOME_PENDING standing on the robot (the stop clears
+    the reset without a verdict), so that case is never confirmed soft and
+    escalates: nothing on the wire proves the joints stopped."""
     P = _protocol()
     if t.state in (P.LinkState.ESTOP, P.LinkState.FALLEN):
         return hard          # a soft stop that went limp is not what was asked; still a stop
     if t.state is P.LinkState.BENCH:
         r = P.diag_arm_result(t.diag)
-        return r in (P.ArmResult.DISARMED_STOP, P.ArmResult.DISARMED_FLAIL) or (
-            hard and r is not None)    # benched by anything is torque-off enough for HARD
+        if r in (P.ArmResult.DISARMED_STOP, P.ArmResult.DISARMED_FLAIL):
+            return True
+        if hard:
+            return r is not None   # benched by anything is torque-off enough for HARD
+        return was_bench and r is not P.ArmResult.HOME_PENDING
     return False
 
 
@@ -182,6 +202,13 @@ def stop(st: Stopper, hard: bool, seconds: float, confirm_ms: float, quiet=False
     ok = False
     escalated = False
     end = t0 + seconds
+    # Was the robot BENCH at the press? From a beacon heard in the last second
+    # (--button keeps the socket drained between presses); otherwise from the
+    # first one this burst draws -- the robot beacons to the last sender, so
+    # that is the first we hear of it, and a robot the stop benched from a
+    # run says DISARMED_STOP there, which confirms on its own.
+    pre = st.last if st.last and t0 - st.last[1] < 1.0 else None
+    was_bench = None if pre is None else pre[0].state is _protocol().LinkState.BENCH
     while True:
         now = time.monotonic()
         if now >= nxt:
@@ -189,7 +216,9 @@ def stop(st: Stopper, hard: bool, seconds: float, confirm_ms: float, quiet=False
             nxt += period
         for t, src in st.beacons():
             seen = (t, src)
-            if confirmed(t, hard):
+            if was_bench is None:
+                was_bench = t.state is _protocol().LinkState.BENCH
+            if confirmed(t, hard, was_bench):
                 ok = True
         if not hard and not ok and (now - t0) * 1000.0 >= confirm_ms:
             hard = escalated = True

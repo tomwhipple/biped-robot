@@ -16,7 +16,7 @@ pytest==9.1.1    # tests/ (pinned: pytest 9.2.0 silently breaks `--dist loadgrou
                  # pytest-dev/pytest-xdist #1386/#1407; unpin only once a
                  # pytest-xdist release after 3.8.0 ships the fix)
 pytest-xdist==3.8.0  # `make pytest` runs tests/ in parallel workers (PYTEST_WORKERS)
-pygame           # optional: gamepad command source (link/sources.py)
+pygame           # optional: gamepad command source (link/sources.py, link/console/gamepad.py)
 pyserial        # tools/servo_tool.py (ST3215 bench tool over the USB bridge)
 PyQt6            # optional: sim/joint_puppet.py joint-slider GUI (MuJoCo 3.10's
                  # own simulate UI cannot construct on py3.14/macOS, so the
