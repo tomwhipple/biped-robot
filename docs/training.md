@@ -295,9 +295,13 @@ deploy`), from these settings:
 A band whose fraction of the mix is 0 (or a run without `ext_cmd`) is
 generated absent, and a run with the `ext_mix` sway slice has no lateral hole.
 A run with `cmd_volume` has no hole at all: every band opens down to zero and
-reaches the volume's axes. A run with `cmd_slew` puts its rates into the
-generated header (`LINKPROTO_CMD_SLEW`, `kSlewVx/Vy/Wz`), and the firmware's
-`cmdslew` then ramps the command, a lost link's stand included, at those rates
+reaches the volume's axes, and the generated header carries the volume's
+ellipse (`LINKPROTO_CMD_VOLUME`, `kVolFwd/Back/Lat`), so the robot also holds
+(vx, vy) together inside it: a corner the bands pass but the volume never drew
+is scaled back onto the ellipse (`sim/cmd_kernel.py` `volume_clamp`). A run
+with `cmd_slew` puts its rates into the generated header (`LINKPROTO_CMD_SLEW`,
+`kSlewVx/Vy/Wz`), and the firmware's `cmdslew` then ramps the command at those
+rates, the stand after a released ENABLE or a lost link included
 (firmware/README.md, "The operator command's path"); without them the command
 reaches the policy as it arrives.
 Where a value is not in `config.json` the generated file says `default`.

@@ -106,7 +106,7 @@ hardware-touching files are excluded by construction.
 
 | suite | covers |
 |---|---|
-| `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux |
+| `protocol` | `linkproto` against golden vectors generated from `link/protocol.py`: frames, CRC, watchdog, arm and home latches, bench diagnostic, UART demux; the volume clamp bit for bit against `sim/cmd_kernel.volume_golden()` (a literal table, `tests/test_cmd_kernel.py` keeps it equal), and a volume-trained deployed run's own ellipse from its generated vectors |
 | `scsbus` | packet codec against the worked examples in Feetech's protocol manual; transactions against a scripted fake port (a missing servo mid-sync-read, a reply from the wrong ID); the guarded gain write (refused with torque on or unreadable, re-locks on failure, never a goal) and the gain check |
 | `obs` | the assembler against real `walker_env._obs()` frames, history order, gait clock, action/angle/tick maps, command shaper, the motion limiter (bounds, braking, no overshoot, S-curve), the bus map against the policy spec, calibration blob pack/unpack and the v2 → v3 and v1 migrations |
 | `policy` | the forward pass against numpy golden vectors; asserts the weights are the deployed run, not a placeholder (a policy profile may carry an untrained test net, which the firmware refuses to arm on) |
@@ -114,7 +114,7 @@ hardware-touching files are excluded by construction.
 | `roll_pi` | the stance-leg roll PI: sim-twin golden rows, anti-windup, abort/IMU freeze, mirror symmetry, roll from the up vector |
 | `fallguard` | the shared fall detector: the armed (45 deg / 200 ms) and bench (30 deg / 100 ms) limits, debounce, no decision on a stale attitude, the 1 s upright-and-still (25 deg, 1 rad/s) pick-up, the armed-to-bench hand-over -> autohome |
 | `flailguard` | the armed loop's flail guard: pose / rate / tilt / chatter each trips on what it should and not on a short excursion, a walk command (pose), the takeover ramp (pose) or a smooth gait; and a replay of the 2026-11-01 flailing stand (`vectors/flail_vectors.h`): quiet for the clean first 3 s, trips by 3.5 s |
-| `cmdslew` | the operator command's slew limit, bit for bit against `sim/cmd_kernel.golden()` (a literal 120 x 3 table; `tests/test_cmdslew_golden.py` keeps it equal to the Python law), disabled and per-channel zero rate pass through, reset to the stand |
+| `cmdslew` | the operator command's slew limit, bit for bit against `sim/cmd_kernel.golden()` (a literal 120 x 3 table; `tests/test_cmdslew_golden.py` keeps it equal to the Python law), disabled and per-channel zero rate pass through, reset to the stand, a limp period restarts it at the stand (`tests/test_cmdslew_golden.py` pins the reset in `ctrl_task.cpp`'s limp branch) |
 | `fusion` | the attitude filter, cross-checked against MuJoCo's `framezaxis` |
 | `obsdump` | the observation dump's double buffer and CSV writer; the mirror-mode pose buffer |
 | `sil` | `libctrl_sil`'s C ABI end to end: tick round trips, the bus permutation, the held bus slots, `.silw` and calibration parsing on adversarial input |
@@ -245,12 +245,31 @@ by the `Watchdog` (which answers the stand once the link is lost), and read each
 `ctrl_task.cpp`. When the deployed run was trained with `cmd_slew`, `tools/gen_envelope.py` writes
 its rates into `linkproto/cmd_envelope.h` (`LINKPROTO_CMD_SLEW`, `kSlewVx/Vy/Wz`) and
 `cmdslew::CommandSlew` (`g_cmd_slew`) moves (vx, vy, wz) toward the command by at most rate x 20 ms
-per tick, ahead of the observation: a stick step reaches the policy as the ramp it was trained on,
-and a lost link ramps to the stand at the same rates. Without those rates (every run trained
-without `cmd_slew`) the limiter is off and the command passes through unchanged. The slew starts at
-the stand on every (re)arm; disarm, E-stop, the fall and flail guards and the pack latch act outside
-it and are immediate. `libctrl_sil` takes the observation's command as given: slewing it is the
-caller's job.
+per tick, ahead of the observation: a stick step reaches the policy as the ramp it was trained on.
+Every way the operator's command falls to the stand ramps at the same rates, because the watchdog's
+stand is the slew's target like any other command:
+
+- **releasing ENABLE** (the dead-man): the next frame carries the stand, and the ramp starts there;
+- **a lost link**: the watchdog holds the last command for its stale delay (`kStaleMs`, 250 ms),
+  then answers the stand, and the ramp starts then.
+
+Each channel ramps on its own, |command| / rate: at rates 0.5, 0.4, 1.5 from the trained edges
+(vx 0.24 m/s forward, vy 0.25 m/s, wz 1.0 rad/s) that is vx 0.48 s, vy 0.625 s and wz 0.67 s (0.8 s
+for vx from a 0.4 m/s backward walk), plus the 250 ms on a lost link. Without those rates (every
+run trained without `cmd_slew`) the limiter is off and the command passes through unchanged.
+
+The slew restarts at the stand on every (re)arm and on every limp tick (RELAX, a link E-stop, a
+fall, the pack guard's release): torque can come back without a re-arm, and the policy must not be
+handed the walk from before the limp period. Disarm, E-stop, the fall and flail guards and the pack
+latch act outside it and are immediate. `libctrl_sil` takes the observation's command as given:
+slewing it is the caller's job.
+
+When the deployed run was trained with `cmd_volume`, `tools/gen_envelope.py` also writes its planar
+ellipse (`LINKPROTO_CMD_VOLUME`, `kVolFwd/Back/Lat`), and the watchdog clamps (vx, vy) together after
+the per-axis bands (`clampToVolume`, the twin of `sim/cmd_kernel.py` `volume_clamp`): a corner the
+bands pass but the volume never drew (vx 0.24, vy 0.25 is normalized radius √2) is scaled back along
+its own direction onto the ellipse. A command on an axis is left to the bands. Without it (every run
+trained without `cmd_volume`) the clamp is per axis, as before.
 
 ## The CLI
 
