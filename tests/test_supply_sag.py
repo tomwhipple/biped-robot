@@ -160,3 +160,22 @@ def test_cpu_mjx_parity():
     p = subprocess.run([sys.executable, "parity_test.py", "--supply-sag"], cwd=os.path.join(SIM, "mjx"),
                        env=env, capture_output=True, text=True, timeout=1200)
     assert p.returncode == 0, p.stdout[-2000:] + p.stderr[-2000:]
+
+
+def test_grade_term_switches_it_on_and_off():
+    """grade.py's GRADE_PLANT_TERMS=supply_ohm=<R> (weight-transfer-gate gate_common.apply_terms):
+    live at once and after a reset; 0 switches it off again."""
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "weight-transfer-gate"))
+    import gate_common as GC
+    e = _walker()
+    e.reset(seed=1)
+    GC.apply_terms(e, dict(supply_ohm=0.44))
+    assert e._sag_r == 0.44 and e._sag_s == 1.0
+    e.step(np.zeros(e.action_space.shape, np.float32))
+    assert e._sag_s < 1.0 and e._sag_i > 0.0
+    e.reset(seed=2)
+    assert e._sag_r == 0.44 and e._sag_s == 1.0
+    GC.apply_terms(e, dict(supply_ohm=0))
+    assert e._sag_r is None
+    e.reset(seed=3)
+    assert e._sag_r is None
