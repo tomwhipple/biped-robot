@@ -688,6 +688,11 @@ void ctrlTask(void*) {
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
             g_limiter.invalidate();
+            // The command slew restarts at the stand too: torque can come back without a re-arm
+            // (a link E-stop cleared by a disabled frame, a RELAX ended by a fresh frame), and a
+            // slew still holding the pre-limp walk would hand the policy that walk while the
+            // operator commands a stand. A no-op with the slew off.
+            g_cmd_slew.reset();
             // Power lite: limp means the rail goes, and that ends the run. Coming
             // back from RELAX or a link E-stop would mean re-powering by itself, and
             // the servos would come up reset; so the way back is a fresh arm. The

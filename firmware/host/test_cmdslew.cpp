@@ -230,6 +230,25 @@ void testResetAndLanding() {
     CHECK(bitEq(s.vx(), 0.009f));
 }
 
+// A limp period (ctrl_task.cpp's limp branch: RELAX, a link E-stop, a fall) resets the slew to the
+// stand, because torque can come back without a re-arm. Without that reset the first tick after a
+// cleared E-stop would hand the policy the pre-E-stop walk while the operator commands a stand.
+// tests/test_cmdslew_golden.py pins the reset's place in the limp branch.
+void testLimpPeriodRestartsAtTheStand() {
+    CommandSlew s;
+    s.configure(Rates{0.5f, 0.4f, 1.5f}, 0.02f);
+    s.reset();
+    for (int k = 0; k < 100; ++k) s.step(0.24f, -0.25f, 0.8f);   // walking at full stick
+    CHECK(bitEq(s.vx(), 0.24f) && bitEq(s.vy(), -0.25f) && bitEq(s.wz(), 0.8f));
+    s.reset();                       // the limp branch, every limp tick
+    s.step(0.0f, 0.0f, 0.0f);        // torque back, the operator at the stand
+    CHECK(s.vx() == 0.0f && s.vy() == 0.0f && s.wz() == 0.0f);
+    s.reset();
+    s.step(0.24f, -0.25f, 0.8f);     // torque back, the operator walking: a ramp from the stand
+    CHECK(bitEq(s.vx(), 0.5f * 0.02f) && bitEq(s.vy(), -(0.4f * 0.02f)) &&
+          bitEq(s.wz(), 1.5f * 0.02f));
+}
+
 }  // namespace
 
 int main() {
@@ -237,5 +256,6 @@ int main() {
     testDisabledPassesThrough();
     testZeroRateChannelPassesThrough();
     testResetAndLanding();
+    testLimpPeriodRestartsAtTheStand();
     return testutil::report("test_cmdslew");
 }

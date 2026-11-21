@@ -49,3 +49,16 @@ def test_golden_constants_match_python():
     assert got == want
     m = re.search(r"kGoldenTicks\s*=\s*(\d+)", SRC)
     assert m and int(m.group(1)) == len(cmd_kernel.golden())
+
+
+def test_the_limp_branch_resets_the_slew():
+    """ctrl_task.cpp: every limp tick puts the slew back at the stand (torque can return without a
+    re-arm: a link E-stop cleared by a disabled frame), and the (re)arm does too. The firmware's
+    main loop is not host-built, so its wiring is pinned here, by its source."""
+    src = (ROOT / "firmware" / "main" / "ctrl_task.cpp").read_text()
+    m = re.search(r"\n        if \(limp\) \{\n(.*?)\n            continue;\n        \}\n", src, re.S)
+    assert m, "the limp branch of ctrl_task.cpp moved: re-check that it resets g_cmd_slew"
+    assert "g_cmd_slew.reset();" in m.group(1)
+    arm = re.search(r"g_cmd_slew\.configure\(cmdslew::kDeployedRates, obs::kControlDt\);\s*"
+                    r"g_cmd_slew\.reset\(\);", src)
+    assert arm
