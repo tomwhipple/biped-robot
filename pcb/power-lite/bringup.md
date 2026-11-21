@@ -26,7 +26,7 @@ as you go, and stop at the first reading that is outside its range (see
 General Driver.** The firmware that drives the relay, reads the E-stop and checks for a stuck
 rail is on `main` behind the power-lite build option (PR #229); the README's
 [bench check with the ESP32](README.md#the-bench-check-with-the-esp32) repeats these checks
-with it. One lab
+with it, and adds the pack guard's checks on the INA219 (#109); it needs only Part 2. One lab
 supply is enough: the board's own supply stands in for the ESP32's 3.3 V, on the breadboard's
 **+ rail**.
 - **`SERVO_EN`** is driven from the + rail through **three 470 Ω in series** (the **drive

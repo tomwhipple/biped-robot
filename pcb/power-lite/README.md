@@ -113,7 +113,8 @@ hardware half `firmware/main/power_rail.cpp`.
   and the rail collapsing below 7 V for 500 ms. Each of those ends a run: `RAIL_DOWN` in
   the beacon, or `DISARMED_FALL` / `DISARMED_STOP`. A flail-guard or soft-stop hold keeps
   the rail, because it holds with torque on, until the bench home has released it, or
-  `release` does.
+  `release` does. Benched, the pack guard's trip drops nothing: until `batt reset` it
+  refuses `rail on` and a home, and an arm goes limp at once, but a rail already on stays.
 - **A commander's `ESTOP` press drops it benched too**, whoever powered it. The press is
   the edge: the frame where the flag goes up, or the first one with it after 500 ms with no
   frame. The rail is refused until the commander lets go or for 500 ms, whichever is first.
@@ -154,12 +155,40 @@ hardware half `firmware/main/power_rail.cpp`.
 
 ### The bench check, with the ESP32
 
-Bring-up step 2 below, the ESP32 in place of the 3.3 V on J12.2, with the lab supply at
-12.0 V, 0.5 A, no BMS, no pack and no servos. Flash the power-lite image. No servo is
-connected, so filming is optional (AGENTS.md). Type on the tether:
+Bring-up step 2 below, the ESP32 in place of the 3.3 V on J12.2: it needs Part 2 of
+[bringup.md](bringup.md) and no BMS. One session covers the rail (#218, steps 1-8) and the
+pack sense (#109, steps 9-12). No servo is connected, so filming is optional (AGENTS.md).
+
+**Set up**, supply off:
+- The supply as in bringup.md 2.1: 12.0 V, limit 0.5 A, + to W7, − to W2. Both fuses in, the
+  J11 jumper in (or the E-stop lead at RUN). No BMS, no pack, J4–J8 empty.
+- The breadboard rig off. The J12 lead on the General Driver: P3 pin 4, P3 pin 3, H3 pin 4 and
+  H2 pin 1 ([harness.md](harness.md#j12-control-to-the-esp32)).
+- **The J3 lead into the General Driver's H1** (harness check P3), its switch SW1 on. Then the
+  INA219 reads the supply, as it reads the pack on the robot. Without this lead it reads under
+  6.0 V, which the guard takes as no reading: steps 1-8 still work, but 9-12 cannot run.
+- **No Pi on the General Driver**, or the limit at 2 A: a Pi draws about 1.1 A through J3
+  ([harness.md](harness.md)), and a supply in current limit sags `VIN` into the guard.
+- The USB tether in the port silkscreened `USB`. With the J3 lead the ESP32 has two feeds, so
+  it stays up when the supply goes off.
+- Supply on, then flash the power-lite image ([firmware/README.md](../../firmware/README.md#build-and-flash)):
+  `make firmware POWER_LITE=1`, then
+  `idf.py -C firmware -B build/firmware-powerlite -p <port> flash`.
+
+**The pack guard is live in this image** (#109: `firmware/components/battguard`). Benched, it
+reads the INA219 only. At 12.0 V it reads about 12 V and stays `ok`, so steps 1-8 do not
+depend on it. If `VIN` stays under 10.0 V for 0.5 s it latches SAFE, and then `rail on` and
+`home` are refused until `batt reset`. Switching the supply off with the USB attached can do
+that on the way down. It also latches the E-stop: `ESTOP_N` goes high when the coil feed goes.
+So **after every supply off and on** (steps 6, 7 and 12): `bench`, then `batt`, and
+`batt reset` if it says SAFE. Note whether it did; step 12 is the measurement. Should the
+INA219 misread, `batt pack off` takes it out of the guard until the next boot.
+
+Type on the tether:
 
 1. **Boot.** `rail` reads OFF, `SERVO_EN` low, `RAIL_V` about 0 V, `ESTOP_N` low, no
-   latch, no fault. J12.2 reads 0 V, and K1 did not click during the reset.
+   latch, no fault. `batt` reads `pack ok` with the INA219 near 12 V, `guarded on`. J12.2
+   reads 0 V, and K1 did not click during the reset.
 2. **Arm.** `rail on`: K1 clicks, LED2 lights, `rail` reads ON with `RAIL_V` at 12 V. Compare
    it with a meter on SERVO+ and on J12.5 (2.1 V); note the error. `rail off`: K1 drops; time
    how long `RAIL_V` takes to read below 8 V (2-3 s here). No fault within 30 s.
@@ -171,43 +200,70 @@ connected, so filming is optional (AGENTS.md). Type on the tether:
 5. **Stuck rail.** With `SERVO_EN` low, feed J12.5 about 2.1 V from a divider on the supply
    (or hold SERVO+ up from a second supply): `rail FAULT: STUCK RAIL` within 8-9 s. `rail on`
    is refused. `rail clear` is refused until the feed is removed; then it clears.
-6. **No rail.** Pull F1, `rail on`: `SERVO_EN` drops within 250 ms and `rail` reports NO RAIL.
+6. **No rail.** Supply off, pull F1, supply on; `bench`, `batt`. `rail on`: `SERVO_EN` drops
+   within 250 ms and `rail` reports `NO RAIL`. Supply off, F1 back, supply on; `bench`,
+   `batt`.
 7. **Reset.** `rail on`, `rail panic`: K1 must drop as soon as the line prints, before the
    reboot banner ends. Press the EN button with the rail on: the same. Scope J12.2 through a
-   power cycle and a reset: it never goes high.
+   power cycle (USB out and the supply off, then the supply on and USB in) and a reset: it
+   never goes high. A reboot clears the pack guard and the E-stop latch; `rail` and `batt`
+   read as in step 1.
 8. **Console E-stop.** `rail on`, then the console's E-stop: K1 drops, `rail` says `link
    ESTOP`. With the console still holding it, `rail on` works after 0.5 s, and K1 stays shut
    while the console keeps sending. Release and press the console's E-stop again: K1 drops.
    Benched, run `link/release.py`, whose first frame is an ARM edge with `ESTOP`: K1 stays
-   open.
+   open. Release the console's E-stop.
 
-The pack sense (#109), on the same supply, with a console asking for the power block:
+The pack sense (#109), with `bimo_gui` or `bimo_tui` connected (both ask for the power block)
+and the rail off. On the INA219 the guard warns below 10.6 V and lands below 10.0 V; it reads
+`VIN`, a few tens of mV under J3 (the General Driver's input FET, SW1 and its shunt):
 
-- **Reading.** `volt` and the console's `pack` line against a meter at J3: note the error.
-  `rail on` and `rail off` should move it by no more than the drop on the logic's path.
-- **The guard, benched.** Lower the supply to 10.4 V: `batt` says WARN, the beacon's level
-  is 1. To 9.8 V for a second: SAFE at once (benched there is no landing), latched;
-  `rail on` and `home` are refused. Back to 12.0 V: still latched; `batt reset` clears it.
-- **Pack off with USB attached.** With the USB tether powering the logic, switch the pack
-  off (or unplug it): if `VIN` decays slowly through 9.9-6.0 V the bench guard may latch
-  on the way down (then `batt reset`). Check whether it does, and how long `VIN` takes.
-- **No chip.** Not testable without lifting U2; the host tests cover it (`batt` would say
-  "not answering" and the guard falls back to the servos).
+9. **Reading.** `volt` reads `pack <v> V (INA219, 4 mV)`, about 12 V, then `rail off: the
+   servos have no power`. `batt`: `pack ok`, the INA219 reading, `guarded on`, failures not
+   growing, `config 0x399F`; it prints the lines as `warn 10.5 V, land 9.9 V`, at or below in
+   0.1 V steps. The console's power line reads `pack <v> V  batt ok  rail ...`. Meter J3
+   (pin 1 to 2): note the INA219's error. `rail on`, `volt`, `rail off`: the coil's 0.17 A
+   moves it by tens of mV at most.
+10. **Warn.** Lower the supply to 10.4 V: within a second `batt` reads `pack WARN (land it)`,
+    and the console `batt WARN`. Raise it 0.05 V at a time: note the INA219 reading where it
+    goes back to `ok` (expected: 10.60 V). WARN does not latch.
+11. **Safe, benched.** From 10.4 V, lower the supply to 9.8 V: within a second `batt` reads
+    `pack SAFE (torque off, latched)`, with no LANDING on the way, and the console
+    `batt SAFE (latched)`.
+    - `rail on` is refused: `REFUSED: the pack under-voltage guard is latched; the rail stays
+      off.` `home` is refused the same way. K1 never clicks.
+    - Supply back to 12.0 V: still SAFE. `batt reset`: `pack guard cleared`, and `batt` reads
+      `ok`. `rail on` works; `rail off`.
+    - With the rail on: `rail on` at 12.0 V, then the supply straight to 9.8 V. SAFE as above,
+      and the rail stays on: benched, a trip refuses power but drops nothing. `rail off`,
+      12.0 V, `batt reset`.
+    - `batt pack off` at 12.0 V, then 9.8 V: `batt` stays `ok`, `NOT guarded on`, and
+      `rail on` works (K1 operates at 7.2 V); `rail off`. `batt pack on`: SAFE within a
+      second. 12.0 V, `batt reset`.
+12. **Supply off, with USB attached** (the pack switched off, on the robot). At 12.0 V, the
+    rail off, guard `ok`: watch the console's pack line and turn the supply off. Note how
+    long `VIN` takes from 10.0 V down to 6.0 V (a scope on J3, or the console's 10 Hz line),
+    and whether `batt` ends SAFE. It latches if `VIN` spends 0.5 s between 6.0 and 10.0 V;
+    under 6.0 V it is no reading, and the guard keeps whatever it reached. Supply on,
+    `bench`, `batt reset` if SAFE. Repeat with the rail on, which loads the supply's fall.
+
+Not testable here: a missing INA219 (that needs U2 lifted). The host tests cover it: `batt`
+says `not answering`, and the guard falls back to the servos.
 
 Then, with the real servos, as part of step 3 below:
 
-9. **Servo boot.** Time `rail on` and read `scan` straight after. If a servo is missing,
+13. **Servo boot.** Time `rail on` and read `scan` straight after. If a servo is missing,
    lengthen `railguard::kServoBootMs` (500 ms, a guess until now). The whole of `run` must
    finish inside the console's 1.5 s `kArmSyncMs`, or the console drops ARM again.
-10. **First arm.** On the stand, torque-off pose: `run` must not twitch. A freshly powered
+14. **First arm.** On the stand, torque-off pose: `run` must not twitch. A freshly powered
    servo's goal register has never been written, and the arm writes targets within a tick
    of enabling torque.
-11. **Tick cost.** `stat` armed: the rail's ADC reads land in `other`.
-12. **Pick-up autohome.** Rail off, tip it past 30 deg until `FALL` prints, stand it up and
+15. **Tick cost.** `stat` armed: the rail's ADC reads land in `other`.
+16. **Pick-up autohome.** Rail off, tip it past 30 deg until `FALL` prints, stand it up and
     hold it still: after 1 s K1 clicks, it homes, and the rail goes at the end. With `fall
     autohome off`, the same: it does not move until `home`. `rail on` by itself never moves
     anything.
-13. **Stops during a home.** `home`, then the console's E-stop: limp at once, `RAIL_DOWN` on
+17. **Stops during a home.** `home`, then the console's E-stop: limp at once, `RAIL_DOWN` on
     the beacon. `home`, then `tools/estop.py --soft`: it stops and holds, torque on, the rail
     stays, `DISARMED_STOP`; `release`: K1 drops. From an E-stopped console, **RESET SERVOS**:
     it homes, and the rail goes at the end. `run`, a soft stop while held, with `fall
