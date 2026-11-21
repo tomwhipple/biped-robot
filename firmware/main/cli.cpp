@@ -40,6 +40,7 @@
 
 #include "driver/i2c_master.h"
 #include "esp_heap_caps.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -3061,6 +3062,24 @@ void cmdCal(Sink out, int argc, char** argv) {
 
 #if BIMO_POWER_LITE
 // The rail's status: `stat` and `rail`. The fields issue #109 will carry in the beacon.
+// Why the ESP32 last reset (esp_reset_reason): a brown-out (the 3.3 V logic sagged, e.g.
+// by the servos' inrush) reads differently from a panic, the task watchdog or a power-on.
+static const char* resetReasonName(esp_reset_reason_t r) {
+    switch (r) {
+        case ESP_RST_POWERON: return "power-on";
+        case ESP_RST_EXT: return "external pin";
+        case ESP_RST_SW: return "software restart";
+        case ESP_RST_PANIC: return "PANIC (abort, assert or exception)";
+        case ESP_RST_INT_WDT: return "interrupt watchdog";
+        case ESP_RST_TASK_WDT: return "task watchdog";
+        case ESP_RST_WDT: return "other watchdog";
+        case ESP_RST_DEEPSLEEP: return "deep sleep";
+        case ESP_RST_BROWNOUT: return "BROWN-OUT (supply sagged)";
+        case ESP_RST_SDIO: return "SDIO";
+        default: return "unknown";
+    }
+}
+
 static void railStatus(Sink out) {
     const robot::rail::Snapshot r = robot::rail::snapshot();
     char volts[16];
@@ -3070,6 +3089,7 @@ static void railStatus(Sink out) {
         r.estop_pressed ? "high (STOP)" : "low (RUN)", r.estop_latched ? ", E-stop LATCHED" : "");
     say(out, "  fault %s; last drop: %s\r\n", railguard::faultName(r.fault),
         railguard::dropName(r.last_drop));
+    say(out, "  last reset: %s\r\n", resetReasonName(esp_reset_reason()));
 }
 
 // The rail's changes, on the tether and in the recording (Ev::kRail: a = State,
@@ -3135,10 +3155,14 @@ void railTickImpl(Sink out) {
     }
 }
 
-// `rail` status | on | off | clear | panic. Over Wi-Fi the allowlist has no `rail`: `stat`
-// reads the status there, and an arm or the wireless reset power the rail.
+// `rail` status | on | off | clear | panic. Over Wi-Fi: status, on and off (Tom 2026-11-21).
+// `clear` (a STUCK RAIL fault is acknowledged at the robot) and `panic` (a deliberate
+// crash) stay on the tether. The interlocks below do not look at the transport.
 void cmdRail(Sink out, int argc, char** argv) {
-    if (argc >= 2 && tetherOnly(out, "`rail on|off|clear|panic`")) return;
+    if (argc >= 2 && (!strcmp(argv[1], "clear") || !strcmp(argv[1], "panic")) &&
+        tetherOnly(out, "`rail clear` and `rail panic`")) {
+        return;
+    }
     if (argc >= 2 && !strcmp(argv[1], "on")) {
         if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
             out("busy: armed, the rail is the loop's -- `bench` first\r\n");
@@ -5297,7 +5321,8 @@ void banner(Sink out) {
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
 #if BIMO_POWER_LITE
     out("  rail [on|off|clear|panic]   the power-lite servo rail: status; power it for bench\r\n"
-        "                       work; a stuck-rail fault; the fail-safe's bench check\r\n");
+        "                       work (on, off: also over Wi-Fi); a stuck-rail fault and\r\n"
+        "                       the fail-safe's bench check (clear, panic: tether only)\r\n");
 #endif
 }
 

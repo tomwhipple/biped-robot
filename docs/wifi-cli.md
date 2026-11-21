@@ -138,6 +138,7 @@ purpose (`firmware/components/wcli/policy.cpp`).
 | `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot); `batt pack on\|off` -- what the guard reads |
 | `stream status`, `stream dump` | `stream <id> ...` -- drives a servo with no torque gate and no envelope clamp |
 | `obsdump`, `obsdump show/off` | `obsdump on/once` -- streams to the tether UART only |
+| `rail`, `rail on`, `rail off` (power lite's servo rail; every interlock -- E-stop latch, pack guard, rail faults -- applies to the line as on the tether) | `rail clear` -- acknowledges a STUCK RAIL fault (look at K1 first); `rail panic` -- aborts the firmware on purpose |
 | `fall`, `flail` (status) | `fall on/off/autohome/clear`, `flail on/off` -- switch a safety guard (fall guard, flail guard) |
 | `sweep stop` | `sweep ...`, `stepresp ...` -- bench identification experiments, run from the tether |
 | `servocfg` (read and verify regs 85/81) | `servocfg fast/factory`, `regw ...` -- write servo RAM registers (actuator experiments) |
@@ -149,6 +150,9 @@ CLI, and the CLI refuses them again itself (`cli.cpp tetherOnly()`) when the
 line came over Wi-Fi -- a slip in one table does not reach NVS, servo EEPROM
 or a safety latch. (A Wi-Fi `home` still clears a fall latch, exactly as on
 the tether: a deliberate home after a fall is the manual form of autohome.)
+On a power-lite image `rail on` is allowed over Wi-Fi
+([the record](design-v6/2026-11-21-rail-over-wifi.md)), and so is `bench`, which clears the E-stop latch after a power cycle, is
+allowed too, so the rail can be powered with no tether in.
 The operator stop (`tools/estop.py`, `linkproto::kFlagStop`) is a separate,
 unauthenticated link frame on port 4210 and needs no Wi-Fi CLI session.
 

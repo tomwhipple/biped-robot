@@ -162,6 +162,21 @@ Decision classify(const char* line, bool armed) {
         return Decision{Verdict::kRefuseUnknown, "unknown `imu` form"};
     }
 
+    if (is(c, "rail")) {
+        // Power lite's servo rail (Tom 2026-11-21: "turning it on via wifi should be
+        // allowed"). Status, on and off only; every interlock is behind cli::execute()
+        // and railguard, which do not know the transport.
+        if (argc == 1 || (argc == 2 && (is(sub, "on") || is(sub, "off")))) return allow();
+        if (argc == 2 && is(sub, "clear")) {
+            return tether("`rail clear` acknowledges a STUCK RAIL fault (check K1 "
+                          "at the robot first)");
+        }
+        if (argc == 2 && is(sub, "panic")) {
+            return tether("`rail panic` aborts the firmware on purpose (the "
+                          "fail-safe's bench check)");
+        }
+        return Decision{Verdict::kRefuseUnknown, "unknown `rail` form"};
+    }
     if (is(c, "fall")) {
         if (argc == 1) return allow();
         return tether("`fall on|off|autohome|clear` switches the fall guard (a "
