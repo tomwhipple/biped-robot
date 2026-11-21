@@ -213,11 +213,23 @@ and `vlm.ask` sends `num_gpu: 0` and `num_thread: 12` with every request (the re
 with training):
 
 ```
-mkdir -p ~/.cache/ollama-cpu
-CUDA_VISIBLE_DEVICES= OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \
-  OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 setsid nohup nice -n 19 ollama serve > /tmp/ollama-cpu.log 2>&1 &
-OLLAMA_HOST=127.0.0.1:11500 ollama pull MODEL
+mkdir -p ~/.cache/ollama-cpu ~/.cache/ollama-cpu-home
+env -i PATH=/usr/bin:/bin HOME=$HOME/.cache/ollama-cpu-home \
+  CUDA_VISIBLE_DEVICES= OLLAMA_VULKAN=0 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_LLM_LIBRARY=cpu OLLAMA_NO_CLOUD=1 \
+  OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \
+  OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 \
+  setsid nohup nice -n 19 $HOME/.local/opt/ollama-0.40.16/bin/ollama serve > /tmp/ollama-cpu.log 2>&1 < /dev/null &
+OLLAMA_HOST=127.0.0.1:11500 $HOME/.local/opt/ollama-0.40.16/bin/ollama pull MODEL   # always this binary, always with OLLAMA_HOST
 ```
+
+The binary is the user-local, CPU-only ollama v0.40.16 (reviewed 2026-11-21): the tarball unpacked WITHOUT
+`lib/ollama/cuda_v12`, `cuda_v13` and `vulkan` into `~/.local/opt/ollama-0.40.16/`, nothing on PATH. The older
+recipe (`CUDA_VISIBLE_DEVICES=` only) is NOT safe with 0.40.x: Vulkan is on by default there (it would see the
+GPU) and the server phones home unless `OLLAMA_NO_CLOUD=1`; `HOME` is a scratch dir so the server does not use
+`~/.ollama`'s key. Without `OLLAMA_HOST` the CLI talks to the system (GPU) ollama on :11434. Run the server by
+hand for the bake-off only and kill it afterwards. Expect in `/tmp/ollama-cpu.log`: `OLLAMA_NO_CLOUD:true`,
+`OLLAMA_VULKAN:false`, `Listening on 127.0.0.1:11500 (version 0.40.16)` and one `inference compute` line with
+`library=cpu`. Pins and review: `~/code/claude-runs/reviews/biped-robot-316-ollama.{pins.txt,review.md}`.
 
 Check after the first load that `nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv`
 lists no ollama process, and stop the server when done. The installed ollama (0.20.2) can no

@@ -7,10 +7,18 @@ come from the tags and the flight record.
 CPU by default. The GPU is not free (22:00-07:00 night training, by day camera-watcher), so the default
 host is a CPU-only ollama on 127.0.0.1:11500, and every request also sends `num_gpu: 0` (no layers on a
 GPU even if the host has one) and `num_thread` (default 12, leaving the rest of the box to training).
-Start that server like this (the models live in their own store):
+Start that server like this (the models live in their own store; the binary is the reviewed user-local
+CPU-only ollama v0.40.16 unpacked without its GPU backends, see tools/vision/README.md, "Layer E"; the older
+`CUDA_VISIBLE_DEVICES=`-only recipe is not safe with 0.40.x, which enables Vulkan by default):
 
-    CUDA_VISIBLE_DEVICES= OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \\
-        OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 setsid nohup nice -n 19 ollama serve &
+    mkdir -p ~/.cache/ollama-cpu ~/.cache/ollama-cpu-home
+    env -i PATH=/usr/bin:/bin HOME=$HOME/.cache/ollama-cpu-home \\
+        CUDA_VISIBLE_DEVICES= OLLAMA_VULKAN=0 GGML_VK_VISIBLE_DEVICES=-1 OLLAMA_LLM_LIBRARY=cpu OLLAMA_NO_CLOUD=1 \\
+        OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \\
+        OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 \\
+        setsid nohup nice -n 19 $HOME/.local/opt/ollama-0.40.16/bin/ollama serve > /tmp/ollama-cpu.log 2>&1 < /dev/null &
+
+CLI calls (pull) always use that binary with OLLAMA_HOST=127.0.0.1:11500 set.
 
 Standard library only (urllib); no network beyond the given host.
 """
