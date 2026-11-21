@@ -89,3 +89,20 @@ def test_compass_table():
     eps = [dict(m, variant="v", probe="compass L", fell=False)]
     md = G.compass_table(eps, ["v"])
     assert "| v | 1/1" in md and "1/1 |" in md
+
+
+def test_compass_settings_are_parsed_only_when_used(monkeypatch):
+    """A malformed COMPASS_* does not break grade.py while the compass probes are off: the
+    settings are parsed on first use, not at import."""
+    import importlib
+    monkeypatch.setenv("COMPASS_V", "not-a-number")
+    try:
+        g = importlib.reload(G)
+        assert g.PROBES and not any(k.startswith("compass") for k in g.PROBES)
+        with pytest.raises(ValueError):
+            g.compass_cfg()
+    finally:
+        monkeypatch.delenv("COMPASS_V")
+        G._COMPASS_CFG = None
+        G._COMPASS_PROBES = None
+    assert G.COMPASS_V == 0.15 and len(G.COMPASS_PROBES) == 8 * 2 + 2

@@ -273,35 +273,57 @@ WALKS_DX = 0.3      # m in 2.5 s on "walk 0.3 -> stop" (fast servo); the 11-05 w
 COMPASS = {"F": 0, "FL": 45, "L": 90, "BL": 135, "B": 180, "BR": -135, "R": -90, "FR": -45}
 
 
-def _cenv(name, default):
-    return float(os.environ.get(name, default))
+# The COMPASS_* settings, parsed on first use: only a run with the compass probes on reads them,
+# so a malformed COMPASS_V cannot break grade.py with COMPASS unset. compass_cfg() parses them,
+# compass_probes() builds the probe set from them; the module attributes COMPASS_V ... COMPASS_SPEED_HI
+# and COMPASS_PROBES resolve through those on first use (PEP 562 __getattr__ below).
+_COMPASS_DEFAULTS = {"COMPASS_V": "0.15", "COMPASS_W": "0.4", "COMPASS_SETTLE": "1.0",
+                     "COMPASS_DIR_TOL": "30", "COMPASS_SPEED_LO": "0.5", "COMPASS_SPEED_HI": "1.5"}
+_COMPASS_CFG = None
+_COMPASS_PROBES = None
 
 
-COMPASS_V = _cenv("COMPASS_V", "0.15")
-COMPASS_W = _cenv("COMPASS_W", "0.4")
-COMPASS_SETTLE = _cenv("COMPASS_SETTLE", "1.0")
-COMPASS_DIR_TOL = _cenv("COMPASS_DIR_TOL", "30")
-COMPASS_SPEED_LO = _cenv("COMPASS_SPEED_LO", "0.5")
-COMPASS_SPEED_HI = _cenv("COMPASS_SPEED_HI", "1.5")
+def compass_cfg():
+    """{COMPASS_V: float, ...}: each COMPASS_* from the environment, or its default."""
+    global _COMPASS_CFG
+    if _COMPASS_CFG is None:
+        _COMPASS_CFG = {k: float(os.environ.get(k, d)) for k, d in _COMPASS_DEFAULTS.items()}
+    return _COMPASS_CFG
 
 
 def _heading(deg, v=None, wz=0.0):
-    v = COMPASS_V if v is None else v
+    v = compass_cfg()["COMPASS_V"] if v is None else v
     a = math.radians(deg)
     return (v * math.cos(a), v * math.sin(a), wz, 1.0, 0.0, 0.0, 0.0)
 
 
-COMPASS_PROBES = {}
-for _n, _d in COMPASS.items():
-    COMPASS_PROBES[f"compass {_n}"] = dict(
-        cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(_d)), (6.0, STAND_CMD)], run_s=10.0, compass=True)
-    COMPASS_PROBES[f"compass {_n} turn"] = dict(
-        cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(_d, wz=COMPASS_W)), (6.0, STAND_CMD)], run_s=10.0,
-        compass=True)
-for _a, _b in (("F", "L"), ("F", "BR")):
-    COMPASS_PROBES[f"compass {_a}>{_b}"] = dict(
-        cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(COMPASS[_a])), (5.0, _heading(COMPASS[_b])),
-                      (8.0, STAND_CMD)], run_s=12.0, compass=True)
+def compass_probes():
+    """The compass probe set {name: probe}, built on first use."""
+    global _COMPASS_PROBES
+    if _COMPASS_PROBES is None:
+        w = compass_cfg()["COMPASS_W"]
+        out = {}
+        for n, d in COMPASS.items():
+            out[f"compass {n}"] = dict(
+                cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(d)), (6.0, STAND_CMD)], run_s=10.0,
+                compass=True)
+            out[f"compass {n} turn"] = dict(
+                cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(d, wz=w)), (6.0, STAND_CMD)],
+                run_s=10.0, compass=True)
+        for a, b in (("F", "L"), ("F", "BR")):
+            out[f"compass {a}>{b}"] = dict(
+                cmd_schedule=[(0.0, STAND_CMD), (2.0, _heading(COMPASS[a])), (5.0, _heading(COMPASS[b])),
+                              (8.0, STAND_CMD)], run_s=12.0, compass=True)
+        _COMPASS_PROBES = out
+    return _COMPASS_PROBES
+
+
+def __getattr__(name):
+    if name in _COMPASS_DEFAULTS:
+        return compass_cfg()[name]
+    if name == "COMPASS_PROBES":
+        return compass_probes()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def compass_metrics(X, Y, YW, sched, fell, dt=DT):
@@ -310,6 +332,9 @@ def compass_metrics(X, Y, YW, sched, fell, dt=DT):
     from COMPASS_SETTLE s after the command to the next change, against the command. X / Y / YW: the
     torso's world x, y (m) and yaw (rad) after each control tick; a command at schedule time ts is
     in force from tick round(ts / dt) - 1 (episode loop)."""
+    cfg = compass_cfg()
+    settle, tol = cfg["COMPASS_SETTLE"], cfg["COMPASS_DIR_TOL"]
+    lo, hi = cfg["COMPASS_SPEED_LO"], cfg["COMPASS_SPEED_HI"]
     X, Y = np.asarray(X, float), np.asarray(Y, float)
     yw = np.unwrap(np.asarray(YW, float))
     n = len(X)
@@ -318,7 +343,7 @@ def compass_metrics(X, Y, YW, sched, fell, dt=DT):
     for (ts, c), te in zip(sched, times[1:]):
         if S.stand_gate(c):
             continue
-        i0 = int(round((ts + COMPASS_SETTLE) / dt)) - 1
+        i0 = int(round((ts + settle) / dt)) - 1
         i1 = min(n - 1, int(round(te / dt)) - 1) if te != float("inf") else n - 1
         seg = dict(cmd=[round(float(x), 4) for x in c[:3]])
         if i1 - i0 < 10:
@@ -337,11 +362,10 @@ def compass_metrics(X, Y, YW, sched, fell, dt=DT):
         err = min(err, 360.0 - err)
         seg.update(v_body=[round(float(x), 4) for x in vb], speed_ratio=sp / v_cmd if v_cmd > 0 else float("nan"),
                    dir_err_deg=err, wz=wz)
-        ok = (v_cmd > 0 and err <= COMPASS_DIR_TOL
-              and COMPASS_SPEED_LO <= seg["speed_ratio"] <= COMPASS_SPEED_HI)
+        ok = v_cmd > 0 and err <= tol and lo <= seg["speed_ratio"] <= hi
         if abs(c[2]) > 0.05:
             seg["wz_ratio"] = wz / float(c[2])
-            ok = ok and COMPASS_SPEED_LO <= seg["wz_ratio"] <= COMPASS_SPEED_HI
+            ok = ok and lo <= seg["wz_ratio"] <= hi
         seg["hold"] = bool(ok)
         segs.append(seg)
     return dict(compass_segs=segs, compass_hold=bool(segs) and not fell and all(s_["hold"] for s_ in segs),
@@ -352,12 +376,14 @@ def compass_metrics(X, Y, YW, sched, fell, dt=DT):
 def compass_table(episodes, variants):
     """Markdown: per variant, each compass probe's holds out of the seeds, the worst segment's mean
     direction error (deg) and the lowest speed ratio, means over the seeds."""
-    names = [p for p in COMPASS_PROBES if any(e["probe"] == p for e in episodes)]
+    names = [p for p in compass_probes() if any(e["probe"] == p for e in episodes)]
     if not names:
         return ""
+    c = compass_cfg()
     L = ["", "Compass probes (#263): holds / seeds, worst direction error (deg), lowest speed ratio; "
-         f"hold = within {COMPASS_DIR_TOL:g} deg at {COMPASS_SPEED_LO:g}-{COMPASS_SPEED_HI:g} x the speed "
-         f"(and the turn rate), no fall; {COMPASS_V:g} m/s, turn {COMPASS_W:g} rad/s", "",
+         f"hold = within {c['COMPASS_DIR_TOL']:g} deg at {c['COMPASS_SPEED_LO']:g}-{c['COMPASS_SPEED_HI']:g} "
+         f"x the speed (and the turn rate), no fall; {c['COMPASS_V']:g} m/s, turn {c['COMPASS_W']:g} rad/s",
+         "",
          "| variant | " + " | ".join(n[8:] for n in names) + " | all |",
          "|---|" + "---|" * (len(names) + 1)]
     for vn in variants:
@@ -1015,7 +1041,7 @@ def main():
     compass = os.environ.get("COMPASS", "")
     pool = ({} if compass == "only" else dict(PROBES))
     if compass in ("1", "only"):
-        pool.update(COMPASS_PROBES)
+        pool.update(compass_probes())
     probes = {k: p for k, p in pool.items() if not only or k in only.split(",")}
     jobs = [(vn, pn, s, v, p) for vn, v in variants.items() for pn, p in probes.items()
             for s in range(seeds)]
@@ -1031,7 +1057,7 @@ def main():
             md += "\n\n- " + vn + " directions (4 s, ideal in brackets): " + "; ".join(
                 f"{p[4:]} {k} {m:+.2f} [{i:+.2f}]" + (f" FALLS {f}" if f else "")
                 for p, (k, m, i, f) in dd.items())
-    if any(p in probes for p in COMPASS_PROBES):
+    if any(p.get("compass") for p in probes.values()):
         md += "\n" + compass_table(res, variants)
     if "walk 0.3 -> stop" in probes:
         md += "\n\n" + "\n".join(
