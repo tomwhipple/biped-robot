@@ -186,20 +186,23 @@ INA219 misread, `batt pack off` takes it out of the guard until the next boot.
 
 Type on the tether:
 
-1. **Boot.** `rail` reads OFF, `SERVO_EN` low, `RAIL_V` about 0 V, `ESTOP_N` low, no
-   latch, no fault. `batt` reads `pack ok` with the INA219 near 12 V, `guarded on`. J12.2
+1. **Boot.** `rail` reads OFF, `SERVO_EN` low, `RAIL_V` under 1 V, `ESTOP_N` low, no
+   latch, no fault. (The ESP32's ADC at 12 dB reads nothing under about 0.15 V at the pin, so
+   a rail at 0 V reads about 0.8 V.) `batt` reads `pack ok` with the INA219 near 12 V, `guarded on`. J12.2
    reads 0 V, and K1 did not click during the reset.
 2. **Arm.** `rail on`: K1 clicks, LED2 lights, `rail` reads ON with `RAIL_V` at 12 V. Compare
-   it with a meter on SERVO+ and on J12.5 (2.1 V); note the error. `rail off`: K1 drops; time
+   it with a meter on SERVO+ and on J12.5 (2.1 V); note the error. Probe SERVO+ on D2's
+   banded lead or C1's + lead: J4–J7's pins are 2.5 mm apart, and a slip shorts the rail. `rail off`: K1 drops; time
    how long `RAIL_V` takes to read below 8 V (2-3 s here). No fault within 30 s.
 3. **E-stop.** `rail on`, then open J11: K1 drops, and the tether prints `rail: OFF
    (E-stop pressed)` and the latch, with `ESTOP_N` high. Close J11: K1 stays open.
    `rail on` is refused, naming the latch. `bench`, then `rail on`: K1 clicks.
 4. **Unplugged lead.** Pull J12 from the ESP32's headers: `rail` shows `ESTOP_N` high and
    `rail on` is refused. Replug; RUN, `bench`.
-5. **Stuck rail.** With `SERVO_EN` low, feed J12.5 about 2.1 V from a divider on the supply
-   (or hold SERVO+ up from a second supply): `rail FAULT: STUCK RAIL` within 8-9 s. `rail on`
-   is refused. `rail clear` is refused until the feed is removed; then it clears.
+5. **Stuck rail.** With `SERVO_EN` low, clip a lead from D3's banded lead (VIN) to D2's
+   banded lead (SERVO+): it bypasses K1, as a weld would (and F1; the rail draws a few mA).
+   LED2 lights. `rail FAULT: STUCK RAIL` within 8-9 s. `rail on` is refused. `rail clear` is
+   refused until the lead is off and the rail has fallen; then it clears.
 6. **No rail.** Supply off, pull F1, supply on; `bench`, `batt`. `rail on`: `SERVO_EN` drops
    within 250 ms and `rail` reports `NO RAIL`. Supply off, F1 back, supply on; `bench`,
    `batt`.
@@ -216,7 +219,8 @@ Type on the tether:
 
 The pack sense (#109), with `bimo_gui` or `bimo_tui` connected (both ask for the power block)
 and the rail off. On the INA219 the guard warns below 10.6 V and lands below 10.0 V; it reads
-`VIN`, a few tens of mV under J3 (the General Driver's input FET, SW1 and its shunt):
+`VIN`, behind the General Driver's input FET, SW1 and its shunt, within a few tens of mV of a
+meter on J3:
 
 9. **Reading.** `volt` reads `pack <v> V (INA219, 4 mV)`, about 12 V, then `rail off: the
    servos have no power`. `batt`: `pack ok`, the INA219 reading, `guarded on`, failures not
