@@ -31,6 +31,8 @@ bool Watchdog::accept(const Command& pkt, float now_ms) {
         // (extras at trained defaults), exactly like vx/wz.
         Command clamped = pkt;
         clampExtToEnvelope(clamped);
+        // A volume-trained run: (vx, vy) together into its ellipse (off otherwise).
+        clampToVolume(cmd_vx_, clamped.vy, kDeployedVolume);
         cmd_vy_ = clamped.vy;
         cmd_crouch_ = clamped.crouch;
         cmd_lift_ = clamped.lift;

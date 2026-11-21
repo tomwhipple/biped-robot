@@ -22,6 +22,15 @@ on [-w, w], so back + turn and side + turn are drawn too. The envs map their own
 (np.random / jax.random) through volume_cmd, so the law is the same function in both.
 
     vx, vy, wz = volume_cmd(u_r, u_th, u_turn, u_w, axes, xp)
+
+The volume CLAMP (#263). The robot holds a command to what a volume-trained run drew: the planar
+(vx, vy) inside volume_cmd's ellipse, the turn independently in [-w, w]. Per-axis limits alone pass
+a corner like (0.24, 0.25), normalized radius sqrt(2), that no draw reached. volume_clamp scales a
+command past the ellipse back along its own direction onto it; firmware/components/linkproto
+(clampToVolume) and link/protocol.py (clamp_to_volume) are its twins, and
+firmware/host/test_protocol.cpp pins the C++ bit for bit to volume_golden().
+
+    vx, vy = volume_clamp(vx, vy, axes, xp)
 """
 from __future__ import annotations
 
@@ -77,6 +86,40 @@ def volume_cmd(u_r, u_th, u_turn, u_w, axes, xp=np):
     vy = u_r * s * lat
     wz = xp.where(u_turn < VOLUME_P_TURN, (2.0 * u_w - 1.0) * w, 0.0)
     return vx, vy, wz
+
+
+def volume_clamp(vx, vy, axes, xp=np):
+    """(vx, vy) held inside the volume's ellipse: a command off both axes whose normalized radius
+    r = |(vx / a, vy / lat)| (a = the forward or backward semi-axis by the sign of vx) exceeds 1 is
+    scaled by 1 / r, onto the ellipse along its own direction; inside it, or ON an axis (vx = 0 or
+    vy = 0: the cardinal bands and the sway, which the per-axis clamp already holds), it passes
+    unchanged. axes = volume_axes(...) (its turn axis unused: the turn is drawn independently).
+    The arithmetic is the firmware's: in the inputs' precision, x / a squared, 1 / sqrt(r^2)."""
+    fwd, back, lat = axes[0], axes[1], axes[2]
+    nx = vx / xp.where(vx >= 0.0, fwd, back)
+    ny = vy / lat
+    r2 = nx * nx + ny * ny
+    out = (vx != 0.0) & (vy != 0.0) & (r2 > 1.0)
+    s = xp.where(out, 1.0 / xp.sqrt(xp.where(out, r2, 1.0)), 1.0)
+    return xp.where(out, vx * s, vx), xp.where(out, vy * s, vy)
+
+
+# The volume clamp's golden cases (firmware/host/test_protocol.cpp): the axes of a volume run on
+# the default ranges (forward 0.24, backward 0.4, lateral 0.25 m/s) and the commands to clamp --
+# the corner the per-axis clamp passed, each quadrant, inside, on the ellipse, on each axis.
+VOLUME_GOLDEN_AXES = (0.24, 0.4, 0.25)
+VOLUME_GOLDEN_IN = ((0.24, 0.25), (0.24, -0.25), (-0.4, 0.25), (-0.4, -0.25), (0.1, 0.1),
+                    (-0.2, 0.1), (0.2, 0.2), (0.12, 0.2), (0.24, 0.0), (0.0, 0.25), (-0.4, 0.0),
+                    (0.0, -0.25), (0.0, 0.0), (0.0013, 0.25), (0.24, -0.001), (-0.01, -0.249),
+                    (0.169705627, 0.176776695), (-0.3, -0.2))
+
+
+def volume_golden():
+    """VOLUME_GOLDEN_IN through volume_clamp on VOLUME_GOLDEN_AXES, float32: [(vx, vy), ...]."""
+    ax = tuple(np.float32(a) for a in VOLUME_GOLDEN_AXES)
+    vin = np.asarray(VOLUME_GOLDEN_IN, np.float32)
+    vx, vy = volume_clamp(vin[:, 0], vin[:, 1], ax)
+    return np.stack([np.asarray(vx, np.float32), np.asarray(vy, np.float32)], axis=1)
 
 
 # The trajectory the firmware's host test pins (firmware/host/test_cmdslew.cpp): rates, tick, the

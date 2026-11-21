@@ -368,6 +368,83 @@ void testClampExtToEnvelope() {
     }
 }
 
+// The volume clamp (#263): linkproto::clampToVolume bit for bit against sim/cmd_kernel.py
+// volume_clamp on fixed axes (a literal table; tests/test_cmd_kernel.py keeps it equal to the
+// Python law), with the deployed run's own ellipse checked from the generated vectors when the
+// deployed run is volume-trained. No axes = no volume: unchanged.
+constexpr float kVolGoldenAxes[3] = {0.239999995f, 0.400000006f, 0.25f};
+// BEGIN VOLUME GOLDEN
+constexpr float kVolGolden[][4] = {
+    {0.239999995f, 0.25f, 0.169705614f, 0.176776692f},
+    {0.239999995f, -0.25f, 0.169705614f, -0.176776692f},
+    {-0.400000006f, 0.25f, -0.282842726f, 0.176776692f},
+    {-0.400000006f, -0.25f, -0.282842726f, -0.176776692f},
+    {0.100000001f, 0.100000001f, 0.100000001f, 0.100000001f},
+    {-0.200000003f, 0.100000001f, -0.200000003f, 0.100000001f},
+    {0.200000003f, 0.200000003f, 0.173132941f, 0.173132941f},
+    {0.119999997f, 0.200000003f, 0.119999997f, 0.200000003f},
+    {0.239999995f, 0.0f, 0.239999995f, 0.0f},
+    {0.0f, 0.25f, 0.0f, 0.25f},
+    {-0.400000006f, 0.0f, -0.400000006f, 0.0f},
+    {0.0f, -0.25f, 0.0f, -0.25f},
+    {0.0f, 0.0f, 0.0f, 0.0f},
+    {0.0013f, 0.25f, 0.00129998091f, 0.249996334f},
+    {0.239999995f, -0.00100000005f, 0.239998072f, -0.000999992015f},
+    {-0.00999999978f, -0.248999998f, -0.00999999978f, -0.248999998f},
+    {0.169705629f, 0.176776692f, 0.169705629f, 0.176776692f},
+    {-0.300000012f, -0.200000003f, -0.273576468f, -0.182384297f},
+};
+// END VOLUME GOLDEN
+
+uint32_t floatBits(float f) {
+    uint32_t u = 0;
+    memcpy(&u, &f, sizeof u);
+    return u;
+}
+bool sameBits(float a, float b) { return floatBits(a) == floatBits(b); }
+
+void testClampToVolume() {
+    const VolumeAxes ax{kVolGoldenAxes[0], kVolGoldenAxes[1], kVolGoldenAxes[2]};
+    int bad = 0;
+    for (const auto& c : kVolGolden) {
+        float vx = c[0], vy = c[1];
+        clampToVolume(vx, vy, ax);
+        if (!sameBits(vx, c[2]) || !sameBits(vy, c[3])) {
+            ++bad;
+            fprintf(stderr, "clampToVolume(%.9g, %.9g): got %.9g %.9g want %.9g %.9g\n", c[0],
+                    c[1], vx, vy, c[2], c[3]);
+        }
+    }
+    CHECK_EQ(bad, 0);
+    // No volume (every non-volume run): the corner passes, as the per-axis bands left it.
+    float vx = 0.24f, vy = 0.25f;
+    clampToVolume(vx, vy, VolumeAxes{0.0f, 0.0f, 0.0f});
+    CHECK(sameBits(vx, 0.24f) && sameBits(vy, 0.25f));
+#ifdef LINKPROTO_CMD_VOLUME
+    for (size_t i = 0; i < E::kNumClampVol; ++i) {
+        const auto& c = E::kClampVol[i];
+        float x = c.vx, y = c.vy;
+        clampToVolume(x, y, kDeployedVolume);
+        CHECK(sameBits(x, c.out_vx) && sameBits(y, c.out_vy));
+    }
+    // the Watchdog applies it: a full-stick corner reaches the loop on the ellipse
+    Watchdog dog;
+    Command pkt{};
+    pkt.seq = 1;
+    pkt.flags = kFlagEnable;
+    pkt.vx = kVolFwd;
+    pkt.vy = kVolLat;
+    CHECK(dog.accept(pkt, 0.0f));
+    float out[7];
+    dog.commandExt(1.0f, out);
+    const float nx = out[0] / kVolFwd, ny = out[1] / kVolLat;
+    CHECK_NEAR(nx * nx + ny * ny, 1.0f, 1e-5);
+#else
+    CHECK(kDeployedVolume.fwd == 0.0f && kDeployedVolume.back == 0.0f &&
+          kDeployedVolume.lat == 0.0f);
+#endif
+}
+
 void testWatchdog() {
     Watchdog dog;
     CHECK(dog.valid());
@@ -956,6 +1033,7 @@ int main() {
     testEnvelopeBands();
     testClampToEnvelope();
     testClampExtToEnvelope();
+    testClampToVolume();
     testWatchdog();
     testArmLatch();
     testEndToEnd();

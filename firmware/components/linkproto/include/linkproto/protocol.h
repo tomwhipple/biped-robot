@@ -419,6 +419,27 @@ void clampToEnvelope(float vx, float wz, float& out_vx, float& out_wz);
 // into the lateral band (under its minimum to 0), crouch into [kCrouchMin, 1].
 void clampExtToEnvelope(Command& pkt);
 
+// The planar command's volume (#263): a run trained with cmd_volume drew (vx, vy) inside an
+// ellipse (sim/cmd_kernel.py volume_cmd), so the per-axis bands above pass corners it never drew
+// (vx = 0.24, vy = 0.25 is normalized radius sqrt(2)). clampToVolume holds (vx, vy) inside the
+// ellipse with semi-axes fwd (vx >= 0) / back (vx < 0) and lat: a command off both axes past it
+// is scaled back along its own direction onto it (cmd_kernel.volume_clamp, bit for bit); on an
+// axis it is the per-axis bands' business. All axes 0 = no volume: unchanged.
+struct VolumeAxes {
+    float fwd;    // m/s, forward semi-axis
+    float back;   // m/s, backward semi-axis (magnitude)
+    float lat;    // m/s, lateral semi-axis
+};
+void clampToVolume(float& vx, float& vy, const VolumeAxes& ax);
+// The deployed run's axes: the generated envelope defines LINKPROTO_CMD_VOLUME and kVolFwd /
+// kVolBack / kVolLat only for a volume-trained run (tools/gen_envelope.py); otherwise none, and
+// the Watchdog's clamp is the per-axis one alone.
+#ifdef LINKPROTO_CMD_VOLUME
+inline constexpr VolumeAxes kDeployedVolume = {kVolFwd, kVolBack, kVolLat};
+#else
+inline constexpr VolumeAxes kDeployedVolume = {0.0f, 0.0f, 0.0f};
+#endif
+
 // Encode into `out` (kCmdLen / kTlmLen bytes). Returns bytes written.
 size_t encodeCommand(uint8_t* out, uint32_t seq, float vx, float wz,
                      uint8_t flags);

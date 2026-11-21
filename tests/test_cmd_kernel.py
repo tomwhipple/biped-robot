@@ -168,3 +168,55 @@ def test_cpu_mjx_parity():
     p = subprocess.run([sys.executable, "parity_test.py", "--cmd-slew"], cwd=os.path.join(SIM, "mjx"),
                        env=env, capture_output=True, text=True, timeout=900)
     assert p.returncode == 0, p.stdout[-2000:] + p.stderr[-2000:]
+
+
+# -- the volume clamp (#263): the robot holds a command to the volume's ellipse ----------------
+def test_volume_clamp_holds_the_ellipse():
+    """volume_clamp scales a corner past the ellipse back onto it along its own direction; every
+    point inside it, and every point on an axis, passes unchanged."""
+    ax = ck.volume_axes((0.05, 0.24), (-0.4, -0.15), 0.25, 1.0)
+    vx, vy = ck.volume_clamp(0.24, 0.25, ax)                 # radius sqrt(2) under per-axis limits
+    assert math.hypot(vx / 0.24, vy / 0.25) == pytest.approx(1.0)
+    assert math.atan2(vy, vx) == pytest.approx(math.atan2(0.25, 0.24))
+    vx, vy = ck.volume_clamp(-0.4, -0.25, ax)                # the backward semi-axis on vx < 0
+    assert math.hypot(vx / 0.4, vy / 0.25) == pytest.approx(1.0) and vx < 0 and vy < 0
+    for p in ((0.1, 0.1), (-0.2, 0.1), (0.24, 0.0), (0.0, 0.25), (-0.4, 0.0), (0.0, 0.0),
+              (0.0, 0.3)):                                   # inside, or on an axis
+        assert tuple(map(float, ck.volume_clamp(*p, ax))) == p
+    # every volume draw is a fixed point: the clamp takes nothing the sampler drew
+    rng = np.random.default_rng(3)
+    u = rng.uniform(size=(4, 20000))
+    dvx, dvy, _ = ck.volume_cmd(u[0], u[1], u[2], u[3], ax)
+    cvx, cvy = ck.volume_clamp(dvx, dvy, ax)
+    np.testing.assert_allclose(cvx, dvx, rtol=0, atol=1e-12)
+    np.testing.assert_allclose(cvy, dvy, rtol=0, atol=1e-12)
+
+
+def test_volume_clamp_twins_agree():
+    """link/protocol.py clamp_to_volume (the robot link's Python twin) is the kernel's law."""
+    sys.path.insert(0, os.path.join(HERE, "..", "link"))
+    import protocol as P
+    ax = ck.volume_axes((0.05, 0.24), (-0.4, -0.15), 0.25, 1.0)
+    env = P.Envelope(0.0, 0.24, 0.0, 0.4, 0.0, 0.25, 1.0, 1.0, volume=ax[:3])
+    for vx in np.linspace(-0.5, 0.3, 33):
+        for vy in np.linspace(-0.3, 0.3, 25):
+            want = tuple(map(float, ck.volume_clamp(float(vx), float(vy), ax)))
+            assert P.clamp_to_volume(float(vx), float(vy), env) == pytest.approx(want, abs=1e-15)
+    off = P.Envelope(0.0, 0.24, 0.0, 0.4, 0.0, 0.25, 1.0, 1.0)
+    assert P.clamp_to_volume(0.24, 0.25, off) == (0.24, 0.25)
+
+
+def test_volume_golden_table_matches_python():
+    """firmware/host/test_protocol.cpp's literal golden table is volume_golden() on its axes."""
+    import re
+    src = open(os.path.join(HERE, "..", "firmware", "host", "test_protocol.cpp")).read()
+    num = r"[-+]?(?:\d+\.?\d*(?:e[-+]?\d+)?)f"
+    m = re.search(r"kVolGoldenAxes\[3\] = \{(.*?)\};", src)
+    assert m
+    got_ax = np.float32([float(x[:-1]) for x in re.findall(num, m.group(1))])
+    assert got_ax.tolist() == np.float32(ck.VOLUME_GOLDEN_AXES).tolist()
+    m = re.search(r"// BEGIN VOLUME GOLDEN(.*?)// END VOLUME GOLDEN", src, re.S)
+    body = m.group(1).split("= {", 1)[1]
+    vals = np.float32([float(x[:-1]) for x in re.findall(num, body)]).reshape(-1, 4)
+    np.testing.assert_array_equal(vals[:, :2], np.float32(ck.VOLUME_GOLDEN_IN))
+    np.testing.assert_array_equal(vals[:, 2:], ck.volume_golden())

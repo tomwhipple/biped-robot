@@ -225,6 +225,70 @@ def test_opt_in_settings_only_when_on(tmp_path):
     assert protocol.load_envelope(twin) is not None
 
 
+def test_a_volume_trained_run_carries_its_ellipse(tmp_path):
+    """cmd_volume (#263): the header, the twin and the vectors carry the volume's planar ellipse
+    (sim/cmd_kernel.py volume_axes), so the robot clamps (vx, vy) together; a run without it
+    carries none of it (the pinned bytes stay the bytes)."""
+    for cfg in (PREC, dict(PREC, cmd_volume=0.0), dict(PREC, cmd_volume=1.0, ext_cmd=False)):
+        src, where = gen_envelope.read_source(cfg)
+        assert gen_envelope.volume_axes(src) is None
+        h, py = tmp_path / "off.h", tmp_path / "cmd_envelope_off.py"
+        band = gen_envelope.bands(src)
+        gen_envelope.write_header(str(h), None, "r", band, src, where)
+        gen_envelope.write_py(str(py), None, "r", band, src, where)
+        assert "VOLUME" not in h.read_text() and "kVol" not in h.read_text()
+        assert "VOLUME" not in py.read_text()
+        env = protocol.load_envelope(gen_envelope.load_twin(str(py)))
+        assert env.volume == ()
+        v = tmp_path / "off_v.h"
+        gen_envelope.write_vectors(str(v), None, "r", band, env)
+        assert "kClampVol" not in v.read_text()
+    src, where = gen_envelope.read_source(dict(PREC, cmd_volume=0.5))
+    assert gen_envelope.volume_axes(src) == (0.24, 0.4, 0.25)
+    band = gen_envelope.bands(src)
+    h, py, v = tmp_path / "on.h", tmp_path / "cmd_envelope.py", tmp_path / "on_v.h"
+    gen_envelope.write_header(str(h), None, "r", band, src, where)
+    gen_envelope.write_py(str(py), None, "r", band, src, where)
+    text = h.read_text()
+    assert "#define LINKPROTO_CMD_VOLUME 1" in text
+    assert text.index("#define LINKPROTO_CMD_VOLUME") < text.index("namespace linkproto {")
+    for name, val in (("kVolFwd", 0.24), ("kVolBack", 0.4), ("kVolLat", 0.25)):
+        assert re.search(r"\b%s = %sf;" % (name, re.escape("%.9g" % val)), text), name
+    env = protocol.load_envelope(gen_envelope.load_twin(str(py)))
+    assert env.volume == (0.24, 0.4, 0.25)
+    gen_envelope.write_vectors(str(v), None, "r", band, env)
+    rows = re.search(r"kClampVol\[\] = \{(.*?)\n\};", v.read_text(), re.S).group(1)
+    rows = [[float(x.strip().rstrip("f")) for x in r.split(",")]
+            for r in re.findall(r"\{([^{}]+)\}", rows)]
+    assert [f32(x) for x in rows[0][:2]] == [f32(0.24), 0.25]
+    import cmd_kernel
+    import numpy as np
+    for vx, vy, ox, oy in rows:
+        wx, wy = cmd_kernel.volume_clamp(np.float32(vx), np.float32(vy),
+                                         tuple(np.float32(a) for a in env.volume))
+        assert (f32(wx), f32(wy)) == (f32(ox), f32(oy))
+    # the corner the per-axis clamp passed is on the ellipse after the twin's clamp
+    vx, vy = protocol.clamp_to_volume(0.24, 0.25, env)
+    assert (vx / 0.24) ** 2 + (vy / 0.25) ** 2 == pytest.approx(1.0)
+
+
+def test_the_python_watchdog_clamps_to_the_volume(monkeypatch):
+    """link/protocol.py's Watchdog (the firmware's twin) applies the ellipse after the per-axis
+    clamps, for a volume-trained envelope only."""
+    base = protocol.Envelope(0.0, 0.24, 0.0, 0.4, 0.0, 0.25, 1.0, 1.0)
+    for env, on in ((base, False), (base._replace(volume=(0.24, 0.4, 0.25)), True)):
+        monkeypatch.setattr(protocol, "_ENVELOPE", env)
+        dog = protocol.Watchdog()
+        pkt = protocol.Command(1, 0.24, 0.5, protocol.FLAG_ENABLE, vy=0.25)
+        assert dog.accept(pkt, 0.0)
+        vx, vy, wz = dog.command_ext(1.0)[:3]
+        assert wz == 0.5
+        if on:
+            assert (vx / 0.24) ** 2 + (vy / 0.25) ** 2 == pytest.approx(1.0)
+        else:
+            assert (vx, vy) == (0.24, 0.25)
+
+
 # -- the env defaults the generator resolves ---------------------------------
 def test_env_defaults_match_the_mjx_env():
     """The training env (env_mjx) and the CPU env (walker_env) must agree on
