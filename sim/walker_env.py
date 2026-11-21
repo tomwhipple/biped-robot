@@ -39,6 +39,7 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths  # noqa: E402
+import supply_sag  # noqa: E402  (#6: the bus sag kernel, shared with env_mjx)
 import re
 import numpy as np
 import mujoco
@@ -1794,8 +1795,7 @@ class BimoWalkerEnv(gym.Env):
         self._servo_tau = np.zeros(self._n_servo)
         # supply sag (#6, sim/supply_sag.py): the episode's R (None = off), the supply scale
         # V/V0 the next substep runs on, and the last substep's bus current (A)
-        import supply_sag as _sag
-        self.supply_sag_ohm = _sag.parse_sag(supply_sag_ohm)
+        self.supply_sag_ohm = supply_sag.parse_sag(supply_sag_ohm)
         if self.supply_sag_ohm is not None and self._servo is None:
             raise ValueError("supply_sag_ohm needs actuator_model='sts3215' (the PD torque model)")
         self._sag_r = None
@@ -3162,8 +3162,7 @@ class BimoWalkerEnv(gym.Env):
                     self._servo_tau = np.zeros(self._n_servo)
                 if self._sag_r is not None:
                     # this substep's bus current sets the next substep's supply (supply_sag)
-                    import supply_sag as _sag
-                    self._sag_s, self._sag_i = _sag.sag_step(
+                    self._sag_s, self._sag_i = supply_sag.sag_step(
                         self._servo_tau, qd, self._sag_s, self._sag_r, self.supply_voltage)
                 self.data.qfrc_applied[self._sqvel] = self._servo_tau
             elif lat_k:
