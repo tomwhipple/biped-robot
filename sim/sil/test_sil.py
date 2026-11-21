@@ -53,9 +53,8 @@ def cfg():
 def xml(cfg):
     x = cfg.get("xml_path")
     assert x, f"sim/runs/{RUN}/config.json has no xml_path"
-    if not os.path.isabs(x) and not os.path.exists(x):
-        x = os.path.join(SIM, os.path.basename(x))
-    return x
+    import paths
+    return paths.resolve_plant(x)
 
 
 @pytest.fixture(scope="session")
