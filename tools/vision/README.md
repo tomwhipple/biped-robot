@@ -204,8 +204,13 @@ on the CPU (12 threads) with night training running:
 | granite3.2-vision:2b (describe-first) | 6 | – / 0.00 | – / 0.00 | 0 of 6 | 96, 98 |
 
 None of them saw the dog (0 of 7 frames) or a fallen robot with nobody near it (0-4 of 10); their
-"person" hits are big hands on the robot, which nobody would miss on the contact sheet. qwen3-vl:8b,
-the best model of the 11-16 GPU test, could not be pulled by the installed ollama.
+"person" hits are big hands on the robot, which nobody would miss on the contact sheet.
+
+**2026-11-21: qwen3-vl:8b-instruct** (pullable with the reviewed ollama 0.40.16, below) was run on the same set
+([record](../../docs/design-v6/2026-11-21-vlm-qwen3vl-bakeoff.md)): describe-first person/animal P 0.93 / R 0.67
+(dog 4 of 7), not upright P 1.00 / R 0.22; answer-first person/animal 1.00 / 0.29 (dog 0 of 7), not upright
+1.00 / 0.67 (falls 7 of 10); no object false alarms; 22-31 s per frame on the CPU. The best model so far and a
+trustworthy flag, but each prompt misses what the other finds and many frames stay silent: still not wired in.
 
 **CPU, not the GPU.** The GPU belongs to night training (22:00-07:00) and by day to
 camera-watcher, so models run on a separate CPU-only ollama (its own model store, port 11500),

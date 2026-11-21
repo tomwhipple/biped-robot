@@ -1,7 +1,8 @@
 # 2026-11-20: local vision models as a second opinion on key frames (#316, layer E) — bake-off
 
 *Dated record. The tool and how to run it: [tools/vision/README.md](../../tools/vision/README.md), "Layer E".
-Raw answers: [vlm-bakeoff-2026-11-20/](vlm-bakeoff-2026-11-20/).*
+Raw answers: [vlm-bakeoff-2026-11-20/](vlm-bakeoff-2026-11-20/).
+Follow-up with qwen3-vl:8b-instruct (2026-11-21): [2026-11-21-vlm-qwen3vl-bakeoff.md](2026-11-21-vlm-qwen3vl-bakeoff.md).*
 
 ## Question
 
