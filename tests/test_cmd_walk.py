@@ -75,11 +75,11 @@ def test_stdin_source_is_non_blocking_and_sees_eof():
 # ---- the rules
 
 def test_envelope_scales_all_three_uniformly_and_slew_limits_the_change():
-    cw = walk(["20 10 2"] * 6, limits=dict(slew=(1e9, 1e9, 1e9)))        # asks 80 mm, 40 mm, 8 deg per step at T 4
+    cw = walk(["20 10 2"] * 6, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))        # (the cap the table in the README had before 25) asks 80 mm, 80 mm (10 mm/s of body = 2 x 40 per pair), 8 deg
     cw.decide()
     s = cw.log[0]["step_mm_deg"]
-    f = min(50 / 80, 15 / 40, 5 / 8)
-    assert s == pytest.approx([80 * f, 40 * f, 8 * f], abs=0.02)         # the sideways cap binds: one factor, same direction
+    f = min(50 / 80, 15 / 80, 5 / 8)
+    assert s == pytest.approx([80 * f, 80 * f, 8 * f], abs=0.02)         # the sideways cap binds: one factor, same direction
     assert any("envelope" in n for n in cw.log[0]["notes"])
     # backward is capped at 32 (steering mode), forward at 50
     cw = walk(["-20 0 0"] * 6, limits=dict(slew=(1e9, 1e9, 1e9)))
@@ -96,7 +96,7 @@ def test_slew_walks_through_zero_from_full_forward_to_full_back():
     assert dxs(cw) == [20.0, 40.0, 40.0, 40.0, 20.0, 0.0, -20.0, -32.0, -32.0, 0.0]
     assert any("slew" in n for r in cw.log for n in r["notes"])
     # all three components move together (a diagonal keeps its direction while it is slewed)
-    cw = walk(["10 3.75 0"] * 3)
+    cw = walk(["10 1.875 0"] * 3)                                         # body vy 1.875 -> dy 15 per lead step
     cw.rehearse(3)
     assert [c["dy"] / c["dx"] for c in cw.steps[:3]] == pytest.approx([15 / 40] * 3, rel=2e-3)
 
@@ -170,17 +170,17 @@ def test_max_steps_and_pause_bounds():
 def test_a_sideways_reversal_with_the_feet_apart_inserts_one_closing_step_and_walking_on_does_not():
     # two left steps leave the left foot 15 mm out; a small right step would have the right foot travel LEFT (to 10 mm
     # beyond where it stands): the feet are brought together first, and the command waits one step
-    cw = walk(["0 3.75 0"] * 2 + ["0 -1.25 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 3.75 0"] * 2 + ["0 -0.625 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(6)
     names = [c["name"] for c in cw.steps]
     assert names.count("close") == 1 and names[2] == "close" and cw.steps[3]["dy"] == pytest.approx(-0.005)
     # a full reversal (15 mm right after 15 mm left) is a null out-step, not a wrong-way one: no closing step
-    cw = walk(["0 3.75 0"] * 2 + ["0 -3.75 0"] * 3, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 3.75 0"] * 2 + ["0 -3.75 0"] * 3, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(5)
     assert [c["name"] for c in cw.steps].count("close") == 0
     # sideways right all the way: R goes out, L follows alongside: never a closing step (the --seq boundary rule
     # `gap x dy < 0` would have fired after every odd step here)
-    cw = walk(["0 -3.75 0"] * 7, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw = walk(["0 -3.75 0"] * 7, limits=dict(slew=(1e9, 1e9, 1e9), side=15.0))
     cw.rehearse(7)
     assert [c["name"] for c in cw.steps].count("close") == 0
     assert all(c["dy"] == pytest.approx(-0.015) for c in cw.steps[:7])
@@ -451,3 +451,40 @@ def test_walk_keys_controller_and_atomic_file(tmp_path):
     assert K.read_status(str(f)) is None
     (tmp_path / "cmd.status").write_text(json.dumps(dict(state="walking", step=3, applied=[5.0, 0, 0], notes=["slew"])))
     assert "walking step 3 applied +5.00" in K.render(ctl, K.read_status(str(f)))
+
+
+def test_live_walk_with_plain_side_timing_uploads_exactly_the_frames_of_the_final_plan(tmp_path, monkeypatch, capsys):
+    """A sideways step's own pause / shift follow its displacement, so the first undecided step's frames are held back from
+    the touchdown of the step before it (CmdWalk.limit_ms): nothing uploaded may differ from the final plan."""
+    script = [(6000, "0 1.25 0"), (22000, "5 0 0"), (34000, "0 -1.25 0"), (46000, "stop")]
+    rc, out, summ, cmdfile = _live(tmp_path, monkeypatch, capsys, script, first_cmd="0 0 0",
+                                   args=["--heading-hold", "off", "--td-pause", "0.3", "--side-timing", "plain"])
+    assert rc == 0, out
+    cw = _Fake.cw
+    assert cw.finished and cw.side_plain and any(c.get("lat") for c in cw.steps)
+    final = H.plan(**cw.plan_kwargs())
+    assert _Fake.frames == [h for _, h, _ in final["frames"]]
+    assert "side timing plain" in out
+
+
+def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_lead_dy():
+    """vy 1.25 mm/s at T 4 = 5 mm of body per step = 10 mm per pair = dy 10 on the lead step; the cap is per pair."""
+    cw = walk(["0 1.25 0"] * 4, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw.rehearse(4)
+    assert [round(c["dy"] * 1e3, 2) for c in cw.steps[:4]] == [10.0] * 4
+    assert cw.log[0]["applied"][1] == pytest.approx(1.25)                # reported back as the body's velocity
+    cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9)))
+    cw.decide()
+    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(15.0)            # the default cap: 15 mm per pair = 1.9 mm/s at T 4
+    cw = walk(["0 5 0"] * 2, limits=dict(slew=(1e9, 1e9, 1e9), side=30.0))
+    cw.decide()
+    assert cw.log[0]["step_mm_deg"][1] == pytest.approx(30.0)
+    # the feet's geometry: the first swing foot is R, so a right sidestep leads with it: the body moves dy / 2 in the lead
+    # step; a left one does not (the foot lands alongside the stance foot)
+    cw = walk(["0 0 0"])
+    assert cw._body_dy(0, -10.0) == pytest.approx(-5.0) and cw._body_dy(0, 10.0) == pytest.approx(0.0)
+
+
+def test_side_cap_flag_up_to_30_and_refused_beyond(capsys):
+    assert H.main(["--cmd", "stdin", "--max-side-mm", "31"]) == 2
+    assert "up to 30" in capsys.readouterr().out
