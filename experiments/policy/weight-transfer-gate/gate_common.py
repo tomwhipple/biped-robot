@@ -313,7 +313,10 @@ def apply_terms(env, terms):
         import supply_sag as SS
         env.supply_sag_ohm = SS.parse_sag(float(terms["supply_ohm"]))
         env._sag_r = None if env.supply_sag_ohm is None else env.supply_sag_ohm[0]
-        env._sag_s, env._sag_i = 1.0, 0.0
+        env._sag_s, env._sag_s_run, env._sag_i = 1.0, 1.0, 0.0
+        if env._sag_r is not None:
+            # each servo's current by its physical type (SS.servo_elec), as the env's init does
+            env._sag_elec = SS.servo_elec(env._servo_names, env.servo_types)
     for key, suf in (("fric_aroll", "ankle_roll"), ("fric_hroll", "hip_roll")):
         if key in terms:        # dry friction (N m) on the roll joints themselves: the link side
             for i, n in enumerate(env._servo_names):

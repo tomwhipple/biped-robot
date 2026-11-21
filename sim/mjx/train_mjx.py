@@ -477,8 +477,9 @@ def make_parser():
                         "The referee inherits it from config.json (servo_types)")
     p.add_argument("--supply-sag-ohm", default=None,
                    help="supply SAG under load (#6): V = V0 - R x I_bus per physics substep, V0 = "
-                        "the supply voltage, I_bus the summed servo current (the bridge model "
-                        "power_w prices); stall torque and no-load speed scale with V/V0. R ohms "
+                        "the supply voltage, I_bus the summed servo current (the bridge model, "
+                        "each servo by its own type, capped at its real stall current); stall "
+                        "torque and no-load speed scale with V/V0. R ohms "
                         "fixed ('0.44', the 2026-11-03 bench supply) or 'LO:HI' drawn per "
                         "episode. Off by default (sim/supply_sag.py; both envs). config.json "
                         "records it; the CPU referee inherits it")

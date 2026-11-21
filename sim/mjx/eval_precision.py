@@ -86,8 +86,9 @@ class _AllServos:
     _jqvel and data.ctrl; its load is a fraction of each servo's effective maximum (the episode's
     DR-drawn stall x the static per-servo profile). Under --supply-sag-ohm the envelope shrinks
     with the supply scale s, and the PWM duty is |tau / (s stall) + w / (s w0)|: the view hands
-    the meter tau / s and w / s (s of the tick's last substep), so a servo at its sagged cap reads
-    100 %. Without sag it passes the env's own arrays."""
+    the meter tau / s and w / s (s = the scale the tick's last substep RAN on, env._sag_s_run, not
+    the relaxed one the next substep will), so a servo at its sagged cap reads 100 %. Without sag
+    it passes the env's own arrays."""
 
     def __init__(self, env):
         self.env = env
@@ -99,7 +100,12 @@ class _AllServos:
         self._servo = np.array(list(env._servo), dtype=object)
 
     def _scale(self):
-        return self.env._sag_s if self.env._sag_r is not None else None
+        return self.env._sag_s_run if self.env._sag_r is not None else None
+
+    def volts(self):
+        """The supply the servos ran on: the sagged one under --supply-sag-ohm."""
+        s = self._scale()
+        return float(self.env.supply_voltage) * (1.0 if s is None else float(s))
 
     @property
     def _servo_tau(self):
@@ -118,11 +124,18 @@ class _AllServos:
 
 def overload_meter(env):
     """A measuring-only (enforce=False) STSProtection over every servo of `env`, on the env's
-    supply voltage: (meter, the view to tick it with)."""
+    supply voltage -- the sagged one under --supply-sag-ohm, re-read every tick by
+    `overload_tick`: (meter, the view to tick it with)."""
     import sts_servo_model as SM
     view = _AllServos(env)
     return SM.STSProtection(view, env._servo_names, enforce=False, load="duty",
-                            volts=float(env.supply_voltage)), view
+                            volts=view.volts()), view
+
+
+def overload_tick(meter, view, dt):
+    """Tick the meter on the supply this tick's last substep ran on (sagged, or the fixed one)."""
+    meter.volts = view.volts()
+    meter.tick(view, dt)
 
 
 def overload_summary(reports):
@@ -2361,7 +2374,7 @@ def run_one(env, act, factory, seed, record, N, mass):
         t = step * drv.dt
         gt, term = drv.step(ctrl(t, gt, ev))
         if meter is not None:
-            meter.tick(view, drv.dt)
+            overload_tick(meter, view, drv.dt)
         if term:
             break
     shared = drv.shared_metrics(mass)

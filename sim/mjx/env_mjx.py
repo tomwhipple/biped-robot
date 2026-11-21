@@ -1426,6 +1426,10 @@ class BimoMJXEnv:
         _sp, _wp = servo_envelope_vectors(self._servo_names, self.servo_types)
         self._stall_prof = jp.asarray(_sp)
         self._w0_prof = jp.asarray(_wp)
+        if self._sag_on:
+            # each servo's (K_CU, stall current at 12 V) by its physical type (supply_sag)
+            self._sag_elec = tuple(jp.asarray(x) for x in
+                                   self._sag.servo_elec(self._servo_names, self.servo_types))
         self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
@@ -3362,7 +3366,7 @@ class BimoMJXEnv:
             if sag_on:
                 # this substep's bus current sets the next substep's supply (supply_sag)
                 sg = self._sag.sag_step(tau, qd, sg, state.sag_r, self._sag_v0,
-                                        jp)[0].astype(sg.dtype)
+                                        self._sag_elec, jp)[0].astype(sg.dtype)
             d = d.replace(qfrc_applied=jp.zeros(self.mj_model.nv
                                                 ).at[self._jv0:self._jv1].set(tau))
             d = mjx.step(m, d)
