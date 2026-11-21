@@ -1,5 +1,5 @@
 ##@ Firmware
-.PHONY: host console vectors policy envelope deploy firmware firmware-powerlite lint cmake-check tidy tidy-gui cppcheck
+.PHONY: host console qtconsole vectors policy envelope deploy firmware firmware-powerlite lint cmake-check tidy tidy-gui cppcheck
 
 # -- the generated policy sets (tools/policy_profile.py) ----------------------
 # Git tracks each set's INPUTS in firmware/deployed/ (policies.txt: set, run,
@@ -50,6 +50,10 @@ console: $(HOST_VECTORS) build/policy/deployed/.envelope build/policy/deployed/.
 	$(MAKE) -C firmware/host deps
 	$(MAKE) -C firmware/host gui
 	firmware/host/build/bimo_gui $(or $(ARGS),--host 127.0.0.1)
+
+qtconsole: ## build the core library and open the Qt operator console (link/bimo_console.py, docs/console.md) observing the local sim; ARGS="--host <robot-ip>" for the robot
+	$(MAKE) -C firmware/host console
+	$(PY) link/bimo_console.py $(or $(ARGS),--host 127.0.0.1)
 
 vectors: $(HOST_VECTORS) ## the protocol, flight-recorder and Wi-Fi CLI test vectors (build/host/vectors), from link/protocol.py, tools/flightrec.py and link/wcliproto.py
 # (its watchdog cases clamp to the deployed command envelope)

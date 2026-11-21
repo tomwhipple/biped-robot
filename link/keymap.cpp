@@ -49,6 +49,7 @@ const struct {
     {"reset_ext", "reset ext -> 14 B"},
     {"home", "reset servos -> stand"},
     {"control", "take control / watch only"},
+    {"hold", "hold (soft stop)"},
 };
 
 void trim(char* s) {
@@ -142,6 +143,7 @@ void Keymap::reset() {
     // wants a key can bind one in the keys panel; the default should not
     // make handing over the robot the easiest thing on the keyboard.
     key[kActControl] = kKeyNone;
+    key[kActHold] = 'f';     // Tom, 2026-11-01
 }
 
 int Keymap::actionFor(int k) const {

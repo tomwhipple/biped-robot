@@ -34,6 +34,10 @@ enum Action {
     kActResetExt,
     kActHome,
     kActControl,
+    // The SOFT operator stop (kFlagStop without kFlagEstop: the policy stops,
+    // the joints hold stiff). Out of band, so it works in every role; only
+    // the Qt console (link/console/) sends it.
+    kActHold,
     kActCount,
 };
 
