@@ -568,3 +568,32 @@ def test_a_failed_relink_shows_no_link_everywhere(qapp, twin, tmp_path):
         assert w.windowTitle().endswith("127.0.0.1")
     finally:
         w.close()
+
+
+def test_the_safety_bar_shows_the_power_block(qapp, twin, tmp_path):
+    """#109: the pack reads off the INA219 (the lower of it and the servos),
+    the guard level and the rail get their own readout, and an E-STOP latch
+    outranks them; a beacon without the block reads "power --"."""
+    from console import core
+    w = window(qapp, twin, tmp_path, "--drive")
+    try:
+        pump(qapp, 0.4)
+        bar = w.bar
+        st = core.Status.from_buffer_copy(w.ctl.st)
+        assert st.fresh and not st.have_pwr                    # the twin sends no block
+        bar.update_from(st, 0.0)
+        assert bar.power.text() == "power --" and bar.power_sub.text() == "no power block"
+        assert bar.vbat_sub.text().startswith("pack ·")
+        st.have_pwr, st.pack_mv, st.batt = 1, 11300, 1
+        st.vbat_v = 0.0
+        st.pwr_flags = core.PWR_LITE | core.PWR_RAIL_VALID | core.PWR_SERVO_EN
+        st.rail_mv = 11250
+        bar.update_from(st, 0.0)
+        assert bar.vbat.text().strip() == "11.30 V" and "INA219" in bar.vbat_sub.text()
+        assert bar.power.text() == "batt WARN" and "rail 11.25 V SERVO_EN" in bar.power_sub.text()
+        st.pwr_flags |= core.PWR_ESTOP | core.PWR_ESTOP_LATCHED
+        bar.update_from(st, 0.0)
+        assert bar.power.text() == "E-STOP LATCHED" and "batt WARN" in bar.power_sub.text()
+        assert bar.minimumSizeHint().width() <= 1280 - FIT_SLACK
+    finally:
+        w.close()

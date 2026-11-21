@@ -440,7 +440,7 @@ class FakeApp:
         from console.tab_drive import History
         self.flight = store
         self.beacons = History(("t", "vbat", "tilt", "vx_cmd", "vx_est", "wz_cmd", "wz_est",
-                                "late"))
+                                "late", "pack", "rail"))
         self.rate_hz = 20.0
         st = core.Status()
         st.readonly = int(readonly)
@@ -534,7 +534,8 @@ def test_telemetry_tab_charts_and_tables(qapp, store):
     backfill(store, 40.0, sim=False)
     app = FakeApp(store)
     for k in range(100):
-        app.beacons.push(1000.0 - 10.0 + k * 0.1, 11.9, 2.0, 0, 0, 0, 0, 0)
+        app.beacons.push(1000.0 - 10.0 + k * 0.1, 11.9, 2.0, 0, 0, 0, 0, 0, float("nan"),
+                         float("nan"))
     tab = TelemetryTab(app)
     assert tab.always_update
     tab.resize(1600, 1000)
@@ -566,6 +567,34 @@ def test_telemetry_tab_charts_and_tables(qapp, store):
     n = len(tab.ages)
     tab.update_from(app.ctl.st, 1000_400.0)
     assert len(tab.ages) == n + 1
+    tab.close()
+
+
+def test_telemetry_tab_shows_the_power_block(qapp, store):
+    """#109: the INA219's pack is drawn over the servos' on the pack chart,
+    and the POWER BOARD box says what the block says; without the block it
+    says so and the overlay is empty."""
+    from types import SimpleNamespace
+    from console import core
+    from console.tab_telemetry import TelemetryTab
+    app = FakeApp(store)
+    for k in range(100):
+        app.beacons.push(1000.0 - 10.0 + k * 0.1, 11.9, 2.0, 0, 0, 0, 0, 0, 11.8, 11.7)
+    tab = TelemetryTab(app)
+    tab.resize(1600, 1000)
+    tab.show()
+    st = app.ctl.st
+    tab.update_from(st, 1000_000.0)
+    assert "no power block" in tab.power.text()
+    assert len(tab.c_vbat.curve2.getData()[0]) > 50
+    st.have_pwr, st.pack_mv, st.batt = 1, 11800, 0
+    st.pwr_flags = core.PWR_LITE | core.PWR_RAIL_VALID | core.PWR_GUARD_PACK
+    st.rail_mv, st.vbat_v = 11700, 0.0
+    app.ctl.core = SimpleNamespace(power_text=lambda: "pack 11.80 V  batt ok  rail 11.70 V")
+    tab.update_from(st, 1000_100.0)
+    text = tab.power.text()
+    assert "pack 11.80 V  batt ok  rail 11.70 V" in text
+    assert "INA219 11.80 V · servos no reading" in text and "the lower of both" in text
     tab.close()
 
 

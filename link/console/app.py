@@ -97,7 +97,7 @@ class Window(QtWidgets.QMainWindow):
         self._note = self._status = ""
         self.rec_started = None
         self.beacons = History(("t", "vbat", "tilt", "vx_cmd", "vx_est", "wz_cmd",
-                                "wz_est", "late"))
+                                "wz_est", "late", "pack", "rail"))
         self._seen = 0
         self.flight = None        # tab_joints / flight.py: the flight-record store
         self.pad = None           # gamepad.py
@@ -246,7 +246,9 @@ class Window(QtWidgets.QMainWindow):
             self._seen = st.tlm_count
             tilt = math.degrees(math.acos(max(-1.0, min(1.0, st.up_z))))
             self.beacons.push(now / 1000.0, st.vbat_v, tilt, st.vx, st.vx_est, st.wz,
-                              st.wz_est, st.loop_late_pct)
+                              st.wz_est, st.loop_late_pct,
+                              st.pack_mv / 1000.0 if st.have_pwr and st.pack_mv else math.nan,
+                              st.rail_mv / 1000.0 if st.have_pwr and st.rail_mv else math.nan)
         if st.rec_active and self.rec_started is None:
             self.rec_started = time.monotonic()
         elif not st.rec_active:

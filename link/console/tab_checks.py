@@ -108,7 +108,7 @@ class ChecksTab(QtWidgets.QWidget):
             R("1", "policy: `stat` says exported (not PLACEHOLDER WEIGHTS), 12 joints, obs 165",
               "tether: stat · beacon: an arm REFUSED_POLICY fails it", True, "_policy"),
             R("2", "pack ≥ 11.4 V (3S); after a pack swap, `batt reset`",
-              "beacon vbat · state VLAND / VSAFE", fn="_pack"),
+              "beacon pack_mv (INA219) / vbat (servos), lower · guard level · state VLAND / VSAFE", fn="_pack"),
             R("3", "as-built calibration loaded; all 12 leg joints fitted",
               "BENCH diag cal bit · flight HELLO cal_ok, fitted", fn="_cal"),
             R("4", "gains: all 12 leg servos P 32 / D 32 (`run` re-reads them)",
@@ -152,7 +152,7 @@ class ChecksTab(QtWidgets.QWidget):
             ("drift", "drift beyond 5 cm, or a steady rotation", "eyes (no odometry)"),
             ("hot", "a servo too hot to touch", "touch · flight recorder temperature"),
             ("fault", "a servo fault bit", "beacon servo_err"),
-            ("batt", "LOW-BATT", "beacon vbat (guard warns 10.5 V, lands 9.9 V) · VLAND / VSAFE"),
+            ("batt", "LOW-BATT", "beacon pack_mv / vbat (guard warns 10.5 V, lands 9.9 V) · guard level · VLAND / VSAFE"),
             ("fallen", "FALLEN: the fall guard went limp",
              "beacon state FALLEN · BENCH DISARMED_FALL"),
             ("flail", "the robot's flail guard tripped (holds stiff, then homes)",
@@ -274,13 +274,15 @@ class ChecksTab(QtWidgets.QWidget):
         st = self.st
         if not self.fresh:
             return NODATA, "no beacon"
-        if st.state in (core.VLAND, core.VSAFE):
-            return FAIL, f"{st.vbat_v:.2f} V · pack guard latched: swap it, `batt reset`"
+        v, src = core.pack_volts(st)
+        shown = f"{v:.2f} V" + (f" ({src})" if st.have_pwr else "")
+        if st.state in (core.VLAND, core.VSAFE) or core.batt_level(st) >= core.BATT_LANDING:
+            return FAIL, f"{shown} · pack guard latched: swap it, `batt reset`"
         if self.result == AR.HOME_LOW_BATT.value:
-            return FAIL, f"{st.vbat_v:.2f} V · reset refused: pack under-voltage latch"
-        if round(st.vbat_v, 2) >= PACK_MIN_V:
-            return PASS, f"{st.vbat_v:.2f} V"
-        return FAIL, f"{st.vbat_v:.2f} V < {PACK_MIN_V} V: start on a full pack"
+            return FAIL, f"{shown} · reset refused: pack under-voltage latch"
+        if round(v, 2) >= PACK_MIN_V:
+            return PASS, shown
+        return FAIL, f"{shown} < {PACK_MIN_V} V: start on a full pack"
 
     def _cal(self):
         h = self.hello
@@ -456,15 +458,19 @@ class ChecksTab(QtWidgets.QWidget):
         else:
             w["fault"] = (("abort", f"id {core.fault_ids(st.servo_err)} faulted")
                           if st.servo_err else ("ok", "none"))
-            if st.state in (core.VLAND, core.VSAFE):
-                w["batt"] = ("abort", f"{st.vbat_v:.2f} V · pack guard latched "
-                             f"({core.STATE_SHORT[st.state]})")
-            elif round(st.vbat_v, 2) < PACK_WARN_V:
-                w["batt"] = ("abort", f"LOW-BATT {st.vbat_v:.2f} V")
-            elif round(st.vbat_v, 2) < PACK_MIN_V:
-                w["batt"] = ("warn", f"{st.vbat_v:.2f} V: below the {PACK_MIN_V} V start")
+            pv, src = core.pack_volts(st)
+            shown = f"{pv:.2f} V" + (f" ({src})" if st.have_pwr else "")
+            lvl = core.batt_level(st)
+            if st.state in (core.VLAND, core.VSAFE) or lvl >= core.BATT_LANDING:
+                w["batt"] = ("abort", f"{shown} · pack guard latched "
+                             f"({core.STATE_SHORT[st.state] if st.state in (core.VLAND, core.VSAFE) else core.BATT_NAMES[lvl]})")
+            elif lvl == core.BATT_WARN or round(pv, 2) < PACK_WARN_V:
+                w["batt"] = ("abort", f"LOW-BATT {shown}"
+                             + (" · pack guard WARN" if lvl == core.BATT_WARN else ""))
+            elif round(pv, 2) < PACK_MIN_V:
+                w["batt"] = ("warn", f"{shown}: below the {PACK_MIN_V} V start")
             else:
-                w["batt"] = ("ok", f"{st.vbat_v:.2f} V")
+                w["batt"] = ("ok", shown)
             fell = st.state == core.FALLEN or self.result == AR.DISARMED_FALL.value
             w["fallen"] = ("abort", "FALLEN: torque off, the run is over") if fell else ("ok", "no")
         for k, res, yes, no in (

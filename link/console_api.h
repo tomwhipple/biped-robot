@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#define BIMO_API_VERSION 2
+#define BIMO_API_VERSION 3
 #define BIMO_NUM_JOINTS 17
 #define BIMO_NUM_AXES 6
 
@@ -61,6 +61,13 @@ typedef struct {
     // twin-in-the-loop
     int32_t tee_on;
     uint32_t teed;
+    // the latest beacon's power block (kFlagPwr, issue #109); all 0 and
+    // have_pwr 0 on a beacon without it (an older firmware, the sim twins)
+    int32_t have_pwr;
+    int32_t pack_mv;        // the INA219's pack voltage; 0 = no reading
+    int32_t batt;           // battguard's level: 0 ok, 1 warn, 2 landing, 3 safe
+    int32_t pwr_flags;      // linkproto kPwr*
+    int32_t rail_mv;        // power lite's RAIL_V; 0 unless kPwrLite + kPwrRailValid
 } BimoStatus;
 
 int bimo_api_version(void);
@@ -128,6 +135,8 @@ void bimo_set_speeds(BimoConsole* c, float vx, float vy, float wz);
 // Telemetry requests (kFlagPose, kFlagAtt): ask, command nothing.
 void bimo_request(BimoConsole* c, int pose, int att);
 const char* bimo_motion_text(const BimoConsole* c);
+// bimo::powerText of the latest beacon (the one line both consoles print).
+const char* bimo_power_text(BimoConsole* c);
 
 // -- the console recording (link/recorder.h, the JSONL schema) ------------
 int bimo_rec_start(BimoConsole* c, const char* dir, const char* host,

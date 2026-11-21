@@ -6,12 +6,13 @@ line, gyro, the control tick's work time against its 20 ms budget, the
 beacon's age against the 250 ms stale line, flight-recorder holes. Flight
 records (link/console/flight.py) are preferred where they carry the value --
 50 Hz, and they need no driver -- and the beacon fills in otherwise; each
-chart says which it shows. The link table has loop_late and the robot's own
+chart says which it shows. The pack chart also draws the beacon's power block
+(the INA219 pack, green) over it. The link table has loop_late and the robot's own
 tick budget from its HELLO. Per fitted servo: temperature, load, current,
 voltage, status from the flight recorder's feedback block.
 
 An observer shows no command traces: a flat zero would read as "told to
-stand". Room is kept for the power board's block (#109, PWR_ESTOP #106).
+stand". The POWER BOARD box shows the beacon's power block (#109).
 
 always_update: the beacon's age is sampled every refresh, hidden or not, so
 its chart has history when the tab is opened; drawing happens only while
@@ -26,6 +27,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt6 import QtCore, QtWidgets
 
+from . import core
 from .core import lag_text
 from .flight import decimate, status_text
 from .tab_drive import History
@@ -51,6 +53,8 @@ class Chart:
         self.plot = mkplot(None, (-WINDOW_S, 0), yr, bottom=bottom, left_w=44)
         self.plot.setMinimumHeight(110 if bottom else 86)
         self.curve = self.plot.plot(pen=pg.mkPen(color, width=1.6), connect="finite")
+        # An optional second trace on the same axes (the pack chart's INA219).
+        self.curve2 = self.plot.plot(pen=pg.mkPen(GREEN, width=1.4), connect="finite")
         if ref is not None:
             self.plot.addItem(pg.InfiniteLine(ref, angle=0, pen=pg.mkPen(
                 AMBER, width=1, style=QtCore.Qt.PenStyle.DashLine)))
@@ -58,6 +62,11 @@ class Chart:
         self.src = lab("", FAINT, 10, mono=True)
         self.value = lab("", BRIGHT, 13, True, True)
         self.value.setMinimumWidth(110)
+
+    def set2(self, t, v) -> None:
+        """The second trace; empty clears it."""
+        f = len(t) and np.isfinite(v).any()
+        self.curve2.setData(*decimate(t, v, CHART_POINTS)) if f else self.curve2.setData([], [])
 
     def set(self, t, v, src: str, fmt: str = "{:.2f}", note: str | None = None) -> None:
         if len(t):
@@ -134,8 +143,7 @@ class TelemetryTab(QtWidgets.QWidget):
         self.link.setMinimumWidth(self.link.sizeHintForColumn(0) + 160)
         fit_table(self.link, width_from_contents=False)
         fit_table(self.servos)
-        self.power = lab("no source yet: the power board's block (#109) and PWR_ESTOP (#106) "
-                         "go here", FAINT, 12)
+        self.power = lab("no beacon yet", FAINT, 12)
         self.power.setWordWrap(True)
         self.obs = lab("Observer: no command traces — a flat zero would read as "
                        "'told to stand'.", DIM, 11)
@@ -158,6 +166,7 @@ class TelemetryTab(QtWidgets.QWidget):
         self._charts(st, now_ms, fs)
         self._servo_table(fs)
         self._link_table(st, fs)
+        self._power_box(st)
         self.obs.setVisible(st is None or bool(st.readonly))
 
     def _charts(self, st, now_ms, fs) -> None:
@@ -180,6 +189,10 @@ class TelemetryTab(QtWidgets.QWidget):
 
         rec = "sim rec" if fs is not None and fs.simulated("robot") else "flight rec"
         # Tilt reads as in the safety bar and Drive: one decimal, 2.3°.
+        # The power block's INA219 pack, green over the servos' reading: it
+        # is there with the servo bus down and (power lite) the rail off.
+        pt, pv = beacon("pack")
+        self.c_vbat.set2(pt, pv)
         for chart, fname, bcol, fmt in ((self.c_vbat, "vbat", "vbat", "{:.2f}"),
                                         (self.c_tilt, "tilt_deg", "tilt", "{:.1f}")):
             t, v = flight(fname)
@@ -257,6 +270,31 @@ class TelemetryTab(QtWidgets.QWidget):
             else:
                 set_cell(self.servos, r, 6, "ok", GREEN)
         fit_table(self.servos)
+
+    def _power_box(self, st) -> None:
+        """The beacon's power block (#109): the line bimo_gui prints, then
+        the pack from the INA219 and the servos side by side."""
+        if st is None or not st.have_tlm:
+            self._power_set("no beacon yet", FAINT)
+            return
+        servo = f"{st.vbat_v:.2f} V" if st.vbat_v > 0 else "no reading"
+        if not st.have_pwr:
+            text = f"no power block (older firmware, or a twin) · servos {servo}"
+            col = DIM
+        else:
+            ina = f"{st.pack_mv / 1000.0:.2f} V" if st.pack_mv else "no reading"
+            text = (f"{self.app.ctl.core.power_text()}\nINA219 {ina} · servos {servo} · "
+                    f"guard takes {'the lower of both' if st.pwr_flags & core.PWR_GUARD_PACK else 'the servos only'}")
+            col = {"ok": BRIGHT, "warn": AMBER, "bad": RED, "none": DIM}[core.power_view(st)[1]]
+        self._power_set(text, col)
+
+    def _power_set(self, text: str, col: str) -> None:
+        # (a style sheet re-polishes and re-lays-out: only when it changes)
+        if self.power.text() != text:
+            self.power.setText(text)
+        if self.power.property("col") != col:
+            self.power.setProperty("col", col)
+            self.power.setStyleSheet(f"color:{col}; font-size:12px")
 
     def _link_table(self, st, fs) -> None:
         app = self.app

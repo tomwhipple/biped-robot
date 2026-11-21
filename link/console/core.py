@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LINK_DIR = os.path.dirname(HERE)
 ROOT = os.path.dirname(LINK_DIR)
 
-API_VERSION = 2
+API_VERSION = 3
 NUM_JOINTS = 17
 NUM_AXES = 6
 LIB_NAME = "libbimo_console." + ("dylib" if sys.platform == "darwin" else "so")
@@ -39,6 +39,12 @@ STATE_SHORT = ("LIVE", "STAND", "RELAX", "ESTOP", "VLAND", "VSAFE", "FALLEN",
 # Command flags (linkproto kFlag*).
 FLAG_ENABLE, FLAG_ESTOP, FLAG_ARM, FLAG_POSE = 1, 2, 4, 8
 FLAG_HOME, FLAG_ATT, FLAG_STOP = 16, 32, 64
+# The beacon's power block (issue #109; linkproto kPwr*, protocol.py PWR_*).
+PWR_LITE, PWR_SERVO_EN, PWR_ESTOP, PWR_ESTOP_LATCHED = 1, 2, 4, 8
+PWR_RAIL_VALID, PWR_GUARD_PACK = 16, 32
+# battguard's level (the block's `batt`).
+BATT_OK, BATT_WARN, BATT_LANDING, BATT_SAFE = range(4)
+BATT_NAMES = ("ok", "WARN", "LANDING", "SAFE (latched)")
 
 
 class Status(ctypes.Structure):
@@ -77,6 +83,9 @@ class Status(ctypes.Structure):
         ("rec_cmd", ctypes.c_uint32), ("rec_tlm", ctypes.c_uint32),
         ("rec_bench", ctypes.c_uint32),
         ("tee_on", ctypes.c_int32), ("teed", ctypes.c_uint32),
+        ("have_pwr", ctypes.c_int32), ("pack_mv", ctypes.c_int32),
+        ("batt", ctypes.c_int32), ("pwr_flags", ctypes.c_int32),
+        ("rail_mv", ctypes.c_int32),
     ]
 
     @property
@@ -128,6 +137,7 @@ _SIGS = {
     "bimo_set_speeds": (None, [_P, _F, _F, _F]),
     "bimo_request": (None, [_P, _I, _I]),
     "bimo_motion_text": (_S, [_P]),
+    "bimo_power_text": (_S, [_P]),
     "bimo_rec_start": (_I, [_P, _S, _S, _D, ctypes.c_char_p, _Z]),
     "bimo_rec_stop": (None, [_P]),
     "bimo_rec_path": (_S, [_P]),
@@ -170,7 +180,9 @@ def _sources() -> list[str]:
             for x in ("h", "cpp")]
     lp = os.path.join(ROOT, "firmware", "components", "linkproto")
     proto = (glob.glob(os.path.join(lp, "include", "linkproto", "*.h"))
-             + glob.glob(os.path.join(lp, "*.cpp")))
+             + glob.glob(os.path.join(lp, "*.cpp"))
+             # the generated command envelope (make policy), where the build reads it
+             + glob.glob(os.path.join(ROOT, "build", "policy", "deployed", "linkproto", "*.h")))
     if not all(os.path.exists(p) for p in link) or not proto:
         return []
     return link + proto
@@ -270,6 +282,52 @@ def lag_text(st, width: int = 0) -> str:
     if st.state == BENCH:
         return "lag " + "—".rjust(width)
     return f"lag {st.lag:{width}d}" if width else f"lag {st.lag}"
+
+
+def pack_volts(st) -> tuple[float, str]:
+    """The pack voltage the console judges, and where it came from: the
+    LOWER of the servos' register 62 (`vbat_v`) and the power block's INA219
+    (`pack_mv`) -- battguard's own rule (battguard::inputDv) -- or whichever
+    one reads (0 is "no reading": power lite's rail off, USB power, no
+    chip). With no power block it is the servos' value, as before. (0.0,
+    "none") when neither reads."""
+    reads = []
+    if st.vbat_v > 0:
+        reads.append((float(st.vbat_v), "servos"))
+    if st.have_pwr and st.pack_mv > 0:
+        reads.append((st.pack_mv / 1000.0, "INA219"))
+    return min(reads) if reads else (0.0, "none")
+
+
+def batt_level(st) -> int:
+    """battguard's level from the power block, BATT_OK without one."""
+    return int(st.batt) if st.have_pwr and 0 <= st.batt < 4 else BATT_OK
+
+
+def power_view(st) -> tuple[str, str, str]:
+    """(headline, severity, detail) for the safety bar's power readout;
+    severity is "ok" / "warn" / "bad" / "none". Without a power block the
+    headline says so: an older firmware, or a twin."""
+    if not st.have_pwr:
+        return "power --", "none", "no power block"
+    lvl = batt_level(st)
+    bits = []
+    if st.pwr_flags & PWR_LITE:
+        bits.append(f"rail {st.rail_mv / 1000.0:.2f} V" if st.pwr_flags & PWR_RAIL_VALID
+                    else "rail --")
+        if st.pwr_flags & PWR_SERVO_EN:
+            bits.append("SERVO_EN")
+    if st.pwr_flags & PWR_ESTOP_LATCHED:
+        head, sev = "E-STOP LATCHED", "bad"
+    elif st.pwr_flags & PWR_ESTOP:
+        head, sev = "E-STOP PRESSED", "bad"
+    else:
+        head = f"batt {BATT_NAMES[lvl]}"
+        sev = ("ok", "warn", "bad", "bad")[lvl]
+    if (st.pwr_flags & (PWR_ESTOP | PWR_ESTOP_LATCHED)) and lvl:
+        bits.insert(0, f"batt {BATT_NAMES[lvl]}")
+    return head, sev, " ".join(bits) if bits else (
+        "pack from the INA219" if st.pack_mv else "no INA219 reading")
 
 
 def fault_ids(servo_err: int) -> str:
@@ -427,6 +485,10 @@ class Core:
 
     def request(self, pose: bool, att: bool) -> None:
         self._lib.bimo_request(self._h, int(pose), int(att))
+
+    def power_text(self) -> str:
+        """bimo::powerText of the latest beacon, as bimo_gui prints it."""
+        return _s(self._lib.bimo_power_text(self._h))
 
     def motion_text(self) -> str:
         return _s(self._lib.bimo_motion_text(self._h))

@@ -25,6 +25,7 @@ struct BimoConsole {
     Ext ext_sent;
     uint8_t flags = 0;
     uint32_t recorded = 0;    // beacons already written to the recording
+    char power_buf[96] = "";  // bimo_power_text's line
 };
 
 namespace {
@@ -143,6 +144,11 @@ void bimo_status(const BimoConsole* c, double now_ms, BimoStatus* o) {
     o->n_joints = t.n_joints;
     o->have_att = t.have_att;
     o->t_us = t.t_us;
+    o->have_pwr = t.have_pwr;
+    o->pack_mv = t.pack_mv;
+    o->batt = t.batt;
+    o->pwr_flags = t.pwr_flags;
+    o->rail_mv = t.rail_mv;
     for (size_t j = 0; j < linkproto::kNumJoints && j < BIMO_NUM_JOINTS; ++j) {
         o->joints[j] = t.joints[j];
     }
@@ -232,6 +238,10 @@ void bimo_request(BimoConsole* c, int pose, int att) {
 
 const char* bimo_motion_text(const BimoConsole* c) {
     return bimo::motionText(c->in);
+}
+
+const char* bimo_power_text(BimoConsole* c) {
+    return bimo::powerText(c->link.tlm, c->power_buf, sizeof c->power_buf);
 }
 
 int bimo_rec_start(BimoConsole* c, const char* dir, const char* host,

@@ -37,6 +37,8 @@ def status_line(c: Controller, st, now: float, t0: float) -> str:
     if st.fresh:
         line += (f" | robot {core.state_name(st.state)}  {st.vbat_v:.2f} V  "
                  f"up_z {st.up_z:.2f}  vx_est {st.vx_est:+.2f}")
+        if st.have_pwr:
+            line += f" | {c.core.power_text()}"
         if st.state == core.BENCH:
             line += f"  BENCH: {core.diag_reason(st.diag)}"
     else:

@@ -104,6 +104,7 @@ the same link loop with line commands on stdin, which is what
 
 The safety bar is on every tab: the state badge (FLAIL / STOPPED / FALLEN
 when that is why the robot is benched), the controls, pack voltage and tilt,
+the power block (battguard's level, power lite's rail, an E-STOP latch),
 servo faults by servo ID, the gamepad, recording, the handover button, a
 fixed-width link line, the BENCH reason, and the console's last message. The
 view pane on the left shows the 3D pose, a camera or the sim's render. Tabs:
@@ -134,8 +135,10 @@ never sideways.
 - **Joints** (`tab_joints.py`): goal vs measured for every bus joint on the
   robot's clock, error RMS and load, a faulted servo boxed red ("reading
   held"), the sim twin as an amber trace; click a joint to highlight it in 3D.
-- **Telemetry** (`tab_telemetry.py`): pack, tilt, gyro, tick work time, beacon
-  age and flight-record holes on a time axis; the servo table; the link table.
+- **Telemetry** (`tab_telemetry.py`): pack (the beacon's INA219 reading drawn
+  in green over the servos'), tilt, gyro, tick work time, beacon age and
+  flight-record holes on a time axis; the servo table; the link table; the
+  POWER BOARD box with the beacon's power block.
   Records from the sim twin (its HELLO's firmware reads `sil_twin ...`, or
   they arrive on `--sim-flight-port`) are labelled the sim's, and the
   servo fields the sim has no model of (load, current, voltage, temperature,
@@ -144,8 +147,8 @@ never sideways.
   twin-in-the-loop (off by default): every command frame sent to the robot is
   also sent to the sim on its own ports. A run is listed when it has
   `sim/sil/weights/<run>.silw.json` and a `config.json`:
-  `sim/runs/<run>/`'s, else the tracked `sim/sil/weights/<run>.config.json`.
-  The deployed run's config is tracked, so a clean clone lists it and runs
+  `sim/runs/<run>/`'s, else the tracked `firmware/deployed/runs/<run>/config.json`.
+  A deployed run's config is tracked, so a clean clone lists it and runs
   the weights compiled into the firmware; with no run at all, the tab says
   how to get one (`sim/runs/` is not in git).
 - **Session**: the recording, the flight recorder's state, and one event log
@@ -154,6 +157,22 @@ never sideways.
   first), the beacon relay, the keymap, the gamepad mapping, a screenshot.
 - **Bench** (`bench.py`, `tab_bench.py`): the serial-bridge telemetry and two
   camera panes, watch-only ([bench-console.md](bench-console.md)).
+
+### The power block
+
+The beacon's power block ([control-channel.md](control-channel.md#the-power-block),
+issue #109) is requested on every frame; an older firmware or a twin ignores
+the bit and the console reads as it did before ("power --", the servos'
+voltage). With it:
+
+- The pack the console judges is the lower of the servos' register 62 and the
+  INA219's `pack_mv`, or whichever reads (battguard's own rule); the safety
+  bar names the source.
+- The safety bar's power readout shows battguard's level (ok / WARN /
+  LANDING / SAFE latched), the rail and `SERVO_EN` on power lite, and
+  E-STOP PRESSED / LATCHED over them.
+- Checks row #2 and the abort watch's LOW-BATT use that pack and the
+  guard's level: a WARN level aborts, a landing or latched level fails the row.
 
 ## Gamepad
 
@@ -172,7 +191,7 @@ is that measurement. Its E-STOP works for any host.
 | source | port | carries |
 | --- | --- | --- |
 | commands (out) | UDP 4210 (`--cmd-port`) | command frames and the stops, to the robot (or the sim) |
-| beacon | UDP 4211 (`--tlm-port`) | state, pack, up vector, faults; joints / attitude when asked |
+| beacon | UDP 4211 (`--tlm-port`) | state, pack, up vector, faults; joints / attitude / the power block when asked (the console always asks for the power block) |
 | robot flight records | UDP 4221 (`--flight-port`) | per joint goal vs measured at 50 Hz; forwarded by mira's `tools/flight_collector.py --forward <laptop>:4221` |
 | sim flight records | UDP 4222 (`--sim-flight-port`) | the same, from `sim/sil_twin.py --flight` |
 | sim render | HTTP 8645 (`--stream-port`, or `--sim-view URL`) | `sil_twin`'s MJPEG |

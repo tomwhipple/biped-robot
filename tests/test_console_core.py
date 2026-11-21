@@ -545,3 +545,89 @@ def test_leaving_never_crashes_on_a_handle_without_a_link(robot, tmp_path):
     c.shutdown()
     c.core.leave_disarmed(3, 1)
     assert frames(robot, 0.1) == []
+
+
+# -- the beacon's power block (#109) ----------------------------------------
+def _send_beacon(port, **kw):
+    import protocol
+    t = protocol.Telemetry(seq_echo=1, state=protocol.LinkState.BENCH, vbat_v=kw.pop("vbat", 11.7),
+                           up_z=1.0, vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+                           **kw)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.sendto(protocol.encode_telemetry(t), ("127.0.0.1", port))
+    s.close()
+
+
+def _listen_and_read(port, **kw):
+    c = core.Core()
+    try:
+        assert c.listen(port, None, 0)
+        for _ in range(50):
+            _send_beacon(port, **kw)
+            time.sleep(0.02)
+            c.poll(core.now_ms())
+            st = c.status(core.now_ms())
+            if st.have_tlm:
+                return st, c.power_text()
+        raise AssertionError("no beacon decoded")
+    finally:
+        c.close()
+
+
+def test_the_status_carries_the_power_block():
+    import protocol
+    P = protocol
+    pwr = P.Power(pack_mv=11840, batt=1,
+                  flags=P.PWR_LITE | P.PWR_SERVO_EN | P.PWR_RAIL_VALID | P.PWR_GUARD_PACK,
+                  rail_mv=11720)
+    st, text = _listen_and_read(_free_port(), pwr=pwr)
+    assert (st.have_pwr, st.pack_mv, st.batt, st.rail_mv) == (1, 11840, 1, 11720)
+    assert st.pwr_flags == pwr.flags
+    assert core.PWR_LITE == P.PWR_LITE and core.PWR_ESTOP_LATCHED == P.PWR_ESTOP_LATCHED
+    assert core.PWR_RAIL_VALID == P.PWR_RAIL_VALID and core.PWR_GUARD_PACK == P.PWR_GUARD_PACK
+    assert text.startswith("pack 11.84 V  batt WARN") and "rail 11.72 V" in text
+    assert core.pack_volts(st) == (pytest.approx(11.7), "servos")    # the lower of the two
+
+
+def test_a_beacon_without_the_power_block_reads_as_before():
+    st, text = _listen_and_read(_free_port(), vbat=11.7)
+    assert (st.have_pwr, st.pack_mv, st.batt, st.pwr_flags, st.rail_mv) == (0, 0, 0, 0, 0)
+    assert "no power block" in text
+    assert core.pack_volts(st) == (pytest.approx(11.7), "servos")
+    assert core.batt_level(st) == core.BATT_OK
+    assert core.power_view(st) == ("power --", "none", "no power block")
+
+
+def test_pack_volts_takes_the_lower_reading_or_the_one_there_is():
+    st = core.Status()
+    assert core.pack_volts(st) == (0.0, "none")
+    st.have_pwr, st.pack_mv = 1, 11500
+    assert core.pack_volts(st) == (pytest.approx(11.5), "INA219")    # servo bus down
+    st.vbat_v = 11.9
+    assert core.pack_volts(st)[1] == "INA219"
+    st.pack_mv = 12000
+    assert core.pack_volts(st)[1] == "servos"
+    st.have_pwr = 0                                                  # block not asked for
+    st.pack_mv = 9000
+    assert core.pack_volts(st) == (pytest.approx(11.9), "servos")
+
+
+def test_power_view_levels_rail_and_estop():
+    st = core.Status()
+    st.have_pwr, st.pack_mv = 1, 11800
+    assert core.power_view(st) == ("batt ok", "ok", "pack from the INA219")
+    st.batt = core.BATT_WARN
+    assert core.power_view(st)[:2] == ("batt WARN", "warn")
+    st.batt = core.BATT_SAFE
+    assert core.power_view(st)[:2] == ("batt SAFE (latched)", "bad")
+    st.batt = core.BATT_OK
+    st.pwr_flags = core.PWR_LITE | core.PWR_RAIL_VALID | core.PWR_SERVO_EN
+    st.rail_mv = 11720
+    assert core.power_view(st) == ("batt ok", "ok", "rail 11.72 V SERVO_EN")
+    st.pwr_flags = core.PWR_LITE | core.PWR_ESTOP | core.PWR_ESTOP_LATCHED
+    assert core.power_view(st) == ("E-STOP LATCHED", "bad", "rail --")
+    st.pwr_flags = core.PWR_LITE | core.PWR_ESTOP
+    assert core.power_view(st)[:2] == ("E-STOP PRESSED", "bad")
+    st.pack_mv = 0
+    st.pwr_flags = 0
+    assert core.power_view(st)[2] == "no INA219 reading"

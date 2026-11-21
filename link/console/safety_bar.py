@@ -22,6 +22,7 @@ from .core import lag_text
 from .ui import (AMBER, BENCHC, BRIGHT, DIM, GREEN, ORANGE, RED, STATE_COLOUR, btn, hbox,
                  lab, restyle, vbox)
 
+POWER_COLOUR = {"ok": GREEN, "warn": ORANGE, "bad": RED, "none": DIM}
 ARM_CHECKS_OPEN = "ARM · checks open"
 SEP = "<span style='color:#4a5059'>&nbsp;&nbsp;│&nbsp;&nbsp;</span>"
 
@@ -86,6 +87,8 @@ class SafetyBar(QtWidgets.QFrame):
         self.control.clicked.connect(c.toggle_control)
         self.vbat = lab("--.-- V", BRIGHT, 22, True, True)
         self.vbat_sub = lab("pack", DIM, 11)
+        self.power = lab("power --", DIM, 14, True)
+        self.power_sub = lab("", DIM, 11)
         self.servo = lab("servos --", DIM, 14, True)
         self.servo_sub = lab("", DIM, 11)
         self.pad = lab("PAD  none", DIM, 14, True)
@@ -95,14 +98,14 @@ class SafetyBar(QtWidgets.QFrame):
         self.sending = lab("", rich=True)
         self.vbat.setMinimumWidth(110)
         # The small print gives way before the window grows past the screen.
-        for w in (self.vbat_sub, self.servo_sub, self.pad_sub, self.rec_sub):
+        for w in (self.vbat_sub, self.power_sub, self.servo_sub, self.pad_sub, self.rec_sub):
             w.setMinimumWidth(1)
         # Two rows, so the bar fits a laptop screen (1280 pt wide): the robot
         # controls on top; the readouts, a stop being sent and the handover
         # button beneath them.
         row1 = hbox(self.badge, 6, self.arm, self.stand, 14, self.hold, self.estop, 22,
                     self.reset, "stretch", spacing=10)
-        row2 = hbox(self.vbat, self.vbat_sub, 24, self.servo, self.servo_sub, 24,
+        row2 = hbox(self.vbat, self.vbat_sub, 24, self.power, self.power_sub, 24, self.servo, self.servo_sub, 24,
                     self.pad, self.pad_sub, 24, self.rec, self.rec_sub, "stretch",
                     self.sending, 12, self.control, spacing=8)
         self.link = lab("", mono=True, rich=True)
@@ -188,9 +191,16 @@ class SafetyBar(QtWidgets.QFrame):
                                     "started without --host: nowhere to take control to")
         # -- readouts --------------------------------------------------------
         if st.fresh:
-            self.vbat.setText(f"{st.vbat_v:5.2f} V")
+            pv, src = core.pack_volts(st)
+            self.vbat.setText(f"{pv:5.2f} V" if pv > 0 else "--.-- V")
             tilt = math.degrees(math.acos(max(-1.0, min(1.0, st.up_z))))
-            self.vbat_sub.setText(f"pack · tilt {tilt:4.1f}°")
+            self.vbat_sub.setText(f"pack {src} · tilt {tilt:4.1f}°" if st.have_pwr
+                                  else f"pack · tilt {tilt:4.1f}°")
+            head, sev, sub = core.power_view(st)
+            self.power.setText(head)
+            self.power.setStyleSheet(f"color:{POWER_COLOUR[sev]}; font-size:14px; "
+                                     f"font-weight:700")
+            self.power_sub.setText(sub)
             if st.servo_err:
                 self.servo.setText("SERVO FAULT")
                 self.servo.setStyleSheet(f"color:{RED}; font-size:14px; font-weight:700")
@@ -202,6 +212,9 @@ class SafetyBar(QtWidgets.QFrame):
         else:
             self.vbat.setText("--.-- V")
             self.vbat_sub.setText("pack · no beacon")
+            self.power.setText("power --")
+            self.power.setStyleSheet(f"color:{DIM}; font-size:14px; font-weight:700")
+            self.power_sub.setText("")
             self.servo.setText("servos --")
             self.servo.setStyleSheet(f"color:{DIM}; font-size:14px; font-weight:700")
             self.servo_sub.setText("")

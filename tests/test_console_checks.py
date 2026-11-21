@@ -308,3 +308,35 @@ def test_a_failed_row_is_named_by_number_and_word():
     assert _fail_name(Row("2", "pack ≥ 11.4 V (3S)", "beacon", fn="_pack")) == "#2 pack"
     assert _fail_name(Row("10b", "a stop is ready", "x", fn="_stop_ready")) == "#10b stop ready"
     assert _fail_name(Row("—", "console recording on", "x", fn="_console_rec")) == "console rec"
+
+
+def pwr_beacon(pack_mv=11800, batt=0, flags=0, rail_mv=0, **kw):
+    st = beacon(**kw)
+    st.have_pwr, st.pack_mv, st.batt, st.pwr_flags, st.rail_mv = 1, pack_mv, batt, flags, rail_mv
+    return st
+
+
+def test_pack_rows_use_the_power_block_and_the_guard_level(qapp):
+    t, _ = tab(qapp)
+    # Without the block: the servos' value, text exactly as before.
+    t.update_from(beacon(vbat=11.9), 1000.0)
+    assert status(t, "2") == ("PASS", "11.90 V") and t.watch["batt"] == ("ok", "11.90 V")
+    # The block, the pack reading the lower of the two.
+    t.update_from(pwr_beacon(pack_mv=11600, vbat=11.9), 1100.0)
+    assert status(t, "2") == ("PASS", "11.60 V (INA219)")
+    assert t.watch["batt"] == ("ok", "11.60 V (INA219)")
+    # Servo bus down (register 62 reads 0): the INA219 alone, on a benched robot.
+    t.update_from(pwr_beacon(pack_mv=11300, vbat=0.0), 1200.0)
+    s, v = status(t, "2")
+    assert s == "FAIL" and "11.30 V (INA219) < 11.4 V" in v
+    assert t.watch["batt"][0] == "warn"
+    # The INA219 reads lower than the servos and under the warn line: LOW-BATT.
+    t.update_from(pwr_beacon(pack_mv=10400, vbat=11.9, state=core.LIVE), 1300.0)
+    assert t.watch["batt"][0] == "abort" and "LOW-BATT 10.40 V (INA219)" in t.watch["batt"][1]
+    # The guard's own level counts even where the voltage looks fine.
+    t.update_from(pwr_beacon(batt=1, state=core.LIVE), 1400.0)
+    assert t.watch["batt"][0] == "abort" and "guard WARN" in t.watch["batt"][1]
+    for lvl in (2, 3):
+        t.update_from(pwr_beacon(batt=lvl), 1500.0)
+        assert status(t, "2")[0] == "FAIL" and "latched" in status(t, "2")[1]
+        assert t.watch["batt"][0] == "abort" and "latched" in t.watch["batt"][1]
