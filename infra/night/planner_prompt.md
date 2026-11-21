@@ -365,6 +365,13 @@ referee shows a phase failing is in scope every day.
   21:30. Small changes go straight to main; meaningful ones on a branch with a
   PR that you merge once the pre-push gates pass (PRs here are records, not
   gates). Never `--no-verify`.
+- **Harness changes go to `infra/night/` on main, never into
+  `~/code/robot-mjx/night/` directly.** The runner installs `infra/night/*` there
+  at 22:00 by write-then-rename. Do not edit, `cp` over or `install` over a file
+  in `night/`: bash reads a script while it runs, so an in-place change crashes
+  the running copy (on 11-21 the planner patched `plan_morning.sh` under itself,
+  and its wrapper died with a syntax error after you exited). If a fix cannot
+  wait for 22:00, write it to a temp file in `night/` and `mv -f` it over the old one.
 - Job files go in `~/code/robot-mjx/night/queue/`, named
   `<MMDDHHMMSS>-<out>` so they sort in run order. Format:
   ```
