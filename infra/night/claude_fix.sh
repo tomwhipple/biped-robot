@@ -80,6 +80,10 @@ $(tail -n 80 "$LOGF" 2>/dev/null)
   argv. Merge to main only if the change is safe and opt-in or a clear bug
   fix with green tests. Otherwise point the affected queue jobs at the branch
   with \`BRANCH=\`.
+- Harness scripts: fix them in \`infra/night/\` on main; the runner installs
+  them at 22:00. Never edit or \`cp\` over a file in \`night/\` in place: bash
+  reads a running script as it goes, so that crashes it (your caller is one).
+  If the fix cannot wait, write a temp file in \`night/\` and \`mv -f\` it over.
 - Queue jobs: fix a broken job file in place, or move it to \`queue/held/\`
   with a \`# held by fixer: <reason>\` line. Never delete one.
 - If a job crashed at launch and you fixed the cause, re-queue it: copy it
