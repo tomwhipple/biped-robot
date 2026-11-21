@@ -71,3 +71,20 @@ def test_summary_aggregates_worst_over_seeds():
     s = ep.overload_summary([r1, r2])["knee"]
     assert s == dict(peak_pct=102.0, peak_torque_pct=50.0, over80_cont_s=2.1, over80_total_s=2.6,
                      would_trip="1/2", first_trip_s=7.4)
+
+
+def test_meter_reads_duty_against_the_sagged_envelope():
+    """With the supply sagged to scale s, a servo at its cap reads 100 % duty, not s."""
+    import eval_precision as ep
+    e = _env()
+    e.reset(seed=4)
+    e.supply_sag_ohm, e._sag_r, e._sag_s = (0.44, 0.44), 0.44, 0.8
+    meter, view = ep.overload_meter(e)
+    stall = float(e._servo[2]) * e._stall_prof
+    w0 = float(e._servo[3]) * e._w0_prof
+    qd = np.zeros(e.model.nv)
+    qd[e._sqvel] = 0.25 * w0                                   # every servo at a quarter speed
+    e.data.qvel[:] = qd
+    e._servo_tau = stall * (0.8 - 0.25)                        # at the sagged cap s stall (1 - w/(s w0))
+    meter.tick(view, e.control_dt)
+    np.testing.assert_allclose(meter.alt["duty"]["peak"], 1.0)
