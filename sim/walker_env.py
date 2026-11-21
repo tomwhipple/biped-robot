@@ -39,6 +39,7 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths  # noqa: E402
+import supply_sag  # noqa: E402  (#6: the bus sag kernel, shared with env_mjx)
 import re
 import numpy as np
 import mujoco
@@ -907,6 +908,8 @@ class BimoWalkerEnv(gym.Env):
         # -- actuator model ("ideal" -> original MJCF position servos) ----------
         actuator_model: str = "ideal", # "ideal" | "sts3215" (torque-speed limited)
         supply_voltage: float = 7.4,   # V; stall torque + no-load speed scale ~V/12
+        supply_sag_ohm=None,           # supply sag V = V0 - R*I_bus per substep (#6; sim/supply_sag.py):
+        # R ohms fixed, or "LO:HI" drawn per episode; None = off (a fixed supply_voltage)
         servo_kp: float | tuple = 12.0,  # sts3215 PD gain, N*m/rad (see fit
         # note); a sequence gives one per actuator
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
@@ -1790,6 +1793,18 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError(f"unknown actuator_model {actuator_model!r}")
         self.servo_range = servo_range
         self._servo_tau = np.zeros(self._n_servo)
+        # supply sag (#6, sim/supply_sag.py): the episode's R (None = off), the supply scale
+        # V/V0 the next substep runs on, and the last substep's bus current (A)
+        self.supply_sag_ohm = supply_sag.parse_sag(supply_sag_ohm)
+        if self.supply_sag_ohm is not None and self._servo is None:
+            raise ValueError("supply_sag_ohm needs actuator_model='sts3215' (the PD torque model)")
+        self._sag_r = None
+        self._sag_s = 1.0
+        self._sag_s_run = 1.0          # the scale the last substep ran on (the overload meter reads it)
+        self._sag_i = 0.0
+        # each servo's (K_CU, stall current at 12 V) by its physical type (supply_sag.servo_elec)
+        self._sag_elec = (supply_sag.servo_elec(self._servo_names, self.servo_types)
+                          if self.supply_sag_ohm is not None else None)
         if self.roll_series_k is not None and self._servo is None:
             raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
         if self.roll_play_deg is not None and self._servo is None:
@@ -2933,6 +2948,15 @@ class BimoWalkerEnv(gym.Env):
             self._fs_defl = np.zeros(self._n_servo)
             self._fs_dq = np.zeros(self._n_servo)
             self._fs_shift = np.zeros(self._n_servo)
+        self._sag_r = None
+        if self.supply_sag_ohm is not None:
+            # supply sag: R uniform in its range (a fixed R draws nothing), after every other
+            # draw so they keep their streams; the supply starts unloaded
+            lo, hi = self.supply_sag_ohm
+            self._sag_r = lo if lo == hi else float(self.np_random.uniform(lo, hi))
+            self._sag_s = 1.0
+            self._sag_s_run = 1.0
+            self._sag_i = 0.0
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -3090,6 +3114,11 @@ class BimoWalkerEnv(gym.Env):
                     kd = kd * x_fs
                 stall = stall * self._stall_prof
                 w0 = w0 * self._w0_prof
+                if self._sag_r is not None:
+                    # supply sag: the envelope at this substep's supply (scale V/V0)
+                    stall = stall * self._sag_s
+                    w0 = w0 * self._sag_s
+                    self._sag_s_run = self._sag_s
                 q = self.data.qpos[self._sqpos]
                 qd = self.data.qvel[self._sqvel]
                 cap = stall * np.clip(1.0 - np.abs(qd) / w0, 0.0, 1.0)
@@ -3137,6 +3166,11 @@ class BimoWalkerEnv(gym.Env):
                                      0.0), self._servo_tau)
                 if not self._torque_on:      # released servos: limp, no hold
                     self._servo_tau = np.zeros(self._n_servo)
+                if self._sag_r is not None:
+                    # this substep's bus current sets the next substep's supply (supply_sag)
+                    self._sag_s, self._sag_i = supply_sag.sag_step(
+                        self._servo_tau, qd, self._sag_s, self._sag_r, self.supply_voltage,
+                        self._sag_elec)
                 self.data.qfrc_applied[self._sqvel] = self._servo_tau
             elif lat_k:
                 # ideal position actuators read data.ctrl -- hold the previous

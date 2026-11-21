@@ -73,6 +73,86 @@ CROUCH_H_TARGET = None   # set in main() from the run's env (crouch_pose_ref)
 # run_one reads the active (dir, scenario name) without new plumbing args.
 # None/absent "dir" = capture off (default; the rollout is untouched).
 _trace_dir = {"dir": None, "scenario": ""}
+# --overload-column (#6): a MEASURING sts_servo_model.STSProtection on every servo in the get-up
+# scenarios (the recover_* family); set in main(). The rollout is untouched.
+_overload = {"on": False, "scenario": ""}
+OVERLOAD_SCENARIO_PREFIX = "recover_"
+
+
+class _AllServos:
+    """The view sts_servo_model.STSProtection reads, widened to EVERY servo on the bus (the held
+    arms and neck too: the get-up loads the shoulders), and with its own copy of env._servo so a
+    measuring meter never writes the env's. STSProtection.tick reads _servo_tau, data.qvel at
+    _jqvel and data.ctrl; its load is a fraction of each servo's effective maximum (the episode's
+    DR-drawn stall x the static per-servo profile). Under --supply-sag-ohm the envelope shrinks
+    with the supply scale s, and the PWM duty is |tau / (s stall) + w / (s w0)|: the view hands
+    the meter tau / s and w / s (s = the scale the tick's last substep RAN on, env._sag_s_run, not
+    the relaxed one the next substep will), so a servo at its sagged cap reads 100 %. Without sag
+    it passes the env's own arrays."""
+
+    def __init__(self, env):
+        self.env = env
+        self.data = self
+        self._nq_act = env._n_servo
+        self._jqvel = env._sqvel
+        self._stall_prof = env._stall_prof
+        self._w0_prof = env._w0_prof
+        self._servo = np.array(list(env._servo), dtype=object)
+
+    def _scale(self):
+        return self.env._sag_s_run if self.env._sag_r is not None else None
+
+    def volts(self):
+        """The supply the servos ran on: the sagged one under --supply-sag-ohm."""
+        s = self._scale()
+        return float(self.env.supply_voltage) * (1.0 if s is None else float(s))
+
+    @property
+    def _servo_tau(self):
+        s = self._scale()
+        return self.env._servo_tau if s is None else np.asarray(self.env._servo_tau) / s
+
+    @property
+    def qvel(self):
+        s = self._scale()
+        return self.env.data.qvel if s is None else self.env.data.qvel / s
+
+    @property
+    def ctrl(self):
+        return self.env.data.ctrl
+
+
+def overload_meter(env):
+    """A measuring-only (enforce=False) STSProtection over every servo of `env`, on the env's
+    supply voltage -- the sagged one under --supply-sag-ohm, re-read every tick by
+    `overload_tick`: (meter, the view to tick it with)."""
+    import sts_servo_model as SM
+    view = _AllServos(env)
+    return SM.STSProtection(view, env._servo_names, enforce=False, load="duty",
+                            volts=view.volts()), view
+
+
+def overload_tick(meter, view, dt):
+    """Tick the meter on the supply this tick's last substep ran on (sagged, or the fixed one)."""
+    meter.volts = view.volts()
+    meter.tick(view, dt)
+
+
+def overload_summary(reports):
+    """Per joint across a scenario's seeds: the peak load (% of that servo's stall, the duty
+    reading the protection compares, and the torque reading), the longest continuous and the
+    total time above the 80 % threshold, and in how many seeds it would trip (>= 2 s continuous)."""
+    out = {}
+    for j in reports[0]:
+        rs = [r[j] for r in reports]
+        out[j] = dict(peak_pct=round(100 * max(r["peak_duty"] for r in rs), 1),
+                      peak_torque_pct=round(100 * max(r["peak_torque"] for r in rs), 1),
+                      over80_cont_s=round(max(r["cont_max_duty"] for r in rs), 2),
+                      over80_total_s=round(max(r["cum_duty"] for r in rs), 2),
+                      would_trip=f"{sum(r['trip_t'] is not None for r in rs)}/{len(rs)}",
+                      first_trip_s=min((r["trip_t"] for r in rs if r["trip_t"] is not None),
+                                       default=None))
+    return out
 TRACE_RUN_ROOT = None   # run_dir; makes res["trace"] a run-relative path
 
 
@@ -2284,15 +2364,24 @@ def run_one(env, act, factory, seed, record, N, mass):
         # scenario-owned start-state hook, after reset() and before the first
         # policy tick (handover_stand's bench hold + history prime, #29)
         ev["_setup"](env, drv)
+    meter = None
+    if _overload["on"] and _overload["scenario"].startswith(OVERLOAD_SCENARIO_PREFIX):
+        # measuring only, attached after the start state is set (the env's _servo is the
+        # episode's draw by now); ticked after every env step
+        meter, view = overload_meter(env)
     gt = drv.initial_gt()
     for step in range(env.max_steps):
         t = step * drv.dt
         gt, term = drv.step(ctrl(t, gt, ev))
+        if meter is not None:
+            overload_tick(meter, view, drv.dt)
         if term:
             break
     shared = drv.shared_metrics(mass)
     res = evaluate(drv.rows, ev, drv.fell, N, shared)
     res.update(fell=drv.fell, shared=shared, frames=drv.frames)
+    if meter is not None:
+        res["overload"] = meter.report()
     # ---- trace capture ----------------------------------------------------
     # Additive & read-only: the rollout, evaluate() inputs, and the
     # scorecard pipeline are untouched. Enabled per `--trace <dir>` in main.
@@ -2364,6 +2453,12 @@ def main():
     p.add_argument("--contact-torsion", type=float, default=None,
                    help="with --contact-mu: torsional friction (m) on the same geoms "
                         "(plant 0.02; the measured yaw grip is ~0.1 N m)")
+    p.add_argument("--overload-column", action="store_true",
+                   help="MEASURE the STS3215 overload protection (sim/sts_servo_model.py "
+                        "STSProtection: > 80 %% of stall for 2 s drops a servo to 20 %%) on every "
+                        "servo in the get-up scenarios (recover_*), without enforcing it: per joint "
+                        "the peak load, the time above 80 %% and whether it would trip (#6). The "
+                        "rollout is unchanged. Writes scorecard<...>_ovl.{md,json}")
     p.add_argument("--rise-ref-hold", action="store_true",
                    help="grade with rise_ref_hold on (no handover from the residual "
                         "reference map at recovered) whatever the run trained with: "
@@ -2388,6 +2483,9 @@ def main():
                   f"{'' if args.contact_torsion is None else f't{args.contact_torsion:g}'}")
     if args.rise_ref_hold:
         suffix = f"{suffix}_hold"
+    if args.overload_column:
+        suffix = f"{suffix}_ovl"
+        _overload["on"] = True
     if args.ref_replay:
         suffix = f"{suffix}_replay-{os.path.splitext(os.path.basename(args.ref_replay))[0]}"
     # a --scenarios subset must not clobber the run's full reel either --
@@ -2553,6 +2651,7 @@ def main():
         env = get_env(secs, name)
         if _trace_dir["dir"]:
             _trace_dir["scenario"] = name
+        _overload["scenario"] = name
         results = [run_one(env, act_for(env), factory, seed=100 * i + 7,
                            record=(args.render and i == 0), N=N, mass=mass)
                    for i in range(args.episodes)]
@@ -2591,6 +2690,8 @@ def main():
             n=args.episodes, successes=int(succ), fall_count=int(falls),
             episode_seconds=secs, locomotion=is_loco,
             metrics=metrics, shared=sh)
+        if "overload" in results[0]:
+            scorecard[name]["overload"] = overload_summary([r["overload"] for r in results])
 
         head = _headline(name, metrics)          # across-seed mean
         wob = sh["wobble_rms"]["mean"]
@@ -2714,6 +2815,24 @@ def main():
         overall += (f"; swings >= 3 cm {scf*100:.0f}% (median peak {spm*100:.1f} cm, "
                     f"a foot >= 3 cm up {summary['lift_frac_locomotion']*100:.0f}% of the time)")
     lines.append(overall)
+    ovl = {nm: sc["overload"] for nm, sc in scorecard.items()
+           if isinstance(sc, dict) and "overload" in sc}
+    if ovl:
+        lines += ["", "## Overload protection, measured (not enforced)", "",
+                  "_STS3215 defaults (registers 34-36): load > 80 % of stall for 2 s continuous "
+                  "drops the servo to 20 %. Load = PWM duty (|tau / stall + w / w0|), a fraction "
+                  "of each servo's episode stall; worst over the seeds, longest stretch first. "
+                  "Joints that never pass 60 % are left out._", "",
+                  "| scenario | joint | peak % | torque % | > 80 % longest s | > 80 % total s | would trip |",
+                  "|---|---|---|---|---|---|---|"]
+        for nm, per in ovl.items():
+            shown = [(j, r) for j, r in per.items() if r["peak_pct"] >= 60.0]
+            for j, r in sorted(shown, key=lambda x: (-x[1]["over80_cont_s"], -x[1]["peak_pct"])):
+                lines.append(f"| {nm} | {j} | {r['peak_pct']:.0f} | {r['peak_torque_pct']:.0f} | "
+                             f"{r['over80_cont_s']:.2f} | {r['over80_total_s']:.2f} | "
+                             f"{r['would_trip']} |")
+            if not shown:
+                lines.append(f"| {nm} | (every joint < 60 %) | | | | | 0/{scorecard[nm]['n']} |")
     md = "\n".join(lines) + "\n"
     md_path = os.path.join(run_dir, f"scorecard{suffix}.md")
     with open(md_path, "w") as f:

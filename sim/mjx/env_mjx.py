@@ -354,6 +354,9 @@ class State(NamedTuple):
                               # zeros when stance_trim is off
     cmd_tgt: jax.Array        # (3,) the command slew's target (vx, vy, wz; sim/cmd_kernel.py);
                               # (0,) when cmd_slew is off
+    sag_r: jax.Array          # () the episode's supply lead resistance, ohm (sim/supply_sag.py);
+                              # (0,) when supply_sag_ohm is off
+    sag_s: jax.Array          # () the supply scale V/V0 the next substep runs on; (0,) when off
 
 
 def _quat_yaw(q):
@@ -662,6 +665,8 @@ class BimoMJXEnv:
         w_power: float = 0.0,
         # -- actuator ---------------------------------------------------------
         supply_voltage: float = 11.1,
+        supply_sag_ohm=None,   # supply sag V = V0 - R*I_bus per substep (#6; sim/supply_sag.py):
+        # R ohms fixed, or "LO:HI" drawn per episode; None = off (walker_env mirror)
         servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
         servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
@@ -1313,6 +1318,11 @@ class BimoMJXEnv:
         if float(march_mix) > 0.0 and not ext_cmd:
             raise ValueError("march_mix requires ext_cmd (the knee-high "
                              "march is expressed through c4/c6)")
+        import supply_sag as _sag
+        self._sag = _sag
+        self.supply_sag_ohm = _sag.parse_sag(supply_sag_ohm)
+        self._sag_on = self.supply_sag_ohm is not None
+        self._sag_v0 = float(supply_voltage)
         import cmd_kernel as _ck
         self._ck = _ck
         self.cmd_slew = _ck.parse_slew(cmd_slew)
@@ -1416,6 +1426,10 @@ class BimoMJXEnv:
         _sp, _wp = servo_envelope_vectors(self._servo_names, self.servo_types)
         self._stall_prof = jp.asarray(_sp)
         self._w0_prof = jp.asarray(_wp)
+        if self._sag_on:
+            # each servo's (K_CU, stall current at 12 V) by its physical type (supply_sag)
+            self._sag_elec = tuple(jp.asarray(x) for x in
+                                   self._sag.servo_elec(self._servo_names, self.servo_types))
         self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
@@ -2528,6 +2542,17 @@ class BimoMJXEnv:
         h = (self._rp_lo + u * (self._rp_hi - self._rp_lo)).astype(jp.float32)
         return h, jp.zeros((self._n_servo,), dtype=jp.float32)
 
+    def _draw_sag(self, rng: jax.Array):
+        """Per-episode supply lead resistance (uniform, fold_in 6006 so the other draws keep
+        their streams) and an unloaded supply (scale 1). (0,) each when supply_sag_ohm is off."""
+        if not self._sag_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        lo, hi = self.supply_sag_ohm
+        u = jax.random.uniform(jax.random.fold_in(rng, 6006))
+        r = jp.asarray(lo, jp.float32) if lo == hi else (lo + u * (hi - lo)).astype(jp.float32)
+        return r, jp.ones((), dtype=jp.float32)
+
     def _draw_fs(self, rng: jax.Array):
         """Per-episode foot-off sag preload per roll joint (theta uniform per side, fold_in
         8484 so the other draws keep their streams) and relaxed springs. (0,) when off."""
@@ -2839,6 +2864,7 @@ class BimoMJXEnv:
         ser_c, ser_defl = self._draw_ser(r_ep)
         rp_h, rp_off = self._draw_rp(r_ep)
         fs_amp, fs_defl = self._draw_fs(r_ep)
+        sag_r, sag_s = self._draw_sag(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -2960,7 +2986,7 @@ class BimoMJXEnv:
                      dq_qhist=dq_qhist, dq_win=dq_win,
                      ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
                      fs_amp=fs_amp, fs_defl=fs_defl,
-                     trim=self._trim0(r_ep), cmd_tgt=cmd_tgt)
+                     trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2976,6 +3002,7 @@ class BimoMJXEnv:
         ser_c, ser_defl = self._draw_ser(r_ep)
         rp_h, rp_off = self._draw_rp(r_ep)
         fs_amp, fs_defl = self._draw_fs(r_ep)
+        sag_r, sag_s = self._draw_sag(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -3055,7 +3082,7 @@ class BimoMJXEnv:
             dq_qhist=dq_qhist, dq_win=dq_win,
             ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
             fs_amp=fs_amp, fs_defl=fs_defl,
-            trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, metrics=metrics)
+            trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s, metrics=metrics)
 
     def _trim0(self, r_ep):
         """The stance trim's state at an episode start: off, with this episode's learned trims."""
@@ -3298,8 +3325,13 @@ class BimoMJXEnv:
             rp = state.rp_h > 0.0
             rp_lim = w0 * self.sim_dt
 
+        sag_on = self._sag_on
+
         def substep(carry, i):
-            d, _, off = carry
+            if sag_on:
+                d, _, off, sg = carry
+            else:
+                d, _, off = carry
             if self.fw_goal_speed:
                 t_i = jp.maximum(i - lat_k + 1, 0).astype(jp.float32) * self.sim_dt
                 cur = last_target + jp.clip(target - last_target,
@@ -3308,13 +3340,19 @@ class BimoMJXEnv:
                 cur = jp.where(i < lat_k, last_target, target)
             q = d.qpos[self._jq0:self._jq1]
             qd = d.qvel[self._jv0:self._jv1]
-            cap = stall * jp.clip(1.0 - jp.abs(qd) / w0, 0.0, 1.0)
+            if sag_on:
+                # supply sag: the envelope at this substep's supply (scale V/V0)
+                stall_i, w0_i = stall * sg, w0 * sg
+            else:
+                stall_i, w0_i = stall, w0
+            cap = stall_i * jp.clip(1.0 - jp.abs(qd) / w0_i, 0.0, 1.0)
             err = cur - q
             if self._rp_on:
                 # roll play beyond the encoder: the PD acts on the shaft, and on the link
                 # only through the band edge it is held at
                 rp_eng, rp_sg, shaft = roll_play_substep(cur, q, q + off, state.rp_h,
-                                                         rp_lim, xp=jp)
+                                                         w0_i * self.sim_dt if sag_on else rp_lim,
+                                                         xp=jp)
                 err = jp.where(rp, cur - shaft, err)
             if self._fs_on:
                 err = err + fs_shift        # the spring's rest angle, shifted by the preload
@@ -3325,6 +3363,10 @@ class BimoMJXEnv:
                 # edge, leaves the link free (no drive, no damping)
                 tau = jp.where(rp, jp.where(rp_eng, rp_sg * jp.maximum(rp_sg * tau, 0.0),
                                             0.0), tau)
+            if sag_on:
+                # this substep's bus current sets the next substep's supply (supply_sag)
+                sg = self._sag.sag_step(tau, qd, sg, state.sag_r, self._sag_v0,
+                                        self._sag_elec, jp)[0].astype(sg.dtype)
             d = d.replace(qfrc_applied=jp.zeros(self.mj_model.nv
                                                 ).at[self._jv0:self._jv1].set(tau))
             d = mjx.step(m, d)
@@ -3333,12 +3375,20 @@ class BimoMJXEnv:
                 # where the link reaches the band edge
                 off = jp.where(rp, jp.clip(shaft - d.qpos[self._jq0:self._jq1],
                                            -state.rp_h, state.rp_h), 0.0)
+            if sag_on:
+                return (d, tau, off, sg), None
             return (d, tau, off), None
 
-        (data, tau, off), _ = jax.lax.scan(
-            substep, (data, jp.zeros(self._n_servo),
-                      state.rp_off if self._rp_on else jp.zeros((self._n_servo,))),
-            jp.arange(self.n_substeps))
+        carry0 = (data, jp.zeros(self._n_servo),
+                  state.rp_off if self._rp_on else jp.zeros((self._n_servo,)))
+        if sag_on:
+            (data, tau, off, sag_s), _ = jax.lax.scan(
+                substep, carry0 + (state.sag_s.astype(jp.result_type(stall)),),
+                jp.arange(self.n_substeps))
+            sag_s = sag_s.astype(jp.float32)
+        else:
+            (data, tau, off), _ = jax.lax.scan(substep, carry0, jp.arange(self.n_substeps))
+            sag_s = state.sag_s
         if self._rp_on:
             # the shaft (what the encoders read: q obs, the dq history, the next tick's
             # feedback) sits rp_off from the link; its rate joins the link's in the dq obs
@@ -4197,7 +4247,8 @@ class BimoMJXEnv:
                      ser_defl=(state.ser_defl if ser_defl is None or self._rp_on or self._fs_on
                                else ser_defl),
                      rp_h=state.rp_h, rp_off=rp_off,
-                     fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim, cmd_tgt=cmd_tgt)
+                     fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim, cmd_tgt=cmd_tgt,
+                     sag_r=state.sag_r, sag_s=sag_s)
 
 
 

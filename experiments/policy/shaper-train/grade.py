@@ -62,7 +62,10 @@ import simh, rec  # noqa: E402
 
 # runs trained in this worktree (sim/runs) are found too
 _RUNS_HERE = os.path.join(rec.ROOT, "sim", "runs")
-_run_root0 = simh.run_root
+# the ORIGINAL simh.run_root, kept on simh: an importlib.reload of this module (tests/
+# test_compass_probes.py) must not wrap the wrapper, or _run_root calls itself forever
+_run_root0 = getattr(simh, "_run_root_orig", simh.run_root)
+simh._run_root_orig = _run_root0
 
 
 def _run_root(run):
