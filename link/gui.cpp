@@ -526,7 +526,7 @@ void startSim(App& a) {
         snprintf(a.status, sizeof a.status,
                  "no runnable sim runs in %s (each needs "
                  "sim/sil/weights/<run>.silw.json AND a config.json: "
-                 "sim/runs/<run>/'s or sim/sil/weights/<run>.config.json)",
+                 "sim/runs/<run>/'s or firmware/deployed/runs/<run>/config.json)",
                  a.repo);
         return;
     }

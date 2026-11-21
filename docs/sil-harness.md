@@ -155,7 +155,7 @@ carries `layer_sizes`, `activation: "swish"`, `obs_dim`, `act_dim`,
   generates them from the deployed run; the firmware host tests consume them.
 - `.silw` blobs are gitignored and regenerated from the run's `params.pkl`;
   sidecars, golden vectors and calibration files are committed, and so is
-  the deployed run's `config.json`, as `weights/<run>.config.json`
+  a deployed run's `config.json` is tracked too, in `firmware/deployed/runs/<run>/`
   (`sim/sil/run_config.py`; the run directory's copy wins when present).
 - `eval_precision.sil_setup` (the twin's, and the `--sil` referee's) exports
   only when the run's `params.pkl` is present. Without it, an existing

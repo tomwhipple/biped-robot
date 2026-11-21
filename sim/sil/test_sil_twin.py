@@ -6,12 +6,13 @@ The twin runs fallguard::Detector's fall half with Motion::kPolicy limits
 (read from the firmware header) and, on a trip, does what ctrl_task.cpp
 does: the run ends, torque goes off, the loop benches and the BENCH beacon
 carries DISARMED_FALL. The guard and the link composition need nothing but
-the repo; the plant test needs the deployed run's config.json and skips
-without it.
+the repo; the plant tests need the deployed run's config.json (tracked in
+firmware/deployed/runs/<run>/, so a clean clone has it) and skip without it.
 """
 import json
 import math
 import os
+import subprocess
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import paths  # noqa: E402
@@ -193,7 +194,7 @@ def cfg():
     why = H.missing_run_artifacts(H.DEFAULT_RUN, ("config.json",))
     if why:
         pytest.skip(why)
-    with open(os.path.join(H.run_dir(H.DEFAULT_RUN), "config.json")) as f:
+    with open(H.run_config_path(H.DEFAULT_RUN)) as f:
         return json.load(f)
 
 
@@ -287,3 +288,51 @@ def test_local_xml_resolves_plants_that_are_not_where_the_config_says():
     assert sil_twin._local_xml(None) is None
     if os.path.exists(want):
         assert sil_twin._local_xml(want) == want
+
+
+# =====================================================================
+#  a clean clone runs the deployed policy (#236)
+# =====================================================================
+def _tree_state():
+    """Tracked changes plus untracked, non-ignored files: what a run must
+    leave as it found."""
+    try:
+        return subprocess.run(["git", "-C", ROOT, "status", "--porcelain"],
+                              capture_output=True, text=True,
+                              check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        pytest.skip(f"not a git checkout: {e}")
+
+
+def test_a_clean_clone_sets_up_the_deployed_run(tmp_path, monkeypatch):
+    """No sim/runs/<run>/ (so no config.json, no params.pkl) and no exported
+    .silw: the twin's setup reads the tracked config, runs the weights
+    compiled into the library, exports nothing and leaves the tree as it
+    was -- and the policy then drives the plant."""
+    from eval_precision import make_env, sil_check_spec, sil_setup
+    import run_config
+    run = H.DEFAULT_RUN
+    assert H.builtin_weights_run() == run
+    assert os.path.exists(run_config.tracked_config(run)), \
+        "the deployed run's config.json is tracked (firmware/deployed/runs, make deploy)"
+    if H.find_lib() is None:
+        pytest.skip("libctrl_sil not built (make -C firmware/host sil)")
+    empty = tmp_path / "runs" / run                   # a clean clone's run dir
+    # whatever .silw this machine has exported, the clone has none
+    monkeypatch.setattr(H, "default_weights",
+                        lambda r=run: str(tmp_path / f"{r}.silw"))
+    before = _tree_state()
+    _, lib, info = sil_setup(run, str(empty), verbose=False)
+    assert info["weights"].startswith("policy/weights.h")
+    assert json.loads(lib.spec_string())["policy"]["builtin"] is True
+    assert not empty.exists(), "setup created the run directory"
+    with open(run_config.config_path(run, str(empty))) as f:
+        cfg = json.load(f)
+    env = make_env(cfg, 1e9, True, sil_twin._local_xml(cfg.get("xml_path")))
+    sil_check_spec(H, env)
+    act = H.SilActAdapter(lib, env, log=False)
+    obs, _ = env.reset(seed=0)
+    for _ in range(50):                               # 1 s, standing command
+        obs, *_ = env.step(act(obs))
+    assert np.all(np.isfinite(obs))
+    assert _tree_state() == before, "setting up the run changed the tree"

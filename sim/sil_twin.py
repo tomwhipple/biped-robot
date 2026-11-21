@@ -72,8 +72,8 @@ from protocol import (CMD_PORT, JOINT_NAMES, NUM_JOINTS, TLM_PORT,  # noqa: E402
 import sil_twin_wire as W                                   # noqa: E402
 import flightrec as FR                                      # noqa: E402  (W put tools/ on the path)
 
-# Needs a config.json (sim/runs/<name>/'s, else the copy tracked as
-# sim/sil/weights/<name>.config.json: sim/sil/run_config.py) and the weight
+# Needs a config.json (sim/runs/<name>/'s, else a deployed run's tracked
+# firmware/deployed/runs/<name>/config.json: sim/sil/run_config.py) and the weight
 # sidecar sim/sil/weights/<name>.silw.json -- the console's Sim tab and
 # bimo_gui's SIM panel list exactly those runs -- and the run must match the
 # compiled-in spec: the DEPLOYED run, obs_spec.h's kRunName -- any other run

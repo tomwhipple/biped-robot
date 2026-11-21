@@ -25,8 +25,8 @@ import protocol  # noqa: E402
 
 from console import pose3d  # noqa: E402
 
-AR = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
-LEGS = os.path.join(ROOT, "sim", "bimo_biped_v6legs.xml")
+AR = os.path.join(ROOT, "build", "v6", "sim", "bimo_biped_v6ar.xml")      # make plant
+LEGS = os.path.join(ROOT, "build", "v6", "sim", "bimo_biped_v6legs.xml")
 NOT_FITTED = {"neck_yaw", "R_shoulder", "R_elbow", "L_shoulder", "L_elbow"}
 FITTED = [n for n in protocol.JOINT_NAMES if n not in NOT_FITTED]
 RIGHT_LEG = [n for n in FITTED if n.startswith("R_")]

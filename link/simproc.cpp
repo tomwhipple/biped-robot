@@ -44,11 +44,11 @@ void RunList::scan(const char* repo) {
         char run[256];
         snprintf(run, sizeof run, "%.*s", static_cast<int>(len - kSidecarLen),
                  e->d_name);
-        // The run's own config, else the copy tracked beside its weights
-        // (sim/sil/run_config.py: the deployed run's, for a clean clone).
+        // The run's own config, else the tracked copy a deployed run has
+        // (sim/sil/run_config.py: firmware/deployed/runs/<run>/config.json).
         char cfg[1024], tracked[1024];
         snprintf(cfg, sizeof cfg, "%s/sim/runs/%s/config.json", repo, run);
-        snprintf(tracked, sizeof tracked, "%s/sim/sil/weights/%s.config.json",
+        snprintf(tracked, sizeof tracked, "%s/firmware/deployed/runs/%s/config.json",
                  repo, run);
         if (!exists(cfg) && !exists(tracked)) continue;
         snprintf(name[n], sizeof name[0], "%s", run);

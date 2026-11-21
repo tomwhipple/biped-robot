@@ -23,8 +23,8 @@ constexpr int kMaxRuns = 128;
 
 // The runs sil_twin can actually load: an exported
 // sim/sil/weights/<name>.silw.json AND a config.json -- sim/runs/<name>/'s,
-// else the copy tracked as sim/sil/weights/<name>.config.json (the deployed
-// run's, so a clean clone lists it). Anything else fails at startup with a
+// else a deployed run's tracked firmware/deployed/runs/<name>/config.json
+// (so a clean clone lists it). Anything else fails at startup with a
 // traceback, which is a poor dropdown entry.
 struct RunList {
     // Sized to hold a directory entry name (d_name is char[256]), so a long

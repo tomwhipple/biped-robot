@@ -93,7 +93,8 @@ def fake_repo(root, runs=("loco_a",), flight=False):
     os.symlink(sys.executable, repo / ".venv" / "bin" / "python")
     (repo / "sim" / "sil" / "weights").mkdir(parents=True)
     (repo / "sim" / "sil_twin.py").write_text(FAKE)
-    (repo / "sim" / "bimo_biped_v6ar.xml").write_text("<mujoco/>")
+    (repo / "build" / "v6" / "sim").mkdir(parents=True)
+    (repo / "build" / "v6" / "sim" / "bimo_biped_v6ar.xml").write_text("<mujoco/>")
     if flight:
         (repo / "sim" / "FLIGHT").write_text("")
     for r in runs:
@@ -184,13 +185,15 @@ def test_no_runs_says_how_to_get_one(tmp_path):
 
 
 def test_a_tracked_config_lists_the_run_without_a_run_dir(tmp_path):
-    """#236: sim/sil/weights/<run>.config.json stands in for sim/runs/<run>/'s
-    (a clean clone has no sim/runs/); the run directory's wins."""
+    """#236: firmware/deployed/runs/<run>/config.json stands in for
+    sim/runs/<run>/'s (a clean clone has no sim/runs/); the run directory's wins."""
     repo = fake_repo(tmp_path, runs=())
     w = repo / "sim" / "sil" / "weights"
     (w / "tracked.silw.json").write_text("{}")
-    (w / "tracked.config.json").write_text(json.dumps({"xml_path": "a.xml"}))
-    (w / "config_only.config.json").write_text("{}")     # no sidecar: not a run
+    d = repo / "firmware" / "deployed" / "runs"
+    for name, body in (("tracked", {"xml_path": "a.xml"}), ("config_only", {})):
+        (d / name).mkdir(parents=True)
+        (d / name / "config.json").write_text(json.dumps(body))   # config_only: no sidecar
     assert not (repo / "sim" / "runs").exists()
     assert simproc.scan_runs(str(repo)) == ["tracked"]
     assert simproc.run_plant(str(repo), "tracked") == "a.xml"
@@ -200,23 +203,29 @@ def test_a_tracked_config_lists_the_run_without_a_run_dir(tmp_path):
 
 
 def test_a_clean_clone_lists_the_deployed_run(tmp_path):
-    """#236: the tracked files alone (git ls-files sim/sil/weights, no
-    sim/runs/) list exactly the deployed run, obs_spec.h's kRunName."""
-    import re
+    """#236: the tracked files alone (git ls-files sim/sil/weights and the
+    deployed runs' config.json, no sim/runs/) list the deployed run -- the
+    one policies.txt names for the `deployed` set -- and every run listed
+    has a plant."""
     import shutil
     try:
-        files = subprocess.run(["git", "-C", ROOT, "ls-files", "sim/sil/weights"],
+        files = subprocess.run(["git", "-C", ROOT, "ls-files", "sim/sil/weights",
+                                "firmware/deployed/runs"],
                                capture_output=True, text=True, check=True).stdout.split()
     except (OSError, subprocess.CalledProcessError) as e:
         pytest.skip(f"not a git checkout: {e}")
     repo = fake_repo(tmp_path, runs=())
     for f in files:
+        if f.endswith("params.pkl"):
+            continue
+        (repo / f).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(os.path.join(ROOT, f), repo / f)
-    spec = open(os.path.join(ROOT, "firmware", "components", "obs", "include", "obs",
-                             "obs_spec.h")).read()
-    deployed = re.search(r'kRunName\s*=\s*"([^"]+)"', spec).group(1)
-    assert simproc.scan_runs(str(repo)) == [deployed]
-    assert simproc.run_plant(str(repo), deployed).endswith(".xml")
+    deployed = next(ln.split()[1] for ln in
+                    open(os.path.join(ROOT, "firmware", "deployed", "policies.txt"))
+                    if ln.split()[:1] == ["deployed"])
+    runs = simproc.scan_runs(str(repo))
+    assert deployed in runs
+    assert all(simproc.run_plant(str(repo), r).endswith(".xml") for r in runs)
 
 
 def test_run_list_is_capped_like_the_cpp(tmp_path):
@@ -272,7 +281,7 @@ def test_start_passes_hang_plant_and_flight(tmp_path):
         argv = argv_file.read_text().split()
         assert argv[argv.index("--run-name") + 1] == "loco_a"
         assert argv[argv.index("--port") + 1] == "4210" and "--hang" in argv
-        assert argv[argv.index("--xml") + 1] == str(repo / "sim" / "bimo_biped_v6ar.xml")
+        assert argv[argv.index("--xml") + 1] == str(repo / "build" / "v6" / "sim" / "bimo_biped_v6ar.xml")
         assert argv[argv.index("--flight") + 1] == "127.0.0.1:4221"
         assert "starting" in sim.status and "4210" in sim.status
     finally:

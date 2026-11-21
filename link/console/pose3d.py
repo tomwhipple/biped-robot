@@ -40,7 +40,7 @@ if LINK_DIR not in sys.path:
 from protocol import JOINT_NAMES  # noqa: E402  link/protocol.py, bus order
 
 PLANTS = ("bimo_biped_v6ar.xml", "bimo_biped_v6legs.xml")
-DEFAULT_PLANT = os.path.join(ROOT, "sim", PLANTS[0])
+DEFAULT_PLANT = os.path.join(ROOT, "build", "v6", "sim", PLANTS[0])   # make plant
 
 GROUPS = (0, 2)                         # floor + CAD meshes (the mockups' look)
 CMD_RGBA = (0.24, 0.78, 1.0, 0.24)      # ui.CYAN
@@ -52,11 +52,12 @@ MAX_PX = 2048
 
 def resolve_plant(path: str | None, repo: str | None = None) -> str:
     """--plant as given, else the v6 plant. A bare file name is looked up in
-    <repo>/sim, so `--plant bimo_biped_v6legs.xml` works from anywhere."""
+    <repo>/build/v6/sim (`make plant`), so `--plant bimo_biped_v6legs.xml`
+    works from anywhere."""
     repo = repo or ROOT
     if not path:
-        return os.path.join(repo, "sim", PLANTS[0])
-    for cand in (path, os.path.join(repo, path), os.path.join(repo, "sim", path)):
+        return os.path.join(repo, "build", "v6", "sim", PLANTS[0])
+    for cand in (path, os.path.join(repo, path), os.path.join(repo, "build", "v6", "sim", path)):
         if os.path.isfile(cand):
             return os.path.abspath(cand)
     return path

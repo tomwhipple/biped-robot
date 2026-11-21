@@ -1,12 +1,12 @@
 """Where a run's config.json is found (#236).
 
 A run's own config.json lives in sim/runs/<run>/, which is gitignored: a
-clean clone has none. The deployed run's is also tracked beside its weight
-sidecar, as sim/sil/weights/<run>.config.json (a verbatim copy of the
-training box's), so the twin, the console's Sim tab and the SIL suite can run
-the deployed policy from a clean clone -- its weights are then the ones
-compiled into the firmware (policy/weights.h, exported from the same
-params.pkl; eval_precision.sil_setup).
+clean clone has none. A deployed run's is also tracked, with the inputs the
+firmware's policy sets are generated from: firmware/deployed/runs/<run>/
+config.json (tools/policy_profile.py), so the twin, the console's Sim tab and
+the SIL suite can run the deployed policy from a clean clone -- its weights
+are then the ones compiled into the firmware (policy/weights.h, generated
+from the same params.pkl; eval_precision.sil_setup).
 
 The run directory's copy wins when both exist. Dependency-free on purpose:
 sim/sil_twin.py reads the config before sim/sil/harness.py may be imported
@@ -16,12 +16,12 @@ import os
 
 SIM = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNS_DIR = os.path.join(SIM, "runs")
-WEIGHTS_DIR = os.path.join(SIM, "sil", "weights")
+DEPLOYED_RUNS_DIR = os.path.join(os.path.dirname(SIM), "firmware", "deployed", "runs")
 
 
 def tracked_config(run):
-    """The tracked copy's path, sim/sil/weights/<run>.config.json."""
-    return os.path.join(WEIGHTS_DIR, f"{run}.config.json")
+    """The tracked copy's path, firmware/deployed/runs/<run>/config.json."""
+    return os.path.join(DEPLOYED_RUNS_DIR, run, "config.json")
 
 
 def config_path(run, run_dir=None):

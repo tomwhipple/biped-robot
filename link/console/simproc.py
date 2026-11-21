@@ -40,14 +40,14 @@ def script_for(repo: str) -> str:
 
 
 def run_config(repo: str, run: str) -> str:
-    """A run's config.json: sim/runs/<run>/'s, else the copy tracked beside its
-    weights, sim/sil/weights/<run>.config.json (sim/sil/run_config.py; #236:
-    the deployed run's is tracked, so a clean clone can run it). The run
-    directory's path when neither exists."""
+    """A run's config.json: sim/runs/<run>/'s, else the tracked copy a
+    deployed run has, firmware/deployed/runs/<run>/config.json
+    (sim/sil/run_config.py; #236: a clean clone can run the deployed run). The
+    run directory's path when neither exists."""
     own = os.path.join(repo, "sim", "runs", run, "config.json")
     if os.path.exists(own):
         return own
-    tracked = os.path.join(repo, "sim", "sil", "weights", f"{run}.config.json")
+    tracked = os.path.join(repo, "firmware", "deployed", "runs", run, "config.json")
     return tracked if os.path.exists(tracked) else own
 
 
@@ -89,7 +89,7 @@ def no_runs_help(repo: str) -> str:
         tracked = []
     lines = ["No runnable sim run in this clone. A run is listed when it has both "
              "sim/runs/<run>/config.json (or a tracked "
-             "sim/sil/weights/<run>.config.json) and sim/sil/weights/<run>.silw.json; "
+             "firmware/deployed/runs/<run>/config.json) and sim/sil/weights/<run>.silw.json; "
              "sim/runs/ is not in git."]
     if tracked:
         lines.append("Weights are here for: " + ", ".join(tracked) + ". Their run "
@@ -112,9 +112,10 @@ def run_plant(repo: str, run: str) -> str:
 
 
 def plants(repo: str) -> list[str]:
-    """The robot plants under sim/ a run can be pointed at (sil_twin --xml)."""
+    """The robot plants under build/v6/sim (`make plant`) a run can be pointed
+    at (sil_twin --xml)."""
     try:
-        return sorted(n for n in os.listdir(os.path.join(repo, "sim"))
+        return sorted(n for n in os.listdir(os.path.join(repo, "build", "v6", "sim"))
                       if n.startswith("bimo_biped") and n.endswith(".xml"))
     except OSError:
         return []
@@ -428,7 +429,7 @@ class SimControl:
         self.run = (o.run_name if o.run_name in self.runs
                     else (self.runs[0] if self.runs else None))
         self.hang = False
-        self.plant = None              # explicit sim/<xml> (--xml), None = run's / hang
+        self.plant = None              # explicit build/v6/sim/<xml> (--xml), None = run's / hang
         self.twin = False              # twin-in-the-loop: off by default (§15 decision 2)
         self.status = ""
         self.active: Plan | None = None   # the running child's ports
@@ -469,7 +470,7 @@ class SimControl:
         return Plan(cp, tp, own, why, flight)
 
     def plant_xml(self) -> str | None:
-        return os.path.join(self.repo, "sim", self.plant) if self.plant else None
+        return os.path.join(self.repo, "build", "v6", "sim", self.plant) if self.plant else None
 
     # -- start / stop / reset ---------------------------------------------
     def start(self, run: str | None = None) -> bool:
