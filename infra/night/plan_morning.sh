@@ -111,6 +111,9 @@ if [[ ! -d $WT ]]; then
   ln -sfn "$RB/.venv" "$WT/.venv"
 fi
 git -C "$WT" checkout -q --detach origin/main || echo "!!! could not reset $WT to origin/main"
+# generated policy headers and plant data left git on 11-20 (#144); grade.py / the SIL harness need them
+make -C "$WT" policy plant-data PY="$RB/.venv/bin/python" >/dev/null 2>&1 \
+  || echo "!!! make policy plant-data failed in $WT (grade.py will not import until it is run)"
 
 STAMP=$(date +%Y%m%d)
 {

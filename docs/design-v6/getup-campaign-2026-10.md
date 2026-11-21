@@ -3801,3 +3801,75 @@ That is 13 pairs, and the last (seed 22) may stay queued under the fit rule. Pre
 BOTH feet, the dwell effect is real. That is a fact for whatever reference follows the robot's data, not a candidate. Otherwise
 it was seed noise. Either way, no new reference variable is queued from it. GD at seeds 14 – 21 is the walk pool and the
 control. Fallback: GD (`fallback.job`, seed 23; previous `fallback.job.prec91-20261120`).
+
+### Night of 2026-11-20 (evaluated 2026-11-21)
+
+**Replicates only, as planned. The dwell replicate test does not hold: over seeds 14 – 21 the dwell arm's median shift beats
+the sway-only control by 0.10 on L-up and 0.01 on R-up, so the 11-19 R-up gain was seed noise. Tonight starts #263 (the full
+vx / vy / wz command volume, on main since this morning) as a sim learnability test on the walk pool GD.** Stride only; get-up
+stays parked. Nothing in this entry needs Tom: the robot is still down (#297, no hardware session since 11-16).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (825fa12 → 55a1a03 as main moved; origin verified before every
+job). DS seed 17 ran first (left over from 11-19). GD s7 (seed 21) was capped at 185M of 300M by the fit rule. DW s8 (seed 22)
+fitted 81M (< 50 %) and stayed queued, with DS s8 behind it. **No fixer runs.** Collection 05:57 – 06:12, no STALE REFEREE.
+
+**Merged / branched.** Main gained #338 (64f7974: opt-in `--cmd-volume`, `--cmd-slew`, grade.py `COMPASS=1` probes; the default
+path is bit-identical, so last night's runs and every comparison stand), 55a1a03 (a grade.py reload fix), the #144 PRs that took
+the generated policy headers and plant data out of git (613b302, 9aae09d), and power-lite / vision records. Open PR #339 (opt-in
+supply sag, #6) does not bear on stride tonight; not merged by me. **Harness fix:** after #144 the planner worktree has no
+`build/policy/` and grade.py fails to import (this morning's first grading died on it). plan_morning.sh now runs `make policy
+plant-data` in the worktree after the reset (committed to infra/night/ and installed in ~/code/robot-mjx/night/).
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag `sag_L=6.4,sag_R=2.9`), A (as trained), B (play) and C (play + inset
+sole), `/tmp/plan1121/grade{A,B,C,D}.*`; seeds 14 – 17 from `/tmp/plan1120/`.
+
+| student (seed) | steps5 0.3 robot shift L-up / R-up, D | same, C | WALKS | fwd / back / side L / side R (m), turn L / R (deg), D | x1.5 falls D / C |
+|---|---|---|---|---|---|
+| DS prec92_walk_sagdr_sw75_s3 (17) | −0.46 / +0.52 | −0.24 / +0.24 | yes | +0.80 **−0.14** +0.37 −0.34, +113 −82 | 0/8 / 1/8 |
+| DW prec91_walk_sagdr_dw_s4 (18) | −0.59 / +0.53 | −0.44 / +0.33 | yes | +0.54 −0.59 +0.21 −0.31, +89 −112 | 0/8 / 7/8 |
+| DW _s5 (19) | −0.59 / +0.77 | −0.35 / +0.38 | **no** | +0.68 −0.62 **+0.01 −0.01**, +108 −103 | 8/8 / 8/8 |
+| DW _s6 (20) | −0.58 / +0.51 | −0.39 / +0.30 | yes | +0.63 −0.45 **−0.01** −0.31, +108 −81 | 0/8 / 1/8 |
+| DW _s7 (21) | −0.44 / +0.52 | −0.22 / +0.13 | **no** | +0.57 −0.46 +0.10 −0.26, +97 −109 | 3/8 / 8/8 |
+| DS _s4 (18) | −0.56 / +0.54 | −0.35 / +0.23 | yes | +0.87 −0.74 +0.41 −0.34, +130 −121 | 0/8 / 4/8 |
+| DS _s5 (19) | −0.44 / +0.59 | −0.25 / +0.40 | yes | +0.88 −0.68 +0.44 −0.40, +124 −130 | 0/8 / 8/8 |
+| DS _s6 (20) | −0.45 / +0.65 | −0.21 / +0.34 | yes | +0.62 −0.82 +0.40 −0.37, +119 −121 | 0/8 / 2/8 |
+| DS _s7 (21) | −0.51 / +0.45 | −0.26 / +0.60 | yes | +0.84 −0.86 +0.32 −0.36, +110 −111 | 0/8 / 7/8 |
+| GD prec86_walk_sagdr_s6 (20) | −0.60 / +0.61 | −0.29 / +0.33 | yes | +0.81 −0.82 +0.42 −0.34, +107 −122 | 1/8 / 6/8 |
+| GD _s7 (21, 185M) | −0.52 / +0.48 | −0.39 / +0.31 | yes | +0.85 −0.88 +0.39 −0.32, +103 −98 | 4/8 / 8/8 |
+
+Shifts are means over the 8 grade seeds. A matches D within 0.03 everywhere. On C every student's weaker-foot shift is ≤ 0.44.
+
+**The replicate test** (pre-committed 11-20: over seeds 14 – 21, DW's median steps5 shift on D beats DS's by ≥ 0.10 on BOTH feet):
+- DW medians L-up 0.575, R-up 0.535; DS medians L-up 0.475, R-up 0.525. Difference **+0.10 / +0.01: not held.** The 11-19
+  R-up gain (0.60 vs 0.35 on seeds 14 – 17) was seed noise; seeds 18 – 21 reverse it (DS R-up 0.45 – 0.65).
+- What the dwell does show across 8 seeds: it costs the walk. 5 of 8 DW seeds do not walk (s0, s2, s3 on 11-19; s5, s7 today),
+  4 of 8 lose side L (|dy| ≤ 0.01) and a fifth nearly does (+0.10), and x1.5 on D is 0/8 on 5 of 8 DW seeds against 7 of 8 DS
+  seeds. All 8 DS seeds walk, and 7 of 8 keep all six directions (s3 is weak backward, −0.14).
+- No candidate. GD stays the walk pool on the sag plant (8 seeds, all walk in six directions).
+
+**Distil gap** (card seed-passes of 160, teacher → student): DS s3 23→34, s4 24→34, s5 28→34, s6 29→30, s7 25→20; DW s4 27→26,
+s5 20→22, s6 23→23, s7 18→22; GD s6 30→34, s7 18→24. Median +4, range −5 to +11. The distil is not the limit.
+
+**Decision (rule 0, mine): start #263 tonight as a learnability test.** The stride line has no sim variable left: the
+clock-reference line finished on 11-20, #259 names no plant, and the next stride step needs the robot (#297 repair, #259's gate,
+#260's sway ladder). #338 put the command volume on main this morning. #263 gates a *deploy* on a walk that passes #259; it does
+not stop us learning now whether the student can follow the volume at all, and that costs only GPU nights that would otherwise
+run more replicates of a finished line. Milestone order (rule 1) is unchanged: nothing from these arms is a hardware candidate.
+The leftover seed-22 replicates went to `queue/held/` (`WHY-1121-replicates-s8-closed.txt`).
+
+**Control:** GD seeds 14 – 21 graded with `COMPASS=only` on D this morning (`/tmp/plan1121/compassD.*`): a probe holds for a student when it holds on >= 6 of 8 grade seeds. GD holds a median of **12 of 18** probes (seeds 14 – 21: 12, 9, 15, 11, 14, 8, 14, 12; seed-holds 78 – 124 of 144, median 107.5). It already walks most straight headings, diagonals included (F, L, BL, BR, R, F>L held by 7 – 8 of 8 seeds); it fails the turn combinations: FR + turn held by 1 of 8 seeds, F>BR 2, BR + turn 3, FL + turn and R + turn 4. That is where the volume has to show.
+
+**Tonight (2026-11-21; queued, BRANCH=main, the DR sag plant, 300M + distil each, interleaved per seed VA → VH → VW):**
+
+| arm | runs (seeds 14 / 15 / 16; 17 extra) | parent | variable | hypothesis |
+|---|---|---|---|---|
+| VA | prec94_walk_sagdr_vol (+ _s1, _s2; _s3) | GD prec86_walk_sagdr | `--cmd-volume 1.0` | compass holds rise; no cardinal direction lost |
+| VH | prec95_walk_sagdr_vol50 (+ …) | GD | `--cmd-volume 0.5` | fewer compass holds than VA; dir probes and x1.5 at GD's level |
+| VW | prec96_walk_sagdr_vol_i86 (+ …) | VA | warm start from GD's own sag-trained teacher (prec86_walk_sagdr) instead of prec16 | keeps GD's walk while adding the volume |
+
+12 pairs; seed 17 may stay queued under the fit rule. Pre-flight passed 24/24.
+
+**Pre-committed:** an arm holds if, on plant D with `COMPASS=1`, in ≥ 2 of seeds 14 – 16 the student holds ≥ 16 of the 18
+compass probes (GD's median + 4) AND keeps all six dir probes AND WALKS AND x1.5 falls ≤ 2/8. If VA or VW holds, the next night
+adds `--cmd-slew` on it (#266, one change per night). If none holds, #263 waits for the imitation reference's diagonal foot
+placement (#263 "what remains") before another arm. Fallback unchanged: GD (`fallback.job`, seed 23).
