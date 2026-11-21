@@ -785,9 +785,19 @@ void testPolicy() {
         {"regw", false, Verdict::kRefuseTether},
         {"regw 2 85 0", false, Verdict::kRefuseTether},
         {"servocfg", true, Verdict::kRefuseArmed},
+        // power lite's servo rail (Tom 2026-11-21): status, on, off over Wi-Fi; the
+        // fault acknowledgement and the deliberate crash stay on the tether
+        {"bench", false, Verdict::kAllow},   // clears the E-stop latch after a power cycle
+        {"rail", false, Verdict::kAllow},
+        {"rail on", false, Verdict::kAllow},
+        {"rail off", false, Verdict::kAllow},
+        {"rail clear", false, Verdict::kRefuseTether},
+        {"rail panic", false, Verdict::kRefuseTether},
+        {"rail frobnicate", false, Verdict::kRefuseUnknown},
+        {"rail on now", false, Verdict::kRefuseUnknown},
+        {"rail on", true, Verdict::kRefuseArmed},
+        {"rail", true, Verdict::kRefuseArmed},
         // default deny
-        {"rail on", false, Verdict::kRefuseUnknown},   // power lite: `stat` reads it over Wi-Fi
-        {"rail panic", false, Verdict::kRefuseUnknown},
         {"imu frobnicate", false, Verdict::kRefuseUnknown},
         {"frobnicate", false, Verdict::kRefuseUnknown},
         {"PING", false, Verdict::kRefuseUnknown},

@@ -86,6 +86,10 @@ pack balance lead (J2) â”€ BMS cell taps                                      â”
 
 ## The firmware
 
+`rail` reads the state, `SERVO_EN`, `RAIL_V`, `ESTOP_N`, the fault, the last drop and why the
+ESP32 last reset (power-on, brown-out, panic, a watchdog), over Wi-Fi too: a reboot that
+a Wi-Fi session saw only as "session lost" can be told apart afterwards.
+
 A robot with this board runs its own image: `make firmware POWER_LITE=1`, in
 `build/firmware-powerlite` (it combines with `POLICY=`). It is a build option because on
 a robot without the board IO4 is the WS2812 net and IO16 goes nowhere, and a floating
@@ -103,9 +107,12 @@ hardware half `firmware/main/power_rail.cpp`.
   - An arm (`run`, an ARM edge) powers the rail itself. So do `home`, the wireless reset
     and the fall pick-up's autohome, which turn it off again when the home has released
     torque.
-  - Bench work (`scan`, `pos`, `cal`, `pose`) needs `rail on` first, over the tether.
-    Without it those commands say so. Scripts in `tools/` that talk to the servos need it
-    too.
+  - Bench work (`scan`, `pos`, `cal`, `pose`) needs `rail on` first, over
+    the tether or Wi-Fi (`tools/wcli.py rail on`; Tom 2026-11-21, see the
+    [record](../../docs/design-v6/2026-11-21-rail-over-wifi.md)). Without it those commands
+    say so. Scripts in `tools/` that talk to the servos need it too. `rail panic` and
+    `rail clear` stay on the tether, and every interlock below applies to a Wi-Fi line as it
+    does to a tether one.
   - No servo is read at boot: the gain check is the arm's, with the rail up, and it
     re-applies the servos' RAM settings, which a power cycle loses.
 - **`SERVO_EN` drops on:** a disarm (`bench`, ARM off), a hard operator stop in any mode,
@@ -122,12 +129,13 @@ hardware half `firmware/main/power_rail.cpp`.
   it (Tom 2026-11-19): **RESET SERVOS** from it, `rail on` and the pick-up's autohome all
   power the rail, and the held flag does not take it back. A fresh press does. An ARM edge
   in a frame with `ESTOP` is refused.
-- **A rail the firmware powered goes when its reason does**: a home that ends or fails,
-  and `release` of all the servos, each of which has released torque. A soft stop during a
+- **A rail the firmware powered goes when its reason does**: a home that ends or fails, and `release` of all the servos, each of which has released torque. A soft stop during a
   home holds torque, as on a default image, so the rail stays until the next `home` ends,
   `release` or `bench`. A typed `rail on` stays until `rail off`, `bench` or a drop.
 - **Nothing brings the rail back by itself.**
-  - `ESTOP_N` going high latches. Back at RUN, the rail stays off and an arm is refused
+  - `ESTOP_N` going high latches. `bench` clears the latch from the tether or over Wi-Fi
+    (it is on the Wi-Fi allowlist), so after a power cycle `bench`, `rail on` works the same on
+    both. Back at RUN, the rail stays off and an arm is refused
     until a disabled command arrives: `bench`, or a frame with `ENABLE`, `ARM` and `ESTOP`
     clear. Then it takes a fresh arm. So: RUN, disarm, arm.
   - Except the pick-up autohome, as on a default image (Tom 2026-11-19): upright and still
@@ -265,8 +273,8 @@ Then, with the real servos, as part of step 3 below:
 15. **Tick cost.** `stat` armed: the rail's ADC reads land in `other`.
 16. **Pick-up autohome.** Rail off, tip it past 30 deg until `FALL` prints, stand it up and
     hold it still: after 1 s K1 clicks, it homes, and the rail goes at the end. With `fall
-    autohome off`, the same: it does not move until `home`. `rail on` by itself never moves
-    anything.
+    autohome off`, the same: it does not move until `home`. `rail on` by itself
+    never moves anything.
 17. **Stops during a home.** `home`, then the console's E-stop: limp at once, `RAIL_DOWN` on
     the beacon. `home`, then `tools/estop.py --soft`: it stops and holds, torque on, the rail
     stays, `DISARMED_STOP`; `release`: K1 drops. From an E-stopped console, **RESET SERVOS**:

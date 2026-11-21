@@ -507,7 +507,9 @@ tick in both modes, and a rail that is down benches the loop on that tick. A lim
 this list (the pack guard, the fall latch, RELAX, a link `ESTOP`) or a hard operator
 stop also opens the relay and ends the run: `DISARMED_FALL`, `DISARMED_STOP` or
 `RAIL_DOWN`. A hold (the flail guard, a soft stop) keeps the rail with its torque until
-the bench home that follows has released it. Without the option none of this exists.
+the bench home that follows has released it. A typed `rail on` / `rail off` works over
+the Wi-Fi CLI too (`rail clear` and `rail panic` are tether-only); `rail` also reports
+why the ESP32 last reset. Without the option none of this exists.
 
 In the order the tick applies them:
 
