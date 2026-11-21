@@ -352,6 +352,8 @@ class State(NamedTuple):
                               # step; (0,) when off
     trim: jax.Array           # (10,) the firmware stance trim's state (sim/trim_kernel.py KEYS);
                               # zeros when stance_trim is off
+    cmd_tgt: jax.Array        # (3,) the command slew's target (vx, vy, wz; sim/cmd_kernel.py);
+                              # (0,) when cmd_slew is off
 
 
 def _quat_yaw(q):
@@ -1158,6 +1160,13 @@ class BimoMJXEnv:
         # would have used the frozen 1.0 (an ext_mix crouch command keeps its
         # own crouch_range draw). (1.0, 1.0) = legacy, consumes no RNG.
         cmd_crouch_range: tuple = (1.0, 1.0),
+        # the operator command's slew and volume (#266, #263; sim/cmd_kernel.py, walker_env
+        # mirror): cmd_slew = (vx m/s^2, vy m/s^2, wz rad/s^2) rate limit on c0..c2 ahead of the
+        # obs (the drawn command is the target; episodes start from the stand); cmd_volume = the
+        # fraction of walk draws from the full (vx, vy, wz) volume. ext_cmd only; None / 0 = off,
+        # no RNG consumed, bit-exact.
+        cmd_slew: tuple | str | None = None,
+        cmd_volume: float = 0.0,
     ):
         if getup and ext_cmd:
             raise ValueError("getup and ext_cmd are separate objectives")
@@ -1304,6 +1313,13 @@ class BimoMJXEnv:
         if float(march_mix) > 0.0 and not ext_cmd:
             raise ValueError("march_mix requires ext_cmd (the knee-high "
                              "march is expressed through c4/c6)")
+        import cmd_kernel as _ck
+        self._ck = _ck
+        self.cmd_slew = _ck.parse_slew(cmd_slew)
+        self.cmd_volume = float(cmd_volume)
+        if (self.cmd_slew is not None or self.cmd_volume > 0.0) and not ext_cmd:
+            raise ValueError("cmd_slew / cmd_volume need ext_cmd (the planar command is c0..c2 "
+                             "of the 7-channel layout)")
         # per-joint encoder direction (nominal calibration -- see _TICK_DIR):
         # per servo for the goal ticks, per policy joint for the observation
         self._tick_dir = jp.full((self._n_servo,), _TICK_DIR)
@@ -1965,6 +1981,18 @@ class BimoMJXEnv:
         vy = jp.where(m_walk & wk_side, vy_s, 0.0)
         wz = (jp.where(m_walk & ~(wk_back | wk_side), wz_f, 0.0)
               + jp.where(m_piv, w_piv, 0.0))
+        if self.cmd_volume > 0.0:
+            # walk from the full volume (cmd_kernel.volume_cmd, walker_env mirror); fold_in keys
+            # so every existing draw stream is untouched
+            uv = jax.random.uniform(jax.random.fold_in(rng, 26300), (5,))
+            vol = m_walk & (uv[0] < self.cmd_volume)
+            vvx, vvy, vwz = self._ck.volume_cmd(
+                uv[1], uv[2], uv[3], uv[4],
+                self._ck.volume_axes(self.cmd_v_range, self.cmd_back_range,
+                                     self.cmd_vy_range, self.cmd_w_range), jp)
+            vx = jp.where(vol, vvx, vx)
+            vy = jp.where(vol, vvy, vy)
+            wz = jp.where(vol, vwz, wz)
         lifted = m_bal | m_traj
         ch = jp.where(m_crouch, crouch, 1.0)
         lift = jp.where(lifted, side, 0.0)
@@ -1981,6 +2009,13 @@ class BimoMJXEnv:
                 + m_kmarch.astype(jp.float32) * 4.0)
         return (cmd, step_i + (hold / self.control_dt).astype(jp.int32),
                 mode)
+
+    def _slew_begin(self, cmd):
+        """(cmd, cmd_tgt) at reset: the drawn command is the slew's target and c0..c2 start from
+        the stand (walker_env._slew_begin mirror); (cmd, (0,)) when cmd_slew is off."""
+        if self.cmd_slew is None:
+            return cmd, jp.zeros((0,), jp.float32)
+        return cmd.at[:3].set(0.0), cmd[:3].astype(jp.float32)
 
     def _gz(self, x, y):
         """Local ground height under world (x, y): bilinear on the mosaic,
@@ -2876,6 +2911,7 @@ class BimoMJXEnv:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
         prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
+        cmd, cmd_tgt = self._slew_begin(cmd)
         if self.ext_cmd and self.w_rise_ref:
             cmd = self._phase_cmd(cmd, recover_slot, 1.0 - recover_slot,
                                   rise_t0, step_i)
@@ -2924,7 +2960,7 @@ class BimoMJXEnv:
                      dq_qhist=dq_qhist, dq_win=dq_win,
                      ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
                      fs_amp=fs_amp, fs_defl=fs_defl,
-                     trim=self._trim0(r_ep))
+                     trim=self._trim0(r_ep), cmd_tgt=cmd_tgt)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -2976,6 +3012,7 @@ class BimoMJXEnv:
             gait_freq = jp.zeros(())
             gait_phase = jp.zeros(())
         prev_action = jp.zeros(self._nq_act, dtype=jp.float32)
+        cmd, cmd_tgt = self._slew_begin(cmd)
         if self.ext_cmd and self.w_rise_ref:
             cmd = self._phase_cmd(cmd, first.recover_slot,
                                   1.0 - first.recover_slot, first.rise_t0,
@@ -3018,7 +3055,7 @@ class BimoMJXEnv:
             dq_qhist=dq_qhist, dq_win=dq_win,
             ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
             fs_amp=fs_amp, fs_defl=fs_defl,
-            trim=self._trim0(r_ep), metrics=metrics)
+            trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, metrics=metrics)
 
     def _trim0(self, r_ep):
         """The stance trim's state at an episode start: off, with this episode's learned trims."""
@@ -4022,6 +4059,15 @@ class BimoMJXEnv:
         head_ref = jp.arctan2(jp.sin(head_ref), jp.cos(head_ref))
         head_ref = jp.where(resample, yaw, head_ref)
         cmd = jp.where(resample, new_cmd, state.cmd)
+        cmd_tgt = state.cmd_tgt
+        if self.cmd_slew is not None:
+            # the slew (cmd_kernel.slew_step, walker_env._slew_tick): a fresh draw is the target,
+            # c0..c2 move from where they were toward it
+            cmd_tgt = jp.where(resample, new_cmd[:3], state.cmd_tgt)
+            cmd = cmd.at[:3].set(self._ck.slew_step(
+                state.cmd[:3], cmd_tgt,
+                jp.asarray(self._ck.slew_delta(self.cmd_slew, self.control_dt)), jp
+            ).astype(cmd.dtype))
         cmd_next = jp.where(resample, new_next, state.cmd_next)
         traj_on = jp.where(resample, new_traj_on, state.traj_on)
         if self.ext_cmd:
@@ -4151,7 +4197,7 @@ class BimoMJXEnv:
                      ser_defl=(state.ser_defl if ser_defl is None or self._rp_on or self._fs_on
                                else ser_defl),
                      rp_h=state.rp_h, rp_off=rp_off,
-                     fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim)
+                     fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim, cmd_tgt=cmd_tgt)
 
 
 

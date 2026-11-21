@@ -50,6 +50,9 @@ Gates (float64, so precision is not the limiter):
       per-foot latch state carried, the term live once both feet's swings latched
   R21 the foot-off sag (footoff_sag): grounded stance with the per-side preloads and the
       load shares live, the encoder obs reading the servo shaft (link + deflection)
+  R23 the operator command's slew and volume (cmd_slew, cmd_volume; sim/cmd_kernel.py): the
+      kernels numpy vs jax and the firmware's golden ramp, airborne arithmetic through a
+      set_command step, the CPU and MJX volume samplers' distributions
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -61,6 +64,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --march-unload   # R17 only
       python parity_test.py --march-both     # R20 only
       python parity_test.py --footoff-sag    # R21 only
+      python parity_test.py --cmd-slew       # R23 only
 """
 import os
 import sys
@@ -135,6 +139,8 @@ def sync(state, cpu, gpu_env):
                 if getattr(cpu, "_dq_qhist", None) is not None else state.dq_win),
         trim=(jp.asarray(np.array([cpu._trim[k] for k in _tk.KEYS], dtype=np.float32))
               if getattr(cpu, "_trim", None) is not None else state.trim),
+        cmd_tgt=(jp.asarray(np.array(cpu._cmd_tgt, dtype=np.float32))
+                 if getattr(cpu, "_cmd_tgt", None) is not None else state.cmd_tgt),
     )
 
 
@@ -1085,7 +1091,128 @@ def dwell_block():
     return ok_a and ok_b and live and ok_c
 
 
+# -- R23: the operator command's slew and volume (sim/cmd_kernel.py; #266, #263) ---------
+#     a: the kernels themselves, numpy vs jax.numpy on the same inputs (slew_step on a grid of
+#        current / target / step, volume_cmd on the same uniforms), and the GOLDEN trajectory the
+#        firmware's host test pins, replayed through jax;
+#     b: airborne reward / obs parity with cmd_slew on: the episode starts from the stand and ramps
+#        to the pinned command, then set_command() steps the target mid-block (a stick step) and
+#        both engines ramp it; liveness: the CPU's c0..c2 follow cmd_kernel exactly;
+#     c: the samplers (cmd_volume 1.0, every draw a walk): the CPU env's and the MJX env's draws
+#        share one law (cmd_kernel.volume_cmd) on different RNG streams, so their distributions
+#        agree: per-channel quantiles, the octants (every diagonal, back + turn, side + turn), all
+#        inside the envelope, speeds down to zero.
+SLEW_PARITY = (0.5, 0.4, 1.5)
+
+
+def cmd_slew_block():
+    import cmd_kernel as ck
+    rng = np.random.default_rng(23)
+    cur = rng.uniform(-1, 1, (4000, 3)).astype(np.float32)
+    tgt = np.where(rng.uniform(size=(4000, 3)) < 0.2, cur,
+                   rng.uniform(-1, 1, (4000, 3))).astype(np.float32)
+    dl = ck.slew_delta(SLEW_PARITY, 0.02)
+    a_np = ck.slew_step(cur, tgt, dl)
+    a_jp = np.asarray(jax.jit(lambda c, t: ck.slew_step(c, t, jp.asarray(dl), jp))(
+        jp.asarray(cur), jp.asarray(tgt)))
+    u = rng.uniform(size=(4, 4000)).astype(np.float32)
+    axes = (0.24, 0.4, 0.25, 1.0)
+    v_np = np.stack(ck.volume_cmd(*u, axes))
+    v_jp = np.asarray(jp.stack(ck.volume_cmd(*(jp.asarray(x) for x in u), axes, jp)))
+    gold = ck.golden()
+    st_c = jp.zeros(3, jp.float32)
+    st_t = jp.zeros(3, jp.float32)
+    steps = dict(ck.GOLDEN_STEPS)
+    worst_g = 0.0
+    for k in range(gold.shape[0]):
+        if k in steps:
+            st_t = jp.asarray(steps[k], jp.float32)
+        st_c = ck.slew_step(st_c, st_t, jp.asarray(ck.slew_delta(ck.GOLDEN_RATES, ck.GOLDEN_DT)), jp)
+        worst_g = max(worst_g, float(np.max(np.abs(np.asarray(st_c) - gold[k]))))
+    worst_s = float(np.max(np.abs(a_np - a_jp)))
+    worst_v = float(np.max(np.abs(v_np - v_jp)))
+    # the law: never more than one step per tick, lands exactly on the target
+    step_ok = (np.all(np.abs(a_np - cur) <= dl + 1e-6)
+               and np.all((np.abs(tgt - cur) > dl) | (a_np == tgt)))
+    ok_a = worst_s < 1e-6 and worst_v < 1e-5 and worst_g == 0.0 and bool(step_ok)
+    print(f"== R23-a. command kernels, numpy vs jax: {'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   slew worst {worst_s:.1e}, volume worst {worst_v:.1e}, golden replay worst "
+          f"{worst_g:.1e} (bit-exact wanted), law checks {'OK' if step_ok else 'WRONG'}")
+
+    kw = rob_kw(cmd_slew=SLEW_PARITY)
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    trace = []
+    base = air_acts(c, 0.351)
+
+    def act(t):
+        if t == 60:
+            c.set_command(-0.2, 0.15, -0.6, 0.85)     # a stick step mid-walk
+        a = base(t)
+        trace.append((t, np.array(c._cmd[:3]), np.array(c._cmd_tgt)))
+        return a
+    ok_b = run_block("R23-b. command slew 0.5,0.4,1.5 (start from the stand, a set_command "
+                     "step at t=60), airborne arithmetic", 120, act, hoist, AIR_GATES, (c, g, s))
+    # the CPU's c0..c2 against cmd_kernel replayed on the same targets
+    ref = np.zeros(3)
+    dl2 = ck.slew_delta(SLEW_PARITY, c.control_dt).astype(float)
+    worst_l, ramped = 0.0, 0
+    for (t, c3, t3), nxt in zip(trace[:-1], trace[1:]):
+        ref = ck.slew_step(c3, t3, dl2)
+        worst_l = max(worst_l, float(np.max(np.abs(ref - nxt[1]))))
+        ramped += int(np.any((nxt[1] != nxt[2])))
+    first = trace[0][1]
+    ok_live = (worst_l < 1e-12 and ramped >= 20 and np.allclose(trace[-1][1], [-0.2, 0.15, -0.6])
+               and np.max(np.abs(first)) <= np.max(dl2) + 1e-12)
+    print(f"== R23-b2. slew liveness: {'PASS' if ok_live else 'FAIL'} ==")
+    print(f"   start {np.round(first, 3).tolist()}, {ramped} ramping ticks, CPU vs kernel worst "
+          f"{worst_l:.1e}, end {np.round(trace[-1][1], 3).tolist()}")
+
+    kwv = rob_kw(ext_mix=(0.0,) * 7, cmd_volume=1.0)
+    kwv.pop("cmd_fixed")
+    cv = BimoWalkerEnv(actuator_model="sts3215", command_mode=True, domain_rand=False, **kwv)
+    gv = BimoMJXEnv(domain_rand=False, **kwv)
+    cv.reset(seed=5)
+    n = 3000
+    cpu_d = []
+    for _ in range(n):
+        cv._sample_command_ext()
+        cpu_d.append(np.array(cv._cmd[:3]))
+    cpu_d = np.asarray(cpu_d)
+    keys = jax.random.split(jax.random.PRNGKey(5), n)
+    mjx_d = np.asarray(jax.jit(jax.vmap(
+        lambda k: gv._sample_cmd_ext(k, jp.zeros((), jp.int32))[0][:3]))(keys))
+    fwd, back, lat, w = ck.volume_axes(cv.cmd_v_range, cv.cmd_back_range, cv.cmd_vy_range,
+                                       cv.cmd_w_range)
+
+    def stats(d):
+        ax = np.where(d[:, 0] >= 0, fwd, back)
+        rho = np.hypot(d[:, 0] / ax, d[:, 1] / lat)
+        octs = {(int(np.sign(x)), int(np.sign(y)), int(np.sign(z)))
+                for x, y, z in d if abs(x) > 0.02 and abs(y) > 0.02}
+        return dict(q=np.quantile(d, [0.1, 0.5, 0.9], axis=0), rho_max=float(rho.max()),
+                    slow=float(np.mean(rho < 0.1)), turn=float(np.mean(d[:, 2] != 0.0)),
+                    octs=octs, wmax=float(np.abs(d[:, 2]).max()))
+    sc, sg = stats(cpu_d), stats(mjx_d)
+    dq = float(np.max(np.abs(sc["q"] - sg["q"]) / np.array([fwd, lat, w])))
+    ok_c = (dq < 0.08 and sc["rho_max"] <= 1 + 1e-6 and sg["rho_max"] <= 1 + 1e-6
+            and sc["wmax"] <= w + 1e-6 and sg["wmax"] <= w + 1e-6
+            and min(sc["slow"], sg["slow"]) > 0.05
+            and abs(sc["turn"] - sg["turn"]) < 0.05 and abs(sc["turn"] - ck.VOLUME_P_TURN) < 0.05
+            and len(sc["octs"]) == len(sg["octs"]) == 12)
+    print(f"== R23-c. volume sampler, CPU vs MJX distributions ({n} draws each): "
+          f"{'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   worst quantile gap {dq:.3f} of the axis; reach CPU {sc['rho_max']:.3f} / MJX "
+          f"{sg['rho_max']:.3f}; under 10% of reach {sc['slow']:.3f} / {sg['slow']:.3f}; turning "
+          f"{sc['turn']:.3f} / {sg['turn']:.3f}; sign octants (vx, vy, wz incl. 0) "
+          f"{len(sc['octs'])} / {len(sg['octs'])}")
+    return ok_a and ok_b and ok_live and ok_c
+
+
 def main():
+    if "--cmd-slew" in sys.argv:
+        ok = cmd_slew_block()
+        print("\nPARITY (R23):", "PASS" if ok else "FAIL")
+        return ok
     if "--mimic-dwell" in sys.argv:
         ok = dwell_block()
         print("\nPARITY (R22):", "PASS" if ok else "FAIL")
@@ -1126,7 +1253,7 @@ def main():
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
-               march_both_block(), footoff_sag_block(), dwell_block()]
+               march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

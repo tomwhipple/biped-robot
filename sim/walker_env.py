@@ -1325,6 +1325,18 @@ class BimoWalkerEnv(gym.Env):
         # (ext_mix crouch commands) and set_command() overrides are left alone.
         # (1.0, 1.0) = the legacy frozen channel, no RNG consumed.
         cmd_crouch_range: tuple = (1.0, 1.0),
+        # -- the operator command's slew and volume (#266, #263; sim/cmd_kernel.py) ------------
+        # cmd_slew: per-channel rate limit (vx m/s^2, vy m/s^2, wz rad/s^2) on the planar command
+        # ahead of the observation, the firmware's law (firmware/components/cmdslew): a drawn or
+        # set_command() command becomes the TARGET, and c0..c2 (what the policy sees and the
+        # reward grades) ramp toward it each control tick; an episode starts from the stand. The
+        # other channels snap. ext_cmd only; None = off (no ramp, bit-exact). Mirrored in env_mjx.
+        cmd_slew: tuple | str | None = None,
+        # cmd_volume: the fraction of WALK draws taken from the full (vx, vy, wz) volume inside the
+        # envelope (cmd_kernel.volume_cmd: any compass direction, speed uniform from zero to the
+        # envelope's edge, turning or not) instead of the forward / backward / sidestep bands.
+        # ext_cmd only; 0.0 = off (no RNG consumed). Mirrored in env_mjx.
+        cmd_volume: float = 0.0,
     ):
         super().__init__()
         self.w_forward = w_forward
@@ -1548,6 +1560,14 @@ class BimoWalkerEnv(gym.Env):
             raise ValueError("march_mix requires ext_cmd (the knee-high "
                              "march is expressed through c4/c6)")
         self._cmd_crouch = 1.0            # per-episode crouch-command draw
+        import cmd_kernel as _ck
+        self._ck = _ck
+        self.cmd_slew = _ck.parse_slew(cmd_slew)
+        self.cmd_volume = float(cmd_volume)
+        if (self.cmd_slew is not None or self.cmd_volume > 0.0) and not ext_cmd:
+            raise ValueError("cmd_slew / cmd_volume need ext_cmd (the planar command is c0..c2 "
+                             "of the 7-channel layout)")
+        self._cmd_tgt = None              # the slew's target (c0..c2); None = slew off
         self._cmd_next = 0
         self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
         self._traj_on = 0.0            # trajectory mode (0/1/2/3)
@@ -2507,6 +2527,11 @@ class BimoWalkerEnv(gym.Env):
             self._traj_on = 3.0
         elif u < t7:                                   # knee-high march
             self._traj_on = 4.0
+        elif self.cmd_volume > 0.0 and rng.uniform() < self.cmd_volume:
+            # walk from the full volume (cmd_kernel.volume_cmd, the env_mjx law)
+            u = rng.uniform(size=4)
+            cmd[0], cmd[1], cmd[2] = self._ck.volume_cmd(
+                float(u[0]), float(u[1]), float(u[2]), float(u[3]), self._volume_axes())
         else:                                          # walk fwd / back / side
             uw = float(rng.uniform())
             p_back, p_side = self.walk_submix
@@ -2531,6 +2556,28 @@ class BimoWalkerEnv(gym.Env):
             self.np_random.uniform(lo, hi) / self.control_dt)
         self._apply_crouch_draw()
 
+    def _volume_axes(self):
+        return self._ck.volume_axes(self.cmd_v_range, self.cmd_back_range, self.cmd_vy_range,
+                                    self.cmd_w_range)
+
+    def _slew_begin(self):
+        """At reset: the command just drawn becomes the slew's target and c0..c2 start from the
+        stand (the robot is armed standing with a zero command). env_mjx _slew_begin mirror."""
+        if self.cmd_slew is None:
+            return
+        self._cmd_tgt = np.array(self._cmd[:3], dtype=float)
+        self._cmd[:3] = 0.0
+
+    def _slew_tick(self, prev3, resampled):
+        """One control tick of the slew (cmd_kernel.slew_step): a fresh draw replaces the target,
+        and c0..c2 move from where they were toward it."""
+        if self.cmd_slew is None:
+            return
+        if resampled:
+            self._cmd_tgt = np.array(self._cmd[:3], dtype=float)
+        self._cmd[:3] = self._ck.slew_step(
+            prev3, self._cmd_tgt, self._ck.slew_delta(self.cmd_slew, self.control_dt).astype(float))
+
     def _apply_crouch_draw(self):
         """Replace a FROZEN full-height crouch channel with this episode's
         draw (SIL finding #2). Only the exactly-1.0 case is replaced, so an
@@ -2551,6 +2598,10 @@ class BimoWalkerEnv(gym.Env):
         channel 1 is yaw rate on legacy envs but vy on ext envs."""
         base = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])[:self._ncmd]
         base[:len(chans)] = [float(c) for c in chans]
+        if self.cmd_slew is not None:
+            # the slew's target; c0..c2 ramp toward it from the next step on (cmd_slew)
+            self._cmd_tgt = base[:3].copy()
+            base[:3] = self._cmd[:3]
         self._cmd = base
         self._cmd_next = 10 ** 9
         self._traj_on = 0.0
@@ -2813,6 +2864,8 @@ class BimoWalkerEnv(gym.Env):
             self._imu_gyro_bias = (self.np_random.uniform(-0.03, 0.03, 3)
                                    * self.imu_noise)
         self._step_i = 0
+        if self.command_mode:
+            self._slew_begin()
         self._phase_cmd()
         if self.gait_clock:
             self._gait_freq = float(self.np_random.uniform(*self.gait_freq_range))
@@ -3688,9 +3741,12 @@ class BimoWalkerEnv(gym.Env):
                                               np.cos(self._head_ref)))
             # resample AFTER the reward (which graded the command the policy
             # saw); the returned obs carries the new command
-            if self._step_i >= self._cmd_next:
+            prev3 = self._cmd[:3].copy() if self.cmd_slew is not None else None
+            resampled = self._step_i >= self._cmd_next
+            if resampled:
                 self._head_ref = yaw
                 self._sample_command()
+            self._slew_tick(prev3, resampled)
             if self.ext_cmd and self._traj_on:
                 # trajectory-mode evolution (mirrors sim/mjx): 1 = foot
                 # circle, 2 = march (alternating lifts + height bob),
