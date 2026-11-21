@@ -1,6 +1,7 @@
 # Sourced by plan_morning.sh (and its tests): the night window and the
-# "keep the night going after the plan" decision. Installed beside
-# night_run.sh in ~/code/robot-mjx/night/; source of truth: infra/night/.
+# "keep the night going after the plan" decision. The running copy is
+# $N (~/code/robot-mjx/night/); the source of truth is infra/night/ in the
+# repo, mirrored into $N at each runner start (night_run.sh install_harness).
 #
 # THE WINDOW MUST MATCH night_run.sh: the hard stop is 07:00 (night_stop.sh)
 # and no job starts after START_DEADLINE = hard stop - 900 s (06:45); the

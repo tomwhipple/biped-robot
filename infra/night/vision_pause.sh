@@ -2,7 +2,7 @@
 # Pause / resume Tom's camera-watcher classifier (the daytime GPU owner: llama3.2-vision
 # via ollama) around the training window. Tom 2026-10-07: "disable the vision queue while
 # training runs". The backlog waits in redis and drains after resume. While paused, the
-# sentinel tells ~/.hermes/scripts/camera_watchdog.py the lag is intentional.
+# sentinel tells ~/code/claude-runs/camera/camera_watchdog.py the lag is intentional.
 #   vision_pause.sh pause | resume
 set -uo pipefail
 C=camera-watcher-classifier-1

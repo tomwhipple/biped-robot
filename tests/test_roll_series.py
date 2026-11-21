@@ -13,6 +13,7 @@ default, bit-exact.
 import inspect
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -239,7 +240,7 @@ def test_clamp_tilt_at_the_fit(side, monkeypatch):
     Measured when written: 9.34 (L lifted) / 9.22 (R); encoders 1.83 / 0.73 deg. Rigid: 2.8 deg."""
     sys.path.insert(0, SIM)
     import roll_compliance as RC
-    xml = RC.clamped_xml(os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml"), "R" if side == "L" else "L")
+    xml = RC.clamped_xml(paths.v6_plant("bimo_biped_v6legs_meas_sole.xml"), "R" if side == "L" else "L")
     try:
         env, GC = _gate_train_env(xml, FIT, 0.0)
         monkeypatch.setattr(GC, "encoder_err", _shaft_encoder)
@@ -257,7 +258,7 @@ SOFT = "hip=10,ankle=16"           # the soft end of the recipe range hip=10:25,
 def test_zero_action_stand_at_the_soft_end():
     """A zero action (the stand pose) on the training plant at the soft end of the recipe range
     (hip 10, ankle 16 N m/rad) with the roll play at its DR top (2.0 deg) does not fall."""
-    env, _ = _gate_train_env(os.path.join(SIM, "bimo_biped_v6legs_meas_sole.xml"), SOFT, 2.0)
+    env, _ = _gate_train_env(paths.v6_plant("bimo_biped_v6legs_meas_sole.xml"), SOFT, 2.0)
     env.reset(seed=0)
     z = np.zeros(env.action_space.shape[0], np.float32)
     ups = []

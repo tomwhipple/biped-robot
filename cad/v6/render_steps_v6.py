@@ -59,7 +59,7 @@ BENCH = {
     "pelvis_v8": (0, 0, -1),             # up into the torso from below, snapped and glued (torso_v8)
     "power_board_mock": (-1, 0, 0),      # onto its standoff bosses from aft, the cap off
     "power_standoffs_mock": (-1, 0, 0),  # the BMS bracket's standoffs in its +y holes
-    "power_bracket_v8": (-1, 0, 0),      # then the BMS bracket onto them, the BMS onto its tape (torso_v8)
+    "power_bracket_v8": (-1, 0, 0),      # then the BMS bracket onto them, the BMS into its hooks (torso_v8)
     "bms_mock": (-1, 0, 0),
     "balance_park_v8": (-1, 0, 0),       # the balance park onto the aft wall, its lead from J2, before the bracket
     "balance_male_mock": (-1, 0, 0),
@@ -128,7 +128,7 @@ STEPS = [
      TORSO_DONE + HIP + HIP_R + LEG_R, LEG, 45, (145, -8), ["servo_hip_roll_L", "yaw_carrier_L", "hip_yoke_L"]),
     ("11_boards", "9. The Pi with the General Driver on it in from the front; the power board and the balance park from aft",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R, STACK, 45, (150, -20), ["torso_v8"]),
-    ("11b_power_bay", "9c. The BMS bracket onto its standoffs, then the BMS onto its tape",
+    ("11b_power_bay", "9c. The BMS bracket onto its standoffs, then the BMS into its hooks",
      TORSO_DONE + HIP + HIP_R + LEG + LEG_R + STACK, POWER_BAY[:2], 35, (-25, -15),
      ["power_board_mock", "power_bracket_v8", "bms_mock"]),
     ("11c_power_cap", "9c. The cap, its switch pod on it, over them: three screws in through the skins",

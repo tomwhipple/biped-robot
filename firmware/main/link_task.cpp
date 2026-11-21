@@ -13,6 +13,7 @@
 #include "board.h"
 #include "cli.h"
 #include "flight_rec.h"
+#include "pack_sense.h"
 #include "wcli/wcli.h"
 #include "wifi_cli.h"
 #include "driver/uart.h"
@@ -22,6 +23,7 @@
 #include "freertos/task.h"
 #include "linkproto/framing.h"
 #include "linkproto/protocol.h"
+#include "power_rail.h"
 #include "shared.h"
 
 namespace robot {
@@ -181,9 +183,12 @@ void houseTask(void*) {
         // The home's readback, once its slew deadline has passed (typed
         // `home` and the wireless request both arm it). Stores the verdict
         // the beacon actually means: at the zeros, or not.
+        if constexpr (rail::kFitted) cli::railTick(&houseSay);
         cli::fallTick(&houseSay);
         cli::servoRamTick(&houseSay);
         cli::benchVbatTick();
+        // The INA219's pack voltage (pack_sense.h): 10 Hz, self-scheduled, bounded.
+        packSenseTick();
         cli::flailTick(&houseSay);
         cli::homeVerify(&houseSay);
         cli::poseTick(&houseSay);

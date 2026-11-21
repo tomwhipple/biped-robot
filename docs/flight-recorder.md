@@ -250,7 +250,8 @@ then `len` ≤ 180 bytes of text. Codes: 1 cmd, 2 out, 3 arm edge (a = level),
 in: 0 bench, 1 policy; b = 1 fell, 2 picked up -> autohome, 3 cleared;
 `components/fallguard`), 11 flail (an armed-loop hold: a = 1 pose, 2 rate,
 3 tilt, 4 chatter, 255 operator soft stop; b = 1 torque held, 0 already limp,
-2 the hold's autohome started; `components/flailguard`), 12 stop (an operator
+2 the hold's autohome started, 3 a walk trip recovered, 4 the hold released
+because the pack guard latched; `components/flailguard`), 12 stop (an operator
 stop, `linkproto::kFlagStop`: a = 1 hard / 0 soft, b = 1 armed / 0 benched),
 13 Wi-Fi CLI session (a = peer IPv4, b = peer port; text says). On cmd and
 out events `a` is the channel: 0 the tether, 1 the Wi-Fi CLI
@@ -265,7 +266,7 @@ us_net, us_write, us_other, uptime ms, NTP syncs, reserved), u8 17 + 3 pad,
 then per bus joint: u8 id, u8 fitted, i8 dir, i16 zero.
 
 The C++ encoder is pinned to `tools/flightrec.py` byte for byte
-(`make vectors` → `firmware/host/vectors/flightrec_vectors.h`, checked by
+(`make vectors` → `build/host/vectors/flightrec_vectors.h`, checked by
 `firmware/host/test_flightrec.cpp`). A layout change bumps the version on
 both sides.
 

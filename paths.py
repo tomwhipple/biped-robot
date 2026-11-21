@@ -9,16 +9,48 @@ Plan B rigs). The targets are kinds of output:
 stl, step, renders, movies, reports. `make` builds into the same folders, and
 `make clean` deletes build/.
 
-Some generated files are still committed, because the training box loads them
-from git and runs no generator: the STLs below, the plant XMLs and their
-meshes, the .npz references and the firmware headers.
+The plant the simulator and the trainer load is generated too, and so are the
+printed parts' STLs (issue #144):
+
+    V6_STL   build/v6/stl/   cad/v6/parts_v6.py's exports (`make cad`)
+    V6_SIM   build/v6/sim/   the plant XMLs, the servo meshes they cite
+                             (meshes/) and terrain_mosaic.npz (`make plant-data`)
+
+So are the firmware's policy headers, from the deployed runs' committed
+inputs in firmware/deployed/ (tools/policy_profile.py):
+
+    build/policy/<set>/   obs spec, weights, command envelope, their vectors,
+                          the .silw and the SIL golden files (`make policy`)
+    build/host/vectors/   the protocol, flight-recorder, Wi-Fi CLI vectors
+                          (`make vectors`)
+
+Still committed, because they are recordings and not rebuildable: the get-up
+references (sim/getup_ref_v6ar*.npz).
 """
 import os
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(ROOT, "build")
 
-V6_STL = os.path.join(ROOT, "cad", "v6", "stl")
+V6_STL = os.path.join(BUILD, "v6", "stl")
+V6_SIM = os.path.join(BUILD, "v6", "sim")
+V6_TERRAIN = os.path.join(V6_SIM, "terrain_mosaic.npz")
+V6_SERVO_MESHES = os.path.join(V6_SIM, "meshes")
+
+
+def v6_plant(name):
+    """build/v6/sim/<basename of name>: where `make plant` writes a v6 plant and
+    where every env and script resolves one."""
+    return os.path.join(V6_SIM, os.path.basename(name))
+
+
+def resolve_plant(xml):
+    """A plant path as given when it exists; otherwise the basename in build/v6/sim.
+    A run's config.json keeps the plant by name (or by the path it had on another
+    host, or when plants lived in sim/), so every reader resolves through here."""
+    if os.path.exists(xml):
+        return xml
+    return v6_plant(xml)
 
 
 def build_dir(version, target):

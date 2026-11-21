@@ -11,6 +11,7 @@ Everything is opt-in: with both at 0 the envs and the recipes' env kwargs are as
 import inspect
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -93,7 +94,7 @@ def test_the_recipe_with_the_march_slice_builds_on_both_engines():
     kw = _kw("--march-mix", "0.15", "--mimic-march", "0.035", "--march-lift", "0.07",
              "--mimic-sway", "0.035", "--w-com-stance", "0.75", "--w-knee-high", "1.0")
     full = dict(robot_plant.robot_env_kwargs(XML), **kw)
-    full["xml_path"] = os.path.join(SIM, XML)
+    full["xml_path"] = paths.v6_plant(XML)
     g = BimoMJXEnv(**full)
     c = W.BimoWalkerEnv(**{k: v for k, v in full.items()
                            if k in inspect.signature(W.BimoWalkerEnv.__init__).parameters

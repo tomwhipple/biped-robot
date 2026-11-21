@@ -151,8 +151,9 @@ The numbers are totals for the robot (both legs, both arms), from each module's
 | §8 hip roll (hip-yoke roll clevis) | M3 × 6 horn / M3 × 8 idler | 8 / 8 |
 | §9a Pi | M2.5 × 17 male-female standoff (6 mm male) | 4 |
 | §9b General Driver onto the standoffs / front cover | M2.5 × 6 / M2.5 × 8 flat | 4 / 4 |
-| §9c power lite: −y holes / +y holes | M2.5 × 6 pan / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
-| §9c BMS bracket onto the standoffs / power cap | M2.5 × 6 flat / M2.5 × 8 flat | 2 / 3 |
+| §9c power lite's bosses | M2.5 heat-set insert, M2.5 × 5.7 × Ø4.0 | 4 |
+| §9c power lite: −y holes / +y holes | M2.5 × 6 button head / M2.5 × 15 male-female standoff (6 mm male) | 2 / 2 |
+| §9c BMS bracket onto the standoffs (top / bottom) / power cap | M2.5 × 6 button head / M2.5 × 6 flat / M2.5 × 8 flat | 1 / 1 / 3 |
 | §9c BMS onto its bracket / balance park onto the aft wall | double-sided foam tape, 1 mm | — |
 | §9c switch pod onto the cap (from the cap's inner face) | M2.5 × 8 flat | 4 |
 | §10 battery door | M2.5 × 8 flat | 1 |
@@ -484,18 +485,25 @@ the main switch and the E-stop side by side in the **switch pod**
      board's parts face, over the W pads, its P−/P+ edge up and its B− and B3
      corners toward the fuses.
    - The two 14 AWG wires loop over the BMS's top edge to B− and P−, one
-     behind the other: there are 8 mm between that edge and the deck.
+     behind the other: there are 7.75 mm between that edge and the deck.
    - The 24 AWG cell taps come up to B3, B2 and B1+ from below, through their
      corner pads' plated holes. The corner pads stand past the bracket's edges.
    - The BMS then hangs on its wires while the board goes in.
    - At the same time, solder the board's half of the main switch's lead into
      W6/W7: a 14 AWG pair to the board half of its inline disconnect (step 6).
 2. **The board** goes in from aft: vertical, parts facing aft, onto the four
-   6 mm standoff bosses on the aft inner wall.
-   - Its −y holes (H2, H4): **2 × M2.5 × 6 pan** screws.
+   6 mm standoff bosses on the aft inner wall. Boards mount on M2.5 machine
+   screws and standoffs into heat-set inserts, not self-tappers, and the
+   board's holes are used as made (Tom, 2026-11-18).
+   - **Before the board, the inserts:** press an **M2.5 heat-set insert**
+     (M2.5 × 5.7 × Ø4.0) into each of the four bosses with the iron, from
+     aft, flush with the boss's face. The pilots are Ø3.6, 6.5 deep: an
+     assumed size, so check it against the inserts you have.
+   - Its −y holes (H2, H4): **2 × M2.5 × 6 button heads**, 4.4 mm into the
+     inserts.
    - Its +y holes (H1 at the top, H3 at the bottom): **2 × M2.5 × 15
      male-female standoffs**, their 6 mm male thread through the board into the
-     bosses. Turn them with a 5 mm nut driver.
+     inserts. Turn them with a 5 mm nut driver.
 3. **The balance lead.** A 3S JST-XH balance extension lead stays plugged into
    J2, and its free end parks where the battery door reaches it: J2 itself is
    under the BMS and below the door's sill.
@@ -510,22 +518,35 @@ the main switch and the E-stop side by side in the **switch pod**
    - The male end is taken as JST's B4B-XH-A body (12.4 × 5.75 × 7.0 mm):
      **measure the lead's end on arrival** (`BAL_MALE` in
      `cad/v6/dimensions_v6.py`).
-4. **The BMS bracket** onto the two standoffs: **2 × M2.5 × 6 flat-heads**
-   into their tops, countersunk in the bracket. The bottom screw ends up under
-   the BMS, so it goes in first.
-5. **The BMS** onto the bracket, component side aft, on double-sided foam tape.
-   - Press it straight in from aft. It sits between three stops on the
-     bracket: a ledge under its bottom edge, a stop over its top edge, and a
-     stop at its −y edge.
+4. **The BMS bracket** onto the two standoffs: an **M2.5 × 6 flat head**
+   (machine) into the bottom one, countersunk flush (it ends up under the
+   BMS, so it goes in first), and an **M2.5 × 6 button head** into the top
+   one.
+5. **The BMS** onto the bracket, component side aft. It is held by **four
+   hooks** whose lips reach 0.8 mm over its PCB's aft face: a fixed hook over
+   its top edge, two snaps under its bottom edge and one at its −y edge.
+   - Stick a 1 mm foam pad on its bare side, clear of its edges by 4 mm. The
+     pad presses it back onto the hooks so it cannot rattle; it does not
+     need to hold.
+   - Tilt it about 25°, its bottom out toward you. Put its top edge in under
+     the top hook: low enough to pass under the lip, then up against the
+     bracket.
+   - Swing its bottom in. The two bottom snaps and the −y snap ride aside on
+     their ramps and click over its edges.
+   - **To take it out:** press the two bottom snaps down and the −y snap
+     outward (−y), swing its bottom out, and lift its top edge out of the
+     top hook.
    - The +y skin is 0.9 mm off its other edge, and the cap is 2.2 mm off its
-     parts, so it stays put if the tape lets go.
+     parts.
    - Its four corner pads carry pack voltage: nothing metal may touch them.
-   - **Its size, pads and margins are the datasheet's (DS-NA405), not
-     measured.** Measure it on arrival and put the values in `BMS_*` in
-     `cad/v6/dimensions_v6.py`. The stops bear on a 2 mm margin at its edge
-     that is assumed to be free of parts.
+     The hooks stay clear of them.
+   - **Its PCB (56.8 × 44.8 mm) and its height (4.0 mm with the PCB) are
+     measured; its pads and its part-free edge are not.** The hooks bear on
+     a 2 mm margin at its edge that is assumed to be free of parts: check
+     that before printing the bracket (`BMS_*` in
+     `cad/v6/dimensions_v6.py`).
 
-   ![The BMS bracket onto its standoffs, then the BMS onto its tape](assembly/v6_11b_power_bay.png)
+   ![The BMS bracket onto its standoffs, then the BMS into its hooks](assembly/v6_11b_power_bay.png)
 6. **The switch pod onto the cap**, on the bench. The cap carries the main
    switch and the E-stop side by side in the **switch pod**
    (`switch_pod_v8`), one block on the cap's outer face at its top, its top
@@ -577,8 +598,11 @@ the main switch and the E-stop side by side in the **switch pod**
    4.7 mm aft of the torso and 2.0 mm over the relay K1. Plug the disconnect
    and J11 first, then drive **3 × M2.5 × 8 flat-heads** in through the
    skins into its corner blocks: the +y top, −y top and −y bottom holes.
-   - The torso's +y bottom hole stays empty: the BMS's lower corner is where
-     a block there would stand.
+   - The fourth corner, +y bottom, has a **tab** instead of a block: it goes
+     in 4.0 mm inside the +y skin, below the BMS's parts. A lip inside each skin and
+     under the deck locates the cap's edges. A block and a skin screw
+     there would stand where the BMS's lower corner is, so the torso has no
+     hole there.
    - **To take the cap off** (a fuse): the three skin screws out, the cap
      back far enough to reach in, then the disconnect and J11 apart. The cap
      comes away whole with its switches; nothing is unscrewed from them.
@@ -918,7 +942,7 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 |---|---|
 | ID map, harness, lead lengths, current budget | #77 |
 | room for the pack's plug and 12 AWG lead at power lite's J1 (17.4 mm to the skin) | §9c; power lite, PR #209 |
-| the BMS's outline, thickness, pads and part-free edge margin (the datasheet's, `BMS_*`) | §9c; #213 |
+| the BMS's pads and part-free edge margin (its PCB, 56.8 × 44.8 mm, and its 4.0 mm height are measured; `BMS_*`) | §9c; #213 |
 | the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
 | the main switch's nut, lever length and throw, and its keyway's width, depth and place (the panel tab, `SW_KEY_*`); the inline disconnect's size and rating | §9c; #213 |
 | the E-stop's hardware (its nut and lockwasher, assumed 7.94 mm across the flats × 2.4 mm and 0.5 mm) and its bushing's thread (the datasheet's B1: 8.89 mm) | §9c; #213 |

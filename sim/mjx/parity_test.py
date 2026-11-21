@@ -1,6 +1,6 @@
 """Parity test: MJX env vs CPU BimoWalkerEnv, on the robot's plant.
 
-Every block runs on sim/bimo_biped_v6ar.xml under the robot preset
+Every block runs on build/v6/sim/bimo_biped_v6ar.xml under the robot preset
 (robot_plant.robot_env_kwargs): the 12 leg joints as the policy, the neck and
 arms HELD, Plan B per-servo stiffness, hip flexion -120, the sole-level
 imitation reference, tick quantization.
@@ -447,7 +447,7 @@ def recovery_block():
 
 
 # -- R9: terrain mosaic + knee-weighted mimic ------------------------------------
-# The mosaic ground-height lookup (bilinear on sim/terrain_mosaic.npz) enters
+# The mosaic ground-height lookup (bilinear on build/v6/sim/terrain_mosaic.npz) enters
 # height/foot_clear/obs, and the mimic kernel carries a per-joint knee weight.
 # Airborne over a rough tile so the lookup is live in every step.
 def terrain_block():
@@ -1013,7 +1013,83 @@ def footoff_sag_block():
     return ok_b and ok_c
 
 
+# -- R22: the double-support dwell (mimic_dwell) ------------------------------------
+#     walker_env.dwell_swing (numpy) and BimoMJXEnv._dwell_swing (JAX) on a phase grid, and the
+#     full imitation reference built on them (walking and march), compared point by point; the
+#     dwell's shape (feet down in the band, full shift held through the swing); then airborne
+#     reward parity for the walk and the march with the dwell on, and liveness (the twin without
+#     the dwell must pay differently).
+def dwell_block():
+    from walker_env import dwell_swing
+    D = 0.3
+    kw = rob_kw(mimic_lift=0.02, mimic_sway=0.075, mimic_dwell=D)
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    a = 0.5 * np.pi * D
+    grid = np.linspace(-np.pi, np.pi, 1441)[:-1] + 1e-4
+    worst_sw = worst_q = worst_qm = 0.0
+    cmd = np.array([0.15, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    for ph in grid:
+        l, r, y = dwell_swing(ph, D)
+        swj, yj = g._dwell_swing(jp.float32(ph))
+        worst_sw = max(worst_sw, abs(l - float(swj[0])), abs(r - float(swj[1])), abs(y - float(yj)))
+        qc = c._mimic_ref(cmd, ph, 0.5)
+        qg = np.asarray(g._mimic_ref(jp.asarray(cmd, jp.float32), jp.float32(ph), jp.float32(0.5)))
+        worst_q = max(worst_q, float(np.max(np.abs(qc - qg))))
+    shape = []
+    for ph, want in ((0.5 * a, (0.0, 0.0)), (-0.5 * a, (0.0, 0.0)), (np.pi / 2, (1.0, 0.0)),
+                     (-np.pi / 2, (0.0, 1.0)), (np.pi - 0.5 * a, (0.0, 0.0))):
+        l, r, _ = dwell_swing(ph, D)
+        shape.append(abs(l - want[0]) < 1e-9 and abs(r - want[1]) < 1e-9)
+    # full shift held from the middle of the band through the swing, crossing at the zero
+    shape.append(abs(dwell_swing(0.75 * a, D)[2] - 1.0) < 1e-9)
+    shape.append(abs(dwell_swing(-0.75 * a, D)[2] + 1.0) < 1e-9)
+    shape.append(abs(dwell_swing(np.pi / 2, D)[2] - 1.0) < 1e-9)
+    shape.append(abs(dwell_swing(1e-6, D)[2]) < 1e-3)
+    # the reference: in the band no lift (hip pitch / knee at the stride-only values)
+    c0, _, _ = envs_for(dict(kw, mimic_dwell=0.0), solver_tol=ARITH_TOL)
+    q_band = c._mimic_ref(cmd, 0.5 * a, 0.5)
+    q_mid = c._mimic_ref(cmd, np.pi / 2, 0.5)
+    q_mid0 = c0._mimic_ref(cmd, np.pi / 2, 0.5)
+    kL = c._i_knee[0] if hasattr(c._i_knee, "__len__") else c._i_knee
+    shape.append(abs(q_band[kL] - c._default[kL]) < 1e-9)
+    shape.append(abs(q_mid[kL] - q_mid0[kL]) < 1e-9)          # mid-swing lift unchanged
+    ok_a = worst_sw < 1e-5 and worst_q < 1e-5 and all(shape)
+    print(f"== R22-a. dwell profile + reference, CPU vs MJX on {len(grid)} phases: "
+          f"{'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   worst |dswing,y| {worst_sw:.1e}  worst |dq_ref| {worst_q:.1e} rad; shape checks "
+          f"{sum(shape)}/{len(shape)}")
+    ok_b = run_block("R22-b. walking with the dwell reference (mimic_dwell 0.3, sway 0.075, "
+                     "feet-phase targets, airborne)", 120, air_acts(c, 0.359), hoist,
+                     AIR_GATES, (c, g, s))
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = 0.0
+    for _ in range(40):
+        r_on += c.step(z)[1]
+        r_off += c0.step(z)[1]
+    live = abs(r_on - r_off) > 1e-3
+    print(f"   dwell live: 40-step reward with / without {r_on:.3f} / {r_off:.3f}")
+    kwm = rob_kw(w_knee_high=1.0, ext_mix=(0.0,) * 7, march_mix=1.0, mimic_lift=0.02,
+                 mimic_sway=0.075, mimic_march=0.035, march_lift=0.08, mimic_dwell=D)
+    kwm.pop("cmd_fixed")
+    cm, gm, sm = envs_for(kwm, solver_tol=ARITH_TOL)
+    for ph in grid[::12]:
+        qc = cm._mimic_ref(np.zeros(7), ph, 0.5, march=True)
+        qg = np.asarray(gm._mimic_ref(jp.zeros(7, jp.float32), jp.float32(ph), jp.float32(0.5),
+                                      march=jp.bool_(True)))
+        worst_qm = max(worst_qm, float(np.max(np.abs(qc - qg))))
+    ok_c = run_block("R22-c. march with the dwell reference (airborne)", 120,
+                     air_acts(cm, 0.359), hoist, AIR_GATES, (cm, gm, sm)) and worst_qm < 1e-5
+    print(f"   march reference worst |dq_ref| {worst_qm:.1e} rad")
+    return ok_a and ok_b and live and ok_c
+
+
 def main():
+    if "--mimic-dwell" in sys.argv:
+        ok = dwell_block()
+        print("\nPARITY (R22):", "PASS" if ok else "FAIL")
+        return ok
     if "--footoff-sag" in sys.argv:
         ok = footoff_sag_block()
         print("\nPARITY (R21):", "PASS" if ok else "FAIL")
@@ -1050,7 +1126,7 @@ def main():
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
-               march_both_block(), footoff_sag_block()]
+               march_both_block(), footoff_sag_block(), dwell_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

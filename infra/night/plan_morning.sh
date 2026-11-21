@@ -22,7 +22,7 @@ CLAUDE_BIN=${CLAUDE_BIN:-$HOME/.local/bin/claude}
 POLL_S=${PLAN_POLL_S:-120}
 POLL_N=${PLAN_POLL_N:-90}                      # 90 x 120 s = the 3 h cap
 OUTDIR=$N/planner
-TOM=mattermost:xhtnq11nhjn1jpytz1sj4zzimr     # Tom <-> aime DM (model-remediator's target)
+NOTIFY_CMD=${NOTIFY_CMD:-$HOME/code/claude-runs/bin/notify-tom}   # Tom via the Claude app (Mattermost fallback); no Hermes (Tom 2026-11-19)
 mkdir -p "$OUTDIR"
 exec >> "$N/planner.log" 2>&1
 exec 8>"$N/.planner.lock"
@@ -58,8 +58,8 @@ notify() {
   # Tom 2026-11-02: status DMs OFF while Claude Code manages the sim
   # campaigns; re-enable with NIGHT_DM_NOTIFY=1
   if [[ ${NIGHT_DM_NOTIFY:-} == 1 ]]; then
-    "$HOME/.local/bin/hermes" send -q -t "$TOM" "Get-up planner: $1" \
-      || echo "!!! Mattermost notify failed; message was: $1"
+    "$NOTIFY_CMD" "Get-up planner: $1" \
+      || echo "!!! notify-tom failed; message was: $1"
   fi
 }
 
@@ -87,6 +87,20 @@ if [[ $MODE == addendum ]] && [[ -z $(find "$N/queue/done" -maxdepth 1 -type f -
   # never free): nothing new to grade
   echo "=== $(date) plan_morning: the continued runner launched no job; nothing to add; exiting"
   rm -f "$N/.continued"
+  exit 0
+fi
+
+# Stay on the Claude plan, never extra usage (Tom 2026-11-19): no planner session while
+# the weekly window is at the cap or unknown (~/code/claude-runs/bin/usage-ok). Not
+# "done", so the next trigger (05:30 / 07:15 / 07:30) tries again; if every trigger
+# skips, ensure_queue.sh still tops the night up from fallback.job at 21:30. A missing
+# gate script does not block the planner.
+USAGE_OK_CMD=${USAGE_OK_CMD:-$HOME/code/claude-runs/bin/usage-ok}
+if [[ -x $USAGE_OK_CMD ]] && ! WHY=$("$USAGE_OK_CMD"); then
+  QN=$(ls "$N/queue" | grep -cE '^[0-9]' || true)
+  echo "$(date +%H:%M) planner skipped: $WHY"
+  notify "planner skipped: $WHY. $QN jobs queued; ensure_queue.sh tops the night up at 21:30."
+  echo "=== $(date) plan_morning skipped (Claude usage) ==="
   exit 0
 fi
 

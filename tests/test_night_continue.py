@@ -147,13 +147,15 @@ def rig(tmp_path):
     return tmp_path, n
 
 
-def run_plan(rig, hhmm, jobs="", status="PLAN_STATUS: QUEUED 2 jobs - t", rc="0"):
+def run_plan(rig, hhmm, jobs="", status="PLAN_STATUS: QUEUED 2 jobs - t", rc="0",
+             usage_ok="/bin/true"):
     tmp, n = rig
     env = {**ENV, "RIG": str(tmp), "NIGHT_DIR": str(n), "COLLECT_LOG": str(tmp / "collect.log"),
            "PLAN_WT": str(tmp / "wt"), "PLAN_REPO": str(tmp / "repo"),
            "CLAUDE_BIN": str(tmp / "claude"), "NIGHT_RUN_CMD": str(tmp / "runner"),
            "PLAN_POLL_S": "1", "PLAN_POLL_N": "2", "NIGHT_NOW": str(epoch(hhmm)),
-           "FAKE_JOBS": jobs, "FAKE_STATUS": status, "FAKE_RC": rc}
+           "FAKE_JOBS": jobs, "FAKE_STATUS": status, "FAKE_RC": rc,
+           "USAGE_OK_CMD": usage_ok}    # pinned: never the live Claude usage figure
     r = subprocess.run(["bash", PLAN], env=env, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
     time.sleep(0.5)    # the stub runner is started detached
@@ -232,3 +234,17 @@ def test_addendum_inside_window_chains_again(rig):
     log = run_plan(rig, "04:00")
     assert starts(rig) == 2 and (rig[1] / ".continued").exists()
     assert "continuing the night: 1 job(s)" in log
+
+
+def test_plan_skipped_when_claude_usage_gate_says_no(rig, tmp_path):
+    """Tom 2026-11-19: stay on the Claude plan. Over the cap: no planner session, the
+    morning is not marked done (a later trigger retries), and no runner restart."""
+    gate = tmp_path / "usage_over"
+    gate.write_text('#!/usr/bin/env bash\necho "OVER: weekly Claude usage 90% >= 85% cap"\nexit 1\n')
+    gate.chmod(0o755)
+    log = run_plan(rig, "03:48", jobs="1113220001-a", usage_ok=str(gate))
+    assert "planner skipped: OVER" in log and "plan_morning skipped (Claude usage)" in log
+    assert "plan_morning done" not in log
+    assert calls(rig) == 0 and starts(rig) == 0
+    log = run_plan(rig, "05:30", jobs="1113220001-a")    # gate OK again: plans normally
+    assert calls(rig) == 1 and "plan_morning done" in log

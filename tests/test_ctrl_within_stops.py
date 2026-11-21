@@ -6,6 +6,7 @@ robot. --ctrl-within-stops clips the policy range to the stops; it is opt-in
 (off = every older run's action scaling, bit for bit) and both envs agree.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -22,7 +23,7 @@ import mujoco  # noqa: E402
 
 import walker_env as W  # noqa: E402
 
-LEGS_XML = os.path.join(SIM, "bimo_biped_v6legs.xml")
+LEGS_XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def _ranges(within):

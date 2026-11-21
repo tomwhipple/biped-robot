@@ -44,7 +44,7 @@ python sim/static_gait.py --render build/v6/movies/walk.mp4   # the open-loop wa
 python sim/gate_no3250.py walk             # the walk across the gate cases
 
 # regenerate the printable parts from the parametric source, then gate them
-make cad                                   # every part whose source changed: STL (cad/v6/stl), STEP and mass rollup (build/v6)
+make cad                                   # every part whose source changed: STL (build/v6/stl), STEP and mass rollup (build/v6)
 make check-cad                             # swept-ROM interference, must PASS
 make slice                                 # OrcaSlicer projects + gcode, in build/v6/gcode
 

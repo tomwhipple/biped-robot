@@ -7,7 +7,7 @@ The flight recorder's wire format is written twice: in C++ on the robot
 (firmware/components/flightrec) and in Python on mira (tools/flightrec.py,
 which the collector and every analysis decode with). This writes, per case,
 a C++ function that builds the record field by field AND the bytes Python
-encoded for the same values, into firmware/host/vectors/flightrec_vectors.h;
+encoded for the same values, into build/host/vectors/flightrec_vectors.h;
 firmware/host/test_flightrec.cpp encodes the former and asserts it equals the
 latter. Any field moved, resized or reordered on either side fails there.
 
@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 
 import flightrec as F  # noqa: E402
 
-OUT = os.path.join(ROOT, "firmware", "host", "vectors", "flightrec_vectors.h")
+OUT = os.path.join(ROOT, "build", "host", "vectors", "flightrec_vectors.h")
 
 # A real robot clock reading (2026-10-30T17:44:11.25Z) so every byte of the
 # u64 is non-zero and the byte order is diffed against a value that shows it.

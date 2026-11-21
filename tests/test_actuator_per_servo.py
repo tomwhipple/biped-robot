@@ -4,6 +4,7 @@ dead behind a goal write, the STS3250 hip rolls 12-18 ms; experiments/one-leg-st
 the common act_delay; act_lag_scale multiplies the act-lag pole per actuator. Both default off =
 the old path bit for bit; on, walker_env and env_mjx serve the same per-servo targets."""
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -17,7 +18,7 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 import jax  # noqa: E402
 import jax.numpy as jp  # noqa: E402
 
-XML = os.path.join(HERE, "..", "sim", "bimo_biped_v6legs.xml")
+XML = paths.v6_plant("bimo_biped_v6legs.xml")
 
 
 def _walker(**kw):

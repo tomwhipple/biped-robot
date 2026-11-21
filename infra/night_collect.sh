@@ -11,6 +11,8 @@ if [[ -z "$STS" ]]; then
   ssh mira 'ls code/robot-mjx/night/queue 2>/dev/null | grep -v "^done$" || echo "(queue empty)"'
   exit 1
 fi
+# the plant the referee loads is generated (build/v6/sim; #144)
+make -C "$REPO" plant-data
 for ST in $STS; do
   OUT=$(ssh mira "sed -n 's/^OUT=//p' '$ST'")
   [[ -n "$OUT" ]] || { echo "!!! $ST has no OUT; skipping"; continue; }

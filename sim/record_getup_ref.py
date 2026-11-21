@@ -10,7 +10,7 @@ S.H = -120.0
 OUT = sys.argv[1]   # e.g. sim/getup_ref_v6ar.npz (train_mjx --rise-ref getup_ref_v6ar.npz)
 START = sys.argv[2] if len(sys.argv) > 2 else "supine"   # "prone": roll to the back first (S.prone_roll);
 # "roll": the roll ALONE (face-down -> settled on the back), a short skill that hands over to the supine get-up
-XML = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
+XML = os.path.join(ROOT, "build", "v6", "sim", "bimo_biped_v6ar.xml")
 P, _ = S.plant("r6_asdrawn_rom120")
 seq = S.seat_push(False, 60, 0, 2.0, -25.0, elbow=(-60, 0))
 if START == "prone":

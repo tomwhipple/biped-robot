@@ -5,7 +5,8 @@
 For an AI operator supervising the biped on its board: a recorder that owns the camera, a
 clip cutter, an AprilTag tracker (position, heading, tilt, distance to the board edges), a
 per-run report, and a pre-run "where is it / is there room" check. Measurement tools; no
-language model is involved. Everything uses only OpenCV (with `cv2.aruco`), numpy, scipy and
+language model is involved (layer E below tested local vision models as a second opinion and
+found none good enough). Everything uses only OpenCV (with `cv2.aruco`), numpy, scipy and
 PIL from the project venv.
 
 | file | what |
@@ -19,6 +20,8 @@ PIL from the project venv.
 | `where.py` | one frame -> position, heading, edge margins; exit code for a travel direction |
 | `implausible.py`, `foreign.py` | telemetry-only "somebody helped" check; image-only motion hint |
 | `vgeom.py`, `tagdefs.py`, `vsynth.py`, `detect_study.py` | geometry/config, tag ids, synthetic renderer, detectability study |
+| `vlm.py` | layer E: three yes/no questions about a frame to a local ollama vision model (CPU by default) |
+| `vlm_bakeoff.py`, `vlm_set.json` | layer E: the labelled frame set (rebuilt from footage) and the model bake-off |
 
 ## Commands
 
@@ -178,3 +181,59 @@ the emeet at the far end sees 0-3.
   person in the chair or a sock at the edge of the board, and on the dog (cmd_steer_T4_b at
   16:48:31-16:48:44) and the catch (gate_push_march_T5_b). It cannot tell a hand from a leg. Treat an
   event as "look at the key frames".
+
+## Layer E: a local vision model as a second opinion (tested, not in use)
+
+Measurement does not see a person or an animal at the robot, a cable snag or a thing on the board
+(the dog on 2026-11-16 16:48:33Z showed in no telemetry). Layer E asked whether a local
+vision-language model could flag such frames among a run's key frames. **Not yet: no model that
+runs here is good enough** (bake-off below), so `run_report.py` has no model pass. The pass that
+was built (`--vlm-model`: answers next to the IMU / tag values per key frame, a caption line on the
+contact sheet, never a gate) is kept on the branch `tools/316-vlm-run-report-pass` for when a
+better model is available.
+
+Result of the 2026-11-20 bake-off on 55 labelled frames from the 11-12/13/16 footage (record:
+[docs/design-v6/2026-11-20-vlm-second-opinion-bakeoff.md](../../docs/design-v6/2026-11-20-vlm-second-opinion-bakeoff.md)),
+on the CPU (12 threads) with night training running:
+
+| model (prompt) | frames | person/animal P / R | not upright P / R | object: false alarms | CPU s/frame (median, max) |
+|---|---|---|---|---|---|
+| qwen2.5vl:7b (answer-first) | 55 | 1.00 / 0.24 | 1.00 / 0.50 | 1 of 51 | 63, 123 |
+| qwen2.5vl:7b (describe-first) | 18 | – / 0.00 | – / 0.00 | 0 of 16 | 62, 72 |
+| minicpm-v:8b (describe-first) | 55 | 1.00 / 0.33 | 0.57 / 0.22 | 29 of 51 | 74, 130 |
+| granite3.2-vision:2b (describe-first) | 6 | – / 0.00 | – / 0.00 | 0 of 6 | 96, 98 |
+
+None of them saw the dog (0 of 7 frames) or a fallen robot with nobody near it (0-4 of 10); their
+"person" hits are big hands on the robot, which nobody would miss on the contact sheet. qwen3-vl:8b,
+the best model of the 11-16 GPU test, could not be pulled by the installed ollama.
+
+**CPU, not the GPU.** The GPU belongs to night training (22:00-07:00) and by day to
+camera-watcher, so models run on a separate CPU-only ollama (its own model store, port 11500),
+and `vlm.ask` sends `num_gpu: 0` and `num_thread: 12` with every request (the rest of the box stays
+with training):
+
+```
+mkdir -p ~/.cache/ollama-cpu
+CUDA_VISIBLE_DEVICES= OLLAMA_HOST=127.0.0.1:11500 OLLAMA_MODELS=$HOME/.cache/ollama-cpu \
+  OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 setsid nohup nice -n 19 ollama serve > /tmp/ollama-cpu.log 2>&1 &
+OLLAMA_HOST=127.0.0.1:11500 ollama pull MODEL
+```
+
+Check after the first load that `nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv`
+lists no ollama process, and stop the server when done. The installed ollama (0.20.2) can no
+longer pull qwen3-vl or gemma3 (the registry answers 412, "requires a newer version of Ollama").
+
+**The bake-off** (re-runnable against any ollama endpoint): `vlm_set.json` is a labelled set of
+real frames (video, UTC time, frame index, labels, a one-line note; label rules in
+`vlm.LABEL_RULES`), rebuilt from the footage in `hw_sessions/` (not in git) into
+`hw_sessions/vlm_set/`. Two prompt styles (`vlm.PROMPTS`): answer-first, and describe-first (the
+model writes its description before the booleans; default).
+
+```
+tools/vision/vlm_bakeoff.py extract                                   # frames -> hw_sessions/vlm_set/<id>.jpg
+tools/vision/vlm_bakeoff.py run --model MODEL [--host URL] [--prompt describe-first] [--event dog]
+                                                                      # raw answers -> hw_sessions/vlm_set/answers/
+tools/vision/vlm_bakeoff.py score --md                                # precision / recall per label, s per frame
+tools/vision/vlm_bakeoff.py score --frames-table                      # every frame: labels vs each model
+tools/vision/vlm_bakeoff.py grab VIDEO --at 2026-11-16T16:48:33Z -o /tmp/look   # frames for choosing new labels
+```

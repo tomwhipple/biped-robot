@@ -4,12 +4,15 @@
     JAX_PLATFORMS=cpu .venv/bin/python tools/export_policy_weights.py \
         --run robot_legs_walk16_act_s128r24
 
-Writes (defaults, all under sim/sil/):
+Writes (defaults):
 
-  weights/<run>.silw        little-endian f32 blob, self-describing header
-  weights/<run>.silw.json   sidecar: layer_sizes, activation, dims, normalizer
-  golden/policy_vectors.json  16 normalized-obs -> action pairs (brax, det.)
-  golden/obs_vectors.json     8 walker_env states -> _obs() frame + Inputs
+  sim/sil/weights/<run>.silw        little-endian f32 blob, self-describing header
+  sim/sil/weights/<run>.silw.json   sidecar: layer_sizes, activation, dims, normalizer
+  <golden>/policy_vectors.json  16 normalized-obs -> action pairs (brax, det.)
+  <golden>/obs_vectors.json     8 walker_env states -> _obs() frame + Inputs
+
+where <golden> is the policy set's build/policy/<set>/golden/ (`make policy`
+runs this per set, with --out build/policy/<set>/weights/<run>.silw).
 
 WHY BOTH A HEADER AND A SIDECAR (docs/sil-harness.md ambiguity, resolved):
 the design says "little-endian f32 blob + JSON sidecar", but `sil_init()`
@@ -35,9 +38,11 @@ import argparse
 import hashlib
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 import pickle
 import struct
-import sys
 
 import numpy as np
 
@@ -51,7 +56,7 @@ SIL = os.path.join(ROOT, "sim", "sil")
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
 
-# The deployed obs spec; --profile <name> checks against firmware/policies/
+# The deployed obs spec; --profile <name> checks against build/policy/
 # <name>/ instead (tools/policy_profile.py).
 SPEC_H = policy_profile.files()["spec_h"]
 
@@ -276,8 +281,8 @@ def main():
                    help="write a headerless bare-f32 blob (escape hatch)")
     p.add_argument("--no-golden", action="store_true")
     p.add_argument("--golden-dir", default=None,
-                   help="default sim/sil/golden, or sim/sil/golden/<profile> "
-                        "with --profile")
+                   help="default build/policy/<set>/golden (the deployed "
+                        "set's, or --profile's)")
     p.add_argument("--profile", default=None,
                    help="policy profile whose obs spec the dims are checked "
                         "against (tools/policy_profile.py)")
@@ -317,8 +322,7 @@ def main():
     if not xml:
         raise SystemExit(f"{run_dir}/config.json has no xml_path: a run that "
                          "predates recording its plant is not exportable")
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        xml = os.path.join(ROOT, "sim", os.path.basename(xml))
+    xml = paths.resolve_plant(xml)
     env = make_env(cfg, 12.0, True, xml)
     env_obs = int(env.observation_space.shape[0])
     env_act = int(env.action_space.shape[0])

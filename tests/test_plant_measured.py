@@ -1,4 +1,4 @@
-"""The measured-stops plants: sim/bimo_biped_v6legs_meas.xml and _v6ar_meas.xml.
+"""The measured-stops plants: build/v6/sim/bimo_biped_v6legs_meas.xml and _v6ar_meas.xml.
 
 Run:  .venv/bin/python -m pytest tests/test_plant_measured.py -q
 
@@ -28,6 +28,7 @@ What this file pins, and why each one can drift silently:
 """
 import math
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -44,10 +45,10 @@ import mujoco  # noqa: E402
 
 import walker_env as W  # noqa: E402
 
-LEGS = os.path.join(SIM, "bimo_biped_v6legs.xml")
-AR = os.path.join(SIM, "bimo_biped_v6ar.xml")
-LEGS_MEAS = os.path.join(SIM, "bimo_biped_v6legs_meas.xml")
-AR_MEAS = os.path.join(SIM, "bimo_biped_v6ar_meas.xml")
+LEGS = paths.v6_plant("bimo_biped_v6legs.xml")
+AR = paths.v6_plant("bimo_biped_v6ar.xml")
+LEGS_MEAS = paths.v6_plant("bimo_biped_v6legs_meas.xml")
+AR_MEAS = paths.v6_plant("bimo_biped_v6ar_meas.xml")
 PAIRS = [(LEGS, LEGS_MEAS), (AR, AR_MEAS)]
 
 LEG_JOINTS = ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")
@@ -116,10 +117,10 @@ def test_meas_plants_are_generated():
     import build_v6_inertia as BI
     with open(LEGS_MEAS) as f:
         assert f.read() == BI.committed_meas_xml(legs=True), \
-            "sim/bimo_biped_v6legs_meas.xml is stale: run sim/build_v6_inertia.py --measured-stops --asbuilt-legs --write"
+            "build/v6/sim/bimo_biped_v6legs_meas.xml is stale: run sim/build_v6_inertia.py --measured-stops --asbuilt-legs --write"
     with open(AR_MEAS) as f:
         assert f.read() == BI.committed_meas_xml(legs=False), \
-            "sim/bimo_biped_v6ar_meas.xml is stale: run sim/build_v6_inertia.py --measured-stops --write"
+            "build/v6/sim/bimo_biped_v6ar_meas.xml is stale: run sim/build_v6_inertia.py --measured-stops --write"
 
 
 @pytest.mark.parametrize("path", [LEGS_MEAS, AR_MEAS])

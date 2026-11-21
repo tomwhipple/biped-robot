@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
 """Generate the firmware's obs spec header + golden observation vectors.
 
-Run:  .venv/bin/python tools/gen_obs_spec.py --run <deployed run>
+Run:  `make policy` (tools/policy_profile.py runs it per policy set, with
+      --run firmware/deployed/runs/<run> [--profile <set>])
 
---run is REQUIRED: this header is the deployed obs layout, so it may only
-change because somebody said which run to deploy.
+--run is REQUIRED (a name under sim/runs/ or a run directory): this header is
+the deployed obs layout, so it may only change because somebody said which
+run to deploy (`make deploy`).
 
 docs/firmware-design.md section 5 says the obs SPEC "is exported from the sim
 as a generated header so it cannot drift by hand". This is that exporter. It
 reads the deployed run's config.json and its MJCF, and writes:
 
-  firmware/components/obs/include/obs/obs_spec.h   layout + joint table
-  firmware/host/vectors/obs_vectors.h              real _obs() frames
-  sim/sil/weights/<run>.config.json                the run's config.json,
-                                                   verbatim (deployed set only;
-                                                   sim/sil/run_config.py)
-
-The tracked config lets a clean clone (no sim/runs/) run the deployed policy
-in the SIL twin with the weights compiled into the firmware (#236); the
-previously deployed run's copy is removed, so only the deployed run's is
-tracked.
+  build/policy/<set>/obs/obs_spec.h         layout + joint table
+  build/policy/<set>/vectors/obs_vectors.h  real _obs() frames
 
 The golden frames come from walker_env._obs() itself (domain randomisation
 off, so the IMU misalignment is identity and the gyro bias zero), driven from
@@ -35,8 +29,9 @@ import argparse
 import inspect
 import json
 import os
-import shutil
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 
 import numpy as np
 
@@ -50,7 +45,7 @@ from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
 
-# The deployed set; --profile <name> writes firmware/policies/<name>/ instead
+# The deployed set; --profile <name> writes build/policy/<name>/ instead
 # (tools/policy_profile.py).
 SPEC_OUT = policy_profile.files()["spec_h"]
 VEC_OUT = policy_profile.files()["obs_vectors_h"]
@@ -88,7 +83,7 @@ def build_env(run_dir):
     params = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
     kw = {k: v for k, v in cfg.items() if k in params}
     kw.update(
-        xml_path=os.path.join(ROOT, "sim", cfg["xml_path"]),
+        xml_path=paths.resolve_plant(cfg["xml_path"]),
         command_mode=True, imu_obs=True, actuator_model="sts3215",
         # DR off: we want the identity IMU mount and zero gyro bias, so the
         # frames are a pure function of the scripted inputs.
@@ -344,7 +339,7 @@ def main():
     ap.add_argument("--samples", type=int, default=8)
     ap.add_argument("--profile", default=None,
                     help="write policy profile <name>'s set under "
-                         "firmware/policies/<name>/ instead of the deployed "
+                         "build/policy/<name>/ instead of the deployed "
                          "headers (tools/policy_profile.py)")
     args = ap.parse_args()
     profile = policy_profile.check(args.profile)
@@ -360,7 +355,8 @@ def main():
             "the same guard).  The run currently deployed is named in "
             "kRunName in %s." % os.path.relpath(SPEC_OUT, ROOT))
 
-    run_dir = os.path.join(ROOT, "sim", "runs", args.run)
+    run_dir = (args.run if os.path.isdir(args.run)
+               else os.path.join(ROOT, "sim", "runs", args.run))
     cfg, env = build_env(run_dir)
     cfg["_run"] = run_dir
     if not env.imu_obs:
@@ -386,20 +382,6 @@ def main():
     print("profile   : %s" % (profile or "(deployed)"))
     print("wrote %s" % spec_out)
     print("wrote %s (%d cases)" % (vec_out, len(samples)))
-    if profile is None:
-        print("wrote %s" % write_tracked_config(run_dir, args.run))
-
-
-def write_tracked_config(run_dir, run):
-    """sim/sil/weights/<run>.config.json: the deployed run's config.json,
-    byte for byte, and no other run's (sim/sil/run_config.py)."""
-    wdir = os.path.join(ROOT, "sim", "sil", "weights")
-    out = os.path.join(wdir, run + ".config.json")
-    for f in os.listdir(wdir):
-        if f.endswith(".config.json") and f != os.path.basename(out):
-            os.remove(os.path.join(wdir, f))
-    shutil.copyfile(os.path.join(run_dir, "config.json"), out)
-    return out
 
 
 if __name__ == "__main__":

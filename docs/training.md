@@ -5,8 +5,8 @@ the firmware. The source files named here are the authority for every number;
 each run's `config.json` records the exact configuration it trained under.*
 
 **Current state.** Policies train on the **robot's plants**:
-`sim/bimo_biped_v6ar.xml` (the dressed 17-servo robot, the default plant) and
-`sim/bimo_biped_v6legs.xml` (the legs-only body as built, 12 leg joints).
+`build/v6/sim/bimo_biped_v6ar.xml` (the dressed 17-servo robot, the default plant) and
+`build/v6/sim/bimo_biped_v6legs.xml` (the legs-only body as built, 12 leg joints).
 Walking and get-ups both train there (§11, §13). Distilled students of a legs
 walk run on the ESP32 at 50 Hz, as float and int8 nets (profiles `v6legs` and
 `v6legs256`, §9); the deployed one, `robot_legs_walk16_act_s128r24`, holds the
@@ -35,7 +35,7 @@ backward, sidestep, turn, crouch, balance on one leg and march, depending on a
 command, not by switching policies.
 
 ```
-  sim/bimo_biped_v6ar.xml          the plant (§2; v6legs for the legs-only body)
+  build/v6/sim/bimo_biped_v6ar.xml          the plant (§2; v6legs for the legs-only body)
             |
   sim/mjx/env_mjx.py               MJX world: STS3215 actuator model, DR,
             |                      commands, reward (§2-6)
@@ -47,9 +47,8 @@ command, not by switching policies.
             |                      28 scored scenarios x 8 seeds (§8)
   sim/mjx/distill_student.py       DAgger: teacher -> (128,128) student (§9)
             |
-  tools/export_policy_weights.py   params.pkl -> sim/sil/weights/<run>.silw
-  make -C firmware/host deploy-headers RUN=<run>
-            |                      -> obs_spec.h + weights.h + golden vectors
+  make deploy RUN=<run>            config.json + params.pkl -> firmware/deployed/
+            |                      make policy -> obs_spec.h + weights.h + golden vectors
   eval_precision.py --sil          SIL: the real firmware code driving the CPU plant
             v
       idf.py flash                 50 Hz on the ESP32
@@ -73,7 +72,7 @@ estimate (§3).
 
 ## 2. The plant
 
-`sim/bimo_biped_v6ar.xml` is the default plant of `train_mjx.py`, `env_mjx`,
+`build/v6/sim/bimo_biped_v6ar.xml` is the default plant of `train_mjx.py`, `env_mjx`,
 `walker_env` and `eval_precision.py` (`--xml` overrides it):
 `bimo_biped_v6legs.xml` is the legs-only body as built, and the `*_meas.xml`
 variants carry the joint stops measured on the robot. Both engines load the
@@ -116,7 +115,7 @@ Around the PD loop:
 | quantization | observed q and q̇, and the commanded targets, on the 4096-tick grid and integer steps/s | `--quantize` |
 | joint-velocity observation | the robot's q̇ is the STS3215 speed register 58: the mean joint velocity over the last ~40 ms (~20 ms late) in 50 steps/s (4.4°/s) steps (the 2026-11-05 kick analysis, `hw_sessions/2026-11-05/kick_analysis.md` §3, not in git). The observed q̇ becomes (q_t − q_t−N) / (N · 20 ms), N fixed or drawn per episode, then rounded to Q steps/s (replacing `--quantize`'s 1-step q̇ rounding). The robot's model is N 2, Q 50. Off by default (the instantaneous q̇). MJX and CPU; `grade.py` probes `… dqlag` and `DQ_OBS_WINDOW` apply it to a trained policy | `--dq-obs-window N` or `lo,hi`, `--dq-obs-quantum Q` |
 | free play | the roll play beyond the encoders is `--roll-play-deg` (the encoders reading the servo shaft, the link free inside the band), fitted per role to the 2026-11-11 clamp session; `--roll-lash-deg` (a deadzone on the servo error, the encoders reading the link) and `--roll-series-k` (a spring, the encoders reading the shaft) are the other two forms. The referee inherits each from `config.json`. Still open: the both-feet-down ladder, where the fitted play falls off the far rungs the robot stands on; the double-stance hysteresis the robot shows (the same shifted pose 4.2° apart by direction; the sim 0.7°); and the stance encoders moving more under load than the robot's (1.9° / 0.8° against 1.1–1.5° / 0.35–0.45°) |
-| rough floor | `sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
+| rough floor | `build/v6/sim/terrain_mosaic.npz` (from `sim/mjx/gen_terrain_mosaic.py`): 12 × 6 m of 1 m tiles, 2–6 mm carpet-like texture, a random spawn point per episode | `--terrain` |
 
 The bench numbers behind these knobs: the servo's dead time measures ≈ 85 ms
 (4 ticks); a three-stage 2 Hz pole reproduces the joint motion measured in a
@@ -459,7 +458,7 @@ size (`domain_randomize`, the standard MJX pattern):
   half weight on the bench board): the foot slides at μ ≈ 0.45–0.55 and rotates
   under hip yaw with no measurable grip, ≤ 0.10–0.15 N·m at 7.5 N. The edge pads
   at μ 1 / torsion 0.02 grip 0.34 N·m in the same sim test (Coulomb bound
-  0.65). `sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
+  0.65). `build/v6/sim/bimo_biped_v6legs_meas_sole.xml` (`--xml`) is v6legs_meas with the
   measured sole: pads μ 0.5, torsion 0, geom `priority` 1 (the pad's friction is
   the foot contact's, so the floor-only draw above no longer reaches it and
   `--contact-mu` alone sets it), and 8 "flat" pads, 4 on the sole outline and 4
@@ -552,34 +551,69 @@ approximation. `progress.jsonl` logs the eval curve.
 
 ### Nightly on mira
 
-mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`.
+mira is a Linux box with an RTX 4070 Ti (12 GB), reached as `ssh mira`. The
+harness runs as the user `claw`, out of `/home/claw/code/robot-mjx`.
 Training runs **at night only**; days belong to the box's owner.
 
-- **Window.** cron starts `infra/night/night_run.sh` at 22:00. No new job starts
-  after 05:00; `infra/night/night_stop.sh` stops a running job at 07:00, and
-  the last eval checkpoint stands.
+- **Window.** claw's cron starts `night/night_run.sh` at 22:00. No new job
+  starts after 06:45 (the start deadline is 15 min before the hard stop);
+  `night/night_stop.sh` stops a running job at 07:00, and the last eval
+  checkpoint stands. While `night/MARATHON_UNTIL` (an epoch) lies in the
+  future, `night_stop.sh` does nothing, so a sanctioned multi-day window is not
+  cut at 07:00.
+- **Harness in the repo.** The harness scripts (`infra/night/*`) are the source
+  of truth; cron fires their copies in `night/`, the clone's untracked state
+  directory (queue, logs, locks). At the start of each runner (`night_run.sh`,
+  `day_run.sh`), right after the sync to `main`, `install_harness` mirrors
+  `infra/night/*` into `night/`: each file is written to a temp file in
+  `night/` and renamed over the old one, so a running script is never
+  truncated; `*.bak-*` files are skipped. If that replaced the runner's own
+  file, the runner re-execs the new copy once (`HARNESS_REEXEC=1`) with the
+  `night/.runner.lock` flock still held, so one night runs one version of the
+  harness. A `BRANCH=` job never mirrors: a feature branch's harness is never
+  run, and cron never fires a script that a branch checkout could have
+  changed. Deploying a harness change is a merge to `main`; it takes effect at
+  the next runner start.
 - **GPU handover.** The daytime GPU owner is the camera-watcher classifier
   (`llama3.2-vision` via ollama). The runners call `infra/night/vision_pause.sh
   pause` before training, which pauses the classifier container and unloads
   the model (the backlog waits in redis), and `resume` when the night ends or
   is stopped. While paused, a `CLASSIFIER_PAUSED` sentinel tells mira's camera
   watchdog that the lag is intentional.
-- **Committed code only.** `~/code/robot-mjx` on mira is a git clone. Before
+- **Committed code only.** `robot-mjx` is a git clone. Before
   every job the runner fetches and hard-resets it to `origin/main`, or to the
   branch a job names with `BRANCH=`. It retries a failed fetch, checks that HEAD
   is the fetched tip, and writes `SYNC=ok|STALE` into the job's state file.
-  Anything not pushed does not train. The
-  runner scripts sit in the clone's untracked `night/` directory, so a reset
-  cannot rewrite them mid-run.
+  Anything not pushed does not train.
+- **The harness builds its inputs (#144).** The runner runs `make plant-data`
+  in the clone (output in `night/make.log`): the plant with its CAD meshes, and
+  the seeded terrain mosaic. `build/` is gitignored and survives the sync's
+  reset, so a build with nothing stale costs seconds, and a rebuild on any
+  machine gives the same plant bytes (`cad/stable_stl.py`). It builds at runner start
+  when jobs are queued, before pre-flight; a failure there goes to
+  `claude_fix.sh` (step `build-inputs`) and one retry, and a second failure
+  refuses the night like a failed pre-flight. Each job rebuilds after its own
+  sync; a job whose build fails is moved to `queue/held/` with a note line,
+  and the runner goes on with the next job. The get-up references
+  (`sim/getup_ref_v6ar*.npz`) are *physics recordings*, not rebuildable
+  artifacts: a re-record on a different toolchain can diverge from the trained
+  input. They stay in git and out of the harness (`make sim-data` builds them
+  by hand). The plant (`build/v6/sim`), its servo meshes and the printed parts'
+  STLs (`build/v6/stl`) are not in git at all: `make plant-data` is the only way
+  they exist on the training box.
 - **Arming.** From the laptop, `infra/night_arm.sh [--branch <name>]
-  <train_mjx.py args>` checks that the branch is pushed, installs the runner and
-  its cron on mira, and queues a job file `night/queue/<MMDDhhmmss>-<out>`.
+  <train_mjx.py args>` checks that the branch is pushed, writes claw's cron
+  lines (the `night/` copies of `night_run`, `night_stop`, `plan_morning` and
+  `ensure_queue`, and `infra/night_collect_local.sh`), and queues a job file
+  `night/queue/<MMDDhhmmss>-<out>`. A job file holds a `BRANCH=` line and one
+  line of arguments; lines starting `#` are notes (parent, variable,
+  hypothesis), never arguments.
 - **Queue.** Jobs run in sorted order; the queue is rescanned after every job.
   A job file moves to `queue/done/` at launch, so an interrupted job does not
   re-run the next night. `CMD=` jobs run an arbitrary command (a distillation,
   `infra/night_distill.sh`, §9) through the same GPU gate. `--steps` is capped to what the remaining
-  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). Lines
-  starting `#` are notes (parent, variable, hypothesis), never arguments.
+  window allows (at 60 k steps/s for a MuJoCo Warp job, 17 k otherwise). A job
+  parked in `queue/held/` is not run.
 - **Sharing the GPU.** A job starts only when the GPU is under 20 % busy with
   ≥ 11.5 GB free. Idle ollama models are unloaded (they reload on demand),
   active inference is never touched, and after each job any model that fell
@@ -591,8 +625,9 @@ Training runs **at night only**; days belong to the box's owner.
   safety net. `COLLECT_JOBS` (default 6) runs are collected at once, each into
   its own log that is appended to `night_collect.log` in a stable order; a
   second collector exits at once on `night/.collect.lock`. The lag column is run by hand (§8). It
-  fast-forwards the checkout to `origin/main` first, so the references and
-  plants a run trained against are there to referee it. If uncommitted files
+  fast-forwards the checkout to `origin/main` first, then runs `make plant-data`
+  there, so the references and the plant a run trained against (built into
+  `build/v6/sim`) are there to referee it. If uncommitted files
   block the fast-forward, it stashes only the paths upstream also changed, under
   a tag. It then verifies HEAD; if that fails, the log says `STALE REFEREE`.
 - **Re-planning.** `infra/night/plan_morning.sh` (cron 05:30 and 07:30; also
@@ -613,7 +648,7 @@ Training runs **at night only**; days belong to the box's owner.
   (07:00 to 22:00) starts nothing. Tests: `tests/test_night_continue.py`.
   `infra/night/ensure_queue.sh` (cron 21:30) tops the queue up to five jobs
   from `night/fallback.job` with fresh seeds if the planner left it short.
-  Installed copies of both live beside the runner in `night/`.
+  Both run from their `night/` copies.
 - **Fix and continue.** When a harness step fails, `infra/night/claude_fix.sh`
   starts a headless Claude Code session (Opus) with the failure and the log
   tail, and waits for it. The step is retried once if the session reports
@@ -860,31 +895,39 @@ the ESP32. `sim/mjx/distill_student.py` trains a **(128, 128) student** —
 
 **Deployment**, in order:
 
-1. `tools/export_policy_weights.py --run <student>` →
-   `sim/sil/weights/<student>.silw` (little-endian f32 with a self-describing
-   header, plus a JSON sidecar) and golden forward-pass vectors in
-   `sim/sil/golden/`.
-2. `make -C firmware/host deploy-headers RUN=<student>` runs both generators;
-   the headers change together, and only when someone names the run:
-   - `tools/gen_obs_spec.py --run` → `obs_spec.h`: the layout, joint table,
-     limits, home pose, clock settings, and the action-index → bus-ID
+1. `make deploy RUN=<student>` copies the run's `config.json` and
+   `params.pkl` into `firmware/deployed/runs/<student>/`, points the deployed
+   line of `firmware/deployed/policies.txt` at it, generates the set and pins
+   the headers' bytes in `firmware/deployed/headers.sha256`. Commit
+   `firmware/deployed/`: it is the deploy. The headers are never committed;
+   `make policy` (which `make firmware`, `make host` and the tests run) builds
+   them from those inputs into `build/policy/deployed/` and refuses to build
+   a header whose bytes differ from its pin, so they change together, and
+   only when someone names the run. Four generators, in order:
+   - `tools/gen_obs_spec.py --run` → `obs/obs_spec.h`: the layout, joint
+     table, limits, home pose, clock settings, and the action-index → bus-ID
      permutation `kServoId` (from `ID_BY_ROLE` in the generator — a genuine
-     permutation), plus `obs_vectors.h` from `walker_env._obs`.
+     permutation), plus `vectors/obs_vectors.h` from `walker_env._obs`.
    - `tools/gen_envelope.py --run` → `linkproto/cmd_envelope.h`, its Python
-     twin `link/cmd_envelope.py` and `cmd_envelope_vectors.h`: the command
-     envelope the robot enforces (§4).
-   - `tools/gen_policy_weights.py --run` → `weights.h`, plus `policy_vectors.h`
-     computed in numpy under the brax semantics the firmware reproduces:
-     normalize, swish hidden layers, a linear `2·act_dim` head, `tanh` of its
-     first half.
-3. `make -C firmware/host test` (golden vectors, host suites) and the SIL
-   column, `eval_precision.py --run-name <student> --sil`.
-4. **Pre-flash checks**: `stand_10s` 8/8 and `stand_off` ≥ 6/8 on the lag
+     twin `linkproto/cmd_envelope.py` (which `link/protocol.py` loads) and
+     `vectors/cmd_envelope_vectors.h`: the command envelope the robot
+     enforces (§4).
+   - `tools/export_policy_weights.py --run` → `weights/<student>.silw`
+     (little-endian f32 with a self-describing header, plus a JSON sidecar)
+     and golden forward-pass vectors in `golden/`.
+   - `tools/gen_policy_weights.py` → `policy/weights.h` from that `.silw`,
+     plus `vectors/policy_vectors.h` computed in numpy under the brax
+     semantics the firmware reproduces: normalize, swish hidden layers, a
+     linear `2·act_dim` head, `tanh` of its first half.
+2. `make host` (golden vectors, host suites) and the SIL column,
+   `eval_precision.py --run-name <student> --sil`.
+3. **Pre-flash checks**: `stand_10s` 8/8 and `stand_off` ≥ 6/8 on the lag
    column; the first action from the home observation ≤ 0.05 on every joint
    (`sim/sil/harness.silw_forward`); and the SIL twin (`sim/sil_twin.py`, the
    firmware stack behind the real UDP link) resting within 2° of home on every
    joint, torso within 1°, over the last 3 s of a 6 s stand.
-5. Build and flash: `idf.py -C firmware build flash` (toolchain setup in
+4. Build and flash: `make firmware`, then `idf.py -C firmware -B
+   build/firmware flash` (toolchain setup in
    [firmware/README.md](../firmware/README.md)). Flashing reboots the board:
    support the robot first ([AGENTS.md](../AGENTS.md), bench safety).
 
@@ -901,20 +944,23 @@ scorecards and reels are on the results page.
 
 The firmware compiles in exactly one policy, chosen at build time. The
 deployed one's generated files are the ones above; a **policy profile** is a
-complete second set for another plant (`tools/policy_profile.py`):
-`firmware/policies/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h}`
-and `sim/sil/golden/<name>/`. A build selects it with `BIMO_POLICY=<name>`:
+complete second set, for another plant or another net
+(`tools/policy_profile.py`): a line of `firmware/deployed/policies.txt`, built
+by `make policy` into
+`build/policy/<name>/{obs/obs_spec.h, policy/weights.h, linkproto/cmd_envelope.{h,py}, vectors/*.h, golden/, weights/}`
+like the deployed set's `build/policy/deployed/`. A build selects it with
+`BIMO_POLICY=<name>`:
 
 | | deployed | profile `v6legs` |
 |---|---|---|
-| headers | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
+| inputs | `make deploy RUN=<run>` | `make deploy RUN=<run> POLICY=v6legs` |
 | host tests | `make -C firmware/host test` runs the deployed build, then every profile's | `make -C firmware/host test POLICY=v6legs` (into `build/policy-v6legs/`) |
 | ESP32 image | `make firmware` → `build/firmware` | `make firmware POLICY=v6legs` → `build/firmware-v6legs` (`idf.py -DBIMO_POLICY=v6legs`) |
 | SIL | `eval_precision.py --sil` and `sim/sil_twin.py` pick the profile whose `kPlantXml` is the run's plant (`$BIMO_POLICY` for `sim/sil/harness.py`), build its `libctrl_sil`, and refuse a run whose joints or obs layout differ from the compiled spec | |
 
-The profile's directory goes first on the include path, and every generated
-header carries an `#error` guard against the other kind of build, so an
-include-order mistake cannot compile the wrong policy. `link/protocol.py`
+The selected set's directory goes first on the include path, and every
+generated header carries an `#error` guard against the other kind of build, so
+an include-order mistake cannot compile the wrong policy. `link/protocol.py`
 reads the profile's `cmd_envelope.py` when `$BIMO_POLICY` names it. Nothing outside the
 generated headers names a joint count: the assembler, the MLP, the actuation
 map, the control loop and the SIL ABI are sized by `obs_spec.h`.
@@ -922,8 +968,13 @@ map, the control loop and the SIL ABI are sized by `obs_spec.h`.
 **Int8 profiles.** `make deploy RUN=<run> POLICY=<name> QUANT=int8`
 (`gen_policy_weights.py --quant int8`) writes the profile's net as int8
 (`policy/q8.h`): GPTQ-rounded on CPU-plant rollouts of the float net, which
-the generator runs itself (~10 s), and the head cut to its mean logits. A
-regeneration keeps an int8 profile int8. This is how a net wider than
+the generator runs itself (~10 s), and the head cut to its mean logits. The
+rounding depends on the plant of the deploy day, so the deploy keeps it:
+the kernels and the self-test observation go to
+`firmware/deployed/q8/<name>.npz`, and `make policy` rebuilds the header from
+that file and `params.pkl`, without rollouts. A redeploy keeps an int8
+profile int8, and keeps its kernels unless the run changes or the deploy says
+`QUANT=int8` again. This is how a net wider than
 (128, 128) fits the 20 ms tick ([firmware-design.md §6.1](firmware-design.md)).
 The SIL library of an int8 build runs the compiled-in int8 net when given
 that run's `.silw` (any other run runs float, and the spec's `policy.quant`
@@ -941,7 +992,7 @@ run the way the robot runs it (coast to π/2, 12 Hz shaper), it holds x1.5 loop 
 Until 2026-11-02 the profile held the walk14 (256, 256) student as a timing and parity
 test net (§6.1 of the firmware design); the timing does not depend on the weights.
 
-**`v6legs`**: the robot's legs-only body, `sim/bimo_biped_v6legs.xml`,
+**`v6legs`**: the robot's legs-only body, `build/v6/sim/bimo_biped_v6legs.xml`,
 `--robot`, action map `full`. 12 policy joints in the sim's actuator order —
 `L_hip_yaw, L_hip_roll, L_hip_pitch, L_knee, L_ankle, L_ankle_roll`, then the
 same for `R_` — on servos 9, 51, 2, 3, 4, 12 / 10, 52, 6, 7, 8, 11. Frame 55
@@ -1041,10 +1092,10 @@ JAX_PLATFORMS=cpu .venv/bin/python sim/mjx/eval_precision.py --run-name loco_vN 
     --out loco_vN_s128r24 --rounds 24
 
 # --- deploy ---
-JAX_PLATFORMS=cpu .venv/bin/python tools/export_policy_weights.py --run loco_vN_s128r24
-make -C firmware/host deploy-headers RUN=loco_vN_s128r24
-make -C firmware/host test
-idf.py -C firmware build flash                  # toolchain: firmware/README.md
+make deploy RUN=loco_vN_s128r24                 # then commit firmware/deployed/
+make host
+make firmware                                   # toolchain: firmware/README.md
+idf.py -C firmware -B build/firmware flash
 
 # --- results page ---
 .venv/bin/python sim/build_report.py            # -> sim/runs/night_summary.html
@@ -1063,7 +1114,7 @@ the obs-spec generator rebuild the same robot:
 
 | piece | on the robot's plant |
 |---|---|
-| plant | `sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries all 17 servos: the 12 leg joints, the neck yaw and the arms (shoulder pitch + elbow per side); every layout is read from the model. No payload: the camera is in the head, which the plant models |
+| plant | `build/v6/sim/bimo_biped_v6ar.xml` (the body as drawn: legs, neck, arms) and `build/v6/sim/bimo_biped_v6legs.xml` (the body as built on the bench: the 12 leg servos and the control board, no pack, Pi, head, neck or arms; `--xml bimo_biped_v6legs.xml`, `build_v6_inertia.asbuilt_legs`). The ar plant is generated by `sim/gen_plant_v6.py` with CAD inertials from `sim/build_v6_inertia.py`. The committed file carries all 17 servos: the 12 leg joints, the neck yaw and the arms (shoulder pitch + elbow per side); every layout is read from the model. No payload: the camera is in the head, which the plant models |
 | policy joints | the 12 leg joints, 6 per leg with the ankle roll: frame 55, network input 165, action 12 |
 | neck and arms | **held, not driven.** `held_joints` gives each a fixed servo target: neck 0°, the arms at their folded rest pose (`dimensions_v6.ARM_REST`: shoulders 15° forward, elbows folded 95°; DESIGN.md §5.4), the pose that clears every leg joint's full range. A held servo runs the same actuator model as the legs (PD, envelope, lag, dead time, backlash, ticks, zero offset), starts the episode at its target (it is the plant's `qpos0`), and is in neither the action nor the observation; torque and power metrics include it. Why not actions: the walking hold is a fixed pose by design, four arm actions would only have to learn to stay still, and the neck belongs to the Pi's camera later |
 | servo stiffness | per servo (`servo_kp_scale`, §2): `--robot` defaults to `planb` (× 4 on the six roll and knee servos); a deployable legs policy trains at `asbuilt`, the factory gains the robot runs (× 4 on the STS3250 hip rolls, × 2.8 on every STS3215; [servo-map.md](servo-map.md) §4), which `servo_gains.h`'s compile check requires. The hip rolls run the STS3250's torque–speed envelope (`servo_types`), every other servo the STS3215's |

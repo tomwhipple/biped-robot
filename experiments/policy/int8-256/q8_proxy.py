@@ -4,7 +4,7 @@ rca/candidates.py, stand-still/stand_candidates.py) can grade the int8 net with 
 
     .venv/bin/python experiments/policy/int8-256/q8_proxy.py <run> <profile> [out.json]
 
-reads firmware/policies/<profile>/policy/weights.h (the compiled-in int8 net; its
+reads build/policy/<profile>/policy/weights.h (the compiled-in int8 net; its
 kWeightsRun must be <run>), writes sim/runs/<run>_q8/ = <run>'s params.pkl with every
 policy kernel/bias replaced by the dequantized int8 one (wq * scale; the head's 12 mean
 logits; the unused log-std half stays float) and <run>'s config.json.
@@ -42,7 +42,9 @@ def float_layers(policy_params):
 def main():
     run, profile = sys.argv[1], sys.argv[2]
     out_json = sys.argv[3] if len(sys.argv) > 3 else None
-    hdr = os.path.join(ROOT, "firmware", "policies", profile, "policy", "weights.h")
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import policy_profile
+    hdr = policy_profile.files(profile)["weights_h"]   # `make policy` builds it
     txt = open(hdr).read()
     wrun = re.search(r'kWeightsRun = "([^"]+)"', txt).group(1)
     if wrun != run:
@@ -77,7 +79,7 @@ def main():
     # closed-loop rollouts of the int8 net (bit-exact mirror) on the referee's CPU env
     import eval_precision as E
     cfg = json.load(open(os.path.join(rdir, "config.json")))
-    env = E.make_env(cfg, 12.0, True, os.path.join(ROOT, "sim", cfg["xml_path"]))
+    env = E.make_env(cfg, 12.0, True, os.path.join(ROOT, "build", "v6", "sim", os.path.basename(cfg["xml_path"])))
     eq, ep, steps, falls = [], [], 0, 0
     for k, seed in enumerate(SEEDS):
         o, _ = env.reset(seed=seed)

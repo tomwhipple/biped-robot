@@ -90,15 +90,29 @@ JST B8B-PH-K-S, pins 2, 3, 5 and 6 only, fanned out to three headers:
 | 5 | `RAIL_V` | H3 pin 4 | GPIO34 (ADC1) |
 | 6 | `ESTOP_N` | H2 pin 1 | IO4 |
 
+![Where J12's four wires land on the General Driver](../../docs/design-v6/figs/powerlite_j12_general_driver.png)
+
+*Waveshare's top photo of the General Driver
+([General_Driver_for_Robots-top.jpg](../../docs/datasheets/general-driver/General_Driver_for_Robots-top.jpg)),
+oriented with the ESP32 module at the top and the USB-C ports at the bottom. Drawn by
+`tools/gd_fig.py`.*
+
+- **Where the headers are:** P3 and H2 share one 1×10 pin-header column, just left of the
+  LiDAR and IIC connectors. Its silkscreen reads, top to bottom, RX, LiDAR, IO27, **IO16**,
+  **GND**, 3V3, IO5 (P3, pins 7 to 1), then **IO4**, 5V, GND (H2, pins 1 to 3). H3 is the left
+  one of the two tall white 6-pin connectors on the left edge. Its silkscreen reads MA2, GND,
+  AC2, **AC1**, 3V3, MA1 (pins 1 to 6). The right one is H4: its BC2 pin is IO16 too, so H4 stays
+  empty.
 - **`ESTOP_N` levels:** an open collector (Q2) read by IO4 with its internal pull-up on. Low means
   the E-stop is released; high means it is pressed, the board is unpowered, F2 has blown or the
   lead is unplugged.
 - **Unwired header pins:** H3 pins 1 and 6 are motor A outputs, and H2 pin 2 is 5 V. None of them
   is wired.
-- **Connector families:** the photos show P1 as a PH-style header; P3 and H2 look like 2.54 mm pin
-  headers. The J12 lead is a PHR-8 at the board end, with pre-crimped leads into whichever
-  housings those headers take (the elechawk kit has 2.54 mm Dupont housings). Check the families
-  and the pitch before ordering housings.
+- **Connector families:** in Waveshare's product photos, P3 and H2 are a fitted 1×10 male pin
+  header at 2.54 mm, so 2.54 mm Dupont housings (the elechawk kit's) plug onto them. H3 is a JST
+  PH 2.0 mm 6-pin header (Waveshare's wiki: "Motor interface PH2.0 6P"), so its wire takes a PHR-6
+  with one contact in position 4. The J12 end is a PHR-8. Both PH ends take SPH-002T-P0.5S
+  contacts (24–30 AWG).
 
 ## A bench supply instead of the pack
 

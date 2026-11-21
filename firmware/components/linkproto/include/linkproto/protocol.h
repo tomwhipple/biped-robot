@@ -2,7 +2,7 @@
 //
 // link/protocol.py is the REFERENCE. This file conforms to it byte for byte,
 // never the other way round, and tools/gen_protocol_vectors.py freezes the
-// Python side's output into host/vectors/protocol_vectors.h so a divergence is
+// Python side's output into build/host/vectors/protocol_vectors.h so a divergence is
 // a failing test rather than a mystery on the bench. See docs/control-channel.md.
 //
 // Everything here is pure: no sockets, no clock (the Watchdog takes now_ms as
@@ -69,7 +69,32 @@ constexpr size_t kTlmLenExt = kTlmLen + 2 * kNumJoints;   // 65
 constexpr size_t kTlmAttBytes = 4;
 constexpr size_t kTlmLenAtt = kTlmLen + kTlmAttBytes;              // 35
 constexpr size_t kTlmLenExtAtt = kTlmLenExt + kTlmAttBytes;        // 69
-constexpr size_t kTlmLenMax = kTlmLenExtAtt;
+
+// POWER (issue #109): the battery's state, appended LAST (after the attitude
+// pair) and before the CRC. Requested with kFlagPwr, never volunteered, for
+// the reason kFlagPose exists. Six bytes:
+//   u16 pack_mv  the pack from the board's INA219 (0x42, across R11 on
+//                DC_IN -> VIN), mV. Read on the I2C bus, so it does not
+//                depend on the servo bus. 0 = no reading.
+//   u8  batt     battguard::Level: 0 ok, 1 warn, 2 landing, 3 safe (latched)
+//   u8  flags    kPwr* below
+//   u16 rail_mv  power lite's RAIL_V (SERVO+), mV; 0 unless kPwrLite and
+//                kPwrRailValid
+// Six bytes keep all eight lengths distinct: 37, 41, 71, 75 with the block.
+constexpr size_t kTlmPwrBytes = 6;
+constexpr size_t kTlmLenPwr = kTlmLen + kTlmPwrBytes;               // 37
+constexpr size_t kTlmLenAttPwr = kTlmLenAtt + kTlmPwrBytes;         // 41
+constexpr size_t kTlmLenExtPwr = kTlmLenExt + kTlmPwrBytes;         // 71
+constexpr size_t kTlmLenExtAttPwr = kTlmLenExtAtt + kTlmPwrBytes;   // 75
+constexpr size_t kTlmLenMax = kTlmLenExtAttPwr;
+
+// The power block's flag bits (protocol.py PWR_*).
+constexpr uint8_t kPwrLite = 1u << 0;          // a power-lite image: the rest mean something
+constexpr uint8_t kPwrServoEn = 1u << 1;       // SERVO_EN (IO16) high
+constexpr uint8_t kPwrEstop = 1u << 2;         // ESTOP_N (IO4) reads stop
+constexpr uint8_t kPwrEstopLatched = 1u << 3;  // the E-stop latch stands
+constexpr uint8_t kPwrRailValid = 1u << 4;     // rail_mv is a reading
+constexpr uint8_t kPwrGuardPack = 1u << 5;     // battguard is taking pack_mv
 
 constexpr uint16_t kCmdPort = 4210;
 constexpr uint16_t kTlmPort = 4211;
@@ -131,6 +156,12 @@ constexpr uint8_t kFlagAtt = 1u << 5;
 // hard stop: the old meaning (watchdog ESTOP latch) still releases torque.
 constexpr uint8_t kFlagStop = 1u << 6;
 
+// "Beacon the power block too" (kTlmLenPwr and the other +pwr lengths;
+// issue #109). A LEVEL, like kFlagPose and kFlagAtt: it requests telemetry and
+// commands nothing. An older firmware ignores it and beacons without the
+// block. The last free bit.
+constexpr uint8_t kFlagPwr = 1u << 7;
+
 // -- timing ----------------------------------------------------------------
 constexpr float kSendHz = 20.0f;
 constexpr float kStaleMs = 250.0f;         // -> decay to the trained stand
@@ -140,10 +171,10 @@ constexpr uint32_t kSeqResyncGap = 1000;   // bigger backwards jump = restart
 // -- trained command envelope ----------------------------------------------
 // The deployed policy's envelope -- forward, backward and lateral speed
 // bands, turn limit, crouch floor -- is GENERATED from its run's config.json
-// by tools/gen_envelope.py (`make deploy RUN=...`) into cmd_envelope.h, and
-// link/cmd_envelope.py is its Python twin. A policy profile
-// (firmware/policies/<profile>/linkproto/) carries its own, first on the
-// include path. Never edit them by hand. clampToEnvelope() below enforces it.
+// by tools/gen_envelope.py (`make policy`) into cmd_envelope.h, and its
+// cmd_envelope.py beside it is the Python twin. Each policy set has its own
+// (build/policy/<set>/linkproto/), first on the include path. Never edit
+// them by hand. clampToEnvelope() below enforces it.
 // Not from a run's config: the swing-foot offsets are scripted, not drawn
 // (protocol.py FOOT_D_MAX).
 constexpr float kFootDMax = 0.05f;  // traj_radius hi: foot offsets, m
@@ -233,7 +264,7 @@ enum class ArmResult : uint8_t {
     // (scsbus::checkPositionGains) and refuses on any difference from the
     // compiled expected table (main/servo_gains.h).
     kRefusedGains = 10,  // arm refused: a servo's P/D is not the expected value
-    // A policy profile (firmware/policies/, BIMO_POLICY) can compile in an
+    // A policy profile (BIMO_POLICY, tools/policy_profile.py) can compile in an
     // UNTRAINED test net while its plant has no deployable policy
     // (policy::kWeightsArePlaceholder). It exists to golden-test the
     // firmware path; driving servos with it is never what anyone meant.
@@ -247,6 +278,11 @@ enum class ArmResult : uint8_t {
     // An operator stop (kFlagStop) ended the run: torque released (hard) or
     // held where it was (soft).
     kDisarmedStop = 13,
+    // Power lite (main/power_rail.h): the servo rail is off and that is the answer. An
+    // arm or a reset refused (the E-stop pressed or latched, a rail fault), or a run
+    // ended by the rail going (the E-stop, a rail fault, link loss, the pack guard).
+    // The tether and `stat` say which. Only a BIMO_POWER_LITE image ever sends it.
+    kRailDown = 14,
 };
 
 // True for every verdict a kFlagHome request can produce. A console that
@@ -256,7 +292,8 @@ enum class ArmResult : uint8_t {
 inline bool isHomeResult(ArmResult r) {
     return r == ArmResult::kDisarmedHome || r == ArmResult::kHomeNoCal ||
            r == ArmResult::kHomeLowBatt || r == ArmResult::kHomeBusFailed ||
-           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached;
+           r == ArmResult::kHomePending || r == ArmResult::kHomeNotReached ||
+           r == ArmResult::kRailDown;
 }
 
 // The verdict an operator stop leaves while BENCHED (firmware cli.cpp
@@ -317,6 +354,7 @@ struct Command {
     bool home() const { return (flags & kFlagHome) != 0; }
     bool att() const { return (flags & kFlagAtt) != 0; }
     bool stop() const { return (flags & kFlagStop) != 0; }
+    bool pwr() const { return (flags & kFlagPwr) != 0; }
 };
 
 struct Telemetry {
@@ -351,6 +389,13 @@ struct Telemetry {
     uint8_t have_att = 0;
     float up_x = 0.0f;
     float up_y = 0.0f;
+    // The power block (kFlagPwr). have_pwr is 0 on any frame that was not
+    // asked for it. Integers, as on the wire.
+    uint8_t have_pwr = 0;
+    uint16_t pack_mv = 0;    // INA219 pack voltage; 0 = no reading
+    uint8_t batt = 0;        // battguard::Level
+    uint8_t pwr_flags = 0;   // kPwr*
+    uint16_t rail_mv = 0;    // RAIL_V, power lite only
 };
 
 // The bench diagnostic byte this frame carries, or 0 when it carries none.
@@ -385,12 +430,14 @@ size_t encodeCommandExt(uint8_t* out, const Command& cmd);
 Err decodeCommand(const uint8_t* buf, size_t len, Command& out);
 
 // Emits the blocks that are set: the u64 timestamp ALWAYS, then joints when
-// t.n_joints == kNumJoints, then the up vector when t.have_att. `out` must
+// t.n_joints == kNumJoints, then the up vector when t.have_att, then the
+// power block when t.have_pwr. `out` must
 // have room for kTlmLenMax. Returns the bytes written -- USE IT: sending
 // kTlmLen of a long frame truncates it and every CRC downstream fails.
 size_t encodeTelemetry(uint8_t* out, const Telemetry& t);
-// Accepts the four lengths above. n_joints is kNumJoints on the two long
-// lengths, else 0; have_att is 1 on the two +att lengths.
+// Accepts the eight lengths above. n_joints is kNumJoints on the lengths
+// with joints, else 0; have_att is 1 on the +att lengths, have_pwr on the
+// +pwr ones.
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out);
 
 }  // namespace linkproto

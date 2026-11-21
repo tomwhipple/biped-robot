@@ -85,8 +85,9 @@ idf.py -C firmware -p /dev/cu.usbserial-XXXX flash monitor
 **The landing voltage.**
 
 - **Land the robot by 10.5 V** (3.5 V/cell on 3S). battguard warns at 10.5 V and lands the robot at 9.9 V ([wiring.md](wiring.md#battery-protection)).
-- The firmware's only voltage reading is a servo's register 62, at 0.1 V resolution (`scan`, `pos`, `volt`). The board's INA219 is not read.
-- With one servo connected, compare its reading with the supply. The telemetry and the guard both use this number, so a constant offset is worth knowing now.
+- The firmware reads the pack two ways: the board's INA219 at 4 mV (`volt`'s first line, `batt`, the beacon's power block), which needs no servo; and a servo's register 62 at 0.1 V (`scan`, `pos`, `volt`). The guard takes the lower of the two.
+- Compare both with the supply and a meter at the inlet; with one servo connected, the servo's too. A constant offset in either is worth knowing now, because the guard trips on the lower.
+- **The guard runs benched**, on the INA219. A supply below 10.0 V (the INA219 is truncated to 0.1 V) for half a second latches it, straight to SAFE: `rail on` and `home` are refused and the next arm goes limp at once. Raise the supply, then `batt reset`. With USB attached, switching the pack off can latch it the same way while `VIN` decays. Sweeping the supply low on purpose (a BMS test) is the same; `batt pack off` keeps the INA219 out of the guard until the next boot.
 
 ## 2. Servo IDs and gains
 
@@ -253,10 +254,10 @@ No policy is flashed until it passes all of the following, offline:
    - Run the SIL twin, `sim/sil_twin.py` (nominal plant) with `--act-delay-ticks 4` for the servo's dead time.
    - Over the last 3 s of a 6 s stand, every joint must rest **within 2° of home** and the torso **within 1°**.
 4. **Build.** Then run:
-   - `make -C firmware/host deploy-headers RUN=<run>`;
-   - the host tests;
+   - `make deploy RUN=<run>`, and commit `firmware/deployed/`;
+   - the host tests (`make host`);
    - SIL ([sim/sil/README.md](../sim/sil/README.md));
-   - `idf.py -C firmware build`.
+   - `make firmware`.
 5. **Check.** Flash, then check that `stat` names the run, and run `imu reinit` and `imu scan`.
 
 A policy that scores well in the referee can still fail tick 1 or twin rest.

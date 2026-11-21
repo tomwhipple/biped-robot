@@ -7,11 +7,12 @@ round-trips through MuJoCo's forward kinematics, Gate A finds a static
 single-foot stance with >= 25 mm of CoM margin inside every joint limit, and
 Gate B finds no STS3215 joint short of the torque margin at the design cadence
 (the knee's speed margin is the known exception, covered by Plan B's raised
-gain). The COMMITTED plant, sim/bimo_biped_v6ar.xml, is the robot as drawn
+gain). The built plant, build/v6/sim/bimo_biped_v6ar.xml, is the robot as drawn
 (17 actuators: legs, neck, two 2-DOF arms held at the walking pose) and must
 be exactly what sim/build_v6_inertia.py generates from the current CAD.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -39,19 +40,19 @@ def test_plant_loads(p):
     assert 1.4 < m.body_subtreemass[0] < 1.7
 
 
-COMMITTED = os.path.join(HERE, "..", "sim", "bimo_biped_v6ar.xml")
+BUILT = paths.v6_plant("bimo_biped_v6ar.xml")
 ACT_ORDER = ([f"{s}_{j}" for s in "LR" for j in ("hip_yaw", "hip_roll", "hip_pitch", "knee", "ankle", "ankle_roll")]
              + ["neck_yaw", "L_shoulder", "L_elbow", "R_shoulder", "R_elbow"])
 
 
-def test_committed_plant_is_the_robot():
-    """sim/bimo_biped_v6ar.xml: 17 actuators in joint order, the shoulders'
+def test_built_plant_is_the_robot():
+    """build/v6/sim/bimo_biped_v6ar.xml: 17 actuators in joint order, the shoulders'
     rest pose folded (ARM_REST, the same as the training preset's held
     targets), the robot's masses in the as-drawn band."""
     import mujoco
     sys.path.insert(0, os.path.join(HERE, "..", "cad", "v6"))
     import dimensions_v6 as V
-    m = mujoco.MjModel.from_xml_path(COMMITTED)
+    m = mujoco.MjModel.from_xml_path(BUILT)
     assert m.nu == 17 and m.nq == 24
     assert [m.actuator(i).name for i in range(m.nu)] == ACT_ORDER
     for side in "LR":
@@ -66,13 +67,13 @@ def test_committed_plant_is_the_robot():
     assert 2.0 < m.body_subtreemass[0] < 2.6
 
 
-def test_committed_plant_is_generated():
-    """the committed plant is build_v6_inertia's output for the current CAD
+def test_built_plant_is_generated():
+    """the built plant is build_v6_inertia's output for the current CAD
     (AGENTS.md: generated files are generated): regenerate it and compare."""
     import build_v6_inertia as BI
-    src = BI.committed_xml(COMMITTED)
-    with open(COMMITTED) as f:
-        assert f.read() == src, "sim/bimo_biped_v6ar.xml is stale: run sim/build_v6_inertia.py --write"
+    src = BI.committed_xml(BUILT)
+    with open(BUILT) as f:
+        assert f.read() == src, "build/v6/sim/bimo_biped_v6ar.xml is stale: run sim/build_v6_inertia.py --write"
 
 
 def test_cad_and_sim_agree(p):

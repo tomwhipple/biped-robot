@@ -19,6 +19,9 @@ import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 from walker_env import BimoWalkerEnv
 
 RUNS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
@@ -92,8 +95,8 @@ def main():
         raise SystemExit(f"No trained model at {run_dir}/model.zip -- run train_ppo.py first.")
 
     xml = args.xml
-    if xml and not os.path.isabs(xml):
-        xml = os.path.join(os.path.dirname(os.path.abspath(__file__)), xml)
+    if xml:
+        xml = paths.resolve_plant(xml)
     env_kwargs = run_env_kwargs(
         run_dir, xml_path=xml, actuator_model=args.actuator_model,
         supply_voltage=args.voltage, dash=True if args.dash else None)

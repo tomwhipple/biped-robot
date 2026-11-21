@@ -6,7 +6,7 @@ Nothing here is read by the envs themselves: a run's config.json pins every
 value explicitly (the kp map as {actuator: factor}, the holds as
 {actuator: deg}), so a later edit here never re-means an old run.
 
-    ROBOT_XML        sim/bimo_biped_v6ar.xml (CAD inertials; weighed masses
+    ROBOT_XML        build/v6/sim/bimo_biped_v6ar.xml (CAD inertials; weighed masses
                      replace them once the parts exist, issue #82)
     policy joints    the 12 leg joints -- 6 per leg, ankle roll included
     held joints      neck yaw at 0 (the camera looks ahead), and -- where
@@ -34,6 +34,8 @@ import sys
 import mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+import paths  # noqa: E402
 ROBOT_XML = "bimo_biped_v6ar.xml"
 # the body as built 2026-10-24: 12 leg servos + the control board, no pack, Pi,
 # head, neck or arms (build_v6_inertia.asbuilt_legs; `--robot --xml` selects it)
@@ -88,11 +90,11 @@ def write_arms_test_plant(path):
 
 
 def robot_xml_path(xml=None):
-    """Absolute path of the robot plant (a bare basename resolves in sim/)."""
+    """Absolute path of the robot plant (a bare basename resolves in build/v6/sim/)."""
     xml = xml or ROBOT_XML
     if os.path.exists(xml):
         return os.path.abspath(xml)
-    return os.path.normpath(os.path.join(HERE, "..", os.path.basename(xml)))
+    return paths.v6_plant(xml)
 
 
 def _role(name):

@@ -135,7 +135,7 @@ Open (issue #77):
   Source: `cad/v6/lead_lengths.py` (constants + an assembly-sweep
   crosscheck).
 
-The joint names are the plant's: `sim/bimo_biped_v6ar.xml`, with the arms from
+The joint names are the plant's: `build/v6/sim/bimo_biped_v6ar.xml`, with the arms from
 `sim/gen_plant_v6.py`.
 
 The map is compiled in, in places that must agree (the SIL suite's
@@ -161,9 +161,9 @@ rows of §3.3 and §4 change in one commit.
 
 The **policy joint set** is the joints the compiled policy observes and
 commands, a subset of the bus joints. Its source of truth is
-`firmware/components/obs/include/obs/obs_spec.h` (`kJointNames`, `kServoId`):
+the generated `obs/obs_spec.h` (`build/policy/<set>/`, `make policy`; `kJointNames`, `kServoId`):
 
-- `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `sim/bimo_biped_v6legs.xml`, and `ID_BY_ROLE`.
+- `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `build/v6/sim/bimo_biped_v6legs.xml`, and `ID_BY_ROLE`.
 - `firmware/host/test_obs.cpp` pins it.
 
 | servo ID | joint | action index | bus port |
@@ -369,7 +369,7 @@ in the sim joint frame.
 | knee | −130° … +5° | plant range; +5° is a policy cap, the mechanism hyperextends to ~95° |
 | ankle | ±45° | plant ctrlrange; not a stop (free to ±78°) |
 | ankle roll (11, 12) | ±25° | plant range; stop at +27.9 L / −26.9 R on the outer-edge-up side only |
-| neck yaw (13) | ±90° | plant range (`sim/bimo_biped_v6ar.xml`); never probed |
+| neck yaw (13) | ±90° | plant range (`build/v6/sim/bimo_biped_v6ar.xml`); never probed |
 | shoulder (14, 16) | none (±360°, never clamps) | no software limit, by the owner's choice (2026-11-16); the encoder's 0…4095 is the only bound. Bench sweep: 179° free one way (R), the desk stopped the other at −127° (R); L probed ±31.6° only (objects nearby) |
 | elbow (15, 17) | 0° … +179° | measured 2026-11-16 (§3.2, arms): 0 = home = the fold hard stop; the open side is free through +179.3°, the end of the encoder range from home |
 
@@ -387,7 +387,7 @@ them.
 Every leg joint was swept in both directions: guarded sweeps (§3.3a), robot hanging,
 sim angle conventions. The CAD was probed at the same angles and agrees with every row.
 Source: `hw_sessions/2026-11-02/NOTES.md` ("ROM pass 3"). The sim carries these stops
-in `sim/bimo_biped_v6legs_meas.xml` / `_v6ar_meas.xml` (`gen_plant_v6.MEASURED_STOPS`).
+in `build/v6/sim/bimo_biped_v6legs_meas.xml` / `_v6ar_meas.xml` (`gen_plant_v6.MEASURED_STOPS`).
 The policy ranges there are unchanged.
 
 | joint | measured (L / R) | CAD | was assumed | sim `_meas` stop |
@@ -464,7 +464,7 @@ The knee drives cleanly to **−94.6° and +94.5°**:
 - reaching +95° needed the encoder re-centred (`middle`), because the zero it had left only +11.4° before the 4095 wrap. That is an encoder-placement limit, not a mechanical one.
 
 
-- The robot's plant (`sim/bimo_biped_v6ar.xml`) allows −130° to +5°: flexion is negative, and hyperextension is capped at 5° (a policy cap; §3.3).
+- The robot's plant (`build/v6/sim/bimo_biped_v6ar.xml`) allows −130° to +5°: flexion is negative, and hyperextension is capped at 5° (a policy cap; §3.3).
 
 ## 4. Registers
 

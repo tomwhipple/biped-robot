@@ -94,8 +94,8 @@ def test_decode_rejects_garbage():
 
 
 def test_vectors_header_is_current():
-    """firmware/host/vectors/flightrec_vectors.h is what the generator writes."""
-    path = os.path.join(ROOT, "firmware", "host", "vectors", "flightrec_vectors.h")
+    """build/host/vectors/flightrec_vectors.h is what the generator writes."""
+    path = os.path.join(ROOT, "build", "host", "vectors", "flightrec_vectors.h")
     before = open(path).read()
     subprocess.run([sys.executable, os.path.join(ROOT, "tools", "gen_flightrec_vectors.py")],
                    check=True, capture_output=True)

@@ -21,7 +21,9 @@
 
 #include "cal_store.h"
 #include "flight_rec.h"
+#include "pack_sense.h"
 #include "policy/mlp.h"
+#include "power_rail.h"
 #include "scs_port_idf.h"
 #include "obs/assembler.h"
 #include "shared.h"
@@ -60,6 +62,11 @@ std::atomic<float> g_heading_err{0.0f};
 std::atomic<float> g_heading_corr{0.0f};
 std::atomic<uint32_t> g_op_stops{0};
 std::atomic<uint32_t> g_op_estops{0};
+std::atomic<uint16_t> g_pack_mv{0};
+std::atomic<uint32_t> g_pack_reads{0};
+std::atomic<bool> g_pack_guard_on{true};
+std::atomic<bool> g_pack_guarding{false};
+std::atomic<uint32_t> g_batt_reset_req{0};
 
 bool takeOperatorStop(const linkproto::Command& cmd) {
     if (!cmd.stop()) return false;
@@ -140,6 +147,10 @@ void applyImuCalFromNvs() {
 }
 
 bool imuReinitLive() {
+    // reinit() deletes the I2C bus; the INA219's device handle on it goes first
+    // (pack_sense.h), under the bus lock. Should the driver refuse, the bus is
+    // left alone: deleting it would leave that handle dangling.
+    if (!packSenseDetach()) return false;
     const bool ok = g_qmi.reinit();
     if (ok) {
         g_imu = &g_qmi;
@@ -156,6 +167,9 @@ bool g_imu_cal_from_nvs = false;
 imu::Qmi8658Imu* onboardImu() {
     return (g_imu == static_cast<imu::Imu*>(&g_qmi)) ? &g_qmi : nullptr;
 }
+
+// The board's I2C bus, whether or not the IMU answered (shared.h).
+imu::Qmi8658Imu& boardI2c() { return g_qmi; }
 
 namespace {
 
@@ -177,6 +191,9 @@ bool initHostUart() {
 
 extern "C" void app_main(void) {
     using namespace robot;
+
+    // Before anything else: IO16 low (main/power_rail.h).
+    if constexpr (rail::kFitted) rail::boot();
 
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
@@ -244,22 +261,32 @@ extern "C" void app_main(void) {
     // against main/servo_gains.h. Reads only. A mismatch (or a servo that
     // does not answer -- e.g. the pack is not connected yet) is logged here
     // and put on the BENCH beacon; `run` re-reads before every arm.
-    const bool gains_ok = cli::bootGainCheck([](const char* line) {
-        char buf[160];
-        size_t n = strlen(line);
-        if (n >= sizeof buf) n = sizeof buf - 1;
-        memcpy(buf, line, n);
-        while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
-        buf[n] = 0;
-        ESP_LOGW(kTag, "%s", buf);
-    });
+    // On power lite the servos are unpowered at boot, so there is nothing to read:
+    // a silent servo here would put a false kRefusedGains on the beacon. The check
+    // that counts is the arm's, which runs with the rail up.
+    bool gains_ok = true;
+    if constexpr (!rail::kFitted) {
+        gains_ok = cli::bootGainCheck([](const char* line) {
+            char buf[160];
+            size_t n = strlen(line);
+            if (n >= sizeof buf) n = sizeof buf - 1;
+            memcpy(buf, line, n);
+            while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) --n;
+            buf[n] = 0;
+            ESP_LOGW(kTag, "%s", buf);
+        });
+    }
 
     ESP_LOGI(kTag, "cal: %s, %d of %d bus servos fitted", cal_how,
              fittedBusJoints(calibration(), nullptr, nullptr),
              obs::kNumBusJoints);
-    ESP_LOGI(kTag, "gains: %s", gains_ok ? "every servo at its expected P/D"
-                                          : "NOT verified -- `run` will refuse "
-                                            "until `gains` is clean");
+    if constexpr (rail::kFitted) {
+        ESP_LOGI(kTag, "power lite: rail off; gains are checked at the arm, with the rail up");
+    } else {
+        ESP_LOGI(kTag, "gains: %s", gains_ok ? "every servo at its expected P/D"
+                                              : "NOT verified -- `run` will refuse "
+                                                "until `gains` is clean");
+    }
     ESP_LOGI(kTag, "imu: %s, cal %s", g_imu->name(),
              g_imu_cal_from_nvs ? "from NVS" : "MISSING (run `imu bias`)");
     // cppcheck-suppress knownConditionTrueFalse -- generated per build

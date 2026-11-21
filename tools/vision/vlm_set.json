@@ -1,0 +1,777 @@
+{
+ "description": "Layer E (#316) labelled frame set: real footage from 2026-11-12/13/16 (hw_sessions/, not in git). Rebuild the JPEGs with tools/vision/vlm_bakeoff.py extract. Labels follow vlm.LABEL_RULES; null = not scored. Upright labels were checked against the flight-record IMU tilt at the frame time where one exists.",
+ "labelled_by": "Claude (Opus), 2026-11-20, every frame looked at",
+ "rules": "tools/vision/vlm.py LABEL_RULES",
+ "frames": [
+  {
+   "id": "catch_normal_1635",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:35:30.000Z",
+   "frame": 728,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "push-test march, normal step; seated person's feet behind the far edge (seated, not reaching in)"
+  },
+  {
+   "id": "catch_push_163615a",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:15.000Z",
+   "frame": 2074,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "0.9 s before the catch; legs angled in single support, IMU tilt 2 deg"
+  },
+  {
+   "id": "catch_tip30_163616",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:15.960Z",
+   "frame": 2103,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "peak of the push, IMU tilt 30 deg; Tom's hand/sleeve at the torso, top right"
+  },
+  {
+   "id": "catch_held_163617",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:17.000Z",
+   "frame": 2135,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "level again (IMU 1 deg), Tom's sleeve/hand at the torso, top right"
+  },
+  {
+   "id": "catch_held_163618",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:18.000Z",
+   "frame": 2164,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "level (IMU 4 deg), hand at the top right still near the torso"
+  },
+  {
+   "id": "catch_lean_163619",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:19.480Z",
+   "frame": 2209,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "after the catch, IMU 1 deg; legs look angled from this low view; seated person behind"
+  },
+  {
+   "id": "catch_lean_163620",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:20.200Z",
+   "frame": 2229,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "after the catch, IMU 1 deg; legs look angled; seated person behind"
+  },
+  {
+   "id": "catch_after_163622",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:22.000Z",
+   "frame": 2283,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "after the catch, stepping; seated person behind"
+  },
+  {
+   "id": "dog_tail_164827",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:27.000Z",
+   "frame": 1647,
+   "camera": "sony",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog's tail sweeping past the robot's knees, a paw on the board at the right"
+  },
+  {
+   "id": "dog_legs_164831",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:30.961Z",
+   "frame": 1765,
+   "camera": "sony",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog standing at the right edge of the board, front paws on it"
+  },
+  {
+   "id": "dog_legs_164833",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:32.961Z",
+   "frame": 1825,
+   "camera": "sony",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog's legs and paw at the right edge of the board beside the robot"
+  },
+  {
+   "id": "dog_behind_164835",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:35.000Z",
+   "frame": 1885,
+   "camera": "sony",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog at the right edge of the board just behind the robot"
+  },
+  {
+   "id": "dog_tail_164837",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:37.000Z",
+   "frame": 1944,
+   "camera": "sony",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog at the far edge of the board behind the robot (tail)"
+  },
+  {
+   "id": "dog_gone_164843",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_b.mp4",
+   "t_utc": "2026-11-16T16:48:43.000Z",
+   "frame": 2123,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "dog has left (seated person behind, far right)"
+  },
+  {
+   "id": "steer_normal_164000",
+   "video": "hw_sessions/2026-11-16/cmd_steer_T4_a.mp4",
+   "t_utc": "2026-11-16T16:40:00.000Z",
+   "frame": 1250,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "steering run, normal step"
+  },
+  {
+   "id": "seq6_normal_162730",
+   "video": "hw_sessions/2026-11-16/seq6_T4_stride40.mp4",
+   "t_utc": "2026-11-16T16:27:30.000Z",
+   "frame": 896,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "mixed-direction walk, normal step"
+  },
+  {
+   "id": "tip_inward_1112",
+   "video": "hw_sessions/2026-11-12/tip_closeup2_kR120.mp4",
+   "t_utc": "2026-11-13T01:28:30.000Z",
+   "frame": 476,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "11-12 inward-tip close-up session; robot at the far end of the board, upright"
+  },
+  {
+   "id": "fwd8_normal_1112",
+   "video": "hw_sessions/2026-11-12/track_fwd8_T5.mp4",
+   "t_utc": "2026-11-12T23:41:40.000Z",
+   "frame": 916,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "11-12 forward walk; seated person's feet behind the far edge"
+  },
+  {
+   "id": "seq_normal_1113",
+   "video": "hw_sessions/2026-11-13/seq_fwd_turnL_fwd_T5.mp4",
+   "t_utc": "2026-11-13T15:45:20.000Z",
+   "frame": 931,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "11-13 sequence walk; seated person behind"
+  },
+  {
+   "id": "sony_walk_210122",
+   "video": "hw_sessions/2026-11-16/vision/cam/sony_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:22.000Z",
+   "frame": 657,
+   "camera": "sony",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "1 s before the 21:01 fall (Sony camd), stepping"
+  },
+  {
+   "id": "sony_falling_210126",
+   "video": "hw_sessions/2026-11-16/vision/cam/sony_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:26.000Z",
+   "frame": 776,
+   "camera": "sony",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "falling, IMU 76 deg"
+  },
+  {
+   "id": "sony_lying_210132",
+   "video": "hw_sessions/2026-11-16/vision/cam/sony_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:32.000Z",
+   "frame": 957,
+   "camera": "sony",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "lying on its side near the right edge, IMU 74 deg"
+  },
+  {
+   "id": "em_walk_183900",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T183900Z.mp4",
+   "t_utc": "2026-11-16T18:39:30.000Z",
+   "frame": 459,
+   "camera": "emeet",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "eMeet, normal walking mid-board"
+  },
+  {
+   "id": "em_walk_210122",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:21.960Z",
+   "frame": 128,
+   "camera": "emeet",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": null
+   },
+   "note": "eMeet, 4 s before a fall; thick black cable across the near end (whose? not scored for object)"
+  },
+  {
+   "id": "em_falling_210126",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:26.040Z",
+   "frame": 151,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": null
+   },
+   "note": "falling (motion blur), IMU 87 deg; thick black cable in the foreground (object not scored)"
+  },
+  {
+   "id": "em_lying_210132",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210100Z.mp4",
+   "t_utc": "2026-11-16T21:01:32.320Z",
+   "frame": 195,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": null
+   },
+   "note": "lying across the far edge of the board; black cable in the foreground (object not scored)"
+  },
+  {
+   "id": "em_legs_lying_210420",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210400Z.mp4",
+   "t_utc": "2026-11-16T21:04:20.000Z",
+   "frame": 132,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": null
+   },
+   "note": "person standing at the far edge next to the fallen robot; black cable (object not scored)"
+  },
+  {
+   "id": "em_hand_carry_210424",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210400Z.mp4",
+   "t_utc": "2026-11-16T21:04:24.120Z",
+   "frame": 153,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "hand carrying the robot (torso level, IMU 1 deg), person standing on the board"
+  },
+  {
+   "id": "em_person_placed_210427",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210400Z.mp4",
+   "t_utc": "2026-11-16T21:04:27.720Z",
+   "frame": 187,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "robot just placed upright near the camera, person standing at the board's left edge"
+  },
+  {
+   "id": "em_close_upright_210436",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210400Z.mp4",
+   "t_utc": "2026-11-16T21:04:35.960Z",
+   "frame": 221,
+   "camera": "emeet",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "robot standing close to the camera, nobody (chair at left)"
+  },
+  {
+   "id": "em_walk_210820",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210800Z.mp4",
+   "t_utc": "2026-11-16T21:08:20.000Z",
+   "frame": 150,
+   "camera": "emeet",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "eMeet, normal walking"
+  },
+  {
+   "id": "em_tipping_210828",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210800Z.mp4",
+   "t_utc": "2026-11-16T21:08:28.000Z",
+   "frame": 234,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "start of a fall, IMU 5 deg (over 80 within 1 s)"
+  },
+  {
+   "id": "em_lying_210832",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T210800Z.mp4",
+   "t_utc": "2026-11-16T21:08:32.040Z",
+   "frame": 265,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "lying across the left edge of the board, IMU 80 deg"
+  },
+  {
+   "id": "em_lying_213042",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T213000Z.mp4",
+   "t_utc": "2026-11-16T21:30:42.000Z",
+   "frame": 632,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "lying near the camera; a person's legs far behind the board (not near the robot)"
+  },
+  {
+   "id": "em_legs_lying_213044",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T213000Z.mp4",
+   "t_utc": "2026-11-16T21:30:44.000Z",
+   "frame": 674,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "person stepping up to the board beside the fallen robot"
+  },
+  {
+   "id": "em_edge_view_214546",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T214500Z.mp4",
+   "t_utc": "2026-11-16T21:45:46.000Z",
+   "frame": 860,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": null,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "camera knocked askew; robot lying at the board's edge; red shirt at the right edge (person not scored)"
+  },
+  {
+   "id": "em_reach_214554",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T214500Z.mp4",
+   "t_utc": "2026-11-16T21:45:54.040Z",
+   "frame": 1020,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "person reaching down to the fallen robot at the board edge"
+  },
+  {
+   "id": "em_hand_214556",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T214500Z.mp4",
+   "t_utc": "2026-11-16T21:45:56.000Z",
+   "frame": 1054,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "hand holding the robot, IMU 46 deg"
+  },
+  {
+   "id": "em_beside_215859",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T215800Z.mp4",
+   "t_utc": "2026-11-16T21:58:58.880Z",
+   "frame": 1028,
+   "camera": "emeet",
+   "event": "beside",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "person standing on the carpet right next to the board, robot upright at the far end (beside, not touching)"
+  },
+  {
+   "id": "em_fall_into_person_215907",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T215900Z.mp4",
+   "t_utc": "2026-11-16T21:59:06.960Z",
+   "frame": 118,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "robot falling off the far edge into a person's hands, IMU 50 deg"
+  },
+  {
+   "id": "em_hand_215911",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T215900Z.mp4",
+   "t_utc": "2026-11-16T21:59:11.000Z",
+   "frame": 194,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "hand on the robot's torso, lifting it (IMU 8 deg)"
+  },
+  {
+   "id": "em_lying_edge_220510",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T220500Z.mp4",
+   "t_utc": "2026-11-16T22:05:09.960Z",
+   "frame": 164,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "lying at the near-right edge of the board, IMU 94 deg"
+  },
+  {
+   "id": "em_hand_lift_220520",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T220500Z.mp4",
+   "t_utc": "2026-11-16T22:05:19.920Z",
+   "frame": 344,
+   "camera": "emeet",
+   "event": "pickup",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "hand lifting the robot by the torso (IMU 11 deg); person standing beside"
+  },
+  {
+   "id": "em_dog_221405",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T221400Z.mp4",
+   "t_utc": "2026-11-16T22:14:04.960Z",
+   "frame": 92,
+   "camera": "emeet",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "small dog at the right edge of the board; seated person; robot (torso only) close to the camera"
+  },
+  {
+   "id": "em_dog_221445",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T221400Z.mp4",
+   "t_utc": "2026-11-16T22:14:45.000Z",
+   "frame": 756,
+   "camera": "emeet",
+   "event": "dog",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "small dog walking on the board toward the robot; seated person"
+  },
+  {
+   "id": "em_seated_221530",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T221500Z.mp4",
+   "t_utc": "2026-11-16T22:15:29.920Z",
+   "frame": 579,
+   "camera": "emeet",
+   "event": "beside",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "seated person, feet on the carpet at the board's right edge (seated, not reaching in)"
+  },
+  {
+   "id": "em_seated_221645",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T221600Z.mp4",
+   "t_utc": "2026-11-16T22:16:45.000Z",
+   "frame": 905,
+   "camera": "emeet",
+   "event": "beside",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "seated person, feet on the carpet at the board's right edge (seated, not reaching in)"
+  },
+  {
+   "id": "em_chair_234400",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261116T234400Z.mp4",
+   "t_utc": "2026-11-16T23:44:00.480Z",
+   "frame": 3,
+   "camera": "emeet",
+   "event": "near_edge",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "robot near the left edge; empty chair and a jacket on the floor beside the board (not on it)"
+  },
+  {
+   "id": "em_walk_001400",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261117T001400Z.mp4",
+   "t_utc": "2026-11-17T00:14:29.920Z",
+   "frame": 275,
+   "camera": "emeet",
+   "event": "near_edge",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "robot at the left edge of the board; jacket on the floor off the board"
+  },
+  {
+   "id": "em_walk_022900",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261117T022900Z.mp4",
+   "t_utc": "2026-11-17T02:29:29.920Z",
+   "frame": 568,
+   "camera": "emeet",
+   "event": "normal",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": true,
+    "object_on_board": false
+   },
+   "note": "evening session, normal walking"
+  },
+  {
+   "id": "em_lying_030724",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261117T030700Z.mp4",
+   "t_utc": "2026-11-17T03:07:26.000Z",
+   "frame": 509,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "evening fall 20:07 MST: lying across the far-left edge"
+  },
+  {
+   "id": "em_fall_031338",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261117T031300Z.mp4",
+   "t_utc": "2026-11-17T03:13:38.480Z",
+   "frame": 726,
+   "camera": "emeet",
+   "event": "fall",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "evening fall 20:13 MST (broken hip): lying at the near edge, IMU 79 deg"
+  },
+  {
+   "id": "em_nobot_031630",
+   "video": "hw_sessions/2026-11-16/vision/cam/emeet_20261117T031600Z.mp4",
+   "t_utc": "2026-11-17T03:16:29.920Z",
+   "frame": 500,
+   "camera": "emeet",
+   "event": "empty",
+   "labels": {
+    "person_or_animal": false,
+    "robot_upright": null,
+    "object_on_board": false
+   },
+   "note": "empty board after the session (robot not in view: upright not scored)"
+  },
+  {
+   "id": "catch_tip20_down_163615",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:15.841Z",
+   "frame": 2100,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": null,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "pushed over, IMU tilt 21 deg and rising; Tom's hand is out of frame or hidden (person: not scored)"
+  },
+  {
+   "id": "catch_tip20_back_163616",
+   "video": "hw_sessions/2026-11-16/gate_push_march_T5_b.mp4",
+   "t_utc": "2026-11-16T16:36:16.160Z",
+   "frame": 2109,
+   "camera": "sony",
+   "event": "catch",
+   "labels": {
+    "person_or_animal": true,
+    "robot_upright": false,
+    "object_on_board": false
+   },
+   "note": "being stood back up by hand, IMU 20 deg; sleeve across the torso at the top edge"
+  }
+ ]
+}

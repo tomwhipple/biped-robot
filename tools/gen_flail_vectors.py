@@ -27,7 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "firmware", "host", "vectors", "flail_vectors.h")
 STEM = "flight_20261101T213631Z_policy_stand1"
-# The v6 legs policy's joint order (firmware/policies/v6legs/obs/obs_spec.h).
+# The v6 legs policy's joint order (build/policy/v6legs/obs/obs_spec.h).
 JOINTS = ("L_hip_yaw", "L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle", "L_ankle_roll",
           "R_hip_yaw", "R_hip_roll", "R_hip_pitch", "R_knee", "R_ankle", "R_ankle_roll")
 TF_IMU_VALID = 16      # tools/flightrec.py

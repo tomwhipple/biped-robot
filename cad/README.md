@@ -13,7 +13,6 @@ The robot's parametric CAD, written in Python with
 ```
 cad/
 ├── v6/                     the robot: part modules, assembly, gates (map below)
-│   └── stl/                the exported parts (generated; committed: the plant meshes them)
 ├── common/                 the library the parts build on (below)
 │   ├── dimensions.py       servo ground truth and shared constants
 │   ├── shapes.py           solid helpers
@@ -39,12 +38,12 @@ out of it.
 | module | what it is |
 |---|---|
 | `dimensions_v6.py` | every dimension the robot adds or changes: kinematics, feet, torso, pack, Pi, neck and head, the hip-yaw bearing (`YAW_BRG_*`, a 6810-2RS), arms and girdle. It re-exports `cad/common/dimensions.py` as `D`, and `SIM_EXPECT` is the set of numbers the plant must share (pinned by `tests/test_v6_design_gates.py`) |
-| `parts_v6.py` | exports every printed part to `cad/v6/stl` and `build/v6/step`, with a bed check and the mass rollup `build/v6/reports/parts_v6_rollup.txt` (`--only <names>`, `--no-export` for the rollup alone) |
+| `parts_v6.py` | exports every printed part to `build/v6/stl` and `build/v6/step`, with a bed check and the mass rollup `build/v6/reports/parts_v6_rollup.txt` (`--only <names>`, `--no-export` for the rollup alone) |
 | `assembly_v6.py` | the articulated robot: one kinematic chain of parts, servo mocks and electronics mocks, posable (`--pose knee=-60,...`). Writes `build/v6/step/assembly_v6_arms.step` (`assembly_v6.step` with `ARMS=0`) and `build/v6/renders/assembly_v6_arms.png`. The checker, the fly-in and the step figures read this chain |
 | `check_assembly_v6.py` | the CAD gate: every pair of pieces that move relative to each other, at the ROM extremes plus interior samples; the relatively fixed pairs that must keep their distance (`--joint static`); every disc screw's thread engagement (`--joint screws`). Options: `--joint`, `--samples`, `--side` |
 | `animate_v6.py` | fly-in along each part's insertion path. Writes `build/v6/movies/assembly_v6_flyin*.mp4` and a `_strip.png` beside each; `make figures` copies the strips into `docs/assembly/` |
 | `render_steps_v6.py` | the assembly guide's step figures, rendered into `build/v6/renders/v6_*.png` (`make figures` copies them to `docs/assembly/`): bench order, the incoming part orange along its insertion path |
-| `torso_v8.py` | the torso, eight prints: `pelvis_v8` (both yaw cells under one ceiling, the bearing housing's five pilot bosses), `torso_v8` (deck, skins, battery layer, the bay for the Pi with the General Driver on it forward, the power bay aft, the battery door's opening, and the snap fingers that hold the pelvis while the glue cures; slicer support in its wide windows only, `support_enforcers()`), `front_cover_v8`, `power_cover_v8` (the power bay's cap), `power_bracket_v8` (the BMS's tray on power lite's standoffs), `balance_park_v8` (the balance extension lead's park), `switch_pod_v8` (the main switch and the E-stop side by side, on the cap) and `battery_door_v8` (one screw, one tab). Its `__main__` writes the eight STLs to `cad/v6/stl` and STEPs to `build/v6/step`, runs the board stack in from the front and power lite, the balance park, the BMS bracket, the BMS and the cap in from aft, the pelvis going up into the torso, the battery swap (the door off, J1's plug out, the pack out), the seated fits, the power bay's gaps and every wire's and terminal's keep-out (`wire_envelopes`, `switch_keepouts`), driver access, the screws' thread bite and the printability audits, and renders `build/v6/renders/torso_v8.png`, `torso_v8_assembly.png`, `power_bay_v8.png`, `power_bay_prints_v8.png` and `switch_pod_v8.png` (`--figures`: those three only). `--power-bay-step [board.step]` writes `build/v6/step/power_bay_v8.step` for FreeCAD, with power lite's own STEP when given, and the balance lead's and the E-stop pair's routes (`balance_lead_path`, `estop_lead_path`) |
+| `torso_v8.py` | the torso, eight prints: `pelvis_v8` (both yaw cells under one ceiling, the bearing housing's five pilot bosses), `torso_v8` (deck, skins, battery layer, the bay for the Pi with the General Driver on it forward, the power bay aft, the battery door's opening, and the snap fingers that hold the pelvis while the glue cures; slicer support in its wide windows only, `support_enforcers()`), `front_cover_v8`, `power_cover_v8` (the power bay's cap), `power_bracket_v8` (the BMS's tray on power lite's standoffs), `balance_park_v8` (the balance extension lead's park), `switch_pod_v8` (the main switch and the E-stop side by side, on the cap) and `battery_door_v8` (one screw, one tab). Its `__main__` writes the eight STLs to `build/v6/stl` and STEPs to `build/v6/step`, runs the board stack in from the front and power lite, the balance park, the BMS bracket, the BMS and the cap in from aft, the pelvis going up into the torso, the battery swap (the door off, J1's plug out, the pack out), the seated fits, the power bay's gaps and every wire's and terminal's keep-out (`wire_envelopes`, `switch_keepouts`), driver access, the screws' thread bite and the printability audits, and renders `build/v6/renders/torso_v8.png`, `torso_v8_assembly.png`, `power_bay_v8.png`, `power_bay_prints_v8.png` and `switch_pod_v8.png` (`--figures`: those three only). `--power-bay-step [board.step]` writes `build/v6/step/power_bay_v8.step` for FreeCAD, with power lite's own STEP when given, and the balance lead's and the E-stop pair's routes (`balance_lead_path`, `estop_lead_path`) |
 | `yaw_bearing_housing.py` | the hip-yaw bearings' outer-race seats for both hips, one print screwed up under the pelvis, and its `SCREWS()` |
 | `yaw_carrier_v6.py` | `common/hip_parts.py`'s carrier with a 5 mm spacer under its horn plate (`YAW_CARRIER_DROP`: the roll servo and its screws sit below the bearing band) and a round hub for the 6810-2RS's inner race (trimmed below to pass the bearing), and its `SCREWS()` |
 | `hip_yoke_glued.py` | the hip yoke: two U-channels, `hip_yoke_glued_roll` and `hip_yoke_glued_pitch`, cut from `common/hip_parts.py`'s `yoke_roll` and `yoke_pitch` (servo interfaces byte-identical, `check_interfaces()`). Each prints on edge without supports or brim, at 100 % infill; they snap together on two split-prong clips and are glued on a lap of about 1058 mm². The toe, the fin, the webs and the pitch idler plate carry the servo torques onto the lap ([the record](../docs/design-v6/2026-11-02-hip-yoke-roll-failure.md)). Its `__main__` writes both STLs and STEPs, audits printability and the interfaces, and renders `build/v6/renders/hip_yoke_glued.png` |
@@ -99,15 +98,15 @@ plant builder (`sim/build_v6_inertia.py`) import these as
 `make` rebuilds what changed (`make help`); the scripts behind it, by hand, follow.
 
 ```bash
-make cad                                                 # every part whose source changed -> cad/v6/stl + build/v6/step, and the rollup
+make cad                                                 # every part whose source changed -> build/v6/stl + build/v6/step, and the rollup
 make cad PART=ankle_link                                 # one part
 make cad V=bench-v2                                      # the Plan B rigs -> build/bench-v2 (V=bench-v3 likewise)
 make assembly                                            # the assembly STEPs + renders, armless and with arms -> build/v6/step, build/v6/renders
 make movies                                              # the fly-in movies and filmstrips -> build/v6/movies
 make figures                                             # re-render the images the docs show and copy them into docs/img, docs/assembly
-make plant                                               # sim/bimo_biped_v6ar.xml from the exported STLs
+make plant                                               # build/v6/sim/bimo_biped_v6ar.xml from the exported STLs
 make check-cad                                           # the gate (below)
-.venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> cad/v6/stl + build/v6/step, bed check, rollup
+.venv/bin/python cad/v6/parts_v6.py                      # the robot: every printed part -> build/v6/stl + build/v6/step, bed check, rollup
 .venv/bin/python cad/v6/parts_v6.py --no-export          # the rollup alone -> build/v6/reports/parts_v6_rollup.txt
 .venv/bin/python cad/v6/head.py                          # head_shell, head_face (+ the fused head), audits, render
 .venv/bin/python cad/v6/assembly_v6.py                   # build/v6/step/assembly_v6_arms.step + build/v6/renders/assembly_v6_arms.png
@@ -115,7 +114,7 @@ make check-cad                                           # the gate (below)
 .venv/bin/python cad/v6/animate_v6.py                    # build/v6/movies: the fly-in mp4 + its filmstrip
 .venv/bin/python cad/v6/render_steps_v6.py               # build/v6/renders/v6_*.png
 .venv/bin/python cad/v6/<module>.py                      # one part: STL + STEP + its own audits + build/v6/renders/<part>.png
-.venv/bin/python sim/build_v6_inertia.py --write         # the plant from the exported STLs (sim/bimo_biped_v6ar.xml)
+.venv/bin/python sim/build_v6_inertia.py --write         # the plant from the exported STLs (build/v6/sim/bimo_biped_v6ar.xml)
 .venv/bin/python cad/render_part.py foot_L               # one STL as a strip of views -> build/v6/renders/foot_L.png
 ```
 
@@ -173,7 +172,7 @@ It runs four things with `.venv/bin/python`:
      was never checked.
    - The committed gate log is `docs/design-v6/cad_rom_check.txt`.
 2. **The same check with `ARMS=0`** (the armless variant).
-3. **`audit_torso.py`**, a printability report on `cad/v6/stl`.
+3. **`audit_torso.py`**, a printability report on `build/v6/stl`.
 4. **`audit_ankle_foot.py`**, likewise.
 
 The two printability reports do not fail the run: `ankle_link` carries

@@ -1,6 +1,6 @@
 """Printability audit for ankle_link / foot_L / foot_R on
 cad/common/check_printability.py's engine: it registers ORIENT/PRINT_STL for
-these three parts and audits their STLs in cad/v6/stl.
+these three parts and audits their STLs in build/v6/stl.
 
     .venv/bin/python cad/v6/audit_ankle_foot.py
 """
@@ -10,13 +10,15 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+import paths  # noqa: E402
 
 import numpy as np  # noqa: E402
 from common import check_printability as CP  # noqa: E402
 import ankle_link as AL  # noqa: E402
 import foot_v6 as F  # noqa: E402
 
-CP.STL = os.path.join(HERE, "stl")
+CP.STL = paths.V6_STL
 
 CP.ORIENT.update({
     "ankle_link": (CP.RY_XUP, "on its back like leg_link (RY_XUP): the rear "

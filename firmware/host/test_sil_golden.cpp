@@ -2,7 +2,7 @@
 // item 1: "obs frame vs ... NEW vectors generated from walker_env states;
 // policy forward vs brax golden pairs, atol 1e-5").
 //
-// Agent B generates sim/sil/golden/*.json from the same run the exporter
+// `make policy` generates golden/*.json from the same run the exporter
 // reads. Until those files exist this test SKIPS -- loudly, naming the
 // directories it looked in -- rather than failing the gate for work that has
 // not landed. A skip is a green ctest; a mismatch is a red one.
@@ -27,8 +27,8 @@
 // compiled-in weights instead: brax's own actions against the firmware's
 // flash-resident net, from committed files alone.
 //
-// $SIL_GOLDEN_DIR names the directory; a policy profile build points it at
-// sim/sil/golden/<profile>/ (firmware/host/Makefile POLICY).
+// $SIL_GOLDEN_DIR names the directory: the Makefile and CMakeLists point it
+// at the built set's build/policy/<set>/golden/ (`make policy`).
 #include <dirent.h>
 #include <math.h>
 #include <stdio.h>
@@ -71,16 +71,17 @@ bool listFiles(const std::string& dir, const char* suffix,
     return true;
 }
 
-// sim/sil/golden is relative to the repo root; the binary runs from
-// firmware/host (make) or firmware/host/build (ctest).
+// Without $SIL_GOLDEN_DIR: the deployed set's, build/policy/deployed/golden
+// relative to the repo root; the binary runs from firmware/host (make) or
+// firmware/host/build (ctest).
 std::string findGoldenDir() {
     if (const char* env = getenv("SIL_GOLDEN_DIR")) {
         if (*env) return env;
     }
     const char* kCandidates[] = {
-        "sim/sil/golden",       "../sim/sil/golden",
-        "../../sim/sil/golden", "../../../sim/sil/golden",
-        "../../../../sim/sil/golden"};
+        "build/policy/deployed/golden",       "../build/policy/deployed/golden",
+        "../../build/policy/deployed/golden", "../../../build/policy/deployed/golden",
+        "../../../../build/policy/deployed/golden"};
     for (const char* c : kCandidates) {
         DIR* d = opendir(c);
         if (d) {
@@ -401,9 +402,9 @@ void runFile(const std::string& path) {
 int main() {
     const std::string dir = findGoldenDir();
     if (dir.empty()) {
-        printf("sil_golden       SKIP: no sim/sil/golden (Agent B's vectors "
-               "have not landed); looked upwards from the working directory "
-               "and at $SIL_GOLDEN_DIR\n");
+        printf("sil_golden       SKIP: no build/policy/deployed/golden "
+               "(`make policy` at the repo root); looked upwards from the "
+               "working directory and at $SIL_GOLDEN_DIR\n");
         return 0;
     }
     std::vector<std::string> files;

@@ -74,12 +74,17 @@ EOF
 echo ">>> endpoint saved to infra/runpod/.last_pod"
 
 echo "=== syncing code ==="
+# The plant, its servo meshes, the terrain mosaic and the printed parts' STLs are
+# generated (build/v6/sim, build/v6/stl); build them, then ship them beside paths.py.
+make -C "$REPO" plant-data
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
-  "$REPO/sim/mjx" "$REPO/sim/walker_env.py" "$REPO/sim/meshes" "$REPO"/sim/bimo_biped_v6*.xml \
+  "$REPO/paths.py" "root@$IP:/root/robot/" --rsync-path="mkdir -p /root/robot && rsync"
+rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
+  "$REPO/sim/mjx" "$REPO/sim/walker_env.py" "$REPO"/sim/getup_ref_v6ar*.npz \
   "root@$IP:/root/robot/sim/" --rsync-path="mkdir -p /root/robot/sim && rsync"
 rsync -aq -e "ssh ${SSH_BASE[*]} -p $PORT" \
-  "$REPO/cad/v6/stl" "root@$IP:/root/robot/cad/v6/" \
-  --rsync-path="mkdir -p /root/robot/cad/v6 && rsync"
+  "$REPO/build/v6/sim" "$REPO/build/v6/stl" "root@$IP:/root/robot/build/v6/" \
+  --rsync-path="mkdir -p /root/robot/build/v6 && rsync"
 
 echo "=== installing deps in a venv (system python is PEP-668-managed) ==="
 ssh_t 900 "${SSH_BASE[@]}" -p "$PORT" "root@$IP" \

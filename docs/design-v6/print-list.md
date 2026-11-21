@@ -1,6 +1,6 @@
 # v6 print list (2026-09-14)
 
-Generated from `cad/v6/parts_v6.py` (its rollup, `build/v6/reports/parts_v6_rollup.txt`). PETG 0.4 mm nozzle, 3 perimeters, 30–40 % infill unless noted; every part fits the 220 mm bed. Regenerate STL/STEP with `make cad` (`.venv/bin/python cad/v6/parts_v6.py`: STLs to `cad/v6/stl`, STEPs to `build/v6/step`); each part module's `__main__` runs its own audits.
+Generated from `cad/v6/parts_v6.py` (its rollup, `build/v6/reports/parts_v6_rollup.txt`). PETG 0.4 mm nozzle, 3 perimeters, 30–40 % infill unless noted; every part fits the 220 mm bed. Regenerate STL/STEP with `make cad` (`.venv/bin/python cad/v6/parts_v6.py`: STLs to `build/v6/stl`, STEPs to `build/v6/step`); each part module's `__main__` runs its own audits.
 
 | part | qty | g each | orientation | supports | notes |
 |---|---|---|---|---|---|

@@ -37,7 +37,7 @@ import mujoco  # noqa: E402
 import rec, simh  # noqa: E402
 
 MOVES = "/home/claw/code/robot/hw_sessions/2026-11-03/moves_fast_large.json"
-XML = os.path.join(rec.ROOT, "sim", "bimo_biped_v6legs_meas.xml")
+XML = os.path.join(rec.ROOT, "build", "v6", "sim", "bimo_biped_v6legs_meas.xml")
 RUN = "robot_legs_walk18_shp10sq_s128r24"
 STALL12, W012 = 2.94, 4.04            # walker_env _STS_STALL_12V, _STS_NOLOAD_12V
 V_ROBOT = 12.0                        # the servos' bus volts on the board (flight 2026-11-03)

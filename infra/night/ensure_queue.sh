@@ -11,7 +11,7 @@ N=${NIGHT_DIR:-$HOME/code/robot-mjx/night}   # NIGHT_DIR / NO_NOTIFY: for testin
 Q=$N/queue
 FB=$N/fallback.job
 MIN_JOBS=5
-TOM=mattermost:xhtnq11nhjn1jpytz1sj4zzimr
+NOTIFY_CMD=${NOTIFY_CMD:-$HOME/code/claude-runs/bin/notify-tom}   # Tom via the Claude app (Mattermost fallback); no Hermes (Tom 2026-11-19)
 # Tom 2026-11-02: DM notifications OFF while Claude Code manages the sims;
 # re-enable with NIGHT_DM_NOTIFY=1 (NO_NOTIFY still wins)
 NOTIFY=$( [[ ${NIGHT_DM_NOTIFY:-} == 1 && -z ${NO_NOTIFY:-} ]] && echo 1 || echo 0 )
@@ -33,7 +33,7 @@ fi
 if [[ ! -s $FB ]]; then
   echo "!!! no $FB to top up from"
   if (( NOTIFY )); then
-    "$HOME/.local/bin/hermes" send -q -t "$TOM" \
+    "$NOTIFY_CMD" \
       "Get-up loop: only $have job(s) queued for tonight and no fallback.job -- the GPU will idle after them." || true
   fi
   exit 1
@@ -62,6 +62,6 @@ while (( have < MIN_JOBS )); do
 done
 echo "queued ${added[*]}"
 if (( NOTIFY )); then
-  "$HOME/.local/bin/hermes" send -q -t "$TOM" \
+  "$NOTIFY_CMD" \
     "Get-up loop: the planner left the night short; ensure_queue.sh added ${#added[@]} fallback job(s): ${added[*]}" || true
 fi

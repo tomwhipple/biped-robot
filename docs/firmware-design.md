@@ -14,7 +14,7 @@ wire protocol is [control-channel.md](control-channel.md); electrical is
   mechanical envelope, `pose`/`home`, the readback, the gain check, the
   telemetry joint block and the SIL arrays are all 17 wide;
 - the **policy joint set** is what the compiled policy observes and commands:
-  the v6 legs' 12 joints (6 per leg, plant `sim/bimo_biped_v6legs.xml`),
+  the v6 legs' 12 joints (6 per leg, plant `build/v6/sim/bimo_biped_v6legs.xml`),
   policy `robot_legs_walk16_act_s128r24`.
 
 The legs-only robot carries 12 servos, and its calibration marks the neck and
@@ -34,7 +34,8 @@ The board runs the robot. Every 20 ms (50 Hz) the control task `ctrl`
    1 Mbaud servo bus;
 3. takes the latest attitude and the tick-averaged gyro from the 250 Hz IMU
    sampler;
-4. updates the pack guard (from servo register 62) and the fall latch;
+4. updates the pack guard (the lower of servo register 62 and the INA219's
+   pack voltage) and the fall latch;
 5. if any safety state says limp — pack latched off, fallen, link `RELAX`,
    `ESTOP` — releases torque, reports, and stops there;
 6. otherwise assembles the observation exactly as the simulator defines it,
@@ -80,12 +81,39 @@ below are enough and Rust is not needed.
 | board | Waveshare **General Driver for Robots** rev 1.2; ESP32-D0WD-V3 rev 3.1, dual LX6 at 240 MHz, 4 MB flash, no PSRAM; partition table `firmware/partitions.csv` (a 3 MB app, NVS at the stock 0x9000) |
 | servo bus | UART1, **GPIO 18 RX / GPIO 19 TX**, 1 Mbaud 8N1; half-duplex direction switched in hardware off the TX line (no direction GPIO). Feetech STS3215, ST protocol (little-endian) |
 | host link | UART0 at 115200 over the CP2102N on the USB-C port silkscreened `USB`. The port silkscreened `LIDAR` is a second bridge that enumerates but never flashes |
-| I²C | **GPIO 32 SDA / 33 SCL** at 400 kHz, also on header P1. QMI8658C IMU at 0x6B (used); AK09918C magnetometer at 0x0C (unused: beside the servos it measures their current, not north); BMP280 at 0x77 on the schematic (did not answer the bench scan; unused); INA219 power monitor at 0x42 (unused). 0x4A/0x4B are reserved for a BNO085 on P1 |
-| pack voltage | servo register 62 (0.1 V), from the first servo that answers each tick. The INA219 sees the pack ahead of the buck but is not read yet (§8) |
-| RGB LED | GPIO 4, header H2 |
+| I²C | **GPIO 32 SDA / 33 SCL** at 400 kHz, also on header P1. QMI8658C IMU at 0x6B (used); AK09918C magnetometer at 0x0C (unused: beside the servos it measures their current, not north); BMP280 at 0x77 on the schematic (did not answer the bench scan; unused); INA219 power monitor at 0x42 (the pack voltage, below). 0x4A/0x4B are reserved for a BNO085 on P1 |
+| pack voltage | two senses. Servo register 62 (0.1 V), from the first servo that answers each armed tick. The INA219 (0x42, 4 mV): the pack at the buck's `VIN`, read at 10 Hz by `housekeeping` in both modes, independent of the servo bus ("The pack sense" below) |
+| power lite (a build option, §5.6) | IO16 `SERVO_EN` (P3, output), IO4 `ESTOP_N` (H2, input with the pull-up), GPIO34 `RAIL_V` (H3, ADC1 at 11 dB). Without the board, GPIO 4 is H2's WS2812 net; nothing in the firmware drives it |
 | OLED, RTC | none; wall-clock time comes from SNTP ([control-channel.md](control-channel.md#time-on-the-wire)) |
 
 `imu scan` lists what answers on the I²C bus.
+
+### The pack sense
+
+The INA219 shares the I²C bus with the IMU (one mutex, `imu/qmi8658.h`
+`devRead`). Its read is kept off the control loop and bounded
+(`main/pack_sense.cpp`, the pure half in `battguard/pack.h`):
+
+- **Not on core 1.** `housekeeping` reads it; `ctrl` loads two atomics
+  (`g_pack_mv`, and `g_pack_reads`, whose count tells it the reading is fresh).
+- **One register, 10 Hz.** The bus-voltage register (2 bytes): about 0.15 ms
+  on the 400 kHz bus. The 250 Hz sampler waits that out at most once in 25
+  samples, inside its 4 ms period. The chip needs no calibration for the bus
+  voltage; at attach the firmware reads its configuration and resets it only
+  if its mode does not convert the bus continuously (a power-down or
+  triggered chip would repeat one old reading).
+- **Bounded waits.** The lock wait and the transfer each give up after 5 ms.
+- **A missing chip costs nothing.** Three failures in a row (a NAK, a
+  timeout, a reading over 16 V) make it missing: then one try every 2 s.
+- **Unknown, never stale.** No good read for 1 s is 0, "no reading", in the
+  beacon and to the guard; `ctrl` also treats a read count that has not moved
+  for 50 ticks as none, so a blocked `housekeeping` cannot hand the guard an
+  old value.
+- **One device handle.** It is made once and kept across failed reads (no
+  allocation per retry). `imu reinit` deletes the bus, so the handle is
+  removed first, under the bus lock and checked (a refusal keeps the handle
+  and the reinit is not done), and re-made on the next read. Both run on
+  `housekeeping`.
 
 ### The IMU
 
@@ -150,7 +178,7 @@ Also:
 | `wifi_link` | 0 | 5 | UDP command frames in on 4210; the 10 Hz telemetry beacon out on 4211 |
 | `imu` | 0 | 4 | the 250 Hz IMU sampler and fusion |
 | `flightrec` | 0 | 3 | drains the flight recorder's two rings to UDP 4220, 1 Hz hello ([flight-recorder.md](flight-recorder.md)) |
-| `housekeeping` | 0 | 2 | the CLI (tether and Wi-Fi lines, one queue), arm and home requests, the home readback, pose streaming, the bench flight-recorder read, UART telemetry, the observation dump |
+| `housekeeping` | 0 | 2 | the CLI (tether and Wi-Fi lines, one queue), arm and home requests, the home readback, pose streaming, the bench flight-recorder read, the INA219's pack voltage (10 Hz), UART telemetry, the observation dump |
 | `wcli` | 0 | 1 | the authenticated Wi-Fi CLI's socket on UDP 4213: authenticates, queues lines for `housekeeping`, sends their output ([wifi-cli.md](wifi-cli.md)). Lowest on purpose: a datagram flood can starve only this task |
 
 The WiFi/LwIP tasks stay on core 0 (IDF default), so nothing they do can
@@ -235,7 +263,7 @@ graph LR
 | `components/obs/` | observation assembler, history ring, gait clock, action ↔ angle ↔ tick maps, `Calibration`, `CommandShaper`, `MotionLimiter`, goal speed, velocity estimator; the bus joint map `bus_map.h` (hand-written) and the policy spec `obs_spec.h` (generated) | vectors from real `walker_env._obs()` frames; the bus map |
 | `components/policy/` | static MLP forward pass. `weights.h` is generated | numpy golden vectors |
 | `components/imu/` | `Imu` interface, frame maths and `Fusion` (pure); `qmi8658_idf.cpp`, the only file with I²C in it; `StubImu` | frame maths + fusion |
-| `components/battguard/` | pack under-voltage guard | yes |
+| `components/battguard/` | pack under-voltage guard; the INA219's register decode, read schedule and freshness, and how its reading joins register 62 (`pack.h`) | yes |
 | `components/balance/` | the stance-leg roll PI behind the bench `pose ... B<L\|R>`, and the stance-hip trim behind `pose ... S<L\|R>` (§5.6) | yes, pinned to the sim twins |
 | `components/gaitplay/` | the gait track behind `track`: rolling keyframe queue, interpolation, stop/rest, the phase → support-state map (§5.6) | yes, plus the SIL harness `host/sil_gait.cpp` |
 | `components/fallguard/` | the one fall detector + pick-up rule both paths run (armed: 45 deg / 200 ms; bench: 30 deg / 100 ms; §5.6 "Fall guard") | yes, incl. the armed-to-bench hand-over |
@@ -425,11 +453,21 @@ p += v dt
 ### 5.5 Modes, arming and handover
 
 - **Two modes, one bus owner, no lock.** `kBench` (boot default): torque
-  released, the CLI owns the bus, `ctrl` only drains the mailbox and keeps
-  the IMU filter warm. `kRun`: `ctrl` owns the bus and bus-touching CLI
-  commands are refused. The mode changes only between ticks; going to bench,
-  `ctrl` releases torque and clears `g_ctrl_owns_bus` before the CLI may
-  touch the bus.
+  released, the CLI owns the bus, `ctrl` only drains the mailbox, keeps
+  the IMU filter warm and feeds the pack guard. `kRun`: `ctrl` owns the bus
+  and bus-touching CLI commands are refused. The mode changes only between
+  ticks; going to bench, `ctrl` releases torque and clears `g_ctrl_owns_bus`
+  before the CLI may touch the bus.
+- **The pack guard watches the bench too.** Benched, `ctrl` feeds it the
+  INA219's reading alone (the bench's register 62 is one servo once a second,
+  and none with power lite's rail off). Nothing moves on a trip, which goes
+  straight to `VSAFE` (`Guard::benchUpdate`: no crouch to ride, so no 1.5 s
+  landing in which the refusals do not yet hold); the latch
+  refuses `rail on` and `home`, a hold that comes upright and still is
+  released instead of homed (no home on a flat pack), and an arm goes limp
+  at once
+  (power lite: the rail drops, `RAIL_DOWN`). `ctrl` is the guard's one writer
+  in both modes, so `batt reset` is a request it applies on its next tick.
 - **One decision point.** `cmdMode()`, on the housekeeping task, decides every
   mode request: a typed `run`/`bench` and a wireless ARM edge alike. It
   refuses `run` without an as-built calibration from NVS, or unless every
@@ -462,15 +500,29 @@ p += v dt
 
 ### 5.6 Failsafes
 
+**With power lite** (`BIMO_POWER_LITE`; [power-lite README](../pcb/power-lite/README.md),
+"The firmware"; `components/railguard`, `main/power_rail.h`), the servos have power
+only between an arm and the next limp. The rail is stepped first, at the top of every
+tick in both modes, and a rail that is down benches the loop on that tick. A limp in
+this list (the pack guard, the fall latch, RELAX, a link `ESTOP`) or a hard operator
+stop also opens the relay and ends the run: `DISARMED_FALL`, `DISARMED_STOP` or
+`RAIL_DOWN`. A hold (the flail guard, a soft stop) keeps the rail with its torque until
+the bench home that follows has released it. Without the option none of this exists.
+
 In the order the tick applies them:
 
 1. **Pack guard** (`components/battguard`). The only over-discharge
-   protection: the pack has none, and the servos' own under-voltage flag
-   trips near 6 V. On 3S it warns at 10.5 V and lands at 9.9 V held for 25
-   ticks (0.5 s): travel commands go to zero and crouch ramps to 0.60 (the
-   lowest trained stance) over 1.5 s (`VLAND`), then torque goes off
+   protection: the pack has none, power lite's BMS has no under-voltage
+   cut-off, and the servos' own under-voltage flag trips near 6 V. Its input
+   each tick is the lower of servo register 62 and the INA219's pack voltage
+   (truncated to 0.1 V: on it, warn below 10.6 V and land below 10.0 V), or
+   whichever of the two there is
+   (`battguard::inputDv`). On 3S it warns at 10.5 V and lands at 9.9 V held
+   for 25 ticks (0.5 s): travel commands go to zero and crouch ramps to 0.60
+   (the lowest trained stance) over 1.5 s (`VLAND`), then torque goes off
    (`VSAFE`), latched until `batt reset` (bench only, after a pack swap) or a
-   power cycle. A tick with no servo reply is "no data", never 0 V.
+   power cycle. A tick with neither reading is "no data", never 0 V. It runs
+   benched too, on the INA219 alone (§5.5 has what a latch does there).
    Thresholds and the power path: [wiring.md](wiring.md).
 2. **Fall latch** (`components/fallguard`, shared with the bench path; see
    "Fall guard" below). Torso tilt past 45 deg (`up_z` < 0.707) for 200 ms:
@@ -1026,10 +1078,11 @@ SIL scorecard, float vs int8 through the firmware stack, is recorded in
 - **SIL.** The same component sources are linked into `libctrl_sil` and run
   against the CPU plant, scored by the same referee
   ([sil-harness.md](sil-harness.md)).
-- **Deploy.** `make -C firmware/host deploy-headers RUN=<run>` regenerates
-  `obs_spec.h` and `weights.h` (and their vectors) together, from one run;
-  then `make -C firmware/host test`, `idf.py -C firmware build`, flash. The
-  path from a trained run to the flash is [training.md](training.md) §9.
+- **Deploy.** `make deploy RUN=<run>` puts one run's inputs in
+  `firmware/deployed/`; `make policy` generates `obs_spec.h`, `weights.h` and
+  `cmd_envelope.h` (and their vectors) together from them, into
+  `build/policy/<set>/`. Then `make host`, `make firmware`, flash. The path
+  from a trained run to the flash is [training.md](training.md) §9.
 - **On the robot**: bring-up order and checks are
   [bringup.md](bringup.md).
 
@@ -1074,9 +1127,10 @@ joint all look the same from outside. `obsdump` measures them.
   ships.
 - **Gait base frequency.** Fixed per policy (`kGaitFreqHz`), speed-scaled
   (§5.1). A commanded frequency is not on the wire.
-- **Pack sense.** `battguard` reads register 62 (0.1 V, and only while a
-  servo answers). The INA219 sees the pack even with the bus released;
-  switching to it is not done.
+- **The INA219 on the robot.** Its reading against a meter at the pack and
+  against register 62, benched and under load, is not measured yet; nor is
+  how far the Pi's load sags `VIN` below the pack. `batt pack off` takes it
+  out of the guard if it misreads.
 - **Telemetry gaps.** The firmware does not estimate `vx_est`/`wz_est` (it
   sends 0).
 - **Idle torque-off** while standing still is not implemented. Powered

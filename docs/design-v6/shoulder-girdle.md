@@ -274,7 +274,7 @@ Unchanged in kind, shorter in practice:
 
 | what | where |
 |---|---|
-| the part | `cad/v6/shoulder_girdle_v6.py` → `cad/v6/stl/`, `build/v6/step/` |
+| the part | `cad/v6/shoulder_girdle_v6.py` → `build/v6/stl/`, `build/v6/step/` |
 | whole robot with arms, STEP for FreeCAD | `build/v6/step/assembly_v6_arms.step` (`make assembly`) |
 | whole robot, three views | [`docs/img/assembly_v6_arms.png`](../img/assembly_v6_arms.png) |
 | the girdle alone | [`docs/design-v6/figs/shoulder_girdle_v6.png`](figs/shoulder_girdle_v6.png) |

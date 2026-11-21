@@ -3,7 +3,7 @@
 //
 // link/wcliproto.py is the REFERENCE for the wire format; this file conforms
 // to it byte for byte, and tools/gen_wcli_vectors.py freezes the Python
-// side's output into host/vectors/wcli_vectors.h so a divergence is a failing
+// side's output into build/host/vectors/wcli_vectors.h so a divergence is a failing
 // host test, not a mystery on the bench (the linkproto convention).
 //
 // Everything here is pure -- no sockets, no clock, no RNG, no FreeRTOS: the

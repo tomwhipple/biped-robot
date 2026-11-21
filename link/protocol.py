@@ -80,13 +80,27 @@ TLM_LEN_EXT = TLM_LEN + 2 * NUM_JOINTS              # 65
 # frame, but alone it is only the tilt MAGNITUDE -- how far from upright,
 # never which way. Requested with FLAG_ATT, for the same reason FLAG_POSE
 # exists. Four lengths, unambiguous because every block is fixed size:
-# 31 base, 35 +att, 65 +joints, 69 +joints+att.
+# 31 base, 35 +att, 65 +joints, 69 +joints+att (and each of them +6 with the
+# power block below).
 # Firmware reference: linkproto::kTlmLenAtt / kTlmLenExtAtt.
 TLM_ATT_BYTES = 4
 TLM_LEN_ATT = TLM_LEN + TLM_ATT_BYTES
 TLM_LEN_EXT_ATT = TLM_LEN_EXT + TLM_ATT_BYTES
+# POWER (issue #109): the battery's state, appended LAST, after the attitude
+# pair. Requested with FLAG_PWR, for the reason FLAG_POSE exists. Six bytes:
+#   u16 pack_mv  the pack voltage from the board's INA219 (0x42, across R11 on
+#                DC_IN -> VIN), mV; read off the I2C bus, so it does not depend
+#                on the servo bus. 0 = no reading (no chip, stale, or off).
+#   u8  batt     battguard's level: 0 ok, 1 warn, 2 landing, 3 safe (latched)
+#   u8  flags    PWR_* below
+#   u16 rail_mv  power lite's RAIL_V (SERVO+), mV; 0 unless PWR_LITE and
+#                PWR_RAIL_VALID
+# Six, so every length stays unambiguous: 37, 41, 71, 75 with the block.
+# Firmware reference: linkproto::kTlmPwrBytes / kTlmLenPwr*.
+TLM_PWR_BYTES = 6
+_TLM_LENS_NO_PWR = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
 # Every length a decoder accepts.
-TLM_LENS = (TLM_LEN, TLM_LEN_ATT, TLM_LEN_EXT, TLM_LEN_EXT_ATT)
+TLM_LENS = _TLM_LENS_NO_PWR + tuple(n + TLM_PWR_BYTES for n in _TLM_LENS_NO_PWR)
 # recvfrom() size for every telemetry receiver. UDP truncates silently, so +1:
 # an oversize datagram then arrives oversize and is refused, never cut back to
 # a valid length. The C++ consoles' twin: link/client.cpp Link::poll.
@@ -127,6 +141,18 @@ FLAG_ATT = 1 << 5
 # on, run ended, the bench homes it). A level: repeats are harmless. Firmware
 # reference: linkproto::kFlagStop (protocol.h has the long form).
 FLAG_STOP = 1 << 6
+# "Beacon the power block too" (issue #109) -- a LEVEL, like FLAG_POSE and
+# FLAG_ATT. Requests telemetry, commands nothing. The last free bit: a new
+# request after this one needs a block of its own design, not a flag.
+FLAG_PWR = 1 << 7
+
+# The power block's flag bits (Power.flags).
+PWR_LITE = 1 << 0          # a power-lite image: the bits below and rail_mv mean something
+PWR_SERVO_EN = 1 << 1      # SERVO_EN (IO16) is high: the rail is asked for
+PWR_ESTOP = 1 << 2         # ESTOP_N (IO4) reads stop (pressed, or never seen low)
+PWR_ESTOP_LATCHED = 1 << 3  # the E-stop latch stands (railguard)
+PWR_RAIL_VALID = 1 << 4    # rail_mv is a reading
+PWR_GUARD_PACK = 1 << 5    # battguard is taking pack_mv this tick (else servos only)
 
 # -- timing ----------------------------------------------------------------
 # 20 Hz is ~2 orders of magnitude more command bandwidth than intent actually
@@ -143,14 +169,19 @@ SEQ_RESYNC_GAP = 1000
 
 # -- trained command envelope ----------------------------------------------
 # The envelope is the deployed policy's, GENERATED from its run's config.json
-# by tools/gen_envelope.py (`make deploy RUN=...`) into link/cmd_envelope.py
-# and linkproto/cmd_envelope.h; never edited here. $BIMO_POLICY=<profile>
-# selects that profile's twin (firmware/policies/<profile>/linkproto/), as
-# for sim/sil/harness.py. The policy has only ever seen a stand (0,0), a walk
+# by tools/gen_envelope.py (`make policy`, or `make envelope` for just this)
+# into build/policy/deployed/linkproto/cmd_envelope.py beside the firmware's
+# cmd_envelope.h; never edited here. $BIMO_POLICY=<profile> selects that
+# profile's twin (build/policy/<profile>/linkproto/), as for
+# sim/sil/harness.py. The policy has only ever seen a stand (0,0), a walk
 # with vx in [V_FWD_MIN, V_FWD_MAX] or [-V_BACK_MAX, -V_BACK_MIN], a sidestep
 # with |vy| in [VY_MIN, VY_MAX], and turns |wz| <= W_MAX; a speed in the hole
 # under a band's minimum is an out-of-distribution query, not a slow walk.
 # clamp_to_envelope() closes that hole by snapping; see also sources.py.
+#
+# Loaded on first use, not at import: a tool that never clamps a command
+# (tools/estop.py, the arm script) must import this module on a checkout
+# that has not run `make` yet.
 class Envelope(NamedTuple):
     """Magnitudes, >= 0. A band that was never trained is (0, 0)."""
     v_fwd_min: float
@@ -168,28 +199,55 @@ def load_envelope(mod) -> "Envelope":
     return Envelope(*(getattr(mod, f.upper()) for f in Envelope._fields))
 
 
-def _import_envelope():
-    profile = os.environ.get("BIMO_POLICY") or None
-    if profile is None:
-        import cmd_envelope
-        return cmd_envelope
-    if not re.fullmatch(r"[a-z0-9_]+", profile):
+def envelope_path(profile=None) -> str:
+    """build/policy/<set>/linkproto/cmd_envelope.py (tools/policy_profile.py
+    files()["envelope_py"]; this module stays stdlib-only, so it is spelled
+    out here)."""
+    if profile is not None and not re.fullmatch(r"[a-z0-9_]+", profile):
         raise ValueError("BIMO_POLICY %r: lower-case letters, digits, _" % profile)
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
-        __file__))), "firmware", "policies", profile, "linkproto",
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
+        __file__))), "build", "policy", profile or "deployed", "linkproto",
         "cmd_envelope.py")
+
+
+def _import_envelope():
+    path = envelope_path(os.environ.get("BIMO_POLICY") or None)
+    if not os.path.exists(path):
+        raise ImportError(
+            "%s is missing: the command envelope is generated from the "
+            "deployed run (firmware/deployed/). Run `make envelope` (or "
+            "`make policy`) at the repo root." % path)
     spec = importlib.util.spec_from_file_location("cmd_envelope", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-ENVELOPE = load_envelope(_import_envelope())
-V_FWD_MIN, V_FWD_MAX = ENVELOPE.v_fwd_min, ENVELOPE.v_fwd_max
-V_BACK_MIN, V_BACK_MAX = ENVELOPE.v_back_min, ENVELOPE.v_back_max
-VY_MIN, VY_MAX = ENVELOPE.vy_min, ENVELOPE.vy_max
-W_MAX = ENVELOPE.w_max
-CROUCH_MIN = ENVELOPE.crouch_min
+_ENVELOPE = None
+_ENVELOPE_NAMES = {"ENVELOPE": None,
+                   "V_FWD_MIN": "v_fwd_min", "V_FWD_MAX": "v_fwd_max",
+                   "V_BACK_MIN": "v_back_min", "V_BACK_MAX": "v_back_max",
+                   "VY_MIN": "vy_min", "VY_MAX": "vy_max",
+                   "W_MAX": "w_max", "CROUCH_MIN": "crouch_min"}
+
+
+def envelope() -> "Envelope":
+    """The selected policy's envelope, loaded once."""
+    global _ENVELOPE
+    if _ENVELOPE is None:
+        _ENVELOPE = load_envelope(_import_envelope())
+    return _ENVELOPE
+
+
+def __getattr__(name):
+    # ENVELOPE, V_FWD_MIN ... CROUCH_MIN: module attributes resolved on first
+    # use (PEP 562), so `from protocol import V_FWD_MAX` still works.
+    if name in _ENVELOPE_NAMES:
+        f = _ENVELOPE_NAMES[name]
+        return envelope() if f is None else getattr(envelope(), f)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
+
 # not from a run's config: the swing-foot offsets are scripted, not drawn
 FOOT_D_MAX = 0.05          # traj_radius hi: air-circle/march foot offsets, m
 
@@ -275,7 +333,7 @@ class ArmResult(Enum):
     # The robot reads registers 21/22 back before every arm and refuses on
     # any difference from its compiled expected table.
     REFUSED_GAINS = 10   # arm refused: a servo's P/D (reg 21/22) is not the expected value
-    # A policy profile (firmware/policies/) can compile in an UNTRAINED test
+    # A policy profile (tools/policy_profile.py) can compile in an UNTRAINED test
     # net while its plant has no deployable policy; the robot will not drive
     # servos with it.
     REFUSED_POLICY = 11  # arm refused: the compiled-in net is not a policy
@@ -287,6 +345,10 @@ class ArmResult(Enum):
     # An operator stop (FLAG_STOP) ended the run: torque released (hard) or
     # held where it was (soft).
     DISARMED_STOP = 13
+    # Power lite: the servo rail is off and that is the answer. An arm or a reset
+    # refused (E-stop pressed or latched, a rail fault), or a run ended by the rail
+    # going (E-stop, rail fault, link loss, pack guard). Only a power-lite image sends it.
+    RAIL_DOWN = 14
 
 
 def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
@@ -296,7 +358,8 @@ def pack_diag(run: bool, cal_ok: bool, result: ArmResult) -> int:
 
 HOME_RESULTS = (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
                 ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
-                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED)
+                ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED,
+                ArmResult.RAIL_DOWN)
 
 
 def is_home_result(r) -> bool:
@@ -359,6 +422,10 @@ def diag_reason(diag: int) -> str:
     if r is ArmResult.DISARMED_STOP:
         return ("disarmed -- operator STOP (tools/estop.py): run ended; "
                 "re-arm deliberately (ARM edge or run)")
+    if r is ArmResult.RAIL_DOWN:
+        return ("servo rail OFF, so no arm or reset -- E-stop, rail fault, "
+                "link loss or pack guard (`stat` says which); RUN, then "
+                "disarm, then arm")
     if r is ArmResult.ACCEPTED:
         return ("armed -- the control loop is running" if diag & DIAG_RUN
                 else "disarmed on request -- press arm to run")
@@ -415,6 +482,50 @@ class Command(NamedTuple):
         """An operator stop (FLAG_STOP): out of band, see the flag."""
         return bool(self.flags & FLAG_STOP)
 
+    @property
+    def pwr(self) -> bool:
+        """"Beacon the power block too" -- a level, like `pose`."""
+        return bool(self.flags & FLAG_PWR)
+
+
+class BattLevel(Enum):
+    """battguard::Level, on the wire as its value."""
+    OK = 0
+    WARN = 1               # at or below 10.5 V: land it yourself
+    LANDING = 2            # confirmed flat: crouching under control, then limp
+    SAFE = 3               # latched, torque off
+
+
+class Power(NamedTuple):
+    """The power block (FLAG_PWR; issue #109). Integers, as on the wire."""
+    pack_mv: int           # INA219 pack voltage, mV; 0 = no reading
+    batt: int              # battguard level (BattLevel value)
+    flags: int             # PWR_* bits
+    rail_mv: int = 0       # power lite's RAIL_V, mV
+
+    @property
+    def pack_v(self):
+        """Pack volts, or None without a reading."""
+        return self.pack_mv / 1000.0 if self.pack_mv else None
+
+    @property
+    def level(self):
+        """The BattLevel, or None for a value from a newer firmware."""
+        try:
+            return BattLevel(self.batt)
+        except ValueError:
+            return None
+
+    @property
+    def lite(self) -> bool:
+        return bool(self.flags & PWR_LITE)
+
+    @property
+    def rail_v(self):
+        """RAIL_V in volts, or None (not power lite, or no reading)."""
+        ok = self.flags & PWR_LITE and self.flags & PWR_RAIL_VALID
+        return self.rail_mv / 1000.0 if ok else None
+
 
 class Telemetry(NamedTuple):
     seq_echo: int          # last command seq the robot applied
@@ -448,6 +559,8 @@ class Telemetry(NamedTuple):
     # and this robot's heading is dead-reckoned, so they give a lean direction
     # in a slowly rotating frame -- an attitude to draw, not a heading.
     up_xy: tuple = ()
+    # The power block (Power), or None unless a commander asked with FLAG_PWR.
+    pwr: "Power" = None
 
     @property
     def diag(self) -> int:
@@ -515,7 +628,7 @@ def clamp_to_envelope(vx: float, wz: float, env: "Envelope" = None) -> tuple:
     Enforced robot-side (not just at the source) because the robot is the one
     that eats a bad command, and we do not control every future sender.
     """
-    env = ENVELOPE if env is None else env
+    env = envelope() if env is None else env
     wz = max(-env.w_max, min(env.w_max, wz))
     # The untrained band under a minimum: snap to a stand rather than
     # interpolate into it; a turn-in-place (vx=0, wz!=0) IS trained, so wz
@@ -530,7 +643,7 @@ def clamp_ext_to_envelope(pkt: "Command", env: "Envelope" = None) -> tuple:
     """The extended channels, snapped into their trained draws.
 
     Returns (vy, crouch, lift, foot_dx, foot_dz)."""
-    env = ENVELOPE if env is None else env
+    env = envelope() if env is None else env
     vy = _clamp_band(abs(pkt.vy), env.vy_min, env.vy_max)
     return (-vy if pkt.vy < 0.0 and vy else vy,
             max(env.crouch_min, min(1.0, pkt.crouch)),
@@ -598,6 +711,13 @@ def encode_telemetry(t: Telemetry) -> bytes:
         if len(t.up_xy) != 2:
             raise ProtocolError(f"up_xy is {len(t.up_xy)} long, want 2")
         body += struct.pack("<2h", *(_milli(v) for v in t.up_xy))
+    if t.pwr is not None:
+        p = t.pwr
+        for name, v, top in (("pack_mv", p.pack_mv, 0xFFFF), ("batt", p.batt, 0xFF),
+                             ("flags", p.flags, 0xFF), ("rail_mv", p.rail_mv, 0xFFFF)):
+            if not 0 <= v <= top:
+                raise ProtocolError(f"power {name} {v} out of range")
+        body += struct.pack("<HBBH", p.pack_mv, p.batt, p.flags, p.rail_mv)
     return body + struct.pack("<H", crc16_ccitt(body))
 
 
@@ -616,25 +736,32 @@ def decode_telemetry(buf: bytes) -> Telemetry:
         raise ProtocolError("CRC mismatch")
     if state >= len(_TLM_STATES):
         raise ProtocolError(f"unknown link state {state}")
-    # Length selects the layout: joints on the two long lengths, the
-    # attitude pair on the two +att ones.
+    # Length selects the layout: the power block on the six +pwr lengths,
+    # then, of what is left, joints on the two long lengths and the attitude
+    # pair on the two +att ones.
+    pwr_len = len(buf) not in _TLM_LENS_NO_PWR
+    n = len(buf) - TLM_PWR_BYTES if pwr_len else len(buf)
     at = _TLM_TIME_OFF
     (t_us,) = struct.unpack("<Q", buf[at:at + 8])
     at += 8
     joints = ()
-    if len(buf) in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
+    if n in (TLM_LEN_EXT, TLM_LEN_EXT_ATT):
         joints = tuple(v / 1000.0 for v in
                        struct.unpack(f"<{NUM_JOINTS}h",
                                      buf[at:at + 2 * NUM_JOINTS]))
         at += 2 * NUM_JOINTS
     up_xy = ()
-    if len(buf) in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
+    if n in (TLM_LEN_ATT, TLM_LEN_EXT_ATT):
         up_xy = tuple(v / 1000.0 for v in struct.unpack("<2h", buf[at:at + 4]))
+        at += TLM_ATT_BYTES
+    pwr = None
+    if pwr_len:
+        pwr = Power(*struct.unpack("<HBBH", buf[at:at + TLM_PWR_BYTES]))
     return Telemetry(seq_echo=seq, state=_TLM_STATES[state],
                      vbat_v=vbat_mv / 1000.0, up_z=up_z / 1000.0,
                      vx_est=vx / 1000.0, wz_est=wz / 1000.0,
                      servo_err=err, loop_late_pct=late, joints=joints,
-                     t_us=t_us, up_xy=up_xy)
+                     t_us=t_us, up_xy=up_xy, pwr=pwr)
 
 
 # -- robot-side supervisor -------------------------------------------------

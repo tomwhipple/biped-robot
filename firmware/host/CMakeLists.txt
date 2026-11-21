@@ -12,19 +12,29 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(COMPONENTS ${CMAKE_CURRENT_SOURCE_DIR}/../components)
 
-# The policy profile, as the Makefile's POLICY (tools/policy_profile.py):
-# empty builds the deployed policy; a name builds firmware/policies/<name>/'s,
-# first on the include path. One profile per build directory.
+# The policy set, as the Makefile's POLICY (tools/policy_profile.py): empty
+# builds the deployed policy; a name builds that policy profile. Their headers
+# are generated into the repo's build/policy/<set>/ (`make policy` at the repo
+# root), and the protocol vectors into build/host/vectors/ (`make vectors`).
+# One profile per build directory.
 set(BIMO_POLICY "" CACHE STRING
-    "policy profile under firmware/policies/ (empty: the deployed policy)")
+    "policy profile in firmware/deployed/policies.txt (empty: the deployed policy)")
+set(BIMO_GEN ${CMAKE_CURRENT_SOURCE_DIR}/../../build)
 if(BIMO_POLICY)
-    set(BIMO_POLICY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../policies/${BIMO_POLICY})
-    if(NOT EXISTS ${BIMO_POLICY_DIR}/obs/obs_spec.h)
-        message(FATAL_ERROR "BIMO_POLICY=${BIMO_POLICY}: no "
-                "${BIMO_POLICY_DIR}/obs/obs_spec.h")
+    set(BIMO_POLICY_DIR ${BIMO_GEN}/policy/${BIMO_POLICY})
+else()
+    set(BIMO_POLICY_DIR ${BIMO_GEN}/policy/deployed)
+endif()
+foreach(_gen ${BIMO_POLICY_DIR}/obs/obs_spec.h
+             ${BIMO_GEN}/host/vectors/protocol_vectors.h)
+    if(NOT EXISTS ${_gen})
+        message(FATAL_ERROR "${_gen} is missing: it is generated -- run "
+                "`make policy vectors` at the repo root")
     endif()
+endforeach()
+include_directories(BEFORE ${BIMO_POLICY_DIR})
+if(BIMO_POLICY)
     string(TOUPPER "${BIMO_POLICY}" _bimo_policy_uc)
-    include_directories(BEFORE ${BIMO_POLICY_DIR})
     add_compile_definitions(BIMO_POLICY_OVERLAY
                             BIMO_POLICY_PROFILE_${_bimo_policy_uc})
 endif()
@@ -39,6 +49,7 @@ set(SAN_LINK -fsanitize=address,undefined)
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${BIMO_GEN}/host
     ${COMPONENTS}/scsbus/include
     ${COMPONENTS}/linkproto/include
     ${COMPONENTS}/obs/include
@@ -47,6 +58,7 @@ include_directories(
     ${COMPONENTS}/battguard/include
     ${COMPONENTS}/fallguard/include
     ${COMPONENTS}/flailguard/include
+    ${COMPONENTS}/railguard/include
     ${COMPONENTS}/balance/include
     ${COMPONENTS}/gaitplay/include
     ${COMPONENTS}/flightrec/include
@@ -101,7 +113,8 @@ bimo_test(test_obs test_obs.cpp
 bimo_test(test_policy test_policy.cpp ${COMPONENTS}/policy/mlp.cpp
           ${COMPONENTS}/policy/q8.cpp)
 
-bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp)
+bimo_test(test_battguard test_battguard.cpp ${COMPONENTS}/battguard/guard.cpp
+          ${COMPONENTS}/battguard/pack.cpp)
 
 bimo_test(test_roll_pi test_roll_pi.cpp ${COMPONENTS}/balance/roll_pi.cpp)
 
@@ -113,6 +126,8 @@ bimo_test(test_lift_gate test_lift_gate.cpp ${COMPONENTS}/gaitplay/lift_gate.cpp
 bimo_test(test_fallguard test_fallguard.cpp ${COMPONENTS}/fallguard/fallguard.cpp)
 
 bimo_test(test_flailguard test_flailguard.cpp ${COMPONENTS}/flailguard/flailguard.cpp)
+
+bimo_test(test_railguard test_railguard.cpp ${COMPONENTS}/railguard/railguard.cpp)
 
 # The flight recorder's wire format, against vectors from tools/flightrec.py.
 bimo_test(test_flightrec test_flightrec.cpp ${COMPONENTS}/flightrec/record.cpp)
@@ -150,15 +165,13 @@ bimo_test(test_sil test_sil.cpp ${SIL_SRC} ${SIL_DEPS})
 bimo_test(test_sil_golden test_sil_golden.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/sil_net.cpp ${SIL_DEPS})
 
-# ctest runs from the build directory; test_sil_golden walks upwards looking
-# for sim/sil/golden, and test_sil writes its fixtures into the cwd.
+# ctest runs from the build directory; test_sil writes its fixtures into the
+# cwd. test_sil_golden reads the set's own golden files (the Makefile's
+# GOLDEN_ENV).
 set_tests_properties(test_sil test_sil_golden PROPERTIES
                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-if(BIMO_POLICY)
-    # the profile's own vectors (the Makefile's GOLDEN_ENV)
-    set_tests_properties(test_sil_golden PROPERTIES ENVIRONMENT
-        "SIL_GOLDEN_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../../sim/sil/golden/${BIMO_POLICY}")
-endif()
+set_tests_properties(test_sil_golden PROPERTIES ENVIRONMENT
+    "SIL_GOLDEN_DIR=${BIMO_POLICY_DIR}/golden")
 
 # The dylib/so python loads with ctypes. NO SANITIZERS, deliberately: an
 # ASan-instrumented shared library dlopen()ed into a stock python aborts with

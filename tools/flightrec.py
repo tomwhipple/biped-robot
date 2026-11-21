@@ -7,7 +7,7 @@ an edge) or a HELLO (~1 Hz: firmware, calibration, counters). Little-endian,
 float32. docs/flight-recorder.md describes every field.
 
 The C++ encoder is checked byte-for-byte against vectors generated from THIS
-module (tools/gen_flightrec_vectors.py -> firmware/host/vectors/
+module (tools/gen_flightrec_vectors.py -> build/host/vectors/
 flightrec_vectors.h, firmware/host/test_flightrec.cpp), so a field moved on
 one side fails a test on the other.
 
@@ -35,19 +35,22 @@ JF_FB_OK, JF_NOM_VALID, JF_GOAL_VALID, JF_WRITTEN, JF_DRIVEN = 1, 2, 4, 8, 16
 
 EV_CMD, EV_OUT, EV_ARM_EDGE, EV_HOME_EDGE, EV_REC = 1, 2, 3, 4, 5
 EV_MODE, EV_BAL_STATE, EV_LINK_STATE, EV_FB_BACKOFF, EV_FALL = 6, 7, 8, 9, 10
-EV_FLAIL, EV_STOP, EV_WCLI = 11, 12, 13
+EV_FLAIL, EV_STOP, EV_WCLI, EV_RAIL = 11, 12, 13, 14
 EVENT_NAMES = {EV_CMD: "cmd", EV_OUT: "out", EV_ARM_EDGE: "arm_edge",
                EV_HOME_EDGE: "home_edge", EV_REC: "rec", EV_MODE: "mode",
                EV_BAL_STATE: "bal_state", EV_LINK_STATE: "link_state",
                EV_FB_BACKOFF: "fb_backoff", EV_FALL: "fall",
-               EV_FLAIL: "flail", EV_STOP: "stop", EV_WCLI: "wcli"}
+               EV_FLAIL: "flail", EV_STOP: "stop", EV_WCLI: "wcli", EV_RAIL: "rail"}
 # cmd / out events: `a` is the channel the line came in / went out on.
 CHAN_TETHER, CHAN_WIFI = 0, 1     # cmd over Wi-Fi: b = the Wi-Fi CLI seq
 # EV_FLAIL: an armed-loop HOLD (firmware/components/flailguard): a = the trip,
-# b = 1 torque held / 0 already limp / 2 the hold's autohome started.
+# b = 1 torque held / 0 already limp / 2 the hold's autohome started / 3 a walk
+# trip recovered / 4 the hold released because the pack guard latched.
 FLAIL_TRIPS = {1: "pose", 2: "rate", 3: "tilt", 4: "chatter", 255: "operator_soft_stop"}
 # EV_STOP: an operator stop (FLAG_STOP), once per burst: a = 1 hard / 0 soft,
 # b = 1 armed / 0 benched.
+# EV_RAIL: the power-lite servo rail (firmware/components/railguard): a = State,
+# b = Fault; the text says.
 # EV_FALL: a = the motion it fell in, b = fallguard::Event (firmware/components/fallguard)
 FALL_MOTIONS = {0: "bench", 1: "policy"}
 FALL_EVENTS = {1: "fell", 2: "picked_up", 3: "cleared"}

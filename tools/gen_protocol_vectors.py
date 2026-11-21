@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.join(ROOT, "link"))
 
 import protocol as P  # noqa: E402
 
-OUT = os.path.join(ROOT, "firmware", "host", "vectors", "protocol_vectors.h")
+OUT = os.path.join(ROOT, "build", "host", "vectors", "protocol_vectors.h")
 
 # -- the command frames we freeze -------------------------------------------
 CMD_CASES = [
@@ -91,6 +91,35 @@ TLM_EXT_CASES = [
     # saturation, every servo faulted, incl. the u64 and the u32
     (4, P.LinkState.FALLEN, 10.5, 0.1, 0.0, 0.0, 0xFFFFFFFF, 100,
      (99.0, -99.0) + (0.0,) * 15, 2 ** 64 - 1),
+]
+
+# The power block (FLAG_PWR, issue #109): one case per length it can ride,
+# so the C++ port's length table and block order are diffed against bytes.
+TLM_PWR_CASES = [
+    # (seq_echo, state, vbat_v, up_z, vx_est, wz_est, err, late, joints,
+    #  up_xy, t_us, Power(pack_mv, batt, flags, rail_mv))
+    # Benched on USB, a default image: no pack, nothing on the rail.
+    (P.pack_diag(False, True, P.ArmResult.NONE), P.LinkState.BENCH, 0.0, 1.0,
+     0.0, 0.0, 0x00, 0, (), (), T_REAL, P.Power(0, 0, 0, 0)),
+    # Benched on power lite, rail off (vbat 0), the pack from the INA219,
+    # E-stop pressed; the guard warns.
+    (P.pack_diag(False, True, P.ArmResult.RAIL_DOWN), P.LinkState.BENCH, 0.0,
+     0.99, 0.0, 0.0, 0x00, 0, (), (), T_REAL,
+     P.Power(10496, P.BattLevel.WARN.value,
+             P.PWR_LITE | P.PWR_ESTOP | P.PWR_RAIL_VALID | P.PWR_GUARD_PACK, 212)),
+    # Armed with the attitude pair, rail up.
+    (900, P.LinkState.LIVE, 11.7, 0.98, 0.3, 0.0, 0x00, 1, (), (0.12, -0.05),
+     T_REAL + 100000,
+     P.Power(11840, P.BattLevel.OK.value,
+             P.PWR_LITE | P.PWR_SERVO_EN | P.PWR_RAIL_VALID | P.PWR_GUARD_PACK,
+             11720)),
+    # Landing, with joints.
+    (901, P.LinkState.VLAND, 9.8, 0.97, 0.0, 0.0, 0x00, 2, (0.25,) * 17, (),
+     T_REAL + 200000, P.Power(9852, P.BattLevel.LANDING.value,
+                              P.PWR_GUARD_PACK, 0)),
+    # The longest frame, every field saturated, a level from a newer firmware.
+    (2 ** 32 - 1, P.LinkState.VSAFE, 65.535, -1.0, 0.0, 0.0, 0xFFFFFFFF, 255,
+     (-0.5,) * 17, (0.7, -0.7), 2 ** 64 - 1, P.Power(65535, 255, 0xFF, 65535)),
 ]
 
 TLM_CASES = [
@@ -155,6 +184,7 @@ DIAG_CASES = [
     (False, True, P.ArmResult.ACCEPTED),
     (False, True, P.ArmResult.DISARMED_FALL),
     (False, True, P.ArmResult.REFUSED_GAINS),
+    (False, True, P.ArmResult.RAIL_DOWN),
     (False, True, P.ArmResult.REFUSED_POLICY),
     (False, True, P.ArmResult.DISARMED_FLAIL),
     (False, True, P.ArmResult.DISARMED_STOP),
@@ -375,6 +405,48 @@ def main():
     w("inline constexpr size_t kNumTlmExt = sizeof kTlmExt / sizeof kTlmExt[0];")
     w("")
 
+    # -- the power block (FLAG_PWR, issue #109) ----------------------------
+    w("struct TlmPwrCase {")
+    w("    uint32_t seq; uint8_t state; float vbat; float up_z;")
+    w("    float vx; float wz; uint32_t servo_err; uint8_t late;")
+    w("    uint8_t n_joints; float joints[%d];" % P.NUM_JOINTS)
+    w("    uint8_t have_att; float up_x; float up_y;")
+    w("    uint64_t t_us;")
+    w("    uint16_t pack_mv; uint8_t batt; uint8_t flags; uint16_t rail_mv;")
+    w("    size_t len; uint8_t wire[%d];" % max(P.TLM_LENS))
+    w("};")
+    w("inline const TlmPwrCase kTlmPwr[] = {")
+    lens = set()
+    for (seq, st, vb, up, vx, wz, err, late, joints, up_xy, t_us,
+         pwr) in TLM_PWR_CASES:
+        vb, up, vx, wz = f32(vb), f32(up), f32(vx), f32(wz)
+        joints = tuple(f32(q) for q in joints)
+        up_xy = tuple(f32(v) for v in up_xy)
+        t = P.Telemetry(seq_echo=seq, state=st, vbat_v=vb, up_z=up,
+                        vx_est=vx, wz_est=wz, servo_err=err,
+                        loop_late_pct=late, joints=joints, t_us=t_us,
+                        up_xy=up_xy, pwr=pwr)
+        wire = P.encode_telemetry(t)
+        d = P.decode_telemetry(wire)
+        assert d.pwr == pwr and d.t_us == t_us, (d, pwr)
+        lens.add(len(wire))
+        jj = joints or (0.0,) * P.NUM_JOINTS
+        ux, uy = up_xy or (0.0, 0.0)
+        pad = wire + b"\x00" * (max(P.TLM_LENS) - len(wire))
+        w("    {%du, %d, %s, %s, %s, %s, 0x%08Xu, %d, %d, {%s}, %d, %s, %s, "
+          "%dull, %du, %du, 0x%02Xu, %du, %d, %s},"
+          % (seq & 0xFFFFFFFF, list(P.LinkState).index(st), fl(vb), fl(up),
+             fl(vx), fl(wz), err, late, len(joints),
+             ", ".join(fl(q) for q in jj), int(bool(up_xy)), fl(ux), fl(uy),
+             t_us, pwr.pack_mv, pwr.batt, pwr.flags, pwr.rail_mv, len(wire),
+             carr(pad)))
+    assert lens == {n + P.TLM_PWR_BYTES for n in (P.TLM_LEN, P.TLM_LEN_ATT,
+                                                  P.TLM_LEN_EXT,
+                                                  P.TLM_LEN_EXT_ATT)}, lens
+    w("};")
+    w("inline constexpr size_t kNumTlmPwr = sizeof kTlmPwr / sizeof kTlmPwr[0];")
+    w("")
+
     # -- bench diagnostics -------------------------------------------------
     # The reason STRINGS are frozen too. They are what the operator reads on
     # a silent bench, and two copies of a sentence drift the moment one side
@@ -458,7 +530,8 @@ def main():
     with open(OUT, "w") as f:
         f.write("\n".join(L))
     print(f"wrote {OUT} "
-          f"({len(CMD_CASES)} cmd, {len(TLM_CASES)}+{len(TLM_EXT_CASES)} tlm, "
+          f"({len(CMD_CASES)} cmd, {len(TLM_CASES)}+{len(TLM_EXT_CASES)}"
+          f"+{len(TLM_PWR_CASES)} tlm, "
           f"{len(WD_SCRIPT)} watchdog steps)")
 
 

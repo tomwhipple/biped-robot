@@ -23,9 +23,9 @@ The item numbers (№) refer to the vendor's annotated photo,
 | P2 + P4 | 23, 24 | 2 × 40-pin, the Raspberry Pi footprint, **numbered mirrored** in the schematic | Per the schematic (re-read 2026-10-02): pins **1 and 3 are 5 V**, **4 is `IIC_SDA`**, **6 is `IIC_SCL`**, 7/9 are `P_TX`/`P_RX` (ESP32 UART0). The earlier "pins 3/5 are I²C" was wrong. Which physical corner is pin 1 is unverified, so wire I²C sensors to P1, whose silkscreen names each pin | free |
 | P3 | — | 7-pin | 1 IO5 (10 Ω) · 2 3V3 · 3 GND · 4 IO16 · 5 IO27 · 6 `CP_RX` · 7 `U0RX` | free |
 | H7 | — | PH2.0 4-pin, "LIDAR" | 1 `CP_RX` · 2 n/c · 3 GND · 4 5 V | free |
-| H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | free. The firmware names GPIO 4 `kRgbLed` |
-| H3 | 15 | 6-pin | 1 motor A · 2 GND · 3 `A_C2` = GPIO 35 · 4 `A_C1` = GPIO 34 (10 Ω each) · 5 3V3 · 6 motor A | free |
-| H4 | 14 | 6-pin | 1 motor B · 2 GND · 3 `B_C2` = GPIO 16 · 4 `B_C1` = GPIO 27 (10 Ω each) · 5 3V3 · 6 motor B | free |
+| H2 | — | 3-pin | 1 IO4 (10 Ω) · 2 5 V · 3 GND. The schematic labels it 舵机接口 ("servo port") | power lite's `ESTOP_N`; otherwise free |
+| H3 | 15 | PH2.0 6-pin | 1 motor A · 2 GND · 3 `A_C2` = GPIO 35 · 4 `A_C1` = GPIO 34 (10 Ω each) · 5 3V3 · 6 motor A | free |
+| H4 | 14 | PH2.0 6-pin | 1 motor B · 2 GND · 3 `B_C2` = GPIO 16 · 4 `B_C1` = GPIO 27 (10 Ω each) · 5 3V3 · 6 motor B | free |
 | MOTOR-A1/A2, B1/B2 | 16, 17 | 2-pin connectors | TB6612 motor outputs; the driver is powered from `DC_IN` | free |
 | TF1 | 22 | microSD | SPI: CS IO15 · MOSI IO13 · CLK IO14 · MISO IO12 | free |
 
@@ -42,7 +42,7 @@ The on-board I²C bus (GPIO 32/33, 400 kHz) already carries these parts:
 | 0x6B | QMI8658C 6-axis IMU | the robot's IMU. It sits behind an LSF0204 level shifter. If the bus is flaky at 400 kHz, try 100 kHz before suspecting the driver (`board.h`) |
 | 0x0C | AK09918C magnetometer | unused. Beside the servos it measures their current, not north |
 | 0x77 | BMP280 barometer | on the schematic; it did not answer the bench scan |
-| 0x42 | INA219 | unused. It measures pack voltage and the board's own logic current, never servo current ([wiring.md](wiring.md#what-the-ina219-measures)) |
+| 0x42 | INA219 | the pack voltage, read at 10 Hz (`volt`, `batt`, the beacon's power block). It also could measure the board's own logic current, never servo current; that is not read ([wiring.md](wiring.md#what-the-ina219-measures)) |
 | 0x4A / 0x4B | reserved | for a BNO085 on P1, the firmware's named upgrade path from the QMI8658C. `imu scan` recognises it |
 
 What the robot uses: H1, SW1, H5/H6, the `USB` port and the on-board IMU.
@@ -102,9 +102,10 @@ The tick has room, though the robot's figure is unmeasured:
 | USB to the `USB` port | one cable | The CP2102N reaches UART0, the CLI console at 115200. Needs a binary host mode in firmware | Opening the port toggles DTR/RTS, which the auto-program circuit turns into an ESP32 reset. UART0 is also the console |
 | Wired UART | 3–4 wires | Option 1: UART0, on P3 pin 7 (`U0RX`) and on the 40-pin's `P_TX`/`P_RX`, shared with the `USB` bridge through 1 kΩ. Option 2: a second UART (the ESP32's UART2 through the GPIO matrix) on P3's IO16/IO27/IO5. Both sides are 3.3 V logic | Either option needs firmware work. The Pi is not on the header, so it is a small harness |
 
-Also open: pack voltage for the Pi's low-battery shutdown. The telemetry beacon
-carries `vbat` from register 62, so the Wi-Fi option gets it for free. The INA219 is
-not read.
+Also open: pack voltage for the Pi's low-battery shutdown. The telemetry beacon's
+power block carries the INA219's pack voltage and the guard's level when a commander
+asks for it (`PWR`, [control-channel.md](control-channel.md#the-power-block)), so the
+Wi-Fi option gets it for free. The UART tether's beacon is the 31 B frame only.
 
 ## 4. Other sensors, by connector
 

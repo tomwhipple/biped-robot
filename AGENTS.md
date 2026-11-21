@@ -68,15 +68,32 @@ git config core.hooksPath .githooks
 The hook runs each gate as its make target, so the target runs it the same
 way by hand; `make prepush` runs every gate the hook can.
 
+The hook first builds what every gate reads, alone (`make generated`: the
+plant, the policy sets, the test vectors), then runs the gates that share
+nothing at the same time: `host` starts with `cmake-check` then `tidy`, `cppcheck` and `firmware` then
+`firmware-powerlite`; `pytest` and `sil-suite` start once `host` is done (they
+read what it built); `tidy-gui` starts once all three are done (it may delete
+`firmware/host/build`). Each gate's output goes to its own log in
+`<git dir>/prepush-logs/<stamp>-<pid>/`, next to the combined
+`<stamp>-<pid>.log`, and a failing gate prints `FAIL: <gate>` and its log path.
+`PREPUSH_SERIAL=1` runs the gates one at a time. `make pytest` runs `tests/` in
+`PYTEST_WORKERS` pytest-xdist workers (default 8, a capped count: never
+`-n auto`; `PYTEST_WORKERS=0` runs one process) with `--dist loadgroup`. A test
+module that cannot share a process with another (fixed ports, a fixed shared
+path) is listed in `XDIST_GROUPS` in `tests/conftest.py`, which keeps it on one
+worker; a new test takes its ports from `free_udp_ports` (per-worker) or port 0,
+and its files from `tmp_path`. `pytest` is pinned in `requirements.txt`: 9.2.0
+breaks `--dist loadgroup` (pytest-dev/pytest-xdist #1386, #1407).
+
 | gate                                                                   | covers                                                                                                                                                                                                                                       | in the hook                                                     |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `make pytest` (`pytest tests/`)                                        | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B); power lite's circuit in ngspice (`tests/test_power_lite_sim.py`; skips without a libngspice) | hard, unless the push is docs only                              |
+| `make pytest` (`pytest tests/`, in 8 xdist workers)                    | sim physics parity, link protocol, ROM, referee behaviour, the design gates (plant, IK, Gates A/B); power lite's circuit in ngspice (`tests/test_power_lite_sim.py`; skips without a libngspice) | hard, unless the push is docs only                              |
 | `make host` (`make -C firmware/host check`)                            | the firmware's pure modules under ASan/UBSan, the SIL golden check, the consoles                                                                                                                                                             | hard, on C/C++ pushes (otherwise only the SIL library is built) |
-| `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored artifacts skip with a reason                                                                                      | hard, unless the push is docs only                              |
+| `make sil-suite` (`pytest sim/sil`)                                    | the SIL suite: the firmware's control code against the CPU plant, on the deployed run; tests needing that run's gitignored `sim/runs/` or `.silw` skip with a reason                                                                        | hard, unless the push is docs only                              |
 | `make cmake-check`: cmake configure / build / ctest of `firmware/host` | CMakeLists.txt and the Makefile agree                                                                                                                                                                                                        | C/C++ pushes, when cmake is installed                           |
 | `make tidy`, `make tidy-gui`                                           | `.clang-tidy`, WarningsAsErrors                                                                                                                                                                                                              | C/C++ pushes, when clang-tidy is installed                      |
 | `make cppcheck`                                                        | whole-program, fails on any finding                                                                                                                                                                                                          | C/C++ pushes, when cppcheck is installed                        |
-| `make firmware` (`idf.py build`, into `build/firmware`)                | the ESP32 target links                                                                                                                                                                                                                       | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
+| `make firmware`, `make firmware-powerlite` (`idf.py build`, into `build/firmware*`) | the ESP32 target links, with the power-lite build option off and on                                                                                                                                                          | C/C++ pushes, when ESP-IDF is found (`SKIP_ESP32=1` to skip)    |
 | `make check-cad` (`cad/run_checks.sh`)                                 | swept-ROM interference on the armless and `ARMS=1` builds; printability reports                                                                                                                                                              | not in the hook: run it for any CAD change                      |
 
 A **docs-only push** changes nothing but files no gate reads: anything under
@@ -92,45 +109,85 @@ everything; know why.
 ## Generated files are generated
 
 Everything generated is built into `build/<version>/<target>/`, which git
-ignores: `build/v6/step`, `build/v6/renders`, `build/bench-v3/stl` and so on
-(`paths.py`). Git still tracks the generated files below, because the training
-box loads them from git and runs no generator, the firmware headers come
-from a run that is not in git, and power lite's fab outputs are the
-files a board house is sent. They **must not be hand-edited** — the headers
-carry a "GENERATED by ... do not edit" line, and host tests pin them:
+ignores: `build/v6/stl`, `build/v6/step`, `build/v6/renders`,
+`build/bench-v3/stl` and so on (`paths.py`). That includes what the simulator and
+the trainer load: the printed parts' STLs (`build/v6/stl`) and the plant
+(`build/v6/sim`: the plant XMLs, the servo meshes they cite, and
+`terrain_mosaic.npz`), built by `make plant-data`, which the night harness runs
+after every sync of the training clone (`infra/night/night_run.sh`). Resolve them
+through `paths.py` (`V6_STL`, `V6_SIM`, `v6_plant(name)`, `resolve_plant(path)`),
+never by a `sim/` or `cad/v6/stl` path.
+
+The firmware's policy headers are generated as well, from inputs git does
+track, in `firmware/deployed/`: `policies.txt` lists the policy sets (the
+deployed one and each profile: its run and net format), `runs/<run>/` holds
+each run's `config.json` and `params.pkl`, `q8/<set>.npz` an int8 set's
+quantized kernels, and `headers.sha256` the bytes of the headers as deployed.
+`make policy` builds every set into `build/policy/<set>/` and fails if a
+header comes out different from its pin: then a generator or the plant has
+changed what the run compiles to, and only a new deploy may accept that. The
+one way to change the policy the robot runs is `make deploy RUN=<run>
+[POLICY=<set>] [QUANT=int8]`, which rewrites `firmware/deployed/`; commit it.
+`make firmware` therefore needs the Python venv and the plant, as the tests
+do.
+
+Git tracks only the generated files below, because they cannot be rebuilt
+from the repo: the flail vectors come from a gitignored recording, the
+OrcaSlicer profiles are a snapshot of an external release, power lite's fab
+outputs are the files a board house is sent (and need KiCad), and the get-up
+references (`sim/getup_ref_v6ar*.npz`, `sim/getup_ref_analytic_roll.json`) are
+physics recordings, not rebuildable outputs (a re-record on another toolchain
+diverges; `make sim-data` re-records them by hand). The `.silw.json` sidecars
+in `sim/sil/weights/` are still tracked: the console's SIM panel lists the runs
+it can play from them. The tracked ones **must not be hand-edited**; the
+headers carry a "GENERATED by ... do not edit" line:
 
 | file                                                      | generator                                                                                        |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `firmware/components/obs/include/obs/obs_spec.h`          | `tools/gen_obs_spec.py`                                                                          |
-| `sim/sil/weights/<deployed run>.config.json`              | `tools/gen_obs_spec.py --run <deployed run>` (the run's `config.json`, verbatim: a clean clone's SIL twin runs the deployed policy from it) |
-| `firmware/components/policy/include/policy/weights.h`     | `tools/gen_policy_weights.py`                                                                    |
-| `firmware/host/vectors/protocol_vectors.h`                | `make vectors` (`tools/gen_protocol_vectors.py`)                                                 |
-| `firmware/components/linkproto/include/linkproto/cmd_envelope.h`, `link/cmd_envelope.py`, `firmware/host/vectors/cmd_envelope_vectors.h` | `tools/gen_envelope.py --run <deployed run>` (`make deploy RUN=...`) |
-| `firmware/host/vectors/wcli_vectors.h`                    | `make vectors` (`tools/gen_wcli_vectors.py`)                                                     |
-| `firmware/host/vectors/obs_vectors.h`, `policy_vectors.h` | `gen_obs_spec.py` / `gen_policy_weights.py`, both `--run <deployed run>` (`make deploy RUN=...`) |
 | `firmware/host/vectors/flail_vectors.h`                   | `tools/gen_flail_vectors.py` (from the gitignored 2026-11-01 policy-stand recording in `hw_sessions/`; `--csv` to point elsewhere) |
-| `firmware/policies/<profile>/**`, `sim/sil/golden/<profile>/*.json` | the same four tools with `--profile <profile>` (`make deploy RUN=... POLICY=<profile>`; [training.md §9](docs/training.md), "Policy profiles") |
-| `cad/v6/stl/*`                                            | `make cad` (`cad/v6/parts_v6.py`)                                                                |
 | `cad/orca/*.json`                                         | `python3 cad/orca_profile.py snapshot [--ref vX.Y.Z]` (OrcaSlicer's profile JSONs at a release tag; [slicing.md](docs/slicing.md)) |
 | `pcb/power-lite/power-lite.kicad_sch`, `.kicad_pcb`, `fab/*`, `power-lite.pdf` | `pcb/power-lite/tools/gen_sch.py` from `tools/parts.py`; `tools/route.py` (placement, Freerouting, pours, DRC); `sh pcb/power-lite/fab.sh` |
-| `sim/bimo_biped_v6ar.xml`, `sim/meshes/v6/*`              | `make plant`: `sim/build_v6_inertia.py --write`                                                  |
-| `sim/bimo_biped_v6legs.xml`                               | `make plant`: `sim/build_v6_inertia.py --asbuilt-legs --write` (the legs-only body as built)     |
-| `sim/bimo_biped_v6legs_meas_sole.xml`                     | `make plant`: `sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write` (the legs-only body, measured joint stops and sole friction) |
-| `sim/bimo_biped_v6legs_hang.xml`                          | `make plant`: `sim/build_v6_inertia.py --hang --asbuilt-legs --write` (the legs-only body with its torso welded above stand height, `sim/sil_twin.py --hang`) |
+| `sim/getup_ref_v6ar*.npz`, `sim/getup_ref_analytic_roll.json` | `make sim-data` (`sim/record_getup_ref.py`), by hand                                          |
+| `sim/sil/weights/*.silw.json`                             | `tools/export_policy_weights.py --run <run>` (the sidecar of a run's exported `.silw`)           |
+
+Built into `build/`, not tracked:
+
+| built file                                                | generator                                                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `build/v6/stl/*`                                          | `make cad` (`cad/v6/parts_v6.py`)                                                                |
+| `build/v6/sim/bimo_biped_v6ar.xml`, `build/v6/sim/meshes/*` | `make plant`: `sim/build_v6_inertia.py --write`; the servo meshes: `sim/add_cad_meshes.py --export-servos` |
+| `build/v6/sim/bimo_biped_v6ar_meas.xml`, `bimo_biped_v6legs_meas.xml` | `make plant`: `sim/build_v6_inertia.py --measured-stops [--asbuilt-legs] --write` (the joint stops measured on the robot) |
+| `build/v6/sim/bimo_biped_v6legs.xml`                      | `make plant`: `sim/build_v6_inertia.py --asbuilt-legs --write` (the legs-only body as built)     |
+| `build/v6/sim/bimo_biped_v6legs_meas_sole.xml`            | `make plant`: `sim/build_v6_inertia.py --measured-stops --measured-sole --asbuilt-legs --write` (the legs-only body, measured joint stops and sole friction) |
+| `build/v6/sim/bimo_biped_v6legs_hang.xml`                 | `make plant`: `sim/build_v6_inertia.py --hang --asbuilt-legs --write` (the legs-only body with its torso welded above stand height, `sim/sil_twin.py --hang`) |
+| `build/v6/sim/terrain_mosaic.npz`                         | `make plant-data`: `sim/mjx/gen_terrain_mosaic.py` (seeded)                                       |
+| `build/policy/<set>/obs/obs_spec.h`, `vectors/obs_vectors.h` | `make policy`: `tools/gen_obs_spec.py`, from the set's `firmware/deployed/runs/<run>/config.json` and the plant |
+| `build/policy/<set>/linkproto/cmd_envelope.{h,py}`, `vectors/cmd_envelope_vectors.h` | `make policy` (`make envelope` alone): `tools/gen_envelope.py`, from the run's `config.json`; `link/protocol.py` reads the `.py` |
+| `build/policy/<set>/weights/<run>.silw`, `golden/*.json`  | `make policy`: `tools/export_policy_weights.py`, from the run's `params.pkl`                     |
+| `build/policy/<set>/policy/weights.h`, `vectors/policy_vectors.h` | `make policy`: `tools/gen_policy_weights.py`, from that `.silw` (an int8 set: and `firmware/deployed/q8/<set>.npz`) |
+| `build/host/vectors/{protocol,flightrec,wcli}_vectors.h`  | `make vectors`: `tools/gen_protocol_vectors.py`, `gen_flightrec_vectors.py`, `gen_wcli_vectors.py` |
+
+The plant XMLs cite their meshes by a `meshdir` relative to `build/v6/sim`
+(the repo root), so `build/v6/stl/<part>.stl` and `build/v6/sim/meshes/servo_<k>.stl`
+resolve wherever the checkout is. The gates build what they read: `make
+pytest` and `make sil-suite` the plant and the policy sets, `make host`,
+`make firmware` and the lint gates the policy sets and the vectors; the
+pre-push hook builds all of it once, first (`make generated`).
 
 **`make` builds all of it** (`make help` lists the targets), except power
 lite's fab outputs, which need KiCad (`fab.sh`). As for compiled
 code, make rebuilds what its sources made stale, from file times; a Python
 generator's prerequisites are the repo modules it imports (`tools/mkdeps.py`).
 `make cad` and `make plant` run on any machine: OCC tessellates differently per
-platform, so a rebuilt v6 STL (and servo mesh) keeps its committed bytes unless
-the solid itself changed (`cad/stable_stl.py`), and the plant follows the STLs.
+platform, so a rebuilt STL (and servo mesh) keeps the bytes already in `build/` unless
+the solid itself changed (`cad/stable_stl.py`); the plant follows the STLs, and
+is identical on any machine.
 `make clean` empties `build/` and never touches results (`sim/runs/`,
 `hw_sessions/`, bench data). The images the docs show are committed beside the
 doc (`docs/img/`, `docs/assembly/`, `docs/design-v6/figs/`); `make figures`
 renders the ones it knows into `build/` and copies them over.
 
-Regenerated STLs are rebuilt from source rather than merged. Rendered movies
+Rendered movies
 (`.mov`/`.mp4`/`.gif`) are **never committed** — they go to
 `build/<version>/movies` and are regenerated from the render scripts. Trained policies live in
 `sim/runs/` and are gitignored; only `night_summary.html` is committed.
@@ -143,7 +200,7 @@ pushed to `main` is invisible to the trainer. This is not a style rule — an
 rsync of a hand-curated file list once silently missed a plant XML and trained
 against a stale robot for two days.
 
-Training runs at night only (22:00, no new job after 05:00, hard stop 07:00);
+Training runs at night only (22:00, no new job after 06:45, hard stop 07:00);
 days belong to the owner of the box. GPU BOUNDARY: the 07:00 hard stop
 binds EVERY GPU job on this box, not just night_run-launched trainings.
 Standalone GPU runs (foot-contacts probes and friends) must wait for the
@@ -213,9 +270,11 @@ learned by breaking something:
   A released, loaded STS3215 back-drives: the Plan B bench dropped a bottle
   this way (2026-10-01, experiments/plan-b-bench). Any abort away from plumb
   keeps torque on.
-- **Film every hardware session**, from before the port opens until a few
-  seconds after it closes (`tools/cam_record.sh`). Still frames before and
-  after could not show how that drop happened.
+- **Film whenever an agent moves the servos**, from before the port opens
+  until a few seconds after it closes (`tools/cam_record.sh`). Still frames
+  before and after could not show how that drop happened. A session in which
+  no agent moves a servo (a board on the bench, measurements by hand) needs no
+  film.
 
 ## Sourcing and documentation
 

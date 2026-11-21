@@ -18,6 +18,8 @@ import argparse
 import json
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 
 import numpy as np
 
@@ -73,8 +75,7 @@ def main():
     with open(os.path.join(run_dir, "config.json")) as f:
         cfg = json.load(f)
     xml = args.xml or cfg.get("xml_path") or ep.DEFAULT_XML
-    if not os.path.isabs(xml) and not os.path.exists(xml):
-        xml = os.path.join(HERE, "..", os.path.basename(xml))
+    xml = paths.resolve_plant(xml)
 
     reg = ep._registry(ep.deploy_gait_hz(cfg))
     names = ep.ORDER

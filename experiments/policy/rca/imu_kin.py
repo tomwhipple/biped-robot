@@ -1,7 +1,7 @@
 """IMU axis check from leg kinematics: with a foot flat on the floor the torso's body
 rates are minus the sum of that leg's joint rates about each axis (small angles):
   wx = -(hip_roll' + ankle_roll'), wy = -(hip_pitch' - knee' + ankle'), wz = -hip_yaw'
-(joint axes from sim/bimo_biped_v6legs.xml). Regress the recorded gyro on that."""
+(joint axes from build/v6/sim/bimo_biped_v6legs.xml). Regress the recorded gyro on that."""
 import os, sys, json
 import numpy as np
 from scipy.signal import butter, filtfilt

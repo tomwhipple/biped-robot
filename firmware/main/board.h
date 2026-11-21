@@ -19,16 +19,15 @@
 //   * There is NO OLED. The old board's SSD1306 at 0x3C does not exist here,
 //     so the display constants are gone rather than wrong.
 //
-//   * There IS a battery-voltage sense. The old header stated flatly that
-//     the board had no ADC and that pack voltage therefore had to come off
-//     the servo bus at 0.1 V resolution; the INA219 at 0x42 makes that false.
-//     battguard still reads the servo bus today -- switching it is a separate
-//     job (the INA219 shunt sits between DC_IN and the buck's VIN, so it sees
-//     pack voltage even with the servo bus released, which is strictly better
-//     than register 62).
+//   * There IS a battery-voltage sense: the INA219 at 0x42. Its shunt sits
+//     between DC_IN and the buck's VIN, so it sees the pack with the servo
+//     bus released (and, on power lite, with the servo rail off).
+//     main/pack_sense.cpp reads it at 10 Hz; battguard takes the lower of it
+//     and the servos' register 62 (battguard/pack.h).
 //
-//   * The RGB LED moves from GPIO 23 to GPIO 4 (header H2, through a 10 R
-//     series resistor).
+//   * GPIO 4 reaches header H2 through a 10 R series resistor. The schematic
+//     puts a WS2812 on that net; power lite's ESTOP_N uses it (kEstopN below).
+//     Nothing names it as an output, so nothing can drive it.
 //
 //   * TWO USB-C ports, both CP2102N, and only ONE of them flashes anything.
 //     The port silkscreened "USB" carries the ESP32 console with the
@@ -72,7 +71,7 @@ constexpr uint8_t kImuAddr = 0x6B;           // QMI8658C (SA0 high)
 constexpr uint8_t kImuAddrAlt = 0x6A;        // QMI8658C (SA0 low)
 constexpr uint8_t kMagAddr = 0x0C;           // AK09918C -- unused, see below
 constexpr uint8_t kBaroAddr = 0x77;          // BMP280 -- unused
-constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- unused (battguard TODO)
+constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- pack voltage (main/pack_sense.cpp)
 
 // The magnetometer is deliberately NOT used. The obs frame needs an up-vector
 // and body rates, never a heading, and a magnetometer bolted to the same PCB
@@ -80,8 +79,16 @@ constexpr uint8_t kPowerAddr = 0x42;         // INA219 -- unused (battguard TODO
 // It stays on the bus and stays unread.
 
 // -- misc ------------------------------------------------------------------
-constexpr gpio_num_t kRgbLed = GPIO_NUM_4;   // H2, WS2812 through 10 R
 constexpr gpio_num_t kBootButton = GPIO_NUM_0;
+
+// -- power lite (J12; pcb/power-lite/README.md, main/power_rail.h) ---------
+// Used only by a BIMO_POWER_LITE build: on a board without power lite, IO16 is
+// unconnected, GPIO34 reads nothing, and IO4 is the WS2812 net above.
+constexpr gpio_num_t kServoEn = GPIO_NUM_16;  // P3 pin 4: output, high asks for the rail
+// H2 pin 1: INPUT ONLY, with the pull-up. Q2 pulls it to ground through the
+// board's 10 R while the E-stop is released; driving it would fight Q2. High: stop.
+constexpr gpio_num_t kEstopN = GPIO_NUM_4;
+constexpr gpio_num_t kRailV = GPIO_NUM_34;    // H3 pin 4: ADC1, the rail through 5.7:1
 
 // -- power limits (docs/wiring.md) -----------------------------------------
 // Inlet is the XH2.54 2-pin (connector 10), switched by connector 12, fed
@@ -93,8 +100,8 @@ constexpr gpio_num_t kBootButton = GPIO_NUM_0;
 // Land the robot at 3.5 V/cell: 10.5 V on 3S, 7.0 V on 2S.
 //
 // These are the ADVISORY thresholds -- what a human is told to do. The robot
-// enforces its own in battguard::kWarn3S / kLand3S (decivolts, because the
-// sense is the servos' register 62). They must agree: kWarn3S == 105 is this
+// enforces its own in battguard::kWarn3S / kLand3S (decivolts, the servos'
+// register 62's resolution). They must agree: kWarn3S == 105 is this
 // same 10.5 V. battguard is pure and cannot include this header, so the link
 // is this comment.
 constexpr float kLandVoltage3s = 10.5f;

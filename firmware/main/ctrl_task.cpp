@@ -11,6 +11,7 @@
 #include "balance/roll_pi.h"
 #include "balance/stance_trim.h"
 #include "battguard/guard.h"
+#include "battguard/pack.h"
 #include "esp_attr.h"
 #include "esp_task_wdt.h"
 #include "esp_timer.h"
@@ -27,6 +28,7 @@
 #include "obs/actuation.h"
 #include "obs/assembler.h"
 #include "policy/mlp.h"
+#include "power_rail.h"
 #include "shared.h"
 
 namespace robot {
@@ -355,6 +357,27 @@ void recordFlight(int64_t t0, int64_t t_read0, int64_t t_read1,
     flight::recordCtrl(v);
 }
 
+// The INA219's pack voltage for the guard this tick (shared.h g_pack_mv), or 0.
+// Housekeeping reads the chip at 10 Hz and bumps g_pack_reads on every good
+// read; a count that has not moved for kPackStaleTicks is a stalled or missing
+// sense, and the guard must hear "no data" rather than the last value forever.
+// Two loads, no I2C: the read itself never runs on this core.
+constexpr int kPackStaleTicks = 50;   // 1 s at 50 Hz: ten missed 10 Hz reads
+uint32_t g_pack_reads_seen = 0;
+int g_pack_idle_ticks = kPackStaleTicks;
+uint16_t packMvForGuard() {
+    const uint32_t reads = g_pack_reads.load();
+    if (reads != g_pack_reads_seen) {
+        g_pack_reads_seen = reads;
+        g_pack_idle_ticks = 0;
+    } else if (g_pack_idle_ticks < kPackStaleTicks) {
+        ++g_pack_idle_ticks;
+    }
+    if (g_pack_idle_ticks >= kPackStaleTicks || !g_pack_guard_on.load()) return 0;
+    return g_pack_mv.load();
+}
+uint32_t g_batt_resets_seen = 0;
+
 void ctrlTask(void*) {
     esp_task_wdt_add(nullptr);
     uint8_t vbat_dv = 0;
@@ -366,7 +389,22 @@ void ctrlTask(void*) {
         ++g_ticks;
 
         const float now_ms = static_cast<float>(t0) / 1000.0f;
+        // Power lite: the rail, in both modes, before the mode is read: a rail that
+        // went down benches the loop on this very tick (main/power_rail.h).
+        if constexpr (rail::kFitted) rail::ctrlTick(static_cast<uint32_t>(t0 / 1000));
         const bool benched = g_mode_request.load() == Mode::kBench;
+        // The pack guard's input from the INA219, in both modes (battguard/pack.h).
+        const uint16_t pack_mv = packMvForGuard();
+        g_pack_guarding.store(pack_mv >= battguard::kPackFloorMv);
+        // `batt reset` (cli.cpp cmdBatt), applied here: this task is the guard's one
+        // writer. Benched only; a request that finds the loop armed is dropped.
+        {
+            const uint32_t resets = g_batt_reset_req.load();
+            if (resets != g_batt_resets_seen) {
+                g_batt_resets_seen = resets;
+                if (benched) g_batt.reset();
+            }
+        }
 
         // -- bench handover ------------------------------------------------
         if (benched) {
@@ -379,7 +417,11 @@ void ctrlTask(void*) {
                 // Never hand the CLI a live robot -- except a HOLD (flail
                 // guard / soft stop), which housekeeping takes over by name
                 // (cli.cpp flailTick) and which must not sag on the way.
-                if (!g_hold_on_bench) releaseAll();
+                if (!g_hold_on_bench) {
+                    releaseAll();
+                    // Every disarm ends here. A hold keeps the rail with its torque.
+                    if constexpr (rail::kFitted) rail::dropFromCtrl(railguard::DropWhy::kDisarm);
+                }
                 g_hold_on_bench = false;
                 g_torque_on = false;        // ctrl's view ends here; a re-arm engages
                 g_ctrl_owns_bus.store(false);
@@ -447,7 +489,21 @@ void ctrlTask(void*) {
         CommandMsg msg;
         while (xQueueReceive(g_cmd_mailbox, &msg, 0) == pdTRUE) {
             bool want_armed = false;
-            if (g_arm.update(msg.cmd.flags, want_armed)) {
+            if constexpr (rail::kFitted) {
+                // The E-stop latch's way out, as Watchdog::accept's is.
+                if (!msg.cmd.enabled() && !msg.cmd.arm() && !msg.cmd.estop()) rail::disabledFromCtrl();
+                // Benched, the watchdog below never sees this frame. A rail powered for
+                // `rail on` or a home still has to go on the console's E-stop press.
+                rail::commanderFrame(msg.cmd.estop());
+            }
+            bool arm_edge = g_arm.update(msg.cmd.flags, want_armed);
+            if constexpr (rail::kFitted) {
+                if (arm_edge && railguard::armEdgeRefused(want_armed, msg.cmd.estop())) {
+                    g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kRailDown));
+                    arm_edge = false;
+                }
+            }
+            if (arm_edge) {
                 g_link_arm_level.store(want_armed);
                 g_link_arm_edges.fetch_add(1);
             }
@@ -477,6 +533,14 @@ void ctrlTask(void*) {
                 imu::Sample warm{};
                 takeImu(warm);
             }
+            // The pack guard watches the bench too (issue #109), on the INA219
+            // alone: the bench's servo reading is one servo once a second, and
+            // none at all on power lite with the rail off. Nothing moves here;
+            // a trip latches straight to SAFE (no crouch to ride benched, so no
+            // landing window), and a latched guard refuses the rail, a home and
+            // the next arm (it lands at once and goes limp), as after an armed
+            // trip. No pack reading (no chip, USB power): the guard holds.
+            g_batt.benchUpdate(battguard::inputDv(0, pack_mv), now_ms);
             continue;
         }
 
@@ -512,17 +576,19 @@ void ctrlTask(void*) {
         const imu::Sample& s = s_held;
         const int64_t t_imu1 = esp_timer_get_time();
 
-        // Pack voltage rides in on the servo feedback -- the board has no ADC
-        // (main/board.h). It is already sitting in g_fb every tick, so the
-        // guard is fed every tick and does its own debouncing in ticks; the
-        // old 1 Hz decimation bought nothing and only slowed the trip.
+        // Pack voltage: register 62 rides in on the servo feedback, already in
+        // g_fb every tick, so the guard is fed every tick and does its own
+        // debouncing in ticks. The INA219's reading (pack_mv, above) joins it:
+        // the guard takes the LOWER of the two, or whichever there is
+        // (battguard/pack.h inputDv), so it trips no later than on the servos
+        // alone and a dead bus no longer blinds it.
         // 0 == "no servo answered", which the guard must not read as 0 volts.
         uint8_t fresh_dv = 0;
         for (int b = 0; b < obs::kNumBusJoints; ++b) {
             if (g_fb_ok[b]) { fresh_dv = g_fb[b].voltage_dv; break; }
         }
         if (fresh_dv != 0) vbat_dv = fresh_dv;
-        g_batt.update(fresh_dv, now_ms);
+        g_batt.update(battguard::inputDv(fresh_dv, pack_mv), now_ms);
 
         // -- fall detection ------------------------------------------------
         // fallguard::Detector, Motion::kPolicy: up_z below cos 45 deg for
@@ -616,6 +682,18 @@ void ctrlTask(void*) {
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
             g_limiter.invalidate();
+            // Power lite: limp means the rail goes, and that ends the run. Coming
+            // back from RELAX or a link E-stop would mean re-powering by itself, and
+            // the servos would come up reset; so the way back is a fresh arm. The
+            // next tick is the bench handover. A fall has benched and said why.
+            if constexpr (rail::kFitted) {
+                rail::dropFromCtrl(railguard::limpWhy(batt_limp, g_fall.fallen(),
+                                                      state == linkproto::LinkState::kRelax));
+                if (batt_limp || !g_fall.fallen()) {
+                    g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kRailDown));
+                    g_mode_request.store(Mode::kBench);   // toward bench only: shared.h
+                }
+            }
             recordFlight(t0, t_read0, t_read1, rep_state, s, 0, nullptr, vbat_dv);
             publish(rep_state, faults, s.up, vbat_dv,
                     static_cast<uint32_t>(esp_timer_get_time() - t0));

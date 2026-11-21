@@ -18,11 +18,12 @@ directory is the translation layer and its tests.
 
 ```sh
 # 1. export the deployed run (needs sim/runs/<run>/params.pkl + config.json;
-#    the run is obs::kRunName in obs_spec.h). --no-golden keeps the committed
-#    golden vectors in sim/sil/golden/ as they are.
+#    the run is obs::kRunName in obs_spec.h). --no-golden leaves the golden
+#    vectors, which `make policy` builds, as they are.
 JAX_PLATFORMS=cpu .venv/bin/python tools/export_policy_weights.py --run <run> --no-golden
 
 # 2. the C side
+make policy vectors                # the generated headers, vectors and goldens
 make -C firmware/host sil          # -> firmware/host/build/libctrl_sil.{dylib,so}
 make -C firmware/host test         # pyramid item 1, part of the pre-push gate
 
@@ -32,10 +33,10 @@ make -C firmware/host test         # pyramid item 1, part of the pre-push gate
 ```
 
 `conftest.py` pins JAX to the CPU. Always pass `--run` to the exporter (its
-built-in default is not a run this suite uses). Without `--no-golden` it
-rewrites `sim/sil/golden/*.json`, which the firmware host tests consume: do
-that when the deployed run changes, in the same commit as
-`make -C firmware/host deploy-headers RUN=<run>`.
+built-in default is not a run this suite uses). The golden vectors the
+firmware host tests consume are `build/policy/<set>/golden/*.json`, generated
+by `make policy` from the deployed run's committed inputs
+(`firmware/deployed/`); `make deploy RUN=<run>` changes the run.
 
 Knobs (environment):
 

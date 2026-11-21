@@ -2,6 +2,7 @@
 the floor, every sole pad and the soles carry the graded friction, and it survives the
 per-reset domain randomisation (which re-draws the floor friction from its nominal)."""
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +13,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "sim"))
 def test_contact_mu_override_survives_dr_reset():
     import eval_precision as E
     from walker_env import BimoWalkerEnv
-    xml = os.path.join(HERE, "..", "sim", "bimo_biped_v6legs_meas.xml")
+    xml = paths.v6_plant("bimo_biped_v6legs_meas.xml")
     env = BimoWalkerEnv(xml_path=xml, domain_rand=True)
     E.set_contact_friction(env, 0.4, 0.003)
     pads = [g for side in env._pad_gids for g in side]
@@ -31,7 +32,7 @@ def test_contact_mu_override_survives_dr_reset():
 def test_contact_mu_none_is_a_no_op():
     import eval_precision as E
     from walker_env import BimoWalkerEnv
-    xml = os.path.join(HERE, "..", "sim", "bimo_biped_v6legs_meas.xml")
+    xml = paths.v6_plant("bimo_biped_v6legs_meas.xml")
     env = BimoWalkerEnv(xml_path=xml)
     before = env.model.geom_friction.copy()
     E.set_contact_friction(env, None, None)

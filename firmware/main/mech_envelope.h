@@ -23,7 +23,7 @@
 // ctrlrange). The robot's measured stops (2026-11-02) lie outside every one
 // of those rows; see the block above kMechLoV6Legs. A firmware whose
 // compiled policy drives those legs (a policy with the ankle rolls -- the
-// v6legs profile, firmware/policies/v6legs) clamps the bench to them; every
+// v6legs profile, BIMO_POLICY=v6legs) clamps the bench to them; every
 // other build to the prototype's. mechLo()/mechHi() pick.
 //
 // Sign convention: sim joint frame (servo-map.md direction table), radians.

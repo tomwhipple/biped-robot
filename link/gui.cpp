@@ -704,9 +704,11 @@ void headlessStatus(const App& a, double now_ms, double t0_ms) {
     }
     if (a.link.have_tlm && !a.link.linkLost(now_ms)) {
         const Telemetry& t = a.link.tlm;
-        printf(" | robot %s  %.2f V  up_z %.2f  vx_est %+.2f",
+        char pw[96];
+        printf(" | robot %s  %.2f V  %s  up_z %.2f  vx_est %+.2f",
                bimo::stateName(t.state), static_cast<double>(t.vbat_v),
-               static_cast<double>(t.up_z), static_cast<double>(t.vx_est));
+               bimo::powerText(t, pw, sizeof pw), static_cast<double>(t.up_z),
+               static_cast<double>(t.vx_est));
         if (t.state == LinkState::kBench) {
             printf("  BENCH: %s", diagReason(telemetryDiag(t)));
         }
@@ -1509,6 +1511,12 @@ void drawTelemetry(App& a, double now_ms) {
     }
     plot("vbat", a.c_vbat, 9.0f, 13.0f, "%.2f V",
          t.vbat_v);
+    {
+        // The INA219's pack and the guard (issue #109): vbat above is the
+        // servos' register 62, 0 with the servo rail off.
+        char pw[96];
+        ImGui::TextUnformatted(bimo::powerText(t, pw, sizeof pw));
+    }
     plot("up_z", a.c_upz, 0.0f, 1.05f, "%.2f", t.up_z);
     // The `cmd` traces are THIS console's own command, charted beside the
     // robot's estimate so the operator can see the robot answer them. An

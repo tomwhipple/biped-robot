@@ -543,9 +543,11 @@ assert PI_BOT_Z >= TORSO_BOT_Z - 0.01, "Pi 4B hangs below the torso"
 HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # --- AFT BAY: the power board, POWER LITE (pcb/power-lite, PR #209; Tom
 # 2026-11-02): 97 x 64.5 x 1.6, two layers, every part through-hole on the top
-# side, four M2.5 holes 3.2 in from the corners. Vertical, right behind the
-# pelvis and so beside the pack (Tom, 2026-10-14), parts facing aft, on four
-# 6 mm standoff bosses off the aft inner wall; its THT leads stand <= 2.5 mm
+# side, four M2.5 holes (2.7) 3.2 in from the corners. Boards mount on M2.5
+# machine screws and standoffs into M2.5 heat-set inserts, the holes used as
+# made (Tom, 2026-11-18). Vertical, right behind the pelvis and so beside the
+# pack (Tom, 2026-10-14), parts facing aft, on four 6 mm standoff bosses off
+# the aft inner wall, each with an M2.5 heat-set insert; its THT leads stand <= 2.5 mm
 # below it, clear of the bearing housing's rear lugs (x >= -43.3). Seen from
 # the parts side (from aft) its left edge is at +y: J1, the pack's XT60, mates
 # along the board out of that edge, so the board sits hard to -y and the
@@ -557,7 +559,8 @@ HOUSING_FRONT_X = GD_FRONT_X + COVER_T        # +53.34 outer
 # a cap deep enough for K1 (#213).
 PWRB_OUTLINE = (97.0, 64.5)                   # across (y), tall (z)
 PWRB_HOLE_INSET = 3.2
-PWRB_HOLE_D = 2.7
+PWRB_HOLE_D = 2.7                             # M2.5, as made
+PWRB_BOSS_R = 3.9                             # its bosses round the inserts (D.HEATSET_M25_D): 2.1 of wall
 PWRB_T = 1.6
 PWRB_UNDER = 2.5                              # THT leads below the board
 PWRB_STANDOFF = 6.0                           # wall face .. solder side
@@ -631,41 +634,41 @@ assert HOUSING_LEN <= D.BED, "torso does not fit the bed"
 assert PCAP_X[0] < TORSO_AFT_X, "the cap is the torso's aft end"
 # The BMS: ShillehTek CF-3SJH25A-C ("3S 12V 18650 Lithium Battery Protection
 # Board with Balancing 25A", Tom 2026-11-02), wired to the board's W1-W5 (no
-# connectors). NOT BOUGHT YET: its outline and thickness are its datasheet
-# DS-NA405 rev 1.0's (the PCB's own silkscreen: 56 x 45 x 1.2; no drawing,
-# no mounting holes, only the four corner pads, live at pack potential, with
-# a plated hole each) and its overall 8 mm is the older ShillehTek manual's
-# (which gives 58 x 45 x 8) -- MEASURE ALL OF IT ON ARRIVAL. It goes component
-# side aft on double-sided foam tape on the bracket, 45 across (y), its P+/P-
+# connectors). MEASURED (Tom, 2026-11-19, caliper): its PCB is 56.8 x 44.8 mm
+# (its silkscreen says 56 x 45), 1.5 mm thick (the silkscreen says 1.2), and
+# its thickest part stands 4.0 mm with the PCB. The 2 mm part-free margin
+# round its edge is still assumed. No drawing, no mounting holes, only the four corner pads,
+# live at pack potential, with a plated hole each (DS-NA405). It goes component
+# side aft on the bracket, held by its hooks over a foam pad, 45 across (y), its P+/P-
 # edge up; its pads, approximate (datasheet figure 1): B- top -y, B2 top +y,
 # B3 bottom -y, B1+ bottom +y, P- and P+ along the top edge.
-BMS_L = 56.0                                  # tall (z)
-BMS_W = 45.0                                  # across (y)
-BMS_PCB_T = 1.2
-BMS_H = 8.0                                   # overall: PCB + its TO-252 MOSFETs etc.
+BMS_L = 56.8                                  # tall (z), measured
+BMS_W = 44.8                                  # across (y), measured
+BMS_PCB_T = 1.5                               # measured, 2026-11-19
+BMS_H = 4.0                                   # overall: PCB + its thickest part, measured
 BMS_EDGE = 2.0                                # the part-free margin round its edge (assumed)
 BMS_MASS = 15.0                               # the listing's
 BMS_TAPE = 1.0                                # foam tape, bracket .. its bare side
-# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs in
-# the board's +y holes (H1, H3; 6 mm male into the bosses, as the board's
-# screws were), screwed to them with flat heads
+# its bracket (power_bracket_v8): a plate on two M2.5 male-female standoffs
+# in the board's +y holes (H1, H3; 6 mm male into the bosses' M2.5 inserts),
+# screwed to them with M2.5 machine screws
 PWRB_SO_L = 15.0                              # M2.5 x 15 standoffs
 PBR_T = 2.5
 PBR_X = (PWRB_PCB_X0 - PWRB_SO_L, PWRB_PCB_X0 - PWRB_SO_L - PBR_T)     # -63.41 on the standoffs, -65.91 aft face
-BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -74.91 its parts
+BMS_X = (PBR_X[1] - BMS_TAPE, PBR_X[1] - BMS_TAPE - BMS_H)             # -66.91 bare side .. -70.91 its parts
 # across: from 1.0 past F1/F2's end (their fuses pull straight out aft) to the +y skin
-BMS_Y = (PWRB_FUSE_END_Y + 1.0, PWRB_FUSE_END_Y + 1.0 + BMS_W)         # 11.53..56.53
-# down from 2.0 under the cap's +y top corner block: 8 mm over its top edge for
-# its 14 AWG pair to B- and P- (WIRE_* below)
-BMS_Z = (PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0 - BMS_L,
-         PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 2.0)                  # -69.0..-13.0
+BMS_Y = (PWRB_FUSE_END_Y + 1.0, PWRB_FUSE_END_Y + 1.0 + BMS_W)         # 11.53..56.33
+# up from its bracket's ledge (0.3 under it, 1.6 thick), whose underside is
+# 0.05 over the torso's bottom: the 7.75 mm over its top edge, to the deck, is
+# for its 14 AWG pair to B- and P- (WIRE_* below), and its top stays clear
+# under the cap's +y top corner block
+BMS_Z = (TORSO_BOT_Z + 0.05 + 1.6 + 0.3, TORSO_BOT_Z + 0.05 + 1.6 + 0.3 + BMS_L)   # -69.55..-12.75
 assert BMS_Y[1] <= TORSO_IN_HW - 0.5, "the BMS does not fit beside the fuses"
 assert BMS_X[1] >= PWRB_AFT_X + 1.5, "the BMS is too close to the cap"
 assert BMS_X[0] <= PWRB_PCB_X0 - max(p[5] for p in PWRB_PARTS if p[0].endswith("fuse")) - 2.0, \
     "the BMS must stand clear over the fuses' tops"
-assert BMS_Z[0] >= TORSO_BOT_Z + 2.4, "no room for the bracket's ledge (0.3 + 1.6) under the BMS"
-# a 58 mm one (the older manual's) does not fit under the cap's block with its
-# wires over its top edge: re-check BMS_L when it is measured
+assert BMS_Z[0] >= TORSO_BOT_Z + 1.9, "no room for the bracket's ledge (0.3 + 1.6) under the BMS"
+assert BMS_Z[1] <= PCOV_SCREW_Z[0] - (PCAP_BLOCK_H - 3.0) - 1.0, "the BMS is too close under the cap's +y top block"
 # battery: OVONIC 3S 4200 mAh 130C XT60 (#107, ordered 2026-10-07), WEIGHED
 # 205 g (Tom, 2026-10-14); its size is still the listing's 96 x 44.5 x 25.5 mm
 # -- measure it. Transverse, centred on the cells, on the pelvis's ceiling (the
@@ -919,7 +922,7 @@ assert YAW_HOUSING_SCREWS_L[1][1] + YAW_HOUSING_BOSS_R <= HOUSING_CHAN_HW, \
 assert YAW_HOUSING_SCREWS_L[0][0] + YAW_HOUSING_BOSS_R <= D.YAW_CASE_X_REAR - D.YAW_SEAT_GAP \
     and YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R <= PELVIS_HW, \
     "the rear-outboard lug must stay off the cell and inside the pelvis's width"
-assert min(abs(y) for y, _ in PWRB_HOLES_YZ if y < 0) - 3.5 >= YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R + 0.3 + 0.5, \
+assert min(abs(y) for y, _ in PWRB_HOLES_YZ if y < 0) - PWRB_BOSS_R >= YAW_HOUSING_SCREWS_L[0][1] + YAW_HOUSING_BOSS_R + 0.3 + 0.5, \
     "the power board's -y lower standoff must clear the rear-outboard lug's notch"
 assert PWRB_PCB_X1 + PWRB_UNDER <= YAW_HOUSING_SCREWS_L[0][0] - YAW_HOUSING_BOSS_R - 0.3 - 0.5, \
     "the power board's leads must clear the rear-outboard lug"

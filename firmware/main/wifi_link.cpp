@@ -22,6 +22,7 @@
 #include "linkproto/protocol.h"
 #include "lwip/sockets.h"
 #include "nvs.h"
+#include "power_rail.h"
 #include "shared.h"
 
 namespace robot {
@@ -100,9 +101,15 @@ void wifiLinkTask(void*) {
                              // the reason spelled out above -- two optional blocks
                              // read from different frames could hand a commander a
                              // length it never asked for, which every client drops.
+        bool pwr = false;    // The power block (kFlagPwr, issue #109): same rule.
     };
     Commander cmdr = {};
     bool have_cmdr = false;
+    // The INA219's read count, as last seen, and when it last moved: the beacon's
+    // pack_mv is 0 once it has not moved for 1 s, whatever g_pack_mv still holds
+    // (housekeeping zeroes that, but not while a long CLI command blocks it).
+    uint32_t pack_reads_seen = 0;
+    int64_t pack_moved_us = -10 * 1000 * 1000;
     // The g_joint_pose publish count of the last pose we beaconed. The loop
     // publishes at 50 Hz and this beacons at 10 Hz, so while armed the count
     // always moves between beacons; the same value twice means ctrl is
@@ -162,7 +169,7 @@ void wifiLinkTask(void*) {
                 g_rx_frames.fetch_add(1);
                 // Latest commander wins, same rule as latest command -- and
                 // {address, pose} are replaced as one value from this frame.
-                cmdr = Commander{from, pkt.pose(), pkt.att()};
+                cmdr = Commander{from, pkt.pose(), pkt.att(), pkt.pwr()};
                 have_cmdr = true;
                 g_peer_ip.store(lwip_ntohl(from.sin_addr.s_addr));
                 g_pose_wanted.store(cmdr.pose);
@@ -231,6 +238,37 @@ void wifiLinkTask(void*) {
                 t.up_x = g_telemetry.up_x.load();
                 t.up_y = g_telemetry.up_y.load();
             }
+            {
+                const uint32_t pr = g_pack_reads.load();
+                if (pr != pack_reads_seen) {
+                    pack_reads_seen = pr;
+                    pack_moved_us = now_us;
+                }
+            }
+            if (cmdr.pwr) {
+                // The battery (issue #109): the INA219's pack voltage, which
+                // the base frame's vbat (register 62, 0 with the servos off)
+                // is not, battguard's level, and power lite's pins. Every value
+                // is a single load: a torn read across them is a 10 Hz
+                // human/Pi-facing report, the TelemetrySnapshot rule.
+                t.have_pwr = 1;
+                t.pack_mv = now_us - pack_moved_us <= 1000 * 1000 ? g_pack_mv.load()
+                                                                  : uint16_t{0};
+                t.batt = static_cast<uint8_t>(battGuard().level());
+                uint8_t f = g_pack_guarding.load() ? linkproto::kPwrGuardPack : uint8_t{0};
+                if constexpr (rail::kFitted) {
+                    const rail::Snapshot r = rail::snapshot();
+                    f |= linkproto::kPwrLite;
+                    if (r.servo_en) f |= linkproto::kPwrServoEn;
+                    if (r.estop_pressed) f |= linkproto::kPwrEstop;
+                    if (r.estop_latched) f |= linkproto::kPwrEstopLatched;
+                    if (r.rail_valid) {
+                        f |= linkproto::kPwrRailValid;
+                        t.rail_mv = r.rail_mv;
+                    }
+                }
+                t.pwr_flags = f;
+            }
             if (cmdr.pose) {
                 // Every bus joint, bus order; an unfitted servo reads 0.
                 float q[obs::kNumBusJoints];
@@ -257,8 +295,7 @@ void wifiLinkTask(void*) {
                 g_tx_tlm.fetch_add(1);
                 // "carried joints", which is what the counter has always
                 // meant -- now true of the +attitude length too.
-                if (tlm_len == linkproto::kTlmLenExt ||
-                    tlm_len == linkproto::kTlmLenExtAtt) {
+                if (t.n_joints != 0) {
                     g_tx_tlm_ext.fetch_add(1);
                 }
             }

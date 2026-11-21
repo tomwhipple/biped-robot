@@ -10,6 +10,7 @@ the tracking keep running after the stand (the reference holds its last,
 standing frame). Off by default = the old handover.
 """
 import os
+import paths  # noqa: E402  (the repo root is on sys.path via tests/conftest.py)
 import sys
 
 import numpy as np
@@ -82,6 +83,6 @@ def test_tracking_pays_after_the_stand(hold):
 
 def test_mjx_flag_needs_a_reference():
     from env_mjx import BimoMJXEnv
-    xml = os.path.join(SIM, "bimo_biped_v6legs.xml")
+    xml = paths.v6_plant("bimo_biped_v6legs.xml")
     with pytest.raises(ValueError, match="rise_ref_hold needs rise_ref_npz"):
         BimoMJXEnv(xml_path=xml, ext_cmd=True, rise_ref_hold=True)

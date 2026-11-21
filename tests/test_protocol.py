@@ -268,6 +268,23 @@ def test_clamp_on_a_prec_style_envelope():
     assert clamp_to_envelope(-0.3, 0.0, env0) == (0.0, 0.0)
 
 
+def test_protocol_imports_without_the_generated_envelope():
+    """tools/estop.py and the arm script import protocol.py on a checkout that
+    may not have run `make` yet: the generated envelope loads on first use,
+    and only a clamp needs it."""
+    import subprocess
+    code = ("import sys; sys.path.insert(0, 'link'); import protocol as P\n"
+            "assert len(P.encode_command(1, 0.0, 0.0, P.FLAG_ESTOP)) == P.CMD_LEN\n"
+            "try:\n    P.V_FWD_MAX\nexcept ImportError as e:\n"
+            "    print('missing:', e)\n")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    r = subprocess.run([sys.executable, "-c", code], cwd=root,
+                       env=dict(os.environ, BIMO_POLICY="no_such_set"),
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "missing:" in r.stdout and "make envelope" in r.stdout, r.stdout
+
+
 def test_protocol_reads_the_profile_twin_named_by_the_environment(monkeypatch):
     import protocol
     monkeypatch.setenv("BIMO_POLICY", "v6legs")
@@ -504,7 +521,8 @@ def test_every_home_verdict_reaches_the_operator():
     # a robot that predates the bit".
     for r in (ArmResult.DISARMED_HOME, ArmResult.HOME_NO_CAL,
               ArmResult.HOME_LOW_BATT, ArmResult.HOME_BUS_FAILED,
-              ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED):
+              ArmResult.HOME_PENDING, ArmResult.HOME_NOT_REACHED,
+              ArmResult.RAIL_DOWN):
         assert is_home_result(r)
         why = diag_reason(pack_diag(False, True, r))
         assert "reset" in why and "unknown to this client" not in why
@@ -594,7 +612,7 @@ def test_diag_values_are_append_only():
         ("HOME_LOW_BATT", 6), ("HOME_BUS_FAILED", 7),
         ("HOME_PENDING", 8), ("HOME_NOT_REACHED", 9),
         ("REFUSED_GAINS", 10), ("REFUSED_POLICY", 11),
-        ("DISARMED_FLAIL", 12), ("DISARMED_STOP", 13)]
+        ("DISARMED_FLAIL", 12), ("DISARMED_STOP", 13), ("RAIL_DOWN", 14)]
     assert DIAG_RUN == 1 and DIAG_CAL_OK == 2 and DIAG_ARM_SHIFT == 4
 
 
@@ -836,6 +854,88 @@ def test_attitude_frame_matches_firmware():
         seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.5, up_z=0.887,
         vx_est=0.4, wz_est=-0.25, servo_err=0, loop_late_pct=3,
         up_xy=(0.45, -0.10)))
+    assert got == want
+
+
+# -- the power block (issue #109) --------------------------------------------
+# FLAG_PWR adds the INA219 pack voltage, battguard's level, and power lite's
+# RAIL_V / ESTOP_N / SERVO_EN, so the operator and the Pi see the battery
+# whether or not the servo bus is up.
+
+def test_power_block_is_additive():
+    base = dict(seq_echo=4242, state=P.LinkState.LIVE, vbat_v=11.4,
+                up_z=0.887, vx_est=0.4, wz_est=-0.25, servo_err=0,
+                loop_late_pct=3)
+    pwr = P.Power(pack_mv=11840, batt=P.BattLevel.WARN.value,
+                  flags=P.PWR_LITE | P.PWR_SERVO_EN | P.PWR_RAIL_VALID,
+                  rail_mv=11720)
+    joints = tuple(0.1 * i - 0.4 for i in range(P.NUM_JOINTS))
+    for kw, want_len in ((dict(), P.TLM_LEN), (dict(up_xy=(0.45, -0.1)), P.TLM_LEN_ATT),
+                         (dict(joints=joints), P.TLM_LEN_EXT),
+                         (dict(joints=joints, up_xy=(0.45, -0.1)), P.TLM_LEN_EXT_ATT)):
+        plain = P.encode_telemetry(P.Telemetry(**base, **kw))
+        withp = P.encode_telemetry(P.Telemetry(**base, **kw, pwr=pwr))
+        assert len(plain) == want_len
+        assert len(withp) == want_len + P.TLM_PWR_BYTES
+        assert withp[:want_len - 2] == plain[:want_len - 2]   # only the CRC moved
+        got = P.decode_telemetry(withp)
+        assert got.pwr == pwr
+        assert len(got.joints) == len(kw.get("joints", ()))
+        assert len(got.up_xy) == len(kw.get("up_xy", ()))
+        # A frame nobody asked power for reports none, not a 0 V pack.
+        assert P.decode_telemetry(plain).pwr is None
+    assert len(set(P.TLM_LENS)) == 8
+    assert max(P.TLM_LENS) == 75
+
+
+def test_power_fields():
+    p = P.Power(pack_mv=11840, batt=1, flags=P.PWR_LITE | P.PWR_RAIL_VALID,
+                rail_mv=11720)
+    assert p.pack_v == pytest.approx(11.84)
+    assert p.level is P.BattLevel.WARN
+    assert p.lite and p.rail_v == pytest.approx(11.72)
+    none = P.Power(pack_mv=0, batt=0, flags=0, rail_mv=11720)
+    assert none.pack_v is None          # 0 is "no reading"
+    assert none.rail_v is None          # not a power-lite image
+    assert P.Power(0, 9, 0, 0).level is None   # a newer firmware's level
+    with pytest.raises(P.ProtocolError):
+        P.encode_telemetry(P.Telemetry(
+            seq_echo=1, state=P.LinkState.LIVE, vbat_v=11.4, up_z=1.0,
+            vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+            pwr=P.Power(70000, 0, 0, 0)))
+
+
+def test_power_block_rejects_bad_lengths_and_bits():
+    t = P.Telemetry(seq_echo=1, state=P.LinkState.BENCH, vbat_v=0.0, up_z=1.0,
+                    vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+                    pwr=P.Power(11840, 0, 0, 0))
+    wire = P.encode_telemetry(t)
+    for bad_len in (P.TLM_LEN + P.TLM_PWR_BYTES - 1, P.TLM_LEN + P.TLM_PWR_BYTES + 1,
+                    max(P.TLM_LENS) + 1):
+        with pytest.raises(P.ProtocolError):
+            P.decode_telemetry((wire + b"\x00" * 64)[:bad_len])
+    bad = bytearray(wire)
+    bad[P.TLM_LEN - 2] ^= 0x01            # inside the block
+    with pytest.raises(P.ProtocolError):
+        P.decode_telemetry(bytes(bad))
+
+
+def test_pwr_flag_is_its_own_bit():
+    assert P.FLAG_PWR == 0x80
+    c = P.decode_command(P.encode_command(1, 0.0, 0.0, P.FLAG_PWR))
+    assert c.pwr and not (c.pose or c.att or c.arm or c.home or c.stop
+                          or c.estop or c.enabled)
+
+
+def test_power_frame_matches_firmware():
+    """Pinned to the same literal firmware/host/test_protocol.cpp asserts."""
+    want = bytes.fromhex(
+        "42540207310000000000e8030000000000000000"
+        "000000000000000000402e0115d400e785")
+    got = P.encode_telemetry(P.Telemetry(
+        seq_echo=0x31, state=P.LinkState.BENCH, vbat_v=0.0, up_z=1.0,
+        vx_est=0.0, wz_est=0.0, servo_err=0, loop_late_pct=0,
+        pwr=P.Power(11840, 1, P.PWR_LITE | P.PWR_ESTOP | P.PWR_RAIL_VALID, 212)))
     assert got == want
 
 

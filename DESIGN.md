@@ -388,14 +388,16 @@ cover off:
   the bosses); the General Driver goes on top with four M2.5 × 6.
 
 **Power lite** (`pcb/power-lite/`):
-97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes 3.2 mm
-in from the corners, which the torso uses as they are (#213).
+97 × 64.5 × 1.6 mm, through-hole parts on the top side, four M2.5 holes
+(Ø2.7) 3.2 mm in from the corners, used as made: boards mount on M2.5
+machine screws and standoffs into heat-set inserts (Tom, 2026-11-18).
 
 - It stands vertical in the aft bay, right behind the pelvis and so beside the
-  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall:
-  2 × M2.5 × 6 pan in its −y holes, and in its +y holes the BMS bracket's two
-  M2.5 × 15 male-female standoffs. The 6 mm keeps its leads clear of the
-  bearing housing's rear lugs.
+  pack, parts facing aft, on four 6 mm standoff bosses off the aft inner wall,
+  each with an M2.5 heat-set insert: 2 × M2.5 × 6 button heads in its −y
+  holes, and in its +y holes the BMS bracket's two M2.5 × 15 male-female
+  standoffs.
+  The 6 mm keeps its leads clear of the bearing housing's rear lugs.
 - Its tallest part is the relay K1, 26.7 mm off it; the cap stands 2.0 mm over
   it. The fuses F1/F2 (16.3 mm with the fuse in) pull straight out aft with
   the cap off.
@@ -407,13 +409,17 @@ in from the corners, which the torso uses as they are (#213).
   the BMS.
 - Its servo headers J4–J8 are on its −y edge and J3, J11 and J12 along its
   bottom edge, all reached with the cap off.
-- **The BMS** (a ShillehTek CF-3SJH25A-C, 56 × 45 × 8 mm from its datasheet,
-  not measured) is wired to the board's W pads, with no connectors. It rides
+- **The BMS** (a ShillehTek CF-3SJH25A-C: its PCB measured 56.8 × 44.8 mm,
+  its thickest part 4.0 mm with the PCB) is wired to the board's W pads, with no connectors. It rides
   the **BMS bracket** (`power_bracket_v8`, 4 g, a 2.5 mm plate on the two
-  standoffs, 2 × M2.5 × 6 flat-heads), component side aft on foam tape, 18.5 mm
-  off the board: over J1, J2 and the W pads, beside the fuses (1.0 mm past
-  their ends, 2.2 mm over their tops), 0.9 mm off the +y skin. A ledge and two
-  stops on the bracket hold it in place; the cap is 2.2 mm off its parts.
+  standoffs, an M2.5 × 6 button head and an M2.5 × 6 flat head), component side
+  aft on a foam pad, 18.5 mm off the board: over J1, J2 and the W pads, beside
+  the fuses (1.0 mm past their ends, 2.2 mm over their tops), 0.9 mm off the
+  +y skin. A ledge carries it, and four hooks hold it: a fixed one over its
+  top edge, snaps under its bottom edge and at its −y edge, each lip 0.8 mm
+  over its PCB. It stands on the ledge just over the torso's bottom, which
+  leaves 7.75 mm over its top edge for its two 14 AWG wires. The cap is
+  6.2 mm off its parts.
 - **The balance lead:** J2 is under the BMS and below the door's sill, so a
   3S JST-XH balance extension lead stays plugged into it and parks its male
   end, pins up, in the **balance park** (`balance_park_v8`, a 0.6 g cup
@@ -446,11 +452,14 @@ in from the corners, which the torso uses as they are (#213).
 - `power_cover_v8`, the **cap** (29 g, 122.5 × 71.5 × 15.3 mm, every edge
   square): the torso's skins and deck carried 4.7 mm aft of its end to a plate
   with vent slots, a
-  lip in under the deck and inside the −y skin, and three corner blocks that
+  lip in under the deck and inside both skins, and three corner blocks that
   reach forward to the torso's skin screws. It takes 3 × M2.5 × 8 flat-heads
-  (+y top, −y top, −y bottom); the +y bottom hole stays empty, because the
-  BMS's corner is where its block would stand. The torso's skin holes,
-  windows and deck pockets are where they were for the flat cover.
+  (+y top, −y top, −y bottom). The fourth corner, +y bottom, has a tab: a
+  2.75 mm tongue 4.0 mm in along the +y skin, 2.9 mm short of the BMS's PCB
+  and 1.2 mm under its parts. A block
+  and screw there would stand where the BMS's corner is, so the torso has no
+  hole there. The torso's other skin holes, windows and deck pockets are where
+  they were for the flat cover.
 
 **The battery door** (`battery_door_v8`, 11 g, 79.8 × 29.6 × 12.4 mm),
 printed outer face down, is the +y skin from power lite's J1 to the front
@@ -633,7 +642,7 @@ Detail: [docs/wiring.md](docs/wiring.md), [docs/sensor-expansion.md](docs/sensor
 ## 7. Mass
 
 The robot as drawn, from the CAD-inertial plant
-(`sim/bimo_biped_v6ar.xml`) and the rollup
+(`build/v6/sim/bimo_biped_v6ar.xml`) and the rollup
 (`build/v6/reports/parts_v6_rollup.txt`, written by `make cad`):
 
 | | |
@@ -768,8 +777,8 @@ flies the parts in along their insertion paths to prove they assemble.
 **Plants**: `sim/gen_plant_v6.py` builds a parametric plant (`DesignParams`) for
 design sweeps; `sim/build_v6_inertia.py` builds the CAD-inertial plant of the robot as
 drawn (17 actuators, arms at their folded rest pose, the servo set's masses,
-the bearing housing, the hip-yaw bearings split between it and the carriers); `sim/bimo_biped_v6ar.xml` is the committed plant,
-pinned by the tests. `sim/bimo_biped_v6legs.xml` (`build_v6_inertia.py --asbuilt-legs`) is the body as it stands on the bench: the 12 leg servos and the control board on the torso frame, no pack, Pi, head, neck or arms (tethered); it is the plant the nightly walk and balance runs train on while the body is in that state.
+the bearing housing, the hip-yaw bearings split between it and the carriers); `build/v6/sim/bimo_biped_v6ar.xml` is the plant (built by `make plant`),
+pinned by the tests. `build/v6/sim/bimo_biped_v6legs.xml` (`build_v6_inertia.py --asbuilt-legs`) is the body as it stands on the bench: the 12 leg servos and the control board on the torso frame, no pack, Pi, head, neck or arms (tethered); it is the plant the nightly walk and balance runs train on while the body is in that state.
 
 ## 11. Software
 
@@ -789,7 +798,7 @@ The software stack runs on hardware today and is shared by every body:
   [docs/sil-harness.md](docs/sil-harness.md).
 
 **The deployed policy is `robot_legs_walk16_act_s128r24`**, a distilled
-(128, 128) student on the v6 legs plant (`sim/bimo_biped_v6legs.xml`, the 12
+(128, 128) student on the v6 legs plant (`build/v6/sim/bimo_biped_v6legs.xml`, the 12
 leg joints), on the ESP32 ([docs/first-policy-stand.md](docs/first-policy-stand.md)).
 The training envs and the referee run on the robot's plants (12 leg joints
 driven, neck and arms held, per-servo stiffness;
@@ -859,9 +868,9 @@ See [GitHub issues](https://github.com/tomwhipple/biped-robot/issues)
 | what | file |
 |---|---|
 | every CAD dimension | `cad/v6/dimensions_v6.py` (servo interface from `cad/common/dimensions.py`) |
-| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `cad/v6/stl`, STEPs to `build/v6/step` |
+| the parts | `cad/v6/*.py`, exported by `cad/v6/parts_v6.py` (`make cad`): STLs to `build/v6/stl`, STEPs to `build/v6/step` |
 | the assembly and ROM gate | `cad/v6/assembly_v6.py`, `cad/v6/check_assembly_v6.py` |
-| the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `sim/bimo_biped_v6ar.xml` |
+| the plant | `sim/gen_plant_v6.py`, `sim/build_v6_inertia.py` → `build/v6/sim/bimo_biped_v6ar.xml` |
 | gait, IK, gates | `sim/static_gait.py`, `sim/v6_kin.py`, `sim/design_gates.py`, `sim/gate_no3250.py` |
 | get-up | `sim/getup_v6_shoulder.py` (with `sim/getup_v6.py`) |
 | records and evidence | `docs/design-v6/` |

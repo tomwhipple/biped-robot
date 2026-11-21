@@ -165,6 +165,10 @@ const char* diagReason(uint8_t diag) {
         case ArmResult::kDisarmedStop:
             return "disarmed -- operator STOP (tools/estop.py): run ended; "
                    "re-arm deliberately (ARM edge or run)";
+        case ArmResult::kRailDown:
+            return "servo rail OFF, so no arm or reset -- E-stop, rail fault, "
+                   "link loss or pack guard (`stat` says which); RUN, then "
+                   "disarm, then arm";
     }
     // A refusal reason this client is too old to name. Say so rather than
     // guess: the enum is append-only, so an unknown value is a NEWER robot.
@@ -249,7 +253,7 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
     out[20] = t.loop_late_pct;
     put64(out + kTlmTimeOff, t.t_us);
     // Blocks in a FIXED order and of fixed size, so the length alone still
-    // names the layout: [base 21][t_us 8][joints 34?][att 4?][crc 2].
+    // names the layout: [base 21][t_us 8][joints 34?][att 4?][pwr 6?][crc 2].
     size_t at = kTlmTimeOff + 8;
     if (t.n_joints == kNumJoints) {
         for (size_t i = 0; i < kNumJoints; ++i) {
@@ -262,15 +266,26 @@ size_t encodeTelemetry(uint8_t* out, const Telemetry& t) {
         put16(out + at + 2, static_cast<uint16_t>(milli(t.up_y)));
         at += kTlmAttBytes;
     }
+    if (t.have_pwr) {
+        put16(out + at, t.pack_mv);
+        out[at + 2] = t.batt;
+        out[at + 3] = t.pwr_flags;
+        put16(out + at + 4, t.rail_mv);
+        at += kTlmPwrBytes;
+    }
     put16(out + at, crc16Ccitt(out, at));
     return at + 2;
 }
 
 Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
-    // Length selects the layout, exactly as protocol.py.
-    const bool has_joints = (len == kTlmLenExt || len == kTlmLenExtAtt);
-    const bool has_att = (len == kTlmLenAtt || len == kTlmLenExtAtt);
-    if (len != kTlmLen && !has_joints && !has_att) return Err::kBadLength;
+    // Length selects the layout, exactly as protocol.py: the power block on
+    // the four +pwr lengths, then joints and attitude by what is left.
+    const bool has_pwr = (len == kTlmLenPwr || len == kTlmLenAttPwr ||
+                          len == kTlmLenExtPwr || len == kTlmLenExtAttPwr);
+    const size_t n = has_pwr ? len - kTlmPwrBytes : len;
+    const bool has_joints = (n == kTlmLenExt || n == kTlmLenExtAtt);
+    const bool has_att = (n == kTlmLenAtt || n == kTlmLenExtAtt);
+    if (n != kTlmLen && !has_joints && !has_att) return Err::kBadLength;
     if (buf[0] != kMagicTlm[0] || buf[1] != kMagicTlm[1]) return Err::kBadMagic;
     if (buf[2] != kVersion) return Err::kBadVersion;
     const size_t body = len - 2;
@@ -306,6 +321,19 @@ Err decodeTelemetry(const uint8_t* buf, size_t len, Telemetry& out) {
         out.have_att = 1;
         out.up_x = static_cast<int16_t>(get16(buf + at)) / 1000.0f;
         out.up_y = static_cast<int16_t>(get16(buf + at + 2)) / 1000.0f;
+        at += kTlmAttBytes;
+    }
+    out.have_pwr = 0;
+    out.pack_mv = 0;
+    out.batt = 0;
+    out.pwr_flags = 0;
+    out.rail_mv = 0;
+    if (has_pwr) {
+        out.have_pwr = 1;
+        out.pack_mv = get16(buf + at);
+        out.batt = buf[at + 2];
+        out.pwr_flags = buf[at + 3];
+        out.rail_mv = get16(buf + at + 4);
     }
     return Err::kOk;
 }

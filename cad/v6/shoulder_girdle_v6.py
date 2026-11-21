@@ -115,7 +115,7 @@ from common import mocks as CA  # noqa: E402
 import neck_floor as NF  # noqa: E402
 import paths  # noqa: E402
 
-OUT_STL = os.path.join(HERE, "stl")
+OUT_STL = paths.V6_STL
 OUT_STEP = os.path.join(paths.BUILD, "v6", "step")
 OUT_REN = os.path.join(paths.BUILD, "v6", "renders")
 

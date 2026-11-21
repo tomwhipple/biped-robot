@@ -135,7 +135,7 @@ purpose (`firmware/components/wcli/policy.cpp`).
 | `imu`, `imu scan/raw/ring/avg/ae/reinit`, `imu gscale`, `imu mount` (reads), `imu bias online [on/off]` (RAM) | `imu bias`, `imu bias online save`, `imu gscale x y z`, `imu mount w x y z`, `imu forget` -- NVS |
 | `wifi` (status) | `wifi <ssid> <psk>`, `wifi clear` -- credentials (NVS) |
 | `wcli` (status) | `wcli key ...` -- the key itself; `wcli drop` -- ends the Wi-Fi session: not sensitive, kept on the tether with the other `wcli` controls |
-| `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot) |
+| `batt` (status) | `batt reset` -- clears the pack-guard latch: swap the pack at the robot, reset on the tether (or reboot); `batt pack on\|off` -- what the guard reads |
 | `stream status`, `stream dump` | `stream <id> ...` -- drives a servo with no torque gate and no envelope clamp |
 | `obsdump`, `obsdump show/off` | `obsdump on/once` -- streams to the tether UART only |
 | `fall`, `flail` (status) | `fall on/off/autohome/clear`, `flail on/off` -- switch a safety guard (fall guard, flail guard) |

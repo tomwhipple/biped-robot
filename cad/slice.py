@@ -47,7 +47,7 @@ import zipfile
 import orca_profile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STL_DIR = os.path.join(REPO, "cad", "v6", "stl")
+STL_DIR = os.path.join(REPO, "build", "v6", "stl")
 SETTINGS = os.path.join(REPO, "cad", "v6", "print_settings.json")
 OUT_DIR = os.path.join(REPO, "build", "v6", "gcode")
 
@@ -893,7 +893,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("names", nargs="*", metavar="name",
-                    help="part names (as in cad/v6/stl) or plate names (print_settings.json 'plates')")
+                    help="part names (as in build/v6/stl) or plate names (print_settings.json 'plates')")
     ap.add_argument("--all", action="store_true",
                     help="every plate, and every part on no plate")
     ap.add_argument("--harvest", action="store_true",

@@ -10,7 +10,7 @@ Two modes, one header contract:
     Reads the exported .silw blob written by tools/export_policy_weights.py
     (params.pkl -> little-endian f32 + self-describing SILW header, with a
     JSON sidecar cross-checked when present) and compiles it into
-    firmware/components/policy/include/policy/weights.h with
+    build/policy/<set>/policy/weights.h (`make policy`) with
     kWeightsArePlaceholder = false.  The net that goes on the robot must be
     small enough to live in flash as a constexpr -- firmware-design section 6
     says distill the (512, 256, 128) training net to ~(128, 128); see
@@ -25,7 +25,7 @@ Two modes, one header contract:
     forward pass and its test harness were real code before any real weights
     existed; kWeightsArePlaceholder is true and test_policy asserts it.
 
-Either way the golden vectors in firmware/host/vectors/policy_vectors.h are
+Either way the golden vectors in vectors/policy_vectors.h are
 computed HERE in numpy with the exact brax semantics the firmware reproduces:
 
     x       = (obs - mean) / std              running_statistics.normalize
@@ -49,8 +49,10 @@ float; docs/firmware-design.md section 6.1)
     numpy mirror of the firmware's int8 arithmetic (policy_q8.forward_q8),
     which the firmware reproduces to the bit up to the final tanhf; how far
     that lands from the float net is reported here and pinned by
-    test_sil_golden against brax.  A profile that is already int8 stays int8
-    when regenerated without --quant.
+    test_sil_golden against brax.  --q8-save stores the kernels so chosen
+    (what `make deploy QUANT=int8` does); --q8 builds the header from stored
+    kernels with no rollouts (what `make policy` does: the plant moves on,
+    the deployed rounding does not).
 
 Real-mode obs cases are built as raw = mean + std * z from a sampled NORMALIZED
 z (the same construction tools/export_policy_weights.py uses for its brax
@@ -73,7 +75,7 @@ sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
 import policy_q8                                       # noqa: E402
 
-# The deployed set; --profile <name> reads and writes firmware/policies/<name>/
+# The deployed set; --profile <name> reads and writes build/policy/<name>/
 # instead (tools/policy_profile.py). main() rebinds these three.
 WEIGHTS_OUT = policy_profile.files()["weights_h"]
 VEC_OUT = policy_profile.files()["policy_vectors_h"]
@@ -301,11 +303,23 @@ def main():
     ap.add_argument("--cases", type=int, default=8)
     ap.add_argument("--profile", default=None,
                     help="policy profile <name>: read its obs spec and write "
-                         "its weights under firmware/policies/<name>/ "
+                         "its weights under build/policy/<name>/ "
                          "(tools/policy_profile.py)")
     ap.add_argument("--quant", choices=("none", "int8"), default=None,
                     help="int8: a quantized profile (policy/q8.h). Default: "
                          "whatever the target header already is")
+    ap.add_argument("--run-dir", default=None,
+                    help="the run's directory (its config.json); default "
+                         "sim/runs/<run>")
+    q = ap.add_mutually_exclusive_group()
+    q.add_argument("--q8", default=None,
+                   help="int8: take the quantized kernels from this .npz "
+                        "(firmware/deployed/q8/<set>.npz; what `make policy` "
+                        "does) instead of quantizing afresh")
+    q.add_argument("--q8-save", default=None,
+                   help="int8: quantize afresh (calibration rollouts on the "
+                        "CPU plant) and store the kernels in this .npz "
+                        "(what `make deploy QUANT=int8` does)")
     args = ap.parse_args()
     global SPEC_H, WEIGHTS_OUT, VEC_OUT
     profile = policy_profile.check(args.profile)
@@ -328,6 +342,8 @@ def main():
         if was_q8:
             print("  %s is int8: regenerating it int8 (--quant none to "
                   "change that)" % os.path.relpath(WEIGHTS_OUT, ROOT))
+    if (args.q8 or args.q8_save) and quant != "int8":
+        raise SystemExit("--q8 / --q8-save are for --quant int8")
     if quant == "int8" and (args.placeholder or profile is None):
         raise SystemExit("--quant int8 is for a policy PROFILE's real net "
                          "(--profile <name> --run <run>): the deployed set "
@@ -360,7 +376,8 @@ def main():
         # An UNTRAINED net made to test the firmware path
         # (tools/make_test_policy_run.py) compiles as a placeholder: the
         # firmware refuses to arm on it (cli.cpp armRefused).
-        cfg_path = os.path.join(RUNS, info["run"] or "", "config.json")
+        run_dir = args.run_dir or os.path.join(RUNS, info["run"] or "")
+        cfg_path = os.path.join(run_dir, "config.json")
         if info["run"] and os.path.exists(cfg_path):
             with open(cfg_path) as fh:
                 test_net = json.load(fh).get("test_net")
@@ -368,11 +385,17 @@ def main():
     sizes = info["sizes"]
     qlayers = None
     selftest = None
-    if quant == "int8":
+    if quant == "int8" and args.q8:
+        # The kernels as quantized at deploy time: the calibration rollouts
+        # ran on the plant of that day, so a rebuild must not redo them.
+        qlayers, so = policy_q8.load_q8(args.q8, layers, act_dim)
+        print("  int8: kernels from %s" % os.path.relpath(args.q8, ROOT))
+        selftest = (so, policy_q8.forward_q8(mean, std, qlayers, so, act_dim))
+    elif quant == "int8":
         print("  int8: calibration rollouts of the float net on the CPU "
               "plant ...")
         cal = policy_q8.calibration_obs(ROOT, info["run"], mean, std, layers,
-                                        act_dim)
+                                        act_dim, run_dir=args.run_dir)
         qlayers = policy_q8.gptq_quantize_net(mean, std, layers, act_dim, cal)
         a_f = policy_q8.float_forward(mean, std, layers, cal, act_dim)
         a_q = np.array([policy_q8.forward_q8(mean, std, qlayers, o, act_dim)
@@ -384,6 +407,12 @@ def main():
                                      np.sqrt(np.mean(e ** 2))))
         so = cal[len(cal) // 3]
         selftest = (so, policy_q8.forward_q8(mean, std, qlayers, so, act_dim))
+        if args.q8_save:
+            os.makedirs(os.path.dirname(os.path.abspath(args.q8_save)),
+                        exist_ok=True)
+            policy_q8.save_q8(args.q8_save, qlayers, so)
+            print("  int8: kernels saved to %s" % args.q8_save)
+    if qlayers is not None:
         fwd = lambda o: policy_q8.forward_q8(mean, std, qlayers, o, act_dim)
     else:
         fwd = lambda o: forward(mean, std, layers, o, act_dim)

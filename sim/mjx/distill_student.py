@@ -43,10 +43,12 @@ import argparse
 import functools
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import pickle
 import shutil
 import subprocess
-import sys
 import time
 
 import numpy as np
@@ -101,9 +103,7 @@ def env_kwargs(cfg, mjx_impl=None, num_envs=None):
         if isinstance(v, list):
             kw[k] = tuple(v)
     xml = kw.get("xml_path") or "bimo_biped_v6ar.xml"   # the trainer's default plant
-    if not os.path.isabs(xml):
-        xml = os.path.join(ROOT, "sim", os.path.basename(xml))
-    kw["xml_path"] = xml
+    kw["xml_path"] = paths.resolve_plant(xml)
     if mjx_impl:
         kw["mjx_impl"] = mjx_impl
     if kw.get("mjx_impl", "jax") == "warp":

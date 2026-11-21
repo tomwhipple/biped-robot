@@ -2,7 +2,7 @@
 """Generate the command envelope the robot enforces, from the deployed run.
 
 Run:  .venv/bin/python tools/gen_envelope.py --run <deployed run> [--profile <name>]
-      (`make deploy RUN=... [POLICY=<name>]` runs it beside gen_obs_spec.py)
+      (`make policy` runs it per policy set, from firmware/deployed/)
 
 --run is REQUIRED, like gen_obs_spec.py: the envelope is a property of the
 policy that is flashed, so it may only change because somebody said which run
@@ -35,7 +35,7 @@ snaps a command into it to a stand.
 Writes, per policy profile (tools/policy_profile.py):
 
   linkproto/cmd_envelope.h     the firmware's constants (namespace linkproto)
-  link/cmd_envelope.py         the Python twin link/protocol.py reads
+  linkproto/cmd_envelope.py    the Python twin link/protocol.py reads
   vectors/cmd_envelope_vectors.h   the clamp, run through link/protocol.py's
                                    Python on this envelope, for the host test
 """
@@ -322,7 +322,7 @@ def main():
                                   "whose config.json defines the envelope")
     ap.add_argument("--profile", default=None,
                     help="write policy profile <name>'s set under "
-                         "firmware/policies/<name>/ instead of the deployed "
+                         "build/policy/<name>/ instead of the deployed "
                          "files (tools/policy_profile.py)")
     args = ap.parse_args()
     profile = policy_profile.check(args.profile)

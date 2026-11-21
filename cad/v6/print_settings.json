@@ -301,7 +301,7 @@
     "power_cover_v8": {
       "orient": "RY_XUP",
       "supports": false,
-      "note": "outer face down, the rim, the lip and the three corner blocks rising; no supports"
+      "note": "outer face down, the rim, the lip, the three corner blocks and the fourth corner's tab rising; no supports"
     },
     "switch_pod_v8": {
       "orient": "RY_XUP",
@@ -311,7 +311,7 @@
     "power_bracket_v8": {
       "orient": "RY_XDOWN",
       "supports": false,
-      "note": "the face that sits on the standoffs down, the ledge and the BMS stops rising; no supports"
+      "note": "the face that sits on the standoffs down, the ledge and the BMS's hooks and snaps rising; no supports"
     },
     "balance_park_v8": {
       "orient": "IDENT",

@@ -20,6 +20,7 @@
 #include "obs/assembler.h"
 #include "obs/obs_spec.h"
 #include "policy/mlp.h"
+#include "railguard/railguard.h"
 #include "scsbus/bus.h"
 #include "scsbus/gains.h"
 #include "wcli/wcli.h"
@@ -29,6 +30,8 @@
 #include "imu_sampler.h"
 #include "mech_envelope.h"
 #include "net_bench.h"
+#include "power_rail.h"
+#include "pack_sense.h"
 #include "servo_gains.h"
 #include "shared.h"
 #include "wifi_link.h"
@@ -111,6 +114,14 @@ scsbus::Bus* claimBus(Sink out) {
         out("no bus\r\n");
         return nullptr;
     }
+    // Power lite: nobody is listening with the rail off. `home` and an arm power it
+    // themselves; everything else waits for a deliberate `rail on`.
+#if BIMO_POWER_LITE
+    if (!robot::rail::busUp()) {
+        out("rail off: the servos have no power -- `rail on` first (`rail` for why)\r\n");
+        return nullptr;
+    }
+#endif
     return robot::g_bus;
 }
 
@@ -1643,7 +1654,7 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
     // block), so it outranks this too: a flat pack is exactly when powering
     // the servos to hold a stand is the wrong answer, and unlike the E-stop
     // this latch is the ROBOT's, not the operator's, to clear.
-    if (robot::battGuard().torqueMustRelease()) {
+    if (robot::battGuard().latched()) {
         out("REFUSED: the pack under-voltage guard has torque latched off. "
             "Swap the pack, then `batt reset` -- see `batt`.\r\n");
         return linkproto::ArmResult::kHomeLowBatt;
@@ -1711,6 +1722,99 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 }
 
 
+#if BIMO_POWER_LITE
+// -- the power-lite rail (main/power_rail.h, components/railguard) -------------
+// Housekeeping's half. ctrl owns the state machine; these ask it, wait, and say why.
+//
+// `rail on` stays on until `rail off`, `bench` or a drop, for bench work (`scan`,
+// `cal`, `pose`). A rail that an arm or a home powered goes off again with its
+// reason for being on.
+static bool s_rail_typed = false;
+
+// Power the rail for the command in hand. True with the bus up; `powered` is set if
+// this call closed K1. Blocks: rise + servo boot + first replies, under 1.2 s when
+// healthy. ctrl keeps ticking, so an E-stop or a STOP during the wait still acts.
+bool railEnsureUp(Sink out, bool& powered) {
+    powered = false;
+    if (robot::rail::busUp()) return true;
+    // The handover has not finished: the bus below is not ours to write yet.
+    if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
+        out("busy: the control loop owns the bus -- run `bench` first\r\n");
+        return false;
+    }
+    // The pack guard's latch outranks this, as it does a home (homeAll).
+    if (robot::battGuard().latched()) {
+        out("REFUSED: the pack under-voltage guard is latched; the rail stays off. Swap the "
+            "pack, then `batt reset`.\r\n");
+        return false;
+    }
+    // A servo whose rail only just went may not have reset: its torque bit could
+    // still be set from before, with an old goal behind it. Any bus write is a motion
+    // command, so this one first, and again once it has power.
+    if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+    // kRailStillUp: right after a drop C1 has not fallen yet. With servos on the rail
+    // that takes well under this; on a bare bench it is seconds, so say so.
+    const TickType_t t0 = xTaskGetTickCount();
+    railguard::Verdict v = robot::rail::requestOn();
+    while (v == railguard::Verdict::kRailStillUp &&
+           xTaskGetTickCount() - t0 < pdMS_TO_TICKS(300)) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        v = robot::rail::requestOn();
+    }
+    if (v != railguard::Verdict::kOk) {
+        say(out, "REFUSED: rail: %s\r\n", railguard::verdictName(v));
+        return false;
+    }
+    const TickType_t limit = pdMS_TO_TICKS(railguard::kRiseTimeoutMs + railguard::kServoBootMs + 200u);
+    const TickType_t t1 = xTaskGetTickCount();
+    while (!robot::rail::busUp()) {
+        const robot::rail::Snapshot r = robot::rail::snapshot();
+        if (!r.servo_en || xTaskGetTickCount() - t1 > limit) {
+            if (r.servo_en) robot::rail::requestOff(railguard::DropWhy::kRiseTimeout);
+            say(out, "REFUSED: rail did not come up: %s (RAIL_V %.1f V)\r\n",
+                r.fault != railguard::Fault::kNone ? railguard::faultName(r.fault)
+                                                   : railguard::dropName(r.last_drop),
+                static_cast<double>(r.rail_mv) / 1000.0);
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    powered = true;
+    if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+    // kServoBootMs is an estimate until the bench measures it: give a slower servo a
+    // moment rather than refuse. A silent one is reported by whatever runs next.
+    const obs::Calibration& cal = robot::calibration();
+    const TickType_t t2 = xTaskGetTickCount();
+    for (int b = 0; b < obs::kNumBusJoints; ++b) {
+        if (!cal.fitted[b]) continue;
+        while (robot::g_bus && !robot::g_bus->ping(obs::kBusServoId[b]) &&
+               xTaskGetTickCount() - t2 < pdMS_TO_TICKS(300) && robot::rail::busUp()) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        }
+    }
+    return true;
+}
+
+// The command that powered the rail is done with it.
+static void railBenchDone() {
+    if (!s_rail_typed) robot::rail::requestOff(railguard::DropWhy::kDisarm);
+}
+
+// A `home`, the wireless reset, or the fall pick-up's autohome: the bench motions
+// that may power the rail, since each is the way back from a fall and ends
+// released. A hold's autohome calls homeAll directly: the arm it came from
+// powered the rail, and a hold that has lost it has nothing to home.
+linkproto::ArmResult homePowered(Sink out, long spd) {
+    bool powered = false;
+    if (!railEnsureUp(out, powered)) return linkproto::ArmResult::kRailDown;
+    const linkproto::ArmResult r = homeAll(out, spd);
+    if (powered && r != linkproto::ArmResult::kHomePending) railBenchDone();
+    return r;
+}
+#else
+static inline linkproto::ArmResult homePowered(Sink out, long spd) { return homeAll(out, spd); }
+#endif
+
 // -- fall guard, bench half (fallguard.h; ctrl_task runs the armed half) ----
 // Tom 2026-11-01, after a turn-in-place step fell over with nothing watching
 // (balance only runs inside `pose ... B`): "in the firmware, we should have
@@ -1732,7 +1836,9 @@ linkproto::ArmResult homeAll(Sink out, long spd) {
 //    and the latch clears. It never arms. History: the armed loop's auto-CLEAR
 //    re-armed torque in the operator's hands (2026-08-30/31) and was removed;
 //    this is a slow home that ends released, at Tom's request, and `fall
-//    autohome off` restores "wait for a typed `home`".
+//    autohome off` restores "wait for a typed `home`". A power-lite image
+//    homes the same way: the pick-up powers the rail for it (homePowered),
+//    and the home drops it again when it ends (Tom 2026-11-19, #229).
 // Every fall, hand-over, pick-up and clear is a flight-recorder Ev::kFall event.
 static bool s_fall_on = true;
 static bool s_fall_autohome = true;
@@ -1789,9 +1895,17 @@ void fallTickImpl(Sink out) {
     const fallguard::Event ev = s_fall.update(fallguard::Motion::kBench, valid, smp.up, smp.gyro, now_ms);
     if (ev == fallguard::Event::kFell) {
         s_traj_active = false;
+#if BIMO_POWER_LITE
+        if (s_home_pending) {   // the beacon must not say HOME_PENDING for ever
+            robot::g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kDisarmedFall));
+        }
+#endif
         s_home_pending = false;
         balStop(out, "FALL"); trimStop(out, "FALL");
         if (robot::g_bus) robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+#if BIMO_POWER_LITE
+        robot::rail::requestOff(railguard::DropWhy::kFall);
+#endif
         char msg[64];
         snprintf(msg, sizeof msg, "bench fall at %.0f deg: motion stopped, torque off",
                  static_cast<double>(s_fall.fallTiltDeg()));
@@ -1802,9 +1916,12 @@ void fallTickImpl(Sink out) {
         return;
     }
     if (ev != fallguard::Event::kPickedUp || !s_fall_autohome) return;
+    // Power lite: homePowered closes K1 for this home and opens it again when the
+    // home ends (homeVerify). Refused -- E-stop, a rail fault, the pack guard -- it
+    // says why and the latch stands; the Detector repeats the pick-up, so it retries.
     const fallguard::Motion m = s_fall.fellIn();
     out("FALL cleared: upright and still for 1 s -- homing\r\n");
-    if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
+    if (homePowered(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
         out("home did not start -- still FALLEN (`home` to retry)\r\n");
         return;
     }
@@ -1840,6 +1957,8 @@ static const char* holdWhy(uint8_t trip) {
     if (trip == robot::kHoldTripOperator) return "operator soft STOP";
     return flailguard::tripName(static_cast<flailguard::Trip>(trip));
 }
+
+void cmdTorque(Sink out, int argc, char** argv, bool on);
 
 void flailTickImpl(Sink out) {
     // -- operator stops ---------------------------------------------------
@@ -1937,6 +2056,12 @@ void flailTickImpl(Sink out) {
         s_hold_pending = false;
         return;
     }
+#if BIMO_POWER_LITE
+    if (!robot::rail::busUp()) {  // the rail went: nothing left to home from
+        s_hold_pending = false;
+        return;
+    }
+#endif
     imu::Sample smp{};
     uint32_t age = 0;
     const bool valid = robot::peekImu(smp, &age) && smp.valid && age <= kBalStaleMs;
@@ -1951,6 +2076,19 @@ void flailTickImpl(Sink out) {
         s_hold_since = now_ms;
     }
     if (static_cast<uint32_t>(now_ms - s_hold_since) < kHoldSettleMs) return;
+    // The pack guard watches the bench too (issue #109) and refuses a home once it
+    // has latched, so this hold would never end. Upright and still, it ends the way a
+    // home would have, released, without the move (and, on power lite, the rail goes).
+    if (robot::battGuard().latched()) {
+        out("HOLD: upright and still for 1 s, but the pack guard has latched -- releasing, "
+            "no home on a flat pack\r\n");
+        char rel[] = "release";
+        char* av[] = {rel};
+        cmdTorque(out, 1, av, false);
+        s_hold_pending = false;           // once, whatever the bus said
+        robot::flight::event(flightrec::Ev::kFlail, "hold: pack guard latched, released", 0, 4);
+        return;
+    }
     out("HOLD: upright and still for 1 s -- homing\r\n");
     if (homeAll(out, kHomeStepsPerSec) != linkproto::ArmResult::kHomePending) {
         out("home did not start -- still HOLDING (`home` to retry, `release` to go limp)\r\n");
@@ -2037,9 +2175,17 @@ void cmdFall(Sink out, int argc, char** argv) {
 // convention as `move` and `pose`. It also clears a fall latch (a deliberate
 // `home` after a fall is the manual form of autohome).
 void cmdHome(Sink out, int argc, char** argv) {
+#if BIMO_POWER_LITE
+    // A home the rail refused has not recovered anything: the latch stands.
+    if (homePowered(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec) : kHomeStepsPerSec) ==
+        linkproto::ArmResult::kHomePending) {
+        fallClear("typed home");
+    }
+#else
     fallClear("typed home");
-    homeAll(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
-                           : kHomeStepsPerSec);
+    homePowered(out, argc >= 2 ? num(argv[1], kHomeStepsPerSec)
+                               : kHomeStepsPerSec);
+#endif
 }
 
 void cmdObsFreeze(Sink out, int argc, char** argv) {
@@ -2196,6 +2342,11 @@ void cmdTorque(Sink out, int argc, char** argv, bool on) {
     const scsbus::Status st = bus->torqueEnable(id, on);
     say(out, "%s %s: %s\r\n", on ? "torque" : "release",
         one ? argv[1] : "all", statusName(st));
+#if BIMO_POWER_LITE
+    // Released, so a rail the firmware powered (an arm, whose hold this ends) has no
+    // reason left. A home still under way ends its own way (homeVerify).
+    if (!on && !one && !s_home_pending) railBenchDone();
+#endif
 }
 
 void cmdMiddle(Sink out, int argc, char** argv) {
@@ -2211,10 +2362,18 @@ void cmdMiddle(Sink out, int argc, char** argv) {
 }
 
 void cmdVolt(Sink out) {
+    // The INA219 first: it needs neither the bus nor the rail (main/pack_sense.h).
+    const robot::PackSenseStatus ps = robot::packSenseStatus();
+    if (ps.mv != 0) {
+        say(out, "pack %.2f V (INA219, 4 mV)%s\r\n", ps.mv / 1000.0,
+            ps.mv <= battguard::kWarn3S * 100u ? "  *** LAND THE ROBOT (3S floor) ***" : "");
+    } else {
+        say(out, "pack: no INA219 reading (%s)\r\n",
+            ps.missing ? "the chip does not answer at 0x42" : "none yet");
+    }
     scsbus::Bus* bus = claimBus(out);
     if (!bus) return;
-    // The board has NO voltage divider to an ADC (see main/board.h): the only
-    // pack-voltage sense is each servo's own register 62, at 0.1 V.
+    // Each servo's own register 62, at 0.1 V: the pack at the servo end, under load.
     int n = 0;
     int sum = 0;
     const obs::Calibration& cal = robot::calibration();
@@ -2234,24 +2393,44 @@ void cmdVolt(Sink out) {
             ? "  *** LAND THE ROBOT (3S floor) ***" : "");
 }
 
-// The pack guard. Read-only unless `batt reset` -- see shared.h battGuard()
-// for why the write half is bench-only.
+// The pack guard. Read-only unless `batt reset` or `batt pack on|off`. ctrl
+// owns the guard and feeds it in both modes, so a reset is a request it applies
+// on its next tick (shared.h g_batt_reset_req), benched only.
 void cmdBatt(Sink out, int argc, char** argv) {
-    battguard::Guard& g = robot::battGuard();
+    const battguard::Guard& g = robot::battGuard();
     if (argc >= 2 && !strcmp(argv[1], "reset")) {
         if (tetherOnly(out, "`batt reset` clears the pack-guard latch")) return;
-        // Bench-mode gate, same rule as the mutating `cal` subcommands: this
-        // WRITES state the control task owns, and only in bench mode is ctrl
-        // guaranteed to return before touching it. Checked directly rather
-        // than via claimBus() because this needs the mode, not the bus.
         if (robot::g_mode_request.load() != robot::Mode::kBench ||
             robot::g_ctrl_owns_bus.load()) {
-            out("busy: the control loop owns the guard -- `bench` first\r\n");
+            out("busy: the control loop is armed -- `bench` first\r\n");
             return;
         }
-        g.reset();
-        out("pack guard cleared -- do this ONLY after swapping in a fresh "
-            "pack\r\n");
+        robot::g_batt_reset_req.fetch_add(1);
+        vTaskDelay(pdMS_TO_TICKS(60));            // ctrl applies it within a tick
+        // Report what the guard says now, not what was asked: ctrl drops a request
+        // that finds the loop armed, and a pack still at the line re-trips it.
+        if (g.latched()) {
+            out("pack guard NOT cleared: still latched (armed meanwhile, or the pack is "
+                "still at the line) -- see `batt`\r\n");
+        } else {
+            out("pack guard cleared -- do this ONLY after swapping in a fresh pack; "
+                "a pack still at the line trips it again within a second\r\n");
+        }
+        return;
+    }
+    // `batt pack off`: the guard stops taking the INA219 (servos only, as before
+    // issue #109), for a chip that misreads. RAM only: on again at the next boot.
+    if (argc >= 3 && !strcmp(argv[1], "pack")) {
+        if (tetherOnly(out, "`batt pack` changes what the pack guard reads")) return;
+        const bool on = !strcmp(argv[2], "on");
+        if (!on && strcmp(argv[2], "off") != 0) {
+            out("usage: batt pack on|off\r\n");
+            return;
+        }
+        robot::g_pack_guard_on.store(on);
+        say(out, "pack guard: %s\r\n",
+            on ? "INA219 and servos, the lower of the two"
+               : "servos only; the INA219 is reported, not guarded on (until reboot)");
         return;
     }
     const char* lvl = "?";
@@ -2263,6 +2442,20 @@ void cmdBatt(Sink out, int argc, char** argv) {
     }
     say(out, "pack %s -- last %.1f V, warn %.1f V, land %.1f V\r\n", lvl,
         g.lastDv() / 10.0, g.warnDv() / 10.0, g.landDv() / 10.0);
+    {
+        const robot::PackSenseStatus ps = robot::packSenseStatus();
+        if (ps.mv != 0) {
+            say(out, "  INA219 %.2f V", ps.mv / 1000.0);
+        } else {
+            say(out, "  INA219 no reading (%s)", ps.missing ? "not answering" : "none yet");
+        }
+        say(out, ", %s; %lu reads, %lu failures, config 0x%04X%s\r\n",
+            !robot::g_pack_guard_on.load() ? "NOT guarded on (`batt pack off`)"
+            : robot::g_pack_guarding.load() ? "guarded on (the lower of it and the servos)"
+                                            : "guard on the servos alone",
+            static_cast<unsigned long>(ps.reads), static_cast<unsigned long>(ps.failures),
+            ps.config, ps.config_reset ? " (was reset: not converting)" : "");
+    }
     say(out, "  %d/%d consecutive ticks below the land line, crouch cmd "
              "%.2f\r\n",
         g.belowTicks(), battguard::kConfirmTicks,
@@ -2272,8 +2465,8 @@ void cmdBatt(Sink out, int argc, char** argv) {
             "reboot.\r\n");
     }
     if (g.lastDv() == 0) {
-        out("  (no reading yet -- voltage arrives on servo feedback, so the "
-            "loop must have run)\r\n");
+        out("  (no reading yet: the INA219 has not answered, and no armed tick has "
+            "read the servos)\r\n");
     }
 }
 
@@ -2403,6 +2596,9 @@ void servoRamTickImpl(Sink out) {
     if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
         !robot::g_bus || s_traj_active)
         return;
+#if BIMO_POWER_LITE
+    if (!robot::rail::busUp()) return;
+#endif
     scsbus::Bus* bus = robot::g_bus;
     const obs::Calibration& cal = robot::calibration();
     const uint8_t want85 = s_servo_fast ? kFastStartDelay : kFactoryStartDelay;
@@ -2440,6 +2636,14 @@ void benchVbatTickImpl() {
     if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load() ||
         !robot::g_bus || s_traj_active || s_bal.engaged())
         return;
+#if BIMO_POWER_LITE
+    // No servo answers with the rail off: say "no reading" (0) rather than let the
+    // last one stand, and spend no reply timeout finding out.
+    if (!robot::rail::busUp()) {
+        robot::g_telemetry.vbat_mv.store(0);
+        return;
+    }
+#endif
     const obs::Calibration& cal = robot::calibration();
     for (int k = 0; k < obs::kNumBusJoints; ++k) {
         const int b = (s_bench_vbat_bus + k) % obs::kNumBusJoints;
@@ -2567,7 +2771,7 @@ void cmdGains(Sink out, int argc, char** argv) {
 // verdict and returns true when the arm is refused.
 bool armRefused(Sink out) {
     // The compiled-in net must be a policy. A policy profile (BIMO_POLICY,
-    // firmware/policies/) may carry an untrained test net while its plant has
+    // tools/policy_profile.py) may carry an untrained test net while its plant has
     // no deployable one -- it exists to golden-test this path, and it drives
     // every joint across its full range at random.
     // cppcheck-suppress knownConditionTrueFalse -- generated per build.
@@ -2605,10 +2809,21 @@ bool armRefused(Sink out) {
             obs::kJointNames[j]);
         return true;
     }
+#if BIMO_POWER_LITE
+    // The gates that need no servo have passed; now they need power.
+    bool rail_powered = false;
+    if (!railEnsureUp(out, rail_powered)) {
+        robot::g_arm_result.store(static_cast<uint8_t>(linkproto::ArmResult::kRailDown));
+        return true;
+    }
+#endif
     // Gains are registers (AGENTS.md): read every fitted servo's 21/22 back
     // before handing it the loop. A servo that is silent or reset refuses.
     scsbus::Bus* bus = claimBus(out);
     if (!bus || !checkGains(bus, out, false)) {
+#if BIMO_POWER_LITE
+        if (rail_powered) railBenchDone();    // this refused arm powered it: undo that
+#endif
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kRefusedGains));
         out("REFUSED: position-loop gains not verified (see above; "
@@ -2656,6 +2871,12 @@ void cmdMode(Sink out, bool run) {
     // at the handover; this is the bench Detector's, fallguard.h).
     if (run) fallClear("armed");
     robot::g_mode_request.store(run ? robot::Mode::kRun : robot::Mode::kBench);
+#if BIMO_POWER_LITE
+    s_rail_typed = false;
+    // A disarm takes the rail, typed `rail on` included, and is the disabled
+    // command that lets go of a released E-stop's latch.
+    if (!run) robot::rail::requestDisarm();
+#endif
     out(run ? "control loop armed -- bus handed to core 1\r\n"
             : "benched -- control loop released torque and gave up the bus\r\n");
 }
@@ -2838,6 +3059,122 @@ void cmdCal(Sink out, int argc, char** argv) {
         "       | fit <joint> <0|1> | migrate | save | load | reset   (joint = name or servo id)\r\n");
 }
 
+#if BIMO_POWER_LITE
+// The rail's status: `stat` and `rail`. The fields issue #109 will carry in the beacon.
+static void railStatus(Sink out) {
+    const robot::rail::Snapshot r = robot::rail::snapshot();
+    char volts[16];
+    snprintf(volts, sizeof volts, "%.2f V", static_cast<double>(r.rail_mv) / 1000.0);
+    say(out, "rail: %s  SERVO_EN %s  RAIL_V %s  ESTOP_N %s%s\r\n", railguard::stateName(r.state),
+        r.servo_en ? "high" : "low", r.rail_valid ? volts : "NO READING",
+        r.estop_pressed ? "high (STOP)" : "low (RUN)", r.estop_latched ? ", E-stop LATCHED" : "");
+    say(out, "  fault %s; last drop: %s\r\n", railguard::faultName(r.fault),
+        railguard::dropName(r.last_drop));
+}
+
+// The rail's changes, on the tether and in the recording (Ev::kRail: a = State,
+// b = Fault, text says); and bench motion stops when the servos lose power. Every
+// housekeeping tick.
+static robot::rail::Snapshot s_rail_seen;
+void railTickImpl(Sink out) {
+    const robot::rail::Snapshot r = robot::rail::snapshot();
+    const bool changed = r.state != s_rail_seen.state || r.fault != s_rail_seen.fault ||
+                         r.estop_latched != s_rail_seen.estop_latched;
+    if (!changed) return;
+    const robot::rail::Snapshot was = s_rail_seen;
+    s_rail_seen = r;
+    const char* what = "";
+    char msg[120];
+    if (r.state == railguard::State::kOn && was.state != railguard::State::kOn) {
+        snprintf(msg, sizeof msg, "rail: ON at %.1f V", static_cast<double>(r.rail_mv) / 1000.0);
+        what = msg;
+    } else if (r.state == railguard::State::kOff && was.state != railguard::State::kOff) {
+        snprintf(msg, sizeof msg, "rail: OFF (%s)", railguard::dropName(r.last_drop));
+        what = msg;
+    }
+    if (what[0]) {
+        robot::flight::event(flightrec::Ev::kRail, what, static_cast<int32_t>(r.state),
+                             static_cast<int32_t>(r.fault));
+        say(out, "%s\r\n", what);
+    }
+    if (r.fault != was.fault && r.fault != railguard::Fault::kNone) {
+        snprintf(msg, sizeof msg, "rail FAULT: %s", railguard::faultName(r.fault));
+        robot::flight::event(flightrec::Ev::kRail, msg, static_cast<int32_t>(r.state),
+                             static_cast<int32_t>(r.fault));
+        say(out, "%s\r\n", msg);
+        if (r.fault == railguard::Fault::kStuck) {
+            out("  THE E-STOP MAY NOT CUT THE SERVOS. Arming is refused. Torque off; turn the "
+                "main switch off and check K1. `rail clear` once the rail has fallen.\r\n");
+            // With K1 shut the servos are listening whatever SERVO_EN says.
+            if (robot::g_mode_request.load() == robot::Mode::kBench && !robot::g_ctrl_owns_bus.load() &&
+                robot::g_bus) {
+                robot::g_bus->torqueEnable(scsbus::kBroadcastId, false);
+            }
+        }
+    }
+    if (r.estop_latched && !was.estop_latched) {
+        robot::flight::event(flightrec::Ev::kRail, "E-stop latched", static_cast<int32_t>(r.state),
+                             static_cast<int32_t>(r.fault));
+        out("E-STOP: latched. RUN does not re-power the rail: back to RUN, a disarm (`bench`, or "
+            "ARM off), then arm.\r\n");
+    }
+    // The servos just lost power: nothing streams to them any more.
+    if (was.state == railguard::State::kOn && r.state != railguard::State::kOn) {
+        // A home it cut short still owes the beacon a verdict.
+        if (s_home_pending) {
+            robot::g_arm_result.store(static_cast<uint8_t>(
+                r.last_drop == railguard::DropWhy::kOperatorStop ? linkproto::ArmResult::kDisarmedStop
+                                                                 : linkproto::ArmResult::kRailDown));
+        }
+        s_rail_typed = false;
+        s_traj_active = false;
+        s_trace_on = false;
+        s_home_pending = false;
+        s_hold_pending = false;
+        balStop(out, "rail off");
+    }
+}
+
+// `rail` status | on | off | clear | panic. Over Wi-Fi the allowlist has no `rail`: `stat`
+// reads the status there, and an arm or the wireless reset power the rail.
+void cmdRail(Sink out, int argc, char** argv) {
+    if (argc >= 2 && tetherOnly(out, "`rail on|off|clear|panic`")) return;
+    if (argc >= 2 && !strcmp(argv[1], "on")) {
+        if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
+            out("busy: armed, the rail is the loop's -- `bench` first\r\n");
+            return;
+        }
+        bool powered = false;
+        if (railEnsureUp(out, powered)) {
+            s_rail_typed = true;
+            out(powered ? "rail on: stays on until `rail off`, `bench` or a drop; torque is OFF\r\n"
+                        : "rail already on: stays on until `rail off`, `bench` or a drop\r\n");
+        }
+    } else if (argc >= 2 && !strcmp(argv[1], "off")) {
+        if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
+            out("busy: armed -- `bench` disarms and takes the rail\r\n");
+            return;
+        }
+        s_rail_typed = false;
+        robot::rail::requestDisarm();
+    } else if (argc >= 2 && !strcmp(argv[1], "clear")) {
+        out(robot::rail::requestClearFault() ? "rail: fault cleared\r\n"
+                                             : "rail: refused -- the rail is still up (or no reading)\r\n");
+    } else if (argc >= 2 && !strcmp(argv[1], "panic")) {
+        // The bench check of the fail-safe (pcb/power-lite/README.md): the rail must drop
+        // the moment this prints, not when the board has finished rebooting.
+        if (robot::g_mode_request.load() != robot::Mode::kBench || robot::g_ctrl_owns_bus.load()) {
+            out("busy: not while armed\r\n");
+            return;
+        }
+        out("rail panic: aborting now\r\n");
+        vTaskDelay(pdMS_TO_TICKS(50));
+        abort();
+    }
+    railStatus(out);
+}
+#endif
+
 void cmdStat(Sink out) {
     say(out, "ticks %lu  late %lu (%u%%)  worst %lu us  state %u  "
              "servo_err 0x%04X\r\n",
@@ -2873,6 +3210,9 @@ void cmdStat(Sink out) {
     say(out, "bus: %d of %d servos fitted (cal)\r\n",
         robot::fittedBusJoints(robot::calibration(), nullptr, nullptr),
         obs::kNumBusJoints);
+#if BIMO_POWER_LITE
+    railStatus(out);
+#endif
 }
 
 // -- obsdump ---------------------------------------------------------------
@@ -3205,6 +3545,9 @@ void fallTick(Sink out) { fallTickImpl(out); }
 void servoRamTick(Sink out) { servoRamTickImpl(out); }
 void benchVbatTick() { benchVbatTickImpl(); }
 void flailTick(Sink out) { flailTickImpl(out); }
+#if BIMO_POWER_LITE
+void railTick(Sink out) { railTickImpl(out); }
+#endif
 
 // `track ...` -- the on-board gait track (see the s_track block). Frames are 42 hex digits each
 // (gaitplay/track.h: ddd ms after the previous frame, pp phase, f flags, 12 x qqq goal ticks in
@@ -3776,6 +4119,9 @@ void homeVerify(Sink out) {
             s_home_pending = false;
             robot::g_arm_result.store(
                 static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
+#if BIMO_POWER_LITE
+            railBenchDone();    // the home is over, and nothing else wants this rail
+#endif
             return;
         }
         say(out, "home: %s hip %s (%.0f deg, play take-up)\r\n",
@@ -3819,6 +4165,10 @@ void homeVerify(Sink out) {
         robot::g_arm_result.store(
             static_cast<uint8_t>(linkproto::ArmResult::kHomeNotReached));
     }
+    // Power lite: released, so the rail goes too, unless it was asked for by name.
+#if BIMO_POWER_LITE
+    railBenchDone();
+#endif
 }
 
 uint32_t recorderTick() {
@@ -3871,6 +4221,9 @@ uint32_t recorderTick() {
         b.ankle_ticks = 0;
         b.hip_ticks = flightrec::sat16(s_trim_dth);
         b.clamps = s_trim_clamps;
+#if BIMO_POWER_LITE
+        if (!robot::rail::busUp()) return robot::flight::recordBench(nullptr, v);
+#endif
         return robot::flight::recordBench(robot::g_bus, v);
     }
     b.state = static_cast<uint8_t>(s_bal.state());
@@ -3888,6 +4241,10 @@ uint32_t recorderTick() {
     b.ankle_ticks = flightrec::sat16(s_bal_dta);
     b.hip_ticks = flightrec::sat16(s_bal_dth);
     b.clamps = s_bal_clamps;
+    // No SYNC READ with the rail off: every servo would cost its whole timeout.
+#if BIMO_POWER_LITE
+    if (!robot::rail::busUp()) return robot::flight::recordBench(nullptr, v);
+#endif
     return robot::flight::recordBench(robot::g_bus, v);
 }
 
@@ -3927,13 +4284,7 @@ int64_t s_bno_t0 = 0;
 uint8_t s_shtp_seq[6] = {0};
 uint8_t s_shtp_pkt[512];
 
-imu::Qmi8658Imu* bnoBus() {
-    imu::Qmi8658Imu* dev = robot::onboardImu();
-    static imu::Qmi8658Imu probe_dev(imu::Qmi8658Imu::Config{
-        board::kI2cSda, board::kI2cScl, static_cast<uint32_t>(board::kI2cHz),
-        board::kImuAddr, false, 8, 1024});
-    return dev ? dev : &probe_dev;
-}
+imu::Qmi8658Imu* bnoBus() { return &robot::boardI2c(); }
 
 // SHTP over I2C: a 4-byte header (length LSB, MSB with bit 15 = continuation,
 // channel, sequence), the length counting the header. Read the header, then
@@ -4260,11 +4611,9 @@ void cmdImu(Sink out, int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "scan")) {
         // Bus scan works even with no IMU: that is the point when the part is
         // NOT answering and you need to know whether anything is out there.
-        static imu::Qmi8658Imu probe_dev(imu::Qmi8658Imu::Config{
-            board::kI2cSda, board::kI2cScl,
-            static_cast<uint32_t>(board::kI2cHz), board::kImuAddr, false, 8,
-            1024});
-        imu::Qmi8658Imu* d = dev ? dev : &probe_dev;
+        // The board's bus object even on the stub: a second object would reset
+        // the pins under the INA219's device (main/pack_sense.cpp).
+        imu::Qmi8658Imu* d = &robot::boardI2c();
         uint8_t found[16];
         const int n = d->scanBus(found, 16);
         if (!n) {
@@ -4284,7 +4633,7 @@ void cmdImu(Sink out, int argc, char** argv) {
                 case 0x6B: case 0x6A: who = "QMI8658C  6-axis IMU"; break;
                 case 0x0C: who = "AK09918C  magnetometer (unused)"; break;
                 case 0x77: who = "BMP280    barometer (unused)"; break;
-                case 0x42: who = "INA219    power monitor (unused)"; break;
+                case 0x42: who = "INA219    pack voltage (`volt`, `batt`)"; break;
                 case 0x4A: case 0x4B: who = "BNO08x    (P1; bench accelerometer, `bno`)"; break;
                 case 0x28: case 0x29: who = "BNO055    (bench accelerometer, `bno`)"; break;
                 default: break;
@@ -4925,8 +5274,9 @@ void banner(Sink out) {
     out("                       then torque RELEASED (friction holds) -- works after a fall\r\n");
     out("  release [id] | torque [id]   no id = broadcast\r\n");
     out("  middle <id>          latch the current angle as 2048, torque off\r\n");
-    out("  volt                 pack voltage, read off the servos (no board ADC)\r\n");
-    out("  batt [reset]         under-voltage guard state; reset after a pack swap\r\n");
+    out("  volt                 pack voltage: the INA219, then off the servos\r\n");
+    out("  batt [reset|pack on|off]  pack guard state; reset after a pack swap;\r\n"
+        "                       pack off: guard on the servos only (until reboot)\r\n");
     out("  cal [show|zero|dir|set|fit|migrate|save|load|reset]   zero, dir, fitted (NVS)\r\n");
     out("  shape [hz]           C2 command-shaping pole; 0 = off (raw/jerky)\r\n");
     out("  limit [off|on|vmax [amax [jmax]]]  per-joint motion limiter (deg/s, /s^2, /s^3)\r\n");
@@ -4945,6 +5295,10 @@ void banner(Sink out) {
     out("  nettime [n]          time the policy forward pass every way this image\r\n"
         "                       can run it (benched; n passes, default 20)\r\n");
     out("  obsdump [on|off|once]   stream the policy's observation as CSV\r\n");
+#if BIMO_POWER_LITE
+    out("  rail [on|off|clear|panic]   the power-lite servo rail: status; power it for bench\r\n"
+        "                       work; a stuck-rail fault; the fail-safe's bench check\r\n");
+#endif
 }
 
 bool bootGainCheck(Sink out) {
@@ -4980,9 +5334,16 @@ void linkHome(Sink out) {
     // and a reset that quietly did nothing -- no calibration, a latched pack,
     // a servo that did not answer -- must say which, or it looks exactly like
     // a dead button.
+#if BIMO_POWER_LITE
+    const linkproto::ArmResult r = homePowered(out, kHomeStepsPerSec);
+    robot::g_arm_result.store(static_cast<uint8_t>(r));
+    // As cmdHome: a refused home recovers nothing.
+    if (r == linkproto::ArmResult::kHomePending) fallClear("wireless home");
+#else
     fallClear("wireless home");    // the wireless form of a typed `home`
     robot::g_arm_result.store(
-        static_cast<uint8_t>(homeAll(out, kHomeStepsPerSec)));
+        static_cast<uint8_t>(homePowered(out, kHomeStepsPerSec)));
+#endif
 }
 
 void execute(const char* line, Sink out, bool remote) {
@@ -5010,6 +5371,13 @@ void execute(const char* line, Sink out, bool remote) {
         !strcmp(c, "sweep") || !strcmp(c, "stream") || !strcmp(c, "middle")) {
         s_hold_pending = false;
     }
+
+#if BIMO_POWER_LITE
+    if (!strcmp(c, "rail")) {
+        cmdRail(out, argc, argv);
+        return;
+    }
+#endif
 
     if (!strcmp(c, "help") || !strcmp(c, "?")) banner(out);
     else if (!strcmp(c, "scan")) cmdScan(out);

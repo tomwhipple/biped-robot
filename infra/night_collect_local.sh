@@ -97,6 +97,21 @@ EOF
   fi
 fi
 
+# the plant, its meshes and the terrain mosaic are generated (build/v6/sim and
+# build/v6/stl; #144): build them for the code just pulled, as the runner does
+# for the trainer. A failure goes to the fixer, then one retry.
+if ! make -C "$REPO" plant-data >> "$LOG" 2>&1; then
+  if fix collect-build "$LOG" 30 <<EOF && make -C "$REPO" plant-data >> "$LOG" 2>&1; then
+"make -C $REPO plant-data" failed in night_collect_local.sh (the log's tail shows
+why). The referee loads its plant from build/v6/sim, which that target builds.
+Fix the build, not by hand-copying files; the collector retries once after you exit.
+EOF
+    echo "plant built after a fixer"
+  else
+    echo "!!! PLANT BUILD FAILED in $REPO: the referee below cannot load its plant"
+  fi
+fi
+
 collect_one() {   # $1 = state file, $2 = OUT name
   local ST=$1 OUT=$2
   echo "--- collecting $OUT"

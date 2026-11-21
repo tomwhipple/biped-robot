@@ -1,7 +1,7 @@
 """Shared pieces of the weight-transfer gate (issue #259): the walking plants, the opt-in probe
 terms, and the metrics both checks use.
 
-Plants (all on sim/bimo_biped_v6legs_meas_sole.xml, the plant every prec recipe trains on):
+Plants (all on build/v6/sim/bimo_biped_v6legs_meas_sole.xml, the plant every prec recipe trains on):
 
   train      the prec16 recipe's training actuator chain at the CENTRE of its domain
              randomisation, on the CPU walker_env (EP.make_env from the run's config.json, DR off).
@@ -65,6 +65,8 @@ import json
 import math
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+import paths  # noqa: E402
 
 import numpy as np
 
@@ -77,7 +79,7 @@ MAIN = os.environ.get("GATE_MAIN", "/home/claw/code/robot")      # hw_sessions +
 HW = os.path.join(MAIN, "hw_sessions")
 RUN = "robot_legs_prec16_f075_js20_s128r24"
 XML_NAME = "bimo_biped_v6legs_meas_sole.xml"
-XML = os.path.join(ROOT, "sim", XML_NAME)
+XML = paths.v6_plant(XML_NAME)
 SHAPER_HZ = 8.0                     # grade's SHAPE_HZ for the prec students (the deploy's C2 shaper)
 
 for p in (os.path.join(ROOT, "sim"), os.path.join(ROOT, "sim", "mjx"),

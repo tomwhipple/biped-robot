@@ -10,7 +10,7 @@
 // layout is spelled out field by field in docs/flight-recorder.md and mirrored
 // in tools/flightrec.py; the host test (firmware/host/test_flightrec.cpp)
 // checks this encoder byte-for-byte against vectors generated from the Python
-// side (firmware/host/vectors/flightrec_vectors.h), so the two cannot drift.
+// side (build/host/vectors/flightrec_vectors.h), so the two cannot drift.
 //
 // Loss is detectable: every packet carries one sequence number from a single
 // per-boot counter, so a hole is a lost packet wherever it was lost, and the
@@ -77,10 +77,12 @@ enum class Ev : uint8_t {
     kFlail = 11,      // armed-loop HOLD (flailguard.h): a = flailguard::Trip (1 pose, 2 rate,
                       // 3 tilt, 4 chatter; 255 operator soft stop), b = 1 torque held / 0 was
                       // limp / 2 the hold's autohome started / 3 a walk trip RECOVERED (no hold:
-                      // command -> stand, the policy runs on; flailguard.h WalkRecovery); text says
+                      // command -> stand, the policy runs on; flailguard.h WalkRecovery) / 4 the
+                      // hold released because the pack guard latched (no home); text says
     kStop = 12,       // operator stop (linkproto::kFlagStop), once per burst: a = 1 hard / 0 soft,
                       // b = 1 armed / 0 benched; text says
     kWcli = 13,       // Wi-Fi CLI session event (text says): a = peer IPv4, b = peer port
+    kRail = 14,       // power-lite servo rail (railguard.h): a = State, b = Fault; text says
 };
 // kCmd / kOut `a`: which channel the line came in on / went back out on.
 constexpr int32_t kChanTether = 0;

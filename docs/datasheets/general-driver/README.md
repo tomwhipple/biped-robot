@@ -12,6 +12,7 @@ retrieved 2026-08-03.
 | [General_Driver_for_Robots-schematic.pdf](General_Driver_for_Robots-schematic.pdf) | the full schematic, one A3 sheet. It is the authority for every net and GPIO | [files.waveshare.com](https://files.waveshare.com/upload/3/37/General_Driver_for_Robots.pdf) |
 | [General_Driver_for_Robots-dimensions.pdf](General_Driver_for_Robots-dimensions.pdf) | dimension drawing: outline **65.01 × 56.01 mm**, holes on a 58 × 49 mm grid (58 along the 65 edge) | Waveshare |
 | [General_Driver_for_Robots-connector-diagram.jpg](General_Driver_for_Robots-connector-diagram.jpg) | the official annotated photo, with every connector numbered 1–27, front and back | Waveshare wiki |
+| [General_Driver_for_Robots-top.jpg](General_Driver_for_Robots-top.jpg) | product photo, straight down on the top side, 1600 × 1200: every silkscreen label is legible. Power lite's J12 figure is drawn on it | [waveshare.com product page](https://www.waveshare.com/general-driver-for-robots.htm), retrieved 2026-11-19 |
 | [JST-XH-connector-datasheet.pdf](JST-XH-connector-datasheet.pdf) | JST XH series, the family of the power inlet: 3 A AC/DC per contact at AWG #22, conductors AWG #30–#22 | [jst-mfg.com](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) |
 | [QMI8658C-datasheet.pdf](QMI8658C-datasheet.pdf) | QST QMI8658C 6-axis IMU, the robot's IMU at 0x6B. Rev 0.6, 2021-01-13, stamped "advance information" | QST, via Waveshare |
 

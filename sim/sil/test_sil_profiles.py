@@ -21,9 +21,11 @@ untrained test net, `tools/make_test_policy_run.py --out <name>` first.
 """
 import json
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+import paths  # noqa: E402
 import re
 import subprocess
-import sys
 
 import pytest
 
@@ -42,7 +44,7 @@ sys.path[:0] = [os.path.join(ROOT, "sim"), os.path.join(ROOT, "sim", "mjx")]
 import eval_precision as E
 run_dir = os.path.join(ROOT, "sim", "runs", run)
 cfg = json.load(open(os.path.join(run_dir, "config.json")))
-xml = os.path.join(ROOT, "sim", cfg["xml_path"])
+xml = paths.resolve_plant(cfg["xml_path"])
 prof = E.sil_profile_for(xml)
 H, lib, info = E.sil_setup(run, run_dir, verbose=False, profile=prof)
 env = E.make_env(cfg, 12.0, True, xml)
@@ -148,7 +150,7 @@ def test_profile_frozen_commands_are_the_training_values(profile):
     mean, std, _, info = G.read_silw(silw)
     params = set(inspect.signature(BimoWalkerEnv.__init__).parameters)
     kw = {k: v for k, v in cfg.items() if k in params}
-    kw.update(xml_path=os.path.join(ROOT, "sim", cfg["xml_path"]),
+    kw.update(xml_path=paths.resolve_plant(cfg["xml_path"]),
               command_mode=True, render_mode=None)
     env = BimoWalkerEnv(**kw)
     fd, nc = int(env.obs_frame), int(env._ncmd)

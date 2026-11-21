@@ -1,4 +1,4 @@
-"""Generate the shared terrain mosaic both envs load (sim/terrain_mosaic.npz).
+"""Generate the shared terrain mosaic both envs load (build/v6/sim/terrain_mosaic.npz).
 
 A single static heightfield of 1 m x 1 m tiles. CARPET MODEL (user
 2026-08-01: "generally flat, locally rough, like carpeting" -- the
@@ -23,11 +23,15 @@ bumps resolved well under the 116 mm foot.
 Run:  ../../.venv/bin/python gen_terrain_mosaic.py
 """
 import os
+import sys
 
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "terrain_mosaic.npz")
+sys.path.insert(0, os.path.join(HERE, "..", ".."))
+import paths  # noqa: E402
+
+OUT = os.path.join(paths.V6_SIM, "terrain_mosaic.npz")
 
 NROW, NCOL = 300, 600            # y, x
 RX, RY, CX = 6.0, 3.0, 4.5       # field spans x -1.5..10.5, y -3..3
@@ -74,6 +78,7 @@ for ty0 in np.arange(-RY, RY, TILE):
 field = gauss_smooth(field, 0.02 / CELL)
 field = np.clip(field, 0.0, None)
 
+os.makedirs(os.path.dirname(OUT), exist_ok=True)
 np.savez(OUT, field=field.astype(np.float32),
          nrow=NROW, ncol=NCOL, rx=RX, ry=RY, cx=CX,
          max_amp=float(field.max()))

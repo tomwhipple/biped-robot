@@ -3,7 +3,7 @@
 
 Run:  MUJOCO_GL=cgl .venv/bin/python tools/servo_map_figure.py   (or `make figures`)
 
-A front view of the v6 plant (sim/bimo_biped_v6ar.xml) at its zero pose, with
+A front view of the v6 plant (build/v6/sim/bimo_biped_v6ar.xml) at its zero pose, with
 a marker at each joint's anchor. The names, servo IDs and ports come from
 tools/bus_cal.py's BUS (which mirrors obs/bus_map.h), the bus joint set of
 docs/servo-map.md section 2.1; the STS3250 joints (square markers) from
@@ -13,6 +13,8 @@ docs/img/servo_map.png.
 """
 import os
 import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import paths  # noqa: E402
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 import matplotlib
@@ -30,7 +32,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 from bus_cal import BUS
 from paths import build_dir
 
-PLANT = os.path.join(ROOT, "sim", "bimo_biped_v6ar.xml")
+PLANT = paths.v6_plant("bimo_biped_v6ar.xml")
 PORT_COLOR = {"A": "#1f6fb4", "B": "#c8541a"}
 VIEW_H = 0.64                       # m, vertical extent of the orthographic view
 LOOKAT_Z = 0.29
@@ -133,7 +135,7 @@ def main():
     ax.set_title("Servos and joints, front view: servo ID, joint name, model", fontsize=12)
     ax.text(0.5, -0.05,
              "IDs: the v6 legs as assembled (2026-10-23, written on each servo), docs/servo-map.md §2.1."
-             "\nNames: sim/bimo_biped_v6ar.xml. Servos: STS3215, except the STS3250 "
+             "\nNames: build/v6/sim/bimo_biped_v6ar.xml. Servos: STS3215, except the STS3250 "
              "hip rolls (DESIGN.md §4).",
              transform=ax.transAxes, ha="center", va="top", fontsize=8, color="0.35")
     ax.set_xlim(-LABEL_X - 0.12, LABEL_X + 0.12)

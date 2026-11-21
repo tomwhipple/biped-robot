@@ -153,9 +153,11 @@ def float_forward(mean, std, layers, obs, act_dim):
 
 
 def calibration_obs(root, run, mean, std, layers, act_dim,
-                    seeds=CAL_SEEDS, cmds=CAL_CMDS, steps=CAL_STEPS):
+                    seeds=CAL_SEEDS, cmds=CAL_CMDS, steps=CAL_STEPS,
+                    run_dir=None):
     """Raw observations from closed-loop CPU-plant rollouts of the float
-    net (sim/mjx/eval_precision.make_env, the referee's env)."""
+    net (sim/mjx/eval_precision.make_env, the referee's env). run_dir: the
+    run's directory (default sim/runs/<run>)."""
     import json
     import os
     import sys
@@ -163,10 +165,11 @@ def calibration_obs(root, run, mean, std, layers, act_dim,
         if d not in sys.path:
             sys.path.insert(0, d)
     import eval_precision as E
-    cfg = json.load(open(os.path.join(root, "sim", "runs", run,
-                                      "config.json")))
-    env = E.make_env(cfg, 12.0, True, os.path.join(root, "sim",
-                                                   cfg["xml_path"]))
+    cfg = json.load(open(os.path.join(
+        run_dir or os.path.join(root, "sim", "runs", run), "config.json")))
+    sys.path.insert(0, root)
+    import paths
+    env = E.make_env(cfg, 12.0, True, paths.resolve_plant(cfg["xml_path"]))
     obs = []
     for k, seed in enumerate(seeds):
         o, _ = env.reset(seed=seed)
@@ -238,6 +241,43 @@ def gptq_quantize_net(mean, std, layers, act_dim, cal_obs, damp=GPTQ_DAMP):
         if not last:
             x = (x / (F(1.0) + np.exp(-x, dtype=F))).astype(F)
     return out
+
+
+# ---------------------------------------------------------------------
+#  The quantized kernels as a deploy-time input (firmware/deployed/q8/)
+# ---------------------------------------------------------------------
+# GPTQ's rounding depends on the calibration rollouts, which depend on the
+# plant of the day; the plant moves on, so `make deploy QUANT=int8` keeps the
+# rounding it chose (and the self-test obs it drew) in an .npz, and `make
+# policy` rebuilds the header from that and params.pkl, bit for bit.
+def save_q8(path, qlayers, selftest_obs):
+    d = {"selftest_obs": np.asarray(selftest_obs, dtype=F)}
+    for i, (wq, s, _, n_in) in enumerate(qlayers):
+        d["q%d" % i] = np.ascontiguousarray(wq[:, :n_in], dtype=np.int8)
+        d["scale%d" % i] = np.asarray(s, dtype=F)
+    np.savez_compressed(path, **d)
+
+
+def load_q8(path, layers, act_dim):
+    """(qlayers, selftest_obs) from save_q8's .npz; the biases are the float
+    net's (layers), the head cut to act_dim as gptq_quantize_net does."""
+    z = np.load(path)
+    if sum(1 for k in z.files if k.startswith("q")) != len(layers):
+        raise SystemExit("%s: %d layers, the net has %d" % (
+            path, sum(1 for k in z.files if k.startswith("q")), len(layers)))
+    out = []
+    for i, (w, b) in enumerate(layers):
+        k = act_dim if i + 1 == len(layers) else w.shape[1]
+        n_in = w.shape[0]
+        q = z["q%d" % i]
+        if q.shape != (k, n_in) or q.dtype != np.int8:
+            raise SystemExit("%s: layer %d is %s %s, the net wants int8 %s"
+                             % (path, i, q.shape, q.dtype, (k, n_in)))
+        qp = np.zeros((k, pad4(n_in)), np.int8)
+        qp[:, :n_in] = q
+        out.append((qp, z["scale%d" % i].astype(F),
+                    np.asarray(b, dtype=F)[:k].copy(), n_in))
+    return out, z["selftest_obs"].astype(F)
 
 
 # ---------------------------------------------------------------------
