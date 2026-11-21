@@ -259,6 +259,23 @@ run only on that family's scenarios (§8):
 
 `--ext-mix` overrides the seven fractions after the family preset.
 
+Two opt-in command options (both off by default, both need `--precision`; the
+laws are `sim/cmd_kernel.py`, shared by both envs, parity block R23):
+
+- `--cmd-volume P` takes the fraction P of the walk draws from the whole
+  (vx, vy, wz) volume inside the envelope instead of the forward / backward /
+  sidestep bands: a compass direction uniform on the circle, a speed uniform
+  from zero to the envelope's edge in that direction (an ellipse with the
+  forward `cmd_v_range[1]`, backward `cmd_back_range` and lateral
+  `cmd_vy_range` semi-axes), and on 60 % of draws a turn U(−`cmd_w_range`,
+  `cmd_w_range`). Diagonals, back + turn and side + turn are drawn, and no
+  speed is a hole.
+- `--cmd-slew vx,vy,wz` (m/s², m/s², rad/s²) rate-limits c0–c2 ahead of the
+  observation, the law the firmware runs: a drawn or `set_command` command is
+  the target, and the policy sees (and the reward grades) a ramp toward it,
+  at most rate × 20 ms per tick, from the stand at the episode's start. Every
+  command change, mid-episode resamples included, arrives as a ramp.
+
 **On the robot** the console sends the command over the UDP link. When the
 link goes stale the command decays to the stand `(0, 0)` — a trained command
 the policy practises constantly, not a bolted-on pose — and after 5 s of
@@ -277,6 +294,16 @@ deploy`), from these settings:
 
 A band whose fraction of the mix is 0 (or a run without `ext_cmd`) is
 generated absent, and a run with the `ext_mix` sway slice has no lateral hole.
+A run with `cmd_volume` has no hole at all: every band opens down to zero and
+reaches the volume's axes, and the generated header carries the volume's
+ellipse (`LINKPROTO_CMD_VOLUME`, `kVolFwd/Back/Lat`), so the robot also holds
+(vx, vy) together inside it: a corner the bands pass but the volume never drew
+is scaled back onto the ellipse (`sim/cmd_kernel.py` `volume_clamp`). A run
+with `cmd_slew` puts its rates into the generated header (`LINKPROTO_CMD_SLEW`,
+`kSlewVx/Vy/Wz`), and the firmware's `cmdslew` then ramps the command at those
+rates, the stand after a released ENABLE or a lost link included
+(firmware/README.md, "The operator command's path"); without them the command
+reaches the policy as it arrives.
 Where a value is not in `config.json` the generated file says `default`.
 See [control-channel.md](control-channel.md) for the clamp.
 

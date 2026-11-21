@@ -95,6 +95,19 @@ void clampExtToEnvelope(Command& pkt) {
     if (pkt.foot_dz < -kFootDMax) pkt.foot_dz = -kFootDMax;
 }
 
+void clampToVolume(float& vx, float& vy, const VolumeAxes& ax) {
+    if (!(ax.fwd > 0.0f && ax.back > 0.0f && ax.lat > 0.0f)) return;   // no volume
+    if (vx == 0.0f || vy == 0.0f) return;   // on an axis: the per-axis bands hold it
+    // cmd_kernel.volume_clamp, op for op in float32 (the host builds with -ffp-contract=off).
+    const float nx = vx / (vx >= 0.0f ? ax.fwd : ax.back);
+    const float ny = vy / ax.lat;
+    const float r2 = nx * nx + ny * ny;
+    if (!(r2 > 1.0f)) return;
+    const float s = 1.0f / sqrtf(r2);
+    vx = vx * s;
+    vy = vy * s;
+}
+
 uint8_t packDiag(bool run, bool cal_ok, ArmResult result) {
     uint8_t d = 0;
     // cppcheck-suppress badBitmaskCheck -- building a bitmask from zero is the

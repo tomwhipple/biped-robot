@@ -19,6 +19,7 @@ link/link_twin.py runs that exact code on a laptop, so the protocol is
 exercised end to end before any hardware is involved.
 """
 import importlib.util
+import math
 import os
 import re
 import struct
@@ -192,11 +193,14 @@ class Envelope(NamedTuple):
     vy_max: float
     w_max: float
     crouch_min: float
+    # A volume-trained run's planar ellipse (fwd, back, lat), m/s: clamp_to_volume. () = none.
+    volume: tuple = ()
 
 
 def load_envelope(mod) -> "Envelope":
-    """An Envelope from a generated cmd_envelope module."""
-    return Envelope(*(getattr(mod, f.upper()) for f in Envelope._fields))
+    """An Envelope from a generated cmd_envelope module (VOLUME only for a volume-trained run)."""
+    return Envelope(*(getattr(mod, f.upper()) for f in Envelope._fields if f != "volume"),
+                    volume=tuple(getattr(mod, "VOLUME", ())))
 
 
 def envelope_path(profile=None) -> str:
@@ -639,6 +643,24 @@ def clamp_to_envelope(vx: float, wz: float, env: "Envelope" = None) -> tuple:
     return (-back if back else 0.0), wz
 
 
+def clamp_to_volume(vx: float, vy: float, env: "Envelope" = None) -> tuple:
+    """A volume-trained run's (vx, vy), held inside its ellipse (env.volume = fwd, back, lat): off
+    both axes and past it, scaled back along its own direction onto it; otherwise unchanged. The
+    law is sim/cmd_kernel.py volume_clamp (tests/test_cmd_kernel.py pins this twin to it); the
+    firmware's is linkproto::clampToVolume. Applied after the per-axis clamps."""
+    env = envelope() if env is None else env
+    if not env.volume or vx == 0.0 or vy == 0.0:
+        return vx, vy
+    fwd, back, lat = env.volume
+    nx = vx / (fwd if vx >= 0.0 else back)
+    ny = vy / lat
+    r2 = nx * nx + ny * ny
+    if not r2 > 1.0:
+        return vx, vy
+    s = 1.0 / math.sqrt(r2)
+    return vx * s, vy * s
+
+
 def clamp_ext_to_envelope(pkt: "Command", env: "Envelope" = None) -> tuple:
     """The extended channels, snapped into their trained draws.
 
@@ -814,6 +836,11 @@ class Watchdog:
         # (extras at trained defaults), exactly like vx/wz.
         self._ext = clamp_ext_to_envelope(pkt) if pkt.enabled \
             else _EXT_DEFAULTS
+        if pkt.enabled and envelope().volume:
+            # a volume-trained run: (vx, vy) together into its ellipse (off otherwise)
+            vx, vy = clamp_to_volume(self._cmd[0], self._ext[0])
+            self._cmd = (vx, self._cmd[1])
+            self._ext = (vy,) + tuple(self._ext[1:])
         return True
 
     def state(self, now_ms: float) -> LinkState:

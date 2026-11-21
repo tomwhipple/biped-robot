@@ -4,7 +4,7 @@ idf_component_register(
          "timesync.cpp" "flight_rec.cpp" "net_bench.cpp" "wifi_cli.cpp" "power_rail.cpp"
          "pack_sense.cpp"
     INCLUDE_DIRS "."
-    REQUIRES scsbus linkproto obs policy imu battguard balance gaitplay flightrec fallguard flailguard railguard wcli
+    REQUIRES scsbus linkproto obs policy imu battguard balance gaitplay flightrec fallguard flailguard railguard cmdslew wcli
              driver esp_timer esp_system esp_hw_support nvs_flash freertos
              esp_wifi esp_netif esp_event lwip esp_app_format)
 # Power lite reads RAIL_V on the ADC. Only there: esp_adc on the link line replaces

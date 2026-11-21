@@ -24,6 +24,7 @@
 #include "gaitplay/track.h"
 #include "imu_sampler.h"
 #include "linkproto/watchdog.h"
+#include "cmdslew/envelope_rates.h"
 #include "mech_envelope.h"
 #include "obs/actuation.h"
 #include "obs/assembler.h"
@@ -48,6 +49,9 @@ esp_timer_handle_t g_tick_timer = nullptr;
 // Loop-owned state. Single writer, never shared.
 imu::Imu* g_imu = nullptr;
 linkproto::Watchdog g_dog;
+// The operator command's slew (cmdslew.h, #266): ahead of the observation, on (vx, vy, wz). Rates
+// come from the deployed run's generated envelope; none there = off = the command as it arrives.
+cmdslew::CommandSlew g_cmd_slew;
 // Outlives g_dog across bench/run handovers -- it has to see the ARM edge
 // that ENDS a run (linkproto/watchdog.h).
 linkproto::ArmLatch g_arm;
@@ -441,6 +445,8 @@ void ctrlTask(void*) {
             }
             g_ctrl_owns_bus.store(true);
             g_dog = linkproto::Watchdog();
+            g_cmd_slew.configure(cmdslew::kDeployedRates, obs::kControlDt);
+            g_cmd_slew.reset();     // a (re)arm starts at the stand
             g_hist = obs::History();
             memset(g_prev_action, 0, sizeof g_prev_action);
             g_primed = false;
@@ -682,6 +688,11 @@ void ctrlTask(void*) {
             // re-engage or the first shaped target would be a jump.
             g_shaper.invalidate();
             g_limiter.invalidate();
+            // The command slew restarts at the stand too: torque can come back without a re-arm
+            // (a link E-stop cleared by a disabled frame, a RELAX ended by a fresh frame), and a
+            // slew still holding the pre-limp walk would hand the policy that walk while the
+            // operator commands a stand. A no-op with the slew off.
+            g_cmd_slew.reset();
             // Power lite: limp means the rail goes, and that ends the run. Coming
             // back from RELAX or a link E-stop would mean re-powering by itself, and
             // the servos would come up reset; so the way back is a fresh arm. The
@@ -707,6 +718,14 @@ void ctrlTask(void*) {
         // extras at trained defaults, so nothing changes for old senders.
         float cmd7[7];
         g_dog.commandExt(now_ms, cmd7);
+        // The command slew: the link's (vx, vy, wz) -- the watchdog's stand on a lost link
+        // included, so with a slew-trained run a lost link ramps to the stand -- moves toward the
+        // policy at the trained rates. Off (no rates): cmd7 untouched. Disarm, fall, E-stop and
+        // flail paths act above/below this and are not delayed by it.
+        g_cmd_slew.step(cmd7[0], cmd7[1], cmd7[2]);
+        cmd7[0] = g_cmd_slew.vx();
+        cmd7[1] = g_cmd_slew.vy();
+        cmd7[2] = g_cmd_slew.wz();
         obs::Inputs in{};
         // ext_cmd channel layout (walker_env.set_command): vx, vy, wz, crouch,
         // lift, foot_dx, foot_dz -- defaults (0,0,0,1,0,0,0).

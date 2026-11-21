@@ -438,6 +438,13 @@ offsets (±0.05 m) are scripted rather than drawn and are fixed in
 and left-stick axes) map stick travel past the dead zone onto the band of
 their direction (a light push is the band's minimum, full deflection its
 maximum) for the same reason.
+A run trained on the full command volume (`cmd_volume`) drew (vx, vy) inside
+an ellipse, not a box, so its generated envelope also carries that ellipse
+(`LINKPROTO_CMD_VOLUME`, `kVolFwd/Back/Lat`, `VOLUME` in the twin) and the
+watchdog clamps the two together after the bands (`clampToVolume` /
+`clamp_to_volume`, the law of `sim/cmd_kernel.py` `volume_clamp`): a command off
+both axes past the ellipse is scaled back along its own direction onto it.
+Other runs generate none of it and keep the per-axis clamp.
 The host test pins the generated header against the bands derived from the
 run, and the clamp on both sides of every band against the Python reference
 (`cmd_envelope_vectors.h`); `tests/test_cmd_envelope.py` pins the generated

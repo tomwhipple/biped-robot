@@ -64,6 +64,14 @@ CMD_VY_DRAW_MIN = 0.1
 KEYS = ("ext_cmd", "cmd_v_range", "cmd_w_range", "cmd_back_range",
         "cmd_vy_range", "cmd_crouch_range", "crouch_range", "ext_mix",
         "walk_submix", "sway_vy")
+# Opt-in settings (#263, #266): read only when the run's config.json has them on, so a run that
+# trained without them generates byte-identical files (headers.sha256 pins them).
+#   cmd_volume > 0   walks drawn from the whole volume (sim/cmd_kernel.py volume_cmd): every band
+#                    opens down to zero and reaches the volume's axes
+#   cmd_slew         the command slew's rates (vx, vy, wz): the firmware's cmdslew runs them
+# A volume-trained run's header and twin also carry the volume's planar ellipse (volume_axes()):
+# the robot holds (vx, vy) inside it (linkproto::clampToVolume, protocol.py clamp_to_volume).
+OPT_KEYS = ("cmd_volume", "cmd_slew")
 
 
 def env_defaults():
@@ -86,6 +94,12 @@ def read_source(cfg, defaults=None):
             val[k] = [float(x) for x in val[k]]
         elif not isinstance(val[k], bool):
             val[k] = float(val[k])
+    if cfg.get("cmd_volume"):
+        val["cmd_volume"], where["cmd_volume"] = float(cfg["cmd_volume"]), "config"
+    if cfg.get("cmd_slew"):
+        from cmd_kernel import parse_slew
+        val["cmd_slew"] = [float(x) for x in parse_slew(cfg["cmd_slew"])]
+        where["cmd_slew"] = "config"
     return val, where
 
 
@@ -112,12 +126,28 @@ def bands(src):
     if p_sway > 0.0:
         # sway commands an oscillating vy through zero: no hole under it
         out.update(vy_min=0.0, vy_max=max(out["vy_max"], src["sway_vy"]))
+    if ext and src.get("cmd_volume", 0.0) > 0.0:
+        # the volume draw (sim/cmd_kernel.py volume_axes): continuous from zero to each axis
+        b_hi = max(abs(x) for x in src["cmd_back_range"])
+        out.update(v_fwd_min=0.0, v_back_min=0.0, v_back_max=max(out["v_back_max"], b_hi),
+                   vy_min=0.0, vy_max=max(out["vy_max"], src["cmd_vy_range"]))
     if ext:
         crouch = src["cmd_crouch_range"][0]
         if p_crouch > 0.0:
             crouch = min(crouch, src["crouch_range"][0])
         out["crouch_min"] = crouch
     return out
+
+
+def volume_axes(src):
+    """A volume-trained run's planar ellipse (fwd, back, lat), m/s: sim/cmd_kernel.py volume_axes,
+    the semi-axes its volume draw reached. None for any other run (bands() opens the volume under
+    the same condition)."""
+    if not (bool(src["ext_cmd"]) and src.get("cmd_volume", 0.0) > 0.0):
+        return None
+    from cmd_kernel import volume_axes as axes
+    return tuple(float(x) for x in axes(src["cmd_v_range"], src["cmd_back_range"],
+                                        src["cmd_vy_range"], src["cmd_w_range"])[:3])
 
 
 def load_config(run):
@@ -157,6 +187,21 @@ def write_header(path, profile, run, band, src, where):
     w("#pragma once")
     L.extend(policy_profile.guard_lines(profile, "cmd_envelope.h"))
     w("")
+    slew = src.get("cmd_slew")
+    if slew:
+        w("// The run trained with the command slew (cmd_slew, sim/cmd_kernel.py): the")
+        w("// firmware's cmdslew rate-limits (vx, vy, wz) ahead of the observation at")
+        w("// these rates. A run without it defines none of this, and the slew is off.")
+        w("#define LINKPROTO_CMD_SLEW 1")
+        w("")
+    vol = volume_axes(src)
+    if vol:
+        w("// The run trained on the full command volume (cmd_volume, sim/cmd_kernel.py):")
+        w("// (vx, vy) drawn inside an ellipse, so clampToVolume() (protocol.cpp) holds a")
+        w("// command inside it too, not only inside each axis's band. A run without it")
+        w("// defines none of this.")
+        w("#define LINKPROTO_CMD_VOLUME 1")
+        w("")
     w("namespace linkproto {")
     w("")
     w('inline constexpr const char* kEnvelopeRun = "%s";' % run)
@@ -179,6 +224,16 @@ def write_header(path, profile, run, band, src, where):
     w("// crouch in [kCrouchMin, 1]                cmd_crouch_range (%s)"
       % where["cmd_crouch_range"])
     w("inline constexpr float kCrouchMin = %s;" % fl(band["crouch_min"]))
+    if slew:
+        w("// command slew, per control tick at most rate x dt   cmd_slew (config)")
+        w("inline constexpr float kSlewVx = %s;  // m/s^2" % fl(slew[0]))
+        w("inline constexpr float kSlewVy = %s;  // m/s^2" % fl(slew[1]))
+        w("inline constexpr float kSlewWz = %s;  // rad/s^2" % fl(slew[2]))
+    if vol:
+        w("// the volume's planar ellipse, semi-axes                cmd_volume (config)")
+        w("inline constexpr float kVolFwd = %s;   // m/s, vx >= 0" % fl(vol[0]))
+        w("inline constexpr float kVolBack = %s;  // m/s, vx < 0 (magnitude)" % fl(vol[1]))
+        w("inline constexpr float kVolLat = %s;   // m/s, |vy|" % fl(vol[2]))
     w("")
     w("}  // namespace linkproto")
     w("")
@@ -203,6 +258,12 @@ def write_py(path, profile, run, band, src, where):
     for k in ("v_fwd_min", "v_fwd_max", "v_back_min", "v_back_max",
               "vy_min", "vy_max", "w_max", "crouch_min"):
         w("%s = %r" % (k.upper(), float(band[k])))
+    if src.get("cmd_slew"):
+        w("# the command slew's rates (vx m/s^2, vy m/s^2, wz rad/s^2); absent = off")
+        w("SLEW = %r" % (tuple(float(x) for x in src["cmd_slew"]),))
+    if volume_axes(src):
+        w("# the volume's planar ellipse (fwd, back, lat), m/s: clamp_to_volume; absent = none")
+        w("VOLUME = %r" % (volume_axes(src),))
     w("")
     w("# The training settings the band was derived from (tools/gen_envelope.py"
       " bands()).")
@@ -310,6 +371,24 @@ def write_vectors(path, profile, run, band, env):
     w("inline constexpr size_t kNumClampExt = "
       "sizeof kClampExt / sizeof kClampExt[0];")
     w("")
+    if env.volume:
+        # a volume-trained run: its ellipse clamp, from sim/cmd_kernel.py volume_clamp in float32
+        # (the firmware's arithmetic); test_protocol.cpp runs it under LINKPROTO_CMD_VOLUME
+        from cmd_kernel import volume_clamp
+        ax = tuple(np.float32(a) for a in env.volume)
+        w("// linkproto::clampToVolume on this run's ellipse: sim/cmd_kernel.py volume_clamp.")
+        w("struct ClampVolCase { float vx; float vy; float out_vx; float out_vy; };")
+        w("inline const ClampVolCase kClampVol[] = {")
+        f, b, lat = env.volume
+        for vx, vy in ((f, lat), (f, -lat), (-b, lat), (-b, -lat), (f / 2, lat / 2),
+                       (-b / 2, -lat / 2), (f, 0.0), (0.0, lat), (-b, 0.0), (0.0, -lat),
+                       (0.0, 0.0), (f * 0.9, lat * 0.6), (-b * 0.8, lat * 0.8)):
+            ix, iy = np.float32(vx), np.float32(vy)
+            ox, oy = volume_clamp(ix, iy, ax)
+            w("    {%s, %s, %s, %s}," % (fl(ix), fl(iy), fl(np.float32(ox)), fl(np.float32(oy))))
+        w("};")
+        w("inline constexpr size_t kNumClampVol = sizeof kClampVol / sizeof kClampVol[0];")
+        w("")
     w("}  // namespace envelope_vectors")
     w("")
     _write(path, L)
@@ -345,6 +424,9 @@ def main():
     print("profile   : %s" % (profile or "(deployed)"))
     for k, v in band.items():
         print("%-10s: %s" % (k, _fmt(v)))
+    for k in OPT_KEYS:
+        if k in src:
+            print("%-10s: %s" % (k, src[k]))
     print("from      : %s" % ", ".join(
         "%s=%s" % (k, where[k]) for k in ("cmd_v_range", "cmd_back_range",
                                           "cmd_vy_range", "cmd_w_range",

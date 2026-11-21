@@ -756,6 +756,21 @@ def make_parser():
                         "#2: cmd[3] frozen at 1.0 collapsed its normalizer "
                         "std, while firmware battguard ramps it below 1.0 on "
                         "a sagging pack). 1,1 = the legacy frozen channel")
+    p.add_argument("--cmd-slew", default=None,
+                   help="slew the planar command ahead of the observation (#266; "
+                        "sim/cmd_kernel.py): per-channel rate limits vx,vy,wz in m/s^2, m/s^2, "
+                        "rad/s^2, e.g. 0.5,0.5,1.5. A drawn command becomes the target and the "
+                        "policy sees the ramp; episodes start from the stand. config.json records "
+                        "cmd_slew; the referee inherits it and `make deploy` puts the rates into "
+                        "the firmware's command path (tools/gen_envelope.py). Needs --precision "
+                        "(ext_cmd). Default off")
+    p.add_argument("--cmd-volume", type=float, default=None,
+                   help="fraction of walk draws taken from the full vx/vy/wz volume inside the "
+                        "envelope (#263; cmd_kernel.volume_cmd): any compass direction, speed "
+                        "uniform from zero to the envelope's edge, turning or not, so diagonals, "
+                        "back + turn and side + turn are drawn and there are no dead bands. "
+                        "config.json records cmd_volume; `make deploy` then opens the envelope's "
+                        "bands down to zero. Needs --precision (ext_cmd). Default off (0)")
     p.add_argument("--tilt-max", type=float, default=None,
                    help="batch-level gravity-tilt DR in degrees: each env's "
                         "gravity is tilted by U(0,max) about a random "
@@ -1373,6 +1388,13 @@ def build_env_kw(args):
     env_kw["quantize_ticks"] = bool(args.quantize)
     env_kw["cmd_crouch_range"] = tuple(
         float(x) for x in args.cmd_crouch_range.split(","))
+    if getattr(args, "cmd_slew", None):
+        if os.path.dirname(HERE) not in sys.path:
+            sys.path.insert(0, os.path.dirname(HERE))
+        import cmd_kernel
+        env_kw["cmd_slew"] = cmd_kernel.parse_slew(args.cmd_slew)
+    if getattr(args, "cmd_volume", None):
+        env_kw["cmd_volume"] = float(args.cmd_volume)
     if args.getup:
         # recovery objective: gait shaping off (crawling/rolling is fine),
         # recovery terms carry the gradient; shorter episodes; same hardening
