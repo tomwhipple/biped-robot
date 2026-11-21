@@ -1231,9 +1231,11 @@ def supply_sag_block():
     tau = rng.uniform(-3, 3, (2000, 17))
     qd = rng.uniform(-8, 8, (2000, 17))
     sc = rng.uniform(0.5, 1.0, 2000)
-    s_np, i_np = (np.array(x) for x in zip(*(sg.sag_step(t, q, s_, 0.44, 11.1)
+    el = sg.servo_elec(list(sg.CB.NAME_TO_ID))      # the bus map's 17: two STS3250s, 15 STS3215s
+    el_j = tuple(jp.asarray(x) for x in el)
+    s_np, i_np = (np.array(x) for x in zip(*(sg.sag_step(t, q, s_, 0.44, 11.1, el)
                                              for t, q, s_ in zip(tau, qd, sc))))
-    s_jp, i_jp = jax.jit(jax.vmap(lambda t, q, s_: sg.sag_step(t, q, s_, 0.44, 11.1, jp)))(
+    s_jp, i_jp = jax.jit(jax.vmap(lambda t, q, s_: sg.sag_step(t, q, s_, 0.44, 11.1, el_j, jp)))(
         jp.asarray(tau), jp.asarray(qd), jp.asarray(sc))
     worst_k = max(float(np.max(np.abs(s_np - np.asarray(s_jp)))),
                   float(np.max(np.abs(i_np - np.asarray(i_jp)))))

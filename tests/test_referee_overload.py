@@ -6,6 +6,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = os.path.join(HERE, "..", "sim")
@@ -78,7 +79,8 @@ def test_meter_reads_duty_against_the_sagged_envelope():
     import eval_precision as ep
     e = _env()
     e.reset(seed=4)
-    e.supply_sag_ohm, e._sag_r, e._sag_s = (0.44, 0.44), 0.44, 0.8
+    e.supply_sag_ohm, e._sag_r, e._sag_s_run = (0.44, 0.44), 0.44, 0.8
+    e._sag_s = 0.9                       # the relaxed next-substep scale: not what the meter reads
     meter, view = ep.overload_meter(e)
     stall = float(e._servo[2]) * e._stall_prof
     w0 = float(e._servo[3]) * e._w0_prof
@@ -86,5 +88,6 @@ def test_meter_reads_duty_against_the_sagged_envelope():
     qd[e._sqvel] = 0.25 * w0                                   # every servo at a quarter speed
     e.data.qvel[:] = qd
     e._servo_tau = stall * (0.8 - 0.25)                        # at the sagged cap s stall (1 - w/(s w0))
-    meter.tick(view, e.control_dt)
+    ep.overload_tick(meter, view, e.control_dt)
     np.testing.assert_allclose(meter.alt["duty"]["peak"], 1.0)
+    assert meter.volts == pytest.approx(0.8 * float(e.supply_voltage))   # the sagged supply

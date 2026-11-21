@@ -16,10 +16,21 @@ The model, per physics substep (2 ms), in both envs:
 and each servo's stall torque and no-load speed are multiplied by s, exactly as `supply_voltage`
 scales them (~V/12) -- the envelope is a DC motor's, linear in the supply. V0 is the env's
 `supply_voltage` (the open-circuit voltage). The current is the lossless-bridge power balance
-walker_env / env_mjx already price as `power_w` and sim/current_budget.py budgets with
-(sts_servo_model.supply_current "bridge"): I = sum(I_IDLE + (max(tau qd, 0) + K_CU tau^2) / V),
-the datasheet's 2.7 A at 12 V stall. That is the LOWER of sts_servo_model's two current models,
-so the sag it gives is the smaller one.
+sim/current_budget.py budgets with (`servo_amps` "bridge"), each servo with its own PHYSICAL type's
+constants (current_budget.SERVO_ELEC: K_CU and the stall current at 12 V), and capped at that
+servo's real stall current at the supply:
+
+    I = sum_j min(I_IDLE + (max(tau_j qd_j, 0) + K_CU_j tau_j^2) / V,  I_STALL12_j x V / 12)
+
+An STS3215 (K_CU 3.75) draws the datasheet's 2.7 A at its 12 V stall, an STS3250 (K_CU ~2.10) the
+listed 4.2 A at its 4.90 N m. The physical type (`servo_elec`) is the one a servo_types value
+names ("sts3250"); a servo with no named type, or with an envelope PAIR (`--servo-envelope
+hip_pitch=2.0,...`: a refit or a what-if scaling of the servo that is there, not a bigger servo),
+is the type the bus map puts there (current_budget.servo_type: the STS3250 hip rolls, STS3215
+elsewhere). The cap is what keeps an envelope-scaled torque from being priced as real current: a
+knee scaled to 2x stall still draws at most the STS3215's 2.7 A (not the 10.8 A that K_CU tau^2
+gives at 5.9 N m). The bridge form is the LOWER of sts_servo_model's two current models, so the sag
+it gives is the smaller one.
 
 Why one substep late, and relaxed: tau depends on the supply through the envelope's cap and the
 supply on tau through the current, so this substep's current sets the NEXT substep's supply (the
@@ -46,10 +57,11 @@ import math
 
 import numpy as np
 
+import current_budget as CB  # per servo type: SERVO_ELEC (stall A at 12 V, Kt, K_CU), the bus map
+
 BENCH_OHM = 0.44            # the 2026-11-03 bench supply's lead + connector resistance
 BENCH_V0 = 12.02            # its open-circuit voltage (the env's supply_voltage stands in)
-I_IDLE = 0.030              # A per servo, stopped ([DS] 5-6; sts_servo_model.I_IDLE)
-K_CU = 3.75                 # W/(N m)^2: 2.94 N m stall draws 2.7 A at 12 V (walker_env._K_CU)
+I_IDLE = CB.SM.I_IDLE       # A per servo, stopped ([DS] 5-6; sts_servo_model.I_IDLE)
 SAG_FLOOR = 0.5             # the scale's floor: an arithmetic guard, not a brown-out model
 SAG_RELAX = 0.5             # fraction of the way to the loaded supply per substep (see above)
 
@@ -76,10 +88,38 @@ def parse_sag(spec):
     return (lo, hi)
 
 
-def bus_current(tau, qd, volts, xp=np):
-    """The bus current (A): every servo's lossless-bridge draw at supply `volts`, summed over the
-    last axis. tau (N m), qd (rad/s): the servos' torque and joint speed this substep."""
-    return xp.sum(I_IDLE + (xp.maximum(tau * qd, 0.0) + K_CU * tau * tau) / volts, axis=-1)
+def physical_type(name, servo_types=None):
+    """The servo type actuator `name` physically is, for its current: a servo_types value (keyed by
+    actuator or role, the actuator's winning) that names a type is that type; unset, or an envelope
+    pair (stall ratio, no-load ratio), is the bus map's type there (current_budget.servo_type),
+    STS3215 for an actuator not on the map."""
+    if servo_types:
+        from walker_env import joint_role
+        t = servo_types.get(name, servo_types.get(joint_role(name)))
+        if isinstance(t, str):
+            if t not in CB.SERVO_ELEC:
+                raise ValueError(f"servo type {t!r} has no electrical constants in "
+                                 f"current_budget.SERVO_ELEC (have {sorted(CB.SERVO_ELEC)})")
+            return t
+    return CB.servo_type(name) if name in CB.NAME_TO_ID else "sts3215"
+
+
+def servo_elec(names, servo_types=None):
+    """Per actuator of `names`: (K_CU W/(N m)^2, stall current A at 12 V), float64 numpy arrays,
+    from current_budget.SERVO_ELEC by each servo's physical type (`physical_type`)."""
+    e = [CB.SERVO_ELEC[physical_type(n, servo_types)] for n in names]
+    return (np.array([x[2] for x in e], dtype=np.float64),
+            np.array([x[0] for x in e], dtype=np.float64))
+
+
+def bus_current(tau, qd, volts, elec, xp=np):
+    """The bus current (A): every servo's lossless-bridge draw at supply `volts`, each with its own
+    type's K_CU and capped at its real stall current at `volts`, summed over the last axis.
+    tau (N m), qd (rad/s): the servos' torque and joint speed this substep; elec = (k_cu, i_stall12)
+    per servo (`servo_elec`)."""
+    k_cu, i_stall12 = elec
+    i = I_IDLE + (xp.maximum(tau * qd, 0.0) + k_cu * tau * tau) / volts
+    return xp.sum(xp.minimum(i, i_stall12 * (volts / 12.0)), axis=-1)
 
 
 def sag_scale(i_bus, r_ohm, v0, xp=np):
@@ -87,9 +127,9 @@ def sag_scale(i_bus, r_ohm, v0, xp=np):
     return xp.clip(1.0 - r_ohm * i_bus / v0, SAG_FLOOR, 1.0)
 
 
-def sag_step(tau, qd, scale, r_ohm, v0, xp=np):
+def sag_step(tau, qd, scale, r_ohm, v0, elec, xp=np):
     """One substep: the servos ran on V = v0 x scale with torques tau at speeds qd ->
     (the next substep's scale, the bus current). The scale moves SAG_RELAX of the way to the
-    loaded supply's."""
-    i_bus = bus_current(tau, qd, v0 * scale, xp)
+    loaded supply's. elec: (k_cu, i_stall12) per servo (`servo_elec`)."""
+    i_bus = bus_current(tau, qd, v0 * scale, elec, xp)
     return scale + SAG_RELAX * (sag_scale(i_bus, r_ohm, v0, xp) - scale), i_bus

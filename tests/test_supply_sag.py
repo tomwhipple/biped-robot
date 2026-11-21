@@ -21,6 +21,10 @@ os.environ.setdefault("MUJOCO_GL", "disabled")
 
 import supply_sag as S  # noqa: E402
 import walker_env as W  # noqa: E402
+import current_budget as CB  # noqa: E402
+
+E3215 = S.servo_elec(["L_knee"])                 # one STS3215's (K_CU, stall A at 12 V)
+E12 = S.servo_elec(["L_knee"] * 12)              # twelve of them
 
 ARGS = ["--robot", "--xml", "bimo_biped_v6legs_meas_sole.xml", "--servo-kp-scale", "asbuilt",
         "--precision", "--mjx-impl", "jax", "--family", "loco", "--quantize",
@@ -54,17 +58,45 @@ def test_defaults_parser_and_cli():
 
 # -- the kernel --------------------------------------------------------------------
 def test_kernel_matches_the_datasheet_and_the_bench_line():
-    # one servo at its 12 V stall (2.94 N m, still) draws the datasheet's 2.7 A (+ idle)
-    i = S.bus_current(np.array([2.94]), np.array([0.0]), 12.0)
-    assert i == pytest.approx(2.7 + S.I_IDLE, abs=0.01)
+    # one STS3215 at its 12 V stall (2.94 N m, still) draws the datasheet's 2.7 A (the cap)
+    i = S.bus_current(np.array([2.94]), np.array([0.0]), 12.0, E3215)
+    assert i == pytest.approx(2.7, abs=1e-9)
     # the bench line: V = 12.02 - 0.44 I
     for amps, volts in ((1.0, 11.58), (3.3, 10.568)):
         assert 12.02 * S.sag_scale(amps, 0.44, 12.02) == pytest.approx(volts, abs=1e-3)
     assert S.sag_scale(1e3, 0.44, 12.0) == S.SAG_FLOOR and S.sag_scale(0.0, 0.44, 12.0) == 1.0
     # driving the load (mechanical power) costs current, back-driven does not add to it
-    a = S.bus_current(np.array([1.0]), np.array([2.0]), 12.0)
-    b = S.bus_current(np.array([1.0]), np.array([-2.0]), 12.0)
-    assert a > b == pytest.approx(S.I_IDLE + S.K_CU / 12.0)
+    a = S.bus_current(np.array([1.0]), np.array([2.0]), 12.0, E3215)
+    b = S.bus_current(np.array([1.0]), np.array([-2.0]), 12.0, E3215)
+    assert a > b == pytest.approx(S.I_IDLE + CB.SERVO_ELEC["sts3215"][2] / 12.0)
+
+
+def test_current_per_servo_type_and_capped_at_the_real_stall():
+    """Each servo draws its own type's current (current_budget.SERVO_ELEC), and an envelope-scaled
+    stall torque is priced against the servo's real stall current (#339 review): the STS3250 hip
+    roll at its 4.90 N m stall draws current_budget's 4.2 A (not 7.5 A at the STS3215's K_CU), a
+    knee scaled to 2x stall draws the STS3215's 2.7 A (not 10.8 A)."""
+    names = ["L_hip_roll", "L_hip_pitch", "L_knee", "L_ankle"]
+    k_cu, i_st = S.servo_elec(names, {"hip_roll": "sts3250", "hip_pitch": [2.0, 1.0],
+                                      "knee": [2.0, 1.0]})
+    assert list(k_cu) == [CB.SERVO_ELEC["sts3250"][2]] + [CB.SERVO_ELEC["sts3215"][2]] * 3
+    assert list(i_st) == [CB.SERVO_ELEC["sts3250"][0]] + [CB.SERVO_ELEC["sts3215"][0]] * 3
+    # the bus map alone (no servo_types) makes the hip rolls STS3250s, the rest STS3215s
+    assert list(S.servo_elec(names)[1]) == list(i_st)
+    # at stall, each servo's current equals current_budget's (its "motor" cap at 12 V and V)
+    stall = np.array([4.90, 2.0 * 2.94, 2.0 * 2.94, 2.94])
+    still = np.zeros(4)
+    for v in (12.0, 10.0):
+        per = [S.bus_current(stall[j:j + 1], still[j:j + 1], v, (k_cu[j:j + 1], i_st[j:j + 1]))
+               for j in range(4)]
+        cb = CB.servo_amps(names, stall, still, np.ones(4), v, model="motor")[0]
+        np.testing.assert_allclose(per, cb, rtol=1e-12)
+        np.testing.assert_allclose(per, [4.2 * v / 12, 2.7 * v / 12, 2.7 * v / 12, 2.7 * v / 12])
+    # below stall the 3250's own K_CU prices it (current_budget's "bridge" model)
+    tau, qd = np.array([2.0, 1.0, -1.5, 0.5]), np.array([1.0, -2.0, 0.5, 3.0])
+    np.testing.assert_allclose(S.bus_current(tau, qd, 11.0, (k_cu, i_st)),
+                               CB.servo_amps(names, tau, qd, np.ones(4), 11.0, "bridge").sum(),
+                               rtol=1e-12)
 
 
 def test_relaxed_update_does_not_ring_under_a_saturated_load():
@@ -81,7 +113,7 @@ def test_relaxed_update_does_not_ring_under_a_saturated_load():
         s, out = 1.0, []
         for _ in range(80):
             tau, qd = load(s)
-            s = s + relax * (S.sag_scale(S.bus_current(tau, qd, 12.0 * s), 0.44, 12.0) - s)
+            s = s + relax * (S.sag_scale(S.bus_current(tau, qd, 12.0 * s, E12), 0.44, 12.0) - s)
             out.append(s)
         return np.array(out)
     whole = run(1.0)
@@ -90,12 +122,12 @@ def test_relaxed_update_does_not_ring_under_a_saturated_load():
     assert np.abs(np.diff(relaxed[-10:])).max() < 1e-9               # the relaxed one settles
     s = relaxed[-1]
     tau, qd = load(s)
-    assert s == pytest.approx(S.sag_scale(S.bus_current(tau, qd, 12.0 * s), 0.44, 12.0), abs=1e-8)
+    assert s == pytest.approx(S.sag_scale(S.bus_current(tau, qd, 12.0 * s, E12), 0.44, 12.0), abs=1e-8)
     assert S.SAG_FLOOR < s < 1.0
     # and it is the kernel's own step
     tau, qd = load(0.8)
-    s2, i2 = S.sag_step(tau, qd, 0.8, 0.44, 12.0)
-    assert i2 == pytest.approx(S.bus_current(tau, qd, 9.6))
+    s2, i2 = S.sag_step(tau, qd, 0.8, 0.44, 12.0, E12)
+    assert i2 == pytest.approx(S.bus_current(tau, qd, 9.6, E12))
     assert s2 == pytest.approx(0.8 + S.SAG_RELAX * (S.sag_scale(i2, 0.44, 12.0) - 0.8))
 
 
