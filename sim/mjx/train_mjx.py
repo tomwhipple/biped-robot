@@ -475,6 +475,13 @@ def make_parser():
                         "4.04 rad/s per 12 V), e.g. hip_pitch=1.3:1.5,knee=1.0:1.1 (the fit of "
                         "experiments/policy/actuator-refit/refit.py); applied after --servo-3250. "
                         "The referee inherits it from config.json (servo_types)")
+    p.add_argument("--supply-sag-ohm", default=None,
+                   help="supply SAG under load (#6): V = V0 - R x I_bus per physics substep, V0 = "
+                        "the supply voltage, I_bus the summed servo current (the bridge model "
+                        "power_w prices); stall torque and no-load speed scale with V/V0. R ohms "
+                        "fixed ('0.44', the 2026-11-03 bench supply) or 'LO:HI' drawn per "
+                        "episode. Off by default (sim/supply_sag.py; both envs). config.json "
+                        "records it; the CPU referee inherits it")
     p.add_argument("--supply-voltage", type=float, default=None,
                    help="servo bus volts the envelope scales with (default 11.1; the robot's "
                         "servos read ~12.0 V on the board, flight 2026-11-03)")
@@ -1012,6 +1019,11 @@ def build_env_kw(args):
         env_kw["floor_contact_range"] = ((v[0], v[1]), (v[2], v[3]))
     if getattr(args, "supply_voltage", None) is not None:
         env_kw["supply_voltage"] = float(args.supply_voltage)
+    if getattr(args, "supply_sag_ohm", None):
+        import supply_sag as _sag   # jax-free, shared with both envs
+        sg = _sag.parse_sag(args.supply_sag_ohm)
+        if sg is not None:
+            env_kw["supply_sag_ohm"] = list(sg)
     for flag, key in (("contact_mu", "contact_mu_range"), ("contact_torsion", "contact_torsion_range")):
         if getattr(args, flag, None) is not None:
             v = [float(x) for x in getattr(args, flag).split(",")]
