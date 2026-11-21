@@ -434,6 +434,20 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-21 card: night 31 -- replicates of the dwell / sway / GD arms (seeds 18 - 21): the dwell's shift gain was seed noise;
+# tonight the first command-volume arms (#263) as a sim learnability test.
+fig_1121 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec91_walk_sagdr_dw_s5_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec91_walk_sagdr_dw_s5_s128r24_walk_steps_L',
+                 'prec91 seed 19, the walk with the double-support pause: the biggest shift of the night on the right-foot lift '
+                 '(0.77), and it does not pass the walk check, loses both sidesteps and falls 8/8 at x1.5'),
+    video_figure('robot_legs_prec92_walk_sagdr_sw75_s5_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec92_walk_sagdr_sw75_s5_s128r24_walk_steps_L',
+                 'control: prec92 seed 19, the same sway without the pause: about the same shift, walks in all six directions'),
+    video_figure('robot_legs_prec86_walk_sagdr_s6_s128r24', ['walk_steps_L'],
+                 'robot_legs_prec86_walk_sagdr_s6_s128r24_walk_steps_L',
+                 'the walk pool GD, seed 20: the parent of tonight\'s command-volume arms'),
+] if f)
 # 2026-11-20 card: night 30 -- the stepper-shaped reference (a double-support dwell) on the walk and the march: neither
 # holds; the clock-reference RL line is finished; tonight replicates only.
 fig_1120 = "\\n    ".join(f for f in [
@@ -1225,6 +1239,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·21 · night 31: the pause's small gain was luck; tonight the first policies trained on any walking direction</span></p>
+    <p><b>Last night ran more seeds only</b>: four more each of the walk with the double-support pause, the same sway without
+    the pause (the control), and the parent walk. <b>Over all eight seeds the pause does not shift the weight further than the
+    control</b> (median 0.58 / 0.54 of the way over each foot, against 0.48 / 0.53; the bar was 0.10 more on both feet). The
+    gain on the weaker side two nights ago came from the first four seeds and reversed on the next four. What the pause does
+    reliably is cost the walk: 5 of 8 seeds fail the walk check and 4 of 8 lose the left sidestep. All 8 control seeds walk.</p>
+    <p><b>Tonight</b> starts the full command volume (#263, on main since this morning): the policy is trained on any mix of
+    forward, sideways and turning, not just the six directions. Three arms on the parent walk, three seeds each plus one extra:
+    every walk command from the volume, half of them from the volume, and the volume with a warm start from the parent itself.
+    The parent already walks most compass headings, diagonals included, in this morning's new compass check (a median 12 of 18
+    probes); it fails the combinations of walking and turning. An arm counts if 2 of 3 seeds hold 16 of 18 and keep the six
+    directions. This is a simulation test of whether the policy can learn the volume; the robot is still down for its hip repair
+    and nothing here is a robot candidate. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1121}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·20 · night 30: a pause on both feet before each step does not fix the weight shift; the clock-reference line is finished</span></p>
     <p><b>Last night tested the robot stepper's shape in the training reference: shift the weight with both feet down, wait,
