@@ -191,6 +191,40 @@ def test_a_sway_trained_run_has_no_lateral_hole():
     assert b["vy_min"] == 0.0 and b["vy_max"] == 0.25
 
 
+def test_a_volume_trained_run_has_no_holes():
+    """cmd_volume (#263): walks from the whole volume, continuous down to zero, out to the axes
+    (sim/cmd_kernel.py volume_axes), whatever the cardinal submix says."""
+    b, where = _bands(dict(PREC, cmd_volume=1.0, walk_submix=[0.0, 0.0]))
+    assert b == dict(v_fwd_min=0.0, v_fwd_max=0.24, v_back_min=0.0, v_back_max=0.4,
+                     vy_min=0.0, vy_max=0.25, w_max=1.0, crouch_min=1.0)
+    assert where["cmd_volume"] == "config"
+
+
+def test_opt_in_settings_only_when_on(tmp_path):
+    """A run without cmd_volume / cmd_slew records neither (the pinned bytes stay the bytes);
+    a run with cmd_slew puts its rates into the header and the twin."""
+    for cfg in (PREC, dict(PREC, cmd_volume=0.0, cmd_slew=None)):
+        src, where = gen_envelope.read_source(cfg)
+        assert "cmd_volume" not in src and "cmd_slew" not in src and "cmd_slew" not in where
+        h = tmp_path / "off.h"
+        gen_envelope.write_header(str(h), None, "r", gen_envelope.bands(src), src, where)
+        assert "Slew" not in h.read_text() and "LINKPROTO_CMD_SLEW" not in h.read_text()
+    src, where = gen_envelope.read_source(dict(PREC, cmd_slew=[0.5, 0.4, 1.5]))
+    band = gen_envelope.bands(src)
+    assert band == gen_envelope.bands(gen_envelope.read_source(PREC)[0])   # slew moves no band
+    h, py = tmp_path / "on.h", tmp_path / "cmd_envelope.py"
+    gen_envelope.write_header(str(h), None, "r", band, src, where)
+    gen_envelope.write_py(str(py), None, "r", band, src, where)
+    text = h.read_text()
+    assert "#define LINKPROTO_CMD_SLEW 1" in text
+    assert text.index("#define LINKPROTO_CMD_SLEW") < text.index("namespace linkproto {")
+    for name, v in (("kSlewVx", 0.5), ("kSlewVy", 0.4), ("kSlewWz", 1.5)):
+        assert re.search(r"\b%s = %sf;" % (name, re.escape("%.9g" % v)), text), name
+    twin = gen_envelope.load_twin(str(py))
+    assert twin.SLEW == (0.5, 0.4, 1.5) and twin.SOURCE["cmd_slew"] == [0.5, 0.4, 1.5]
+    assert protocol.load_envelope(twin) is not None
+
+
 # -- the env defaults the generator resolves ---------------------------------
 def test_env_defaults_match_the_mjx_env():
     """The training env (env_mjx) and the CPU env (walker_env) must agree on

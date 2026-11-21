@@ -64,6 +64,12 @@ CMD_VY_DRAW_MIN = 0.1
 KEYS = ("ext_cmd", "cmd_v_range", "cmd_w_range", "cmd_back_range",
         "cmd_vy_range", "cmd_crouch_range", "crouch_range", "ext_mix",
         "walk_submix", "sway_vy")
+# Opt-in settings (#263, #266): read only when the run's config.json has them on, so a run that
+# trained without them generates byte-identical files (headers.sha256 pins them).
+#   cmd_volume > 0   walks drawn from the whole volume (sim/cmd_kernel.py volume_cmd): every band
+#                    opens down to zero and reaches the volume's axes
+#   cmd_slew         the command slew's rates (vx, vy, wz): the firmware's cmdslew runs them
+OPT_KEYS = ("cmd_volume", "cmd_slew")
 
 
 def env_defaults():
@@ -86,6 +92,12 @@ def read_source(cfg, defaults=None):
             val[k] = [float(x) for x in val[k]]
         elif not isinstance(val[k], bool):
             val[k] = float(val[k])
+    if cfg.get("cmd_volume"):
+        val["cmd_volume"], where["cmd_volume"] = float(cfg["cmd_volume"]), "config"
+    if cfg.get("cmd_slew"):
+        from cmd_kernel import parse_slew
+        val["cmd_slew"] = [float(x) for x in parse_slew(cfg["cmd_slew"])]
+        where["cmd_slew"] = "config"
     return val, where
 
 
@@ -112,6 +124,11 @@ def bands(src):
     if p_sway > 0.0:
         # sway commands an oscillating vy through zero: no hole under it
         out.update(vy_min=0.0, vy_max=max(out["vy_max"], src["sway_vy"]))
+    if ext and src.get("cmd_volume", 0.0) > 0.0:
+        # the volume draw (sim/cmd_kernel.py volume_axes): continuous from zero to each axis
+        b_hi = max(abs(x) for x in src["cmd_back_range"])
+        out.update(v_fwd_min=0.0, v_back_min=0.0, v_back_max=max(out["v_back_max"], b_hi),
+                   vy_min=0.0, vy_max=max(out["vy_max"], src["cmd_vy_range"]))
     if ext:
         crouch = src["cmd_crouch_range"][0]
         if p_crouch > 0.0:
@@ -157,6 +174,13 @@ def write_header(path, profile, run, band, src, where):
     w("#pragma once")
     L.extend(policy_profile.guard_lines(profile, "cmd_envelope.h"))
     w("")
+    slew = src.get("cmd_slew")
+    if slew:
+        w("// The run trained with the command slew (cmd_slew, sim/cmd_kernel.py): the")
+        w("// firmware's cmdslew rate-limits (vx, vy, wz) ahead of the observation at")
+        w("// these rates. A run without it defines none of this, and the slew is off.")
+        w("#define LINKPROTO_CMD_SLEW 1")
+        w("")
     w("namespace linkproto {")
     w("")
     w('inline constexpr const char* kEnvelopeRun = "%s";' % run)
@@ -179,6 +203,11 @@ def write_header(path, profile, run, band, src, where):
     w("// crouch in [kCrouchMin, 1]                cmd_crouch_range (%s)"
       % where["cmd_crouch_range"])
     w("inline constexpr float kCrouchMin = %s;" % fl(band["crouch_min"]))
+    if slew:
+        w("// command slew, per control tick at most rate x dt   cmd_slew (config)")
+        w("inline constexpr float kSlewVx = %s;  // m/s^2" % fl(slew[0]))
+        w("inline constexpr float kSlewVy = %s;  // m/s^2" % fl(slew[1]))
+        w("inline constexpr float kSlewWz = %s;  // rad/s^2" % fl(slew[2]))
     w("")
     w("}  // namespace linkproto")
     w("")
@@ -203,6 +232,9 @@ def write_py(path, profile, run, band, src, where):
     for k in ("v_fwd_min", "v_fwd_max", "v_back_min", "v_back_max",
               "vy_min", "vy_max", "w_max", "crouch_min"):
         w("%s = %r" % (k.upper(), float(band[k])))
+    if src.get("cmd_slew"):
+        w("# the command slew's rates (vx m/s^2, vy m/s^2, wz rad/s^2); absent = off")
+        w("SLEW = %r" % (tuple(float(x) for x in src["cmd_slew"]),))
     w("")
     w("# The training settings the band was derived from (tools/gen_envelope.py"
       " bands()).")
@@ -345,6 +377,9 @@ def main():
     print("profile   : %s" % (profile or "(deployed)"))
     for k, v in band.items():
         print("%-10s: %s" % (k, _fmt(v)))
+    for k in OPT_KEYS:
+        if k in src:
+            print("%-10s: %s" % (k, src[k]))
     print("from      : %s" % ", ".join(
         "%s=%s" % (k, where[k]) for k in ("cmd_v_range", "cmd_back_range",
                                           "cmd_vy_range", "cmd_w_range",
