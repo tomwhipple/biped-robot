@@ -9,6 +9,17 @@ been built yet**: the first build (#79) will correct this guide.
 going in orange, backed off along its insertion path, with a ghost at its
 seat. They show the left leg and arm; the right side is built the same way.
 
+On mira, render on the CPU (Mesa llvmpipe), never on the GPU the night
+training owns, with all of these set:
+
+```bash
+export MUJOCO_GL=egl __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
+  EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 CUDA_VISIBLE_DEVICES= JAX_PLATFORMS=cpu
+```
+
+A harmless `EGLError` traceback may print at exit. Check that `nvidia-smi
+--query-compute-apps=pid,process_name --format=csv,noheader` lists no render.
+
 **Other visual references:**
 
 - **Fly-in filmstrips.** Every part flies in along its insertion path in
