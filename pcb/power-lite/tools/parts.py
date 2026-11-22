@@ -88,14 +88,23 @@ R("R1", "470", "SERVO_EN", "Q1_B", "Yageo MFR-25FBF52-470R", "base drive, ~5 mA 
 R("R2", "10k", "Q1_B", "GND", "Yageo MFR-25FBF52-10K", "holds the rail off until the ESP32 drives SERVO_EN")
 
 # ---- servo rail: bulk, TVS, distribution (J4-J8: 1 data, 2 V+, 3 GND)
+# The General Driver's H5 (and H6): a Mini-SPOX header silkscreened "D V G", with D at the housing's
+# bevelled corner (seen on the robot, 2026-11-21, #342). A stock servo lead joins the two housings'
+# bevelled corners, so each header H5's lead plugs into reads H5's nets in this order from its bevelled
+# corner (tools/netcheck.py --keys checks J4-J8 on the board against it).
+H5_FROM_BEVEL = ("SERVO_DATA", "SERVOP", "GND")
+SERVO_HEADERS = ("J4", "J5", "J6", "J7", "J8")
+# the Mini-SPOX housing turned on KiCad's stock pads, so its bevelled corner is at pin 1 (power-lite.pretty)
+SPOX_FP = "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 part("C1", "Device:C_Polarized", "1000u 25V", "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm",
      {"1": "SERVOP", "2": "GND"}, "Panasonic EEU-FR1E102", "servo rail bulk")
 part("D2", "Device:D_Zener", "1.5KE16A", "Diode_THT:D_DO-201_P15.24mm_Horizontal",
      {"1": "SERVOP", "2": "GND"}, "Littelfuse 1.5KE16A", "unidirectional TVS on the servo rail")
 for ref, name in (("J4", "R leg"), ("J5", "R upper"), ("J6", "L leg"), ("J7", "L upper")):
-    part(ref, "Connector_Generic:Conn_01x03", f"Servo {name}", "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical",
-         {"1": "SERVO_DATA", "2": "SERVOP", "3": "GND"}, "Molex 22-03-5035", "D V G, as the General Driver's H5")
-part("J8", "Connector_Generic:Conn_01x03", "Data from H5", "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical",
+    part(ref, "Connector_Generic:Conn_01x03", f"Servo {name}", SPOX_FP,
+         {"1": "SERVO_DATA", "2": "SERVOP", "3": "GND"}, "Molex 22-03-5035",
+         "D V G, as the General Driver's H5: pin 1 (data) at the bevelled corner")
+part("J8", "Connector_Generic:Conn_01x03", "Data from H5", SPOX_FP,
      {"1": "SERVO_DATA", "2": None, "3": "GND"}, "Molex 22-03-5035", "V+ pin unconnected on purpose")
 
 # ---- telemetry to the ESP32 (J12)

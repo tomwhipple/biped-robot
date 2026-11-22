@@ -12,8 +12,9 @@ HERE = Path(__file__).resolve().parent
 PROJ = HERE.parent
 WORK = Path(sys.argv[1])
 WORK.mkdir(parents=True, exist_ok=True)
-KPY = "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3"
-KCLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+# KiCad's python (with pcbnew) and kicad-cli; $KICAD_PYTHON and $KICAD_CLI override
+KPY = os.environ.get("KICAD_PYTHON", "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3")
+KCLI = os.environ.get("KICAD_CLI", "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
 JAVA = os.environ.get("JAVA", "/opt/homebrew/opt/openjdk/bin/java")
 JAR = os.environ["FREEROUTING_JAR"]
 BOARD = str(PROJ / "power-lite.kicad_pcb")
@@ -47,6 +48,7 @@ for i, extra in enumerate((["-mp", "60"], ["-mp", "100", "-is", "random"], ["-mp
     if not unrouted:
         break
 print(run([KPY, HERE / "post_pcb.py", BOARD, best[0]]))
+print(run([sys.executable, HERE / "netcheck.py", "--keys", BOARD]))
 run([KCLI, "pcb", "drc", "--severity-all", "--schematic-parity", "-o", WORK / "drc.rpt", BOARD])
 rpt = (WORK / "drc.rpt").read_text()
 print("DRC:", dict(collections.Counter(re.findall(r"^\[(\w+)\]", rpt, re.M))))

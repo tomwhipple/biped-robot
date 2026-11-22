@@ -4,6 +4,7 @@ Every pin gets a short stub and a net label, so the drawing carries the spec's c
 nothing is wired by hand. usage: python3 tools/gen_sch.py   (run from pcb/power-lite)
 """
 import math
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -14,7 +15,8 @@ import parts as PD  # noqa: E402
 import sexpr as S  # noqa: E402
 from sexpr import Q  # noqa: E402
 
-LIB = Path("/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols")
+# KiCad's symbol libraries; $KICAD_SYMBOL_DIR overrides (e.g. a Linux or docker install)
+LIB = Path(os.environ.get("KICAD_SYMBOL_DIR", "/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols"))
 OUT = HERE.parent / f"{PD.PROJECT}.kicad_sch"
 NS = uuid.UUID("3c8e1f52-7d0b-4a8e-9f61-5a2b9c0d1e7f")
 ROOT = str(uuid.uuid5(NS, "root"))

@@ -4850,7 +4850,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 			(at 335.28 43.18 0)
 			(effects
 				(font
@@ -4868,7 +4868,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "D V G, as the General Driver's H5"
+		(property "Description" "D V G, as the General Driver's H5: pin 1 (data) at the bevelled corner"
 			(at 335.28 43.18 0)
 			(effects
 				(font
@@ -4962,7 +4962,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 			(at 335.28 60.96 0)
 			(effects
 				(font
@@ -4980,7 +4980,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "D V G, as the General Driver's H5"
+		(property "Description" "D V G, as the General Driver's H5: pin 1 (data) at the bevelled corner"
 			(at 335.28 60.96 0)
 			(effects
 				(font
@@ -5074,7 +5074,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 			(at 335.28 78.74 0)
 			(effects
 				(font
@@ -5092,7 +5092,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "D V G, as the General Driver's H5"
+		(property "Description" "D V G, as the General Driver's H5: pin 1 (data) at the bevelled corner"
 			(at 335.28 78.74 0)
 			(effects
 				(font
@@ -5186,7 +5186,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 			(at 335.28 96.52 0)
 			(effects
 				(font
@@ -5204,7 +5204,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "D V G, as the General Driver's H5"
+		(property "Description" "D V G, as the General Driver's H5: pin 1 (data) at the bevelled corner"
 			(at 335.28 96.52 0)
 			(effects
 				(font
@@ -5287,7 +5287,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Connector_Molex:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical"
+		(property "Footprint" "power-lite:Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1"
 			(at 335.28 116.84 0)
 			(effects
 				(font

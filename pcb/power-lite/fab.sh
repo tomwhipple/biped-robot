@@ -3,7 +3,8 @@
 #
 #   sh pcb/power-lite/fab.sh     # exit 0 = ERC and DRC clean, outputs written to pcb/power-lite/fab/
 #
-# ERC and DRC (with schematic parity) run first and stop the export on any violation. Then:
+# ERC, DRC (with schematic parity) and the servo headers' key check (tools/netcheck.py --keys: J4-J8 keyed like the
+# General Driver's H5) run first and stop the export on any violation. Then:
 #   fab/power-lite-gerbers.zip   Gerbers (2 copper layers, mask, silk both sides, outline) + Excellon drill,
 #                                the file a board house (PCBWay or similar) takes; every part is through-hole
 #                                and hand-soldered, so there is no paste layer and no placement file
@@ -18,6 +19,7 @@ rm -rf fab
 mkdir -p fab/gerbers
 "$KICAD_CLI" sch erc --exit-code-violations --severity-all -o fab/erc.rpt power-lite.kicad_sch
 "$KICAD_CLI" pcb drc --exit-code-violations --severity-all --schematic-parity -o fab/drc.rpt power-lite.kicad_pcb
+"${PYTHON:-python3}" tools/netcheck.py --keys power-lite.kicad_pcb
 "$KICAD_CLI" pcb export gerbers --check-zones --subtract-soldermask \
     -l F.Cu,B.Cu,F.SilkS,B.SilkS,F.Mask,B.Mask,Edge.Cuts \
     -o fab/gerbers/ power-lite.kicad_pcb

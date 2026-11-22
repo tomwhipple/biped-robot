@@ -4,6 +4,7 @@ Placement, outline, rules and the high-current pours are set here; Freerouting r
 (tools/route.py), then tools/post_pcb.py imports the session and fills the pours.
 usage: gen_pcb.py <netlist>   (from pcb/power-lite)
 """
+import os
 import sys
 from pathlib import Path
 
@@ -15,7 +16,8 @@ import sexpr as S  # noqa: E402
 
 PROJ = HERE.parent
 BOARD = str(PROJ / "power-lite.kicad_pcb")
-FPROOT = "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints/"
+# KiCad's footprint libraries; $KICAD_FOOTPRINT_DIR overrides (e.g. a Linux or docker install)
+FPROOT = os.environ.get("KICAD_FOOTPRINT_DIR", "/Applications/KiCad/KiCad.app/Contents/SharedSupport/footprints").rstrip("/") + "/"
 W, H = 97.0, 64.5
 OX, OY = 100.0, 60.0
 MM = pcbnew.FromMM
@@ -109,8 +111,8 @@ WIRES = {"W1": "wire_heavy_black", "W2": "wire_heavy_black", "W6": "wire_heavy_r
 
 
 def set_3d_models(ref, fp):
-    """The 3D viewer's picture: the stock LED model is red, this KiCad has no Mini-SPOX model, the
-    holders' blade fuses are not footprints, and the W pads take wires (bodies from tools/gen_3d.py).
+    """The 3D viewer's picture: the stock LED model is red, KiCad's Mini-SPOX model does not fit the turned
+    footprint, the holders' blade fuses are not footprints, and the W pads take wires (bodies from tools/gen_3d.py).
     Models() hands back copies, so a model is replaced by clearing the list and adding a new one."""
     def only(filename):
         ms = fp.Models()
@@ -122,13 +124,64 @@ def set_3d_models(ref, fp):
     if ref == "LED1":
         only("${KICAD10_3DMODEL_DIR}/LED_THT.3dshapes/LED_D3.0mm_Green.step")
     elif ref in ("J4", "J5", "J6", "J7", "J8"):
-        only(MODEL3D + "Molex_SPOX_5267-03A_body.step")
+        only(MODEL3D + "Molex_SPOX_5267-03A_KeyPin1_body.step")
     elif ref in WIRES:
         only(MODEL3D + WIRES[ref] + ".step")
     elif ref in ("F1", "F2"):
         m = pcbnew.FP_3DMODEL()
         m.m_Filename = MODEL3D + ("MINI_fuse_15A.step" if ref == "F1" else "MINI_fuse_3A.step")
         fp.Models().push_back(m)
+
+
+def load_fp(ref, c):
+    """A footprint from its library, named and filled in from the netlist's component <c> (also
+    tools/refresh_fp.py)."""
+    lib, name = c["fp"].split(":")
+    path = str(PROJ / "power-lite.pretty") if lib == "power-lite" else FPROOT + lib + ".pretty"
+    fp = pcbnew.FootprintLoad(path, name)
+    assert fp is not None, c["fp"]
+    fp.SetFPID(pcbnew.LIB_ID(lib, name))
+    fp.SetReference(ref)
+    fp.SetValue(c["value"])
+    fp.SetPath(pcbnew.KIID_PATH("/" + c["uuid"]))
+    fp.SetSheetname("/")
+    fp.SetSheetfile("power-lite.kicad_sch")
+    fp.SetField("Datasheet", c["datasheet"])
+    fp.SetField("Description", c["desc"])
+    if c["mpn"]:
+        fp.SetField("MPN", c["mpn"])
+    for f in ("Datasheet", "Description", "MPN"):
+        if fp.HasField(f):
+            fp.GetField(f).SetVisible(False)
+    set_3d_models(ref, fp)
+    return fp
+
+
+def place(fp, ref):
+    """Put a footprint (already on the board) where PLACE says, and its reference text."""
+    x, y, rot = PLACE[ref]
+    fp.SetPosition(P(x, y))
+    fp.SetOrientationDegrees(rot)
+    rf = fp.Reference()
+    if ref.startswith("R"):          # axial, rotated 270: the reference inside the body, along it
+        rf.SetPosition(P(x, y + 5.08))
+        rf.SetTextAngleDegrees(90)
+        rf.SetTextSize(pcbnew.VECTOR2I(MM(0.8), MM(0.8)))
+        rf.SetTextThickness(MM(0.12))
+    elif ref in ("J4", "J5", "J6", "J7", "J8"):   # beside each servo header, level with pin 1, past its body
+        rf.SetPosition(P(x + 4.4, y))
+        rf.SetTextAngleDegrees(90)
+    elif ref in REF_AT:
+        rf.SetPosition(P(*REF_AT[ref]))
+        rf.SetTextAngleDegrees(0)
+    elif ref in ("W1", "W2", "W6", "W7"):   # the silk labels "BMS B-", "BMS P-" and "SW" name these
+        rf.SetVisible(False)
+
+
+# J4's housing beside H2's screw head: their courtyards overlap, the parts do not (the M2.5 button head,
+# 4.7 mm across, clears the housing by 0.35 mm: tools/netcheck.py --keys measures it). power-lite.kicad_dru
+# lets DRC pass the same pair.
+COURTYARD_OK = {frozenset(("J4", "H2"))}
 
 
 def check_courtyards(board):
@@ -140,7 +193,7 @@ def check_courtyards(board):
     bad = 0
     for i, (a, ba) in enumerate(boxes):
         for b, bb in boxes[i + 1:]:
-            if ba.Intersects(bb):
+            if ba.Intersects(bb) and frozenset((a, b)) not in COURTYARD_OK:
                 print(f"courtyard overlap: {a} {b}")
                 bad += 1
     edge = pcbnew.BOX2I(P(0, 0), pcbnew.VECTOR2I(MM(W), MM(H)))
@@ -194,42 +247,9 @@ def main():
         return nets[name]
 
     for ref, c in sorted(comps.items()):
-        lib, name = c["fp"].split(":")
-        path = str(PROJ / "power-lite.pretty") if lib == "power-lite" else FPROOT + lib + ".pretty"
-        fp = pcbnew.FootprintLoad(path, name)
-        assert fp is not None, c["fp"]
-        fp.SetFPID(pcbnew.LIB_ID(lib, name))
-        fp.SetReference(ref)
-        fp.SetValue(c["value"])
-        fp.SetPath(pcbnew.KIID_PATH("/" + c["uuid"]))
-        fp.SetSheetname("/")
-        fp.SetSheetfile("power-lite.kicad_sch")
-        fp.SetField("Datasheet", c["datasheet"])
-        fp.SetField("Description", c["desc"])
-        if c["mpn"]:
-            fp.SetField("MPN", c["mpn"])
-        for f in ("Datasheet", "Description", "MPN"):
-            if fp.HasField(f):
-                fp.GetField(f).SetVisible(False)
-        set_3d_models(ref, fp)
+        fp = load_fp(ref, c)
         board.Add(fp)
-        x, y, rot = PLACE[ref]
-        fp.SetPosition(P(x, y))
-        fp.SetOrientationDegrees(rot)
-        rf = fp.Reference()
-        if ref.startswith("R"):          # axial, rotated 270: the reference inside the body, along it
-            rf.SetPosition(P(x, y + 5.08))
-            rf.SetTextAngleDegrees(90)
-            rf.SetTextSize(pcbnew.VECTOR2I(MM(0.8), MM(0.8)))
-            rf.SetTextThickness(MM(0.12))
-        elif ref in ("J4", "J5", "J6", "J7", "J8"):   # beside each servo header, level with pin 1
-            rf.SetPosition(P(x + 3.6, y))
-            rf.SetTextAngleDegrees(90)
-        elif ref in REF_AT:
-            rf.SetPosition(P(*REF_AT[ref]))
-            rf.SetTextAngleDegrees(0)
-        elif ref in ("W1", "W2", "W6", "W7"):   # the silk labels "BMS B-", "BMS P-" and "SW" name these
-            rf.SetVisible(False)
+        place(fp, ref)
         for pad in fp.Pads():
             n = c["pins"].get(pad.GetNumber())
             if n:

@@ -1,0 +1,8 @@
+(version 1)
+# J4's Mini-SPOX housing sits beside H2's M2.5 button head. The housing is turned so its bevelled corner is at
+# pin 1 (#342), which puts its far wall 2.7 mm from H2's centre: the head (4.7 mm across) clears it by 0.35 mm,
+# but the two courtyards (each part + 0.5 mm, the hole's sized for a 5.4 mm head) overlap. tools/netcheck.py
+# --keys checks the housing against the head instead; this rule lets DRC pass the pair and no other.
+(rule "J4 housing beside H2's screw head"
+	(constraint courtyard_clearance (min -3mm))
+	(condition "(A.Reference == 'J4' && B.Reference == 'H2') || (A.Reference == 'H2' && B.Reference == 'J4')"))
