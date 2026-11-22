@@ -104,6 +104,38 @@ code { font-family:var(--mono); font-size:.88em; background:var(--panel2); paddi
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
   <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·22 · night 32: training on every walking direction widens what the policy follows, but no arm passed the bar</span></p>
+    <p><b>Last night trained the first policies on the whole command volume</b> (any mix of forward, sideways and turning; #263)
+    in three arms of three seeds each. <b>None met the bar</b> of 2 of 3 seeds holding 16 of 18 compass headings with the six
+    directions and the loop-gain margin. The best arm, the volume with a warm start from the parent walk, did it on 1 seed of 3
+    (17 of 18 headings). <b>The volume still helps</b>: the median number of headings held rose from 12 (the parent) to 16 with
+    that warm start and 15 without it; half the volume (the third arm) did not help. Every policy kept all six directions and
+    walks. The heading no policy learns is the change from forward to back-right, and the walk-plus-turn combinations stay weakest.</p>
+    <p><b>Tonight</b> tries the fix that landed on main this morning (#346): the training reference used to put the closing foot
+    on top of, or across, the other foot for sideways and diagonal commands; now the leading foot steps out and the other closes
+    to its normal width. A second arm counts slow commands as walking rather than standing (#345), which the firmware will read.
+    Both on the best arm, three seeds each plus extras and two more seeds of the parent arm. This is a simulation test only;
+    the robot is still down for its hip repair. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec96_walk_sagdr_vol_i86_s1_s128r24_square_return.jpg" src="_clips/robot_legs_prec96_walk_sagdr_vol_i86_s1_s128r24_square_return.mp4"></video>
+      <figcaption><b>robot_legs_prec96_walk_sagdr_vol_i86_s1_s128r24</b> · VW seed 15, trained on the whole command volume with a warm start from the parent walk: 17 of 18 compass headings held, the best of the night, and 0/8 falls at x1.5 on the sag plant<br>square_return 4/8
+        · seed 1/8 takes, verdict burned in · 38s</figcaption>
+    </figure>\n    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec94_walk_sagdr_vol_s1_s128r24_square_return.jpg" src="_clips/robot_legs_prec94_walk_sagdr_vol_s1_s128r24_square_return.mp4"></video>
+      <figcaption><b>robot_legs_prec94_walk_sagdr_vol_s1_s128r24</b> · VA seed 15, the same volume warm-started from the older walk: 15 of 18 headings, but 8/8 falls at x1.5<br>square_return 4/8
+        · seed 1/8 takes, verdict burned in · 4s</figcaption>
+    </figure>\n    <figure>
+      <video class="film" controls preload="none" playsinline muted loop
+             poster="_clips/robot_legs_prec86_walk_sagdr_s1_s128r24_square_return.jpg" src="_clips/robot_legs_prec86_walk_sagdr_s1_s128r24_square_return.mp4"></video>
+      <figcaption><b>robot_legs_prec86_walk_sagdr_s1_s128r24</b> · control: the parent walk GD at the same seed, trained on six directions only: 9 of 18 headings<br>square_return 2/8
+        · seed 1/8 takes, verdict burned in · 37s</figcaption>
+    </figure>
+    </div>
+  </div>
+  <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·21 · night 31: the pause's small gain was luck; tonight the first policies trained on any walking direction</span></p>
     <p><b>Last night ran more seeds only</b>: four more each of the walk with the double-support pause, the same sway without
     the pause (the control), and the parent walk. <b>Over all eight seeds the pause does not shift the weight further than the

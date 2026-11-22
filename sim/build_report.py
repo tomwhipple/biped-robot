@@ -434,6 +434,20 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-22 card: night 32 -- the first command-volume arms (#263): none meets the bar, the volume widens the follower;
+# tonight the reference's foot placement (--mimic-volume-ref) and the stand band on the best arm.
+fig_1122 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec96_walk_sagdr_vol_i86_s1_s128r24', ['square_return'],
+                 'robot_legs_prec96_walk_sagdr_vol_i86_s1_s128r24_square_return',
+                 'VW seed 15, trained on the whole command volume with a warm start from the parent walk: 17 of 18 compass '
+                 'headings held, the best of the night, and 0/8 falls at x1.5 on the sag plant'),
+    video_figure('robot_legs_prec94_walk_sagdr_vol_s1_s128r24', ['square_return'],
+                 'robot_legs_prec94_walk_sagdr_vol_s1_s128r24_square_return',
+                 'VA seed 15, the same volume warm-started from the older walk: 15 of 18 headings, but 8/8 falls at x1.5'),
+    video_figure('robot_legs_prec86_walk_sagdr_s1_s128r24', ['square_return'],
+                 'robot_legs_prec86_walk_sagdr_s1_s128r24_square_return',
+                 'control: the parent walk GD at the same seed, trained on six directions only: 9 of 18 headings'),
+] if f)
 # 2026-11-21 card: night 31 -- replicates of the dwell / sway / GD arms (seeds 18 - 21): the dwell's shift gain was seed noise;
 # tonight the first command-volume arms (#263) as a sim learnability test.
 fig_1121 = "\\n    ".join(f for f in [
@@ -1239,6 +1253,23 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·22 · night 32: training on every walking direction widens what the policy follows, but no arm passed the bar</span></p>
+    <p><b>Last night trained the first policies on the whole command volume</b> (any mix of forward, sideways and turning; #263)
+    in three arms of three seeds each. <b>None met the bar</b> of 2 of 3 seeds holding 16 of 18 compass headings with the six
+    directions and the loop-gain margin. The best arm, the volume with a warm start from the parent walk, did it on 1 seed of 3
+    (17 of 18 headings). <b>The volume still helps</b>: the median number of headings held rose from 12 (the parent) to 16 with
+    that warm start and 15 without it; half the volume (the third arm) did not help. Every policy kept all six directions and
+    walks. The heading no policy learns is the change from forward to back-right, and the walk-plus-turn combinations stay weakest.</p>
+    <p><b>Tonight</b> tries the fix that landed on main this morning (#346): the training reference used to put the closing foot
+    on top of, or across, the other foot for sideways and diagonal commands; now the leading foot steps out and the other closes
+    to its normal width. A second arm counts slow commands as walking rather than standing (#345), which the firmware will read.
+    Both on the best arm, three seeds each plus extras and two more seeds of the parent arm. This is a simulation test only;
+    the robot is still down for its hip repair. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1122}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·21 · night 31: the pause's small gain was luck; tonight the first policies trained on any walking direction</span></p>
     <p><b>Last night ran more seeds only</b>: four more each of the walk with the double-support pause, the same sway without
