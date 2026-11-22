@@ -1,7 +1,9 @@
 """The assembly figures for assembly.md: a top render of the board after each step (3D models only for the parts
-placed so far), with that step's parts outlined and their pin 1 or polarity marked.
-usage: uv run --with matplotlib --with pillow python tools/asm_figs.py <work dir>   (from pcb/power-lite)"""
+placed so far), with that step's parts outlined and their pin 1 or polarity marked; and, with --keys, only the
+close-up of the servo headers J4-J8 (which corner is the key, which pad is data and which ground).
+usage: uv run --with matplotlib --with pillow python tools/asm_figs.py <work dir> [--keys]   (from pcb/power-lite)"""
 import json
+import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -17,10 +19,15 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.patches import FancyBboxPatch  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import netcheck as N  # noqa: E402
+import sexpr as S  # noqa: E402
+
 PROJ = HERE.parent
 FIGS = PROJ.parent.parent / "docs" / "design-v6" / "figs"
-KPY = "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3"
-KCLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"
+# KiCad's python (with pcbnew) and kicad-cli; $KICAD_PYTHON and $KICAD_CLI override
+KPY = os.environ.get("KICAD_PYTHON", "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework/Versions/3.9/bin/python3")
+KCLI = os.environ.get("KICAD_CLI", "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
 W, H = 97.0, 64.5
 HI = "#ff2e93"
 # where the alternation would collide; J4-J8, F1 and F2 carry their own silkscreen labels
@@ -111,15 +118,80 @@ def annotate(i, geom, raw):
     return out
 
 
-work = Path(sys.argv[1])
-work.mkdir(parents=True, exist_ok=True)
-shapes = work / "power-lite.3dshapes"   # the boards' ${KIPRJMOD} is <work dir>
-if not shapes.exists():
-    shapes.symlink_to(PROJ / "power-lite.3dshapes")
-if "--annotate-only" in sys.argv:   # reuse the renders already in <work dir>
-    results = [(json.loads((work / f"{t}.json").read_text()), work / f"{t}_raw.png") for t, _, _ in STEPS]
-else:
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda i: render(i, work), range(len(STEPS))))
-for i, (geom, raw) in enumerate(results):
-    print("written", annotate(i, geom, raw))
+KEYS = N.PD.SERVO_HEADERS
+KEYS_X = (84.2, W)   # the board's strip the close-up shows, mm: the header column, clear of R8 and LED2
+
+
+def bevels(board):
+    """ref -> the middle of the bevel on each servo header's silkscreen outline, board mm from its top-left"""
+    fps = N.footprints(S.parse(Path(board).read_text())[0])
+    out = {}
+    for ref in KEYS:
+        ends = [pt for a, b in N.lines(fps[ref], "F.SilkS") if abs(a[0] - b[0]) > 0.01 and abs(a[1] - b[1]) > 0.01
+                for pt in (a, b)]
+        x, y = N.to_board(fps[ref], (sum(p[0] for p in ends) / len(ends), sum(p[1] for p in ends) / len(ends)))
+        out[ref] = (x - 100.0, y - 60.0)   # the board's origin, as in tools/asm_strip.py
+    return out
+
+
+def keys_figure(work, board=PROJ / "power-lite.kicad_pcb", out=FIGS / "powerlite_servo_header_keys.png",
+                title="J4–J8 from the top: the bevelled corner (●) at data, as on H5"):
+    """The servo headers from the top, each with its data pad (pin 1), ground pad (pin 3) and the bevel of its
+    silkscreen outline marked. A stock lead joins its housings' bevelled corners, and H5's D is at its bevelled
+    corner, so data must be at the bevelled corner here."""
+    brd, js, png = work / "keys.kicad_pcb", work / "keys.json", work / "keys_raw.png"
+    subprocess.run([KPY, HERE / "asm_strip.py", board, brd, js, *KEYS], check=True, capture_output=True)
+    subprocess.run([KCLI, "pcb", "render", "--side", "top", "--width", "3200", "--height", "2200", "--quality", "high",
+                    "-o", png, brd], check=True, capture_output=True)
+    geom, bev = json.loads(js.read_text()), bevels(board)
+    img = Image.open(png)
+    x0, y0, x1, y1 = board_box(img)
+    sx, sy = (x1 - x0) / W, (y1 - y0) / H
+    cx0, cy0 = int(x0 + KEYS_X[0] * sx), int(y0) - 12
+    crop = img.crop((cx0, cy0, int(x0 + KEYS_X[1] * sx) + 12, int(y1) + 12))
+
+    def px(x, y):
+        return x0 + x * sx - cx0, y0 + y * sy - cy0
+
+    left, head = 470, 70   # px of label room on the left and title room on top
+    fig = plt.figure(figsize=((crop.width + left) / 200, (crop.height + head) / 200), dpi=200)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.imshow(crop)
+    ax.set_xlim(-left, crop.width)
+    ax.set_ylim(crop.height, -head)
+    ax.set_axis_off()
+    ax.text((crop.width - left) / 2, -head / 2, title, ha="center", va="center", fontsize=7.5, weight="bold")
+    for ref in KEYS:
+        bx, by = px(*bev[ref])
+        ax.plot([bx], [by], marker="o", ms=7, mfc=HI, mec="white", mew=1.2)
+        for pad, lab, fc in (("1", "D  data, pin 1", HI), ("3", "G  GND, pin 3", "#333333")):
+            x, y = px(*geom[ref]["pads"][pad])
+            ax.plot([x], [y], "o", ms=9, mfc="none", mec=fc, mew=2.2)
+            ax.annotate(lab, (x - 8, y), xytext=(-40, y), fontsize=6.5, color="white", weight="bold", ha="right",
+                        va="center", arrowprops=dict(arrowstyle="-", color=fc, lw=1.5),
+                        bbox=dict(boxstyle="round,pad=0.25", fc=fc, ec="none"))
+    fig.savefig(out, dpi=200, facecolor="white")
+    plt.close(fig)
+    return out
+
+
+def main():
+    work = Path(sys.argv[1])
+    work.mkdir(parents=True, exist_ok=True)
+    shapes = work / "power-lite.3dshapes"   # the boards' ${KIPRJMOD} is <work dir>
+    if not shapes.exists():
+        shapes.symlink_to(PROJ / "power-lite.3dshapes")
+    print("written", keys_figure(work))
+    if "--keys" in sys.argv:
+        return
+    if "--annotate-only" in sys.argv:   # reuse the renders already in <work dir>
+        results = [(json.loads((work / f"{t}.json").read_text()), work / f"{t}_raw.png") for t, _, _ in STEPS]
+    else:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(lambda i: render(i, work), range(len(STEPS))))
+    for i, (geom, raw) in enumerate(results):
+        print("written", annotate(i, geom, raw))
+
+
+if __name__ == "__main__":
+    main()

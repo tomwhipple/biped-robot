@@ -58,6 +58,21 @@ the real parts and are done before the first connection.
 General Driver's H5 order ("D V G"). **Leads:** stock servo leads, with a 5264-03 housing at each
 end.
 
+**Orientation: data is at the bevelled corner.** The header's housing has one bevelled corner,
+on the long wall the pins sit close to.
+- **On the General Driver's H5,** D is at the bevelled corner: in Waveshare's top photo (H5 is
+  the left of the two white 3-pin headers above the power switch, silkscreen "D V G" over it), the
+  bevel is at the housing's top left, under the D.
+- **A stock lead joins its two housings' bevelled corners,** so the wire at H5's D lands at the
+  bevelled corner of whichever header the other end plugs into.
+- **So on J4–J8 the bevelled corner is at pin 1** (data, the square pad), and pin 3 (GND) is at
+  the square corner at the far end. Seen from the top, with "BIPED POWER LITE rev A" upright,
+  each header's bevel is at its lower end, on the side toward the middle of the board; the
+  silkscreen outline shows it. `tools/netcheck.py --keys` checks the board against the one fact
+  it takes from H5, `H5_FROM_BEVEL` in `tools/parts.py`.
+
+![J4–J8 from the top: data at the bevelled corner](../../docs/design-v6/figs/powerlite_servo_header_keys.png)
+
 | header | branch | first servo, then the chain | walking peak / RMS (upper model) | get-up peak (range over the two sides) |
 |---|---|---|---|---|
 | J4 | right leg | 9 → 1, 2, 3, 4, 11 | 3.7 A / 1.6 A | 3.0–4.3 A |
@@ -69,8 +84,11 @@ end.
 - **Contact rating:** a 5264 contact is rated about 2.5–3 A, which is not yet read from Molex's
   datasheet. The leg branches' RMS current is under that; their peaks exceed it for moments.
   Measure the first lead's temperature on the bench.
-- **P4:** confirm that a stock lead seats in J4–J8 with pin 1 on the same wire as in H5. Plug one
-  lead into H5 and note which wire is GND; the same wire must land on pin 3 here.
+- **P4:** a stock lead from H5 must put H5's D wire on pin 1 of each of J4–J8, and its G wire on
+  pin 3. It is a meter check, done before any servo is connected: [bringup.md, 4.1](bringup.md#41-p4-the-servo-headers-before-any-servo).
+  **It failed on the first board** (2026-11-21, #342): its headers sat with the bevel at pin 3,
+  so H5's data wire landed on GND and the whole bus read as shorted to ground. That board is
+  reworked by turning J4–J8 ([assembly.md](assembly.md#rework-j4j8-seated-with-the-bevel-at-pin-3)).
 
 ## J11: the E-stop
 
@@ -132,4 +150,4 @@ A supply on W7 (+) and W2 (−) in place of the BMS and pack runs the board (REA
 | P1 | the pack's XT60 is female, with + on the housing's straight side | look and meter the pack lead | a reversed J1 reverses the whole board |
 | P2 | balance-plug order | meter the plug: 0, 3.7, 7.4, 11.1 V from the pin-1 side | J2 pin 1 must be B− |
 | P3 | General Driver H1 pin 1 is + | meter to the AO4407 | J3 is wired pin 1 to pin 1 |
-| P4 | H5 pin order relative to its key | meter a stock lead in H5 | J4–J8 copy H5 |
+| P4 | a stock lead from H5 puts D on pin 1 (the bevelled corner) of J4–J8 | meter, before any servo ([bringup.md 4.1](bringup.md#41-p4-the-servo-headers-before-any-servo)) | J4–J8 copy H5; failed on the first board, 2026-11-21 (#342) |

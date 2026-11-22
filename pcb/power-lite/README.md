@@ -63,8 +63,8 @@ pack balance lead (J2) ─ BMS cell taps                                      �
 | J1 | the pack | Amass XT60PW-M | 1 B− (angled side), 2 B+ |
 | J2 | the pack's balance lead | JST B4B-XH-A | 1 B−, 2 cell 1+, 3 cell 2+, 4 B+ |
 | J3 | General Driver H1 | JST B2B-XH-A | 1 LOGIC (+), 2 GND; the lead runs pin 1 to pin 1 |
-| J4–J7 | servo branches: R leg, R upper, L leg, L upper | Molex 22-03-5035 | 1 data, 2 SERVO+, 3 GND (the General Driver's H5 order, "D V G") |
-| J8 | servo data from the General Driver's H5 | Molex 22-03-5035 | 1 data, 2 unconnected, 3 GND |
+| J4–J7 | servo branches: R leg, R upper, L leg, L upper | Molex 22-03-5035 | 1 data, 2 SERVO+, 3 GND (the General Driver's H5 order, "D V G"); data at the housing's bevelled corner, as on H5 |
+| J8 | servo data from the General Driver's H5 | Molex 22-03-5035 | 1 data, 2 unconnected, 3 GND; data at the bevelled corner |
 | J11 | the E-stop's NC contact | JST B2B-PH-K-S | 1 LOGIC, 2 to K1's coil; any latching switch (0.13 A) |
 | J12 | control to the ESP32 | JST B8B-PH-K-S | 2 `SERVO_EN` (IO16), 3 GND, 5 `RAIL_V` (GPIO34), 6 `ESTOP_N` (IO4, with its internal pull-up on); 1, 4, 7, 8 unconnected |
 | W1–W5 | the BMS | wire pads | W1 B−, W2 P− (system GND), W3 B3, W4 B2, W5 B1+ |
@@ -83,6 +83,10 @@ pack balance lead (J2) ─ BMS cell taps                                      �
   - C2 (100 nF) filters `RAIL_V` for the ADC.
 - **J3 and J4–J8 follow the General Driver's pin orders**: the cables and checks P1–P4 are in
   [harness.md](harness.md).
+- **J4–J8 are keyed like H5.** A stock servo lead joins its two housings' bevelled corners, and
+  H5's D is at its bevelled corner, so each header's bevelled corner is at pin 1 (data). The
+  board's footprint (`power-lite.pretty/Molex_SPOX_5267-03A_1x03_P2.50mm_Vertical_KeyPin1`) is
+  KiCad's stock Mini-SPOX with the housing turned 180° on the same pads.
 
 ## The firmware
 
@@ -305,8 +309,10 @@ The step-by-step procedure, with the expected readings and a results table for e
    - The supply's + through three 470 Ω in series on J12.2 (`SERVO_EN`; with R1, about an
      ESP32 pin's base current): K1 clicks, LED2 lights, and `RAIL_V` reads about 2.1 V.
    - Remove the J11 jumper: K1 drops, and `ESTOP_N` reads the supply voltage.
-3. **Check the inrush with the real load.** Wire the BMS and the pack, with the servos
-   connected. Switch the rail on with `SERVO_EN` ten times.
+3. **Check the inrush with the real load.** First, before any servo is connected, harness check
+   P4 with the meter: a stock lead from H5 puts H5's data wire on pin 1 of each of J4–J8
+   ([bringup.md 4.1](bringup.md#41-p4-the-servo-headers-before-any-servo)). Then wire the BMS
+   and the pack, with the servos connected. Switch the rail on with `SERVO_EN` ten times.
    - The BMS must not trip, and the relay must open every time the E-stop is pressed.
    - The simulation puts the peak at 176–341 A, above 100 A for 52–132 µs, depending on the
      servos' own capacitance (below).
@@ -315,7 +321,15 @@ The step-by-step procedure, with the expected readings and a results table for e
 ## Checks
 
 - **Schematic:** ERC reports 0, and the netlist matches `tools/parts.py` (37 parts, 19 nets).
-- **Board:** DRC reports 0 with schematic parity, and 0 unconnected pads.
+- **Board:** DRC reports 0 with schematic parity, and 0 unconnected pads. One pair is let
+  through by a rule (`power-lite.kicad_dru`): J4's courtyard overlaps H2's, because J4's housing
+  stands 2.7 mm from H2's centre; the M2.5 button head there (4.7 mm across) clears it by
+  0.35 mm.
+- **Servo headers:** `tools/netcheck.py --keys` (run by `fab.sh` and `tools/route.py`, tested in
+  `tests/test_power_lite_keys.py`) reads J4–J8 off the board: from each silkscreen outline's
+  bevelled corner, the pads must carry `SERVO_DATA`, `SERVOP`, `GND` (`H5_FROM_BEVEL` in
+  `tools/parts.py`). It also checks each header's body against the screw heads and standoffs in
+  the mounting holes.
 - **Copper on the 15 A path:** the narrowest section is the 6.1 mm strip of `VIN` between W7 and
   F1, in 1 oz copper with the GND plane beneath it. The return pads (W2, each servo header's
   pin 3, C1, D2, D3) join the plane with full copper: four 0.5 mm thermal spokes would be 2 mm
@@ -385,8 +399,18 @@ The KiCad files are generated: edit the tools, not the files.
 2. Run `python3 tools/gen_sch.py` to draw the schematic.
 3. Run `FREEROUTING_JAR=<freerouting-2.x.jar> python3 tools/route.py <work dir>`. It checks the
    netlist against `parts.py`, places the parts (`tools/gen_pcb.py`), routes with Freerouting,
-   adds the GND plane and the silkscreen (`tools/post_pcb.py`), and runs DRC.
-4. Run `sh fab.sh` to write the fab outputs, after ERC and DRC.
+   adds the GND plane and the silkscreen (`tools/post_pcb.py`), checks the servo headers' keys
+   and runs DRC.
+   - **A footprint change that keeps every pad** (its silkscreen, outline, courtyard or 3D
+     model) needs no re-route: `<KiCad's python> tools/refresh_fp.py power-lite.kicad_pcb <ref>
+     ...` rebuilds those footprints as `gen_pcb.py` would, and refuses if a pad moved or changed.
+4. Run `sh fab.sh` to write the fab outputs, after ERC, DRC and the key check.
+
+The tools default to the macOS KiCad install. `KICAD_SYMBOL_DIR` (`gen_sch.py`),
+`KICAD_FOOTPRINT_DIR` (`gen_pcb.py`), `KICAD_PYTHON` and `KICAD_CLI` (`route.py`,
+`asm_figs.py`; `KICAD_CLI` also `fab.sh`) point them at another, such as the `kicad/kicad`
+docker image's. The schematic embeds its symbols, so `gen_sch.py` writes the same file only
+from the same library version; a newer one changes the copies it embeds.
 
 The relay's footprint (`power-lite.pretty/TE_PowerRelay_F7_PCB`) is drawn from TE's V23134
 datasheet; the XT60's is from Amass's spec sheet.
