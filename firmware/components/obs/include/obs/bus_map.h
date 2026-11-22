@@ -33,7 +33,7 @@ inline constexpr int kNumBusJoints = 17;
 
 // Bus index order (kept from the prototype, so every bus-indexed table and
 // wire layout is unchanged). Names are the plant's joint names
-// (sim/bimo_biped_v6ar.xml, arms from sim/gen_plant_v6.py); the comment is the
+// (build/v6/sim/bimo_biped_v6ar.xml, arms from sim/gen_plant_v6.py); the comment is the
 // servo ID, as kBusServoId.
 inline constexpr const char* kBusJointNames[kNumBusJoints] = {
     "R_hip_roll",    // 52  STS3250

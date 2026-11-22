@@ -76,7 +76,7 @@ assert all(1 <= _i <= 253 for _i in BUS_IDS), BUS_IDS
 # means and what the legacy tools' CAL tables were indexed by. The bus-side
 # pose of those tools is generated from this same mapping (and the helper's
 # `BusCal.pose_ticks` returns the 17-wide bus form). Source: docs/servo-map.md
-# §2.2 / firmware/components/obs/include/obs/obs_spec.h (legacy 10-joint runs);
+# §2.2 / build/policy/<set>/obs/obs_spec.h (legacy 10-joint runs);
 # firmware/main/cal_store.h's kLegacyServoId is the same map and would catch a
 # stale edit at boot.
 POLICY_ORDER: Tuple[str, ...] = (
