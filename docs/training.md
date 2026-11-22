@@ -260,8 +260,8 @@ run only on that family's scenarios (§8):
 
 `--ext-mix` overrides the seven fractions after the family preset.
 
-Two opt-in command options (both off by default, both need `--precision`; the
-laws are `sim/cmd_kernel.py`, shared by both envs, parity block R23):
+Opt-in command options (all need `--precision`; the laws are
+`sim/cmd_kernel.py`, shared by both envs, parity blocks R23 and R25):
 
 - `--cmd-volume P` takes the fraction P of the walk draws from the whole
   (vx, vy, wz) volume inside the envelope instead of the forward / backward /
@@ -275,7 +275,24 @@ laws are `sim/cmd_kernel.py`, shared by both envs, parity block R23):
   observation, the law the firmware runs: a drawn or `set_command` command is
   the target, and the policy sees (and the reward grades) a ramp toward it,
   at most rate × 20 ms per tick, from the stand at the episode's start. Every
-  command change, mid-episode resamples included, arrives as a ramp.
+  command change, mid-episode resamples included, arrives as a ramp. The
+  referee inherits the slew from `config.json`; `grade.py` and
+  `sim/sil_twin.py` run the firmware's slew instead (`cmd_kernel.CommandSlew`,
+  float32), in `ctrl_task.cpp`'s order: the clock and the frame read the
+  slewed command of the same tick, from the stand at every arm.
+- `--cmd-stand-band B` sets the stand band: c0–c2 each at or below B are the
+  plain stand (no gait shaping, no stepping reference, the stand terms, the
+  clock's stand rule, the trim off), above it a walk. It is 0.05 unless set,
+  also on a `--cmd-volume` run, so a volume arm and a band arm are separate
+  changes. The volume's band is 0.0005 (`--cmd-stand-band 0.0005`): half the
+  link's resolution (c0–c2 travel in thousandths), so a command the robot
+  receives as non-zero is a walk and the stand is the zero command. On the night recipe's
+  ranges the volume draws 8.8 % of its walks with every channel at or below
+  0.05, which the 0.05 band would grade as stands. The dense velocity term
+  keeps its own 0.05 floor: below it the kernel tracks the speed. `config.json`
+  records the band, and `make deploy` writes a band other than 0.05 into
+  `obs_spec.h` (`obs::kStandBand`), which the firmware's clock, trim,
+  walk-recovery and flail-guard stand gates read.
 
 **On the robot** the console sends the command over the UDP link. When the
 link goes stale the command decays to the stand `(0, 0)` — a trained command
@@ -324,10 +341,14 @@ reward  = primary + w_upright * up_z + alive_bonus
           - fall_cost                                  (on the terminating step)
 ```
 
-- `v_term`: under a motion command (|c0, c1| > 0.05) with `cmd_dense`, the
-  velocity projected on the commanded direction over the commanded speed,
-  clipped to [−1, 1] — zero for standing, negative for the wrong way.
-  Otherwise the kernel `exp(−((vx−c0)² + (vy−c1)²)/0.25)`.
+- A *moving* command has |c0|, |c1| or |c2| above the stand band (0.05 unless the
+  run set `--cmd-stand-band`, e.g. the volume's 0.0005, §4). It switches on the gait shaping, the
+  stepping reference and the 0.3 height weight; at or below the band the
+  stand terms and the clock's stand rule apply.
+- `v_term`: under a planar command faster than 0.05 (|c0, c1| > 0.05) with
+  `cmd_dense`, the velocity projected on the commanded direction over the
+  commanded speed, clipped to [−1, 1] — zero for standing, negative for the
+  wrong way. Otherwise the kernel `exp(−((vx−c0)² + (vy−c1)²)/0.25)`.
 - `w_term`: yaw-rate kernel `exp(−((wz−c2)/0.5)²)`, plus `w_heading ×` a
   heading kernel (σ 0.25 rad) against c2 integrated since the last command
   change, so chronic under-turning accumulates error.

@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.join(ROOT, "sim"))
 
 import mujoco                                          # noqa: E402
 from walker_env import BimoWalkerEnv, deploy_gait_hz   # noqa: E402
+from cmd_kernel import STAND_BAND, parse_stand_band    # noqa: E402
 
 sys.path.insert(0, HERE)
 import policy_profile                                  # noqa: E402
@@ -152,6 +153,14 @@ def sample_frames(env, n=8, seed=0):
     return out
 
 
+def stand_band(cfg):
+    """The run's cmd_stand_band when it is not the legacy 0.05 (cmd_kernel.STAND_BAND), else None:
+    only such a run writes OBS_STAND_BAND / kStandBand, so every other run's obs_spec.h keeps its
+    bytes (the headers.sha256 pins)."""
+    b = parse_stand_band(cfg.get("cmd_stand_band"))
+    return None if b == STAND_BAND else b
+
+
 def write_spec(cfg, env, path, profile=None):
     names = env._act_names
     ids = [ID_BY_ROLE[n] for n in names]
@@ -169,6 +178,13 @@ def write_spec(cfg, env, path, profile=None):
     L.extend(policy_profile.guard_lines(profile, "obs_spec.h"))
     w("#include <stdint.h>")
     w("")
+    band = stand_band(cfg)
+    if band is not None:
+        w("// The run trained with its own stand band (cmd_stand_band, sim/cmd_kernel.py):")
+        w("// |vx|, |vy|, |wz| at or below kStandBand are the plain stand. A run without")
+        w("// one defines none of this, and obs/assembler.h's 0.05 holds.")
+        w("#define OBS_STAND_BAND 1")
+        w("")
     w("namespace obs {")
     w("")
     w("// -- deployed run ------------------------------------------------------")
@@ -189,6 +205,9 @@ def write_spec(cfg, env, path, profile=None):
     w("inline constexpr bool kClockStandFreeze = %s;   // hold phase at a "
       "plain stand (must match training; env_mjx.clock_stand_freeze)"
       % ("true" if getattr(env, "clock_stand_freeze", False) else "false"))
+    if band is not None:
+        w("inline constexpr float kStandBand = %s;   // cmd_stand_band: the plain stand's "
+          "|vx|, |vy|, |wz| (the clock, trim, walk and flail-guard gates)" % fl(band))
     # speed clock (env_mjx.speed_clock_scale, mirrored in walker_env): the
     # clock frequency is scaled by clip(sqrt(v_planar / ref), lo, hi) under a
     # velocity command. Every recipe since loco_v32 (2026-09-06) trains with

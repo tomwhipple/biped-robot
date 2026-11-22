@@ -43,6 +43,8 @@ def test_defaults_and_cli():
     assert "cmd_slew" not in base and "cmd_volume" not in base
     on = _kw("--cmd-slew", "0.5,0.4,1.5", "--cmd-volume", "0.7")
     assert on["cmd_slew"] == (0.5, 0.4, 1.5) and on["cmd_volume"] == 0.7
+    # --cmd-volume alone does not change the stand band (tests/test_cmd_stand_band.py)
+    assert "cmd_stand_band" not in on
     on.pop("cmd_slew")
     on.pop("cmd_volume")
     assert on == base
@@ -85,6 +87,23 @@ def test_golden_ramp():
     assert np.all(np.abs(np.diff(g, axis=0)) <= d + 1e-7)
     assert np.allclose(g[0], d * np.sign(ck.GOLDEN_STEPS[0][1]))
     assert np.array_equal(g[-1], np.float32([0.013, 0.0, 0.0]))
+
+
+def test_command_slew_twin_is_the_golden_ramp():
+    """cmd_kernel.CommandSlew (the firmware's cmdslew in Python, for grade.py and sil_twin.py) runs
+    GOLDEN_STEPS to cmd_kernel.golden() bit for bit -- the table test_cmdslew.cpp pins the C++ to --
+    and reset() returns it to the stand."""
+    s = ck.CommandSlew(ck.GOLDEN_RATES, ck.GOLDEN_DT)
+    steps = dict(ck.GOLDEN_STEPS)
+    tgt = (0.0, 0.0, 0.0)
+    out = []
+    for k in range(120):
+        tgt = steps.get(k, tgt)
+        out.append(s.step(*tgt))
+    out = np.asarray(out)
+    assert out.dtype == np.float32 and out.tobytes() == ck.golden().tobytes()
+    s.reset()
+    assert np.array_equal(s.step(0.24, 0.0, 0.0), np.float32([0.01, 0.0, 0.0]))
 
 
 @pytest.mark.parametrize("xp_name", ["numpy", "jax"])

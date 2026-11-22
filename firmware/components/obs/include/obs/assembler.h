@@ -96,9 +96,21 @@ class GaitClock {
 // A policy trained with the clock frozen (kClockStandFreeze) always holds.
 enum class StandClock : uint8_t { kRun = 0, kFreeze = 1, kCoast = 2 };
 
+// The deployed run's stand band (sim/cmd_kernel.py, "The STAND BAND"): |vx|,
+// |vy| and |wz| at or below it are the plain stand, above it a walk -- the
+// training envs' cmd_stand_band. tools/gen_obs_spec.py defines OBS_STAND_BAND
+// and kStandBand in obs_spec.h only for a run trained with a band other than
+// the legacy 0.05 (a --cmd-volume run); every other run uses 0.05 here. The
+// one place that selects: the clock's gate, the trim's (gaitplay::
+// clockWalking) and ctrl_task's walk and flail-guard stand gates read it.
+#ifndef OBS_STAND_BAND
+inline constexpr float kStandBand = 0.05f;
+#endif
+
 // Training's plain-stand gate (env_mjx plain_stand): no locomotion command
-// and no lift. cmd: kNumCmd wide, AFTER policy::pinFrozen.
-bool plainStand(const float* cmd);
+// (every |vx|, |vy|, |wz| <= band) and no lift. cmd: kNumCmd wide, AFTER
+// policy::pinFrozen.
+bool plainStand(const float* cmd, float band = kStandBand);
 
 // One control tick of the gait clock: the speed clock under a locomotion
 // command, the StandClock rule at a plain stand. THE clock rule -- ctrl_task

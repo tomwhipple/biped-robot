@@ -72,9 +72,10 @@ class Notch:
         return y
 
 
-def stand_gate(c):
-    """ctrl_task.cpp's plain-stand gate (the kClockStandFreeze / flail-guard test)."""
-    return abs(c[0]) <= 0.05 and abs(c[1]) <= 0.05 and abs(c[2]) <= 0.05 and abs(c[4]) < 0.5
+def stand_gate(c, band=0.05):
+    """ctrl_task.cpp's plain-stand gate (the kClockStandFreeze / flail-guard test) at the run's
+    stand band (obs::kStandBand: the env's cmd_stand_band)."""
+    return abs(c[0]) <= band and abs(c[1]) <= band and abs(c[2]) <= band and abs(c[4]) < 0.5
 
 
 def _wrap(p):
@@ -83,9 +84,9 @@ def _wrap(p):
 
 def advance_clock(clk, mode, v, cmd, dt):
     """One tick of the candidate clock at clk["hz"] (the policy's; CLOCK_HZ if absent); returns
-    the phase the next frame carries."""
+    the phase the next frame carries. clk["band"]: the run's stand band (default 0.05)."""
     hz = clk.get("hz", CLOCK_HZ)
-    stand = stand_gate(cmd)
+    stand = stand_gate(cmd, clk.get("band", 0.05))
     if not stand:
         clk["held"] = False; clk["f"] = hz
         clk["ph"] = _wrap(clk["ph"] + 2 * math.pi * hz * dt)

@@ -287,3 +287,42 @@ def test_local_xml_resolves_plants_that_are_not_where_the_config_says():
     assert sil_twin._local_xml(None) is None
     if os.path.exists(want):
         assert sil_twin._local_xml(want) == want
+
+
+# =====================================================================
+#  the command slew and the stand band (#266, #263): ctrl_task's command path
+# =====================================================================
+def test_slewed_command_is_the_firmwares_slew():
+    """A slew-trained run's twin hands the plant ctrl_task's command: (vx, vy, wz) one cmdslew tick
+    toward the watchdog's each armed tick (cmd_kernel.CommandSlew, the firmware's arithmetic), the
+    other channels as sent; a limp tick restarts it at the stand. Without a slew the watchdog's
+    command passes as it is."""
+    import cmd_kernel as ck
+    stick = (0.24, -0.25, 0.8, 0.9, 0.0, 0.01, 0.02)
+    assert sil_twin.slewed_command(stick, None, True) == list(stick)
+    s = ck.CommandSlew(ck.GOLDEN_RATES, ck.GOLDEN_DT)
+    gold = ck.golden()
+    for k in range(20):                     # GOLDEN_STEPS' first target, from the stand
+        c = sil_twin.slewed_command(stick, s, True)
+        assert c[:3] == [float(x) for x in gold[k]] and c[3:] == list(stick[3:])
+    c = sil_twin.slewed_command(stick, s, False)       # limp: back to the stand
+    assert c[:3] == [0.0, 0.0, 0.0]
+    c = sil_twin.slewed_command(stick, s, True)        # ... and the ramp starts over
+    assert c[:3] == [float(x) for x in gold[0]]
+
+
+def test_first_clock_step_reads_the_runs_stand_band():
+    """harness.first_clock_step mirrors ctrl_task's plain-stand gate at the env's band
+    (obs::kStandBand): a slow command inside 0.05 freezes a freeze-trained clock under the legacy
+    band and runs it under a volume run's 0.0005."""
+    class Env:
+        clock_stand_freeze = True
+        speed_clock = False
+        control_dt = 0.02
+        _cmd = np.array([0.03, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    e = Env()
+    assert H.first_clock_step(e, 1.5) == 0.0                  # no band attribute: 0.05
+    e.cmd_stand_band = 0.0005
+    assert H.first_clock_step(e, 1.5) == pytest.approx(2 * math.pi * 0.02 * 1.5)
+    e._cmd = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    assert H.first_clock_step(e, 1.5) == 0.0

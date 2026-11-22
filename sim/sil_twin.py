@@ -269,6 +269,22 @@ def _local_xml(xml):
     return paths.v6_plant(xml)
 
 
+def slewed_command(cmd7, slew, torque_on):
+    """ctrl_task.cpp's command after the watchdog (#266). With a slew-trained run's slew
+    (cmd_kernel.CommandSlew, the firmware's cmdslew): (vx, vy, wz) one tick toward the watchdog's,
+    and a limp tick (torque off) restarts it at the stand. Without one (None): the watchdog's
+    command as it is."""
+    c = [float(x) for x in cmd7]
+    if slew is None:
+        return c
+    if not torque_on:
+        slew.reset()
+        c[:3] = [0.0, 0.0, 0.0]
+        return c
+    c[:3] = [float(x) for x in slew.step(*c[:3])]
+    return c
+
+
 def run(args):
     from eval_precision import (make_env, sil_check_spec,   # noqa: E402
                                 sil_profile_for, sil_setup)
@@ -301,6 +317,12 @@ def run(args):
         except ValueError:
             v = {"true": True, "false": False, "none": None}.get(v.lower(), v)
         extra[k] = v
+    # a slew-trained run: the firmware's slew runs here, on the watchdog's command, in ctrl_task's
+    # order (slewed_command), so walker_env's own is off
+    import cmd_kernel                                    # noqa: E402
+    slew_rates = cmd_kernel.parse_slew(cfg.get("cmd_slew"))
+    if slew_rates is not None:
+        extra["cmd_slew"] = None
     env = make_env(cfg, episode_seconds=1e9, nominal=args.nominal,
                    xml=xml if xml else _local_xml(cfg.get("xml_path")),
                    extra=extra or None, act_lag_hz=args.act_lag_hz)
@@ -308,6 +330,8 @@ def run(args):
           f"act_lag {env.act_lag_hz:g} Hz, dead time {getattr(env, 'act_delay_ticks', 0)} ticks, play {env.play_deg:g} deg "
           f"on {env.play_joints or 'all joints'}", flush=True)
     sil_check_spec(H, env)
+    slew = (cmd_kernel.CommandSlew(slew_rates, env.control_dt) if slew_rates is not None
+            else None)
     act = H.SilActAdapter(lib, env, log=False)
     obs, _ = env.reset(seed=args.seed)
     fw, nc = act.spec.frame_dim, act.spec.num_cmd
@@ -447,6 +471,8 @@ def run(args):
                 elif cmd == "reset":
                     obs, _ = env.reset(seed=args.seed)
                     act.begin_episode()
+                    if slew is not None:
+                        slew.reset()
                     print(f"  [{now_ms / 1000:6.2f}s] episode reset",
                           flush=True)
                 elif cmd:
@@ -505,6 +531,8 @@ def run(args):
             if dog.armed and not was_armed:
                 act.begin_episode()
                 fall.clear()
+                if slew is not None:
+                    slew.reset()                 # a (re)arm starts at the stand
             # The armed loop's fall guard, on the attitude this tick senses
             # (the obs frame's up and gyro: what the firmware stack is fed),
             # in sim time so the debounce is the plant's 200 ms whatever the
@@ -539,7 +567,9 @@ def run(args):
             # Full 7-wide ext_cmd off the link (vx, vy, wz, crouch, lift,
             # foot_dx, foot_dz) -- extended frames drive the foot-target
             # channels, classic frames decode to the trained defaults.
-            env.set_command(*dog.command_ext(now_ms))
+            # then the command slew of a slew-trained run (ctrl_task.cpp g_cmd_slew)
+            env.set_command(*slewed_command(dog.command_ext(now_ms), slew,
+                                            dog.torque_on(now_ms)))
             env.set_torque_enabled(dog.torque_on(now_ms))
 
             # Driver.step's obs contract: current cmd patched into the frame

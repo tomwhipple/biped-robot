@@ -280,9 +280,9 @@ Support supportFromPhase(float phi, bool lift) {
     return out;
 }
 
-bool clockWalking(const float* cmd, int ncmd) {
+bool clockWalking(const float* cmd, int ncmd, float band) {
     const auto at = [cmd, ncmd](int i) { return i < ncmd ? fabsf(cmd[i]) : 0.0f; };
-    return at(0) > 0.05f || at(1) > 0.05f || at(2) > 0.05f || at(4) > 0.5f;
+    return at(0) > band || at(1) > band || at(2) > band || at(4) > 0.5f;
 }
 
 }  // namespace gaitplay

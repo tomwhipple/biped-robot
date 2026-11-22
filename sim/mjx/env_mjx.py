@@ -1172,6 +1172,9 @@ class BimoMJXEnv:
         # no RNG consumed, bit-exact.
         cmd_slew: tuple | str | None = None,
         cmd_volume: float = 0.0,
+        # cmd_stand_band: |c0|, |c1|, |c2| at or below it are the plain stand, above it a walk
+        # (cmd_kernel.py, "The STAND BAND"; walker_env mirror). 0.05 = the legacy band.
+        cmd_stand_band: float = 0.05,
     ):
         if getup and ext_cmd:
             raise ValueError("getup and ext_cmd are separate objectives")
@@ -1327,9 +1330,11 @@ class BimoMJXEnv:
         self._ck = _ck
         self.cmd_slew = _ck.parse_slew(cmd_slew)
         self.cmd_volume = float(cmd_volume)
-        if (self.cmd_slew is not None or self.cmd_volume > 0.0) and not ext_cmd:
-            raise ValueError("cmd_slew / cmd_volume need ext_cmd (the planar command is c0..c2 "
-                             "of the 7-channel layout)")
+        self.cmd_stand_band = _ck.parse_stand_band(cmd_stand_band)
+        if (self.cmd_slew is not None or self.cmd_volume > 0.0
+                or self.cmd_stand_band != _ck.STAND_BAND) and not ext_cmd:
+            raise ValueError("cmd_slew / cmd_volume / cmd_stand_band need ext_cmd (the planar "
+                             "command is c0..c2 of the 7-channel layout)")
         # per-joint encoder direction (nominal calibration -- see _TICK_DIR):
         # per servo for the goal ticks, per policy joint for the observation
         self._tick_dir = jp.full((self._n_servo,), _TICK_DIR)
@@ -2111,11 +2116,11 @@ class BimoMJXEnv:
         walker_env."""
         return self.crouch_theta_max * jp.clip((1.0 - cmd3) / 0.3, 0.0, 1.0)
 
-    @staticmethod
-    def _cmd_is_moving(cmd):
-        """Locomotion commanded on any of vx / vy / wz (7-channel layout)."""
-        return ((jp.abs(cmd[0]) > 0.05) | (jp.abs(cmd[1]) > 0.05)
-                | (jp.abs(cmd[2]) > 0.05))
+    def _cmd_is_moving(self, cmd):
+        """Locomotion commanded on any of vx / vy / wz (7-channel layout): past the stand band."""
+        b = self.cmd_stand_band
+        return ((jp.abs(cmd[0]) > b) | (jp.abs(cmd[1]) > b)
+                | (jp.abs(cmd[2]) > b))
 
     def _crouch_pose(self, cmd3):
         """Squat joint offsets (hip_pitch, knee, ankle; negative = flex) for a
@@ -3107,10 +3112,12 @@ class BimoMJXEnv:
         if not self.gait_clock:
             walking = jp.zeros((), dtype=bool)
         elif self.ext_cmd:
-            walking = ((jp.abs(c[0]) > 0.05) | (jp.abs(c[1]) > 0.05) | (jp.abs(c[2]) > 0.05)
+            b = self.cmd_stand_band
+            walking = ((jp.abs(c[0]) > b) | (jp.abs(c[1]) > b) | (jp.abs(c[2]) > b)
                        | (jp.abs(c[4]) > 0.5))
         else:
-            walking = (jp.abs(c[0]) > 0.05) | (jp.abs(c[1]) > 0.05)
+            b = self.cmd_stand_band
+            walking = (jp.abs(c[0]) > b) | (jp.abs(c[1]) > b)
         tk, hl, hr = self._tk.trim_step(tk, roll, state.gait_phase, walking, self.control_dt, xp=jp)
         target = target.at[self._trim_il].add(hl).at[self._trim_ir].add(hr)
         return target, jp.stack([jp.asarray(tk[k], jp.float32) for k in self._tk.KEYS])
@@ -3589,7 +3596,8 @@ class BimoMJXEnv:
                 -((head_err / 0.25) ** 2))
             # height kernel at full weight only when no motion is commanded
             # (its full 1.0/step was part of the do-nothing income)
-            h_gate = jp.where((sp_cmd > 0.05) | (jp.abs(cmd_w) > 0.05),
+            h_gate = jp.where((sp_cmd > self.cmd_stand_band)
+                              | (jp.abs(cmd_w) > self.cmd_stand_band),
                               0.3, 1.0)
             h_norm = jp.exp(
                 -(((height - self._crouch_h_target(cmd_h, self._cmd_is_moving(state.cmd))) / 0.04) ** 2))
@@ -3651,7 +3659,8 @@ class BimoMJXEnv:
                   - self.w_power * power_w)
 
         # gait shaping: on for moving commands, double-support bonus for stand
-        cmd_moving = (jp.abs(cmd_v) > 0.05) | (jp.abs(cmd_w) > 0.05)
+        sb = self.cmd_stand_band
+        cmd_moving = (jp.abs(cmd_v) > sb) | (jp.abs(cmd_w) > sb)
         if self.ext_cmd:
             # lift + swing-foot rewards (geometry computed pre-reward above)
             reward += self.w_lift * lift_ok
@@ -3669,7 +3678,7 @@ class BimoMJXEnv:
             # a lifted command is a balance task, not locomotion: gait shaping
             # off; a sidestep command (vy) is locomotion like any other.
             # (cmd_moving already covers c0 and c2 via cmd_v/cmd_w.)
-            cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > 0.05)) & ~lifted
+            cmd_moving = (cmd_moving | (jp.abs(state.cmd[1]) > sb)) & ~lifted
         # the clock freeze (mirrored in walker_env, so referee obs match)
         # keeps the raw command; only the reward sees the stop grace
         cmd_moving_raw = cmd_moving

@@ -267,7 +267,16 @@ link ([control-channel.md](control-channel.md), "Simulated robots behind the
 link"), so a console drives the control law the robot runs. Around the
 library it composes, in Python, what `ctrl_task.cpp` does outside the
 control law: the link's `protocol.Supervisor` (arm latch, watchdog,
-bench/run mode) and the armed loop's fall guard.
+bench/run mode), the command slew and the armed loop's fall guard.
+
+- **The command slew is the robot's.** The library's `cmd` is the command
+  after `ctrl_task.cpp`'s slew (`components/cmdslew`, #266), which runs
+  outside it. For a run trained with `cmd_slew` the twin runs that slew on
+  the watchdog's command in the firmware's order and arithmetic
+  (`sim/cmd_kernel.py` `CommandSlew`, float32, `slewed_command`): one step
+  per armed tick before the frame, from the stand at every arm edge, reset
+  to the stand on every tick with torque off. `walker_env`'s own slew is
+  off there. A run without `cmd_slew` gets the watchdog's command as it is.
 
 - **The fall guard is the robot's.** `sil_twin.FallGuard` is
   `fallguard::Detector`'s fall half under `Motion::kPolicy`, with
@@ -329,4 +338,13 @@ skipped in ~45 s on mira, closed loop included (python vs SIL: `stand_10s`
 
 Per-tick parity pins the gait clocks with `pin_gait_clock()` **after** the
 command is set: with the deployed spec's speed clock and stand freeze, the
-firmware's first step depends on the command (`first_clock_step()`).
+firmware's first step depends on the command (`first_clock_step()`, at the
+env's stand band, `obs::kStandBand`).
+
+The referee's SIL column (`eval_precision --sil`) and the suite feed the
+library the command the referee env puts in the frame. For a run trained
+with `cmd_slew` that env inherits the slew from `config.json` and ramps every
+`set_command` in training's order (the ramp's first step lands in the frame
+after the tick that set it), so both columns grade the same ramp the policy
+trained on. The firmware's own order is what `sim/sil_twin.py` and
+`grade.py` run.
