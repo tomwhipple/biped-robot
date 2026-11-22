@@ -700,6 +700,7 @@ class BimoMJXEnv:
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (walker_env.dwell_swing); 0 = the plain clock (bit-exact)
+        mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume (walker_env.mimic_lead_out): lateral strides lead-foot-out / trail-foot-closes, saturation along the command's direction; False = the cardinal-band reference (bit-exact)
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -1397,6 +1398,15 @@ class BimoMJXEnv:
         self.mimic_dwell = float(mimic_dwell)
         if self.mimic_dwell != 0.0 and not (0.0 < self.mimic_dwell < 0.8 and gait_clock):
             raise ValueError("mimic_dwell must be in (0, 0.8) and needs the gait clock")
+        self.mimic_volume_ref = bool(mimic_volume_ref)
+        if self.mimic_volume_ref:
+            from walker_env import mimic_lead_out      # jax-free, shared with the CPU env
+            aro = self._i_aroll is not None
+            lo_s, self._vref_bmax = mimic_lead_out(
+                m, self._sg_roll if aro else None, np.asarray(self._default),
+                np.asarray(self._lo), np.asarray(self._hi), np.asarray(self._i_roll),
+                np.asarray(self._i_aroll) if aro else None)
+            self._lead_out = jp.asarray(lo_s)
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -2180,9 +2190,21 @@ class BimoMJXEnv:
             # double-support dwell (walker_env.dwell_swing, mirrored here)
             sw, y_dw = self._dwell_swing(phase)
         xn = jp.stack([-c, c])                 # foot fore-aft normal (L, R)
-        A = jp.clip(1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2])
-                    / f, -0.45, 0.45)
-        B = jp.clip(1.1 * cmd[1] / f, -0.3, 0.3)
+        if self.mimic_volume_ref:
+            # saturate along the command's own direction (mirror of walker_env): one scale
+            # on both legs' fore-aft strides and the lateral one
+            from walker_env import MIMIC_A_MAX
+            A = 1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+            B = 1.1 * cmd[1] / f
+            sc = jp.minimum(1.0, jp.minimum(
+                MIMIC_A_MAX / jp.maximum(jp.max(jp.abs(A)), 1e-9),
+                self._vref_bmax / jp.maximum(jp.abs(B), 1e-9)))
+            A = A * sc
+            B = B * sc
+        else:
+            A = jp.clip(1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2])
+                        / f, -0.45, 0.45)
+            B = jp.clip(1.1 * cmd[1] / f, -0.3, 0.3)
         hp0 = d[self._i_pitch]                  # hip-pitch defaults (L, R)
         kn0 = d[self._i_knee]
         hipP = hp0 - A * xn
@@ -2201,6 +2223,10 @@ class BimoMJXEnv:
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_volume_ref:
+            # lead foot out, trail foot closes (walker_env.mimic_lead_out): each roll offset
+            # |B| outward, the stance width spans [home, home + lateral travel per cycle]
+            roll = roll + jp.abs(B) * self._lead_out
         if self.mimic_sway != 0.0:
             # lateral weight shift (2026-11-09 hardware: hip roll moved 4-8 deg,
             # the R foot never unloaded; this reference held the rolls at the

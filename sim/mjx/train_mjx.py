@@ -359,6 +359,16 @@ def make_parser():
                         "shift through the swing (the host stepper's shift-wait-lift shape; "
                         "walker_env.dwell_swing). 0 = the plain clock. Slow --gait-freq by "
                         "1-D to keep the swing duration")
+    p.add_argument("--mimic-volume-ref", action="store_true",
+                   help="#263: the imitation reference for the whole command volume "
+                        "(--cmd-volume): a lateral stride steps the leading foot out and "
+                        "closes the trailing one to the home width (track_host's sideways "
+                        "step) instead of swinging both feet -/+ about home, which landed "
+                        "the closing foot on or across the other at |vy| above ~0.04 m/s; "
+                        "and the stride saturates along the command's own direction, so a "
+                        "diagonal keeps its heading and a fast back + turn keeps its stride "
+                        "difference (walker_env.mimic_lead_out). Off = the cardinal-band "
+                        "reference")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -1110,6 +1120,8 @@ def build_env_kw(args):
         env_kw["mimic_march"] = args.mimic_march
     if getattr(args, "mimic_dwell", 0.0):
         env_kw["mimic_dwell"] = args.mimic_dwell
+    if getattr(args, "mimic_volume_ref", False):
+        env_kw["mimic_volume_ref"] = True
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

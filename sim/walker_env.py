@@ -296,6 +296,52 @@ def mimic_sway_coefs(model, sg_roll):
     return np.array(out)
 
 
+# The imitation reference's stride saturation (rad): fore-aft hip pitch, lateral hip roll.
+MIMIC_A_MAX, MIMIC_B_MAX = 0.45, 0.3
+
+
+def mimic_lead_out(model, sg_roll, default, lo, hi, i_roll, i_aroll=None):
+    """Calibration for the volume imitation reference (mimic_volume_ref, #263): per leg (L, R),
+    the sign s such that a hip-roll offset of +s moves that leg's sole OUTWARD (L +y, R -y in
+    the torso frame; finite difference on MuJoCo kinematics, torso fixed, so the sign comes
+    from the model), and the largest lateral stride amplitude B the lead-out profile can use:
+    the swing roll spans [0, 2|B|] outward of the home pose, so 2|B| must fit the hip roll's
+    outward range and, with ankle-roll joints (i_aroll, sg_roll), the opposite ankle roll that
+    keeps the sole level -- in the env's own policy-joint ranges (default, lo, hi: per policy
+    joint; i_roll / i_aroll: the (L, R) indices), the ones _mimic_ref clips to. Capped at
+    MIMIC_B_MAX. Returns ((2,) signs, b_max). Jax-free; both envs call it on their own model
+    and ranges so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    default, lo, hi = (np.asarray(v, dtype=float) for v in (default, lo, hi))
+    signs, room = [], []
+
+    def room_of(i, off_sign):
+        return float(hi[i] - default[i]) if off_sign > 0 else float(default[i] - lo[i])
+    for li, side in enumerate("LR"):
+        ar = model.jnt_qposadr[model.joint(f"{side}_hip_roll").id]
+        sole = model.geom(f"{side}_sole").id
+
+        def y(x):
+            d.qpos[:] = q0
+            d.qpos[ar] += x
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            return float((R.T @ (d.geom_xpos[sole] - d.xpos[torso]))[1])
+        dy = (y(1e-4) - y(-1e-4)) / 2e-4
+        if abs(dy) < 0.05:
+            raise ValueError(f"mimic_volume_ref: {side} hip roll barely moves the sole ({dy:.3f} m/rad)")
+        s = float(np.sign(dy)) * (1.0 if side == "L" else -1.0)
+        signs.append(s)
+        room.append(room_of(int(np.ravel(i_roll)[li]), s))
+        if i_aroll is not None:
+            s_hr, s_ar = (float(np.ravel(np.asarray(v))[li]) for v in sg_roll)
+            room.append(room_of(int(np.ravel(i_aroll)[li]), -s_hr * s / s_ar))
+    return np.array(signs), float(min(MIMIC_B_MAX, 0.5 * min(room)))
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -932,6 +978,7 @@ class BimoWalkerEnv(gym.Env):
         mimic_sway_lead: float = 0.785,  # rad: the sway leads the swing clock by this phase
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march (mirror of env_mjx)
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (dwell_swing); 0 = the plain clock (bit-exact)
+        mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume -- lateral strides lead-foot-out / trail-foot-closes (the stance never narrows below home), and the stride saturates along the command's own direction (mimic_lead_out); False = the cardinal-band reference (bit-exact)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -1952,6 +1999,12 @@ class BimoWalkerEnv(gym.Env):
         self.mimic_dwell = float(mimic_dwell)
         if self.mimic_dwell != 0.0 and not (0.0 < self.mimic_dwell < 0.8 and gait_clock):
             raise ValueError("mimic_dwell must be in (0, 0.8) and needs the gait clock")
+        self.mimic_volume_ref = bool(mimic_volume_ref)
+        if self.mimic_volume_ref:
+            aro = self._i_aroll is not None
+            self._lead_out, self._vref_bmax = mimic_lead_out(
+                self.model, self._sg_roll if aro else None, self._default, self._lo,
+                self._hi, self._i_roll, self._i_aroll if aro else None)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -2428,9 +2481,20 @@ class BimoWalkerEnv(gym.Env):
             sw_l, sw_r, y_dw = dwell_swing(phase, self.mimic_dwell)
             sw = np.array([sw_l, sw_r])
         xn = np.array([-c, c])
-        A = np.clip(1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2])
-                    / f, -0.45, 0.45)
-        B = float(np.clip(1.1 * cmd[1] / f, -0.3, 0.3))
+        if self.mimic_volume_ref:
+            # saturate along the command's own direction (mirror of env_mjx): one scale on
+            # both legs' fore-aft strides and the lateral one keeps a diagonal's heading and a
+            # back + turn's stride difference, where the per-axis clips flattened them
+            A = 1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+            B = 1.1 * float(cmd[1]) / f
+            sc = min(1.0, MIMIC_A_MAX / max(float(np.max(np.abs(A))), 1e-9),
+                     self._vref_bmax / max(abs(B), 1e-9))
+            A = A * sc
+            B = B * sc
+        else:
+            A = np.clip(1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2])
+                        / f, -0.45, 0.45)
+            B = float(np.clip(1.1 * cmd[1] / f, -0.3, 0.3))
         hp0 = d[self._i_pitch]                  # hip-pitch defaults (L, R)
         kn0 = d[self._i_knee]
         hipP = hp0 - A * xn
@@ -2452,6 +2516,13 @@ class BimoWalkerEnv(gym.Env):
         else:
             knee = kn0 - 0.55 * mag * sw
         roll = d[self._i_roll] + B * xn
+        if self.mimic_volume_ref:
+            # lead foot out, trail foot closes (mirror of env_mjx; track_host's sideways
+            # step): each roll is offset |B| outward, so a leg's roll spans [0, 2|B|] outward
+            # of home and the stance width spans [home, home + the lateral travel per cycle]
+            # instead of home -/+ half of it (which landed the closing foot on, or across,
+            # the other one)
+            roll = roll + abs(B) * self._lead_out
         if self.mimic_sway != 0.0:
             # lateral weight shift (mirror of env_mjx): the torso moves toward
             # the stance foot by mimic_sway, leading the swing by the lead

@@ -414,6 +414,27 @@ on the plant's kinematics (`mimic_sway_coefs`, −3.05 rad/m on the measured-sol
 plant). Without it the reference holds the rolls at the standing pose and
 `w_mimic` pays against any lateral shift.
 
+The reference's stride is joint-space: per leg a fore-aft hip-pitch swing
+`A = 1.4·(vx ∓ 0.028·wz)/f` and a lateral hip-roll swing `B = 1.1·vy/f`, both
+following the clock's cosine, so a diagonal command is the sum of the two
+(within 5° of the commanded heading). Turning is the stride difference between
+the legs; the hip yaws stay at home, so the reference never yaws a foot. With
+a lateral command the legs swing −/+ about home, so the stance narrows by half
+a cycle's lateral travel at every other touchdown: from |vy| ≈ 0.04 m/s the
+closing foot lands on the other one, and past ≈ 0.13 m/s across it.
+`--mimic-volume-ref` (for `--cmd-volume` runs, #263) offsets each hip roll by
+|B| outward, so the leading foot steps out and the trailing one closes to the
+home width (the host gait's sideways step, `track_host.py`), and saturates the
+stride along the command's own direction (one scale on both legs' A and on B)
+where the per-axis clips bent a diagonal and dropped a fast back + turn's
+stride difference. B is capped where the outward roll still fits the ankle
+roll that keeps the sole level (0.218 rad on the robot plant). Off a lateral
+or saturated command the two references are identical. `mimic_lead_out`
+(`sim/walker_env.py`) solves the outward sign per leg on the plant's own
+kinematics; `tests/test_mimic_volume_ref.py` pins the stance width, the
+heading and the lead-out, parity block R26 the CPU/MJX agreement. The check
+behind it: `docs/design-v6/2026-11-22-volume-reference-foot-placement.md`.
+
 A march is a lifted command, and a lifted command gates `w_mimic` off (and
 `w_pose`, `w_feet_phase`, `w_walk_shift`, which are gated on a moving, unlifted
 command). A march therefore has no reference unless `--mimic-march M` turns it
