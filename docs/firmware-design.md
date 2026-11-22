@@ -299,7 +299,12 @@ q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin
   the run set `--gait-freq`, so 1.5 Hz). With `kSpeedClock` the rate is scaled by
   clip(sqrt(v / 0.35 m/s), 0.7, 1.25), v the commanded planar speed; with
   `kClockStandFreeze` the phase holds at a plain stand (|vx|, |vy|, |wz| ≤
-  0.05 and |lift| < 0.5). Both flags come from the run, as in training.
+  the stand band and |lift| < 0.5). Both flags come from the run, as in
+  training. The stand band `obs::kStandBand` is 0.05, or the run's
+  `cmd_stand_band` when it trained with another (a `--cmd-volume` run:
+  0.0005, so any command the link delivers as non-zero is a walk;
+  [training.md](training.md) §4). The walk-recovery and flail-guard stand
+  gates and the trim's `clockWalking` read the same band.
 - **cmd**: vx, vy, wz, crouch, lift, foot_dx, foot_dz (defaults 0, 0, 0, 1,
   0, 0, 0), from the watchdog: the operator's command only while `LIVE`,
   clamped to the trained envelope (generated from the run: forward, backward and lateral bands, turn limit, crouch floor). Crouch is the lower of the link's value
@@ -748,7 +753,8 @@ The same trim, armed: `ctrl_task` runs `balance::TrimDriver` on
 `gaitplay::supportFromPhase(phase, clockWalking(cmd))` every control tick. It
 sits after the shaper and the takeover ramp, before the motion limiter, and adds
 the correction to the stance hip roll target. `clockWalking` is the training
-envs' gate: vx, vy or wz past 0.05, or the lift channel past 0.5.
+envs' gate: vx, vy or wz past the stand band (`obs::kStandBand`), or the lift
+channel past 0.5.
 
 - **Off by default.** `trim policy on` copies the bench trim's kp, ki and
   learned T; the loop takes them at the next arm and never switches

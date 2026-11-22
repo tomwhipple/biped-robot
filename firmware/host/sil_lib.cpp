@@ -473,7 +473,7 @@ int sil_tick(const SilSensors* in, SilTargets* out) {
     }
     // -- stance trim on the clock: the mirror of ctrl_task's (no takeover ramp here) --
     if (g_trim_on && g_trim_il >= 0 && g_trim_ir >= 0) {
-        const gaitplay::Support sup = gaitplay::supportFromPhase(inp.phase, gaitplay::clockWalking(cmd, obs::kNumCmd));
+        const gaitplay::Support sup = gaitplay::supportFromPhase(inp.phase, gaitplay::clockWalking(cmd, obs::kNumCmd, obs::kStandBand));
         balance::SupportIn sin_;
         sin_.stance = sup.stance;
         sin_.progress = sup.progress;

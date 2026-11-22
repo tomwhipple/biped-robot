@@ -93,10 +93,10 @@ bool GaitClock::coastTo(float dt, float target) {
     return false;
 }
 
-bool plainStand(const float* cmd) {
+bool plainStand(const float* cmd, float band) {
     const float vy = kNumCmd > 1 ? cmd[1] : 0.0f;
     const float lift = kNumCmd > 4 ? cmd[4] : 0.0f;
-    return !(fabsf(cmd[0]) > 0.05f || fabsf(vy) > 0.05f || fabsf(cmd[2]) > 0.05f ||
+    return !(fabsf(cmd[0]) > band || fabsf(vy) > band || fabsf(cmd[2]) > band ||
              fabsf(lift) >= 0.5f);
 }
 

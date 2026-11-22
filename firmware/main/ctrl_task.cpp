@@ -171,13 +171,14 @@ balance::TrimDriver g_ptrim_drv{g_ptrim};
 int g_ptrim_il = -1, g_ptrim_ir = -1;  // policy index of the L / R hip roll (-1: not a policy joint)
 bool g_ptrim_run = false;              // g_ptrim_on as taken at this run's arm (no mid-run switch)
 
-// The link's command asks for locomotion or a step: any of vx, vy, wz, lift or
-// the foot offsets off the plain stand (the same thresholds as the flail
-// guard's stand gate below). Crouch alone is not a walk.
+// The link's command asks for locomotion or a step: any of vx, vy, wz past the
+// run's stand band (obs::kStandBand), lift or the foot offsets off the plain
+// stand (the same thresholds as the flail guard's stand gate below). Crouch
+// alone is not a walk.
 bool walkCmd(const float* cmd) {
     const auto at = [cmd](int i, float dflt) { return i < obs::kNumCmd ? cmd[i] : dflt; };
-    return fabsf(at(0, 0.0f)) > 0.05f || fabsf(at(1, 0.0f)) > 0.05f ||
-           fabsf(at(2, 0.0f)) > 0.05f || fabsf(at(4, 0.0f)) >= 0.5f ||
+    return fabsf(at(0, 0.0f)) > obs::kStandBand || fabsf(at(1, 0.0f)) > obs::kStandBand ||
+           fabsf(at(2, 0.0f)) > obs::kStandBand || fabsf(at(4, 0.0f)) >= 0.5f ||
            fabsf(at(5, 0.0f)) > 0.005f || fabsf(at(6, 0.0f)) > 0.005f;
 }
 float g_flail_limit[obs::kNumJoints];      // rad, per policy joint (poseLimitDeg)
@@ -866,7 +867,7 @@ void ctrlTask(void*) {
         // After the shaper and the ramp, before the limiter (which then bounds it too), as in
         // training. Only once the ramp is done: the takeover is the measured pose's, not the trim's.
         if (g_ptrim_run && g_ramp_ticks >= kArmRampTicks && g_ptrim_il >= 0 && g_ptrim_ir >= 0) {
-            const gaitplay::Support sup = gaitplay::supportFromPhase(in.phase, gaitplay::clockWalking(in.cmd, obs::kNumCmd));
+            const gaitplay::Support sup = gaitplay::supportFromPhase(in.phase, gaitplay::clockWalking(in.cmd, obs::kNumCmd, obs::kStandBand));
             balance::SupportIn sin_;
             sin_.stance = sup.stance;
             sin_.progress = sup.progress;
@@ -931,7 +932,8 @@ void ctrlTask(void*) {
             const auto cmd_at = [&in](int i, float dflt) {
                 return i < obs::kNumCmd ? in.cmd[i] : dflt;
             };
-            fin.stand_cmd = fabsf(vx) <= 0.05f && fabsf(vy) <= 0.05f && fabsf(wz) <= 0.05f &&
+            fin.stand_cmd = fabsf(vx) <= obs::kStandBand && fabsf(vy) <= obs::kStandBand &&
+                            fabsf(wz) <= obs::kStandBand &&
                             fabsf(lift) < 0.5f && fabsf(cmd_at(3, 1.0f) - 1.0f) <= 0.05f &&
                             fabsf(cmd_at(5, 0.0f)) <= 0.005f && fabsf(cmd_at(6, 0.0f)) <= 0.005f;
             fin.pose_armed = g_ramp_ticks >= kArmRampTicks;

@@ -1340,6 +1340,12 @@ class BimoWalkerEnv(gym.Env):
         # envelope's edge, turning or not) instead of the forward / backward / sidestep bands.
         # ext_cmd only; 0.0 = off (no RNG consumed). Mirrored in env_mjx.
         cmd_volume: float = 0.0,
+        # cmd_stand_band: |c0|, |c1|, |c2| at or below it are the plain stand (no gait shaping,
+        # no stepping reference, the stand terms, the clock's stand rule, the trim off), above it
+        # a walk (cmd_kernel.py, "The STAND BAND"). 0.05 = the legacy band; a --cmd-volume run
+        # trains with cmd_kernel.STAND_BAND_VOLUME. The dense velocity term keeps its own 0.05
+        # floor. Mirrored in env_mjx.
+        cmd_stand_band: float = 0.05,
     ):
         super().__init__()
         self.w_forward = w_forward
@@ -1567,9 +1573,11 @@ class BimoWalkerEnv(gym.Env):
         self._ck = _ck
         self.cmd_slew = _ck.parse_slew(cmd_slew)
         self.cmd_volume = float(cmd_volume)
-        if (self.cmd_slew is not None or self.cmd_volume > 0.0) and not ext_cmd:
-            raise ValueError("cmd_slew / cmd_volume need ext_cmd (the planar command is c0..c2 "
-                             "of the 7-channel layout)")
+        self.cmd_stand_band = _ck.parse_stand_band(cmd_stand_band)
+        if (self.cmd_slew is not None or self.cmd_volume > 0.0
+                or self.cmd_stand_band != _ck.STAND_BAND) and not ext_cmd:
+            raise ValueError("cmd_slew / cmd_volume / cmd_stand_band need ext_cmd (the planar "
+                             "command is c0..c2 of the 7-channel layout)")
         self._cmd_tgt = None              # the slew's target (c0..c2); None = slew off
         self._cmd_next = 0
         self._traj = np.zeros(3)       # air-circle: radius, omega, phase0
@@ -2400,9 +2408,9 @@ class BimoWalkerEnv(gym.Env):
         _h, k, a = self._crouch_pose(cmd3)
         return shank * (1.0 - np.cos(-a)) + thigh * (1.0 - np.cos((-k) - (-a)))
 
-    @staticmethod
-    def _cmd_is_moving(cmd):
-        return bool(abs(cmd[0]) > 0.05 or abs(cmd[1]) > 0.05 or abs(cmd[2]) > 0.05)
+    def _cmd_is_moving(self, cmd):
+        b = self.cmd_stand_band
+        return bool(abs(cmd[0]) > b or abs(cmd[1]) > b or abs(cmd[2]) > b)
 
     def _crouch_h_target(self, cmd3, moving=False):
         if not self.crouch_pose_ref or moving:
@@ -2970,9 +2978,10 @@ class BimoWalkerEnv(gym.Env):
         c = self._cmd
         if c is None or not self.gait_clock:
             return False
+        b = self.cmd_stand_band
         if self.ext_cmd:
-            return bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05 or abs(c[2]) > 0.05 or abs(c[4]) > 0.5)
-        return bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05)
+            return bool(abs(c[0]) > b or abs(c[1]) > b or abs(c[2]) > b or abs(c[4]) > 0.5)
+        return bool(abs(c[0]) > b or abs(c[1]) > b)
 
     def _stance_trim(self, target):
         """One control tick of the firmware's stance trim (sim/trim_kernel.py) on the servo targets: the
@@ -3300,8 +3309,8 @@ class BimoWalkerEnv(gym.Env):
                                             np.cos(yaw - ref_now)))
                 w_term = w_term + self.w_heading * float(np.exp(
                     -((head_err / 0.25) ** 2)))
-                h_gate = (0.3 if (sp_cmd > 0.05
-                                  or abs(self._cmd[2]) > 0.05) else 1.0)
+                h_gate = (0.3 if (sp_cmd > self.cmd_stand_band
+                                  or abs(self._cmd[2]) > self.cmd_stand_band) else 1.0)
                 h_norm = float(np.exp(
                     -(((height - self._crouch_h_target(float(self._cmd[3]), self._cmd_is_moving(self._cmd))) / 0.04) ** 2)))
                 h_term = self.w_track_h * h_gate * h_norm
@@ -3419,12 +3428,13 @@ class BimoWalkerEnv(gym.Env):
         # gait shaping is for locomotion: off while braking, and off under a
         # stand-still command (double support is rewarded instead, below)
         lifted = self.ext_cmd and abs(float(self._cmd[4])) > 0.5
-        cmd_moving = (not self.command_mode) or abs(self._cmd[0]) > 0.05 \
-            or abs(self._cmd[1]) > 0.05
+        sb = self.cmd_stand_band
+        cmd_moving = (not self.command_mode) or abs(self._cmd[0]) > sb \
+            or abs(self._cmd[1]) > sb
         if self.ext_cmd:
             # a lifted command is a balance task, not locomotion
-            cmd_moving = (abs(self._cmd[0]) > 0.05 or abs(self._cmd[1]) > 0.05
-                          or abs(self._cmd[2]) > 0.05) and not lifted
+            cmd_moving = (abs(self._cmd[0]) > sb or abs(self._cmd[1]) > sb
+                          or abs(self._cmd[2]) > sb) and not lifted
         shaping_on = cmd_moving and not braking
         # posture reference: the commanded crouch height in ext mode
         h_ref = (self._crouch_h_target(float(self._cmd[3]), self._cmd_is_moving(self._cmd)) if self.ext_cmd
@@ -3553,12 +3563,13 @@ class BimoWalkerEnv(gym.Env):
             # clock_stand_freeze (mirror of env_mjx, 2026-08-12): at a plain
             # stand the phase HOLDS instead of oscillating in the obs
             c = self._cmd
+            sb = self.cmd_stand_band
             if self.ext_cmd:
-                moving = (abs(c[0]) > 0.05 or abs(c[1]) > 0.05
-                          or abs(c[2]) > 0.05)
+                moving = (abs(c[0]) > sb or abs(c[1]) > sb
+                          or abs(c[2]) > sb)
                 lifted = abs(c[4]) > 0.5
             else:                       # legacy 2-channel (vx, wz)
-                moving = abs(c[0]) > 0.05 or abs(c[1]) > 0.05
+                moving = abs(c[0]) > sb or abs(c[1]) > sb
                 lifted = False
             freq = self._gait_freq
             if self.speed_clock:

@@ -43,6 +43,11 @@ Probes (falls / flail-guard trips out of the seeds):
                    (policy::pinFrozen), so such a student is shown what the robot would do:
                    stand. MARCH_PIN=0 feeds the raw command instead (a student out of
                    distribution by ~1e6 sigma).
+A run trained with the command slew (config.json cmd_slew, #266) gets the firmware's: every tick
+the probe's command goes through cmd_kernel.CommandSlew at the run's rates (from the stand at the
+arm), and the clock, the frame and the flail guard's stand gate read the slewed command, in
+ctrl_task.cpp's order; walker_env's own slew (training's order) is off. A run without cmd_slew
+sees each command as it is set. The stand gates use the run's stand band (cmd_stand_band, #263).
 The flail guard (firmware/components/flailguard, kLimits): rate EMA(|gyro|, 0.2 s) >
 1.5 rad/s; tilt > 20 deg for 200 ms; chatter EMA(mean |d raw target / dt|, 0.1 s) >
 7 rad/s; pose (plain stand, after the ramp) any written target > 15 deg from the stand pose
@@ -59,6 +64,7 @@ sys.path.insert(0, SS)
 sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "link"))
 import stand_sim as S  # noqa: E402
 import simh, rec  # noqa: E402
+import cmd_kernel as ck  # noqa: E402  (sim/, on the path via simh)
 
 # runs trained in this worktree (sim/runs) are found too
 _RUNS_HERE = os.path.join(rec.ROOT, "sim", "runs")
@@ -557,6 +563,19 @@ def frozen_cmd(run, env):
     return _FROZEN[run]
 
 
+def slew_rates(run):
+    """The run's command slew rates (config.json cmd_slew), or None: a run trained without it."""
+    with open(os.path.join(simh.run_root(run), run, "config.json")) as f:
+        return ck.parse_slew(json.load(f).get("cmd_slew"))
+
+
+def fw_command(slew, c):
+    """The 7-channel command the firmware hands the clock and the frame: (vx, vy, wz) one tick of
+    the slew toward c's, the other channels as commanded (ctrl_task.cpp: g_cmd_slew.step)."""
+    v = slew.step(c[0], c[1], c[2])
+    return (float(v[0]), float(v[1]), float(v[2])) + tuple(c[3:])
+
+
 def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     """stand_sim.episode with the flail guard, the squeeze and walk progress recorded.
     v: run, shaper_hz, out_gain, push, cmd_schedule, clock ('coast'), stand_phase,
@@ -564,6 +583,13 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     the takeover ramp, as in ctrl_task)."""
     run = v["run"]; settle_s = 1.5
     env, act, zoff = simh.build("fit", run=run, ep_s=run_s + hold_s + settle_s + 1.0)
+    # a slew-trained run: the firmware's slew runs here, in ctrl_task's order (fw_command), so
+    # walker_env's own (the command lands a tick later, training's order) is off
+    rates = slew_rates(run)
+    slew = None
+    if rates is not None:
+        env.cmd_slew = None
+        slew = ck.CommandSlew(rates, env.control_dt)
     # the policy's own clock: the phase, and the cycle-based command and kick times with it
     hz = S.trained_hz(env)
     v = at_clock(v, hz)
@@ -599,12 +625,15 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
         # clock gate and the policy read it (ctrl_task.cpp pinFrozen)
         frozen = frozen_cmd(run, env)
         sched = [(ts, tuple(frozen.get(k, c[k]) for k in range(7))) for ts, c in sched]
-    env.set_command(*(sched[0][1] if sched else STAND_CMD))
+    cmd0 = sched[0][1] if sched else STAND_CMD
+    env.set_command(*cmd0)
+    if slew is not None:
+        env.set_command(*fw_command(slew, cmd0))    # the first armed tick, from the stand
     w0 = S.H.pin_gait_clock(env, hz)
     clock = v.get("clock", "coast")
     env._gait_freq = 0.0
     env._gait_phase = float(w0)
-    clk = dict(ph=float(w0), f=hz, hz=hz, held=False)
+    clk = dict(ph=float(w0), f=hz, hz=hz, held=False, band=env.cmd_stand_band)
     env._obs_hist = []
     first = env._obs()
     env._obs_hist = [first.copy() for _ in range(env.obs_hist_len - 1)]
@@ -633,7 +662,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
     _mj.mj_step = _rec_step
     try:
         res = _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
-                            out_gain, push, n, nh, last_tgt, x0, nj)
+                            out_gain, push, n, nh, last_tgt, x0, nj, slew=slew, cmd_tgt=cmd0)
     finally:
         _mj.mj_step = _step0
     GO, GY, PW, TL, SQ, X, fell, ext = res
@@ -645,7 +674,7 @@ def episode(v, seed=0, run_s=20.0, hold_s=0.0):
 
 
 def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cur,
-                  out_gain, push, n, nh, last_tgt, x0, nj):
+                  out_gain, push, n, nh, last_tgt, x0, nj, slew=None, cmd_tgt=None):
     import mujoco
     GO, GY, PW, TL, SQ, X, YW, QM, QD, LM, AC = [], [], [], [], [], [], [], [], [], [], []
     Y = []; y0 = float(env.data.qpos[1])
@@ -677,13 +706,16 @@ def _episode_loop(env, act, obs, sh, lim, sv, fg, sched, clk, clock, v, hold, cu
         for ts, c in sched:                     # on the tick grid (stride1's 0.667 s)
             if int(round(ts / DT)) == i + 1:
                 env.set_command(*c)
+                cmd_tgt = c
+        if slew is not None:                    # the firmware's slew, before the clock
+            env.set_command(*fw_command(slew, cmd_tgt))
         env._gait_phase = S.advance_clock(clk, clock, v, env._cmd, DT)
         obs, _, term, _, info = env.step(a)
         d = env.data
         gyro = np.array(d.qvel[3:6])
         tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(info["up_z"])))))
         if not holding:
-            fg(i, raw, tgt, gyro, tilt, S.stand_gate(env._cmd), i >= S.RAMP)
+            fg(i, raw, tgt, gyro, tilt, S.stand_gate(env._cmd, env.cmd_stand_band), i >= S.RAMP)
         q_meas = obs[:nj].astype(np.float64)
         GO.append(tgt.copy()); GY.append(gyro); PW.append(float(info.get("power_w", np.nan)))
         TL.append(tilt); SQ.append(np.degrees(np.abs(tgt - q_meas))); X.append(float(d.qpos[0]) - x0)

@@ -811,8 +811,9 @@ def first_clock_step(env, freq_hz=None):
     step(). freq_hz None: the clock env's run trained at."""
     c = np.asarray(env._cmd, dtype=np.float64)
     ext = len(c) > 2
-    moving = bool(abs(c[0]) > 0.05 or abs(c[1]) > 0.05
-                  or (ext and abs(c[2]) > 0.05))
+    b = getattr(env, "cmd_stand_band", 0.05)      # obs::kStandBand
+    moving = bool(abs(c[0]) > b or abs(c[1]) > b
+                  or (ext and abs(c[2]) > b))
     lifted = bool(ext and len(c) > 4 and abs(c[4]) > 0.5)
     if getattr(env, "clock_stand_freeze", False) and not moving \
             and not lifted:

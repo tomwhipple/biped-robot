@@ -31,6 +31,21 @@ command past the ellipse back along its own direction onto it; firmware/componen
 firmware/host/test_protocol.cpp pins the C++ bit for bit to volume_golden().
 
     vx, vy = volume_clamp(vx, vy, axes, xp)
+
+The STAND BAND (#263). The reward, the gait clock, the stance trim and the firmware's stand gates
+read the planar command (c0, c1, c2) as the plain stand while each |c| is at or below a band, and
+as a walk above it. The six cardinal bands never draw a walk under 0.05, so STAND_BAND (0.05) cost
+nothing there; the volume draws speeds continuously down to zero, and with that band 8.8 % of its
+walks were graded as stands (a dead band the stick passes through). A volume run therefore trains
+with STAND_BAND_VOLUME: half the link's resolution (link/protocol.py sends c0..c2 in milli-units),
+so a command reaches the policy as a walk exactly when the robot receives it as non-zero, and the
+stand is the zero command (the stick's dead zone, a released ENABLE, a lost link, the slew landed).
+The envs' `cmd_stand_band`, recorded in the run's config.json; tools/gen_obs_spec.py puts a band
+other than STAND_BAND into obs_spec.h (obs::kStandBand) for the firmware's gates.
+
+CommandSlew is the firmware's cmdslew::CommandSlew in Python (float32, reset to the stand), for the
+harnesses that run the firmware's command path in its order: experiments/policy/shaper-train/
+grade.py and sim/sil_twin.py.
 """
 from __future__ import annotations
 
@@ -40,6 +55,22 @@ import numpy as np
 
 # The fraction of volume draws that turn (the legacy forward draw's 0.6).
 VOLUME_P_TURN = 0.6
+
+# The stand band (module docstring): the legacy one, and a volume run's (half of link/protocol.py's
+# milli-unit command resolution).
+STAND_BAND = 0.05
+STAND_BAND_VOLUME = 0.0005
+
+
+def parse_stand_band(spec):
+    """cmd_stand_band from a kwarg, config.json or the CLI: None -> STAND_BAND; else a finite
+    band >= 0 (m/s for c0, c1; rad/s for c2)."""
+    if spec is None:
+        return STAND_BAND
+    b = float(spec)
+    if not (b >= 0.0 and math.isfinite(b)):
+        raise ValueError(f"cmd_stand_band needs a finite band >= 0, got {spec!r}")
+    return b
 
 
 def parse_slew(spec):
@@ -66,6 +97,26 @@ def slew_step(cur, tgt, delta, xp=np):
     takes `tgt` exactly when it is within one step (no float creep at the end of a ramp)."""
     d = tgt - cur
     return xp.where(xp.abs(d) <= delta, tgt, cur + xp.sign(d) * delta)
+
+
+class CommandSlew:
+    """firmware/components/cmdslew CommandSlew in Python: slew_step on (vx, vy, wz) in float32,
+    starting from (and reset to) the stand. ctrl_task.cpp steps it on the watchdog's command each
+    control tick, before the clock and the observation, and resets it on every (re)arm and every
+    limp tick; a harness that runs the firmware's command path does the same with this."""
+
+    def __init__(self, rates, dt):
+        self.delta = slew_delta(rates, dt)
+        self.cur = np.zeros(3, np.float32)
+
+    def reset(self):
+        self.cur = np.zeros(3, np.float32)
+
+    def step(self, vx, vy, wz):
+        """One tick toward the target (vx, vy, wz); returns the slewed (vx, vy, wz), float32."""
+        tgt = np.asarray((vx, vy, wz), np.float32)
+        self.cur = np.asarray(slew_step(self.cur, tgt, self.delta), np.float32)
+        return self.cur.copy()
 
 
 def volume_axes(cmd_v_range, cmd_back_range, cmd_vy_range, cmd_w_range):

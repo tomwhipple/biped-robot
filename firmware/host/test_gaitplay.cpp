@@ -140,6 +140,15 @@ void testSupportFromPhase() {
     auto d = supportFromPhase(1.5f * pi, true);                      // right swings: left stance
     CHECK_EQ(d.stance, 'L');
     CHECK_EQ(supportFromPhase(NAN, true).stance, 0);
+    // The policy path's walking gate at the run's stand band (obs::kStandBand): a slow command
+    // inside the legacy 0.05 walks under a volume run's 0.0005; lift alone walks under either.
+    const float slow[7] = {0.03f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+    const float lift[7] = {0.0f, 0.0f, 0.0f, 1.0f, 0.6f, 0.0f, 0.0f};
+    const float zero[7] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+    CHECK(!gaitplay::clockWalking(slow, 7, 0.05f));
+    CHECK(gaitplay::clockWalking(slow, 7, 0.0005f));
+    CHECK(gaitplay::clockWalking(lift, 7, 0.05f));
+    CHECK(!gaitplay::clockWalking(zero, 7, 0.0005f));
 }
 
 // The lift gate's two hooks on the track: the next gate frame (its time and the stance side its phase leads

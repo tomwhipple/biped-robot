@@ -262,14 +262,21 @@ The slew restarts at the stand on every (re)arm and on every limp tick (RELAX, a
 fall, the pack guard's release): torque can come back without a re-arm, and the policy must not be
 handed the walk from before the limp period. Disarm, E-stop, the fall and flail guards and the pack
 latch act outside it and are immediate. `libctrl_sil` takes the observation's command as given:
-slewing it is the caller's job.
+slewing it is the caller's job (`sim/sil_twin.py` and `grade.py` run this slew in Python,
+`sim/cmd_kernel.py` `CommandSlew`; [docs/sil-harness.md](../docs/sil-harness.md)).
 
 When the deployed run was trained with `cmd_volume`, `tools/gen_envelope.py` also writes its planar
 ellipse (`LINKPROTO_CMD_VOLUME`, `kVolFwd/Back/Lat`), and the watchdog clamps (vx, vy) together after
 the per-axis bands (`clampToVolume`, the twin of `sim/cmd_kernel.py` `volume_clamp`): a corner the
 bands pass but the volume never drew (vx 0.24, vy 0.25 is normalized radius √2) is scaled back along
 its own direction onto the ellipse. A command on an axis is left to the bands. Without it (every run
-trained without `cmd_volume`) the clamp is per axis, as before.
+trained without `cmd_volume`) the clamp is per axis.
+
+The stand gates read the run's stand band, `obs::kStandBand` (`obs/assembler.h`): |vx|, |vy| and
+|wz| at or below it are the plain stand for the gait clock's stand rule (`plainStand`), the trim's
+`gaitplay::clockWalking`, the walk recovery (`walkCmd`) and the flail guard's pose criterion. It is
+0.05, or the run's `cmd_stand_band` when `tools/gen_obs_spec.py` writes `OBS_STAND_BAND` into
+`obs_spec.h` (a `--cmd-volume` run: 0.0005, so any command the link delivers as non-zero is a walk).
 
 ## The CLI
 

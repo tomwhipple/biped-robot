@@ -211,6 +211,19 @@ void testTickGaitClock() {
         liftc[4] = 0.6f;
         CHECK(!obs::plainStand(liftc));
     }
+    // The stand band (obs::kStandBand, sim/cmd_kernel.py): 0.05 unless the run's obs_spec.h
+    // carries its own (a --cmd-volume run: 0.0005). A slow command inside 0.05 is a stand under
+    // the legacy band and a walk under the volume's; the zero command is the stand under both.
+#ifndef OBS_STAND_BAND
+    CHECK(obs::kStandBand == 0.05f);
+#endif
+    float slow[obs::kNumCmd];
+    memcpy(slow, stand, sizeof slow);
+    slow[0] = 0.03f;
+    CHECK(obs::plainStand(slow, 0.05f));
+    CHECK(!obs::plainStand(slow, 0.0005f));
+    CHECK(obs::plainStand(stand, 0.0005f));
+    CHECK(obs::plainStand(slow) == (0.03f <= obs::kStandBand));
     // Under a locomotion command every mode advances like the speed clock.
     for (auto m : {obs::StandClock::kRun, obs::StandClock::kFreeze, obs::StandClock::kCoast}) {
         obs::GaitClock a(1.5f), ref(1.5f);

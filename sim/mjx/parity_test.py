@@ -55,6 +55,9 @@ Gates (float64, so precision is not the limiter):
       set_command step, the CPU and MJX volume samplers' distributions
   R24 the supply sag under load (supply_sag_ohm; sim/supply_sag.py): the kernel numpy vs
       jax, airborne arithmetic and grounded stance at the bench's 0.44 ohm, liveness
+  R25 the stand band (cmd_stand_band; sim/cmd_kernel.py): airborne arithmetic under slow
+      commands inside the legacy band with the volume's band on (walks, not stands: gait
+      shaping, reference, coasting clock), through set_command steps down to the zero command
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -68,6 +71,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --march-both     # R20 only
       python parity_test.py --footoff-sag    # R21 only
       python parity_test.py --cmd-slew       # R23 only
+      python parity_test.py --stand-band     # R25 only
 """
 import os
 import sys
@@ -1269,10 +1273,62 @@ def supply_sag_block():
     return ok_a and ok_b and ok_c and ok_d
 
 
+# -- R25: the stand band (sim/cmd_kernel.py "The STAND BAND"; #263) ---------------------------------
+#     a: airborne reward / obs parity with the volume's band (0.0005) and the night recipe's coasting
+#        clock: slow commands inside the legacy 0.05 band -- a slow diagonal, a slow pivot -- are walks
+#        (gait shaping, the stepping reference, the clock runs), then the zero command is the stand;
+#     b: liveness: the same block under the legacy band grades those commands as stands (the CPU's
+#        moving gate differs, and so does its reward).
+def stand_band_block():
+    import cmd_kernel as ck
+    sched = {40: (0.0, 0.0, 0.004, 1.0), 80: (0.0, 0.0, 0.0, 1.0)}
+    slow = (0.03, 0.02, 0.0, 1.0, 0.0, 0.0, 0.0)
+
+    def driver(c):
+        base = air_acts(c, 0.352)
+        trace = []
+
+        def act(t):
+            if t in sched:
+                c.set_command(*sched[t])
+            trace.append(c._cmd_is_moving(c._cmd))
+            return base(t)
+        return act, trace
+
+    def kw(band):
+        return rob_kw(cmd_stand_band=band, cmd_fixed=slow, clock_stand_coast=1.5708)
+
+    envs = envs_for(kw(ck.STAND_BAND_VOLUME), solver_tol=ARITH_TOL)
+    act, moving = driver(envs[0])
+    ok_a = run_block("R25-a. stand band 0.0005 (slow diagonal, slow pivot, then the stand; coasting "
+                     "clock), airborne arithmetic", 120, act, hoist, AIR_GATES, envs)
+    ok_live_a = all(moving[1:80]) and not any(moving[81:])
+    # the legacy band on the same block (CPU): every one of those commands is a stand
+    rew = {}
+    for band in (ck.STAND_BAND, ck.STAND_BAND_VOLUME):
+        cb = BimoWalkerEnv(actuator_model="sts3215", command_mode=True, domain_rand=False, **kw(band))
+        actb, trb = driver(cb)
+        cb.reset(seed=0)
+        hoist(cb)
+        rew[band] = [cb.step(actb(t))[1] for t in range(60)]
+        if band == ck.STAND_BAND:
+            ok_live_b = not any(trb)
+    ok_live = ok_live_a and ok_live_b and rew[ck.STAND_BAND] != rew[ck.STAND_BAND_VOLUME]
+    print(f"== R25-b. stand band liveness: {'PASS' if ok_live else 'FAIL'} ==")
+    print(f"   band 0.0005: walk ticks {sum(moving[1:80])}/79 before the stand, "
+          f"{sum(moving[81:])} after; band 0.05: walk ticks 0 expected; rewards differ "
+          f"{rew[ck.STAND_BAND] != rew[ck.STAND_BAND_VOLUME]}")
+    return ok_a and ok_live
+
+
 def main():
     if "--supply-sag" in sys.argv:
         ok = supply_sag_block()
         print("\nPARITY (R24):", "PASS" if ok else "FAIL")
+        return ok
+    if "--stand-band" in sys.argv:
+        ok = stand_band_block()
+        print("\nPARITY (R25):", "PASS" if ok else "FAIL")
         return ok
     if "--cmd-slew" in sys.argv:
         ok = cmd_slew_block()
@@ -1319,7 +1375,7 @@ def main():
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
                march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block(),
-               supply_sag_block()]
+               supply_sag_block(), stand_band_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
