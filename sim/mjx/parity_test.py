@@ -58,6 +58,10 @@ Gates (float64, so precision is not the limiter):
   R25 the stand band (cmd_stand_band; sim/cmd_kernel.py): airborne arithmetic under slow
       commands inside the legacy band with the volume's band on (walks, not stands: gait
       shaping, reference, coasting clock), through set_command steps down to the zero command
+  R26 the volume imitation reference (mimic_volume_ref, #263; walker_env.mimic_lead_out): the
+      calibration equal in both envs, the reference CPU vs MJX over the command volume (eight
+      headings x speeds, with and without a turn, back + turn), airborne reward parity under a
+      diagonal command, liveness
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -66,6 +70,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --roll-series # R15 only
       python parity_test.py --roll-play   # R16 only
       python parity_test.py --supply-sag  # R24 only
+      python parity_test.py --mimic-volume-ref  # R26 only
       python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
       python parity_test.py --march-both     # R20 only
@@ -1319,9 +1324,59 @@ def stand_band_block():
           f"{sum(moving[81:])} after; band 0.05: walk ticks 0 expected; rewards differ "
           f"{rew[ck.STAND_BAND] != rew[ck.STAND_BAND_VOLUME]}")
     return ok_a and ok_live
+# -- R26: the volume imitation reference (mimic_volume_ref) ----------------------------
+#     the lead-out signs and the lateral cap computed by both envs on their own model; the full
+#     reference CPU vs MJX on a phase grid for commands across the volume (incl. the saturated
+#     corners, back + turn, side + turn, slow); airborne reward parity under a diagonal
+#     command with a turn; liveness (the twin without the option must pay differently).
+def volume_ref_block():
+    kw = rob_kw(mimic_lift=0.02, mimic_volume_ref=True,
+                cmd_fixed=(0.12, 0.15, 0.6, 1.0, 0.0, 0.0, 0.0))
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    cal = (np.max(np.abs(c._lead_out - np.asarray(g._lead_out))) == 0.0
+           and c._vref_bmax == g._vref_bmax)
+    grid = np.linspace(-np.pi, np.pi, 181)[:-1] + 1e-4
+    cmds = [(0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (-0.4, 0.0, 1.0), (0.0, 0.25, -1.0),
+            (0.03, -0.02, 0.0), (0.24, 0.25, 0.8)]
+    for hd in range(0, 360, 45):
+        th = np.radians(hd)
+        for v in (0.1, 0.3):
+            cmds.append((v * np.cos(th), v * np.sin(th), 0.0))
+            cmds.append((v * np.cos(th), v * np.sin(th), -0.7))
+    worst = 0.0
+    for cm in cmds:
+        cmd = np.array([cm[0], cm[1], cm[2], 1.0, 0.0, 0.0, 0.0])
+        cj = jp.asarray(cmd, jp.float32)
+        for f in (0.7, 1.5):
+            for ph in grid:
+                qc = c._mimic_ref(cmd, ph, f)
+                qg = np.asarray(g._mimic_ref(cj, jp.float32(ph), jp.float32(f)))
+                worst = max(worst, float(np.max(np.abs(qc - qg))))
+    ok_a = cal and worst < 1e-5
+    print(f"== R26-a. volume reference, CPU vs MJX on {len(cmds)} commands x 2 clocks x "
+          f"{len(grid)} phases: {'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   lead-out signs {c._lead_out.tolist()} cap {c._vref_bmax:.4f} rad (equal: {cal}); "
+          f"worst |dq_ref| {worst:.1e} rad")
+    ok_b = run_block("R26-b. diagonal + turn with the volume reference (cmd 0.12,0.15,0.6, "
+                     "airborne)", 120, air_acts(c, 0.359), hoist, AIR_GATES, (c, g, s))
+    c0, _, _ = envs_for(dict(kw, mimic_volume_ref=False), solver_tol=ARITH_TOL)
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = 0.0
+    for _ in range(40):
+        r_on += c.step(z)[1]
+        r_off += c0.step(z)[1]
+    live = abs(r_on - r_off) > 1e-3
+    print(f"   volume reference live: 40-step reward with / without {r_on:.3f} / {r_off:.3f}")
+    return ok_a and ok_b and live
 
 
 def main():
+    if "--mimic-volume-ref" in sys.argv:
+        ok = volume_ref_block()
+        print("\nPARITY (R26):", "PASS" if ok else "FAIL")
+        return ok
     if "--supply-sag" in sys.argv:
         ok = supply_sag_block()
         print("\nPARITY (R24):", "PASS" if ok else "FAIL")
@@ -1375,7 +1430,7 @@ def main():
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
                march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block(),
-               supply_sag_block(), stand_band_block()]
+               supply_sag_block(), stand_band_block(), volume_ref_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
