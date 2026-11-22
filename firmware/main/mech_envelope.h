@@ -19,7 +19,7 @@
 // legs are different mechanisms (the v6 knee's +5 deg is a POLICY cap -- the
 // mechanism hyperextends to ~95, measured 93.8 on 2026-11-02 -- and its hip
 // pitch's hard stop is -124): kMechLoV6Legs / kMechHiV6Legs below are their
-// rows, at the v6 legs plant's POLICY range (sim/bimo_biped_v6legs.xml
+// rows, at the v6 legs plant's POLICY range (build/v6/sim/bimo_biped_v6legs.xml
 // ctrlrange). The robot's measured stops (2026-11-02) lie outside every one
 // of those rows; see the block above kMechLoV6Legs. A firmware whose
 // compiled policy drives those legs (a policy with the ankle rolls -- the
@@ -54,11 +54,11 @@ inline constexpr float kDeg = 0.0174532925f;
 //                The v6 knee is a different joint: -130.4 flexion and +93.8
 //                hyperextension measured free on 2026-11-02 (CAD ~132 / 95)
 //  ankle  +-40   plant range; toes clear the shin at both extremes (2026-08-03)
-//  ankle roll +-25   plant range (sim/bimo_biped_v6ar.xml); measured
+//  ankle roll +-25   plant range (build/v6/sim/bimo_biped_v6ar.xml); measured
 //                2026-11-02: the stop is on the outer-edge-up side only,
 //                +27.9 L / -26.9 R (the roll and pitch servo cases meet), the
 //                inner side free past 46 -- so +-25 sits 2-3 deg inside it
-//  neck yaw   +-90   plant range (sim/bimo_biped_v6ar.xml); not probed
+//  neck yaw   +-90   plant range (build/v6/sim/bimo_biped_v6ar.xml); not probed
 //  ARMS (14-17): zero is the owner's HOME pose, NOT the plant's 0 (Tom
 //                2026-11-16: "elbows backward, forearms pulled up" -- each
 //                servo `middle`d there, so home = 2048; cal zero 2048, dir
@@ -112,7 +112,7 @@ inline constexpr float kMechHi[obs::kNumBusJoints] = {
 };
 
 // The v6 robot's legs, bus order like the rows above. Evidence: the v6 legs
-// plant's policy range (sim/bimo_biped_v6legs.xml ctrlrange, which the v6legs
+// plant's policy range (build/v6/sim/bimo_biped_v6legs.xml ctrlrange, which the v6legs
 // obs_spec.h kJointLo/kJointHi are generated from). PROBED on the robot
 // 2026-11-02 (hw_sessions/2026-11-02/NOTES.md "ROM pass 3", servo-map.md
 // "Measured on the robot"). No row needed narrowing, and the values are
@@ -132,7 +132,7 @@ inline constexpr float kMechHi[obs::kNumBusJoints] = {
 //               ctrlrange) are well inside the robot's travel
 //  ankle roll   stop on the outer-edge-up side only, +27.9 L / -26.9 R; the
 //               inner side free past 46
-// sim/bimo_biped_v6legs_meas.xml carries those stops with this same policy
+// build/v6/sim/bimo_biped_v6legs_meas.xml carries those stops with this same policy
 // range (under --ctrl-within-stops: ankle +-40, every other row as here).
 // The hip rolls' asymmetry is the plant's: abduction is the outward-positive
 // L side's + and the R side's -.
