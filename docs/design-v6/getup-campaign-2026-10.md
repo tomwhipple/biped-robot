@@ -3873,3 +3873,84 @@ The leftover seed-22 replicates went to `queue/held/` (`WHY-1121-replicates-s8-c
 compass probes (GD's median + 4) AND keeps all six dir probes AND WALKS AND x1.5 falls ≤ 2/8. If VA or VW holds, the next night
 adds `--cmd-slew` on it (#266, one change per night). If none holds, #263 waits for the imitation reference's diagonal foot
 placement (#263 "what remains") before another arm. Fallback unchanged: GD (`fallback.job`, seed 23).
+
+### Night of 2026-11-21 (evaluated 2026-11-22)
+
+**#263, night 1 (the command volume as a sim learnability test). No arm meets the pre-committed bar: VW passes on 1 of
+seeds 14 – 16, VA and VH on 0. The volume still widens the follower: median compass probes held, seeds 14 – 16, are GD 12, VA 15,
+VH 12, VW 16. Tonight, as pre-committed, the reference's foot placement (`--mimic-volume-ref`, #346) runs on VW, beside the
+stand band (#345).** Stride only; get-up stays parked. Nothing here needs Tom: the robot is still down (#297).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (e20cb6b → d3584b2 as main moved; origin verified before every
+job). VH s3 (seed 17) was capped at 190M of 300M. VW s3 (seed 17) fitted 82M (< 50 %) and stayed queued. **No fixer runs.**
+Collection 05:57 – 06:11, no STALE REFEREE. The runner's `git` logged "commit e4b8a0a … exists in commit-graph but not in the
+object database" after five jobs (harmless to the jobs: the tip was verified each time). The cause was stale reflog entries in
+`~/code/robot-mjx` (a commit from 10-31 that gc had pruned). I expired reflog entries older than 14 days, rebuilt the
+commit-graph and removed `.git/gc.log`. No ref or object was touched.
+
+**Merged / branched.** Nothing by me. Main gained #345 (grade.py and sil_twin apply a run's `cmd_slew`; opt-in
+`--cmd-stand-band`), #346 (opt-in `--mimic-volume-ref`), #339 (opt-in `--supply-sag-ohm`) and power-lite / vision records.
+All are opt-in with bit-identity proofs, and none of last night's runs used a slew, so every comparison stands.
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag), A (as trained) and C (play + inset sole), and with `COMPASS=only`
+on D; `/tmp/plan1122/`. A matches D within 0.04 on every shift. A compass probe holds for a student when it holds on ≥ 6 of 8
+grade seeds (18 probes). GD's numbers are this time yesterday's compass control (`/tmp/plan1121/compassD.*`).
+
+| student (seed) | compass held / 18, D (seed-holds /144) | GD same seed | steps5 0.3 robot shift L-up / R-up, D | WALKS | fwd / back / side L / side R (m), turn L / R (deg), D | x1.5 falls D / C |
+|---|---|---|---|---|---|---|
+| VA prec94_walk_sagdr_vol (14) | 15 (117) | 12 (109) | −0.53 / +0.55 | yes | +0.75 −0.78 +0.35 −0.39, +90 −124 | 3/8 / 0/8 |
+| VA _s1 (15) | 15 (125) | 9 (80) | −0.50 / +0.51 | yes | +0.76 −0.86 +0.40 −0.46, +120 −107 | **8/8** / 7/8 |
+| VA _s2 (16) | 10 (87) | 15 (124) | −0.51 / +0.53 | yes | +0.78 −0.89 +0.47 −0.44, +98 −122 | 0/8 / 2/8 |
+| VA _s3 (17, extra) | 16 (127) | 11 (94) | −0.54 / +0.27 | yes | +0.67 −0.87 +0.38 −0.36, +117 −134 | 0/8 / 0/8 |
+| VH prec95_walk_sagdr_vol50 (14) | 11 (100) | 12 | −0.56 / +0.45 | yes | +0.77 −0.87 +0.43 −0.40, +96 −149 | 0/8 / 0/8 |
+| VH _s1 (15) | 15 (129) | 9 | −0.56 / +0.49 | yes | +0.85 −0.87 (1 fall) +0.45 −0.44, +107 −106 | 0/8 / 1/8 |
+| VH _s2 (16) | 12 (107) | 15 | −0.63 / +0.35 | yes | +0.93 −0.75 +0.30 −0.40, +116 −131 | **8/8** / 4/8 |
+| VH _s3 (17, 190M, extra) | 12 (98) | 11 | −0.47 / +0.66 | yes | +0.87 −0.80 +0.35 −0.39, +100 −94 | 7/8 / 7/8 |
+| VW prec96_walk_sagdr_vol_i86 (14) | 16 (129) | 12 | −0.75 / +0.29 | yes | +0.79 −0.73 +0.42 −0.57, +104 −127 | 5/8 / 1/8 |
+| VW _s1 (15) | **17 (140)** | 9 | −0.57 / +0.18 | yes | +0.76 −0.70 +0.47 −0.47, +122 −131 | 0/8 / 8/8 |
+| VW _s2 (16) | 13 (108) | 15 | −0.52 / +0.34 | yes | +0.70 −0.70 +0.45 −0.45, +102 −111 | 0/8 / 8/8 |
+
+Every student keeps all six directions on D and WALKS. The probe no arm learns is **F>BR** (a heading change from forward to
+back-right): failed by 9 of 11 students (GD: 7 of 8). The next most failed are the turn combinations (FR turn 5, FL turn 5,
+F turn 4) and BL / BL turn on VA (3 of 4 VA seeds).
+
+**The pre-committed test** (11-21: an arm holds if in ≥ 2 of seeds 14 – 16 its student holds ≥ 16 compass probes AND keeps six
+dirs AND WALKS AND x1.5 ≤ 2/8 on D):
+- VA 0 of 3 (15, 15 with x1.5 8/8, 10). VH 0 of 3 (11, 15, 12). VW 1 of 3 (s1: 17, x1.5 0/8; s0 has 16 but x1.5 5/8; s2 13).
+  **Not held.** VA's seed 17 (extra) passes, which does not count.
+- What does hold (≥ 2 of 3 seeds, paired with GD at the same seed): VW beats GD's compass count on 2 of 3 seeds (+4, +8, −2;
+  seed-holds +20, +60, −16), VA on 2 of 3 (+3, +6, −5). VH does not (−1, +6, −3). So the full volume helps and half of it does
+  not; the warm start from GD's own teacher (VW) is the best of the three, as hypothesised, but its seed spread is as wide as
+  GD's.
+- x1.5 on D: 4 of 11 students fall ≥ 5/8 (GD 2 of 8 seeds), so the volume costs some loop-gain margin on some seeds. On C
+  (play + inset sole) both VW s1 and s2 fall 8/8: the margin there is no better than GD's (6/8 and 8/8 on seeds 20, 21).
+- Weight shift (D): VW's R-up shift is the weakest of the arms (+0.18 – +0.34 against GD's +0.48 – +0.61 on 11-20). A ranking aid
+  only (rule 2), but worth watching: the volume's lateral draws may be teaching a narrower sway.
+
+**Distil gap** (card seed-passes of 160, teacher → student): VA 36→31, 31→30, 28→34, 21→26; VH 23→30, 25→27, 26→21, 20→22;
+VW 36→31, 27→24, 28→34. Median +2, range −5 to +7. The distil is not the limit.
+
+**Decision (rule 0, mine).** The 11-21 pre-commitment said that if no arm holds, #263 waits for the reference's foot placement
+before another arm. That landed on main this morning (#346, 32dd462): the old reference lands the closing foot on, or across,
+the other foot for lateral and diagonal draws from |vy| ≈ 0.04 m/s, which is the likely cause of the diagonal and turn-combo
+misses. So tonight runs it on VW, the best parent. The stand band (#345) is a correctness fix the firmware will read, so it
+gets its own arm on the same parent rather than riding along. VA and VH are closed: VA is VW's weaker sibling, and VH loses to
+GD. This is the line's first night since GD, so rule 4's count does not bite (1 of 3).
+
+**Tonight (2026-11-22; queued, BRANCH=main, VW's recipe, 300M + distil each, interleaved M1 → M2 per seed, most informative first):**
+
+| arm | runs (seeds 14 / 15 / 16; 17, 18 extra) | parent | variable | hypothesis |
+|---|---|---|---|---|
+| M1 | prec97_walk_sagdr_vol_i86_vref (+ _s1, _s2; _s3, _s4) | VW | `--mimic-volume-ref` | the lateral / diagonal compass probes and F>BR hold on more seeds; no cardinal direction lost |
+| M2 | prec98_walk_sagdr_vol_i86_band (+ …) | VW | `--cmd-stand-band 0.0005` | costs nothing: stand_10s, x1.5 and compass at VW's level |
+| control | prec96_walk_sagdr_vol_i86_s3, _s4 (seeds 17, 18) | VW | none (extra seeds) | VW's spread for the extra seeds |
+
+12 pairs; the last may stay queued under the fit rule. VW's leftover seed 17 (from last night's queue) was moved to
+`queue/held/` and re-queued seventh under the same `--out`, so the two arms' counted seeds run first. Pre-flight passed 24/24.
+`fallback.job` is now VW (seed 23); the old GD one is `fallback.job.prec86-20261122`.
+
+**Pre-committed:** an arm holds if in ≥ 2 of seeds 14 – 16 the student meets last night's bar (≥ 16 of 18 compass probes on D,
+six dir probes, WALKS, x1.5 ≤ 2/8 on D), i.e. it turns VW's 1 of 3 into ≥ 2 of 3. M2 also must not lose stand_10s (card) against
+VW at the same seed. If M1 holds, the next night adds `--cmd-slew` on it (#266). If M1 does not hold but raises the lateral /
+diagonal probes on ≥ 2 of 3 seeds, it stays in the recipe and the next variable is the turn (hip-yaw reference, #346 "what
+remains"). If neither, the volume line pauses after one more night (rule 4).
