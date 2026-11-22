@@ -53,6 +53,8 @@ Gates (float64, so precision is not the limiter):
   R23 the operator command's slew and volume (cmd_slew, cmd_volume; sim/cmd_kernel.py): the
       kernels numpy vs jax and the firmware's golden ramp, airborne arithmetic through a
       set_command step, the CPU and MJX volume samplers' distributions
+  R24 the supply sag under load (supply_sag_ohm; sim/supply_sag.py): the kernel numpy vs
+      jax, airborne arithmetic and grounded stance at the bench's 0.44 ohm, liveness
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -60,6 +62,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --robot-only  # R1-R4 only
       python parity_test.py --roll-series # R15 only
       python parity_test.py --roll-play   # R16 only
+      python parity_test.py --supply-sag  # R24 only
       python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
       python parity_test.py --march-both     # R20 only
@@ -141,6 +144,10 @@ def sync(state, cpu, gpu_env):
               if getattr(cpu, "_trim", None) is not None else state.trim),
         cmd_tgt=(jp.asarray(np.array(cpu._cmd_tgt, dtype=np.float32))
                  if getattr(cpu, "_cmd_tgt", None) is not None else state.cmd_tgt),
+        sag_r=(jp.asarray(float(cpu._sag_r))
+               if getattr(cpu, "_sag_r", None) is not None else state.sag_r),
+        sag_s=(jp.asarray(float(cpu._sag_s))
+               if getattr(cpu, "_sag_r", None) is not None else state.sag_s),
     )
 
 
@@ -1208,7 +1215,65 @@ def cmd_slew_block():
     return ok_a and ok_b and ok_live and ok_c
 
 
+# -- R24: the supply sag under load (sim/supply_sag.py; #6) ----------------------------------
+#     a: the kernel, numpy vs jax.numpy on the same inputs (bus current, the relaxed scale);
+#     b: airborne arithmetic with supply_sag_ohm 0.44 (the 2026-11-03 bench lead resistance): the
+#        scale is carried across ticks (sync copies the CPU's), both engines sag the envelope by it;
+#     c: grounded stance (matched manifolds), where the stance servos carry the body;
+#     d: liveness: the CPU's supply sags below 1 under the airborne flail and in stance, and with
+#        the option off nothing is drawn or carried (empty state fields).
+SAG_PARITY = 0.44
+
+
+def supply_sag_block():
+    import supply_sag as sg
+    rng = np.random.default_rng(24)
+    tau = rng.uniform(-3, 3, (2000, 17))
+    qd = rng.uniform(-8, 8, (2000, 17))
+    sc = rng.uniform(0.5, 1.0, 2000)
+    el = sg.servo_elec(list(sg.CB.NAME_TO_ID))      # the bus map's 17: two STS3250s, 15 STS3215s
+    el_j = tuple(jp.asarray(x) for x in el)
+    s_np, i_np = (np.array(x) for x in zip(*(sg.sag_step(t, q, s_, 0.44, 11.1, el)
+                                             for t, q, s_ in zip(tau, qd, sc))))
+    s_jp, i_jp = jax.jit(jax.vmap(lambda t, q, s_: sg.sag_step(t, q, s_, 0.44, 11.1, el_j, jp)))(
+        jp.asarray(tau), jp.asarray(qd), jp.asarray(sc))
+    worst_k = max(float(np.max(np.abs(s_np - np.asarray(s_jp)))),
+                  float(np.max(np.abs(i_np - np.asarray(i_jp)))))
+    ok_a = worst_k < 1e-12 and bool(np.all((s_np >= sg.SAG_FLOOR) & (s_np <= 1.0)))
+    print(f"== R24-a. supply sag kernel, numpy vs jax: {'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   worst {worst_k:.1e}; bus current {i_np.min():.2f}..{i_np.max():.2f} A")
+
+    c, g, s = envs_for(rob_kw(supply_sag_ohm=SAG_PARITY), solver_tol=ARITH_TOL)
+    scales = []
+    ok_b = run_block("R24-b. supply sag 0.44 ohm, airborne arithmetic", 100,
+                     air_acts(c, hook=lambda env: scales.append(env._sag_s)), hoist, AIR_GATES,
+                     (c, g, s))
+    i_k = float(c._sag_i)
+    c2, g2, s2 = envs_for(rob_kw(cmd_fixed=(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0),
+                                 supply_sag_ohm=SAG_PARITY))
+    n2 = c2._nq_act
+    ok_c = run_block(
+        "R24-c. supply sag 0.44 ohm, grounded stance (matched manifolds)",
+        100, lambda t: (0.05 * np.sin(0.25 * t + np.arange(n2))).astype(np.float32),
+        lambda env: None, STANCE_GATES, (c2, g2, s2), matched_only=True, min_frac=0.5)
+    off_c, off_g, _ = envs_for(rob_kw())
+    st = off_g.reset(jax.random.PRNGKey(0))
+    off_c.reset(seed=0)
+    ok_d = (min(scales) < 0.995 and c._sag_r == SAG_PARITY and 0.0 < i_k
+            and off_c._sag_r is None and st.sag_r.shape == (0,) and st.sag_s.shape == (0,)
+            and c2._sag_s < 1.0)
+    print(f"== R24-d. supply sag liveness: {'PASS' if ok_d else 'FAIL'} ==")
+    print(f"   airborne supply scale min {min(scales):.4f} (V {11.1 * min(scales):.2f}); last bus "
+          f"current {i_k:.2f} A; stance supply {11.1 * c2._sag_s:.3f} V at {c2._sag_i:.2f} A; off: "
+          f"no draw, empty state")
+    return ok_a and ok_b and ok_c and ok_d
+
+
 def main():
+    if "--supply-sag" in sys.argv:
+        ok = supply_sag_block()
+        print("\nPARITY (R24):", "PASS" if ok else "FAIL")
+        return ok
     if "--cmd-slew" in sys.argv:
         ok = cmd_slew_block()
         print("\nPARITY (R23):", "PASS" if ok else "FAIL")
@@ -1253,7 +1318,8 @@ def main():
                recovery_block(), terrain_block(), quant_block(),
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
-               march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block()]
+               march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block(),
+               supply_sag_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")
