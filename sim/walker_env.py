@@ -1342,8 +1342,8 @@ class BimoWalkerEnv(gym.Env):
         cmd_volume: float = 0.0,
         # cmd_stand_band: |c0|, |c1|, |c2| at or below it are the plain stand (no gait shaping,
         # no stepping reference, the stand terms, the clock's stand rule, the trim off), above it
-        # a walk (cmd_kernel.py, "The STAND BAND"). 0.05 = the legacy band; a --cmd-volume run
-        # trains with cmd_kernel.STAND_BAND_VOLUME. The dense velocity term keeps its own 0.05
+        # a walk (cmd_kernel.py, "The STAND BAND"). 0.05 = the legacy band and the default, also
+        # with cmd_volume; cmd_kernel.STAND_BAND_VOLUME is the volume's band, set explicitly. The dense velocity term keeps its own 0.05
         # floor. Mirrored in env_mjx.
         cmd_stand_band: float = 0.05,
     ):

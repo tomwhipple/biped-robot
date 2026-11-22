@@ -2,8 +2,8 @@
 
 |c0|, |c1|, |c2| at or below the band are the plain stand in the reward, the gait clock and the
 trim; above it a walk. The legacy band 0.05 graded 8.8 % of the volume's walk draws as stands (a
-dead band), so a --cmd-volume run trains with STAND_BAND_VOLUME (half the link's milli-unit
-resolution). Off the volume path nothing changes: no kwarg in the run's env, the same gates
+dead band); STAND_BAND_VOLUME (half the link's milli-unit resolution) is the volume's band, set
+explicitly with --cmd-stand-band (--cmd-volume alone keeps 0.05: one change per arm). Off the volume path nothing changes: no kwarg in the run's env, the same gates
 (bit-identity on the night job's arguments is the PR's proof; the envs' arithmetic here). The
 CPU-vs-MJX parity with the band on is sim/mjx/parity_test.py R25; the firmware reads the run's band
 from obs_spec.h (tools/gen_obs_spec.py, obs::kStandBand)."""
@@ -43,7 +43,8 @@ def test_defaults_and_cli():
     assert ck.STAND_BAND == 0.05 and ck.STAND_BAND_VOLUME == 0.0005
     base = _kw()
     assert "cmd_stand_band" not in base                       # off the volume path: not recorded
-    assert _kw("--cmd-volume", "1.0")["cmd_stand_band"] == ck.STAND_BAND_VOLUME
+    assert "cmd_stand_band" not in _kw("--cmd-volume", "1.0")     # volume alone keeps 0.05
+    assert _kw("--cmd-volume", "1.0", "--cmd-stand-band", "0.0005")["cmd_stand_band"] == ck.STAND_BAND_VOLUME
     assert _kw("--cmd-volume", "1.0", "--cmd-stand-band", "0.05")["cmd_stand_band"] == 0.05
     one = _kw("--cmd-stand-band", "0.01")
     assert one.pop("cmd_stand_band") == 0.01 and one == base

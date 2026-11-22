@@ -283,9 +283,10 @@ Opt-in command options (all need `--precision`; the laws are
 - `--cmd-stand-band B` sets the stand band: c0–c2 each at or below B are the
   plain stand (no gait shaping, no stepping reference, the stand terms, the
   clock's stand rule, the trim off), above it a walk. It is 0.05 unless set,
-  except on a `--cmd-volume` run, which trains with 0.0005: half the link's
-  resolution (c0–c2 travel in thousandths), so a command the robot receives as
-  non-zero is a walk and the stand is the zero command. On the night recipe's
+  also on a `--cmd-volume` run, so a volume arm and a band arm are separate
+  changes. The volume's band is 0.0005 (`--cmd-stand-band 0.0005`): half the
+  link's resolution (c0–c2 travel in thousandths), so a command the robot
+  receives as non-zero is a walk and the stand is the zero command. On the night recipe's
   ranges the volume draws 8.8 % of its walks with every channel at or below
   0.05, which the 0.05 band would grade as stands. The dense velocity term
   keeps its own 0.05 floor: below it the kernel tracks the speed. `config.json`
@@ -340,8 +341,8 @@ reward  = primary + w_upright * up_z + alive_bonus
           - fall_cost                                  (on the terminating step)
 ```
 
-- A *moving* command has |c0|, |c1| or |c2| above the stand band (0.05; a
-  `--cmd-volume` run's 0.0005, §4). It switches on the gait shaping, the
+- A *moving* command has |c0|, |c1| or |c2| above the stand band (0.05 unless the
+  run set `--cmd-stand-band`, e.g. the volume's 0.0005, §4). It switches on the gait shaping, the
   stepping reference and the 0.3 height weight; at or below the band the
   stand terms and the clock's stand rule apply.
 - `v_term`: under a planar command faster than 0.05 (|c0, c1| > 0.05) with

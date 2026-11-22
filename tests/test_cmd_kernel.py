@@ -43,11 +43,10 @@ def test_defaults_and_cli():
     assert "cmd_slew" not in base and "cmd_volume" not in base
     on = _kw("--cmd-slew", "0.5,0.4,1.5", "--cmd-volume", "0.7")
     assert on["cmd_slew"] == (0.5, 0.4, 1.5) and on["cmd_volume"] == 0.7
-    # a volume run trains with the volume's stand band (tests/test_cmd_stand_band.py)
-    assert on["cmd_stand_band"] == ck.STAND_BAND_VOLUME
+    # --cmd-volume alone does not change the stand band (tests/test_cmd_stand_band.py)
+    assert "cmd_stand_band" not in on
     on.pop("cmd_slew")
     on.pop("cmd_volume")
-    on.pop("cmd_stand_band")
     assert on == base
 
 

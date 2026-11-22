@@ -301,7 +301,7 @@ q(10) | dq(10) | up(3) | linvel(3) | gyro(3) | prev_action(10) | height(1) | sin
   `kClockStandFreeze` the phase holds at a plain stand (|vx|, |vy|, |wz| ≤
   the stand band and |lift| < 0.5). Both flags come from the run, as in
   training. The stand band `obs::kStandBand` is 0.05, or the run's
-  `cmd_stand_band` when it trained with another (a `--cmd-volume` run:
+  `cmd_stand_band` when it trained with another (the volume's band is
   0.0005, so any command the link delivers as non-zero is a walk;
   [training.md](training.md) §4). The walk-recovery and flail-guard stand
   gates and the trim's `clockWalking` read the same band.

@@ -782,9 +782,10 @@ def make_parser():
     p.add_argument("--cmd-stand-band", type=float, default=None,
                    help="|vx|, |vy|, |wz| at or below which the command counts as the plain stand "
                         "in the reward, the gait clock and the trim (#263; sim/cmd_kernel.py, "
-                        "\"The STAND BAND\"). Default: 0.05 (not recorded); with --cmd-volume "
-                        "cmd_kernel.STAND_BAND_VOLUME (0.0005, half the link's resolution), so the "
-                        "volume's slow walks are walks. config.json records cmd_stand_band and "
+                        "\"The STAND BAND\"). Default: 0.05 (not recorded), also with --cmd-volume, so "
+                        "a volume arm changes one thing at a time; a volume run that should count "
+                        "its slow walks as walks sets cmd_kernel.STAND_BAND_VOLUME, 0.0005 (half the "
+                        "link's resolution). config.json records cmd_stand_band and "
                         "`make deploy` puts a band other than 0.05 into the firmware's stand gates "
                         "(obs_spec.h kStandBand). Needs --precision (ext_cmd)")
     p.add_argument("--tilt-max", type=float, default=None,
@@ -1417,11 +1418,6 @@ def build_env_kw(args):
     if getattr(args, "cmd_volume", None):
         env_kw["cmd_volume"] = float(args.cmd_volume)
     band = getattr(args, "cmd_stand_band", None)
-    if band is None and getattr(args, "cmd_volume", None):
-        if os.path.dirname(HERE) not in sys.path:
-            sys.path.insert(0, os.path.dirname(HERE))
-        import cmd_kernel
-        band = cmd_kernel.STAND_BAND_VOLUME
     if band is not None:
         env_kw["cmd_stand_band"] = float(band)
     if args.getup:

@@ -36,8 +36,9 @@ The STAND BAND (#263). The reward, the gait clock, the stance trim and the firmw
 read the planar command (c0, c1, c2) as the plain stand while each |c| is at or below a band, and
 as a walk above it. The six cardinal bands never draw a walk under 0.05, so STAND_BAND (0.05) cost
 nothing there; the volume draws speeds continuously down to zero, and with that band 8.8 % of its
-walks were graded as stands (a dead band the stick passes through). A volume run therefore trains
-with STAND_BAND_VOLUME: half the link's resolution (link/protocol.py sends c0..c2 in milli-units),
+walks were graded as stands (a dead band the stick passes through). The band for a volume run is
+STAND_BAND_VOLUME, set explicitly (`--cmd-stand-band 0.0005`; never implied by --cmd-volume, so a
+volume arm and a band arm stay separate changes): half the link's resolution (link/protocol.py sends c0..c2 in milli-units),
 so a command reaches the policy as a walk exactly when the robot receives it as non-zero, and the
 stand is the zero command (the stick's dead zone, a released ENABLE, a lost link, the slew landed).
 The envs' `cmd_stand_band`, recorded in the run's config.json; tools/gen_obs_spec.py puts a band
