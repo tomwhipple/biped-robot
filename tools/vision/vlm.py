@@ -91,6 +91,50 @@ PROMPTS = {
          "properties": {"note": {"type": "string"}, **{k: {"type": "boolean"} for k in QUESTIONS}},
          "required": ["note", *QUESTIONS]}),
 }
+
+# Tuned variants (#316, 2026-11-22, see docs/design-v6/2026-11-22-vlm-prompt-tuning.md): the two failures of the
+# first two prompts were "describe-first calls a fallen robot upright" and "answer-first misses the dog".
+_DEFS = (
+    "Definitions:\n"
+    "- NOT upright means any of: lying on the board or floor, on its side or back or front, seen from the side "
+    "with the torso horizontal or clearly slanted, one leg on the board and the body tipped or sagging, falling, "
+    "or leaning past a slight tilt. Upright means the torso stands vertical on its two legs, including mid-step. "
+    "When unsure whether it is tilted, answer false for robot_upright.\n"
+    "- A person counts even if only a hand, an arm, a sleeve or a leg is visible at the board or on the robot. "
+    "An animal (a dog, a cat; often small, brown, black or white, far away or only partly in view: a tail, "
+    "legs, a head or a paw) counts when it is on the board or next to it. A person sitting in a chair away "
+    "from the board does not count.\n"
+)
+_Q = "".join(f"- {k}: {q}\n" for k, q in QUESTIONS.items())
+PROMPTS["defs"] = (
+    _SETUP + _DEFS + "First, in \"note\", describe in one or two sentences what you see: the robot's pose (standing, "
+    "stepping, leaning, tipping over, lying on its side, being held) and every person, hand, leg, animal or loose "
+    "object on or near the board. Then answer each question with true or false, using the definitions:\n" + _Q
+    + "Reply with JSON only.",
+    PROMPTS["describe-first"][1])
+# answer-first with the definitions (the booleans are written before any description, which found more falls)
+PROMPTS["defs-af"] = (
+    _SETUP + _DEFS + "Answer each question about this frame with true or false, using the definitions:\n" + _Q
+    + "Also give a one-sentence description in \"note\". Reply with JSON only.",
+    PROMPTS["answer-first"][1])
+# "two-call": one short call per question group, answers merged (about twice the calls per frame).
+TWO_CALL = {
+    "two-call": [
+        (_SETUP + _DEFS + "First, in \"note\", say in one sentence whether any person, hand, leg, sleeve or animal "
+         "is on or near the board and where. Then answer with true or false:\n- person_or_animal: "
+         + QUESTIONS["person_or_animal"] + "\n- object_on_board: " + QUESTIONS["object_on_board"]
+         + "\nReply with JSON only.",
+         {"type": "object", "properties": {"note": {"type": "string"}, "person_or_animal": {"type": "boolean"},
+                                           "object_on_board": {"type": "boolean"}},
+          "required": ["note", "person_or_animal", "object_on_board"]}),
+        (_SETUP + _DEFS + "First, in \"note\", say in one sentence what angle the robot's torso is at (vertical, "
+        "slanted, horizontal) and whether it is seen from the front or the side. Then answer with true or "
+        "false:\n- robot_upright: " + QUESTIONS["robot_upright"] + "\nReply with JSON only.",
+         {"type": "object", "properties": {"note": {"type": "string"}, "robot_upright": {"type": "boolean"}},
+          "required": ["note", "robot_upright"]}),
+    ],
+}
+ALL_PROMPTS = sorted([*PROMPTS, *TWO_CALL])
 DEFAULT_PROMPT = "describe-first"
 PROMPT, SCHEMA = PROMPTS[DEFAULT_PROMPT]
 
@@ -123,11 +167,18 @@ def parse_answer(text):
     return out
 
 
+def _chat(img, text, schema, model, host, opts, timeout_s):
+    body = dict(model=model, stream=False, format=schema, options=opts, keep_alive="10m",
+                messages=[dict(role="user", content=text, images=[img])])
+    return _post(host.rstrip("/") + "/api/chat", body, timeout_s)
+
+
 def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s=600.0, prompt=DEFAULT_PROMPT):
     """-> dict(answer={...}|None, raw=str, error=str|None, total_s, load_s, prompt_eval_s, eval_s).
     Never raises on a model or network failure: the error is returned (a second opinion that is down is
-    reported as missing, not as a clean frame)."""
-    text, schema = PROMPTS[prompt]
+    reported as missing, not as a clean frame). A TWO_CALL prompt makes one request per entry and merges the
+    answers (times are summed; `raw` is the replies joined by a newline)."""
+    calls = TWO_CALL.get(prompt) or [PROMPTS[prompt]]
     with open(image_path, "rb") as f:
         img = base64.b64encode(f.read()).decode()
     opts = {"temperature": 0}
@@ -135,16 +186,27 @@ def ask(image_path, model, host=DEFAULT_HOST, num_thread=12, cpu=True, timeout_s
         opts["num_thread"] = int(num_thread)
     if cpu:
         opts["num_gpu"] = 0
-    body = dict(model=model, stream=False, format=schema, options=opts, keep_alive="10m",
-                messages=[dict(role="user", content=text, images=[img])])
     t = time.time()
-    try:
-        r = _post(host.rstrip("/") + "/api/chat", body, timeout_s)
-    except (urllib.error.URLError, OSError, ValueError) as e:
-        return dict(answer=None, raw="", error=f"{type(e).__name__}: {e}", total_s=round(time.time() - t, 2))
-    raw = (r.get("message") or {}).get("content", "")
-    ns = lambda k: round(r.get(k, 0) / 1e9, 2)
-    ans = parse_answer(raw)
-    return dict(answer=ans, raw=raw, prompt=prompt, error=None if ans else "unparseable answer", total_s=ns("total_duration"),
-                load_s=ns("load_duration"), prompt_eval_s=ns("prompt_eval_duration"), eval_s=ns("eval_duration"),
-                prompt_tokens=r.get("prompt_eval_count"), eval_tokens=r.get("eval_count"))
+    raws, merged, notes = [], {}, []
+    tot = dict(total_s=0.0, load_s=0.0, prompt_eval_s=0.0, eval_s=0.0, prompt_tokens=0, eval_tokens=0)
+    for text, schema in calls:
+        try:
+            r = _chat(img, text, schema, model, host, opts, timeout_s)
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            return dict(answer=None, raw="\n".join(raws), error=f"{type(e).__name__}: {e}", total_s=round(time.time() - t, 2))
+        raw = (r.get("message") or {}).get("content", "")
+        raws.append(raw)
+        part = parse_answer(raw)
+        if part:
+            notes.append(part.pop("note"))
+            merged.update({k: v for k, v in part.items() if k in schema["properties"]})
+        for k, src in (("total_s", "total_duration"), ("load_s", "load_duration"), ("prompt_eval_s", "prompt_eval_duration"),
+                       ("eval_s", "eval_duration")):
+            tot[k] += r.get(src, 0) / 1e9
+        tot["prompt_tokens"] += r.get("prompt_eval_count") or 0
+        tot["eval_tokens"] += r.get("eval_count") or 0
+    ans = {k: merged.get(k) for k in QUESTIONS}
+    ans["note"] = " | ".join(notes)[:300]
+    ok = len(notes) == len(calls)
+    return dict(answer=ans if ok else None, raw="\n".join(raws), prompt=prompt, error=None if ok else "unparseable answer",
+                **{k: round(v, 2) if isinstance(v, float) else v for k, v in tot.items()})

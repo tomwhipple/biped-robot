@@ -7,6 +7,8 @@
     tools/vision/vlm_bakeoff.py extract [--manifest M] [--root .] [--out hw_sessions/vlm_set]
     # ask a model about every frame; raw answers + timings appended to a JSONL (resumes: done frames are skipped)
     tools/vision/vlm_bakeoff.py run --model qwen3-vl:8b-instruct [--host http://127.0.0.1:11500] [--num-thread 12]
+    # the seeded tuning / held-out split (--split tune|heldout on run and score restricts to one half)
+    tools/vision/vlm_bakeoff.py split
     # precision / recall per label and model, seconds per frame
     tools/vision/vlm_bakeoff.py score [--answers-dir DIR] [--md]
 
@@ -89,6 +91,48 @@ def utc(t):
 def load_manifest(path=MANIFEST):
     with open(path) as f:
         return json.load(f)
+
+
+SPLIT_SEED = 316
+
+
+def stratum(item):
+    """The label stratum a frame is split on: person/animal frames, then not-upright ones, then the rest with an
+    object label, then normal frames (nothing to flag)."""
+    lb = item["labels"]
+    if lb["person_or_animal"]:
+        return "person_or_animal"
+    if lb["robot_upright"] is False:
+        return "not_upright"
+    if lb["object_on_board"]:
+        return "object"
+    return "normal"
+
+
+def make_split(manifest, seed=SPLIT_SEED):
+    """Fixed, seeded split of the manifest frames -> {"tune": [ids], "heldout": [ids]}, stratified by label
+    stratum (see `stratum`): each stratum is shuffled with random.Random(seed) after sorting by id, and dealt
+    alternately, the larger half to tune. Deterministic: the same manifest and seed give the same split."""
+    import random
+    rng = random.Random(seed)
+    strata = {}
+    for it in sorted(manifest["frames"], key=lambda i: i["id"]):
+        strata.setdefault(stratum(it), []).append(it["id"])
+    out = {"tune": [], "heldout": []}
+    flip = 0
+    for name in sorted(strata):
+        ids = strata[name]
+        rng.shuffle(ids)
+        for i, fid in enumerate(ids):
+            out["tune" if (i + flip) % 2 == 0 else "heldout"].append(fid)
+        flip += len(ids) % 2      # an odd stratum gives its spare frame alternately to each half
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def apply_split(manifest, which, seed=SPLIT_SEED):
+    """The manifest restricted to one half ("tune" or "heldout")."""
+    ids = set(make_split(manifest, seed)[which])
+    return dict(manifest, frames=[f for f in manifest["frames"] if f["id"] in ids])
 
 
 def frame_path(item, out_dir=OUT_DIR):
@@ -266,10 +310,14 @@ def main(argv=None):
     r.add_argument("--model", action="append", required=True)
     r.add_argument("--host", default=vlm.DEFAULT_HOST)
     r.add_argument("--num-thread", type=int, default=12, help="CPU threads (ollama num_thread); 0 = server default")
-    r.add_argument("--prompt", choices=sorted(vlm.PROMPTS), default=vlm.DEFAULT_PROMPT)
+    r.add_argument("--prompt", choices=vlm.ALL_PROMPTS, default=vlm.DEFAULT_PROMPT)
+    for p in (r, s):
+        p.add_argument("--split", choices=("tune", "heldout"), help="only this half of the seeded split (make_split)")
     r.add_argument("--event", action="append", help="only the frames of this event (repeatable); score counts what was asked")
     for p in (r, s):
         p.add_argument("--answers-dir", default=os.path.join(OUT_DIR, "answers"))
+    sp = sub.add_parser("split", help="print the seeded split (ids per half and label counts) as JSON")
+    sp.add_argument("--manifest", default=MANIFEST)
     s.add_argument("--md", action="store_true", help="print a markdown table instead of JSON")
     s.add_argument("--frames-table", action="store_true", help="markdown: every frame's labels and each model's answers")
     a = ap.parse_args(argv)
@@ -277,6 +325,14 @@ def main(argv=None):
         grab(a.video, a.at, a.out)
         return 0
     m = load_manifest(a.manifest)
+    if a.cmd == "split":
+        sp = make_split(m)
+        by = {i["id"]: stratum(i) for i in m["frames"]}
+        print(json.dumps(dict(seed=SPLIT_SEED, **sp, counts={h: {s: sum(by[i] == s for i in ids) for s in sorted(set(by.values()))}
+                                                             for h, ids in sp.items()}), indent=1))
+        return 0
+    if getattr(a, "split", None):
+        m = apply_split(m, a.split)
     if a.cmd == "extract":
         for p in extract(m, a.root, a.frames):
             print(p)

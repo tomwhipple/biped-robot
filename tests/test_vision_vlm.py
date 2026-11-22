@@ -187,3 +187,26 @@ def test_cut_clip_spans_camd_segments(tmp_path):
     n = RR.cut_clip(a, ta[10], tb[10] + 60.0, out)
     kept = B.C.read_pts(str(tmp_path / "clip.pts"))
     assert n == 40 + 11 == len(kept) and kept[0] == pytest.approx(ta[10]) and kept[-1] == pytest.approx(tb[10] + 60.0)
+
+
+def test_seeded_split_is_stable_and_stratified():
+    m = B.load_manifest()
+    a, b = B.make_split(m), B.make_split(m)
+    assert a == b
+    assert sorted(a["tune"] + a["heldout"]) == sorted(i["id"] for i in m["frames"])
+    assert not set(a["tune"]) & set(a["heldout"])
+    for s in {B.stratum(i) for i in m["frames"]}:
+        n = [sum(B.stratum(i) == s for i in m["frames"] if i["id"] in a[h]) for h in a]
+        assert abs(n[0] - n[1]) <= 1
+
+
+def test_two_call_prompt_merges_both_calls_and_defs_af_is_answer_first(tmp_path, fake_ollama):
+    jpg = str(tmp_path / "f.jpg")
+    cv2.imwrite(jpg, np.zeros((10, 10, 3), np.uint8))
+    n = len(_Fake.seen)
+    r = V.ask(jpg, "m:1", fake_ollama, prompt="two-call")
+    assert len(_Fake.seen) == n + 2 and r["error"] is None and r["total_s"] == 5.0 and r["prompt_tokens"] == 1400
+    assert set(r["answer"]) == {*V.QUESTIONS, "note"} and r["answer"]["robot_upright"] is False
+    V.ask(jpg, "m:1", fake_ollama, prompt="defs-af")
+    assert _Fake.seen[-1][1]["format"]["required"] == [*V.QUESTIONS, "note"]
+    assert "NOT upright" in _Fake.seen[-1][1]["messages"][0]["content"]
