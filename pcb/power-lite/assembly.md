@@ -168,10 +168,19 @@ Either way round. Its 5.08 mm leads go into the 5.0 mm holes.
 
 ![Step 8](../../docs/design-v6/figs/powerlite_asm_08_servo_headers.png)
 
+![J4–J8 from the top: data at the bevelled corner](../../docs/design-v6/figs/powerlite_servo_header_keys.png)
+
 - **Pin 1 is the square pad**, the lowest pin of each header.
-- **The wider side of the body faces the middle of the board**, and the narrow side the right
-  edge, as the printed outline shows.
+- **The housing's bevelled corner goes at pin 1**, as the printed outline shows: at the
+  header's lower end, on the side toward the middle of the board. The wall with the bevel, the
+  one the pins sit close to, faces the middle of the board; the wider side faces the right edge.
+  - That is how the General Driver's H5 is keyed: its D (data) pin is at its bevelled corner,
+    and a stock lead joins the two bevelled corners.
+  - Turned the other way, a header still fits the same holes, but a stock lead then puts the
+    data wire on ground ([harness.md](harness.md#j4j8-servo-branches-and-the-data-line), #342).
 - Pin 3 (the top pin) is on the ground plane.
+- **J4 stands 0.35 mm from H2's screw head** (the M2.5 button head in the top-right hole). Seat
+  it flat and square, and use no washer under that head.
 - **Which header is which:** J4–J7 are the servo branches: right leg, right upper, left leg,
   left upper. J8 is the data input from the General Driver. J8's middle pin is unconnected on
   purpose.
@@ -229,6 +238,8 @@ then faces the servo headers. A backwards electrolytic on the 12 V rail fails, a
 | J3 pin 2, J12 pin 3, and pin 3 of each of J4–J8, to W2 (BMS P-) | 0 Ω                                                                                                            | the grounds              |
 | pin 2 of each of J4–J7, to C1's + lead                          | 0 Ω                                                                                                            | the servo rail           |
 | pin 1 of each of J4–J7, to J8 pin 1                             | 0 Ω                                                                                                            | the servo data line      |
+| pin 1 of each of J4–J8, to W2 (BMS P-) and to C1's + lead       | open                                                                                                           | data apart from GND and SERVO+ |
+| each of J4–J8, from the top                                     | its bevelled corner at pin 1, the square pad                                                                   | the headers keyed like H5 |
 
 ## Make the leads
 
@@ -260,7 +271,9 @@ then tug the wire to check it is held.
   plugs in. P3 and H2 are 2.54 mm pin headers, which take the elechawk kit's Dupont
   housings; H3 is a JST PH 6-pin header, which takes a PHR-6 (harness.md, "Connector families").
 
-- **The servo leads** must put the General Driver's GND wire on pin 3 here (harness check P4).
+- **The servo leads** are stock: they must put the General Driver's D wire on pin 1 here and its
+  G wire on pin 3. Check it with the meter before any servo is connected (harness check P4,
+  [bringup.md 4.1](bringup.md#41-p4-the-servo-headers-before-any-servo)).
 
 - **J2 takes the pack's balance plug directly.** Meter the plug first (harness check P2): pin 1
   must be B−.
@@ -302,11 +315,41 @@ The BMS sits in the pack's negative lead, so a trip cuts the whole robot off fro
   then the off switch.
 - Then check the inrush with the pack and the servos: the README's step 3.
 
+## Rework: J4–J8 seated with the bevel at pin 3
+
+A board whose servo headers sit with the bevelled corner at pin 3 (the top pin, GND) fails P4:
+a stock lead puts the General Driver's data wire on ground. The copper is right; the headers
+are turned. Fix it on the board, not in the leads: leads with moved contacts are non-standard.
+
+1. **Unplug everything:** the pack (J1, then J2), every lead in J3–J12. Fuses out.
+2. **Desolder each of J4–J8.**
+   - Pin 3 of each joins the ground plane with full copper and takes a lot of heat. Add fresh
+     solder and flux to each joint first, then clear the holes with a desoldering pump or braid,
+     from the bottom.
+   - If a pin will not come free, cut the housing's plastic away and take the three pins out one
+     at a time, then fit a new 22-03-5035.
+   - Do not lever a header out with heat on only one pin: that lifts pads.
+3. **Turn each header 180° and solder it back** in the same three holes, as in step 8: the
+   bevelled corner at the lower end (pin 1, the square pad), the bevelled wall toward the middle
+   of the board.
+4. **Check J4 against H2's screw head** when the board goes back in: the head must not touch
+   the housing (0.35 mm apart).
+5. **Meter checks, no power:**
+   - pin 1 of each of J4–J7 to J8 pin 1: 0 Ω;
+   - pin 1 of each of J4–J8 to W2 (BMS P-) and to C1's + lead: open;
+   - pin 3 of each of J4–J8 to W2: 0 Ω;
+   - then harness check P4 with a stock lead, [bringup.md 4.1](bringup.md#41-p4-the-servo-headers-before-any-servo).
+6. **Before any torque on the robot**, with the servos back on J4–J7 and J8 to H5: a full bus
+   scan, and every leg servo's status and voltage read back. Servos that ran with the swap had no
+   proper ground (#342).
+
 ## Regenerating the figures
 
 The step figures are renders of `power-lite.kicad_pcb`. Each shows only the parts placed by its
-step, with those parts outlined and their pin 1 or polarity marked. Run from `pcb/power-lite`:
+step, with those parts outlined and their pin 1 or polarity marked. The close-up of J4–J8
+(`powerlite_servo_header_keys.png`) marks each header's data and GND pads and the bevel of its
+outline; `--keys` renders only that one. Run from `pcb/power-lite`:
 
 ```
-uv run --with matplotlib --with pillow --with numpy python tools/asm_figs.py <work dir>
+uv run --with matplotlib --with pillow --with numpy python tools/asm_figs.py <work dir> [--keys]
 ```

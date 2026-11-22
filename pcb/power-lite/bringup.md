@@ -20,7 +20,7 @@ as you go, and stop at the first reading that is outside its range (see
 | [1. The BMS alone](#part-1-the-bms-alone) | where it cuts off, how it comes back, that it carries 12 A | lab supply, resistors |
 | [2. The board on the lab supply](#part-2-the-board-on-the-lab-supply) | the E-stop, the relay and the ESP32 signals, with no pack | lab supply, resistors |
 | [3. The BMS and the pack on the board](#part-3-the-bms-and-the-pack-on-the-board) | the whole power path, on the real pack | the pack |
-| [4. The relay closing onto the servos](#part-4-the-relay-closing-onto-the-servos) | the inrush does not trip the BMS, and the E-stop always opens the rail | the robot's servos |
+| [4. The relay closing onto the servos](#part-4-the-relay-closing-onto-the-servos) | first P4, a stock lead puts H5's data on pin 1 of J4–J8; then the inrush does not trip the BMS, and the E-stop always opens the rail | a stock servo lead and the General Driver (P4); the robot's servos |
 
 **`SERVO_EN` is driven by hand throughout, with J12's far ends on a breadboard, not on the
 General Driver.** The firmware that drives the relay, reads the E-stop and checks for a stuck
@@ -466,7 +466,31 @@ Main switch on.
 the pack. The simulation puts the peak at 176–341 A, above 100 A for 52–132 µs. The BMS's
 short-circuit detector may read that as a short. Its delay is not published.*
 
-### 4.1 Set up
+### 4.1 P4: the servo headers, before any servo
+
+**No servo goes into J4–J8 until this passes** (harness check P4). A header seated with its
+bevelled corner at the wrong end puts a stock lead's data wire on GND: on the first board
+(2026-11-21, #342) that shorted the bus to ground, and the servos on J4 and J6 ran with their
+only return through their data pins.
+
+Pack out, supply off, nothing in J4–J8, the General Driver not connected. Meter on Ω.
+
+1. **Look at each of J4–J8 from the top.** Its bevelled corner must be at pin 1, the square pad:
+   the header's lower end, on the side toward the middle of the board, as the silkscreen outline
+   shows ([harness.md](harness.md#j4j8-servo-branches-and-the-data-line)).
+2. **The pads.** Pin 1 of each of J4–J7 to pin 1 of J8: 0 Ω. Pin 1 of each of J4–J8 to W2 (GND)
+   and to C1's + lead (SERVO+): open. Probe the pads from the bottom.
+3. **A stock lead, from H5.** Plug one end of a stock servo lead into the General Driver's H5,
+   note the wire at H5's D (H5's bevelled corner) and mark it with tape. Unplug it from H5.
+4. **The lead in each header.** Plug the lead's other end into J4, its marked end free. Meter from
+   the free housing's marked contact (a probe into the housing) to J8 pin 1 on the bottom: 0 Ω;
+   to W2: open. The free end's other outer contact to W2: 0 Ω. Repeat in J5, J6, J7 and J8.
+
+Any other reading: stop, and turn the header round (the assembly guide's
+[rework](assembly.md#rework-j4j8-seated-with-the-bevel-at-pin-3)). Do not move the contacts in
+the leads instead: that leaves non-standard leads.
+
+### 4.2 Set up
 
 - The robot on its stand, legs hanging free.
 - Servo leads in J4–J7. **J8 empty and the General Driver not connected**, so nothing can
@@ -477,7 +501,7 @@ short-circuit detector may read that as a short. Its delay is not published.*
   SERVO+ rising.
 - Camera running.
 
-### 4.2 Ten closures
+### 4.3 Ten closures
 
 Main switch on, E-stop at RUN. Then, ten times:
 
@@ -496,6 +520,12 @@ Main switch on, E-stop at RUN. Then, ten times:
 Afterwards: `SERVO_EN` free, E-stop at STOP, main switch off, unplug J1, then J2.
 
 ### Part 4 results
+
+| step | reading | expected | measured | pass |
+|---|---|---|---|---|
+| 4.1 | J4–J8: bevelled corner at pin 1 | all five | | |
+| 4.1 | pin 1 of J4–J7 to J8 pin 1; to W2 and SERVO+ | 0 Ω; open | | |
+| 4.1 | a stock lead's H5 D wire, in each of J4–J8, to J8 pin 1; to W2 | 0 Ω; open | | |
 
 | closure | BMS held | K1 dropped on STOP | notes (scope peak, if taken) |
 |---|---|---|---|
