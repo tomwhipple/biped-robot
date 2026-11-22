@@ -3922,9 +3922,10 @@ dirs AND WALKS AND x1.5 ≤ 2/8 on D):
   seed-holds +20, +60, −16), VA on 2 of 3 (+3, +6, −5). VH does not (−1, +6, −3). So the full volume helps and half of it does
   not; the warm start from GD's own teacher (VW) is the best of the three, as hypothesised, but its seed spread is as wide as
   GD's.
-- x1.5 on D: 4 of 11 students fall ≥ 5/8 (GD 2 of 8 seeds), so the volume costs some loop-gain margin on some seeds. On C
+- x1.5 on D: 4 of 11 students fall ≥ 5/8 (GD, where graded: 0/8 on seed 14, 1/8 and 4/8 on seeds 20, 21), so the volume may
+  cost loop-gain margin on some seeds; the spread is too wide to say more. On C
   (play + inset sole) both VW s1 and s2 fall 8/8: the margin there is no better than GD's (6/8 and 8/8 on seeds 20, 21).
-- Weight shift (D): VW's R-up shift is the weakest of the arms (+0.18 – +0.34 against GD's +0.48 – +0.61 on 11-20). A ranking aid
+- Weight shift (D): VW's R-up shift is the weakest of the arms (+0.18 – +0.34 against GD's +0.39 – +0.61 on seeds 14, 20, 21). A ranking aid
   only (rule 2), but worth watching: the volume's lateral draws may be teaching a narrower sway.
 
 **Distil gap** (card seed-passes of 160, teacher → student): VA 36→31, 31→30, 28→34, 21→26; VH 23→30, 25→27, 26→21, 20→22;
