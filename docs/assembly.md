@@ -105,7 +105,7 @@ The discs are tapped through a thin flange:
 
 - **2.5 mm on the horn and 2.1 mm on the idler**, measured on the bench and
   confirmed by sectioning `cad/vendor/ST3215.step` (`HORN_THREAD`,
-  `DISC_THREAD` in `cad/dimensions.py`);
+  `DISC_THREAD` in `cad/common/dimensions.py`);
 - an M3 × 6 has **5.6 mm** of thread (measured).
 
 A disc screw has to engage **at least 1.5 mm and no deeper than the flange**. A

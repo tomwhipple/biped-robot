@@ -45,7 +45,7 @@ The drawing's dimensions, in mm:
 - Horn and idler discs: Ø19.2, on a Ø14 4 × M3 bolt circle.
 - Case bosses: ±10.25 across the width, in rows 8.30 and 29.00 behind the output axis.
 
-`cad/dimensions.py` states the same numbers. The drawing is the receipt for them.
+`cad/common/dimensions.py` states the same numbers. The drawing is the receipt for them.
 
 ## Waveshare General Driver for Robots: the controller
 

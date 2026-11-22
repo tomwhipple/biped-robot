@@ -251,7 +251,7 @@ make cad                                               # every part whose source
   255 °C, bed 85 °C, 0.2 mm layers, 35 % infill.
 - **Bed prep:** the FlashForge glue is a release layer on the PEI plate (PETG
   bonds hard to bare PEI). Degrease the plate with IPA.
-- **Fits:** drop-in fits are `FIT = 0.30` mm (`cad/dimensions.py`). PETG runs
+- **Fits:** drop-in fits are `FIT = 0.30` mm (`cad/common/dimensions.py`). PETG runs
   hotter and strings more than PLA. On the first parts, check the snug
   interfaces: the grip channels on a servo case, the foot cradle, the pads on
   the discs. If anything binds, tune the flow or print a size test.
@@ -284,7 +284,7 @@ OrcaSlicer settings that work:
 - Read each supported part's audit findings (the `**` lines) against the slice
   preview.
 
-**The printability audits** use `cad/check_printability.py`'s engine, run by
+**The printability audits** use `cad/common/check_printability.py`'s engine, run by
 `cad/v6/audit_*.py` and by each module's `__main__`. They check each STL in its
 print orientation for bridges, ceilings, ledges, islands, first-layer contact
 and thin walls. The rules:
