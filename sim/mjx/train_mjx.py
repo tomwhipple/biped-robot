@@ -369,6 +369,18 @@ def make_parser():
                         "diagonal keeps its heading and a fast back + turn keeps its stride "
                         "difference (walker_env.mimic_lead_out). Off = the cardinal-band "
                         "reference")
+    p.add_argument("--mimic-turn-ref", action="store_true",
+                   help="#263, REQUIRES --mimic-volume-ref: the imitation reference turns with "
+                        "the hip yaws. Per step the stance sole yaws back about its hip by "
+                        "wz/(2f), so the reference yaws the body wz/f per cycle in single "
+                        "support (without it the hip yaws stay at home and the reference never "
+                        "turns the body). Lead foot out: the turn-side foot lands toe-out, the "
+                        "other closes parallel, and the turn-side foot stands out (0.3 rad "
+                        "hip roll per rad of toe-out) for heel room. Sole yaw capped at "
+                        "0.35 rad (wz 1 rad/s at 0.75 Hz unsaturated), on the volume "
+                        "reference's one saturation scale "
+                        "(walker_env.mimic_turn_out). Do not combine with --w-hip-yaw, which "
+                        "pays against the yaws. Off = hip yaws held at home")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -1122,6 +1134,10 @@ def build_env_kw(args):
         env_kw["mimic_dwell"] = args.mimic_dwell
     if getattr(args, "mimic_volume_ref", False):
         env_kw["mimic_volume_ref"] = True
+    if getattr(args, "mimic_turn_ref", False):
+        if not getattr(args, "mimic_volume_ref", False):
+            raise SystemExit("--mimic-turn-ref needs --mimic-volume-ref")
+        env_kw["mimic_turn_ref"] = True
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":
