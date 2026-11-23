@@ -3955,3 +3955,94 @@ six dir probes, WALKS, x1.5 ≤ 2/8 on D), i.e. it turns VW's 1 of 3 into ≥ 2 
 VW at the same seed. If M1 holds, the next night adds `--cmd-slew` on it (#266). If M1 does not hold but raises the lateral /
 diagonal probes on ≥ 2 of 3 seeds, it stays in the recipe and the next variable is the turn (hip-yaw reference, #346 "what
 remains"). If neither, the volume line pauses after one more night (rule 4).
+
+### Night of 2026-11-22 (evaluated 2026-11-23)
+
+**#263, night 2. Neither arm meets the pre-committed bar: M1 (`--mimic-volume-ref`) passes on 1 of seeds 14 – 16, the same as
+its parent VW, and M2 (stand band) on 1 of 3. M1 holds the most compass probes yet (18 of 18 on two seeds) but its loop-gain
+margin is seed-dependent (x1.5 on D 4/8 and 8/8 on the other two). Tonight is the volume line's third night (rule 4), and the
+last one with new variables unless an arm meets the bar: the turn reference (`--mimic-turn-ref`) and the command slew
+(`--cmd-slew`), each on M1.** Stride only; get-up stays parked. Nothing here needs Tom: the robot is still down (#297).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main 3891d6c (origin verified before every job). One fetch failed
+at 01:35 (DNS: "Could not resolve host github.com"); the retry a minute later verified the tip, so no job ran stale. M1 s4
+(seed 18) was capped at 245M of 300M. M2 s4 (seed 18) fitted 119M (< 50 %) and stayed queued; it goes to `queue/held/` today
+(`WHY-1123-band-s4-closed.txt`), because the band test is closed. **No fixer runs.** Collection 05:47 – 06:01, no STALE REFEREE.
+
+**Merged / branched.** Main did not move overnight. The 01:00 nightly-issues run built `--mimic-turn-ref` (#263's "the turn"
+item) on local branch `sim/263-turn-ref` (record `docs/design-v6/2026-11-23-volume-reference-turn.md`, test
+`tests/test_mimic_turn_ref.py`, parity R27). It never pushed: its log is empty and cron.log has no exit line, so it probably
+lost the network at 01:35. The flag is opt-in, needs `--mimic-volume-ref`, and its record shows the default path is
+bit-identical (17/17 arrays, CPU and MJX, on VW, M1 and M2). I pushed it through the pre-push gate and merged it, because
+tonight's T arm needs it (PR #347, squash 7f4af51).
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag `sag_L=6.4,sag_R=2.9`), A (as trained), B (play) and C (play +
+inset sole), and `COMPASS=only` on D; `/tmp/plan1123/`. A matches D within 0.02 on every shift. A compass probe is held when
+>= 6 of 8 grade seeds hold it. VW seeds 14 – 16 are yesterday's numbers (`/tmp/plan1122/`, same grade code). "lat/diag" =
+seed-holds over the 12 lateral and diagonal probes (FL, L, BL, BR, R, FR, each with and without a turn), of 96.
+
+| student (seed) | compass held /18 (seed-holds /144), D | VW same seed | lat/diag M1 or M2 vs VW | F>BR /8 | steps5 shift L-up / R-up, D | WALKS | fwd / back / side L / side R (m), turn L / R (deg), D | x1.5 falls D / C |
+|---|---|---|---|---|---|---|---|---|
+| M1 prec97_walk_sagdr_vol_i86_vref (14) | 16 (127) | 16 (129) | 87 vs 86 | 0 | −0.50 / +0.37 | yes | +0.74 −0.85 +0.56 −0.45, +114 −128 | **4/8** / 3/8 |
+| M1 _s1 (15) | **18 (140)** | 17 (140) | 94 vs 95 | 8 | −0.45 / +0.38 | yes | +0.75 −0.77 +0.51 −0.41, +127 −120 | 0/8 / 8/8 |
+| M1 _s2 (16) | **18 (143)** | 13 (108) | 96 vs 72 | 7 | −0.47 / +0.17 | yes | +0.74 −0.85 +0.51 −0.45, +109 −107 | **8/8** / 8/8 |
+| M1 _s3 (17, extra) | 13 (108) | 12 (102) | 76 vs 74 | 8 | −0.51 / +0.33 | **no** | +0.55 −0.93 +0.48 −0.51, +118 −100 | 1/8 / 0/8 |
+| M1 _s4 (18, 245M, extra) | 12 (105) | 15 (126) | 81 vs 96 | 0 | −0.62 / +0.39 | yes | +0.77 −0.86 +0.48 −0.45, +97 −103 | 0/8 / 2/8 |
+| M2 prec98_walk_sagdr_vol_i86_band (14) | 16 (129) | 16 | 81 vs 86 | 8 | −0.65 / +0.36 | yes | +0.71 −0.75 +0.51 −0.46, +126 −122 | 1/8 / 2/8 |
+| M2 _s1 (15) | 15 (118) | 17 | 78 vs 95 | 4 | −0.46 / +0.42 | yes | +0.82 −0.51 +0.40 −0.55, +103 −107 | 0/8 / 6/8 |
+| M2 _s2 (16) | 12 (97) | 13 | 54 vs 72 | 8 | −0.57 / +0.36 | yes | +0.85 −0.87 +0.24 −0.40, +108 −126 | 0/8 / 4/8 |
+| M2 _s3 (17, extra) | 14 (118) | 12 | 78 vs 74 | 0 | −0.50 / +0.37 | yes | +0.71 −0.85 +0.46 −0.38, +118 −127 | **8/8** / 5/8 |
+| VW prec96_walk_sagdr_vol_i86_s3 (17, control) | 12 (102) | – | 74 | 0 | −0.55 / +0.15 | yes | +0.60 (1 fall) −0.77 +0.38 −0.43, +115 −108 | 0/8 / 0/8 |
+| VW _s4 (18, control) | 15 (126) | – | 96 | 2 | −0.42 / +0.67 | yes | +0.62 −0.87 (1 fall) +0.49 −0.53, +114 −106 | 0/8 / 3/8 |
+
+Every student keeps all six directions on D; all walk except M1 seed 17. Card `stand_10s` is 8/8 on every student.
+
+**The pre-committed test** (11-22: an arm holds if in >= 2 of seeds 14 – 16 its student holds >= 16 compass probes AND keeps
+six dirs AND WALKS AND x1.5 <= 2/8 on D):
+- **M1: 1 of 3** (s1: 18, x1.5 0/8). s0 has 16 but x1.5 4/8; s2 has 18 but x1.5 8/8. **Not held.**
+- **M2: 1 of 3** (s0: 16, x1.5 1/8). s1 has 15, s2 has 12. **Not held.** Its own bar (stand_10s not lost) holds.
+- The fallback clause (M1 raises the lateral / diagonal probes on >= 2 of 3 seeds) is **not met in substance**: lat/diag
+  seed-holds against VW at the same seed are +1, −1, +24 (held probes 11 = 11, 12 = 12, 12 vs 9). One seed moves; two are
+  ties at or near the ceiling. Seeds 17 and 18 (extras) give +2 and −15.
+- What the five M1 seeds do show: median compass 16 (VW 15 over the same five seeds), and **F>BR held on 3 of 5 seeds** (VW
+  0 of 5, at most 5/8). M2 also holds F>BR on 2 of 4 seeds, so that gain is not specific to the foot placement; the
+  transition is seed-noisy. The turn combinations stay the most failed group: M1's turn-combo seed-holds against VW are
+  +3, −3, +21, +7, −8 of 64.
+- **The binding limit is x1.5 on D, not the compass.** Over seeds 14 – 18, 2 of 5 M1 students fall >= 4/8 at x1.5 (VW 1 of 5,
+  M2 1 of 4). The arms that hold the most probes are not the ones with margin, and the bar needs both on one seed.
+- M2 (`--cmd-stand-band 0.0005`) costs nothing beyond the seed spread: compass −0, −2, −1, +2 against VW at seeds 14 – 17,
+  x1.5 no worse on the counted seeds. It is how the firmware reads the zero command on a volume run, so it joins the recipe
+  when a deploy candidate is cut. It does not ride along on tonight's arms (one change per arm).
+- Weight shift (D; a ranking aid only, rule 2): M1's R-up shift is +0.17 – +0.39, VW's +0.15 – +0.67. No change.
+
+**Distil gap** (card seed-passes of 160, teacher → student): M1 25→30, 21→29, 18→34, 32→30, 29→32; M2 36→27, 30→29, 25→30,
+30→29; VW s3 28→28, s4 30→24. Median 0, range −9 to +16. The distil is not the limit.
+
+**Decision (rule 0 and rule 4, mine).** The volume line has run three nights (VA/VH/VW, M1/M2, tonight) with no
+hardware-confirmed gain, so by rule 4 tonight is its last night of new variables unless an arm meets the bar. The 11-22
+pre-commitment said "if neither, the volume line pauses after one more night". I use that night to test the two stated
+causes still open on #263, both on M1 (the most compass probes, and both flags build on its reference):
+- **T, the turn reference** (`--mimic-turn-ref`): the reference never yaws the body (finding 5 of the 11-22 foot-placement
+  record), and the turn combinations are the most failed probes. This is #263's next listed item.
+- **S, the command slew** (`--cmd-slew 0.5,0.4,1.5`, #266's rates): the 11-23 record shows every command change is a
+  91 – 144 mm jump of the planted foot's target, and the slew is the remedy. It is also what the firmware runs on a
+  slew-trained deploy (#266 "what remains"), and grade.py applies it to the compass and dir probes.
+The M2 leftover (seed 18) is held. VW and M1 already have five graded seeds, so no new control trains tonight; tomorrow's
+grading re-grades M1 at seeds 14 – 18 as the control.
+
+**Tonight (2026-11-23; queued, BRANCH=main, M1's recipe, 300M + distil each, interleaved T → S per seed, most informative first):**
+
+| arm | runs (seeds 14 / 15 / 16; 17 – 19 extra) | parent | variable | hypothesis |
+|---|---|---|---|---|
+| T | prec99_walk_sagdr_vol_i86_vref_turn (+ _s1 … _s5) | M1 | `--mimic-turn-ref` | the turn-combo probes hold on more seeds than M1 at the same seed; dir turn L / R closer to the command; no cardinal direction lost |
+| S | prec100_walk_sagdr_vol_i86_vref_slew (+ …) | M1 | `--cmd-slew 0.5,0.4,1.5` | F>BR and F>L hold on every seed; x1.5 on D no worse than M1's; compass >= M1's at the same seed |
+
+12 pairs; the last one or two may stay queued under the fit rule (about 10.5 pairs fit). Pre-flight passed 24/24.
+`fallback.job` is now M1 (seed 23); the VW one is `fallback.job.prec96-20261123`.
+
+**Pre-committed:** an arm holds if in >= 2 of seeds 14 – 16 its student meets the bar (>= 16 of 18 compass probes on D, six
+dir probes, WALKS, x1.5 <= 2/8 on D). T also counts as a partial gain if its turn-combo seed-holds beat M1's at the same seed
+on >= 2 of 3 seeds; S if F>BR is held on all 3 counted seeds with x1.5 no worse than M1's on >= 2. If an arm holds, the next
+night combines it with the other's flag if that one showed its partial gain, else replicates it. **If neither holds, the
+volume line pauses** (no new variables on it): the recipe keeps M1 + whatever partial gain held, and the next nights go to the
+x1.5 margin on the volume recipe (the limit this table shows), which is a new line with its own count.
