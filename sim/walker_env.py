@@ -390,9 +390,9 @@ def mimic_turn_out(model, default, lo, hi, i_yaw):
 # toe-out direction of each sole's yaw (L, R), CCW-positive about the torso's z
 MIMIC_TURN_OUT = (1.0, -1.0)
 # hip roll (rad) the turn's leading foot stands out by, per rad of its toe-out 2|Y|: room for the
-# heels in the V (0.2: >= 15 mm between the robot plant's legs on a full-rate pivot, where the V
-# without it overlaps the feet from wz ~0.5 rad/s)
-MIMIC_TURN_ROOM = 0.2
+# heels in the V. Without it the robot plant's feet overlap from a ~0.5 rad/s pivot; with 0.3 the
+# legs keep >= 10 mm apart over the volume (the closest: a slow walk with a full-rate turn)
+MIMIC_TURN_ROOM = 0.3
 
 
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach

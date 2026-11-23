@@ -375,9 +375,10 @@ def make_parser():
                         "wz/(2f), so the reference yaws the body wz/f per cycle in single "
                         "support (without it the hip yaws stay at home and the reference never "
                         "turns the body). Lead foot out: the turn-side foot lands toe-out, the "
-                        "other closes parallel, and the turn-side foot stands out a little "
-                        "(hip roll) for heel room. Sole yaw capped at 0.35 rad (wz 1 rad/s at "
-                        "0.75 Hz unsaturated), on the volume reference's one saturation scale "
+                        "other closes parallel, and the turn-side foot stands out (0.3 rad "
+                        "hip roll per rad of toe-out) for heel room. Sole yaw capped at "
+                        "0.35 rad (wz 1 rad/s at 0.75 Hz unsaturated), on the volume "
+                        "reference's one saturation scale "
                         "(walker_env.mimic_turn_out). Do not combine with --w-hip-yaw, which "
                         "pays against the yaws. Off = hip yaws held at home")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",

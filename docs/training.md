@@ -418,7 +418,8 @@ The reference's stride is joint-space: per leg a fore-aft hip-pitch swing
 `A = 1.4·(vx ∓ 0.028·wz)/f` and a lateral hip-roll swing `B = 1.1·vy/f`, both
 following the clock's cosine, so a diagonal command is the sum of the two
 (within 5° of the commanded heading). Turning is the stride difference between
-the legs; the hip yaws stay at home, so the reference never yaws a foot. With
+the legs; the hip yaws stay at home (unless `--mimic-turn-ref`, below), so the
+reference never yaws a foot. With
 a lateral command the legs swing −/+ about home, so the stance narrows by half
 a cycle's lateral travel at every other touchdown: from |vy| ≈ 0.04 m/s the
 closing foot lands on the other one, and past ≈ 0.13 m/s across it.
@@ -434,6 +435,27 @@ or saturated command the two references are identical. `mimic_lead_out`
 kinematics; `tests/test_mimic_volume_ref.py` pins the stance width, the
 heading and the lead-out, parity block R26 the CPU/MJX agreement. The check
 behind it: `docs/design-v6/2026-11-22-volume-reference-foot-placement.md`.
+
+`--mimic-turn-ref` (needs `--mimic-volume-ref`, #263) makes the reference turn
+with the hip yaws. Without it no sole ever yaws relative to the torso, so in
+single support the reference cannot yaw the body and a turn is learned from
+the tracking reward alone. With it each stance sole yaws back about its hip by
+wz/(2f) over its half cycle, on the stride's cosine, so the reference yaws the
+body wz/f per cycle; the stride difference stays, as the hips' own travel.
+The lead foot opens: the turn-side foot lands toe-out by a cycle's turn per
+leg (2|Y|, |Y| = wz/(4f)), the other closes parallel, and neither ever toes
+in. In that V the heels converge, so the turn-side foot also stands out by
+0.3 rad of hip roll per rad of its toe-out for the whole cycle (a constant
+offset, so no lateral travel). |Y| is capped at 0.35 rad (wz = 1 rad/s at
+0.75 Hz is not saturated; the hip yaw reaches 0.70 of its 0.785 rad policy
+range) on the volume reference's one saturation scale, whose lateral cap now
+covers the lead-out roll plus that room roll, so a saturated command keeps its
+path's curvature. With no turn command it is the volume reference exactly.
+`mimic_turn_out` (`sim/walker_env.py`) solves the hip-yaw sign on the plant;
+`tests/test_mimic_turn_ref.py` pins the body yaw, the lead-out, the leg
+clearance and the joint ranges, parity block R27 the CPU/MJX agreement. Do not
+combine it with `--w-hip-yaw`, which pays against the yaws. The check behind
+it: `docs/design-v6/2026-11-23-volume-reference-turn.md`.
 
 A march is a lifted command, and a lifted command gates `w_mimic` off (and
 `w_pose`, `w_feet_phase`, `w_walk_shift`, which are gated on a moving, unlifted
