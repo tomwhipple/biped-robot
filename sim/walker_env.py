@@ -342,6 +342,59 @@ def mimic_lead_out(model, sg_roll, default, lo, hi, i_roll, i_aroll=None):
     return np.array(signs), float(min(MIMIC_B_MAX, 0.5 * min(room)))
 
 
+# The turn reference's per-leg sole-yaw amplitude cap (rad): |Y| = wz / (4 f) and each leg's yaw
+# spans [0, 2|Y|] outward of home (toe out), so the soles open to a V of 4|Y| at the leading foot's
+# touchdown. 0.35 leaves wz = 1 rad/s at 0.75 Hz unsaturated and fits the robot's +/-0.785 rad
+# hip-yaw policy range (FK record: docs/design-v6/2026-11-23-volume-reference-turn.md).
+MIMIC_Y_MAX = 0.35
+
+
+def mimic_turn_out(model, default, lo, hi, i_yaw):
+    """Calibration for the turn imitation reference (mimic_turn_ref, #263): per leg (L, R), the
+    joint sign k such that a hip-yaw offset of +k rotates that leg's sole by +1 rad about the
+    torso's z axis (CCW seen from above; finite difference on MuJoCo kinematics, torso fixed, so
+    the sign comes from the model), and the largest per-leg yaw amplitude Y the lead-out profile
+    can use: each leg's sole yaw spans [0, 2|Y|] OUTWARD of home (toe out: L CCW, R CW), so 2|Y|
+    must fit the hip yaw's outward range in the env's own policy-joint ranges (default, lo, hi:
+    per policy joint; i_yaw: the (L, R) indices), the ones _mimic_ref clips to. Capped at
+    MIMIC_Y_MAX. Returns ((2,) signs, y_max). Jax-free; both envs call it on their own model and
+    ranges so the reference is identical in both."""
+    import mujoco
+    d = mujoco.MjData(model)
+    q0 = model.qpos0.copy()
+    torso = model.body("torso").id
+    default, lo, hi = (np.asarray(v, dtype=float) for v in (default, lo, hi))
+    signs, room = [], []
+    for li, side in enumerate("LR"):
+        ay = model.jnt_qposadr[model.joint(f"{side}_hip_yaw").id]
+        sole = model.geom(f"{side}_sole").id
+
+        def yaw(x):
+            d.qpos[:] = q0
+            d.qpos[ay] += x
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3).T @ d.geom_xmat[sole].reshape(3, 3)
+            return float(np.arctan2(R[1, 0], R[0, 0]))
+        dpsi = (yaw(1e-4) - yaw(-1e-4)) / 2e-4
+        if abs(abs(dpsi) - 1.0) > 0.05:
+            raise ValueError(f"mimic_turn_ref: {side} hip yaw turns the sole {dpsi:.3f} rad/rad, "
+                             "not about the vertical")
+        k = float(np.sign(dpsi))
+        signs.append(k)
+        out = (1.0 if side == "L" else -1.0) * k          # the joint direction of toe-out
+        i = int(np.ravel(i_yaw)[li])
+        room.append(float(hi[i] - default[i]) if out > 0 else float(default[i] - lo[i]))
+    return np.array(signs), float(min(MIMIC_Y_MAX, 0.5 * min(room)))
+
+
+# toe-out direction of each sole's yaw (L, R), CCW-positive about the torso's z
+MIMIC_TURN_OUT = (1.0, -1.0)
+# hip roll (rad) the turn's leading foot stands out by, per rad of its toe-out 2|Y|: room for the
+# heels in the V (0.2: >= 15 mm between the robot plant's legs on a full-rate pivot, where the V
+# without it overlaps the feet from wz ~0.5 rad/s)
+MIMIC_TURN_ROOM = 0.2
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -979,6 +1032,7 @@ class BimoWalkerEnv(gym.Env):
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march (mirror of env_mjx)
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (dwell_swing); 0 = the plain clock (bit-exact)
         mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume -- lateral strides lead-foot-out / trail-foot-closes (the stance never narrows below home), and the stride saturates along the command's own direction (mimic_lead_out); False = the cardinal-band reference (bit-exact)
+        mimic_turn_ref: bool = False,    # #263, needs mimic_volume_ref: a turn command yaws the soles (hip yaw) per step about the stance hip, lead foot out / trail foot closes, so the reference yaws the body wz/f per cycle (mimic_turn_out); False = hip yaws held at home (bit-exact)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -2005,6 +2059,17 @@ class BimoWalkerEnv(gym.Env):
             self._lead_out, self._vref_bmax = mimic_lead_out(
                 self.model, self._sg_roll if aro else None, self._default, self._lo,
                 self._hi, self._i_roll, self._i_aroll if aro else None)
+        self.mimic_turn_ref = bool(mimic_turn_ref)
+        if self.mimic_turn_ref:
+            if not self.mimic_volume_ref:
+                raise ValueError("mimic_turn_ref needs mimic_volume_ref (the turn's lead-out and "
+                                 "saturation extend the volume reference's)")
+            _ly, _ry = self._legL.get("hip_yaw"), self._legR.get("hip_yaw")
+            if _ly is None or _ry is None:
+                raise ValueError("mimic_turn_ref needs hip-yaw policy joints")
+            self._i_yaw = np.array([_ly, _ry])
+            self._yaw_sign, self._vref_ymax = mimic_turn_out(
+                self.model, self._default, self._lo, self._hi, self._i_yaw)
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -2489,6 +2554,15 @@ class BimoWalkerEnv(gym.Env):
             B = 1.1 * float(cmd[1]) / f
             sc = min(1.0, MIMIC_A_MAX / max(float(np.max(np.abs(A))), 1e-9),
                      self._vref_bmax / max(abs(B), 1e-9))
+            if self.mimic_turn_ref:
+                # the turn (mirror of env_mjx): each stance half yaws the body wz / (2 f), so a
+                # sole's yaw amplitude is wz / (4 f). It shares the one saturation scale (a
+                # saturated command keeps its path's curvature), capped at y_max, and the lateral
+                # cap covers the lead-out roll plus the turn's room roll (both outward)
+                Y = float(cmd[2]) / (4.0 * f)
+                sc = min(sc, self._vref_ymax / max(abs(Y), 1e-9),
+                         self._vref_bmax / max(abs(B) + MIMIC_TURN_ROOM * abs(Y), 1e-9))
+                Y = Y * sc
             A = A * sc
             B = B * sc
         else:
@@ -2523,6 +2597,13 @@ class BimoWalkerEnv(gym.Env):
             # instead of home -/+ half of it (which landed the closing foot on, or across,
             # the other one)
             roll = roll + abs(B) * self._lead_out
+        if self.mimic_turn_ref:
+            # room for the turn's V (mirror of env_mjx): the leading foot (L on a left turn) lands
+            # toe-out 2|Y| beside a trailing foot that ends its stance toe-out 2|Y| too, so their
+            # heels converge; that foot stands out by MIMIC_TURN_ROOM * 2|Y| of hip roll the whole
+            # cycle (a constant offset: no lateral travel)
+            roll = roll + (MIMIC_TURN_ROOM * 2.0 * np.maximum(Y * np.array(MIMIC_TURN_OUT), 0.0)
+                           * self._lead_out)
         if self.mimic_sway != 0.0:
             # lateral weight shift (mirror of env_mjx): the torso moves toward
             # the stance foot by mimic_sway, leading the swing by the lead
@@ -2558,6 +2639,13 @@ class BimoWalkerEnv(gym.Env):
             s_hr, s_ar = self._sg_roll
             q[self._i_aroll] = (d[self._i_aroll]
                                 - s_hr * (roll - d[self._i_roll]) / s_ar)
+        if self.mimic_turn_ref:
+            # the soles yaw about the stance hip (mirror of env_mjx; mimic_turn_out): a stance
+            # sole's yaw sweeps 2Y back across its half cycle on the same cosine as the stride
+            # (the body yaws 2Y on it), offset |Y| toe-out, so each sole's yaw spans [0, 2|Y|]
+            # outward of home -- the turn's leading foot opens, the trailing one closes parallel
+            psi = Y * xn + abs(Y) * np.array(MIMIC_TURN_OUT)
+            q[self._i_yaw] = d[self._i_yaw] + self._yaw_sign * psi
         return np.clip(q, self._lo, self._hi)
 
     def _sample_command(self):

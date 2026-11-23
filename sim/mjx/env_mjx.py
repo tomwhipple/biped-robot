@@ -701,6 +701,7 @@ class BimoMJXEnv:
         mimic_march: float = 0.0,        # m: during a gait-clock march (march_mix) the imitation reference lifts the swing sole this high (IK) on the clock, with mimic_sway and no stride; 0 = the reference is off during a march
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (walker_env.dwell_swing); 0 = the plain clock (bit-exact)
         mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume (walker_env.mimic_lead_out): lateral strides lead-foot-out / trail-foot-closes, saturation along the command's direction; False = the cardinal-band reference (bit-exact)
+        mimic_turn_ref: bool = False,    # #263, needs mimic_volume_ref: a turn command yaws the soles (hip yaw) per step about the stance hip, lead foot out / trail foot closes, so the reference yaws the body wz/f per cycle (walker_env.mimic_turn_out); False = hip yaws held at home (bit-exact)
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -1407,6 +1408,18 @@ class BimoMJXEnv:
                 np.asarray(self._lo), np.asarray(self._hi), np.asarray(self._i_roll),
                 np.asarray(self._i_aroll) if aro else None)
             self._lead_out = jp.asarray(lo_s)
+        self.mimic_turn_ref = bool(mimic_turn_ref)
+        if self.mimic_turn_ref:
+            if not self.mimic_volume_ref:
+                raise ValueError("mimic_turn_ref needs mimic_volume_ref (the turn's lead-out and "
+                                 "saturation extend the volume reference's)")
+            if self._i_yaw is None:
+                raise ValueError("mimic_turn_ref needs hip-yaw policy joints")
+            from walker_env import mimic_turn_out      # jax-free, shared with the CPU env
+            ys, self._vref_ymax = mimic_turn_out(
+                m, np.asarray(self._default), np.asarray(self._lo), np.asarray(self._hi),
+                np.asarray(self._i_yaw))
+            self._yaw_sign = jp.asarray(ys)
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -2199,6 +2212,17 @@ class BimoMJXEnv:
             sc = jp.minimum(1.0, jp.minimum(
                 MIMIC_A_MAX / jp.maximum(jp.max(jp.abs(A)), 1e-9),
                 self._vref_bmax / jp.maximum(jp.abs(B), 1e-9)))
+            if self.mimic_turn_ref:
+                # the turn (mirror of walker_env): sole yaw amplitude wz / (4 f) on the same
+                # saturation scale, capped at y_max; the lateral cap covers the lead-out roll
+                # plus the turn's room roll
+                from walker_env import MIMIC_TURN_ROOM
+                Y = cmd[2] / (4.0 * f)
+                sc = jp.minimum(sc, jp.minimum(
+                    self._vref_ymax / jp.maximum(jp.abs(Y), 1e-9),
+                    self._vref_bmax / jp.maximum(jp.abs(B) + MIMIC_TURN_ROOM * jp.abs(Y),
+                                                 1e-9)))
+                Y = Y * sc
             A = A * sc
             B = B * sc
         else:
@@ -2227,6 +2251,12 @@ class BimoMJXEnv:
             # lead foot out, trail foot closes (walker_env.mimic_lead_out): each roll offset
             # |B| outward, the stance width spans [home, home + lateral travel per cycle]
             roll = roll + jp.abs(B) * self._lead_out
+        if self.mimic_turn_ref:
+            # room for the turn's V (mirror of walker_env): the leading foot stands out by
+            # MIMIC_TURN_ROOM * 2|Y| of hip roll the whole cycle (constant: no lateral travel)
+            from walker_env import MIMIC_TURN_OUT, MIMIC_TURN_ROOM
+            roll = roll + (MIMIC_TURN_ROOM * 2.0
+                           * jp.maximum(Y * jp.array(MIMIC_TURN_OUT), 0.0) * self._lead_out)
         if self.mimic_sway != 0.0:
             # lateral weight shift (2026-11-09 hardware: hip roll moved 4-8 deg,
             # the R foot never unloaded; this reference held the rolls at the
@@ -2267,6 +2297,12 @@ class BimoMJXEnv:
             s_hr, s_ar = self._sg_roll
             q = q.at[self._i_aroll].set(
                 d[self._i_aroll] - s_hr * (roll - d[self._i_roll]) / s_ar)
+        if self.mimic_turn_ref:
+            # the soles yaw about the stance hip (mirror of walker_env): the stance sole's yaw
+            # sweeps 2Y back across its half cycle (the body yaws 2Y), offset |Y| toe-out
+            from walker_env import MIMIC_TURN_OUT
+            psi = Y * xn + jp.abs(Y) * jp.array(MIMIC_TURN_OUT)
+            q = q.at[self._i_yaw].set(d[self._i_yaw] + self._yaw_sign * psi)
         return jp.clip(q, self._lo, self._hi)
 
     def _draw_traj(self, rng: jax.Array) -> jax.Array:
