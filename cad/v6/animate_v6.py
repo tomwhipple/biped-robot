@@ -140,7 +140,10 @@ def main():
         export_stl(ch, os.path.join(tmp, f"p{i}.stl"))
     ngroups = max(g for _, _, _, g in pieces if g < 99) + 1
     # one MJCF with every piece as a free-positioned body (mocap) so we can move it per frame
-    xml = ['<mujoco><compiler meshdir="."/><visual><global offwidth="1280" offheight="960"/><headlight diffuse="0.55 0.55 0.55" ambient="0.35 0.35 0.37"/></visual>',
+    # extent 4 / shadowsize 8192: the shadow frustum is sized from the model extent,
+    # and at the part-sized default the 4 m floor lies far outside it -- llvmpipe
+    # (Mesa software EGL) then speckles the floor's horizon with shadow acne (#80).
+    xml = ['<mujoco><compiler meshdir="."/><statistic extent="4"/><visual><global offwidth="1280" offheight="960"/><headlight diffuse="0.55 0.55 0.55" ambient="0.35 0.35 0.37"/><quality shadowsize="8192"/></visual>',
            '<asset><texture name="sky" type="skybox" builtin="gradient" rgb1="0.95 0.96 0.97" rgb2="0.84 0.86 0.90" width="256" height="256"/>',
            '<texture name="grid" type="2d" builtin="checker" rgb1="0.9 0.9 0.92" rgb2="0.8 0.8 0.84" width="512" height="512"/>',
            '<material name="floor" texture="grid" texrepeat="10 10" texuniform="true"/>']

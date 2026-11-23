@@ -29,6 +29,8 @@ A harmless `EGLError` traceback may print at exit. Check that `nvidia-smi
     (and the armless variant's [strip](assembly/assembly_v6_flyin_strip.png))
 
   `make movies` writes the movies, with their strips, to `build/v6/movies/`.
+  The CPU recipe above renders them clean: the script sets `<statistic extent>` and
+  the shadow-map size so llvmpipe does not speckle the floor's horizon (#80).
 - **STEP models to open in FreeCAD:** `build/v6/step/assembly_v6_arms.step`
   (the robot, from `make assembly`) and the per-part STEPs beside it (from
   `make cad`; [cad/README.md](../cad/README.md)).
