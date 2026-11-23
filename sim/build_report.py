@@ -434,6 +434,20 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-23 card: night 33 -- #263 night 2: the foot-placement reference and the stand band each meet the bar on 1 of 3 seeds;
+# tonight the volume line's last night: the turn reference and the command slew.
+fig_1123 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec97_walk_sagdr_vol_i86_vref_s1_s128r24', ['square_return'],
+                 'robot_legs_prec97_walk_sagdr_vol_i86_vref_s1_s128r24_square_return',
+                 'M1 seed 15, the volume with the new foot placement: all 18 compass headings held and 0/8 falls at x1.5 '
+                 'on the sag plant, the one seed of three that meets the bar'),
+    video_figure('robot_legs_prec97_walk_sagdr_vol_i86_vref_s2_s128r24', ['square_return'],
+                 'robot_legs_prec97_walk_sagdr_vol_i86_vref_s2_s128r24_square_return',
+                 'M1 seed 16: also all 18 headings, but 8/8 falls when the servos run 1.5x faster than modelled'),
+    video_figure('robot_legs_prec96_walk_sagdr_vol_i86_s2_s128r24', ['square_return'],
+                 'robot_legs_prec96_walk_sagdr_vol_i86_s2_s128r24_square_return',
+                 'control: the parent VW at seed 16, the old foot placement: 13 of 18 headings'),
+] if f)
 # 2026-11-22 card: night 32 -- the first command-volume arms (#263): none meets the bar, the volume widens the follower;
 # tonight the reference's foot placement (--mimic-volume-ref) and the stand band on the best arm.
 fig_1122 = "\\n    ".join(f for f in [
@@ -1253,6 +1267,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·23 · night 33: the new foot placement holds every heading on two seeds, but the margin is the limit</span></p>
+    <p><b>Last night tried the training reference's new foot placement</b> (#346: for sideways and diagonal commands the leading
+    foot steps out and the other closes to its normal width) and, in a second arm, counting slow commands as walking (#345).
+    <b>Neither met the bar</b> of 2 of 3 seeds holding 16 of 18 compass headings with the six directions and the loop-gain margin:
+    each did it on 1 seed of 3, like the parent. <b>The foot placement holds the most headings yet</b>: all 18 on two seeds, and
+    the forward-to-back-right change that no policy learned before now holds on 3 of 5 seeds. But two of its five seeds fall
+    when the servos are 1.5x faster than modelled (4/8 and 8/8), and that margin, not the headings, is what keeps it under
+    the bar. Counting slow commands as walks costs nothing measurable.</p>
+    <p><b>Tonight</b> is the last night of new variables for this line, unless an arm meets the bar. It tests two remaining causes,
+    each on the foot-placement arm with three seeds plus extras. The first is a reference that turns the feet with the hip yaws
+    (#347, merged this morning): until now the reference never turned the body, and the walk-plus-turn headings fail most.
+    The second ramps each command change as the firmware will (#266), instead of stepping it. This is a simulation test only;
+    the robot is still down for its hip repair. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1123}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·22 · night 32: training on every walking direction widens what the policy follows, but no arm passed the bar</span></p>
     <p><b>Last night trained the first policies on the whole command volume</b> (any mix of forward, sideways and turning; #263)
