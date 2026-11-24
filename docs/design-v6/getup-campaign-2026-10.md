@@ -4046,3 +4046,106 @@ on >= 2 of 3 seeds; S if F>BR is held on all 3 counted seeds with x1.5 no worse 
 night combines it with the other's flag if that one showed its partial gain, else replicates it. **If neither holds, the
 volume line pauses** (no new variables on it): the recipe keeps M1 + whatever partial gain held, and the next nights go to the
 x1.5 margin on the volume recipe (the limit this table shows), which is a new line with its own count.
+
+### Night of 2026-11-23 (evaluated 2026-11-24)
+
+**#263, night 3: neither arm meets the pre-committed bar, and neither shows its partial gain. T (`--mimic-turn-ref`) passes
+on 0 of seeds 14 – 16. It holds fewer turn combinations than M1 at every counted seed, and two of its counted seeds fall 8/8
+at x1.5. S (`--cmd-slew 0.5,0.4,1.5`) passes on 1 of 3. Its x1.5 bit passes on D on 5 of 5 seeds, but its cut-off gain g\*
+is 1.6 on four of them: no more margin than M1. As pre-committed, the volume line pauses with M1 as its recipe. Tonight is
+night 1 of the x1.5 margin line on M1: three arms from the 11-24 diagnosis record.** Stride only; get-up stays parked.
+Nothing here needs Tom: the robot is still down (#297).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (039182d → 1f21d3e as main moved; origin verified before every
+job). T s5 (seed 19) was capped at 223M of 300M. S s5 (seed 19) fitted 104M (< 50 %) and stayed queued. It goes to
+`queue/held/` today (`WHY-1124-slew-s5-held.txt`), because S is closed. **No fixer runs.** Collection 05:51 – 06:07, no STALE
+REFEREE.
+
+**Merged / branched.** Nothing by me. Main gained three items:
+- #348 `--mimic-volume-cal` (opt-in; it calibrates the volume reference's stride travel to the command).
+- #349 `--moving-lift` (opt-in, #297).
+- The x1.5 margin diagnosis record (fce0fe2, `docs/design-v6/2026-11-24-volume-x15-margin.md`) and the 11-16 stance-tips
+  record.
+
+All are opt-in or records with default-path identity, and no run last night used them, so every comparison stands. grade.py
+is unchanged since 11-23, so M1's grades in `/tmp/plan1123/` are the control at the same code.
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag), A (as trained), B (play) and C (play + inset sole), plus
+`COMPASS=only` on D; outputs in `/tmp/plan1124/`. I also ran a gain ladder at x1.6 and x1.75 on D
+(`experiments/policy/x15-margin/run.sh`, 176 episodes, `/tmp/plan1124/ladder/`), because the record shows that x1.5 is one bit
+per student. g\* is the lowest gain at which the student falls ≥ 4/8; M1's g\* comes from the record's ladder. A compass probe
+is held when ≥ 6 of 8 grade seeds hold it. "turn-combo" counts seed-holds over the 8 compass probes that include a turn (of 64).
+A matches D on x1.5 within one fall everywhere.
+
+| student (seed) | compass held /18, D (seed-holds) | M1 same seed | turn-combo vs M1 | F>BR /8 | steps5 shift L-up / R-up, D | walk 0.3→stop dx2.5 (m) | fwd / back / side L / side R (m), turn L / R (deg), D | x1.5 falls D / C | g\* D (M1) |
+|---|---|---|---|---|---|---|---|---|---|
+| T prec99_…_vref_turn (14) | 10 (84) | 16 (127) | 24 vs 56 | 0 | −0.60 / +0.40 | 0.32 | +0.51 (1 fall) −0.74 +0.45 −0.46, +109 −134 | **8/8** / 0/8 | 1.5 (1.5) |
+| T _s1 (15) | 15 (120) | 18 (140) | 48 vs 60 | 8 | −0.56 / +0.30 | 0.41 | +0.81 −0.77 +0.41 −0.52, +136 −131 | **8/8** / 2/8 | 1.5 (1.7) |
+| T _s2 (16) | 14 (123) | 18 (143) | 52 vs 64 | 3 | −0.51 / +0.17 | 0.37 | +0.77 −0.60 +0.47 −0.46, +124 −141 | 0/8 / 8/8 | 1.75 (1.5) |
+| T _s3 (17, extra) | 17 (140) | 13 (108) | 60 vs 43 | 8 | −0.36 / +0.32 | 0.31 | +0.63 −0.76 +0.53 −0.49, +113 −123 | 0/8 / 8/8 | > 1.75 (1.6) |
+| T _s4 (18, extra) | 17 (139) | 12 (105) | 64 vs 44 | 8 | −0.58 / +0.40 | 0.40 | +0.77 −0.90 +0.48 −0.52, +133 −121 | 0/8 / 5/8 | 1.75 (1.7) |
+| T _s5 (19, 223M, extra) | 13 (114) | – | 47 | 4 | −0.50 / +0.39 | 0.38 | +0.78 −0.90 +0.48 −0.47, +122 −109 | 0/8 / 8/8 | 1.75 |
+| S prec100_…_vref_slew (14) | 17 (136) | 16 | 56 vs 56 | 8 | −0.42 / +0.37 | **0.29** | +0.54 −0.86 +0.50 −0.48, +98 −135 | 0/8 / 0/8 | 1.6 (1.5) |
+| S _s1 (15) | 14 (117) | 18 | 51 vs 60 | 0 | −0.56 / +0.31 | **0.30** | +0.51 (1 fall) −0.92 +0.54 −0.48, +122 −137 | 0/8 / 4/8 | 1.6 (1.7) |
+| S _s2 (16) | 17 (138) | 18 | 58 vs 64 | 8 | −0.50 / +0.60 | 0.40 | +0.89 −0.92 +0.46 −0.59, +99 −133 | 0/8 / 8/8 | 1.6 (1.5) |
+| S _s3 (17, extra) | 16 (128) | 13 | 56 vs 43 | 1 | −0.45 / +0.30 | **0.28** | +0.39 (**4 falls**) −0.85 +0.47 −0.56, +109 −126 | 2/8 / 8/8 | 1.6 (1.6) |
+| S _s4 (18, extra) | 15 (126) | 12 | 53 vs 44 | 1 | −0.51 / +0.45 | 0.40 | +0.91 −0.85 +0.48 −0.47, +111 −129 | 0/8 / 6/8 | 1.75 (1.7) |
+
+Every student keeps all six directions on D. Every card has `stand_10s` 8/8. WALKS needs dx2.5 ≥ 0.3 m; the bold entries
+fail it.
+
+**The pre-committed test** (11-23: an arm holds if in ≥ 2 of seeds 14 – 16 its student holds ≥ 16 compass probes AND keeps six
+dirs AND WALKS AND x1.5 ≤ 2/8 on D):
+- **T: 0 of 3.** Its counted seeds hold 10, 15 and 14 compass probes; seeds 14 and 15 fall 8/8 at x1.5. **Partial gain (turn
+  combos above M1 on ≥ 2 of 3): not met.** It is 32, 12 and 12 seed-holds below M1 on the counted seeds and +17 and +20 on
+  the extras 17 and 18. Paired compass against M1 over seeds 14 – 18: −6, −3, −4, +4, +5. The turn reference makes the seed
+  spread wider, not better. **Closed.**
+- **S: 1 of 3** (s2: 17, x1.5 0/8, WALKS). s0 has 17 and x1.5 0/8 but walks 0.291 m. s1 has 14 and walks 0.296 m.
+  **Partial gain (F>BR on all 3 and x1.5 no worse than M1 on ≥ 2): not met**, because F>BR is held on 2 of 3 seeds.
+  - The WALKS misses are by 4 – 9 mm. The slew ramps 0 → 0.3 m/s over 0.6 s, which takes ~0.09 m off dx2.5 before the gait
+    does anything. With that correction s0 would pass, and S would be 2 of 3.
+  - I am **not** counting that, because the correction comes after the result.
+  - Its forward travel is also weaker: dir fwd +0.54 and +0.51 at seeds 14 and 15, against M1's +0.74 and +0.75. Seed 17
+    falls 4/8 on dir fwd. The ramp explains ~0.09 m of that, not 0.2 m.
+  - The margin gain is one bit only. Every S seed passes x1.5 on D, but g\* is 1.6 on seeds 14 – 17 and 1.75 on 18. That is
+    a narrower spread than M1's (1.5 – 1.7) with the same median. On C, S falls 0, 4, 8, 8 and 6 of 8 (M1: 3, 8, 8, 0, 2).
+  - S is closed. The slew is still what the firmware will run on a slew-trained deploy (#266), and on this evidence it costs
+    little, so it is a candidate for the deploy cut, not for the training recipe.
+- Distil gap (card seed-passes of 160, teacher → student): T +6, +4, −9, +5, +3, +10; S 0, −2, +3, 0, +5. The median is +3. The
+  distil is not the limit.
+- Weight shift (D, a ranking aid only, rule 2): T's R-up shift is +0.17 – +0.40 and S's +0.30 – +0.60, against M1's +0.17 – +0.39.
+  No change.
+
+**Decision (rule 0 and rule 4, mine).**
+- The volume line has had its three nights with no hardware-confirmed gain and no arm at the bar, so it **pauses**. No new
+  variables go on it. M1 (`--mimic-volume-ref` on VW) stays the recipe.
+- T and S are closed. `--mimic-volume-cal` (#348) is a volume-line variable and waits too.
+- The margin line starts tonight (night 1 of 3 by rule 4). It runs the record's three ranked arms on M1, at M1's seeds:
+  - **L1** `--loop-gain-range 1.0,1.6`: the only lever that has moved g\* (prec35).
+  - **L2** `--loop-gain-range 1.0,1.3`: a smaller dose, which brackets L1.
+  - **L3** `--w-stand-home 0.05`: a stand-gated pull onto home, against the slow yaw/scissor drift.
+- I rebuilt the jobs once this morning. The first draft used S as the parent. I moved it back to M1, because S met the bar
+  only with a correction made after the result and its g\* is no better.
+- M1 already has five graded seeds and a ladder, so no control trains tonight. Its grades are the control.
+
+**Tonight (2026-11-24; queued, BRANCH=main, M1's recipe = warm start prec86, 300M + distil each, interleaved L1 → L2 → L3 per
+seed, most informative first):**
+
+| arm | runs (seeds 14 / 15 / 16; 17 extra) | parent | variable | hypothesis |
+|---|---|---|---|---|
+| L1 | prec101_walk_sagdr_vol_i86_vref_lg16 (+ _s1, _s2; _s3) | M1 | `--loop-gain-range 1.0,1.6` | g\* ≥ 1.75 on ≥ 2 of 3 seeds; x1.5 ≤ 2/8 on D on 3 of 3 and on C on ≥ 2 of 3 |
+| L2 | prec102_walk_sagdr_vol_i86_vref_lg13 (+ …) | M1 | `--loop-gain-range 1.0,1.3` | g\* ≥ 1.6 on 3 of 3 (so x1.5 passes on D on 3 of 3) at M1's compass and turn |
+| L3 | prec103_walk_sagdr_vol_i86_vref_shome (+ …) | M1 | `--w-stand-home 0.05` | g\* ≥ 1.6 on ≥ 2 of 3 with compass ≥ M1's at the same seed |
+
+The queue holds 12 pairs. About 10.5 fit, so some of the seed-17 extras may stay queued. They do not count toward the
+criterion. Pre-flight passed 24/24. `fallback.job` stays M1 (seed 23).
+
+**Pre-committed.** All on D unless stated. Grading is grade.py plus the ladder at x1.5 / 1.6 / 1.75 / 2.0. WALKS uses the plain
+0.3 m, since no arm has a slew. An arm holds if its hypothesis is met on the seeds stated AND its cost guard holds: compass
+≥ 16 on ≥ 2 of 3 seeds, all six dir probes with no dir fwd falls, WALKS, and dir turn L / R ≥ 90° (prec35 lost ~45 % of its
+turn). For L2 the guard is tighter: compass within 1 probe and turn within 10 % of M1 at the same seed.
+- **If L1 or L2 holds**, it is the recipe's margin term. Next night it gets the stand band (`--cmd-stand-band 0.0005`, M2's
+  cost-free fix), and a deploy candidate is cut from it with a C-plant check.
+- **If L1 holds the margin but fails the cost guard while L2 meets both**, L2 is the term.
+- **If no arm moves g\* on ≥ 2 of 3 seeds**, the record's levers are spent. The next step is the record's untested guess, a
+  longer stand in training (it needs code), and it is stated as a guess.
