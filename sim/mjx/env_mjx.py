@@ -702,6 +702,7 @@ class BimoMJXEnv:
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (walker_env.dwell_swing); 0 = the plain clock (bit-exact)
         mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume (walker_env.mimic_lead_out): lateral strides lead-foot-out / trail-foot-closes, saturation along the command's direction; False = the cardinal-band reference (bit-exact)
         mimic_turn_ref: bool = False,    # #263, needs mimic_volume_ref: a turn command yaws the soles (hip yaw) per step about the stance hip, lead foot out / trail foot closes, so the reference yaws the body wz/f per cycle (walker_env.mimic_turn_out); False = hip yaws held at home (bit-exact)
+        mimic_volume_cal: bool = False,  # #263, needs mimic_volume_ref: the stride amplitudes come from the plant's forward kinematics (walker_env.mimic_travel_cal), so the reference's travel per cycle matches the command below saturation (the fixed gains 1.4 / 1.1 over-travel 1.2-1.44x); False = the fixed gains (bit-exact)
         # -- physics backend ---------------------------------------------------
         # "jax": MJX's JAX pipeline. "warp": MuJoCo Warp (CUDA kernels through
         # mjx impl="warp"; MuJoCo >= 3.15). Warp pools contacts across all envs:
@@ -1420,6 +1421,24 @@ class BimoMJXEnv:
                 m, np.asarray(self._default), np.asarray(self._lo), np.asarray(self._hi),
                 np.asarray(self._i_yaw))
             self._yaw_sign = jp.asarray(ys)
+        self.mimic_volume_cal = bool(mimic_volume_cal)
+        if self.mimic_volume_cal:
+            if not self.mimic_volume_ref:
+                raise ValueError("mimic_volume_cal needs mimic_volume_ref (it calibrates that "
+                                 "reference's strides inside its saturation scale)")
+            from walker_env import mimic_travel_cal    # jax-free, shared with the CPU env
+            aro = self._i_aroll is not None
+            _a, _ta, _b, _tb = mimic_travel_cal(
+                m, np.asarray(self._default), np.asarray(self._i_pitch),
+                np.asarray(self._i_knee), np.asarray(self._i_ankle), np.asarray(self._i_roll),
+                np.asarray(self._i_aroll) if aro else None,
+                self._sg_pitch if self.mimic_sole_level else None,
+                self._sg_roll if aro else None, np.asarray(self._lead_out), self._vref_bmax)
+            # the tables in float32 for the traced reference; the end slopes from float64
+            self._cal_a, self._cal_ta = jp.asarray(_a), jp.asarray(_ta)
+            self._cal_b, self._cal_tb = jp.asarray(_b), jp.asarray(_tb)
+            self._cal_ka = tuple(float((_a[-1] - _a[-2]) / (t[-1] - t[-2])) for t in _ta)
+            self._cal_kb = float((_b[-1] - _b[-2]) / (_tb[-1] - _tb[-2]))
         self._qpos0 = jp.asarray(m.qpos0)
 
         self._torso_bid = m.body("torso").id
@@ -2207,8 +2226,16 @@ class BimoMJXEnv:
             # saturate along the command's own direction (mirror of walker_env): one scale
             # on both legs' fore-aft strides and the lateral one
             from walker_env import MIMIC_A_MAX
-            A = 1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
-            B = 1.1 * cmd[1] / f
+            if self.mimic_volume_cal:
+                # travel-calibrated strides (walker_env.mimic_travel_cal; mirror of walker_env)
+                from walker_env import mimic_cal_stride
+                tl = (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+                A = jp.stack([mimic_cal_stride(tl[i], self._cal_ta[i], self._cal_a,
+                                               self._cal_ka[i], xp=jp) for i in range(2)])
+                B = mimic_cal_stride(cmd[1] / f, self._cal_tb, self._cal_b, self._cal_kb, xp=jp)
+            else:
+                A = 1.4 * (cmd[0] + jp.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+                B = 1.1 * cmd[1] / f
             sc = jp.minimum(1.0, jp.minimum(
                 MIMIC_A_MAX / jp.maximum(jp.max(jp.abs(A)), 1e-9),
                 self._vref_bmax / jp.maximum(jp.abs(B), 1e-9)))

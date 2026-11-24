@@ -395,6 +395,72 @@ MIMIC_TURN_OUT = (1.0, -1.0)
 MIMIC_TURN_ROOM = 0.3
 
 
+MIMIC_CAL_N = 46           # points per travel table (mimic_travel_cal)
+
+
+def mimic_travel_cal(model, default, i_pitch, i_knee, i_ankle, i_roll, i_aroll, sg_pitch,
+                     sg_roll, lead_out, b_max, n=MIMIC_CAL_N):
+    """Calibration for the volume imitation reference's travel (mimic_volume_cal, #263): forward
+    kinematics of the reference's STANCE leg on the env's own model and default pose, torso
+    fixed. Over a stance half (xn from +1 to -1) a leg's hip pitch sweeps hp0 - a -> hp0 + a
+    (knee at its default, ankle as _mimic_ref sets it: sole-level with sg_pitch, else plain)
+    and its hip roll r0 + b + |b| s_out -> r0 - b + |b| s_out (lead_out signs; the ankle roll
+    cancels it with sg_roll when i_aroll is given). The body travels minus the stance sole's
+    sweep. Returns (a (n,), ta (2, n), b (n,), tb (n,)): per leg (L, R) the fore-aft travel per
+    gait cycle if both legs strode a (twice the leg's stance sweep), on a in [0, MIMIC_A_MAX];
+    and the lateral travel per cycle of the two legs at amplitude b, on b in [0, b_max]. Both
+    are odd in their amplitude (the stance sweep reverses), so _mimic_ref inverts them on
+    |travel| (mimic_cal_stride). Jax-free; both envs call it on their own model and joint
+    indices so the reference is identical in both. Record:
+    docs/design-v6/2026-11-24-volume-reference-travel-calibration.md."""
+    import mujoco
+    d = mujoco.MjData(model)
+    torso = model.body("torso").id
+    default = np.asarray(default, dtype=float)
+    a = np.linspace(0.0, MIMIC_A_MAX, n)
+    b = np.linspace(0.0, float(b_max), n)
+    ta, tb = np.zeros((2, n)), np.zeros(n)
+    for li, side in enumerate("LR"):
+        roles = {"hip_pitch": i_pitch, "knee": i_knee, "ankle": i_ankle, "hip_roll": i_roll}
+        if i_aroll is not None:
+            roles["ankle_roll"] = i_aroll
+        adr = {r: model.jnt_qposadr[model.joint(f"{side}_{r}").id] for r in roles}
+        q0 = {r: float(default[int(np.ravel(ix)[li])]) for r, ix in roles.items()}
+        sgp = None if sg_pitch is None else [float(np.ravel(v)[li]) for v in sg_pitch]
+        sgr = None if i_aroll is None else [float(np.ravel(v)[li]) for v in sg_roll]
+        s_out = float(np.ravel(lead_out)[li])
+
+        def sole(dp, dr):
+            d.qpos[:] = model.qpos0
+            for r, v in q0.items():
+                d.qpos[adr[r]] = v
+            d.qpos[adr["hip_pitch"]] += dp
+            d.qpos[adr["ankle"]] -= dp if sgp is None else sgp[0] * dp / sgp[2]
+            d.qpos[adr["hip_roll"]] += dr
+            if sgr is not None:
+                d.qpos[adr["ankle_roll"]] -= sgr[0] * dr / sgr[1]
+            mujoco.mj_kinematics(model, d)
+            R = d.xmat[torso].reshape(3, 3)
+            return R.T @ (d.geom_xpos[model.geom(f"{side}_sole").id] - d.xpos[torso])
+        for k in range(n):
+            ta[li, k] = 2.0 * (sole(-a[k], 0.0)[0] - sole(a[k], 0.0)[0])
+            tb[k] += sole(0.0, b[k] * (1.0 + s_out))[1] - sole(0.0, b[k] * (s_out - 1.0))[1]
+    for t, what in ((ta[0], "L fore-aft"), (ta[1], "R fore-aft"), (tb, "lateral")):
+        if not np.all(np.diff(t) > 0.0):
+            raise ValueError(f"mimic_volume_cal: the {what} travel is not monotone in the "
+                             "stride amplitude on this plant")
+    return a, ta, b, tb
+
+
+def mimic_cal_stride(t, tab_t, tab_a, k_end, xp=np):
+    """The stride amplitude whose travel per cycle is t, from a mimic_travel_cal table (tab_t
+    increasing from 0, tab_a its amplitudes): odd in t, piecewise linear inside the table and
+    linear past its end with the end slope k_end, so a command past the cap still maps past it
+    and the reference's saturation scale brings it back. xp: np (CPU env) or jax.numpy."""
+    at = xp.abs(t)
+    return xp.sign(t) * (xp.interp(at, tab_t, tab_a) + k_end * xp.maximum(at - tab_t[-1], 0.0))
+
+
 DQ_OBS_WINDOW_MAX = 8      # ticks (160 ms): the history the dq obs window can reach
 
 
@@ -1033,6 +1099,7 @@ class BimoWalkerEnv(gym.Env):
         mimic_dwell: float = 0.0,        # [0, 0.8): double-support fraction of each half cycle in the imitation reference and the w_feet_phase targets (dwell_swing); 0 = the plain clock (bit-exact)
         mimic_volume_ref: bool = False,  # #263: the imitation reference for the whole command volume -- lateral strides lead-foot-out / trail-foot-closes (the stance never narrows below home), and the stride saturates along the command's own direction (mimic_lead_out); False = the cardinal-band reference (bit-exact)
         mimic_turn_ref: bool = False,    # #263, needs mimic_volume_ref: a turn command yaws the soles (hip yaw) per step about the stance hip, lead foot out / trail foot closes, so the reference yaws the body wz/f per cycle (mimic_turn_out); False = hip yaws held at home (bit-exact)
+        mimic_volume_cal: bool = False,  # #263, needs mimic_volume_ref: the stride amplitudes come from the plant's forward kinematics (mimic_travel_cal), so the reference's travel per cycle matches the command below saturation (the fixed gains 1.4 / 1.1 over-travel 1.2-1.44x); False = the fixed gains (bit-exact)
         # from the joint axes (mirror of env_mjx)
         servo_range: float = 0.15,     # DR: stall/no-load speed scale +/- this
         servo_joint_damping: float = 0.1,  # sts3215: joint damping override --
@@ -2070,6 +2137,20 @@ class BimoWalkerEnv(gym.Env):
             self._i_yaw = np.array([_ly, _ry])
             self._yaw_sign, self._vref_ymax = mimic_turn_out(
                 self.model, self._default, self._lo, self._hi, self._i_yaw)
+        self.mimic_volume_cal = bool(mimic_volume_cal)
+        if self.mimic_volume_cal:
+            if not self.mimic_volume_ref:
+                raise ValueError("mimic_volume_cal needs mimic_volume_ref (it calibrates that "
+                                 "reference's strides inside its saturation scale)")
+            aro = self._i_aroll is not None
+            _a, _ta, _b, _tb = mimic_travel_cal(
+                self.model, self._default, self._i_pitch, self._i_knee, self._i_ankle,
+                self._i_roll, self._i_aroll if aro else None,
+                self._sg_pitch if self.mimic_sole_level else None,
+                self._sg_roll if aro else None, self._lead_out, self._vref_bmax)
+            self._cal_a, self._cal_ta, self._cal_b, self._cal_tb = _a, _ta, _b, _tb
+            self._cal_ka = np.array([(_a[-1] - _a[-2]) / (t[-1] - t[-2]) for t in _ta])
+            self._cal_kb = float((_b[-1] - _b[-2]) / (_tb[-1] - _tb[-2]))
 
         self._up_id = self.model.sensor("torso_up").adr[0]
         self._nominal_h = float(self.model.body("torso").pos[2])  # 0.28 m
@@ -2550,8 +2631,18 @@ class BimoWalkerEnv(gym.Env):
             # saturate along the command's own direction (mirror of env_mjx): one scale on
             # both legs' fore-aft strides and the lateral one keeps a diagonal's heading and a
             # back + turn's stride difference, where the per-axis clips flattened them
-            A = 1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
-            B = 1.1 * float(cmd[1]) / f
+            if self.mimic_volume_cal:
+                # travel-calibrated strides (mimic_travel_cal; mirror of env_mjx): each leg's
+                # amplitude is the one whose stance sweep, by the plant's forward kinematics,
+                # travels v_leg / f per cycle, the lateral one vy / f
+                tl = (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+                A = np.array([mimic_cal_stride(float(tl[i]), self._cal_ta[i], self._cal_a,
+                                               self._cal_ka[i]) for i in range(2)])
+                B = float(mimic_cal_stride(float(cmd[1]) / f, self._cal_tb, self._cal_b,
+                                           self._cal_kb))
+            else:
+                A = 1.4 * (cmd[0] + np.array([-1.0, 1.0]) * 0.028 * cmd[2]) / f
+                B = 1.1 * float(cmd[1]) / f
             sc = min(1.0, MIMIC_A_MAX / max(float(np.max(np.abs(A))), 1e-9),
                      self._vref_bmax / max(abs(B), 1e-9))
             if self.mimic_turn_ref:

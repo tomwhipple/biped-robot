@@ -66,6 +66,10 @@ Gates (float64, so precision is not the limiter):
       walker_env.mimic_turn_out): the calibration equal in both envs, the reference CPU vs MJX
       over the command volume with turns (pivots, walk / back / side + turn, the saturated
       corners), airborne reward parity under a forward + turn command, liveness
+  R28 the travel-calibrated volume reference (mimic_volume_cal on mimic_volume_ref, #263;
+      walker_env.mimic_travel_cal): the FK travel tables equal in both envs, the reference CPU
+      vs MJX over the command volume (with and without mimic_turn_ref; past the tables' ends,
+      the saturated corners), airborne reward parity under a diagonal + turn, liveness
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -76,6 +80,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --supply-sag  # R24 only
       python parity_test.py --mimic-volume-ref  # R26 only
       python parity_test.py --mimic-turn-ref    # R27 only
+      python parity_test.py --mimic-volume-cal  # R28 only
       python parity_test.py --sole-in     # R19 only
       python parity_test.py --march-unload   # R17 only
       python parity_test.py --march-both     # R20 only
@@ -1428,7 +1433,69 @@ def turn_ref_block():
     return ok_a and ok_b and live
 
 
+# -- R28: the travel-calibrated volume reference (mimic_volume_cal) -----------------------
+#     the FK travel tables computed by both envs on their own model; the full reference CPU vs
+#     MJX on a phase grid for commands across the volume (inside the tables, past their ends,
+#     saturated corners, turns), alone and with mimic_turn_ref; airborne reward parity under a
+#     diagonal + turn; liveness (the uncalibrated twin must pay differently).
+def volume_cal_block():
+    kw = rob_kw(mimic_lift=0.02, mimic_volume_ref=True, mimic_volume_cal=True,
+                cmd_fixed=(0.12, 0.08, 0.5, 1.0, 0.0, 0.0, 0.0))
+    c, g, s = envs_for(kw, solver_tol=ARITH_TOL)
+    cal = (np.array_equal(c._cal_ta, np.asarray(g._cal_ta))
+           and np.array_equal(c._cal_tb, np.asarray(g._cal_tb))
+           and np.array_equal(c._cal_a, np.asarray(g._cal_a))
+           and np.array_equal(c._cal_b, np.asarray(g._cal_b))
+           and tuple(c._cal_ka) == tuple(g._cal_ka) and c._cal_kb == g._cal_kb)
+    ct, gt, _ = envs_for(dict(kw, mimic_turn_ref=True), solver_tol=ARITH_TOL)
+    grid = np.linspace(-np.pi, np.pi, 181)[:-1] + 1e-4
+    cmds = [(0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (-0.4, 0.0, 1.0), (0.0, 0.25, -1.0),
+            (0.03, -0.02, 0.0), (0.24, 0.25, 0.8), (0.29, 0.0, 0.0), (0.0, -0.21, 0.0),
+            (0.002, 0.001, 0.0)]
+    for hd in range(0, 360, 45):
+        th = np.radians(hd)
+        for v in (0.1, 0.3):
+            cmds.append((v * np.cos(th), v * np.sin(th), 0.0))
+            cmds.append((v * np.cos(th), v * np.sin(th), -0.7))
+    worst = 0.0
+    for ce, ge in ((c, g), (ct, gt)):
+        gref = jax.jit(ge._mimic_ref)
+        for cm in cmds:
+            cmd = np.array([cm[0], cm[1], cm[2], 1.0, 0.0, 0.0, 0.0])
+            cj = jp.asarray(cmd, jp.float32)
+            for f in (0.7, 1.5):
+                for ph in grid:
+                    qc = ce._mimic_ref(cmd, ph, f)
+                    qg = np.asarray(gref(cj, jp.float32(ph), jp.float32(f)))
+                    worst = max(worst, float(np.max(np.abs(qc - qg))))
+    ok_a = cal and worst < 1e-5
+    print(f"== R28-a. calibrated volume reference, CPU vs MJX on {len(cmds)} commands x 2 "
+          f"clocks x {len(grid)} phases, without and with the turn reference: "
+          f"{'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   travel tables equal: {cal} (end travel per cycle L/R "
+          f"{c._cal_ta[0, -1]:.4f}/{c._cal_ta[1, -1]:.4f} m at a = {c._cal_a[-1]:.3f}, lateral "
+          f"{c._cal_tb[-1]:.4f} m at b = {c._cal_b[-1]:.4f}); worst |dq_ref| {worst:.1e} rad")
+    ok_b = run_block("R28-b. diagonal + turn with the calibrated volume reference (cmd "
+                     "0.12,0.08,0.5, airborne)", 120, air_acts(c, 0.357), hoist, AIR_GATES,
+                     (c, g, s))
+    c0, _, _ = envs_for(dict(kw, mimic_volume_cal=False), solver_tol=ARITH_TOL)
+    c.reset(seed=3)
+    c0.reset(seed=3)
+    z = np.zeros(c._nq_act, np.float32)
+    r_on = r_off = 0.0
+    for _ in range(40):
+        r_on += c.step(z)[1]
+        r_off += c0.step(z)[1]
+    live = abs(r_on - r_off) > 1e-3
+    print(f"   calibration live: 40-step reward with / without {r_on:.3f} / {r_off:.3f}")
+    return ok_a and ok_b and live
+
+
 def main():
+    if "--mimic-volume-cal" in sys.argv:
+        ok = volume_cal_block()
+        print("\nPARITY (R28):", "PASS" if ok else "FAIL")
+        return ok
     if "--mimic-turn-ref" in sys.argv:
         ok = turn_ref_block()
         print("\nPARITY (R27):", "PASS" if ok else "FAIL")
@@ -1490,7 +1557,8 @@ def main():
                march_blocks(), pitch_hinge_block(), roll_series_block(),
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
                march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block(),
-               supply_sag_block(), stand_band_block(), volume_ref_block(), turn_ref_block()]
+               supply_sag_block(), stand_band_block(), volume_ref_block(), turn_ref_block(),
+               volume_cal_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

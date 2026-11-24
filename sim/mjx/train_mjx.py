@@ -381,6 +381,16 @@ def make_parser():
                         "reference's one saturation scale "
                         "(walker_env.mimic_turn_out). Do not combine with --w-hip-yaw, which "
                         "pays against the yaws. Off = hip yaws held at home")
+    p.add_argument("--mimic-volume-cal", action="store_true",
+                   help="#263, REQUIRES --mimic-volume-ref: calibrate the imitation reference's "
+                        "travel to the command. The fixed stride gains (hip pitch 1.4 v/f, hip "
+                        "roll 1.1 vy/f) over-travel 1.2-1.44x the command below saturation; "
+                        "with this flag each stride amplitude is the one whose stance sweep, by "
+                        "forward kinematics of the env's own plant at its default pose, travels "
+                        "v/f per cycle (1.00x up to the saturation scale, which is unchanged: "
+                        "the hip-pitch cap still limits a fast back stride, -0.4 m/s at 0.75 Hz "
+                        "to 0.72x). Works with --mimic-turn-ref (walker_env.mimic_travel_cal). "
+                        "Off = the fixed gains")
     p.add_argument("--floor-contacts", choices=["all", "feet"], default="all",
                    help="training-only collision set: 'feet' lets only the sole "
                         "pads touch the floor (MJX contact slots 182 -> 56 on the "
@@ -1138,6 +1148,10 @@ def build_env_kw(args):
         if not getattr(args, "mimic_volume_ref", False):
             raise SystemExit("--mimic-turn-ref needs --mimic-volume-ref")
         env_kw["mimic_turn_ref"] = True
+    if getattr(args, "mimic_volume_cal", False):
+        if not getattr(args, "mimic_volume_ref", False):
+            raise SystemExit("--mimic-volume-cal needs --mimic-volume-ref")
+        env_kw["mimic_volume_cal"] = True
     if args.fall_cost is not None:
         env_kw["fall_cost"] = args.fall_cost
     if args.family == "loco":

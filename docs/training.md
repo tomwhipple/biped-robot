@@ -457,6 +457,31 @@ clearance and the joint ranges, parity block R27 the CPU/MJX agreement. Do not
 combine it with `--w-hip-yaw`, which pays against the yaws. The check behind
 it: `docs/design-v6/2026-11-23-volume-reference-turn.md`.
 
+The stride gains 1.4 and 1.1 are fixed, so the reference travels 1.2-1.44×
+the command below saturation (forward 1.19-1.23×, lateral 1.39-1.44×,
+diagonals about 1.33×). `--mimic-volume-cal` (needs `--mimic-volume-ref`,
+#263) replaces them with the plant's own forward kinematics. At construction
+`mimic_travel_cal` (`sim/walker_env.py`) tabulates, per leg, how far the body
+travels per cycle as the stance leg's hip pitch sweeps ±a (knee at default,
+ankle as the reference sets it) for a up to the 0.45 rad cap. It does the same
+for the two legs' lead-out hip-roll sweep for b up to the lateral cap.
+`_mimic_ref` then inverts the tables: each leg's A is the amplitude that
+travels (vx ∓ 0.028·wz)/f per cycle, and B is the one that travels vy/f.
+Without a turn the reference travels 1.00× the command (0.99× on a full
+diagonal) within 1° of its heading. With `--mimic-turn-ref` it travels
+0.96-0.98× at wz 0.4 rad/s. At a full 1 rad/s turn it travels 0.85-1.15×,
+because the turn reference's strides run along the toed-out soles. The
+saturation scale is unchanged, so the caps bind at a higher command:
+forward/back at 0.29 m/s and lateral at 0.21 m/s at 0.75 Hz, where the fixed
+gains saturated at 0.24 and 0.15. A fast back stride is cap-limited, not
+gain-limited: −0.4 m/s at 0.75 Hz still travels 0.72×. At a zero command the
+reference is the uncalibrated one bit for bit, and at a single-axis saturated
+command it matches to 1e-12 rad.
+`tests/test_mimic_volume_cal.py` pins the travel and heading over the volume
+grid, and parity block R28 pins the CPU/MJX agreement. Run
+`python tests/test_mimic_volume_cal.py` to print the before/after FK tables. The
+check behind it: `docs/design-v6/2026-11-24-volume-reference-travel-calibration.md`.
+
 A march is a lifted command, and a lifted command gates `w_mimic` off (and
 `w_pose`, `w_feet_phase`, `w_walk_shift`, which are gated on a moving, unlifted
 command). A march therefore has no reference unless `--mimic-march M` turns it
