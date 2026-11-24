@@ -488,3 +488,20 @@ def test_sideways_command_is_the_bodys_velocity_a_sidestep_pair_moves_it_by_the_
 def test_side_cap_flag_up_to_30_and_refused_beyond(capsys):
     assert H.main(["--cmd", "stdin", "--max-side-mm", "31"]) == 2
     assert "up to 30" in capsys.readouterr().out
+
+
+def test_plain_side_timing_with_the_moving_lift_drops_it_on_the_sidestep_pair_only():
+    # the moving lift (#349) and the plain side timing together: the sideways step and the one after it take the plain
+    # timing (a settle, no moving lift), the others keep the moving lift; without a sideways step the frames are the
+    # moving lift's own
+    D = pytest.importorskip("dwell")
+    kw = dict(T=4.0, n_steps=5, first="R", pelvis_x="stance", ankle_ff=(2.0, 2.0), dt=0.02, td_pause=0.3, shift_s=1.3,
+              raise_s=0.77, move_s=0.45, lower_s=0.55, moving_lift=0.25)
+    ml = D.Dwell(**kw)
+    assert [s["q"] for s in D.Dwell(**kw, step_lateral=[False] * 5).segs] == [s["q"] for s in ml.segs]
+    sw = D.Dwell(**kw, step_lateral=[False, True, False, False, False])
+    t_set = [p["tm"]["t_set"] for p in sw._steps]
+    assert t_set[0] == t_set[3] == t_set[4] == pytest.approx(-0.25)
+    assert t_set[1] > 0 and t_set[2] > 0
+    assert [p["lo"] < p["b"] for p in sw._steps] == [True, False, False, True, True]
+    assert all("dcm" in r for r in sw.liftoff)

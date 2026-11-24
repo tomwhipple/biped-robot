@@ -1291,10 +1291,10 @@ def main_cmd(a, seeds, amp, aff, by_step):
                        allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift,
                        step_s=a.Teff, poshold=ph, side_timing=side_timing)
         return w
-    if side_timing == "plain" and a.td_pause:
-        print("side timing plain: a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause, the "
-              "schedule's shift / settle / single support) for its single support, the next step throughout "
-              "(a step's own pause and shift come before it is decided)")
+    if side_timing == "plain" and (a.td_pause or a.moving_lift):
+        print("side timing plain: a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause / "
+              "--moving-lift, the schedule's shift / settle / single support) for its single support, the next step "
+              "throughout (a step's own pause and shift come before it is decided)")
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
           f"per step, slew {lim.get('slew', CW.SLEW)}; max {a.max_steps} steps"
@@ -1442,8 +1442,8 @@ def main(argv=None):
                          "clamped, slewed and pre-checked before it is uploaded. --dir / --steps / --step / --seq / "
                          "--stride-mm / --side-mm / --turn are not used")
     ap.add_argument("--side-timing", choices=["plain", "same"], default=None,
-                    help="--cmd: with `plain` a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause, "
-                         "the schedule's shift / settle / single support for T) for its single support, and the next step "
+                    help="--cmd: with `plain` a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause / "
+                         "--moving-lift, the schedule's shift / settle / single support for T) for its single support, and the next step "
                          "takes it throughout; `same` keeps one timing. Default plain when --td-pause is given (README: Position hold)")
     ap.add_argument("--pos-hold", choices=["on", "off"], default="off",
                     help="--cmd, live: close the robot's position from the overhead camera tracker (tools/vision, camd's "
