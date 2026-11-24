@@ -87,6 +87,8 @@ ANKLE_SIDE_OFF = (2.0, 2.0)         # = ROBOT_ANKLE_FF: no change
 FIRST_BOOST_CMD = 1.0               # --first-ankle-boost: deg added to the first stance step of each side
 DRIFT_SIDE_CMD = (0.94, YAW_DRIFT)  # --heading-drift-side L,R: the heading drift (deg/step, + = left) of a sideL / sideR step
 DRIFT_SIDE_OFF = (YAW_DRIFT, YAW_DRIFT)
+SIDE_BLEND_MM = 8.0                 # the heading drift is the sidestep's from this much lateral travel on, blended below (a 3 mm correction
+                                    # on a march in place must not switch it: 1.9 -> 0.94 deg/step for a left one)
 SIDE_REF_MM = 15.0                  # the lateral step at which the ankle ff reaches its --ankle-ff-side value
 
 
@@ -123,7 +125,7 @@ def step_drift(c, side=None):
     ax, ay = abs(c["dx"]), abs(c["dy"])
     if ax + ay < 1e-9:
         return YAW_DRIFT
-    f = ay / (ax + ay)
+    f = ay / (ax + ay) * min(1.0, ay * 1e3 / SIDE_BLEND_MM)      # a few mm of sideways travel is not a sidestep: no jump
     return (1.0 - f) * YAW_DRIFT + f * side[0 if c["dy"] > 0 else 1]
 
 
@@ -280,7 +282,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                    **{k_: v_ for k_, v_ in (("ss_s", ss_s), ("shift_s", shift_s), ("raise_s", raise_s), ("move_s", move_s),
                                            ("lower_s", lower_s)) if v_ is not None},
                    **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}),
-                   **({"moving_lift": moving_lift} if moving_lift else {}))
+                   **({"moving_lift": moving_lift} if moving_lift else {}),
+                   **({"step_lateral": [bool(c.get("lat")) for c in cmds]}
+                      if step_cmds is not None and any(c.get("lat") for c in cmds) else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         elif seq is not None or step_cmds is not None:
@@ -821,10 +825,10 @@ def speeds(pl):
             segs[-1][2].append(c)
         else:
             segs.append((c.get("seg"), c["name"], [c]))
-    rows = [(nm, len(cs), 1e3 * sum(c["dx"] for c in cs) / (T * len(cs)), 1e3 * sum(c["dy"] for c in cs) / (T * len(cs)),
+    rows = [(nm, len(cs), 1e3 * sum(c["dx"] for c in cs) / (T * len(cs)), 1e3 * sum(c["dy"] for c in cs) / (2.0 * T * len(cs)),
              sum(c["dpsi"] for c in cs) / (T * len(cs))) for _, nm, cs in segs]
     n = len(cm)
-    tot = (1e3 * sum(c["dx"] for c in cm) / (T * n), 1e3 * sum(c["dy"] for c in cm) / (T * n),
+    tot = (1e3 * sum(c["dx"] for c in cm) / (T * n), 1e3 * sum(c["dy"] for c in cm) / (2.0 * T * n),
            sum(c["dpsi"] for c in cm) / (T * n)) if n else (0.0, 0.0, 0.0)
     return tot, rows
 
@@ -1176,6 +1180,12 @@ def live(pl, a):
                 ankle = dict(dir=learn.dir, start=learn.start, end=learn.A, keep=learn.keep, log=learn.log, saved=saved)
                 print(f"ankle trim ({learn.dir}): L {learn.start['L']:.2f} -> {learn.A['L']:.2f}, R {learn.start['R']:.2f} -> "
                       f"{learn.A['R']:.2f}; {'saved to ' + learn.path if saved else 'NOT saved (fall / abort / link)'}")
+        if cw is not None and cw.ph is not None:
+            cw.ph.finish()
+            sm = cw.ph.summary()
+            print(f"pos-hold: start at rest {sm['start_at_rest']}, end at rest {sm['end_at_rest']} (x, y, heading); max |err| lat "
+                  f"{sm['max_abs_err_lat_mm']:.0f} fwd {sm['max_abs_err_fwd_mm']:.0f} mm; {sm['no_fix_steps']} steps without a fix, "
+                  f"{sm['overrides']} keep-on-board steps" + (f"; LATERAL OFF: {sm['lateral_off']}" if sm['lateral_off'] else ""))
         log(dict(summary=True, note=a.note, args=dict(T=a.T, dir=_label(a), steps=(len(cw.steps) if cw is not None else pl["args"]["n_steps"]), amp=list(pl["amp"]),
                                                       model=pl["model"], first=a.first, pelvis_x=a.pelvis_x,
                                                       ankle_ff=list(pl["args"]["ankle_ff"]), k_ds=pl["args"]["k_ds"],
@@ -1190,7 +1200,8 @@ def live(pl, a):
                               fell=(fell["v"] if learn is not None else None)),
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
-                 cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None)))
+                 cmd_walk=(dict(reason=cw.reason, steps=cw.log, **({"pos_hold": cw.ph.summary()} if cw.ph is not None else {}))
+                          if cw is not None else None)))
         r.close()
         print(f"log: {log_path}")
 
@@ -1226,6 +1237,9 @@ def main_cmd(a, seeds, amp, aff, by_step):
                          ("pause", a.pause_steps)):
             if val is not None:
                 lim[key] = val
+        if lim.get("side", 0.0) > 30.0:
+            raise ValueError("--max-side-mm: the pre-check passes fixed sidesteps up to 30 mm at T 4 (pelvis speed at its limit "
+                             "at 30, 25 has margin); more is refused")
         if a.slew:
             lim["slew"] = tuple(float(x) for x in a.slew.split(","))
             if len(lim["slew"]) != 3:
@@ -1259,13 +1273,28 @@ def main_cmd(a, seeds, amp, aff, by_step):
           f"first stance step of each side +{boost:g} deg; heading drift sideL,sideR {drift[0]:g},{drift[1]:g} deg/step "
           f"(forward {YAW_DRIFT:g})")
 
+    side_timing = a.side_timing or ("plain" if a.td_pause else "same")
+    ph = None
+    if a.pos_hold == "on":
+        if not a.live:
+            print("pos-hold on: a dry run reads no tracker and applies no correction (the correction needs the robot's "
+                  "position over time); the rehearsal below is the plain command")
+        else:
+            ph = make_poshold(a)
+            if ph is None:
+                return 2
+
     def walk(cal):
         b = dict(base, cal=cal)
         w = CW.CmdWalk(me, src, b, first=a.first, hold=hold, limits=lim, max_steps=a.max_steps,
                        max_time=a.max_time or None, status=status, fixed_tilt=a.swing_tilt, yaw_trim=a.yaw_trim,
                        allow_over=a.allow_over, ankle_side=side, first_boost=boost, drift_side=drift,
-                       step_s=a.Teff)
+                       step_s=a.Teff, poshold=ph, side_timing=side_timing)
         return w
+    if side_timing == "plain" and (a.td_pause or a.moving_lift):
+        print("side timing plain: a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause / "
+              "--moving-lift, the schedule's shift / settle / single support) for its single support, the next step "
+              "throughout (a step's own pause and shift come before it is decided)")
     print(f"cmd walk: T {a.T:g} s/step, commands from {a.cmd}, ahead {a.ahead:g}; envelope forward {lim.get('fwd', CW.FWD_MM):g} / "
           f"back {lim.get('back', CW.BACK_MM):g} / side {lim.get('side', CW.SIDE_MM):g} mm, turn {lim.get('yaw', CW.YAW_DEG):g} deg "
           f"per step, slew {lim.get('slew', CW.SLEW)}; max {a.max_steps} steps"
@@ -1303,8 +1332,52 @@ def main_cmd(a, seeds, amp, aff, by_step):
         print(f"heading hold: the commanded heading rate is wz x T per step, feed-forward + feedback k {a.heading_k:g}")
     if a.gate:
         pl["pre"] = [f"liftgate set {' '.join(x.strip() for x in a.gate.split(','))}"] + pl["pre"]
-    live(pl, a)
+    try:
+        live(pl, a)
+    finally:
+        if ph is not None:
+            ph.S.stop()
     return 0
+
+
+def make_poshold(a):
+    """--pos-hold on, live: the tracker sampler (a thread reading camd's emeet_latest.jpg), the start fix, the PosHold.
+    None (after printing why) when the start pose cannot be read: a hold that cannot see the robot is refused."""
+    import pos_hold as PH
+    sys.path.insert(0, os.path.join(ROOT, "tools", "vision"))
+    import vgeom as G
+    from camd import DEFAULT_DIR
+    cfg = G.load_config(a.pos_config)
+    d = a.pos_camd_dir or DEFAULT_DIR
+    path = os.path.join(d, "emeet_latest.jpg")
+    loc = PH.Locator(cfg, pose_path=os.path.join(d, "emeet_poshold_pose.json"),
+                    pose_read=[os.path.join(d, "emeet_board_pose.json")])
+    sam = PH.PosSampler(loc, path)
+    margin = a.keep_on_board if a.keep_on_board is not None else PH.MARGIN_MM
+    W, L = cfg["board"]["width_mm"], cfg["board"]["length_mm"]
+    ph = PH.PosHold(sam, a.Teff, margins=lambda x, y: G.edge_margins(cfg, x, y), k=a.pos_k, ki=a.pos_ki, rate_mm=a.pos_rate_mm, min_step_mm=a.pos_min_step_mm, clip=a.pos_clip,
+                    margin_mm=(margin if margin > 0 else None), no_fix_steps=a.pos_no_fix_steps,
+                    window_steps=a.pos_window_steps, delay_steps=a.pos_delay_steps, deadband_mm=a.pos_deadband_mm,
+                    centre=(W / 2.0, L / 2.0))
+    sam.start()
+    print(f"pos-hold: tracker frames from {path}; step {a.Teff:g} s, sample = fit over {a.pos_window_steps:g} steps "
+          f"({ph.window_s():g} s), k {a.pos_k:g} ki {a.pos_ki:g} rate {a.pos_rate_mm:g} mm/step, clip lat {a.pos_clip[0]:g} / fwd {a.pos_clip[1]:g} mm per step, "
+          f"delay {a.pos_delay_steps} steps, deadband {a.pos_deadband_mm:g} mm, "
+          + (f"keep-on-board {margin:g} mm" if margin > 0 else "keep-on-board off")
+          + f", no-fix limit {a.pos_no_fix_steps} steps; waiting for the start pose ...", flush=True)
+    f = ph.start_fix(ph.window_s() + 6.0)
+    if f is None:
+        print(f"REFUSED: --pos-hold on but the tracker gives no position of the robot standing ({sam.why or 'too few frames'}); "
+              f"is camd --source emeet running and the robot's tags in view? Nothing sent")
+        sam.stop()
+        return None
+    ph.begin(f)
+    m = G.edge_margins(cfg, f["x"], f["y"])
+    print(f"pos-hold: start x {f['x']:.0f} y {f['y']:.0f} mm heading {f['h']:.0f} deg ({f['n']} frames); margins "
+          f"L {m['left']:.0f} R {m['right']:.0f} near {m['near']:.0f} far {m['far']:.0f} mm"
+          + ("" if cfg["board"].get("measured") else "  (board layout not measured: absolute +-100 mm, relative changes ~10 mm)"),
+          flush=True)
+    return ph
 
 
 def main(argv=None):
@@ -1368,11 +1441,36 @@ def main(argv=None):
                          "mm/s, mm/s, deg/s, or `stop` / `pause`) or stdin. The walk has no fixed length; every step is "
                          "clamped, slewed and pre-checked before it is uploaded. --dir / --steps / --step / --seq / "
                          "--stride-mm / --side-mm / --turn are not used")
+    ap.add_argument("--side-timing", choices=["plain", "same"], default=None,
+                    help="--cmd: with `plain` a step with more than 3 mm of sideways travel takes the plain timing (no --td-pause / "
+                         "--moving-lift, the schedule's shift / settle / single support for T) for its single support, and the next step "
+                         "takes it throughout; `same` keeps one timing. Default plain when --td-pause is given (README: Position hold)")
+    ap.add_argument("--pos-hold", choices=["on", "off"], default="off",
+                    help="--cmd, live: close the robot's position from the overhead camera tracker (tools/vision, camd's "
+                         "emeet_latest.jpg; read-only, no camera access). Per step: the median position over the last "
+                         "--pos-window-steps steps against the start pose plus the integrated command, a bounded correction "
+                         "-k x error on the next step's dy / dx (README: Position hold). Default off: frames unchanged")
+    ap.add_argument("--pos-k", type=float, default=0.3, help="--pos-hold: fraction of the error (beyond the dead band) corrected per step")
+    ap.add_argument("--pos-ki", type=float, default=0.06, help="--pos-hold: integral gain per step (learns the standing creep and the sideways response; clipped to the clip)")
+    ap.add_argument("--pos-min-step-mm", type=float, default=4.0, help="--pos-hold: corrections smaller than this are added up and applied as fewer, larger steps")
+    ap.add_argument("--pos-rate-mm", type=float, default=5.0, help="--pos-hold: the correction may change by this much per step")
+    ap.add_argument("--pos-clip", default="6,10", metavar="LAT,FWD", help="--pos-hold: largest correction per step, mm (lateral, fore-aft)")
+    ap.add_argument("--pos-window-steps", type=float, default=3.0, help="--pos-hold: steps in the fit window (3 = one and a half left-right cycles)")
+    ap.add_argument("--pos-delay-steps", type=int, default=4, help="--pos-hold: decided steps not yet visible in a sample (compensated)")
+    ap.add_argument("--pos-deadband-mm", type=float, default=5.0, help="--pos-hold: error under this is left alone (soft: only the excess is corrected)")
+    ap.add_argument("--pos-no-fix-steps", type=int, default=4,
+                    help="--pos-hold: steps without a tracker fix the last trim is held for; more than this with a non-zero command = stop")
+    ap.add_argument("--keep-on-board", type=float, default=None, metavar="MM",
+                    help="--pos-hold: a step toward the board centre when the predicted position is within MM of an edge "
+                         "(default 250; 0 = off)")
+    ap.add_argument("--pos-camd-dir", default=None, help="--pos-hold: camd's directory (default camd.DEFAULT_DIR)")
+    ap.add_argument("--pos-config", default=None, help="--pos-hold: tools/vision config JSON (board, robot tags)")
     ap.add_argument("--max-steps", type=int, default=120, help="--cmd: stop after this many steps (default 120)")
     ap.add_argument("--max-time", type=float, default=600.0, help="--cmd: stop after this many seconds (default 600; 0 = none)")
     ap.add_argument("--max-fwd-mm", type=float, default=None, help="--cmd: forward step cap (default 50)")
     ap.add_argument("--max-back-mm", type=float, default=None, help="--cmd: backward step cap (default 32; 40 is proven only as a fixed walk, README envelope table)")
-    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap (default 15)")
+    ap.add_argument("--max-side-mm", type=float, default=None, help="--cmd: sideways step cap, the lead step's dy = the body's travel per PAIR of steps (default 15, up to 30; "
+                                                                  "the delivered sideways velocity is at most cap / (2 T))")
     ap.add_argument("--max-turn-deg", type=float, default=None, help="--cmd: heading change cap per step (default 5)")
     ap.add_argument("--slew", default=None, metavar="DX,DY,DYAW",
                     help="--cmd: largest change of the step's dx mm, dy mm, dyaw deg from one step to the next (default 20,10,3)")
@@ -1475,6 +1573,16 @@ def main(argv=None):
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
+    try:
+        a.pos_clip = tuple(float(x) for x in a.pos_clip.split(","))
+        if len(a.pos_clip) != 2 or min(a.pos_clip) < 0:
+            raise ValueError
+    except ValueError:
+        print("REFUSED: --pos-clip wants LAT,FWD (mm, >= 0)")
+        return 2
+    if a.pos_hold == "on" and not a.cmd:
+        print("REFUSED: --pos-hold on needs --cmd (a fixed walk's steps are all planned before it starts)")
+        return 2
     if a.ahead is None:
         a.ahead = 1.0 if a.cmd else 2.0
     seeds = tuple(float(x) for x in a.seed.split(","))

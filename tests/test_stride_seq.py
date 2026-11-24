@@ -96,7 +96,7 @@ def test_main_dry_runs(capsys):
     assert "stride 30 mm" in out and "REFUSED" in out and "+7.5 mm/s forward" in out and "tightest joint margin" in out
     assert H.main(["--T", "5", "--step", "20,10,0", "--steps", "6"]) == 0
     out = capsys.readouterr().out
-    assert "+4.0 mm/s forward, +2.0 mm/s sideways" in out and "PASS" in out
+    assert "+4.0 mm/s forward, +1.0 mm/s sideways" in out and "PASS" in out
     assert H.main(["--T", "5", "--dir", "fwd", "--steps", "6", "--seq", "fwd:2", "--step", "1,1,1"]) == 2
     assert H.main(["--T", "5", "--seq", "fwd:4,bogus:3"]) == 2
 
@@ -104,7 +104,7 @@ def test_main_dry_runs(capsys):
 def test_speeds():
     p = H.plan(5.0, 6, "sideL")
     (vx, vy, vw), _ = H.speeds(p)
-    assert (vx, vy, vw) == pytest.approx((0.0, 3.0, 0.0))
+    assert (vx, vy, vw) == pytest.approx((0.0, 1.5, 0.0))      # the body moves dy per PAIR of steps: 15 mm per 10 s
     p = H.plan(4.0, 6, "turnL")
     assert H.speeds(p)[0][2] == pytest.approx(1.25)
 
