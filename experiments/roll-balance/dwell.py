@@ -13,7 +13,9 @@ One step of T s, per stance side:
     settle  it holds there, both feet down                                                 t_settle
     swing   single support, the pelvis still holding: the swing sole rises (min-jerk) to h over the first
             35 %, moves (x, y, yaw) over the middle, comes down over the last 35 %          t_ss
-The pelvis is at or beyond k_static from before lift-off until after touchdown. The default split is a
+The pelvis is at or beyond k_static from before lift-off until after touchdown. With `moving_lift` (s) the lift-off comes
+that long before the shift ends and there is no settle: the pelvis is then still arriving at lift-off, and its divergent
+component (pelvis + rate / OMEGA), not the pelvis, is at k_static there (README "The moving lift"). The default split is a
 fraction of T (shift 0.3, settle 0.1, single support 0.6; `ds` sets shift + settle) unless T is in SCHEDULE or
 t_shift / t_settle are given (absolute, s).
 
@@ -91,10 +93,15 @@ def split_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None):
 
 
 PARTS = (0.35, 0.30, 0.35)     # the single support's raise / move / lower shares
+# the moving lift: the lift-off at most this share of the shift before the shift's end (min-jerk: at 0.25 the pelvis
+# is still 10 % of the shift short and moving at 1.05 x the shift's mean speed). The sim's limit; track_host refuses
+# more than 0.25 (MLIFT_HOST_MAX)
+MOVING_LIFT_MAX = 0.35
+OMEGA = 1.0 / 0.151            # the lateral LIPM's omega, 1/s (h 0.224 m; DESIGN_moving_lift_gait.md)
 
 
 def resolve_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None, settle=None, ss_s=None, shift_s=None,
-                  raise_s=None, move_s=None, lower_s=None, lower_frac=None):
+                  raise_s=None, move_s=None, lower_s=None, lower_frac=None, moving_lift=None):
     """The step's timing from T (the SCHEDULE / fractions) and the explicit options, s:
     dict(t_sh, t_set, t_ss, period (a step without the pause), parts (raise, move, lower shares of the single support),
     custom (the shares are not today's), explicit (any of ss_s / shift_s / raise_s / move_s / lower_s was given: the
@@ -103,7 +110,9 @@ def resolve_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None, sett
     lower_s: the parts, s -- those given are fixed and the others share what is left in today's proportions
     (0.35 : 0.30 : 0.35) -- with the move not given, the move takes what the raise and the lowering leave and the one
     not given keeps its 0.35 share; all three given and no ss_s: the single support is their sum. lower_frac: the lowering as a
-    share of the single support (the same as lower_s = lower_frac x ss)."""
+    share of the single support (the same as lower_s = lower_frac x ss).
+    moving_lift: s, the lift-off comes this long BEFORE the shift ends (the moving lift): the settle is replaced by
+    -moving_lift (t_set < 0), the step is settle + moving_lift shorter; 0 / None = off. Not with settle."""
     t_sh, t_set, t_ds, t_ss = split_times(T, ds, settle_frac, t_shift, t_settle)
     period = T
     if settle is not None:
@@ -161,6 +170,13 @@ def resolve_times(T, ds=0.4, settle_frac=0.25, t_shift=None, t_settle=None, sett
                              f"support: raise and lower want >= 0.10, move >= 0.08")
         if parts == PARTS:
             custom = False
+    if moving_lift:
+        if settle is not None:
+            raise ValueError("moving_lift replaces the settle: give one of them")
+        if not 0.0 < moving_lift <= MOVING_LIFT_MAX * t_sh + 1e-9:
+            raise ValueError(f"moving_lift {moving_lift:g} s: want > 0 and <= {MOVING_LIFT_MAX:g} x the {t_sh:g} s shift")
+        period -= t_set + float(moving_lift)
+        t_set = -float(moving_lift)
     return dict(t_sh=t_sh, t_set=t_set, t_ss=t_ss, period=period, parts=parts, custom=custom, explicit=explicit)
 
 
@@ -216,7 +232,7 @@ class Dwell:
                  t_shift=None, t_settle=None, yaw_trim=0.0, pelvis_x="mid", close=True, ankle_ff=None, k_ds=None,
                  ankle_ff_steps=None, dx_steps=None, dy_steps=None, step_meta=None, swing_tilt=0.0,
                  td_pause=0.0, settle=None, lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None,
-                 move_s=None, lower_s=None, pre_hike=None, pre_hike_frac=1.0):
+                 move_s=None, lower_s=None, pre_hike=None, pre_hike_frac=1.0, moving_lift=None):
         """td_pause: s, the next step's lateral shift (all pelvis / hip roll / ankle roll motion of the shift, and the
         fore-aft pelvis move with it) starts this long AFTER the planned touchdown of the swing foot: the lowering, the
         ankle feed-forward's and the swing tilt's ramp-out are complete first (they follow the foot's height, 0 at
@@ -226,6 +242,10 @@ class Dwell:
         support (default 0.35; the move takes what the raise and the lowering leave). ss_s / shift_s / raise_s / move_s /
         lower_s: s, the single support, the lateral shift and the three parts of the single support given directly
         (resolve_times: the step is then shift + settle + single support, T only supplies what was not given).
+        moving_lift: s, the swing foot lifts this long BEFORE the lateral shift ends (no settle): the pelvis finishes
+        the shift's min-jerk tail over the first part of the raise, so at lift-off it is short of k_static but still
+        moving toward it; its divergent component (pelvis + velocity / OMEGA, the LIPM's capture point in pelvis
+        terms) is what reaches k_static (self.liftoff's "dcm"). The step is settle + moving_lift shorter. Default off.
         pre_hike: {"L": deg, "R": deg} (or a pair), a hip-roll hike of the STANCE leg in the plan (the firmware trim's
         convention: + raises the swing-side hip), min-jerk in over the settle (both feet down; over pre_hike_frac of it),
         held through the single support and out over the start of the next step (over the pause when there is one, else
@@ -271,7 +291,7 @@ class Dwell:
         def _at(lst, i, default):
             return default if lst is None else (lst[i] if i < len(lst) else lst[-1])
         rt = resolve_times(T, ds, settle_frac, t_shift, t_settle, settle, ss_s, shift_s, raise_s, move_s, lower_s,
-                           None if lower_frac == LOWER_FRAC else lower_frac)
+                           None if lower_frac == LOWER_FRAC else lower_frac, moving_lift)
         t_sh, t_set, t_ss, period, custom = rt["t_sh"], rt["t_set"], rt["t_ss"], rt["period"], rt["custom"]
         t_ds = t_sh + t_set
         R_, M_, F_ = rt["parts"]                 # the raise / move / lower shares of the single support
@@ -282,6 +302,9 @@ class Dwell:
             raise ValueError("pre_hike: want 0 to 12 deg per side")
         if not 0.05 <= pre_hike_frac <= 1.0:
             raise ValueError("pre_hike_frac: want 0.05 to 1")
+        self.moving_lift = float(moving_lift or 0.0)
+        if self.moving_lift and any(pre_h.values()):
+            raise ValueError("pre_hike ramps in over the settle; the moving lift has none")
         t_pause = float(td_pause or 0.0)
         if t_pause < 0.0 or t_pause > 2.0:
             raise ValueError(f"td_pause {t_pause:g} s: want 0 to 2")
@@ -301,7 +324,8 @@ class Dwell:
                       + "".join(f" aff{s_}{v:+g}" for s_, v in self.ankle_ff.items() if v)
                       + (f" pause{t_pause:g}" if t_pause else "") + (f" settle{t_set:g}" if settle is not None else "")
                       + (f" lower{F_:g}" if lower_frac is not None else "")
-                      + (f" land{1e3 * land:g}mm" if land else ""))
+                      + (f" land{1e3 * land:g}mm" if land else "")
+                      + (f" mlift{self.moving_lift:g}" if self.moving_lift else ""))
         self.r = None
         self.q_start = K.pose(straight=True)
         swing_of = (lambda i: first if i % 2 == 0 else ("R" if first == "L" else "L"))
@@ -432,7 +456,9 @@ class Dwell:
                     fz[press[0]] = press[1]
                 if tt > p["lo"]:
                     u = (tt - p["lo"]) / t_ss
-                    pel = tgt + _mj(u / R_) * (tgt_ss - tgt)     # the two-stage shift's second stage (else 0)
+                    # the two-stage shift's second stage (else 0), on the shift's own value: tgt from its end on, the
+                    # shift's min-jerk tail before it (the moving lift's overlap)
+                    pel = pel + _mj(u / R_) * (tgt_ss - tgt)
                     sw = p["swing"]
                     start, goal, y_from, y_to = goals[cur]
                     if u < R_:
@@ -504,8 +530,19 @@ class Dwell:
             st = p["stance"]
             sg = 1.0 if st == "L" else -1.0
             fst = seg["pa"]["feet"][st][1]
-            self.liftoff.append(dict(i=i, t=p["lo"], stance=st, ratio=sg * (seg["pa"]["pel"] - fst) / self.oy,
-                                     need=self.k_ds[st] or self.k[st]))
+            ratio = sg * (seg["pa"]["pel"] - fst) / self.oy
+            rec = dict(i=i, t=p["lo"], stance=st, ratio=ratio, need=self.k_ds[st] or self.k[st])
+            if self.moving_lift:
+                # at the lift-off instant (between keyframes): the pelvis interpolated, and its divergent component
+                # dcm = ratio + rate / OMEGA (x 62 mm), the LIPM's capture point in pelvis terms
+                k_ = next(j for j in range(2, len(segs)) if segs[j]["t"] >= p["lo"] - 1e-9)
+                sa, sb = segs[k_ - 1], segs[k_]
+                w_ = (p["lo"] - sa["t"]) / max(sb["t"] - sa["t"], 1e-9)
+                pel_lo = sa["pa"]["pel"] + w_ * (sb["pa"]["pel"] - sa["pa"]["pel"])
+                rate = sg * (sb["pa"]["pel"] - sa["pa"]["pel"]) / max(sb["t"] - sa["t"], 1e-9) / self.oy
+                rec["ratio"] = sg * (pel_lo - fst) / self.oy
+                rec["dcm"] = rec["ratio"] + rate / OMEGA
+            self.liftoff.append(rec)
         self.segs, self.phases, self.first = segs, phases, first
 
     def phase_at(self, t):
