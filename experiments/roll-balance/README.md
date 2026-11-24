@@ -1402,3 +1402,16 @@ mismatch above, and none is a training flag:
   `results/footoff_sag/summary.md` / `.json`.
 - The robot's side is read from the flight record and cached in `build/footoff-sag/cache/`. The track logs come from
   whichever `~/code/robot*/experiments/roll-balance/results/` holds them (they are not committed).
+
+## Inward tips by stance count (`stance_tips.py`; 2026-11-24 record)
+
+`python stance_tips.py --day YYYYMMDD --from HHMM --to HHMM` (or track stamps) reads each run's track log and its
+window of the flight record and writes one row per single support (`results/stance_tips/`). Each row has the tip,
+the stance count k on that side, the swing-back after the foot-off sag (e at 0.9 s, the rate at 0.6 s), the roll
+beyond the stance encoders, the learned T at lift-off, and three loads. The loads are the stance hip roll and ankle
+roll in the raise, and the swing hip roll before lift-off. It prints them by timing × side × k ≤ 4 / k ≥ 5.
+
+On 2026-11-16 evening, normal timing: 0 of 202 early and 12 of 163 late left stances tipped; fast timing: 0 of 59
+late. Every tip was preceded by the stance ankle roll carrying no load in the raise. The cause is not found. The
+record and the first robot test (the learned trim frozen, A/B/C) are in
+[`docs/design-v6/2026-11-24-left-stance-tips.md`](../../docs/design-v6/2026-11-24-left-stance-tips.md).
