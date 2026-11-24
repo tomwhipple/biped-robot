@@ -1249,7 +1249,7 @@ the obs-spec generator rebuild the same robot:
 | measured plant | the masses weighed (#82) replacing the CAD inertials |
 | free play | the roll play is in the legs-only runs as an extra roll-joint deadzone (`--roll-lash-deg`, calibrated on the 2026-10-24 bench lift); the referee inherits the band from `config.json`. The compliance beyond the encoders is `--roll-series-k` (a spring, the encoders reading the shaft). Still open: the play per joint (one lumped value for the four roll joints), and the play's own shaft/link split in the observation (with the roll deadzone the sim's encoders read the link) |
 | referee thresholds | the absolute thresholds (distances, drifts, the torque-off stand's unmeasured passive friction) are the prototype's; re-derive them for the taller, heavier robot. The plant-measured targets (nominal height, knee height, crouch depth) already follow the plant; the crouch-depth limit (`crouch_theta_max_deg` 39°) and the rise and fallen-start poses are the prototype's numbers |
-| the robot's bench envelope | `main/mech_envelope.h` `kMech*V6Legs`: the v6 legs plant's policy range, not the stops measured on the robot ([servo-map.md](servo-map.md) §3.3). Its ankle-pitch ctrlrange (±45°) is wider than the plant's own joint stops (±40°) |
+| the robot's bench envelope | `main/mech_envelope.h` `kMechLo` / `kMechHi`: the v6 legs plant's policy range, not the stops measured on the robot ([servo-map.md](servo-map.md) §3.3). Its ankle-pitch ctrlrange (±45°) is wider than the plant's own joint stops (±40°) |
 
 **When.** The design is validated in stages (DESIGN.md, "Validation method"):
 kinematics, actuator margins and contact realism first, then the scripted

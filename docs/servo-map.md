@@ -357,9 +357,9 @@ isolation:
 
 ### 3.3 Mechanical envelope
 
-The bench clamp in `mech_envelope.h`, as a build whose policy drives the v6
-legs (the ankle rolls) picks it: `kMechLoV6Legs` / `kMechHiV6Legs`. Angles are
-in the sim joint frame.
+The bench clamp in `mech_envelope.h`: `kMechLo` / `kMechHi`, one row per bus
+joint. `move`, `pose` and `home` clamp to it, and so does a held servo's
+trained target (the neck, the arms). Angles are in the sim joint frame.
 
 | joint | envelope | evidence |
 |---|---|---|
@@ -377,10 +377,10 @@ The arm rows are in the arms' own frame (§3.2, arms), whose zero is the
 owner's home pose, not the plant's 0.
 
 The leg rows are the v6 legs plant's policy range, not the robot's stops; the
-robot's **measured** stops lie outside every row and are below. `kMechLo` /
-`kMechHi` hold the earlier prototype's measured leg rows; `mechLo()`/`mechHi()`
-use them only for a policy with no ankle rolls, and every compiled policy has
-them.
+robot's **measured** stops lie outside every row and are below. The earlier
+prototype's measured leg rows were a second table in the header until #81 folded it
+away: no compiled policy had selected them since every policy set drives the
+ankle rolls, and the header now refuses a policy that does not.
 
 #### Measured on the robot, 2026-11-02 (v6 legs)
 

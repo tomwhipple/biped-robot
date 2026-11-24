@@ -40,7 +40,9 @@ import serial
 import sweep_guard as G
 
 K = 4096 / 360.0
-# firmware/main/mech_envelope.h kMechLo / kMechHi, degrees, by JOINT NAME. The
+# The 10-DOF prototype's bench envelope, degrees, by JOINT NAME: what
+# firmware/main/mech_envelope.h's prototype table (folded away in #81; no build
+# has selected it since 1e60f65) clamped `move` to. The
 # servo ID of each joint comes from the live board's `cal show` (board_joint),
 # so the tool follows whichever bus map the flashed firmware carries (the v6
 # legs' IDs changed on 2026-10-23: keying this by ID once went stale).
@@ -49,8 +51,8 @@ MECH_BY_NAME = {
     "R_ankle": (-40, 40), "L_hip_roll": (-25, 55), "L_hip_pitch": (-110, 90),
     "L_knee": (-95, 95), "L_ankle": (-40, 40), "R_hip_yaw": (-45, 45),
     "L_hip_yaw": (-45, 45), "R_ankle_roll": (-25, 25), "L_ankle_roll": (-25, 25)}
-# kMechLoV6Legs / kMechHiV6Legs: what a v6legs firmware build clamps `move` to
-# (mechLo()/mechHi() pick it when the policy drives the robot's legs). 2026-11-02:
+# mech_envelope.h kMechLo / kMechHi leg rows: what every firmware build since
+# 1e60f65 clamps `move` to (the v6 legs plant's policy range). 2026-11-02:
 # sweeping a v6legs board with the prototype table above put the hip-roll start
 # outside the firmware's window and ended the knees at its clamp.
 MECH_V6LEGS = {
@@ -274,7 +276,8 @@ def main():
     ap.add_argument("--allow-contact", action="store_true",
                     help="lift the inward hip-roll cap (the other leg must be moved clear)")
     ap.add_argument("--body", choices=("v6legs", "proto"), default="v6legs",
-                    help="which mech_envelope.h table the flashed firmware clamps to")
+                    help="the flashed firmware's bench envelope: v6legs (every build since 1e60f65) "
+                         "or proto (an older prototype build)")
     a = ap.parse_args()
     use_body(a.body)
     sid = a.id

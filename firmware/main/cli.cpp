@@ -331,17 +331,17 @@ bool torqueGate(scsbus::Bus* bus, Sink out, uint8_t id) {
 // target servo is one of the bus's. Raw 0..4095 is the encoder's range, not
 // the mechanism's -- the difference is a horn driving a printed part past its
 // stop. The envelope (mech_envelope.h, one row per bus joint) is the measured
-// mechanical truth, deliberately separate from the plant's policy range: the
-// bench can e.g. hyperextend a knee to its measured -95..+95 even though
-// policies train in -95..+5 (split introduced 2026-08-03 after the clamp cut
-// short a manual ROM session at the plant's limits).
+// mechanical truth, deliberately separate from the plant's policy range: a
+// row may be wider than the policy trains in, where it names its evidence
+// (split introduced 2026-08-03 after the clamp cut short a manual ROM session
+// at the plant's limits).
 int32_t clampTicks(uint8_t id, int32_t ticks, bool* hit) {
     if (hit) *hit = false;
     const int b = obs::busIndexOfId(id);
     if (b < 0) return ticks;    // not a bus servo: encoder range only
     const obs::Calibration& cal = robot::calibration();
-    const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
-    const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
+    const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
+    const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
     const int32_t lo = a < c ? a : c, hi = a < c ? c : a;
     if (ticks < lo || ticks > hi) {
         if (hit) *hit = true;
@@ -356,8 +356,8 @@ int32_t clampToJointRange(uint8_t id, int32_t ticks, Sink out) {
     if (hit) {
         const int b = obs::busIndexOfId(id);
         const obs::Calibration& cal = robot::calibration();
-        const int32_t a = obs::busAngleToStepsRaw(b, robot::mechLo(b), cal);
-        const int32_t c = obs::busAngleToStepsRaw(b, robot::mechHi(b), cal);
+        const int32_t a = obs::busAngleToStepsRaw(b, robot::kMechLo[b], cal);
+        const int32_t c = obs::busAngleToStepsRaw(b, robot::kMechHi[b], cal);
         say(out, "id %d: %ld is outside %s's range [%ld..%ld]%s, clamped to "
             "%ld\r\n", id, static_cast<long>(ticks), obs::kBusJointNames[b],
             static_cast<long>(a < c ? a : c), static_cast<long>(a < c ? c : a),

@@ -42,7 +42,8 @@ def main():
     ap.add_argument("--allow-contact", action="store_true",
                     help="lift the inward hip-roll cap (the other leg must be moved clear)")
     ap.add_argument("--body", choices=("v6legs", "proto"), default="v6legs",
-                    help="which mech_envelope.h table the flashed firmware clamps to")
+                    help="the flashed firmware's bench envelope: v6legs (every build since 1e60f65) "
+                         "or proto (an older prototype build)")
     a = ap.parse_args()
     use_body(a.body)
     sid, tgt = a.id, a.to
