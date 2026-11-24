@@ -1379,6 +1379,20 @@ What does not match:
 - The static edge the inset sole was fitted to (march k R 1.20 tips, 1.30 holds; SIL table above) is not re-run with
   the sag on.
 
+**Variants tried on this replay (#259 Round 6, `results/footoff_sag/r6_gap2.md`).** About 45 variants: per-side sag,
+ankle share and springs, kd, viscous damping, roll dry friction, an inner edge on the right sole. None closes a
+mismatch above, and none is a training flag:
+- The right-stance sag stays 2.3-2.7° on every run whatever the term. The robot's goes 1.5-3.1° with the gait, so a
+  per-side constant fits the forward walks or the march, not both.
+- The robot's right-stance tips are a late roll over the stance sole's edge (delta beyond the encoders 16-19° at
+  0.8-1.1 s), not a large first sag. A 1-2 mm inner edge on the right sole picks out those steps but rolls them only
+  half as far, and adds a false collapse on a clean run.
+- The damping after the first peak is the roll links' dry friction. Less of it rings closer to the robot (ζ 0.32-0.59
+  at 0.04-0.10 N m against 0.05-0.17) but needs a lower left sag and makes the clean Variant M run fragile below
+  0.10 N m. kd and viscous damping do not move ζ.
+- `footoff_sag.py` takes these as study terms in a plant spec (`x_kd`, `x_damp`, `x_ank_L/R`, `x_k_L/R`, `x_fl_L/R`;
+  CPU replay only, no plant default).
+
 **Using it.**
 - Grade on it as a fourth plant: `GRADE_PLANT_TERMS=sag_L=6.4,sag_R=2.9`. It drops the run's own play or spring.
 - Train with `--footoff-sag L=6.4,R=2.9` in place of `--roll-play-deg ...` and `--sole-in-mm ...`.

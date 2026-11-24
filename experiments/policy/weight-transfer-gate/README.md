@@ -599,7 +599,7 @@ commanded lateral move, in mm (+ = left):
   rolls toward the stance foot. spring8 levels it (-2.2) but gets the trim gains too soft (R hip 0.28 vs 0.83 deg/deg, L hip 0.66 vs 0.89), and the sim's swing sole is clear at only 56 % of the stepper's foot-up rows. No term
   reproduces the double-support lean: the robot rolls 0.03-0.05 deg per mm of pelvis shift, away
   from the side it is shifted to (4.7 deg peak to peak over ±62 mm), against at most 0.02 in every
-  plant. Of the robot's three falls, the plants get 112541; 101413 falls in the sim but 16 s early,
+  plant. (Round 6: that is the 13:05 sweep only; the three later sweeps do not lean.) Of the robot's three falls, the plants get 112541; 101413 falls in the sim but 16 s early,
   and 111627 never falls.
 - **Asymmetry hypotheses.** A torso CoM offset of ±10-20 mm alone moves the sweep cost by less than
   0.2 and does not change the trim gains. In the lift grids (f1, f4) with the play, the best
@@ -617,6 +617,135 @@ commanded lateral move, in mm (+ = left):
 Results: `results/stepper_replay/` (`refit.md`, `baseline*.md`, `sweeps_baseline.md`, and each grid's
 `fit_<name>.csv` with `_cost.csv`). The plots and the camera CSVs go to `build/stepper-replay/` (gitignored).
 
+## Round 6 (2026-11-23/24): the open items on the later data and the later plants
+
+No new hardware data (the robot is down since 2026-11-16). Round 6 replays the existing runs on the
+plants that came after Round 5, and adds the 11-11 evening and 11-12 shift sweeps. Plants:
+
+- `grade`;
+- `play_fit` (Round 5: play L hip 6, R hip 8, L ankle 3, R ankle 0);
+- `spring8` (`ser_hip=8`);
+- `sag` (`sag_L=6.4,sag_R=2.9`: the foot-off sag, in training since 11-17);
+- `sag+fric` (`sag_L=5.4,sag_R=2.9,fric_hroll=0.10,fric_aroll=0.10`: the grading study from the sag replay);
+- the inset sole (`sole_in_L=8,sole_in_R=-12`).
+
+Gap 2 (the sag plant against the 11-16 walks) is a separate record:
+`../../roll-balance/results/footoff_sag/r6_gap2.md`, summarised in the roll-balance README's foot-off sag section.
+
+```bash
+cd experiments/policy/weight-transfer-gate
+SW=130557_shiftsweep,181438_shiftsweep,181700_shiftsweep,2026-11-12/120634_shiftsweep,130837_playsweep,131111_playsweep
+P="grade;grade+play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0;grade+ser_hip=8;grade+sag_L=6.4,sag_R=2.9;\
+grade+sag_L=5.4,sag_R=2.9,fric_hroll=0.10,fric_aroll=0.10"
+../../../.venv/bin/python fit_stepper.py check --name r6_plants_sw --plants "$P;grade+sole_in_L=8,sole_in_R=-12" \
+    --runs $SW --cost sweep --ref crouch --workers 8
+../../../.venv/bin/python fit_stepper.py grid --name r6_fric_sw --base "grade+play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0" \
+    --axes "fric_hroll=0.169,0.4,0.8,1.5;fric_aroll=0.169,0.4,0.8,1.5" --runs $SW --cost sweep --ref crouch --workers 8
+../../../.venv/bin/python fit_stepper.py check --name r6_plants_lifts --plants "$P" --cost lift --ref crouch --workers 8
+../../../.venv/bin/python fit_stepper.py check --name r6_plants_heldout --plants "$P" \
+    --runs 104303_march,104435_walk,110045_walk,110708_walk --ref crouch --workers 8
+../../../.venv/bin/python check2_replay.py --stride3 --seeds 8 --workers 8 --md results/r6_stride_plants.md \
+    --json results/r6_stride_plants.json --stride3-plants "closed, grade as is=;closed, sag 6.4/2.9=sag_L=6.4,sag_R=2.9;..."
+```
+
+Each takes under a minute on 8 processes once the runs are cached. Extracting one run from its flight record
+peaks at about 13 GB, so run one extraction at a time. `stepper_replay.py` now also scores each sweep's loop
+(`sw_<segment>_hyst_rob/_sim`, `sweep_hysteresis`). The rising and falling rows' roll are interpolated onto
+each other over the range both cover, and the loop is the mean of rising minus falling, in deg. + means the
+body sits further right while the swept value rises.
+
+### 1. Double stance: the lean is one sweep's, and the play gives the wrong loop
+
+| shift sweep, both feet down | robot | grade | play_fit | spring8 | sag |
+|---|---|---|---|---|---|
+| 11-11 13:05, ±62 mm, 2 cycles | +0.045 / +0.026; -0.12 | +0.000 / -0.002; +0.03; 1.43 | +0.016 / -0.002; -0.95; 1.12 | +0.013 / -0.001; -0.53; 1.12 | -0.006 / -0.003; -0.07; 1.55 |
+| 11-11 18:14, ±74 mm | +0.006 / -0.003; +0.45 | -0.001 / -0.003; +0.12; 0.39 | +0.007 / -0.012; -1.24; 1.07 | +0.012 / -0.001; -0.68; 0.92 | -0.008 / -0.004; +0.14; 0.45 |
+| 11-11 18:17, ±84 mm | +0.008 / -0.003; +0.50 | -0.001 / -0.004; +0.15; 0.35 | +0.006 / -0.013; -1.23; 1.00 | +0.012 / -0.001; -0.71; 0.81 | -0.010 / -0.005; +0.22; 0.52 |
+| 11-12 12:06, ±81 mm | -0.008 / -0.010; +0.16 | -0.002 / -0.003; +0.15; 0.34 | -0.001 / -0.018; -1.50; 1.28 | +0.010 / -0.002; -0.71; 1.01 | -0.010 / -0.005; +0.28; 0.20 |
+
+Each cell gives the slope in deg per mm (shift above zero / below), then the loop in deg, then the sweep's roll
+RMS against the robot in deg (sim cells only). `results/stepper_replay/fit_r6_plants_sw.csv` (and `_cost.csv`)
+also has `sag+fric` and the inset sole: both are within 0.02 deg/mm and 0.3 deg of loop of `sag` / `grade`.
+
+- **The 0.03-0.05 deg/mm lean is in one sweep of four.** At 13:05 the robot rolled 4.5 deg peak to peak over
+  ±62 mm. Both cycles retrace each other within 0.15 deg, so that sweep has no loop. The three later sweeps lean
+  -0.010 to +0.008 deg/mm and leave a loop instead. On the 11-11 evening the body drops 0.65-0.7 deg in one row
+  when the shift turns back from its right end, and rises 0.15-0.35 deg at the left end (loop +0.45 / +0.50).
+  The 11-12 loop is smaller (+0.16). The robot's joints were the same in all four. At zero shift the 12 encoders
+  agree within 0.5 deg, and at each shift the roll encoders at 13:05 and 18:14 agree within 0.5 deg.
+  What differs is the body's pitch. The robot's settled crouch reads +0.5 deg at 13:05, against +4.1 to +4.3 at
+  18:14-18:17 and +3.4 on 11-12. Over 11-11 the standing pitch steps between -1 and +5 deg from block to block,
+  with the same knees. What changed (the board's level, the IMU's seat, the feet) is not recorded.
+- **On the three later sweeps the stiff plants match the robot; the play plants do not.** `grade`, `sag` and the
+  inset sole are within 0.02 deg/mm of the robot and leave a +0.1 to +0.3 deg loop, the robot's sign, at a sweep
+  RMS of 0.20-0.52 deg. `play_fit` and `spring8` leave a loop of the opposite sign, -0.7 to -1.5 deg, at
+  0.81-1.28 deg RMS. In those plants the body lags the shift through the play or the spring. The robot does not
+  lag. In double stance it behaves as if its roll chain had no play, while in single support (the play sweeps,
+  Round 5) it needs the play. That is what the sag term does by construction: its springs release only as a
+  foot unloads. No plant gives the 13:05 lean.
+- **Friction inside the play does not hold it** (`fit_r6_fric_sw`, `play_fit` with the hip- and ankle-roll dry
+  friction at 0.169-1.5 N m each, 16 plants).
+  - Ankle-roll friction at 0.4 N m or more (0.8 and 1.5 are identical: the link no longer moves in its play)
+    shrinks `play_fit`'s wrong-sign loop from -1.0 to -1.5 deg to -0.5 to -1.1. The best sweep cost goes from
+    1.06 to 0.96.
+  - Hip-roll friction at 0.4 N m or more turns the double-stance slope negative on both sides (-0.013 to
+    -0.043 deg/mm) and the loop to -1.0 to -2.1 deg (sweep cost 1.27-1.62).
+  - It does give the L-stance hip-trim loop the robot's sign (+0.38 at 0.8 N m against the robot's +0.71 and
+    `play_fit`'s -0.05). This is the one segment it improves (RMS 0.43 to 0.20 deg).
+  - No friction value fits double and single support at once. It is not a training term.
+
+### 2. Single support: the left-stance level and the falls (`fit_r6_plants_lifts`, `fit_r6_plants_heldout`)
+
+| plant | 14 lifts: roll rms / level err L, R stance / falls (robot 3) | held out (march + 3 walks): roll rms / level err L, R |
+|---|---|---|
+| grade | 3.87 / -4.1, +4.5 / none of the 3 | 4.51 / -8.4, +2.5 |
+| play_fit | 2.78 / -2.7, +1.6 / 101413 (8.5 s early), 112541; false 112303 | 2.72 / -5.4, -0.9 |
+| spring8 | 2.64 / -5.3, +0.7 / 101413 (7 s early), 112541; false 112303 | 1.68 / -2.4, -1.3 |
+| **sag** | **2.53 / -1.1, +2.2 / none of the 3** | **2.30 / -3.9, +0.0** |
+| sag+fric | 2.59 / -1.2, +2.3 / none of the 3 | 2.52 / -2.0, +0.1 |
+
+The held-out set is the four cached runs of Round 5's five (130223 is not extracted), so its numbers differ from
+Round 5's by up to 0.3 deg in roll rms and 0.8 deg in level error.
+
+- **Item 1 (L stance under ~11 deg of hip trim) is narrowed on the lifts, not on the walks.** The sag plant
+  gets the lifts' L-stance level error from -2.7 (`play_fit`) to -1.1 deg. On the held-out walks it is -3.9.
+  With the friction study it is -2.0, and spring8 gives -2.4. The R stance goes from +1.6 to +2.2 on the lifts.
+- **Item 3 (falls) is worse on the sag plant.** It stands through all three of the robot's falls (101413 left at
+  +34.8 s, 111627 backward, 112541 sideways), where `play_fit` and spring8 get 112541 and fall early on 101413. It
+  has no false falls (`play_fit` falls on 112303, which the robot stood through). This matches the 11-16 walks
+  (gap 2): the sag plant does not reproduce the robot's late tips.
+
+### 3. The 2026-11-10 stride on the later plants (`results/r6_stride_plants.md`, closed loop, 8 seeds)
+
+| plant | tilt +0.3 / +0.5 / +0.6 s | R lift mm | yaw +2 s | falls |
+|---|---|---|---|---|
+| robot | 5.6 / 11.3 / 14.4 | unknown | -43.6 | - |
+| grade | 4.2 / 7.7 / 8.0 | 20.6 | +11.0 (+4 to +32) | 0/8 |
+| play_fit | 4.0 / 7.2 / 7.4 | 22.0 | +26.6 | 0/8 |
+| spring8 | 4.1 / 7.4 / 7.4 | 10.9 | +1.4 | 0/8 |
+| sag | 4.3 / 7.4 / 7.9 | 18.0 | -1.7 (-4.8 to +0.5) | 0/8 |
+| sag+fric | 4.3 / 7.4 / 7.8 | 18.1 | -1.6 | 0/8 |
+| inset sole | 4.2 / 7.8 / 7.9 | 19.5 | +21.9 | 0/8 |
+
+**Item 4 is not closed.** Every plant stops tipping at 7-8 deg, where the robot goes on to 14.4. The sag plant is the
+first to give the robot's yaw sign at +2 s, at 4 % of its size.
+
+### What this changes, and what would settle the rest
+
+- **Training: nothing.** No term is supported (DESIGN.md §14). The sag plant already in training is the most
+  consistent of the plants on the later double-stance sweeps and on the lifts' left stance, and the only one with
+  the stride's yaw sign. But it reproduces none of the robot's falls or late tips, nor the stride tilt.
+- **Grading: unchanged.** `GRADE_PLANT_TERMS=sag_L=6.4,sag_R=2.9` stays the fourth plant.
+- **Measurements, for the robot's next session.** The 11-16 items (free decay per stance side, roll-joint
+  breakaway torque, the right-stance window with a side camera at sole height, gait against session for the right
+  sag) are in `r6_gap2.md`. For the double stance:
+  1. Run the 13:05 shift sweep again (±62 mm, 6 mm steps, 2 cycles) at the start of the session. Before it, put
+     an inclinometer on the board where the feet stand and log the standing IMU pitch. Repeat it at the end of the
+     session, and once with the board shimmed by about 4 deg of pitch.
+  2. If the 0.03-0.05 deg/mm lean comes back, the robot has two double-stance states. The record should say which
+     one goes with the standing pitch. If it does not come back, item 2 is closed as "the later sweeps": the plant's
+     double stance should be stiff and leave a +0.2-0.5 deg loop, as `sag` and `grade` already are.
+
 ## What is still unmeasured
 
 1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s
@@ -628,6 +757,10 @@ Results: `results/stepper_replay/` (`refit.md`, `baseline*.md`, `sweeps_baseline
    them do not reproduce the both-feet-down ladder or the stride's 14 deg tilt, so a static clamp
    split does not yet say how the chain behaves in motion.
 4. Sole/board friction and torsional grip on the board used on 11-09 and 11-10.
+5. **Whether the double-stance lean repeats** (Round 6). It is in one shift sweep of four, and the standing
+   pitch differed by about 4 deg between that sweep and the others, with the same joints. The free decay, the
+   roll breakaway torque and the right-stance edge are measured by none of the records
+   (`../../roll-balance/results/footoff_sag/r6_gap2.md`).
 
 ## Limits
 

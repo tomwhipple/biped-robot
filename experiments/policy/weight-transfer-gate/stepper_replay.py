@@ -441,8 +441,38 @@ def sweep_metrics(log, T, roll_sim, t_rob, roll_rob, t1, t2):
             if m.sum() >= 3 and np.ptp(v[m]) > 0:
                 out[f"sw_{k}_{br}_rob"] = float(np.polyfit(v[m], rb[m], 1)[0])
                 out[f"sw_{k}_{br}_sim"] = float(np.polyfit(v[m], rs[m], 1)[0])
+        h = sweep_hysteresis(v, rb, rs)
+        if h is not None:
+            out[f"sw_{k}_hyst_rob"], out[f"sw_{k}_hyst_sim"] = h
     out["sweep_rms"] = float(np.sqrt(np.mean(np.square(err))))
     return out
+
+
+def sweep_hysteresis(v, rb, rs):
+    """The direction-dependence of a sweep (#259 Round 6): each row is on the rising (the swept value
+    above the previous row's) or the falling branch. Each branch's roll is averaged per swept value and
+    linearly interpolated onto every value either branch visits inside the range both cover (the two
+    branches need not visit the same values: the 11-12 sweep's are 3 mm apart); the result is the mean
+    over those values of rising minus falling, deg (robot, sim). + = the body sits further right
+    (+ roll) while the value rises. None when the shared range holds fewer than 3 values."""
+    v, rb, rs = (np.asarray(a, float) for a in (v, rb, rs))
+    d = np.sign(np.diff(v, prepend=v[0]))
+    if len(d) > 1:
+        d[0] = d[1]
+    br = []
+    for sgn in (1, -1):
+        m = d == sgn
+        if not m.any():
+            return None
+        x = np.unique(v[m])
+        br.append((x, [np.array([y[m][v[m] == xi].mean() for xi in x]) for y in (rb, rs)]))
+    (xu, yu), (xd, yd) = br
+    lo, hi = max(xu[0], xd[0]), min(xu[-1], xd[-1])
+    grid = np.unique(np.concatenate([xu, xd]))
+    grid = grid[(grid >= lo) & (grid <= hi)]
+    if len(grid) < 3:
+        return None
+    return tuple(float(np.mean(np.interp(grid, xu, yu[j]) - np.interp(grid, xd, yd[j]))) for j in (0, 1))
 
 
 def step_landings(s, r=None):

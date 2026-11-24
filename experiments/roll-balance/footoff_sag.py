@@ -18,6 +18,8 @@ stepper_replay.build spec: `grade+<gate_common terms>`) is placed at the robot's
 before the play and held 1.5 s, then its servos get the robot's written goals tick by tick (50 Hz,
 zero-order hold). Nothing closes a loop: the trim, the lift gate and the ankle feed-forward are in
 the goals the robot wrote, so the sim answers "what would this body have done under those goals".
+A spec may also carry this tool's study terms (x_kd, x_damp, x_ank_L/R, x_k_L/R, x_fl_L/R;
+split_study): CPU replay only, none is a plant default.
 
 Per single support (t from its t0; s = +1 on a left stance, -1 on a right one):
   imu(t)   = s (roll(t) - roll at t0)            roll toward the lifted foot, deg (roll = -asin(up_y))
@@ -272,6 +274,65 @@ def window(r):
 # --------------------------------------------------------------------------------------------
 # the sim's side
 # --------------------------------------------------------------------------------------------
+STUDY_KEYS = ("x_kd", "x_damp", "x_ank_L", "x_ank_R", "x_k_L", "x_k_R", "x_fl_L", "x_fl_R")
+
+
+def split_study(spec):
+    """(spec without the study terms, {study term: value}). The study terms (CPU, this tool only;
+    none is a plant default anywhere), on the four roll servos:
+      x_kd=<x>            x the servo kd (the PD's damping as the link sees it)
+      x_damp=<N m s/rad>  the roll joints' viscous damping (MuJoCo dof_damping; the plant's is 0.1)
+      x_ank_L=, x_ank_R=<0..1>   that side's share of the foot-off sag preload at the ankle roll
+                          (walker_env FOOTOFF_SAG_ANKLE_SHARE, 0.3; the rest at the hip)
+      x_k_L=, x_k_R=<N m/rad>    that side's foot-off sag springs (FOOTOFF_SAG_K, 60)
+      x_fl_L=, x_fl_R=<N m>      that side's hip- and ankle-roll dry friction (MuJoCo frictionloss on
+                          the link; the plant's is 0.17; gate_common's fric_hroll / fric_aroll set
+                          both sides)"""
+    name, plus, terms = spec.partition("+")
+    keep, study = [], {}
+    for tok in terms.split(","):
+        k, _, v = tok.partition("=")
+        if k.strip() in STUDY_KEYS:
+            study[k.strip()] = float(v)
+        elif tok.strip():
+            keep.append(tok.strip())
+    return name + (("+" + ",".join(keep)) if keep else ""), study
+
+
+def apply_study(env, study):
+    if not study:
+        return
+    m = env.model
+    names = env._servo_names
+    roll = np.array([n.endswith(("hip_roll", "ankle_roll")) for n in names])
+    if "x_kd" in study:
+        env._kd_prof = np.where(roll, env._kd_prof * study["x_kd"], env._kd_prof)
+    if "x_damp" in study:
+        for i in np.where(roll)[0]:
+            m.dof_damping[env._jv0 + i] = study["x_damp"]
+    for s_ in "LR":
+        if f"x_fl_{s_}" in study:
+            for i in np.where(roll)[0]:
+                if names[i].startswith(s_ + "_"):
+                    m.dof_frictionloss[env._jv0 + i] = study[f"x_fl_{s_}"]
+    if any(k in study for k in ("x_ank_L", "x_ank_R", "x_k_L", "x_k_R")):
+        if getattr(env, "_fs_theta", None) is None:
+            raise ValueError("x_ank_* / x_k_* need the foot-off sag (sag_L= / sag_R=)")
+        part = np.array(env._fs_part, float)
+        k = np.full(len(names), float(np.mean(env._fs_k)))
+        for i, n in enumerate(names):
+            s_ = n[0]
+            a = study.get(f"x_ank_{s_}")
+            if a is not None and n.endswith("ankle_roll"):
+                part[i] = a
+            elif a is not None and n.endswith("hip_roll"):
+                part[i] = 1.0 - a
+            if f"x_k_{s_}" in study and roll[i]:
+                k[i] = study[f"x_k_{s_}"]
+        env._fs_part = part
+        env._fs_k = k
+
+
 def simulate(job):
     """(stamp, label, spec) -> the sim's traces under the robot's goals, one replay per single
     support: placed at the robot's measured joints in the double support before it (PLACE_S
@@ -280,6 +341,7 @@ def simulate(job):
     from there to 0.8 s after its touchdown (a step's replay does not inherit the drift of the
     steps before it)."""
     stamp, label, spec = job
+    base_spec, study = split_study(spec)
     import rec
     import simh
     import stepper_replay as SR
@@ -295,7 +357,8 @@ def simulate(job):
             continue
         t_from, t_to = max(c["t0"] - PLACE_S, prev_td + PLACE_TD_S), c["td"] + 0.8
         prev_td = c["td"]
-        _, env = SR.build(spec, (t_to - t_from) + HOLD_S + 5.0)
+        _, env = SR.build(base_spec, (t_to - t_from) + HOLD_S + 5.0)
+        apply_study(env, study)
         i0 = int(np.searchsorted(t, t_from))
         q0 = r["pos"][i0][jidx]
         if not np.all(np.isfinite(q0)):

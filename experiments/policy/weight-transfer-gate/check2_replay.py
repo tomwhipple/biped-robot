@@ -504,15 +504,22 @@ ROBOT_FEET_1110 = dict(t_end_R="~0.42 (video)", tilt_end_R="tilted (video)", t_o
                        tilt_off_R="~10-15 (video)", t_off_L="~0.59 (video)")
 
 
-def stride3(seeds=8, workers=24):
+def parse_plants(spec):
+    """'label=terms;label2=terms2' -> {label: terms} (the terms keep their own '='), None if empty."""
+    return dict(x.split("=", 1) for x in (spec or "").split(";") if x.strip()) or None
+
+
+def stride3(seeds=8, workers=24, closed=None):
     """round 3, item 3: the 2026-11-10 stride (GATE_REC=1110) on grade as is, + MASS_SYM, + REFIT3,
-    closed loop under the recorded command, and the joints replay with the same mass / springs."""
+    closed loop under the recorded command, and the joints replay with the same mass / springs.
+    closed: {label: grade terms} in place of STRIDE3_CLOSED, closed loop only (round 6: the later
+    plants' terms on the same stride)."""
     os.environ["GATE_REC"] = "1110"
     rows = [("robot 2026-11-10", robot_row())]
     with ProcessPoolExecutor(max_workers=workers) as ex:
         cl = {n: [ex.submit(closed_loop, ("grade", "record", k, GC.parse_terms(t))) for k in range(seeds)]
-              for n, t in STRIDE3_CLOSED.items()}
-        jt = {n: ex.submit(joints_replay, (0.5, v)) for n, v in STRIDE3_JOINTS.items()}
+              for n, t in (closed or STRIDE3_CLOSED).items()}
+        jt = {} if closed else {n: ex.submit(joints_replay, (0.5, v)) for n, v in STRIDE3_JOINTS.items()}
         for n, fs in cl.items():
             rs = [f.result() for f in fs]
             agg = {}
@@ -525,7 +532,7 @@ def stride3(seeds=8, workers=24):
             rows.append((n, agg))
         for n, f in jt.items():
             rows.append((n, f.result()))
-    L = ["Round 3: the 2026-11-10 stride (`flight_snapshot_0035Z`), torso tilt = acos(up_z) deg; up = the torso z "
+    L = [("Round 6: later plants on" if closed else "Round 3:") + " the 2026-11-10 stride (`flight_snapshot_0035Z`), torso tilt = acos(up_z) deg; up = the torso z "
          "axis in the world, yaw stripped (the record's own `up`); foot times s from the walk command: `end up` = "
          "the sole's highest pad 3 mm off the floor, `off` = every pad 1 mm off; tilt then = the sole's angle from "
          "level (deg). Closed loop: mean [min, max] over seeds (n = seeds where it happened).", "",
@@ -624,6 +631,8 @@ def main(argv=None):
     ap.add_argument("--no-open", action="store_true", help="skip the open-loop rows")
     ap.add_argument("--fk-trace", action="store_true", help="print the robot's encoder+IMU sole kinematics through the swing and exit")
     ap.add_argument("--stride3", action="store_true", help="round-3 item 3: the 2026-11-10 stride on grade / MASS_SYM / REFIT3")
+    ap.add_argument("--stride3-plants", default="",
+                    help="with --stride3: 'label=terms;...' closed-loop rows in place of round 3's (no joints rows)")
     ap.add_argument("--joint-variants", action="store_true", help="round-2 item 2: the joints replay under JOINT_VARIANTS")
     ap.add_argument("--record", default=None, help="flight record: " + ", ".join(RECORDS) + " (default 1109)")
     ap.add_argument("--json", default=None)
@@ -634,7 +643,7 @@ def main(argv=None):
         os.environ["GATE_REC"] = a.record
     terms = GC.parse_terms(a.terms)
     if a.stride3:
-        rows, md = stride3(a.seeds, a.workers)
+        rows, md = stride3(a.seeds, a.workers, parse_plants(a.stride3_plants))
         print(md)
         if a.md:
             open(a.md, "w").write(md + "\n")

@@ -175,3 +175,37 @@ def test_gate_term_replaces_the_play_and_is_live():
     np.testing.assert_allclose(e._fs_theta, W.FOOTOFF_SAG_GAIN * np.radians([6.4, 2.9]))
     e.step(np.zeros(e.action_space.shape[0], np.float32))
     assert np.abs(e._fs_defl).max() > 0.0
+
+
+# -- footoff_sag.py's study terms (experiments/roll-balance, #259 Round 6; CPU replay only) ----------
+def test_replay_study_terms_split_and_apply():
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "roll-balance"))
+    import footoff_sag as FS
+    spec = "grade+sag_L=6.4,sag_R=2.9,x_ank_R=1.0,x_k_L=40,x_fl_L=0.05,x_kd=0.5,x_damp=0.02"
+    base, study = FS.split_study(spec)
+    assert base == "grade+sag_L=6.4,sag_R=2.9"
+    assert study == dict(x_ank_R=1.0, x_k_L=40.0, x_fl_L=0.05, x_kd=0.5, x_damp=0.02)
+    assert FS.split_study("grade") == ("grade", {})
+    assert FS.split_study("grade+x_kd=0") == ("grade", {"x_kd": 0.0})
+    e = _walker(footoff_sag=FIT)
+    e.reset(seed=0)
+    names = list(e._servo_names)
+    roll = [i for i, n in enumerate(names) if n.endswith(("hip_roll", "ankle_roll"))]
+    other = [i for i in range(len(names)) if i not in roll]
+    kd0, part0 = np.array(e._kd_prof, float), np.array(e._fs_part, float)
+    fl0 = np.array(e.model.dof_frictionloss)
+    FS.apply_study(e, study)
+    i = names.index
+    np.testing.assert_allclose(np.asarray(e._kd_prof)[roll], 0.5 * kd0[roll])
+    np.testing.assert_allclose(np.asarray(e._kd_prof)[other], kd0[other])
+    assert all(e.model.dof_damping[e._jv0 + j] == 0.02 for j in roll)
+    assert e._fs_part[i("R_ankle_roll")] == 1.0 and e._fs_part[i("R_hip_roll")] == 0.0
+    assert e._fs_part[i("L_ankle_roll")] == part0[i("L_ankle_roll")]
+    assert e._fs_k[i("L_hip_roll")] == e._fs_k[i("L_ankle_roll")] == 40.0
+    assert e._fs_k[i("R_hip_roll")] == W.FOOTOFF_SAG_K
+    assert e.model.dof_frictionloss[e._jv0 + i("L_hip_roll")] == 0.05
+    assert e.model.dof_frictionloss[e._jv0 + i("R_hip_roll")] == fl0[e._jv0 + i("R_hip_roll")]
+    e2 = _walker()
+    e2.reset(seed=0)
+    with pytest.raises(ValueError):
+        FS.apply_study(e2, {"x_k_L": 40.0})                       # the sag springs need the sag term

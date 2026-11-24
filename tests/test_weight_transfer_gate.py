@@ -247,3 +247,20 @@ def test_pack_inertial_and_up_vector():
     qq = (w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2, w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
           w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2, w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2)
     assert np.allclose(GC.up_of(qq), up, atol=1e-9)
+
+
+def test_sweep_hysteresis_and_stride3_plants():
+    """Round 6: the sweep's direction-dependence. The branches are interpolated onto each other, so a
+    sweep whose rising and falling rows sit 3 mm apart (the 11-12 one) still gets a number."""
+    import stepper_replay as SR
+    import check2_replay as C2
+    up, dn = np.arange(0.0, 61.0, 6.0), np.arange(57.0, -4.0, -6.0)
+    v = np.concatenate([up, dn])
+    roll = 0.02 * v + np.where(np.arange(len(v)) < len(up), -0.25, 0.25)   # rising sits 0.5 lower
+    h = SR.sweep_hysteresis(v, roll, 2.0 * roll)
+    assert h == pytest.approx((-0.5, -1.0))
+    assert SR.sweep_hysteresis(up, 0.02 * up, 0.02 * up) is None             # one direction only
+    assert SR.sweep_hysteresis(np.r_[up, 54.0], np.zeros(12), np.zeros(12)) is None  # shared range < 3 values
+    assert C2.parse_plants("") is None
+    assert C2.parse_plants("play=play_L_hip=6,play_R_hip=8;sag=sag_L=6.4,sag_R=2.9") == {
+        "play": "play_L_hip=6,play_R_hip=8", "sag": "sag_L=6.4,sag_R=2.9"}
