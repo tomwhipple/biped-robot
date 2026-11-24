@@ -1415,3 +1415,122 @@ On 2026-11-16 evening, normal timing: 0 of 202 early and 12 of 163 late left sta
 late. Every tip was preceded by the stance ankle roll carrying no load in the raise. The cause is not found. The
 record and the first robot test (the learned trim frozen, A/B/C) are in
 [`docs/design-v6/2026-11-24-left-stance-tips.md`](../../docs/design-v6/2026-11-24-left-stance-tips.md).
+
+## The moving lift (2026-11-24): the foot leaves while the shift is still arriving (`--moving-lift S`, `moving_lift.py`; host only, default off)
+
+**What it is.** Today's dwell step brings the pelvis to k_static (1.30 × 62 mm over the stance foot), holds it for the
+settle, and only then lifts the foot. `--moving-lift S` lifts the swing foot S seconds BEFORE the shift ends and drops the
+settle: the shift's own min-jerk tail runs on into the raise, so the pelvis reaches k_static about S into the single support
+(`dwell.Dwell(moving_lift=)`). The step is (settle + S) shorter. Nothing else changes: the single support, the raise (0.77 s,
+the floor of `hw_sessions/2026-11-16/DESIGN_moving_lift_gait.md` §3), the ±80 mm sway, the frames' phase warp, the lift-gate
+frame (the last frame before the lift-off) and the firmware track player as it is. No firmware change.
+
+At lift-off the pelvis is short of k_static but still moving out toward it. In LIPM terms (h 0.224 m, 1/ω 0.151 s) what
+decides an inward tip is the divergent component, pelvis + rate / ω (the capture point, in the same × 62 mm units). With
+`--shift-s 1.3`, S 0.2: pelvis 1.22-1.26 ×, DCM 1.34-1.38 ×; S 0.3: pelvis 1.07-1.19 ×, DCM 1.33-1.36 × (the dry run prints
+both). The pre-check judges that DCM against the requirement at every lift-off (`lift-off DCM` rows), and the pelvis itself
+against the upper bound (k_static + 0.05). The host refuses S above 0.25 × the shift, and `--moving-lift` with `--settle` or
+`--pre-hike` (both live in the settle). Swing joint speed and pelvis speed are those of the same timing without it (90-92 deg/s,
+231-233 mm/s at shift 1.3).
+
+**Where it comes from in the design note.** The note's "lift while the body is moving" is the fully dynamic gait (single
+support ≤ 0.45-0.67 s, ±48-63 mm sway). It needs in-step foot placement in the firmware and a smaller roll play (§2, §4.3), and
+it is not this. The note does not contain a sim result for a 2.0 s step with a moving lift. This slice is the reachable part:
+it overlaps the shift's tail with the raise and keeps the ±80 mm sway. The note did not recommend the "coast-in" lift
+(`--k-ds`, §4.1): its pelvis stops at k 1.2 with both feet down and starts again over the raise, so at lift-off it has no
+outward speed and only 2-3 mm of margin against a 4-8 mm whole-body sag. The moving lift reaches lift-off with outward speed
+(141 mm/s of pelvis at S 0.3 of 1.3 s), which is what moves the DCM out to k_static.
+
+**SIL** (`python moving_lift.py`: `results/moving_lift/grid.md` / `.json`, 864 runs in ~4 min on 8 CPU processes). The firmware's
+track + trim + lift gate (`sil_gait.run`), 10 steps, ankle ff 2,2, `--pelvis-x stance`, seeds 5.2 / 3.4. March, fwd 20 and fwd 40 mm
+(tilt 3), first foot R and L (both stance sides), roll delay 0 and 60 ms. k (`--amp`, both sides) 1.30 → 1.20 → 1.10, so the
+lowest k that still holds is the margin. Three plants:
+- `play`: grade + the per-side play, `play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0`;
+- `sag`: the foot-off sag `sag_L=6.4,sag_R=2.9`;
+- `inset`: play + `sole_in_L=8,sole_in_R=-12`.
+
+A tip is a single support whose TS lean toward the lifted foot reaches 7 deg. Each cell has 12 runs (3 walks × 2 first feet ×
+2 delays): clean runs / 12, then the tipped single supports (t) and falls (F).
+
+| timing | step s | play k 1.3 / 1.2 / 1.1 | sag k 1.3 / 1.2 / 1.1 | inset k 1.3 / 1.2 / 1.1 | at k 1.3: lean in / out max (deg), gate holds / lift-offs |
+|---|---|---|---|---|---|
+| Variant M, shift 1.2 (`vm`) | 3.37 | 12 / 12 / 12 | 7 t7 F2 / 0 t26 / 0 t49 | 12 / 5 t9 / 0 t42 | 12.2 / 4.1, 4 / 381 |
+| Variant M, shift 1.3, the robot's held (`vm13`) | 3.47 | 12 / 12 / 12 | 11 t1 / 3 t14 / 0 t47 | 12 / 6 t6 / 0 t25 | 12.2 / 3.5, 0 / 384 |
+| **S 0.2, shift 1.3 (`ml20s13`)** | **3.17** | 12 / 12 / 12 | **12 / 12** / 7 t8 | **12 / 12** / 0 t37 | **3.1 / 3.6, 13 / 384** |
+| **S 0.3, shift 1.3 (`ml30s13`)** | **3.07** | 12 / 12 / 12 | **12 / 12** / 4 t21 | **12 / 12** / 9 t5 | **3.5 / 2.5, 18 / 384** |
+| S 0.2, shift 1.2 (`ml20`) | 3.07 | 12 / 12 / 12 | 12 / 12 / 3 t15 | 12 / 12 / 0 t51 | 4.0 / 2.7, 9 / 384 |
+| S 0.3, shift 1.2 (`ml30`) | 2.97 | 12 / 12 / 12 | 12 / 10 t2 / 1 t27 | 12 / 12 / 12 | 3.8 / 3.1, 18 / 384 |
+| S 0.4, shift 1.2 (`ml40`; over the host limit) | 2.87 | 10 F2 / 12 / 12 | 12 / 12 / 9 t3 | 12 / 12 / 6 t6 | 4.9 / 4.1, 44 / 380 |
+| S 0.4, move 0.30, lower 0.45 (`ml40f`; over the limit) | 2.62 | 12 / 12 / 12 | 12 / 12 / 11 t1 | 12 / 12 / 6 t6 | 3.4 / 2.6, 42 / 384 |
+
+What it says:
+- **It holds on the current plants, with more margin than Variant M, not less.** On the sag and inset plants every moving-lift
+  timing is clean at k 1.3, and at k 1.2 all but one cell (S 0.3 with the 1.2 s shift on the sag plant: 2 tips in 12 runs).
+  S 0.3 with the 1.2 s shift is clean even at k 1.1 on the inset plant. Variant M already tips at k 1.2 on both (shift 1.2:
+  26 and 9 single supports; 1.3: 14 and 6), and with the 1.2 s shift at k 1.3 on the sag plant (7 tips, 2 outward falls). The robot held Variant M for ~450 steps,
+  so the sag plant is harsher than the robot here: it leans further outward in double support (README "The foot-off sag").
+- On the sag plant, the CoM at lift-off is further inboard with the moving lift than with Variant M (max 12-21 mm against
+  7.6-9.4 mm at k 1.3), and it still does not tip. The outward speed carries it, which is the DCM argument above.
+- The tips that remain are on the left stance on the sag plant (its known bias) and on the right stance on the inset plant at
+  k 1.1. Both are at k values the robot does not use.
+- **The cost is the lift gate.** The firmware's gate looks at the body on the frame before the lift-off, and with the moving lift
+  that frame is inside the shift. In the sim the rate test (> 15 deg/s) holds 2-5 % of lift-offs at S 0.2-0.3 (11-12 % at 0.4),
+  for about 0.2-0.4 s each. Variant M holds none. A held clock parks the pelvis where the frame has it, short of k_static (1.22 × at S 0.2,
+  1.07 × at S 0.3, both feet down). The foot then lifts from rest there: a static lift short of the requirement.
+- **S 0.4 is out.** Two runs fell outward on the play plant (60 ms delay, 3-4 gate holds each), and it holds 11-12 % of lift-offs.
+  Hence the host limit of 0.25 × the shift.
+
+**The robot's own lines in the SIL** (`python moving_lift.py --ladder`, `results/moving_lift/ladder.md`). These are track_host's
+own steps, yaw trim included, first foot R, k 1.30, on all three plants at delays 0 and 60 ms. Variant M at 3.47 s, S 0.2 march,
+S 0.2 fwd 20 and S 0.3 march all finish clean (lean in ≤ 3.4 deg, out ≤ 2.9). S 0.3 fwd 20 on the sag plant tipped two left
+stances (10.0 and 9.7 deg) on a run where the gate held 3 lift-offs. It is clean on the other plants and at 60 ms delay. So
+S 0.3 is the less certain rung.
+
+**What the sim cannot say.**
+- The sim is the forgiving one in single support (README "A quick single support": the SIL passed `--ss-s 1.2`, which fell on the
+  robot). It filters out plans that cannot work; it is not evidence that one will.
+- Whether the robot's roll still rings through the shift's last 0.2-0.3 s. At T 3.2 it rang at 22-47 deg/s and was quiet only
+  0.1-0.4 s before lift-off (`dwell.py`, SCHEDULE). With the touchdown pause that ringing is smaller, but if it is still there
+  the gate will hold, and the held lift-offs are the risk above.
+- Whether the foot-off release is the same when the body is moving. The sag term releases with the unloading, whatever the body
+  does. That is an assumption.
+
+**The default is unchanged** (proof, 2026-11-24). Without `--moving-lift` every frame is identical. sha256 of all frames, the
+`track add` lines and the session prelude from `track_host.plan()`, on origin/main and on this branch, matched for 11 plans: march
+T 4, fwd 20, fwd 40 tilt 3, Variant M march and fwd 20, back 32 with the pause, sideL T 5, pre-hike, `--k-ds`, a `--seq`, and
+`--land-early-mm 2 --ss-s 1.2`. The dry-run output of 11 command lines (including `--cmd`) is byte-identical too.
+`tests/test_moving_lift.py` checks:
+- off = today's frames;
+- the lift-off at shift end − S;
+- the shift runs unchanged into the raise;
+- the pelvis and DCM at lift-off against the min-jerk formula;
+- the firmware phase at lift-off and touchdown;
+- the guards, the pre-check's DCM rows, and the CLI.
+
+**The first robot runs** (after the hip repair, hard floor, mid-board, `--ahead 1`, lift gate on as default, defaults
+`--stop-lean 14 --stop-out 6`). One change per run, mildest first. Each line must run clean twice before the next line.
+
+```
+V="--T 4 --ahead 1 --td-pause 0.3 --shift-s 1.3 --raise-s 0.77 --move-s 0.45 --lower-s 0.55"
+# 0. baseline after the repair: the held Variant M (3.47 s), unchanged
+python experiments/roll-balance/track_host.py $V --settle 0.1 --dir march --steps 6 --live --note "ml0 VM march"
+# 1. the one change: the settle 0.1 replaced by a 0.2 s moving lift (3.17 s)
+python experiments/roll-balance/track_host.py $V --moving-lift 0.2 --dir march --steps 6 --live --note "ml0.2 march"
+# 2. the same at 20 mm
+python experiments/roll-balance/track_host.py $V --moving-lift 0.2 --dir fwd --steps 8 --stride-mm 20 --live --note "ml0.2 fwd20"
+# 3. only if 1-2 had no gate holds: 0.3 s (3.07 s), march then 20 mm
+python experiments/roll-balance/track_host.py $V --moving-lift 0.3 --dir march --steps 6 --live --note "ml0.3 march"
+python experiments/roll-balance/track_host.py $V --moving-lift 0.3 --dir fwd --steps 8 --stride-mm 20 --live --note "ml0.3 fwd20"
+```
+
+Without `--live` each line prints the timeline, the lift-off pelvis and DCM, and the pre-check, and sends nothing.
+
+| | pass (go to the next line) | fail (stop; stay on the last line that passed) |
+|---|---|---|
+| tips | no TS lean toward the swing foot ≥ 7 deg | any ≥ 7 deg, or the stop rule |
+| outward | TS outward ≤ 5 deg (Variant M: ≤ 4.3) | any outward ≥ 5 deg (an outward topple is a fall nothing catches) |
+| lift gate | no `G <ms>` hold on the TS lines, no `GATE-TIMEOUT` | a hold: the lift-off was a static lift short of k (1.22 × at 0.2 s). Record it, do not go to 0.3 s. A separate later rung can try `--gate 3,30,150,3000` (the rate test at 30 deg/s) at 0.2 s |
+| compare | lean in / out and the weight-transfer kick against line 0 on the same day | |
+
+Read the flight record for each line: the roll rate over the last 0.3 s of the shift, which is what the gate sees, and the
+passive roll at 0.2 / 0.3 / 0.4 s after lift-off against line 0. The design note's §3 numbers are the reference.

@@ -210,7 +210,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
          step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None, td_pause=0.0, settle=None,
          lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None, move_s=None, lower_s=None, pre_hike=None,
-         pre_hike_frac=1.0):
+         pre_hike_frac=1.0, moving_lift=None):
     """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
     stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
     decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
@@ -222,7 +222,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
     per step, complete (it replaces the command's own turn).
     step_cmds: one command per step, used as given (cmd_walk.py, the --cmd mode: no closing step is inserted at a
     reversal -- the walk decides that itself); a command's "tilt" is that step's swing tilt (swing_tilt is then the
-    default of the steps without one), "yaw_free" leaves the heading trim off that step."""
+    default of the steps without one), "yaw_free" leaves the heading trim off that step.
+    moving_lift (dwell, s): the lift-off this long before the shift ends, no settle (dwell.Dwell); None / 0 = today's frames."""
     gkw = {}
     tilt_arg = swing_tilt
     if amp[1] is None:
@@ -278,7 +279,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                       if pre_hike is not None and any(pre_hike) else {}),
                    **{k_: v_ for k_, v_ in (("ss_s", ss_s), ("shift_s", shift_s), ("raise_s", raise_s), ("move_s", move_s),
                                            ("lower_s", lower_s)) if v_ is not None},
-                   **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}))
+                   **({"swing_tilt": tilt_arg} if (any(tilt_arg) if isinstance(tilt_arg, list) else tilt_arg) else {}),
+                   **({"moving_lift": moving_lift} if moving_lift else {}))
         if isinstance(yaw_trim, (list, tuple)):
             dkw["yaw_trim"] = list(yaw_trim)          # the heading hold: the asked turn per step, complete
         elif seq is not None or step_cmds is not None:
@@ -311,7 +313,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           first_boost=first_boost, drift_side=tuple(drift_side) if drift_side is not None else None,
                           td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early,
                           ss_s=ss_s, shift_s=shift_s, raise_s=raise_s, move_s=move_s, lower_s=lower_s,
-                          pre_hike=tuple(pre_hike) if pre_hike is not None else None, pre_hike_frac=pre_hike_frac))
+                          pre_hike=tuple(pre_hike) if pre_hike is not None else None, pre_hike_frac=pre_hike_frac,
+                          **({"moving_lift": moving_lift} if moving_lift else {})))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -509,6 +512,11 @@ def yaw_of_imu(txt):
 
 
 UPPER = 0.05     # the shift must not exceed k_static by more than this (x 62 mm): 18:09 fell OUTWARD at 1.35
+MLIFT_DT = 0.05  # s, the moving lift's pelvis rate at lift-off: from the frames this long either side
+# --moving-lift's host limit, a share of the shift: the SIL (README "The moving lift") holds 0.2-0.3 s of a 1.2-1.3 s shift
+# on the play, foot-off sag and inset-sole plants; at 0.4 s of 1.2 two runs fell OUTWARD on the play plant (60 ms delay,
+# gate holds) and the lift gate held 11-12 % of the lift-offs
+MLIFT_HOST_MAX = 0.25
 
 
 def precheck(pl, tol=0.01, only_step=None):
@@ -581,6 +589,7 @@ def precheck(pl, tol=0.01, only_step=None):
                 hi = mid
         return 0.5 * (lo + hi)
 
+    mlift = getattr(sw, "moving_lift", 0.0)
     rows, ok = [], True
     for k, p in enumerate(sw.phases):
         if only_step is not None and k != only_step:
@@ -598,13 +607,29 @@ def precheck(pl, tol=0.01, only_step=None):
             sh = shift_of(q, pa, st)
             ratio = sg * (sh - pa["feet"][st][1]) / oy
             nd = need_lo[st] if what == "lift-off" else need[st]
-            good = nd - tol <= ratio <= top[st] + tol
+            extra = {}
+            if mlift and what == "lift-off":
+                # the moving lift: the pelvis is short of k_static and still moving toward it; its divergent component
+                # (ratio + rate / omega, the LIPM capture point in pelvis terms) is judged against the requirement, the
+                # pelvis itself against the upper bound. The rate from the frames 50 ms either side.
+                qa, qb = q_at(t - MLIFT_DT), q_at(t + MLIFT_DT)
+                if qa is not None and qb is not None:
+                    ra = sg * (shift_of(qa, seg_at(t - MLIFT_DT)["pa"], st) - pa["feet"][st][1]) / oy
+                    rb = sg * (shift_of(qb, seg_at(t + MLIFT_DT)["pa"], st) - pa["feet"][st][1]) / oy
+                    dcm = ratio + (rb - ra) / (2 * MLIFT_DT) / DW.OMEGA
+                    extra = {"pelvis": round(ratio, 3)}
+                    good = nd - tol <= dcm and ratio <= top[st] + tol
+                    ratio, what = dcm, "lift-off DCM"
+                else:
+                    good = False
+            else:
+                good = nd - tol <= ratio <= top[st] + tol
             warn = False
             if not good and ratio < nd - tol and pl.get("allow_under"):
                 good, warn = True, True          # --allow-under: short of the plan's own requirement is a warning
             ok = ok and good
             rows.append(dict(step=k + 1, stance=st, at=what, t=round(t - sw.t_first, 2), ratio=round(ratio, 3),
-                             need=nd, top=top[st], ok=good, **({"warn": True} if warn else {})))
+                             need=nd, top=top[st], ok=good, **({"warn": True} if warn else {}), **extra))
     # every frame's joints inside the plant's joint range less JOINT_MARGIN (the knee, hip pitch / roll / yaw, ankle
     # pitch and roll; the --ankle-ff feed-forward adds to the IK's ankle roll; the firmware also clamps to its
     # calibrated range, which would bend the plan). The tightest margin over the plan is the last row.
@@ -743,6 +768,11 @@ def report_precheck(pl):
           + ", joints inside the plant range less 2 deg, pelvis speed in the shift <= "
           + f"{1e3 * PELVIS_V_MAX:.0f} mm/s"
           + (f"; tightest: step {worst['step']} {worst['stance']} {worst['at']} {worst['ratio']:.3f} x" if worst else ""))
+    ml_ = [r for r in rows if r["at"] == "lift-off DCM" and "pelvis" in r]
+    if ml_:
+        print(f"   moving lift: at lift-off the pelvis is {min(r['pelvis'] for r in ml_):.2f}-{max(r['pelvis'] for r in ml_):.2f} x "
+              f"and still moving out; its DCM (pelvis + rate / omega) {min(r['ratio'] for r in ml_):.2f}-"
+              f"{max(r['ratio'] for r in ml_):.2f} x, judged against the requirement")
     sj = next((r for r in rows if r["at"] == "swing joint speed"), None)
     if sj:
         print(f"   swing joint speed: peak {sj['ratio']:.0f} deg/s ({sj['stance']}, step {sj['step']}; refused above {sj['top']:.0f})")
@@ -819,12 +849,15 @@ def timeline(sw):
     """One line: the per-step timeline of a dwell plan and its effective step time."""
     ss, F, R = sw.t_ss, sw.lower_frac, sw.raise_frac
     tl = [("pause", sw.td_pause)] if sw.td_pause else []
-    tl += [("shift", sw.t_shift), ("settle", sw.t_settle), ("raise", R * ss), ("move", (1.0 - R - F) * ss),
-           ("lower", F * ss)]
-    return (" + ".join(f"{n} {v:.2f}" for n, v in tl) + f" = {sum(v for _, v in tl):.2f} s per step "
+    ml = getattr(sw, "moving_lift", 0.0)
+    tl += [("shift", sw.t_shift), ("moving lift", sw.t_settle) if ml else ("settle", sw.t_settle), ("raise", R * ss),
+           ("move", (1.0 - R - F) * ss), ("lower", F * ss)]
+    return (" + ".join(f"{n} {v:.2f}" for n, v in tl).replace("+ moving lift -", "- moving lift ")
+            + f" = {sum(v for _, v in tl):.2f} s per step "
             + (f"(explicit phase times; --T {sw.T:g} only supplied what was not given; " if sw.explicit else f"(nominal T {sw.T:g}; ")
             + f"single support {ss:.2f} s, the next shift starts {sw.td_pause:.2f} s after the touchdown"
-            + (f"; sole {1e3 * sw.land_early:g} mm below the floor at touchdown" if sw.land_early else "") + ")")
+            + (f"; sole {1e3 * sw.land_early:g} mm below the floor at touchdown" if sw.land_early else "")
+            + (f"; the foot lifts {ml:.2f} s before the shift ends" if ml else "") + ")")
 
 
 def dry(pl, a):
@@ -858,7 +891,7 @@ def dry(pl, a):
                 print(f"   segment {nm} x{n_}: {vx:+.1f} mm/s fwd, {vy:+.1f} mm/s side, {vw:+.2f} deg/s")
     pr = None if (getattr(a, "cmd", None) or a.seq or a.step or a.stride_mm is not None or a.side_mm is not None or a.drop_mm is not None
                   or a.swing_tilt or a.td_pause or a.settle is not None or a.lower_frac is not None
-                  or a.lower_s is not None or a.land_early_mm) else \
+                  or a.lower_s is not None or a.land_early_mm or getattr(a, "moving_lift", None)) else \
         (predicted_dwell(a.T, a.dir) if pl["model"] == "dwell" else predicted(a.T, a.dir))
     if pr:
         print(f"SIL prediction ({pl['model']}, {pr['runs']} runs over plants x delay): falls {pr['falls']}, aborts "
@@ -1166,7 +1199,8 @@ def timing_kw(a):
     """plan()'s keywords for the step-timing flags (empty = today's frames)."""
     return dict(td_pause=a.td_pause, settle=a.settle, lower_frac=a.lower_frac, land_early=a.land_early_mm,
                 pre_hike=a.pre_hike, pre_hike_frac=a.pre_hike_frac,
-                ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s)
+                ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s,
+                **({"moving_lift": a.moving_lift} if a.moving_lift else {}))
 
 
 def main_cmd(a, seeds, amp, aff, by_step):
@@ -1406,6 +1440,13 @@ def main(argv=None):
                          "the trims the robot learns, 5.2,3.4. Default off")
     ap.add_argument("--pre-hike-frac", type=float, default=1.0, metavar="F",
                     help="dwell: the pre-hike's ramp-in takes this share of the settle (default 1: all of it; 0.05 to 1)")
+    ap.add_argument("--moving-lift", type=float, default=None, metavar="S",
+                    help="dwell: the moving lift -- the swing foot lifts S s BEFORE the lateral shift ends, and the pelvis "
+                         "finishes the shift's min-jerk tail over the start of the raise (no settle: replaces --settle). At "
+                         "lift-off the pelvis is short of k_static but still moving toward it; the pre-check judges its "
+                         "divergent component (pelvis + rate / omega) at lift-off. The step is (settle + S) shorter. 0.05 to "
+                         f"{MLIFT_HOST_MAX:g} x the shift; not with --settle / --pre-hike. Default off: today's frames "
+                         "(README: The moving lift)")
     ap.add_argument("--allow-under", action="store_true",
                     help="dwell: the static-shift pre-check's lower bound (the plan's own k_static) is a WARNING, not a refusal "
                          "(an --amp / timing test that lifts with the pelvis short of the requirement); the joint-range, "
@@ -1481,17 +1522,37 @@ def main(argv=None):
             if v is not None and not lo - 1e-9 <= v <= hi + 1e-9:
                 raise ValueError(f"{nm} {v:g}: want {lo:g} to {hi:g}")
         tk = timing_kw(a)
-        DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), settle=a.settle, ss_s=a.ss_s, shift_s=a.shift_s,
-                         raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac)
+        rt0 = DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), settle=a.settle, ss_s=a.ss_s,
+                               shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s,
+                               lower_frac=a.lower_frac)
+        if a.moving_lift is not None:
+            if a.model != "dwell":
+                raise ValueError("--moving-lift needs --model dwell")
+            if a.settle is not None:
+                raise ValueError("--moving-lift replaces the settle: drop --settle")
+            if a.pre_hike is not None and any(a.pre_hike):
+                raise ValueError("--pre-hike ramps in over the settle; the moving lift has none")
+            if not 0.05 - 1e-9 <= a.moving_lift <= MLIFT_HOST_MAX * rt0["t_sh"] + 1e-9:
+                raise ValueError(f"--moving-lift {a.moving_lift:g}: want 0.05 to {MLIFT_HOST_MAX:g} x the {rt0['t_sh']:.2f} s "
+                                 f"shift ({MLIFT_HOST_MAX * rt0['t_sh']:.3f} s)")
     except ValueError as e:
         print(f"REFUSED: {e}")
         return 2
+    if a.moving_lift and a.model == "dwell":
+        rt = DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), ss_s=a.ss_s, shift_s=a.shift_s,
+                              raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac,
+                              moving_lift=a.moving_lift)
+        print(f"note: moving lift: the foot lifts {a.moving_lift:g} s before the {rt['t_sh']:.2f} s shift ends (no settle); "
+              f"the step is shift {rt['t_sh']:.2f} - {a.moving_lift:g} + single support {rt['t_ss']:.2f}"
+              + (f" + pause {a.td_pause:g}" if a.td_pause else "") + f" = {rt['period'] + a.td_pause:.2f} s")
     if explicit and a.model == "dwell":
         rt = DW.resolve_times(a.T, **({} if a.ds is None else {"ds": a.ds}), settle=a.settle, ss_s=a.ss_s, shift_s=a.shift_s,
-                              raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac)
-        print(f"note: explicit phase times: the step is shift {rt['t_sh']:.2f} + settle {rt['t_set']:.2f} + single support "
-              f"{rt['t_ss']:.2f}" + (f" + pause {a.td_pause:g}" if a.td_pause else "") + f" = {rt['period'] + a.td_pause:.2f} s; "
-              f"--T {a.T:g} is not the step time (it only supplies what was not given)")
+                              raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s, lower_frac=a.lower_frac,
+                              **({"moving_lift": a.moving_lift} if a.moving_lift else {}))
+        print((f"note: explicit phase times: the step is shift {rt['t_sh']:.2f} + settle {rt['t_set']:.2f} + single support "
+               f"{rt['t_ss']:.2f}" + (f" + pause {a.td_pause:g}" if a.td_pause else "") + f" = {rt['period'] + a.td_pause:.2f} s; "
+               if not a.moving_lift else "note: explicit phase times: ")
+              + f"--T {a.T:g} is not the step time (it only supplies what was not given)")
         for nm, v, lim, why in (("single support", rt["t_ss"], 1.8, "the SIL-validated schedule needs >= 1.8 s"),
                                 ("shift", rt["t_sh"], 1.4, "the schedule's shift is >= 1.4 s: a shorter one rings through lift-off"),
                                 ("step", rt["period"], DW.T_FLOOR, f"the dwell gait's SIL floor T is {DW.T_FLOOR:g} s")):
@@ -1503,7 +1564,8 @@ def main(argv=None):
         return 2
     a.Teff = DW.effective_step_s(a.T, a.td_pause, a.settle, **({} if a.ds is None else {"ds": a.ds}),
                                  ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s,
-                                 lower_frac=a.lower_frac) if a.model == "dwell" else a.T
+                                 lower_frac=a.lower_frac, **({"moving_lift": a.moving_lift} if a.moving_lift else {})) \
+        if a.model == "dwell" else a.T
     if a.cmd:
         return main_cmd(a, seeds, amp, aff, by_step)
     learn = None
