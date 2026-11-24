@@ -434,6 +434,21 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-24 card: night 34 -- #263 night 3: the turn reference (T) 0 of 3 and the command slew (S) 1 of 3; the volume line
+# pauses on M1; tonight night 1 of the x1.5 margin line (loop-gain DR, stand pull).
+fig_1124 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec99_walk_sagdr_vol_i86_vref_turn_s128r24', ['turn_180'],
+                 'robot_legs_prec99_walk_sagdr_vol_i86_vref_turn_s128r24_turn_180',
+                 'T seed 14, the reference that turns with the hip yaws: 10 of 18 compass headings and 8/8 falls at x1.5 '
+                 'on the sag plant, worse than its parent at the same seed'),
+    video_figure('robot_legs_prec97_walk_sagdr_vol_i86_vref_s128r24', ['turn_180'],
+                 'robot_legs_prec97_walk_sagdr_vol_i86_vref_s128r24_turn_180',
+                 'control: the parent M1 at seed 14 (16 of 18 headings)'),
+    video_figure('robot_legs_prec100_walk_sagdr_vol_i86_vref_slew_s2_s128r24', ['square_return'],
+                 'robot_legs_prec100_walk_sagdr_vol_i86_vref_slew_s2_s128r24_square_return',
+                 'S seed 16, commands ramped as the firmware will: 17 of 18 headings and 0/8 at x1.5, the one S seed of '
+                 'three that meets the bar'),
+] if f)
 # 2026-11-23 card: night 33 -- #263 night 2: the foot-placement reference and the stand band each meet the bar on 1 of 3 seeds;
 # tonight the volume line's last night: the turn reference and the command slew.
 fig_1123 = "\\n    ".join(f for f in [
@@ -1267,6 +1282,25 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·24 · night 34: neither the turning reference nor the command ramp passes; the next nights go to the margin</span></p>
+    <p><b>Last night tested two remaining causes on the foot-placement arm (M1)</b>, three seeds each plus extras. The first was a
+    training reference that turns the feet with the hip yaws (#347). The second ramped every command change as the firmware
+    will (#266). <b>Neither met the bar</b> of 2 of 3 seeds that hold 16 of 18 compass headings with the six directions, walking
+    and the loop-gain margin. The turning reference held fewer headings than its parent at every counted seed (10, 15 and
+    14 against 16, 18 and 18). Two of its seeds also fell 8/8 when the policy's output gain was raised 1.5x. The ramp passed
+    on 1 seed of 3. It cleared the 1.5x test on all five seeds, but a finer ladder shows its cut-off gain is 1.6 on four of
+    them, so it adds no real margin. Its forward travel was also weaker.</p>
+    <p><b>Decision.</b> The command-volume line has had its three nights, so it pauses with M1 as its recipe. <b>Tonight
+    starts the margin line</b> on M1, from this morning's diagnosis (docs/design-v6/2026-11-24-volume-x15-margin.md). It runs
+    three seeds of three arms: loop-gain randomisation over 1.0-1.6 (the only lever that has moved the margin before), the
+    same over 1.0-1.3, and a small pull toward the home pose while standing. They are graded on a gain ladder, not on the 1.5x
+    bit alone. This is a simulation test only; the robot is still down for its hip repair.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1124}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·23 · night 33: the new foot placement holds every heading on two seeds, but the margin is the limit</span></p>
     <p><b>Last night tried the training reference's new foot placement</b> (#346: for sideways and diagonal commands the leading
