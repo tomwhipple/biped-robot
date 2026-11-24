@@ -76,7 +76,10 @@ read what it built); `tidy-gui` starts once all three are done (it may delete
 `firmware/host/build`). Each gate's output goes to its own log in
 `<git dir>/prepush-logs/<stamp>-<pid>/`, next to the combined
 `<stamp>-<pid>.log`, and a failing gate prints `FAIL: <gate>` and its log path.
-`PREPUSH_SERIAL=1` runs the gates one at a time. `make pytest` runs `tests/` in
+`PREPUSH_SERIAL=1` runs the gates one at a time. A push that runs gates waits
+for any other push's gates on the same machine (one `flock` per user; two
+gates side by side with the night training ran mira out of memory on
+2026-11-23; `PREPUSH_NOLOCK=1` skips the wait). `make pytest` runs `tests/` in
 `PYTEST_WORKERS` pytest-xdist workers (default 8, a capped count: never
 `-n auto`; `PYTEST_WORKERS=0` runs one process) with `--dist loadgroup`. A test
 module that cannot share a process with another (fixed ports, a fixed shared

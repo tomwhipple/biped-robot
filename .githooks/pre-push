@@ -52,6 +52,8 @@
 # combined <stamp>-<pid>.log; a failing gate prints "FAIL: <gate>" with its
 # log path. Every gate runs, whatever the others did, and the same pass/fail
 # and SKIP rules apply. PREPUSH_SERIAL=1 runs the gates one at a time.
+# Pushes that run gates queue on one lock per user per machine (flock;
+# PREPUSH_NOLOCK=1 skips it), so two worktrees' gates never run side by side.
 #
 # Enable once per clone:
 #   git config core.hooksPath .githooks
@@ -171,6 +173,23 @@ else
 fi
 
 echo "== pre-push: making sure everything compiles, links and passes =="
+
+# One gate at a time per user on this machine. On 2026-11-23 01:31 two gates
+# from two worktrees ran side by side with the night training, and mira ran out
+# of memory (the OOM killer took the nightly run). A push that runs gates waits
+# for the lock, which spans every clone and worktree; a docs-only push does not
+# take it. Without flock (macOS) or with PREPUSH_NOLOCK=1 there is no lock. The
+# wait gives up after PREPUSH_LOCK_WAIT seconds (default 3600) and runs anyway,
+# so a stray process holding the lock cannot block pushes forever.
+if [ -n "$cpp$py" ] && [ "${PREPUSH_NOLOCK:-0}" = "0" ] && command -v flock >/dev/null 2>&1; then
+  PLOCK="${TMPDIR:-/tmp}/biped-robot-prepush-$(id -u).lock"
+  if exec 9>>"$PLOCK"; then
+    if ! flock -n 9; then
+      echo "pre-push: another push's gates are running ($PLOCK); waiting for them"
+      flock -w "${PREPUSH_LOCK_WAIT:-3600}" 9 || echo "pre-push: lock wait timed out; running anyway"
+    fi
+  fi
+fi
 
 # Each gate is a make target (`make help`, Tests and Firmware), so a gate runs
 # the same here as by hand. A target whose tool is missing prints SKIP and passes.
