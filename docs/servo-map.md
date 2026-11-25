@@ -3,7 +3,9 @@
 Every joint on the robot is a Feetech **STS3215** (the 12 V class, part number
 ST-3215-C018) except the two hip rolls, IDs 52 (right) and 51 (left), which are **STS3250s**:
 same case, horn and connector ([DESIGN.md §4](../DESIGN.md)). All of them sit on one half-duplex TTL bus at 1 Mbaud off the General
-Driver board ([wiring.md](wiring.md#servo-bus)).
+Driver board's H5, which feeds power lite's J8; the servos' power and the
+four branches they plug into are on power lite
+([wiring.md](wiring.md#servo-bus)).
 
 This page covers:
 
@@ -61,8 +63,9 @@ v6 legs plant ([§2.2](#22-what-the-policy-drives-the-12-leg-joints)). The proce
 > assembled, and their IDs read off the robot on the stand
 > (`tools/rom_sweep.py`, `hw_sessions/2026-10-23/legs/`); the owner wrote each
 > ID on its servo's case. **Servos are not renumbered to fit this table: the
-> table follows the robot.** The neck and arm IDs (13–17) and the splitter
-> topology are still a proposal (issue #77).
+> table follows the robot.** The neck and arm IDs (13–17) are still a
+> proposal until the neck and arms are fitted (issue #77). The branches are
+> power lite's (J4–J7, below).
 
 The robot has 17 servos: 12 in the legs, one in the neck, four in the arms.
 
@@ -76,51 +79,58 @@ About the map:
 - **The ankle rolls are 11 (right) and 12 (left)**, as proposed.
 - **New servos are appended, right before left:** the neck 13, then the arms,
   shoulder before elbow, which is also their chain order.
-- **Port A (H5) is the robot's right side, port B (H6) its left.** Each leg is one chain outward from the pelvis, ending at the
-  ankle roll. Both ports carry the same bus, so which port each leg is
-  actually plugged into is not visible from software and was not checked on
-  the 2026-10-23 assembly.
-- **The upper body needs a third and fourth branch.** Every STS3215 has two
-  paralleled ports, so a chain is a line: two board ports make two lines, and
-  two legs, two arms and a neck cannot be covered by two lines that start at
-  the pelvis without leading the bus out to an elbow first. So each port
-  feeds a passive bus splitter at the board: one branch down the leg, one up
-  to the shoulder girdle. The neck rides the right arm's branch, which
-  balances the ports at 9 and 8 servos.
+- **Every servo plugs into power lite**, into one of four branch headers
+  ([pcb/power-lite/harness.md](../pcb/power-lite/harness.md#j4j8-servo-branches-and-the-data-line)):
+  J4 the right leg, J5 the right upper chain, J6 the left leg, J7 the left
+  upper chain. The General Driver's H5 takes one lead, to power lite's J8, which
+  carries the data line only; H6 is not used
+  ([assembly.md §12](assembly.md#12-cabling)). The four branches share one bus.
+- **Each leg is one chain outward from the pelvis**, ending at the ankle roll.
+  Every STS3215 has two paralleled ports, so a chain is a line. The neck rides
+  the right arm's branch (J5).
+- **History.** The plan before power lite (#207) put the servos on the General
+  Driver's H5 (port A, the right side) and H6 (port B, the left side), each
+  port feeding a passive bus splitter: one branch down the leg, one up to the
+  shoulder girdle, with 9 and 8 servos on the two ports. The splitter was never
+  selected. Which port each leg was plugged into was not checked on the
+  2026-10-23 assembly.
 
-| ID | joint | port | hop from the board |
+| ID | joint | branch (power lite) | hop from power lite |
 |---|---|---|---|
-| 10 | `R_hip_yaw` | A, leg branch | 1 |
-| 52 | `R_hip_roll` (STS3250) | A, leg branch | 2 |
-| 6 | `R_hip_pitch` | A, leg branch | 3 |
-| 7 | `R_knee` | A, leg branch | 4 |
-| 8 | `R_ankle` (pitch) | A, leg branch | 5 |
-| 11 | `R_ankle_roll` | A, leg branch | 6 |
-| 13 | `neck_yaw` | A, upper branch | 1 |
-| 14 | `R_shoulder` | A, upper branch | 2 |
-| 15 | `R_elbow` | A, upper branch | 3 |
-| 9 | `L_hip_yaw` | B, leg branch | 1 |
-| 51 | `L_hip_roll` (STS3250) | B, leg branch | 2 |
-| 2 | `L_hip_pitch` | B, leg branch | 3 |
-| 3 | `L_knee` | B, leg branch | 4 |
-| 4 | `L_ankle` (pitch) | B, leg branch | 5 |
-| 12 | `L_ankle_roll` | B, leg branch | 6 |
-| 16 | `L_shoulder` | B, upper branch | 1 |
-| 17 | `L_elbow` | B, upper branch | 2 |
+| 10 | `R_hip_yaw` | J4, right leg | 1 |
+| 52 | `R_hip_roll` (STS3250) | J4, right leg | 2 |
+| 6 | `R_hip_pitch` | J4, right leg | 3 |
+| 7 | `R_knee` | J4, right leg | 4 |
+| 8 | `R_ankle` (pitch) | J4, right leg | 5 |
+| 11 | `R_ankle_roll` | J4, right leg | 6 |
+| 13 | `neck_yaw` | J5, right upper | 1 |
+| 14 | `R_shoulder` | J5, right upper | 2 |
+| 15 | `R_elbow` | J5, right upper | 3 |
+| 9 | `L_hip_yaw` | J6, left leg | 1 |
+| 51 | `L_hip_roll` (STS3250) | J6, left leg | 2 |
+| 2 | `L_hip_pitch` | J6, left leg | 3 |
+| 3 | `L_knee` | J6, left leg | 4 |
+| 4 | `L_ankle` (pitch) | J6, left leg | 5 |
+| 12 | `L_ankle_roll` | J6, left leg | 6 |
+| 16 | `L_shoulder` | J7, left upper | 1 |
+| 17 | `L_elbow` | J7, left upper | 2 |
 
 ```
-H5 (A) ── splitter ─┬─ 10 R_hip_yaw ─ 52 R_hip_roll ─ 6 R_hip_pitch ─ 7 R_knee ─ 8 R_ankle ─ 11 R_ankle_roll
-                    └─ 13 neck_yaw ─ 14 R_shoulder ─ 15 R_elbow
-H6 (B) ── splitter ─┬─ 9 L_hip_yaw ─ 51 L_hip_roll ─ 2 L_hip_pitch ─ 3 L_knee ─ 4 L_ankle ─ 12 L_ankle_roll
-                    └─ 16 L_shoulder ─ 17 L_elbow
+J4 ─ 10 R_hip_yaw ─ 52 R_hip_roll ─ 6 R_hip_pitch ─ 7 R_knee ─ 8 R_ankle ─ 11 R_ankle_roll
+J5 ─ 13 neck_yaw ─ 14 R_shoulder ─ 15 R_elbow
+J6 ─ 9 L_hip_yaw ─ 51 L_hip_roll ─ 2 L_hip_pitch ─ 3 L_knee ─ 4 L_ankle ─ 12 L_ankle_roll
+J7 ─ 16 L_shoulder ─ 17 L_elbow
+
+General Driver H5 ─ J8: the data line only, to all four
 ```
+
+The figure above (`img/servo_map.png`) still labels each joint with the old
+bus port, A or B. Read A as J4 or J5 and B as J6 or J7.
 
 Open (issue #77):
 
-- **The splitter** is not selected. It must be a passive 3-way part for the
-  servo's 3-pin lead with manufacturer documentation, like every other part.
 - **Current.** Each branch lead carries its whole chain on a ~3 A-class
-  connector ([wiring.md](wiring.md#servo-bus)). The simulated budget is in
+  connector ([wiring.md](wiring.md#servo-bus)): J4–J7 are Molex 22-03-5035 headers. The simulated budget is in
   [wiring.md](wiring.md#current-measured-budget-issue-77). The walk fits it.
   The prone get-up puts 7–8.5 A peaks on one leg's lead, and how to carry
   that is open.
@@ -166,20 +176,20 @@ the generated `obs/obs_spec.h` (`build/policy/<set>/`, `make policy`; `kJointNam
 - `tools/gen_obs_spec.py` generates it from the deployed run's config, the plant `build/v6/sim/bimo_biped_v6legs.xml`, and `ID_BY_ROLE`.
 - `firmware/host/test_obs.cpp` pins it.
 
-| servo ID | joint | action index | bus port |
+| servo ID | joint | action index | side (branch) |
 |---|---|---|---|
-| 10 | `R_hip_yaw` | 6 | A (right) |
-| 52 | `R_hip_roll` | 7 | A (right) |
-| 6 | `R_hip_pitch` | 8 | A (right) |
-| 7 | `R_knee` | 9 | A (right) |
-| 8 | `R_ankle` | 10 | A (right) |
-| 11 | `R_ankle_roll` | 11 | A (right) |
-| 9 | `L_hip_yaw` | 0 | B (left) |
-| 51 | `L_hip_roll` | 1 | B (left) |
-| 2 | `L_hip_pitch` | 2 | B (left) |
-| 3 | `L_knee` | 3 | B (left) |
-| 4 | `L_ankle` | 4 | B (left) |
-| 12 | `L_ankle_roll` | 5 | B (left) |
+| 10 | `R_hip_yaw` | 6 | right (J4) |
+| 52 | `R_hip_roll` | 7 | right (J4) |
+| 6 | `R_hip_pitch` | 8 | right (J4) |
+| 7 | `R_knee` | 9 | right (J4) |
+| 8 | `R_ankle` | 10 | right (J4) |
+| 11 | `R_ankle_roll` | 11 | right (J4) |
+| 9 | `L_hip_yaw` | 0 | left (J6) |
+| 51 | `L_hip_roll` | 1 | left (J6) |
+| 2 | `L_hip_pitch` | 2 | left (J6) |
+| 3 | `L_knee` | 3 | left (J6) |
+| 4 | `L_ankle` | 4 | left (J6) |
+| 12 | `L_ankle_roll` | 5 | left (J6) |
 
 - "Left" is the robot's own left: +Y in the plant, with the robot facing +X.
 

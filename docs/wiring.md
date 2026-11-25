@@ -1,8 +1,17 @@
 # Wiring and power
 
-The robot runs on one 3S pack and one controller board, the Waveshare **General
-Driver for Robots** (ESP32). The board carries all 17 servos on one serial bus. A
-Raspberry Pi 4B has its own 5 V buck. There is no custom electronics.
+The robot runs on one 3S pack, one controller board, the Waveshare **General
+Driver for Robots** (ESP32), and the **power lite** board
+([pcb/power-lite](../pcb/power-lite/README.md), #207). Power lite carries the
+protection BMS, the main switch, the fuses, the E-stop relay and the servo
+power. All 17 servos plug into it, on four branches (J4–J7). The General Driver
+drives them over one serial bus (the data line only, to power lite's J8) and
+powers the Raspberry Pi 4B through its own 5 V buck. The wiring harness is in
+[assembly.md §12](assembly.md#12-cabling).
+
+*History:* before power lite, the plan was to plug the servos into the General
+Driver's H5 and H6 and to put an inline fuse, switch and bulk capacitor on the
+pack lead. The parts of this page that still describe that are marked.
 
 Related documents:
 
@@ -21,9 +30,9 @@ settled yet.
 |---|---|
 | board | Waveshare General Driver for Robots, rev 1.2. ESP32-WROOM-32UE module (ESP32-D0WD-V3), 4 MB flash |
 | outline | **65.01 × 56.01 mm**, holes on a 58 × 49 mm grid, per the dimension drawing. The wiki says "65 × 65 mm"; that is wrong |
-| power in | H1, a JST XH 2-pin connector (item 10 on the vendor's connector diagram), silkscreened "− +" |
+| power in | H1, a JST XH 2-pin connector (item 10 on the vendor's connector diagram), silkscreened "− +". Power lite's J3 feeds it (logic and the Pi only) |
 | input range | The wiki says "DC 7-13V". The rev 1.2 silkscreen says "DC 9-12.6V". This is unresolved. A 3S pack, used between 9.9 and 12.6 V, is inside both |
-| servo bus | H5 and H6 (item 13). UART1 at 1 Mbaud, GPIO 18 RX / 19 TX |
+| servo bus | H5 and H6 (item 13). On the robot only H5 is used: one lead to power lite's J8 carries the data line, and H6 is empty. UART1 at 1 Mbaud, GPIO 18 RX / 19 TX |
 | console | the USB-C port silkscreened `USB`: a CP2102N to UART0 at 115200, with DTR/RTS auto-program |
 | IMU | the on-board QMI8658C, 0x6B on I²C (GPIO 32/33) |
 
@@ -35,26 +44,27 @@ settled yet.
 ```
 3S LiPo, 11.1 V nominal, 12.6 V full
   │
-3S protection board ─────────── ≥ 15 A continuous, over-discharge cut-off ~3.0 V/cell
+J1 XT60 on power lite ── BMS (W1–W5, switches the negative lead; balance lead on J2)
   │
-inline fuse ─────────────────── ATM mini-blade, 15 A (10 A once the peak is measured)
-  │
-switch ──────────────────────── the E-stop that does not need the radio
-  ├── bulk capacitor, 1000 µF ≥ 25 V low-ESR, across V+/GND
-  │
-H1  JST XH 2-pin inlet ──────── 3 A per contact; everything below is on the board
-  │
-AO4407 P-FET (reverse polarity) ── SW1 slide switch
-  │
-DC_IN ─┬── H5, H6 servo ports: all of the servo current
-       │
-       └── R11 0.01 Ω (INA219) ── VIN ── MP8759 5 V buck ── 5 V rail ── AMS1117 ── 3V3
-                                          (ESP32, on-board sensors, 40-pin header 5 V
-                                           -> the Raspberry Pi 4B the board sits on)
+main switch (W6/W7) ──────────────┬── F2 3 A ── J3 ── General Driver H1
+  20 A panel toggle               │                    └ AO4407 P-FET (reverse polarity) ── SW1 slide switch
+                                  │                       └ DC_IN ── R11 0.01 Ω (INA219) ── VIN ── MP8759 5 V buck
+                                  │                          ── 5 V rail ── AMS1117 ── 3V3
+                                  │                          (ESP32, on-board sensors, 40-pin header 5 V
+                                  │                           -> the Raspberry Pi 4B the board sits on)
+                                  │
+                                  ├── F2 ── J11 E-stop (NC) ── K1 coil ── Q1 (SERVO_EN from the ESP32)
+                                  │
+                                  └── F1 15 A ── K1 contact ── SERVO+ (C1 1000 µF) ── J4–J7: all of the servo current
 ```
 
-The board side of this diagram is read off the vendor schematic. The parts above
-H1 are the robot's harness.
+Power lite is drawn in
+[its README](../pcb/power-lite/README.md#how-power-flows). The board side of this
+diagram is read off the vendor schematic. **The servo current does not cross the
+General Driver at all**: its H1 carries the logic and the Pi only (about 1.1 A
+with a Pi 4B, [harness.md](../pcb/power-lite/harness.md)). *History:* the
+earlier plan fed the servos through H1 and the board's H5 and H6, so that all of
+the servo current crossed H1, the AO4407 and SW1.
 
 ### Pack
 
@@ -77,35 +87,36 @@ few days, storage-charge it to 3.8 V/cell.
 
 ### Fuse
 
-- The fuse is a mini-blade (ATM) fuse in an inline holder on the pack lead.
-- It protects against a dead short. The board's own servo path has a reverse-polarity FET and a switch, but no fuse.
-- Start at 15 A. Drop to 10 A only after the real peak has been measured.
+- **Power lite has two blade fuses**, in Keystone 3568 holders: **F1, 15 A**, on the servo rail (the supply to K1's contact), and **F2, 3 A**, on the logic's lead (J3 and the E-stop coil). They are MINI blades ([power lite's assembly guide](../pcb/power-lite/assembly.md)).
+- F1 protects against a dead short. F1 sits above every simulated figure below; the upper model's worst tick (14.1 A) is within 1 A of it.
+- *History:* the earlier plan was one inline ATM fuse on the pack lead, 15 A to start and 10 A once the real peak had been measured. Dropping F1 to 10 A is still open: the simulated worst tick is above 10 A.
 - **Never use a polyfuse/PPTC.** It takes seconds to trip, and its series resistance sags the rail the rest of the time.
 
 ### Switch
 
-- An inline switch on the pack lead. It is the robot's real E-stop ([control-channel.md](control-channel.md)).
-- The board's own SW1 switches `DC_IN` behind the inlet. The schematic gives no rating for it. The Waveshare FAQ says the bus-servo current "is controlled by a switch" ([Current](#current-the-open-constraint)).
+- **The main switch** is a 20 A panel toggle on power lite's W6/W7, in the switch pod on the power bay's cap ([assembly.md §9c](assembly.md)). It has no DC rating for breaking a load: turn it off only after the E-stop has dropped the servo rail, so that it breaks the logic's current only.
+- **The E-stop** is a latching switch on J11, in the coil's path to K1. Pressing it opens K1 and drops the servo rail without the firmware or the radio ([control-channel.md](control-channel.md)). The General Driver and the Pi stay up through it.
+- The General Driver's own SW1 switches `DC_IN` behind the inlet and must be on. The schematic gives no rating for it. The Waveshare FAQ says the bus-servo current "is controlled by a switch" ([Current](#current-measured-budget-issue-77)). On the robot it carries the logic only.
+- *History:* the earlier plan was an inline switch on the pack lead as the E-stop.
 
 ### Inlet
 
-- H1 is a JST XH 2-pin connector, 2.50 mm pitch.
+- H1 is a JST XH 2-pin connector, 2.50 mm pitch. On the robot it takes power lite's J3 lead (XHP-2 to XHP-2, 22 AWG, pin 1 to pin 1), through F2.
 - JST rates each contact at 3 A AC/DC at AWG #22, and the contacts take AWG #30–#22 (`JST-XH-connector-datasheet.pdf`).
-- A 20 AWG pack lead does not go into the housing. Splice it to a 22 AWG XH pigtail.
-- Pin 1 is V+ (`VDD_DC_JACK`) and pin 2 is GND. Pigtail wire colours are not standardised, so check against the "− +" silkscreen before the first plug-in.
+- The pack does not connect here: it plugs into J1, power lite's XT60. *History:* the earlier plan spliced a 20 AWG pack lead to a 22 AWG XH pigtail, because 20 AWG does not go into the housing.
+- Pin 1 is V+ (`VDD_DC_JACK`) and pin 2 is GND. Pigtail wire colours are not standardised, so check against the "− +" silkscreen before the first plug-in (harness check P3).
 
 ### Bulk capacitor
 
-- 1000 µF (470 µF at minimum), ≥ 25 V (a full 3S is 12.6 V), low-ESR, 105 °C. Mind the polarity.
-- `DC_IN` carries only 10 µF + 0.1 µF of local bulk (C23, C28). A servo current step is therefore sourced through the pack leads and the inlet.
-- The board has no free `DC_IN` connector, because both servo ports carry chains. The capacitor therefore goes across V+/GND on the inlet pigtail.
-- There it cuts rail sag, but it does not relieve the XH contact itself. Soldering it to `DC_IN` on the board would.
+- **C1 on power lite** is 1000 µF, 25 V, the servo bulk, on the servo rail (SERVO+). D2 and D3 (1.5KE16A) clamp the rail and the switched input ([README](../pcb/power-lite/README.md#how-power-flows)).
+- *History:* the earlier plan was a 1000 µF (470 µF at minimum), ≥ 25 V, low-ESR, 105 °C capacitor across V+/GND on the inlet pigtail, because the General Driver has no free `DC_IN` connector (both servo ports carried chains) and `DC_IN` has only 10 µF + 0.1 µF of local bulk (C23, C28). It would have cut rail sag but not relieved the XH contact itself.
+- Whether K1's closing onto C1 and the servos trips the BMS is open; the options if it does are a smaller C1 or a pre-charge resistor ([README](../pcb/power-lite/README.md#how-power-flows)). The bench run with servos is not done ([assembly.md §12c](assembly.md#12c-before-first-power)).
 
 ### Pi supply
 
 - **The General Driver sits on the Pi as a HAT** (`cad/v6/torso_v8.py`), so the board's 40-pin 5 V and the Pi's 5 V rail are one net. The Pi takes its power through the header from the board's own buck, an MP8759 labelled "5V-5A … 5V Power for RPi/Jetson nano" (the power-circuit design's plan, PR #112).
 - Nothing else feeds the Pi: a second supply on its USB-C would put two 5 V sources in parallel.
-- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss), and it now comes through the board's XH inlet H1 (3 A per contact) and its INA219 shunt.
+- The Pi wants 3 A peaks. That is about 1.4 A from an 11.1 V pack (15 W before converter loss), and it comes through power lite's F2 and J3, the board's XH inlet H1 (3 A per contact) and its INA219 shunt.
 
 ### What the INA219 measures
 
@@ -113,9 +124,9 @@ This was checked against the schematic and the firmware.
 
 - **Wiring.** The INA219 (U2, address 0x42) has IN+ on `DC_IN` and IN− on `VIN`, across R11 (0.01 Ω).
 - **What `VIN` feeds.** Only the board's MP8759 buck, and through it the 5 V rail (and the Pi on its header) and the 3V3 regulator.
-- **Where the servos tap in.** H5 and H6 tap `DC_IN` upstream of R11.
+- **Where the servo ports tap in.** On the board, H5 and H6 tap `DC_IN` upstream of R11. On the robot nothing plugs into H6, and H5 carries only the data line: the servos are on power lite.
 - **What it measures.** Pack voltage at `VIN`, behind the reverse-polarity FET, SW1 and the shunt. That reading does not depend on the servo bus and is valid with torque released. It also measures the current into the board's own logic supply, the Pi's included.
-- **What it does not see.** None of the servo current.
+- **What it does not see.** None of the servo current. It reads power lite's J3 lead, which is behind the BMS, the main switch and F2.
 - **The firmware reads its bus voltage** (`main/pack_sense.cpp`): 10 Hz, in both modes, off the control loop ([firmware-design.md](firmware-design.md#the-pack-sense)). It goes to battguard (below), to `volt` and `batt`, and into the telemetry beacon's power block ([control-channel.md](control-channel.md#the-power-block)). The current is not read.
 - **Below 6.0 V it is no pack**, not a flat one: on USB power `DC_IN` is unpowered and the chip, on the 3V3 rail, reads near 0 V.
 - **Not measured yet:** its reading against a meter at the pack, and how far the logic's load (the Pi's peaks) sags `VIN` below the pack.
@@ -126,8 +137,10 @@ This was checked against the schematic and the firmware.
 The Waveshare wiki FAQ says the bus-servo current "is controlled by a switch, with
 a maximum current of 5A for long-term operation". For ST3215s that means "up to 5
 servos (ensuring that these 5 servos are not stalled simultaneously)". Fed from
-the General Driver, all of the servo current crosses H1 (3 A per contact), the
-AO4407 and SW1, and its ports H5 and H6 carry one side each.
+the General Driver, all of the servo current would cross H1 (3 A per contact), the
+AO4407 and SW1, and its ports H5 and H6 would carry one side each. That was the
+plan before power lite; on power lite the servo current does not cross the
+General Driver.
 
 - **Where the current goes on power lite** ([#207](../pcb/power-lite/README.md)).
   The servo rail leaves through F1 (15 A) and K1 to four branch connectors, each a
@@ -289,15 +302,16 @@ make -C firmware/host sil        # the SIL library sil_gait loads
   - The direction is switched in hardware off the TX line (SN74LVC1G125/126 buffers). There is no direction GPIO.
   - The firmware never sees its own transmission. A reply can start microseconds after the last stop bit.
 - **Pinout.**
-  - H5 and H6 carry the same three nets: pin 1 `DATA`, pin 2 `DC_IN` (V+), pin 3 GND. The silkscreen reads "D V G".
+  - The General Driver's H5 and H6 carry the same three nets: pin 1 `DATA`, pin 2 `DC_IN` (V+), pin 3 GND. The silkscreen reads "D V G". Power lite's J4–J8 use the same order, with data at the housing's bevelled corner ([harness.md](../pcb/power-lite/harness.md#j4j8-servo-branches-and-the-data-line)). J8's pin 2 is not connected: only data crosses from H5.
   - The servo's 5264-3P lead numbers its pins the other way: 1 GND, 2 V+, 3 signal (C018 sheet). The middle pin is V+ either way.
+- **Branches.** Every servo plugs into one of power lite's four branch headers, J4–J7 (Molex 22-03-5035): J4 the right leg (10, 52, 6, 7, 8, 11), J5 the right upper chain (13, 14, 15), J6 the left leg (9, 51, 2, 3, 4, 12), J7 the left upper chain (16, 17). H5 reaches all four through J8, one stock lead. H6 is not used.
 - **Chaining.** Every ST3215 has two paralleled ports, so a chain hops from case to case on the stock 150 mm leads.
 - **The first lead of a chain carries the whole chain's current.**
   - A Molex-5264-class contact is roughly a 3 A part. No connector datasheet is mirrored here, so that figure is unverified.
-  - The chains are split one per port for this reason.
-  - With 17 servos and two ports, at least one chain carries nine or more servos, unless a splitter is added. None is specified.
+  - The chains are split one per branch for this reason: the longest is six servos (a leg), and the budget puts the prone get-up's leg-lead peak at 7.3–8.5 A (upper model) against that contact.
+  - *History:* with 17 servos on the General Driver's two ports, at least one chain would have carried nine or more servos unless a splitter was added. None was ever selected.
 - **Open:**
-  - The robot's chain layout: which servos go on which port, and in what order.
+  - The neck and arm IDs (13–17), until the neck and arms are fitted.
 
 ### Per-hop lead lengths (from the v6 CAD, ARMS=1)
 
@@ -307,13 +321,15 @@ the CAD constants and cross-checked against the built assembly mocks
 every routing caveat are in that file's docstring). "loop" is the fold loop
 the lead needs to cross the joint named (arc over the joint's ROM at the
 cable's own standoff), already folded into "need". Verdicts are against the
-150 mm stock lead with a 20 mm plug tail. The board→splitter stub rides on
-top of the first hop as a 30 mm allowance — the splitter itself is not
-selected.
+150 mm stock lead with a 20 mm plug tail. The first
+hops were measured from the General Driver's ports H5/H6, as the plan was before
+power lite; the 30 mm board→splitter stub on top of the first hop was an
+allowance for a splitter that was never selected. **On power lite the hops from
+J4–J7 to the first servo are not measured** (#207, [assembly.md §12](assembly.md#12-cabling)).
 
 | hop (chain order, both legs symmetric except where shown) | span | loop | need | buy ~ | 150 ok? |
 |---|---|---|---|---|---|
-| port (H5/H6) → front inner wall's top window (via splitter) | 57 | — | 57 | 100 | ✓ |
+| *as planned from H5/H6, via a splitter:* port → front inner wall's top window | 57 | — | 57 | 100 | ✓ |
 | wall window → battery floor (under the pack) | 34 | — | 34 | 80 | ✓ |
 | battery floor → hip yaw (through the ceiling slit) | 26 | — | 26 | 70 | ✓ |
 | hip yaw → hip roll | 61 | 7 | 68 | 110 | ✓ |
@@ -321,7 +337,7 @@ selected.
 | hip pitch → knee | 110 | 17 | 127 | 170 | ✓ |
 | knee → ankle | 110 | 18 | 128 | 170 | ✓ |
 | ankle → ankle roll (R / L) | 81 / 87 | 6 | 87 / 93 | 130 / 140 | ✓ |
-| port (H5/H6) → deck opening between the boards (upper branches, via splitter) | 50 | — | 50 | 90 | ✓ |
+| *as planned from H5/H6, via a splitter:* port → deck opening between the boards (upper branches) | 50 | — | 50 | 90 | ✓ |
 | deck opening → neck (port A) | 47 | — | 47 | 90 | ✓ |
 | shoulder lead leaving the pod (A: neck → R shoulder; B: deck opening → L shoulder) | 71 / 68 | — | 71 / 68 | 120 / 110 | ✓ |
 | **shoulder → elbow (both arms)**, along its route through the girdle's aft slot | **312** | **23** | **335** | **~380** | **NO — does not fit stock** |
@@ -345,7 +361,11 @@ What the CAD says about the two named geometry problems:
   past the cheek, down the arm's back web, through its window into the elbow
   plug), 312 mm; the 23 mm is the shoulder fold's loop. It is not a swept
   measurement. The straight plug-to-plug minimum between the two servos'
-  connectors (assembly mocks) is 130 mm. Buy ~380 mm leads and trim on the bench. Near the shoulder's −90° end the
+  connectors (assembly mocks) is 130 mm. Buy ~380 mm leads and trim on the bench.
+  [wiring-general-driver.svg](wiring-general-driver.svg) still says about 200 mm
+  (152 mm with the fold's loop) for this hop; that figure is older than this one,
+  and this page and [assembly.md §12d](assembly.md#12d-what-the-cad-provides) are
+  the ones to follow. Near the shoulder's −90° end the
   arm lies aft across the lead's outboard run, so the lead rides over the arm's
   back web there; that is checked on the bench, not in the CAD.
 - **The lead never crosses the elbow.** The elbow servo turns with the upper
@@ -362,8 +382,7 @@ Sources: the hop model, anchor placements and the measured arm span are
 chains (the interference gate's placement truth), and the fold/ROM figures
 from `dimensions_v6.py` and `docs/design-v6/arms.md` §5.
 
-- **Open (remaining):** the splitter part (both ports feed one, not
-  selected); the bus-timing figure for 17 servos.
+- **Open (remaining):** the hops from J4–J7 (above); the bus-timing figure for 17 servos.
 
 ## Battery protection
 
@@ -430,7 +449,7 @@ It leaves off what the sources do not settle: the physical fan-out of J12 to the
 The full procedure is [bringup.md](bringup.md). In short:
 
 1. Flash over the `USB` port. USB powers the logic but not the servos ([§1](bringup.md#1-flash-and-first-power)).
-2. First power through the XH inlet, current-limited ([§1](bringup.md#1-flash-and-first-power)).
+2. First power through the XH inlet, current-limited, on the bare board on the bench ([§1](bringup.md#1-flash-and-first-power)). The robot's power-up, through power lite, is [assembly.md §12c](assembly.md#12c-before-first-power) and power lite's [bringup.md](../pcb/power-lite/bringup.md).
 3. Set the servo IDs with one servo on the bus at a time, and read the gains back ([§2](bringup.md#2-servo-ids-and-gains)).
 4. At the assembled neutral pose, run `middle` per servo, then `cal zero`, `cal dir` and `cal save` ([§3](bringup.md#3-calibrate-zeros-directions-imu-clock)).
 5. Run the torque drills: release, reset, and the watchdog decay ([§4](bringup.md#4-torque-drills)).

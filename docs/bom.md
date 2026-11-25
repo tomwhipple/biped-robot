@@ -112,7 +112,7 @@ Feetech's TTL catalogue lists exactly three 12 V servos in this case (checked
 
 | item | qty | spec | have |
 |---|---|---|---|
-| **Waveshare General Driver for Robots** | 1 | ESP32 with onboard QMI8658C IMU, AK09918C magnetometer and INA219 (0x42); two servo ports H5/H6 (pin 1 DATA, 2 DC_IN, 3 GND); power inlet XH2.54 2-pin; outline 65.01 × 56.01 mm, holes 58 × 49 mm | **on hand** (in the prototype today) |
+| **Waveshare General Driver for Robots** | 1 | ESP32 with onboard QMI8658C IMU, AK09918C magnetometer and INA219 (0x42); two servo ports H5/H6 (pin 1 DATA, 2 DC_IN, 3 GND), of which the robot uses H5 for the data line only ([wiring.md](wiring.md#servo-bus)); power inlet XH2.54 2-pin; outline 65.01 × 56.01 mm, holes 58 × 49 mm | **on hand** (in the prototype today) |
 | Raspberry Pi 4B | 1 | 2–4 GB; 85 × 56 mm, M2.5 holes on 58 × 49 mm | not recorded |
 | Pi heatsink | 1 | low profile, no fan: it must stay within the 16 mm the USB/Ethernet stack already occupies above the board | |
 | microSD card | 1 | 32 GB | |
@@ -138,16 +138,25 @@ board's I²C header P1.
 
 ## 3. Power
 
-The power path runs pack → protection board → fuse → switch → board inlet. A
-bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
+The power path runs pack → **power lite** ([pcb/power-lite](../pcb/power-lite/README.md),
+#207) → the servos, and through power lite's J3 → the General Driver's inlet H1.
+Power lite carries the BMS pads, the main switch's pads, the two fuses (F1, F2),
+the relay K1 with the E-stop, the bulk capacitor C1 and the four servo branches
+J4–J7. The General Driver's own 5 V buck feeds the Pi.
+
+*History:* before power lite, this section planned the path as pack → protection
+board → inline fuse → inline switch → board inlet, with a bulk capacitor at the
+board. The parts of that plan that are still bought are marked below.
 
 **Current** (the sim budget is in
 [wiring.md, "Current: measured budget"](wiring.md#current-measured-budget-issue-77), #77):
 
-- The General Driver's XH inlet contact is rated **3 A**.
+- The General Driver's XH inlet contact is rated **3 A**. On the robot the inlet
+  carries only the logic and the Pi, through power lite's F2 (3 A).
 - Waveshare's FAQ limits the board's servo power path to **5 A continuous**
-  (about 5 STS3215s, not stalled at once).
-- The robot puts 17 servos on that path. The prototype measured 6.8 A peaks on
+  (about 5 STS3215s, not stalled at once). The robot does not use that path:
+  the servos are on power lite's F1 (15 A) and K1.
+- The robot puts 17 servos on power lite. The prototype measured 6.8 A peaks on
   10.
 - The sim budget, per power-lite branch, on the robot's servo set:
   - **The dwell walk:** a 3.8 A bus peak and 2.3 A on a leg's lead (upper
@@ -156,10 +165,11 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
   - **The prone get-up's leg leads:** 7.3–8.5 A peaks.
   - It is a sim figure; the bench number with a watt meter on the pack lead is
     still owed.
-- The fix under consideration is to solder the power lead to the inlet pads
-  instead of using the XH plug.
-- The fuse and the bulk capacitor are required before the first powered floor
-  run.
+- *History:* the fix under consideration for the board's inlet was to solder
+  the power lead to the inlet pads instead of using the XH plug. It is not
+  needed for the servo current now, which does not use the inlet.
+- The fuses and the bulk capacitor are on power lite and are required before the
+  first powered floor run.
 
 | item | qty | spec / filter | have |
 |---|---|---|---|
@@ -170,10 +180,9 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 | E-stop | 1 | E-Switch 100SP1T1B1M1QEH: miniature toggle, SPDT ON-NONE-ON, standard lever, 1/4-40 threaded bushing, solder lugs, silver contacts, epoxy seal, with its hardware ([100 series datasheet](datasheets/switches/e-switch-100-series.pdf)); body 12.70 × 6.86 × 8.89 mm, 12.9 mm behind the panel with its lugs. On J11 (a PHR-2 lead, 24–26 AWG) across terminals 2 and 3, beside the main switch in `switch_pod_v8` ([assembly.md §9c](assembly.md)) | |
 | inline 2-pin disconnect | 1 pair | in the main switch's 14 AWG pair, so the cap comes off; XT30 size assumed (26 × 11 × 6 mm mated): check its current rating against the maker's datasheet | |
 | 14 AWG ring lugs | 2 | for the main switch's terminal screws | |
-| inline fuse holder | 1 | mini blade (ATM), 16–18 AWG leads | |
-| mini blade fuses | 1 pack | 10 A and 15 A | |
-| bulk capacitor | 1–2 | 470–1000 µF, ≥ 25 V, low-ESR, 105 °C electrolytic | |
-| power switch | 1 | inline, rated at least the fuse current | |
+| fuse holders F1, F2 | 2 | Keystone 3568 MINI, on power lite | on hand (README) |
+| MINI blade fuses | 1 each | **15 A** (F1, the servo rail) and **3 A** (F2, the logic); spares | |
+| bulk capacitor C1 | 1 | 1000 µF, 25 V electrolytic (EEU-FR1E102), on power lite | |
 | balance-lead low-voltage alarm | 1–2 | 1S–8S, plugs onto the JST-XH balance lead, per-cell display, settable alarm point | |
 | 3S balance charger | 1 | with a storage mode | check what is on hand |
 | inline watt meter | 1 | ≥ 60 A, XT60/XT30, shows peak current | |
@@ -199,14 +208,20 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 - **The Pi's 5 V** comes from the General Driver's own buck, through the
   40-pin header the board plugs onto as a HAT ([wiring.md](wiring.md#pi-supply)):
   there is no separate buck.
-- **Fuse:** start at 15 A, and drop to 10 A only once the peak current has been
-  measured. It is for a dead short, not the operating current. **Never use a
+- **Fuses:** F1 is 15 A on the servo rail and F2 is 3 A on the logic. F1 is for
+  a dead short, not the operating current. *History:* the earlier plan was one
+  inline 15 A fuse, dropped to 10 A once the peak current had been measured; the
+  inline holder and the 10 A fuse are no longer on the list. **Never use a
   polyfuse/PPTC**: it takes seconds to trip, and its series resistance sags the
   rail.
-- **Bulk capacitor:** solder it across the servo bus at the board, observing
-  polarity. It must be rated 25 V because a full 3S pack is 12.6 V.
-- **Power switch:** the board's own slide switch SW1 sits in the servo path,
-  but the schematic does not state its rating.
+- **Bulk capacitor:** C1 is on power lite, observing polarity (the long lead
+  into the + pad). It must be rated 25 V because a full 3S pack is 12.6 V.
+  *History:* the earlier plan was a capacitor soldered across the servo bus at
+  the board.
+- **Power switch:** the main switch (above) is on power lite's W6/W7, and the
+  E-stop drops the servo rail through K1. The General Driver's own slide switch
+  SW1 stays in its logic path, and the schematic does not state its rating.
+  *History:* the earlier plan was an inline switch rated for the fuse current.
 - **Low-voltage alarm:** it is the only protection that is independent of the
   firmware, and it is per cell. One weak cell hides inside a normal-looking
   pack voltage.
@@ -227,8 +242,8 @@ bulk capacitor sits at the board, and a 5 V buck feeds the Pi.
 
 | item | qty | spec | notes |
 |---|---|---|---|
-| pack pigtail | 1 | XT60 or XT30 to match the pack; ≥ 20 AWG silicone lead | runs to the protection board, fuse and switch |
-| board power pigtail | 1 + 1 spare | JST XH 2.54 mm 2-pin female (housing XHP-2, SXH contacts), pre-crimped, 22 AWG, ≥ 100 mm | for the General Driver inlet (connector diagram no. 10, silkscreen "− +") |
+| pack pigtail | 1 | XT60 or XT30 to match the pack; ≥ 20 AWG silicone lead | the pack's own lead plugs straight into power lite's J1, no extension ([assembly.md §12a](assembly.md#12a-which-lead-goes-where)); a pigtail is needed only if the pack comes without one |
+| board power pigtail | 1 + 1 spare | JST XH 2.54 mm 2-pin female (housing XHP-2, SXH contacts), pre-crimped, 22 AWG, ≥ 100 mm | power lite's J3 to the General Driver inlet H1 (connector diagram no. 10, silkscreen "− +"); XHP-2 to XHP-2, pin 1 to pin 1 ([assembly.md §12a](assembly.md#12a-which-lead-goes-where)) |
 | servo extension leads | ~4 | 3-pin 5264 bus-servo cable, 200–300 mm | each servo ships with a 150 mm lead |
 | silicone wire, heat-shrink | — | 20 AWG for the power path | |
 | USB-C data cable | 1 | for flashing the General Driver | likely on hand |
