@@ -511,6 +511,61 @@ def yaw_of_imu(txt):
     return math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
 
 
+
+# --polls-in-ss (#297, 2026-11-25): the per-step `track steps` and `imu` polls wait for a planned single support.
+# The old firmware runs each CLI command on the task that runs the track player, and its `imu` read the IMU 50 times
+# to time the read: ~115 ms with no new servo goals, sent right after each touchdown (#259 Round 7). The window opens
+# this long after a lift-off and closes this long before the touchdown: `track steps` + `imu` round trips, the ~115 ms
+# stall of the old firmware's `imu`, and a status reply's age (one round trip) fit inside it.
+POLL_SS_AFTER_MS = 60.0
+POLL_SS_BEFORE_MS = 300.0
+POLL_SS_MAX_WAIT_S = 3.0    # no window by then (a lift gate's hold, a very short single support): poll anyway, counted
+
+
+def poll_window_open(sw, head_ms, holding=False, after_ms=POLL_SS_AFTER_MS, before_ms=POLL_SS_BEFORE_MS):
+    """--polls-in-ss: True when the track clock `head_ms` (the status line's `play t`) is inside a planned single
+    support, at least after_ms past its lift-off and at least before_ms before its touchdown, and the lift gate is not
+    holding the clock (it parks at a lift-off with both feet down)."""
+    if holding:
+        return False
+    for p_ in sw.phases:
+        a_, b_ = 1e3 * (p_["t0"] - sw.t_first), 1e3 * (p_["t1"] - sw.t_first)
+        if a_ + after_ms <= head_ms <= b_ - before_ms:
+            return True
+    return False
+
+
+class PollGate:
+    """--polls-in-ss: when may the per-step polls go out. Off: always (today's behaviour). On: only in a planned single
+    support's window (poll_window_open), or once a wait has lasted max_wait_s (counted as `forced`)."""
+
+    def __init__(self, on, clock=time.monotonic, max_wait_s=POLL_SS_MAX_WAIT_S):
+        self.on, self.clock, self.max_wait_s = on, clock, max_wait_s
+        self.since = None
+        self.stats = dict(on=bool(on), polls=0, deferred=0, forced=0, waited_s=[])
+
+    def ready(self, sw, head_ms, holding):
+        """A new single support is reported: poll now? (False = ask again at the next status poll.)"""
+        if not self.on:
+            self.stats["polls"] += 1
+            return True
+        now = self.clock()
+        if self.since is None:
+            self.since = now
+        if poll_window_open(sw, head_ms, holding):
+            forced = False
+        elif now - self.since >= self.max_wait_s:
+            forced = True
+        else:
+            return False
+        waited = now - self.since
+        self.stats["polls"] += 1
+        self.stats["deferred"] += waited > 0
+        self.stats["forced"] += forced
+        self.stats["waited_s"].append(round(waited, 3))
+        self.since = None
+        return True
+
 UPPER = 0.05     # the shift must not exceed k_static by more than this (x 62 mm): 18:09 fell OUTWARD at 1.35
 MLIFT_DT = 0.05  # s, the moving lift's pelvis rate at lift-off: from the frames this long either side
 # --moving-lift's host limit, a share of the shift: the SIL (README "The moving lift") holds 0.2-0.3 s of a 1.2-1.3 s shift
@@ -1065,6 +1120,7 @@ def live(pl, a):
 
     saved_sig = {}
     stop = False
+    gate = PollGate(getattr(a, "polls_in_ss", False))
     if cw is not None:
         def on_signal(sig, _frame):
             name = signal.Signals(sig).name
@@ -1106,7 +1162,8 @@ def live(pl, a):
             # the firmware's TS lines are async output: over Wi-Fi they never reach a command's reply (2026-11-12:
             # 0 of 34 seen live, so the stop rule never ran). `track steps` repeats the last 16: poll it.
             m2 = re.search(r"(\d+) single supports reported", txt)
-            if m2 and int(m2.group(1)) > len(steps):
+            # --polls-in-ss: not in a double support; the count stays ahead of `steps`, so the next status poll asks again
+            if m2 and int(m2.group(1)) > len(steps) and gate.ready(pl["sway"], head, holding):
                 n_before = len(steps)
                 stop = scan(r.cmd("track steps")) or stop
                 if learn is not None and len(steps) > n_before and not stop:
@@ -1144,6 +1201,11 @@ def live(pl, a):
             print(r.cmd("trim").strip())
         except Exception:  # noqa: BLE001
             pass
+        if gate.on:
+            w_ = sorted(gate.stats["waited_s"])
+            print(f"polls in single support: {gate.stats['polls']} per-step polls, {gate.stats['deferred']} waited "
+                  f"(median {w_[len(w_) // 2] if w_ else 0:.2f} s), {gate.stats['forced']} forced after "
+                  f"{gate.max_wait_s:g} s")
         if t_line:
             ts = sorted(t_line)
             print(f"upload: {len(t_line)} lines, round trip median {1e3 * ts[len(ts) // 2]:.0f} ms, max "
@@ -1190,7 +1252,8 @@ def live(pl, a):
                               fell=(fell["v"] if learn is not None else None)),
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
-                 cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None)))
+                 cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None),
+                 polls_in_ss=gate.stats))
         r.close()
         print(f"log: {log_path}")
 
@@ -1389,6 +1452,12 @@ def main(argv=None):
                          "clean walks stay <= 5.0; the 19:27 fall came after R out 7.0, 7.2, 8.2")
     ap.add_argument("--ms-per-line", type=float, default=29.0, help="dry run: CLI round trip (measured 29 ms median, 2026-11-12)")
     ap.add_argument("--poll", type=float, default=0.25)
+    ap.add_argument("--polls-in-ss", action="store_true",
+                    help="send the per-step `track steps` (stop rule) and `imu` (heading hold) polls only inside a planned "
+                         "single support (60 ms after its lift-off to 300 ms before its touchdown), not right after the "
+                         "touchdown: the old firmware's `imu` stalls the track player ~115 ms and the stall is behind "
+                         "the weight-shift snap (#297, #259 Round 7). The stop rule then acts up to one double support "
+                         "later. Default off (today's polls)")
     ap.add_argument("--live", action="store_true", help="SEND to the robot (Stage C, a person at it)")
     ap.add_argument("--note", default="", help="free text into the log's summary row, e.g. where the robot stands")
     ap.add_argument("--ankle-ff", default=",".join(f"{x:g}" for x in ROBOT_ANKLE_FF),
