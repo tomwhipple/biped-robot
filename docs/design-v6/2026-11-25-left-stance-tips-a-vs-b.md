@@ -19,8 +19,9 @@ likely once the trigger has happened.**
    - About 1.2 s before the lift-off, at the shift's fastest part, the roll joints fall behind the shift. The L hip roll
      lags its goal by 4.0 deg on snap steps (4.0-5.8 on the tips), against 2.4 deg with no snap.
    - They catch up with a load spike, and the body rolls 3.1-4.4 deg toward the coming swing foot at 65-94 deg/s.
-   - It then settles 0.6 deg further toward the left foot than on a clean step, with the hips squeezed: the right hip
-     roll is loaded +32 counts against +16 (this is the 11-24 record's swing hip-roll load before the lift-off).
+   - It then settles 0.6 deg further toward the left foot than on a clean step, with a preload between the feet: the
+     right hip roll is loaded +32 counts against +16 (this is the 11-24 record's swing hip-roll load before the
+     lift-off).
    - By its size and timing it is the "weight-transfer kick" of the README's `--td-pause` section (inferred).
 
    This lift-off state predicts the swing-back e at 0.9 s on all 365 normal-timing left stances:
@@ -156,8 +157,11 @@ Per tip (all left stance, normal timing):
 The squeeze in plain terms:
 - At the lift-off the hips read about 0.3 deg narrower than written: about 0.6 mm at the sole over the 121 mm leg.
 - The two soles' encoders differ by −0.18 deg against +0.18 on clean late steps.
-- So the feet are held against each other with the right hip roll pushing. The stance ankle roll then carries nothing
-  in the raise (+7 counts against −24), as the 11-24 record found.
+- So the stance is narrower than the goals, and the hip-roll servos push the feet apart against the floor's grip: a
+  preload between the feet. "Squeeze" in this record is that differential: (L − R) / 2 of the hip-roll loads, more
+  negative is more preload. The direction is inferred from the signs: the load follows pos − goal (spot-checked on
+  standing ticks), and + hip roll moves the foot to the left (`stance_trim.h`'s convention).
+- The stance ankle roll then carries nothing in the raise (+7 counts against −24), as the 11-24 record found.
 
 The 11-24 record's load pattern is this state:
 - the swing hip-roll load before the lift-off (−32 there, raw sign) is the squeeze's right half;
@@ -226,7 +230,7 @@ Normal left, k ≥ 2, snap steps (166, 12 tips); medians:
 - Logistic fit of tip on the squeeze, T at the lift-off and k (standardised): z −3.1 (squeeze), +3.6 (T), −1.1 (k).
 - T adds to squeeze + k: p 0.0002. k adds to squeeze + T: p 0.33.
 - Over all sessions (17 tips on 369 snap steps): z −4.3 / +4.3 / −1.1.
-- **Inferred, not shown.** A higher learned T, written as more hike in the raise, may be what turns a squeezed lift-off
+- **Inferred, not shown.** A higher learned T, written as more hike in the raise, may be what turns a preloaded lift-off
   into a tip late in a walk:
   - early snaps at T ≈ 5.3 swing back (e@0.9 −0.79);
   - late ones at T ≈ 6.2 barely do (−0.39).
@@ -237,14 +241,14 @@ Normal left, k ≥ 2, snap steps (166, 12 tips); medians:
 
 - **Servo temperature.** On the evening's late normal left stances there is no difference: tips against clean have
   AUC 0.44-0.52 for the four roll servos, at 31-33 °C. Over all sessions the tips run 1-2 °C warmer (AUC 0.59-0.63,
-  p ≥ 0.07). That follows the time of day: the tips are in the evening, and the servos warm over the session. The swing-back does not follow
-  temperature (ρ −0.17 to −0.04).
+  p ≥ 0.07). That is probably the time of day, since all the tips are in the evening; it was not checked further. On
+  the evening's late left stances the swing-back does not follow temperature (ρ −0.17 to −0.04).
 - **Supply.** The pack read 12.0 V throughout, and the servo-reported voltage (L hip roll) 12.0 V at every lift-off:
   no variation to compare.
 - **The operator's `--cmd` inputs.** Late snap steps: 12 tips / 82 in `--cmd` walks, 0 / 16 in fixed walks (Fisher p
   0.21, too few fixed steps to tell). Fixed walks snap as often (`tl_cap_*`, `tl_def_*`: snaps from the 2nd stance on).
   Step types: as the 11-24 record found.
-- **Step count.** Covered above: k does not predict the swing-back once the lift-off state is known (+0.01 ± 0.03), and
+- **Step count.** Covered above: k does not predict the swing-back once the lift-off state is known (−0.02 ± 0.03), and
   does not predict tips on snap steps once T is known.
 - **The previous right stance.** T R, its hike at the touchdown and its error at the touchdown each explain 3-7 % of
   the squeeze (walk fixed effects). They move together, so they cannot be told apart; together they explain 9 %.
@@ -279,8 +283,8 @@ Use the 11-24 record's tipping pattern: normal timing, `--cmd`, three march step
    - P: at most 1 snap in 22, 0 tips, e@0.9 about −2.6.
 
    Outcome:
-   - **Pass** (the snap and the pause are confirmed): P ≤ 2 snaps of 22 and C ≥ 8 of 22. That is Fisher p < 0.01 with no
-     tips needed.
+   - **Pass** (the snap and the pause are confirmed): P ≤ 2 snaps of 22 and C ≥ 11 of 22. That is Fisher p ≤ 0.007 with
+     no tips needed. If C has 8-10, run a third walk of each.
    - **Fail**: P snaps like C. Then the shift's start is not it, and the next look is the shift's speed at its middle.
    - **Inconclusive**: C does not snap. The repaired hip changed the plant; re-take the baseline.
 2. **Robot: which half of the pause.** Only if 1 passes. No pause, with the trim's fade shortened to 0.3 s so that the
@@ -309,7 +313,7 @@ that waits for the fade), as its own PR, one change per run.
   tip rule; tests in `tests/test_tip_causes.py`:
 
   ```
-  python experiments/roll-balance/tip_causes.py extract --day 20261113 --day 20261116     # ~2 min, one pass per record
+  python experiments/roll-balance/tip_causes.py extract --day 20261113 --day 20261116     # minutes, one pass per record
   python experiments/roll-balance/tip_causes.py table --day 20261116 --from 1415 --to 2010
   python experiments/roll-balance/tip_causes.py table --day 20261113 --day 20261116 --to 1415
   python experiments/roll-balance/tip_causes.py report <evening csv> --since 20261116T1826  # the evening
@@ -320,7 +324,7 @@ that waits for the fade), as its own PR, one change per run.
     is committed.
   - The report prints every number above except the single-step trace of `capB_L_2` step 11 and the per-tip table,
     which come from the same cache.
-- The loads are in the joint frame: the STS load follows pos − goal (checked on standing ticks: 8 counts per step of
+- The loads are in the joint frame: the STS load follows pos − goal (spot-checked on standing ticks: about 8 counts per step of
   deflection). They come in multiples of about 8 counts, so medians land on 8, 16, 24 ...
 - The width and tilt numbers are frontal-plane sums of the encoders: hip roll L − R; hip + ankle roll L − R. They are
   not a full forward kinematics; the stance width in mm is that angle times the 121 mm leg.

@@ -14,7 +14,7 @@ The flight records were re-read for A (trim drift) against B (a push in double s
 **The trigger is in double support.** Every tip (12 / 12) followed a roll snap of 3.1-4.4 deg in the weight shift
 before the lift-off:
 - the roll joints fall behind the shift's fastest part and catch up with a load spike;
-- that leaves the feet squeezed at the lift-off;
+- that leaves a preload between the feet at the lift-off;
 - that state predicts the swing-back on all 365 normal-timing left stances (R² 0.46), and T and the stance count add
   nothing to it.
 
