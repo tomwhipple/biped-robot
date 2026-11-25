@@ -746,6 +746,38 @@ first to give the robot's yaw sign at +2 s, at 4 % of its size.
      one goes with the standing pitch. If it does not come back, item 2 is closed as "the later sweeps": the plant's
      double stance should be stiff and leave a +0.2-0.5 deg loop, as `sag` and `grade` already are.
 
+## Round 7 (2026-11-25): the weight-shift snap of the late left-stance tips
+
+Record: [docs/design-v6/2026-11-25-weight-shift-snap-sim.md](../../../docs/design-v6/2026-11-25-weight-shift-snap-sim.md).
+Tool: `../../roll-balance/snap_replay.py`. It replays each 11-16 single support open loop under the robot's goals,
+from the double support before the previous step, and reads the sim through `tip_causes.py`'s own per-step code. No new
+hardware data.
+
+- **The snap is a control-loop stall, not a plant term (verified in the flight records).**
+  - About 115 ms after the host's per-step `track steps` / `imu` commands, the loop stalls. The stall comes 0.2-0.5 s
+    after every touchdown: 389 / 389 and 257 / 257 left double supports.
+  - Across the gap the loop's tick counter advances by 1, with no drops.
+  - Left stances snap on 179 / 183 steps with the stall in the shift's fast part, against 24 / 197 without
+    (replication 151 / 157 against 15 / 179).
+  - `--td-pause 0.3` works because it moves the shift off the stall.
+- **`grade` reproduces it step by step.** Snap share 48 % (robot 53 %), r 0.93 per step; size 3.20 deg against 3.40;
+  timing −1.25 s against −1.24; L hip-roll lag 3.11 against 3.96 deg.
+  - The stall filled with interpolated goals: 0 %.
+  - The shift 0.3 s later with the stall at its real time (the pause): 0 %.
+  - The shift 0.3 s later with the stall moved along: 47 %.
+- **No plant predicts the tips.**
+  - `grade`: no preload follows the snap, a hard swing-back (e@0.9 −5.3 against −0.5), 0 tips (robot 12 in 380).
+  - `sag` and `sag+fric`: they carry the snap's preload (e@0.9 r 0.42-0.44 per step) and tip on 10-12 of the 12, but
+    also on about 100 clean steps.
+  - `play_fit`: the play takes the preload; 3 tips, none where the robot tipped.
+- **What changes.**
+  - No term; items 1-4 are as Round 6 left them.
+  - Replays must hold the goals over the record's tick gaps (they do); interpolating through them removes the snap.
+  - `footoff_sag.py`'s placement (0.4 s after the previous touchdown, then a 1 s hold) starts after most stalls
+    (inferred).
+  - For #297 the arm that settles the mechanism on the robot is no pause with those two host commands moved out of
+    the double support.
+
 ## What is still unmeasured
 
 1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s
