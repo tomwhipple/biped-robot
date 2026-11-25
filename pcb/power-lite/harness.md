@@ -75,9 +75,9 @@ on the long wall the pins sit close to.
 
 | header | branch | first servo, then the chain | walking peak / RMS (upper model) | get-up peak (range over the two sides) |
 |---|---|---|---|---|
-| J4 | right leg | 9 → 1, 2, 3, 4, 11 | 3.7 A / 1.6 A | 3.0–4.3 A |
+| J4 | right leg | 10 → 52, 6, 7, 8, 11 | 3.7 A / 1.6 A | 3.0–4.3 A |
 | J5 | right upper | 13 → 14, 15 | 0.3–0.4 A / 0.1 A | 2.9–3.0 A |
-| J6 | left leg | 10 → 5, 6, 7, 8, 12 | 3.7 A / 1.6 A | 3.0–4.3 A |
+| J6 | left leg | 9 → 51, 2, 3, 4, 12 | 3.7 A / 1.6 A | 3.0–4.3 A |
 | J7 | left upper | 16 → 17 | 0.3–0.4 A / 0.1 A | 2.9–3.0 A |
 | J8 | data in from General Driver H5 | pin 2 unconnected on the board | | |
 
