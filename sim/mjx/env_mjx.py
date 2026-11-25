@@ -357,6 +357,9 @@ class State(NamedTuple):
     sag_r: jax.Array          # () the episode's supply lead resistance, ohm (sim/supply_sag.py);
                               # (0,) when supply_sag_ohm is off
     sag_s: jax.Array          # () the supply scale V/V0 the next substep runs on; (0,) when off
+    th_t: jax.Array           # (n_servo,) servo temperature, degC (sim/servo_thermal.py); (0,) when
+                              # servo_thermal is off
+    th_off: jax.Array         # (n_servo,) 1 = cut off over temperature (latched); (0,) when off
 
 
 def _quat_yaw(q):
@@ -667,6 +670,8 @@ class BimoMJXEnv:
         supply_voltage: float = 11.1,
         supply_sag_ohm=None,   # supply sag V = V0 - R*I_bus per substep (#6; sim/supply_sag.py):
         # R ohms fixed, or "LO:HI" drawn per episode; None = off (walker_env mirror)
+        servo_thermal=None,    # servo temperature + the 70 degC cutoff (#6; sim/servo_thermal.py): the
+        # start temperature degC, fixed or "LO:HI" drawn per episode per servo; None = off (walker_env mirror)
         servo_kp: float | tuple = 12.0,   # N*m/rad; or one per actuator
         servo_kd: float | tuple = 0.25,   # N*m*s/rad; or one per actuator
         servo_types=None,      # {actuator or role: "sts3250"}: per-servo stall/speed envelope (walker_env.SERVO_TYPES)
@@ -1329,6 +1334,10 @@ class BimoMJXEnv:
         self.supply_sag_ohm = _sag.parse_sag(supply_sag_ohm)
         self._sag_on = self.supply_sag_ohm is not None
         self._sag_v0 = float(supply_voltage)
+        import servo_thermal as _th
+        self._thk = _th
+        self.servo_thermal = _th.parse_thermal(servo_thermal)
+        self._th_on = self.servo_thermal is not None
         import cmd_kernel as _ck
         self._ck = _ck
         self.cmd_slew = _ck.parse_slew(cmd_slew)
@@ -1477,6 +1486,11 @@ class BimoMJXEnv:
             # each servo's (K_CU, stall current at 12 V) by its physical type (supply_sag)
             self._sag_elec = tuple(jp.asarray(x) for x in
                                    self._sag.servo_elec(self._servo_names, self.servo_types))
+        if self._th_on:
+            # each servo's (K_CU, tau_th, Rth) by its physical type (servo_thermal)
+            self._th_consts = tuple(jp.asarray(x) for x in
+                                    self._thk.thermal_consts(self._servo_names, self.servo_types,
+                                                             float(supply_voltage)))
         self._nom_servo = jp.array([kp_ref, kd_ref,
                                     _STS_STALL_12V * v, _STS_NOLOAD_12V * v])
 
@@ -2647,6 +2661,21 @@ class BimoMJXEnv:
         r = jp.asarray(lo, jp.float32) if lo == hi else (lo + u * (hi - lo)).astype(jp.float32)
         return r, jp.ones((), dtype=jp.float32)
 
+    def _draw_th(self, rng: jax.Array):
+        """Per-episode start temperature per servo (uniform, fold_in 7007 so the other draws keep
+        their streams), cut off where it starts at or over the cutoff. (0,) each when
+        servo_thermal is off."""
+        if not self._th_on:
+            z = jp.zeros((0,), dtype=jp.float32)
+            return z, z
+        lo, hi = self.servo_thermal
+        if lo == hi:
+            t = jp.full((self._n_servo,), lo, dtype=jp.float32)
+        else:
+            u = jax.random.uniform(jax.random.fold_in(rng, 7007), (self._n_servo,))
+            t = (lo + u * (hi - lo)).astype(jp.float32)
+        return t, (t >= self._thk.T_CUTOFF).astype(jp.float32)
+
     def _draw_fs(self, rng: jax.Array):
         """Per-episode foot-off sag preload per roll joint (theta uniform per side, fold_in
         8484 so the other draws keep their streams) and relaxed springs. (0,) when off."""
@@ -2959,6 +2988,7 @@ class BimoMJXEnv:
         rp_h, rp_off = self._draw_rp(r_ep)
         fs_amp, fs_defl = self._draw_fs(r_ep)
         sag_r, sag_s = self._draw_sag(r_ep)
+        th_t, th_off = self._draw_th(r_ep)
         act_delay = self._draw_act_delay(r_ep)
         if self.init_pose_deg is None:
             act_hist = self._act_hist0()
@@ -3080,7 +3110,8 @@ class BimoMJXEnv:
                      dq_qhist=dq_qhist, dq_win=dq_win,
                      ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
                      fs_amp=fs_amp, fs_defl=fs_defl,
-                     trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s)
+                     trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s,
+                     th_t=th_t, th_off=th_off)
 
     def reseed(self, first: State, rng: jax.Array, model=None) -> State:
         """Fresh episode that REUSES the cached first physics state (brax-style
@@ -3097,6 +3128,7 @@ class BimoMJXEnv:
         rp_h, rp_off = self._draw_rp(r_ep)
         fs_amp, fs_defl = self._draw_fs(r_ep)
         sag_r, sag_s = self._draw_sag(r_ep)
+        th_t, th_off = self._draw_th(r_ep)
         dq_qhist = self._dq_qhist0(first.data)
         act_delay = self._draw_act_delay(r_ep)
         act_hist = self._act_hist0()
@@ -3176,7 +3208,8 @@ class BimoMJXEnv:
             dq_qhist=dq_qhist, dq_win=dq_win,
             ser_c=ser_c, ser_defl=ser_defl, rp_h=rp_h, rp_off=rp_off,
             fs_amp=fs_amp, fs_defl=fs_defl,
-            trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s, metrics=metrics)
+            trim=self._trim0(r_ep), cmd_tgt=cmd_tgt, sag_r=sag_r, sag_s=sag_s,
+            th_t=th_t, th_off=th_off, metrics=metrics)
 
     def _trim0(self, r_ep):
         """The stance trim's state at an episode start: off, with this episode's learned trims."""
@@ -3422,12 +3455,16 @@ class BimoMJXEnv:
             rp_lim = w0 * self.sim_dt
 
         sag_on = self._sag_on
+        th_on = self._th_on
+        if th_on:
+            th_cut = state.th_off > 0.5     # cut off over temperature (latched): limp all tick
 
         def substep(carry, i):
+            d, _, off = carry[:3]
             if sag_on:
-                d, _, off, sg = carry
-            else:
-                d, _, off = carry
+                sg = carry[3]
+            if th_on:
+                hq = carry[-1]
             if self.fw_goal_speed:
                 t_i = jp.maximum(i - lat_k + 1, 0).astype(jp.float32) * self.sim_dt
                 cur = last_target + jp.clip(target - last_target,
@@ -3459,6 +3496,10 @@ class BimoMJXEnv:
                 # edge, leaves the link free (no drive, no damping)
                 tau = jp.where(rp, jp.where(rp_eng, rp_sg * jp.maximum(rp_sg * tau, 0.0),
                                             0.0), tau)
+            if th_on:
+                # over temperature: a cut-off servo is limp (and draws nothing); the rest heat
+                tau = jp.where(th_cut, 0.0, tau)
+                hq = hq + self._thk.heat(tau, self._th_consts, jp)
             if sag_on:
                 # this substep's bus current sets the next substep's supply (supply_sag)
                 sg = self._sag.sag_step(tau, qd, sg, state.sag_r, self._sag_v0,
@@ -3471,20 +3512,24 @@ class BimoMJXEnv:
                 # where the link reaches the band edge
                 off = jp.where(rp, jp.clip(shaft - d.qpos[self._jq0:self._jq1],
                                            -state.rp_h, state.rp_h), 0.0)
-            if sag_on:
-                return (d, tau, off, sg), None
-            return (d, tau, off), None
+            return (d, tau, off) + ((sg,) if sag_on else ()) + ((hq,) if th_on else ()), None
 
         carry0 = (data, jp.zeros(self._n_servo),
                   state.rp_off if self._rp_on else jp.zeros((self._n_servo,)))
         if sag_on:
-            (data, tau, off, sag_s), _ = jax.lax.scan(
-                substep, carry0 + (state.sag_s.astype(jp.result_type(stall)),),
-                jp.arange(self.n_substeps))
-            sag_s = sag_s.astype(jp.float32)
+            carry0 = carry0 + (state.sag_s.astype(jp.result_type(stall)),)
+        if th_on:
+            carry0 = carry0 + (jp.zeros((self._n_servo,), dtype=jp.result_type(stall)),)
+        carry, _ = jax.lax.scan(substep, carry0, jp.arange(self.n_substeps))
+        data, tau, off = carry[:3]
+        sag_s = carry[3].astype(jp.float32) if sag_on else state.sag_s
+        if th_on:
+            # servo temperature: one tick at the substeps' mean heat; the cutoff latches
+            th_t, th_cut = self._thk.thermal_step(state.th_t, th_cut, carry[-1] / self.n_substeps,
+                                                  self.control_dt, self._th_consts, jp)
+            th_t, th_off = th_t.astype(jp.float32), th_cut.astype(jp.float32)
         else:
-            (data, tau, off), _ = jax.lax.scan(substep, carry0, jp.arange(self.n_substeps))
-            sag_s = state.sag_s
+            th_t, th_off = state.th_t, state.th_off
         if self._rp_on:
             # the shaft (what the encoders read: q obs, the dq history, the next tick's
             # feedback) sits rp_off from the link; its rate joins the link's in the dq obs
@@ -4346,7 +4391,7 @@ class BimoMJXEnv:
                                else ser_defl),
                      rp_h=state.rp_h, rp_off=rp_off,
                      fs_amp=state.fs_amp, fs_defl=fs_defl, trim=trim, cmd_tgt=cmd_tgt,
-                     sag_r=state.sag_r, sag_s=sag_s)
+                     sag_r=state.sag_r, sag_s=sag_s, th_t=th_t, th_off=th_off)
 
 
 

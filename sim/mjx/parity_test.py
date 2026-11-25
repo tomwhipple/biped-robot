@@ -70,6 +70,9 @@ Gates (float64, so precision is not the limiter):
       walker_env.mimic_travel_cal): the FK travel tables equal in both envs, the reference CPU
       vs MJX over the command volume (with and without mimic_turn_ref; past the tables' ends,
       the saturated corners), airborne reward parity under a diagonal + turn, liveness
+  R29 the servo temperature and over-temperature cutoff (servo_thermal; sim/servo_thermal.py,
+      #6): the kernel numpy vs jax, airborne arithmetic with half the servos a hair under the
+      cutoff (some cut off mid-run), the temperature and cutoff state step for step, liveness
   S   gait-amplitude contact-manifold statistics (informational, no gate)
 
 Run (from sim/mjx, JAX_PLATFORMS=cpu):
@@ -87,6 +90,7 @@ Run (from sim/mjx, JAX_PLATFORMS=cpu):
       python parity_test.py --footoff-sag    # R21 only
       python parity_test.py --cmd-slew       # R23 only
       python parity_test.py --stand-band     # R25 only
+      python parity_test.py --servo-thermal  # R29 only
 """
 import os
 import sys
@@ -167,6 +171,10 @@ def sync(state, cpu, gpu_env):
                if getattr(cpu, "_sag_r", None) is not None else state.sag_r),
         sag_s=(jp.asarray(float(cpu._sag_s))
                if getattr(cpu, "_sag_r", None) is not None else state.sag_s),
+        th_t=(jp.asarray(np.array(cpu._th_t))
+              if getattr(cpu, "_th_t", None) is not None else state.th_t),
+        th_off=(jp.asarray(np.array(cpu._th_off, dtype=np.float64))
+                if getattr(cpu, "_th_t", None) is not None else state.th_off),
     )
 
 
@@ -1491,7 +1499,87 @@ def volume_cal_block():
     return ok_a and ok_b and live
 
 
+# -- R29: the servo temperature and its over-temperature cutoff (sim/servo_thermal.py; #6) ------
+#     a: the kernel, numpy vs jax.numpy on the same inputs (temperature step, latched cutoff);
+#     b: airborne arithmetic with servo_thermal on: every other servo starts a hair under the
+#        70 degC cutoff (set on the CPU, copied by sync), so some cut off mid-run and go limp in
+#        both engines; the physics gates as R1's;
+#     c: the thermal state itself, step for step: both engines step from the same synced state, and
+#        the new temperatures (to the MJX state's float32) and cutoff masks are compared;
+#     d: liveness: some servos cut off (not all), a cut-off servo gives no torque, and with the
+#        option off nothing is drawn or carried (empty state fields).
+TH_NEAR = 69.995
+
+
+def servo_thermal_block():
+    import servo_thermal as th
+    rng = np.random.default_rng(29)
+    names = list(th.CB.NAME_TO_ID)                     # the bus map's 17: two STS3250s
+    cs = th.thermal_consts(names, {"knee": [2.0, 1.281]}, 11.1)   # a refit pair's k too
+    cs_j = tuple(jp.asarray(x) for x in cs)
+    tau = rng.uniform(-3, 3, (500, 17))
+    t0 = rng.uniform(20.0, 75.0, (500, 17))
+    off0 = rng.uniform(size=(500, 17)) < 0.2
+    p = th.heat(tau, cs)
+    p_j = th.heat(jp.asarray(tau), cs_j, jp)
+    t_np, o_np = th.thermal_step(t0, off0, p, 0.02, cs)
+    t_jp, o_jp = jax.jit(lambda t, o, p_: th.thermal_step(t, o, p_, 0.02, cs_j, jp))(
+        jp.asarray(t0), jp.asarray(off0), jp.asarray(p))
+    worst_k = max(float(np.max(np.abs(t_np - np.asarray(t_jp)))),
+                  float(np.max(np.abs(p - np.asarray(p_j)))))
+    ok_a = (worst_k < 1e-12 and bool(np.array_equal(o_np, np.asarray(o_jp)))
+            and bool(np.all(o_np[off0])))
+    print(f"== R29-a. servo thermal kernel, numpy vs jax: {'PASS' if ok_a else 'FAIL'} ==")
+    print(f"   worst {worst_k:.1e}; cut off {int(o_np.sum())} of {o_np.size} (latched {int(off0.sum())})")
+
+    c, g, s = envs_for(rob_kw(servo_thermal=29.0), solver_tol=ARITH_TOL)
+    n = c._n_servo
+    near = np.where(np.arange(n) % 2 == 0, TH_NEAR, 40.0)
+
+    def warm(env):
+        if env._step_i == 0:
+            env._th_start(near)
+    offs = []
+    ok_b = run_block("R29-b. servo thermal, airborne arithmetic (half at the cutoff)", 100,
+                     air_acts(c, hook=lambda env: (warm(env), offs.append(env._th_off.copy()))),
+                     hoist, AIR_GATES, (c, g, s))
+    limp = bool(np.all(c._servo_tau[c._th_off] == 0.0))
+
+    # c: the thermal state, step for step from the same synced state
+    c.reset(seed=0)
+    hoist(c)
+    c._th_start(near)
+    st = g.reset(jax.random.PRNGKey(0))
+    act = air_acts(c)
+    worst_t, same_off = 0.0, True
+    for t in range(60):
+        a = act(t)
+        st = sync(st, c, g)
+        c.step(a)
+        st = s(st, jp.asarray(a))
+        worst_t = max(worst_t, float(np.max(np.abs(np.asarray(st.th_t) - c._th_t))))
+        same_off &= bool(np.array_equal(np.asarray(st.th_off) > 0.5, c._th_off))
+    ok_c = worst_t < 1e-4 and same_off      # the MJX state is float32: ~70 x 2^-24 = 4e-6 degC
+    print(f"== R29-c. servo thermal state, step for step: {'PASS' if ok_c else 'FAIL'} ==")
+    print(f"   worst |dT| {worst_t:.1e} degC; cutoff masks equal: {same_off}; "
+          f"cut off at the end {int(c._th_off.sum())} of {n}")
+
+    off_c, off_g, _ = envs_for(rob_kw())
+    st0 = off_g.reset(jax.random.PRNGKey(0))
+    off_c.reset(seed=0)
+    n_off = int(offs[-1].sum())
+    ok_d = (0 < n_off < n and limp and off_c._th_t is None
+            and st0.th_t.shape == (0,) and st0.th_off.shape == (0,))
+    print(f"== R29-d. servo thermal liveness: {'PASS' if ok_d else 'FAIL'} ==")
+    print(f"   cut off in b: {n_off} of {n}; cut-off servos limp: {limp}; off: no draw, empty state")
+    return ok_a and ok_b and ok_c and ok_d
+
+
 def main():
+    if "--servo-thermal" in sys.argv:
+        ok = servo_thermal_block()
+        print("\nPARITY (R29):", "PASS" if ok else "FAIL")
+        return ok
     if "--mimic-volume-cal" in sys.argv:
         ok = volume_cal_block()
         print("\nPARITY (R28):", "PASS" if ok else "FAIL")
@@ -1558,7 +1646,7 @@ def main():
                roll_play_block(), march_unload_block(), stance_trim_block(), sole_inset_block(),
                march_both_block(), footoff_sag_block(), dwell_block(), cmd_slew_block(),
                supply_sag_block(), stand_band_block(), volume_ref_block(), turn_ref_block(),
-               volume_cal_block()]
+               volume_cal_block(), servo_thermal_block()]
     manifold_stats()
     ok = all(results)
     print("\nPARITY:", "PASS" if ok else "FAIL")

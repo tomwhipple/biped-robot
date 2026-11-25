@@ -59,6 +59,9 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               #6): V = V0 - R x I_bus per substep, the envelope scaled by V/V0; the 2026-11-03 bench
               supply is 0.44. Fixed, live at once (the supply starts unloaded) and at every reset
               after; 0 switches it off
+  servo_temp=<degC>   servo temperature and the 70 degC over-temperature cutoff (walker_env
+              servo_thermal, sim/servo_thermal.py, #6): every servo starts at <degC>, live at once
+              and at every reset after; <= 0 switches it off
   fric_aroll=<N m>, fric_hroll=<N m>   dry friction (MuJoCo frictionloss) on the ankle-roll /
               hip-roll joints, replacing the plant's: it acts on the link, so under the play it
               holds the link inside its band
@@ -317,6 +320,15 @@ def apply_terms(env, terms):
         if env._sag_r is not None:
             # each servo's current by its physical type (SS.servo_elec), as the env's init does
             env._sag_elec = SS.servo_elec(env._servo_names, env.servo_types)
+    if "servo_temp" in terms:
+        import servo_thermal as TH
+        c = float(terms["servo_temp"])
+        env.servo_thermal = TH.parse_thermal(c) if c > 0.0 else None
+        env._th_t = None
+        if env.servo_thermal is not None:
+            # each servo's (K_CU, tau_th, Rth) by its physical type, as the env's init does
+            env._th_consts = TH.thermal_consts(env._servo_names, env.servo_types, env.supply_voltage)
+            env._th_start(np.full(env._n_servo, c))
     for key, suf in (("fric_aroll", "ankle_roll"), ("fric_hroll", "hip_roll")):
         if key in terms:        # dry friction (N m) on the roll joints themselves: the link side
             for i, n in enumerate(env._servo_names):
