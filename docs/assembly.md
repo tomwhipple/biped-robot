@@ -470,9 +470,11 @@ over it.
   face for them to pass over the 16 mm jacks. **The riser part and the stack's
   real height are open** (`HAT_GAP` in `cad/v6/dimensions_v6.py`): measure them
   before printing.
-- The leg leads come to its two bus ports, H5 and H6, through the top windows
-  of the front inner wall; the upper branch (neck, shoulders) leaves up through
-  the deck opening between the boards (§12). Both ports carry the same nets.
+- **No servo lead plugs into it except one.** The servos plug into power lite's
+  J4–J7 (§12). The General Driver's **H5** takes one stock lead, to power lite's
+  J8 (the servo data line); **H6 is not used**. Its **H1** (the power inlet)
+  takes power lite's J3 lead, which also feeds the Pi through the board's buck
+  and the INA219 (§12). Do not power the Pi from its own USB-C.
 - **The IMU is the board's onboard QMI8658C.** The board's mounting fixes the
   IMU's axes. The firmware applies a mounting rotation (`imu::Mount`), which has
   to be set for this orientation as part of the 17-joint port (#81).
@@ -489,18 +491,44 @@ balance lead's free end, and the **cap** (`power_cover_v8`) over them, with
 the main switch and the E-stop side by side in the **switch pod**
 (`switch_pod_v8`) on it (#213).
 
+**Two things to know before building this step.**
+
+- **The BMS has no under-voltage cut-off.** On the bench its output stayed on
+  down to 2.13 V a cell
+  ([record, 2026-11-19](design-v6/2026-11-19-power-lite-bms-bench.md)). It
+  switches the pack's negative lead and guards against over-current only. What
+  replaces it (a cut-off on the board, or another BMS) is not decided (#207), so
+  this step and the bracket describe the ShillehTek as it is. Until then the
+  pack's only under-voltage protection is the firmware's battguard and you:
+  **unplug the pack's XT60 after every session** and land the robot by 10.5 V
+  ([wiring.md](wiring.md#battery-protection)).
+- **The board comes to this step already bench-checked, with its servo headers
+  checked.** Do power lite's bring-up Part 2 and bench check, and the P4 meter
+  check on J4–J8 ([bringup.md](../pcb/power-lite/bringup.md#41-p4-the-servo-headers-before-any-servo)),
+  on the bench first. **J4–J8 must have their bevelled corner at pin 1, the
+  square pad.** The first board built had them turned 180° the other way (the
+  files are fixed, #342, #344); its five headers have to be turned before any
+  servo is plugged in (rework: power lite's
+  [assembly guide](../pcb/power-lite/assembly.md#rework-j4j8-seated-with-the-bevel-at-pin-3)).
+  Whether that board has been reworked is **(check on first fit, #207)**.
+
 ![The power bay from aft: exploded; the board, bracket and BMS in place; the cap with its switch pod on; a section at z = −25; from +y with the skin cut away, the balance park under J1; the keep-outs for the wires, the switches' bodies and terminals and their levers (yellow)](assembly/power_bay_v8.png)
 
 1. **Wire the BMS to the board first**, on the bench, after the BMS's bench
    check: power lite's [assembly guide](../pcb/power-lite/assembly.md), step 13
-   (W1 → B−, W2 → P−, W3/W4/W5 → B3/B2/B1+).
+   (W1 → B−, W2 → P−, W3/W4/W5 → the BMS's 3.7 V, 7.4 V and 11.1 V taps).
+   - **Wire the taps by voltage, not by label.** The datasheet calls them B3,
+     B2 and B1+. The board received numbers them upward (B1, B2, B+) and prints
+     no voltages, so W3 goes to the 3.7 V tap (the bottom cell) and W5 to the
+     11.1 V one. Meter each tap against B− first. The P+ pad stays empty: the
+     board takes the pack's + straight from J1.
    - Cut the wires for the BMS's place in the bay: it sits 18.5 mm off the
      board's parts face, over the W pads, its P−/P+ edge up and its B− and B3
      corners toward the fuses.
    - The two 14 AWG wires loop over the BMS's top edge to B− and P−, one
      behind the other: there are 7.75 mm between that edge and the deck.
-   - The 24 AWG cell taps come up to B3, B2 and B1+ from below, through their
-     corner pads' plated holes. The corner pads stand past the bracket's edges.
+   - The 24 AWG cell taps come up to the BMS's three tap pads from below,
+     through their corner pads' plated holes. The corner pads stand past the bracket's edges.
    - The BMS then hangs on its wires while the board goes in.
    - At the same time, solder the board's half of the main switch's lead into
      W6/W7: a 14 AWG pair to the board half of its inline disconnect (step 6).
@@ -514,6 +542,8 @@ the main switch and the E-stop side by side in the **switch pod**
      assumed size, so check it against the inserts you have.
    - Its −y holes (H2, H4): **2 × M2.5 × 6 button heads**, 4.4 mm into the
      inserts.
+     **No washer under H2's head:** J4's housing, with its bevel at pin 1,
+     stands 0.35 mm from it.
    - Its +y holes (H1 at the top, H3 at the bottom): **2 × M2.5 × 15
      male-female standoffs**, their 6 mm male thread through the board into the
      inserts. Turn them with a 5 mm nut driver.
@@ -639,7 +669,9 @@ the main switch and the E-stop side by side in the **switch pod**
   holds it at the sill, 1.5 mm under J1's plug. J2 itself, with the
   extension's female end in it, is reached with the cap and the BMS off.
 - **J4–J8**, the servo headers, are on the board's −y edge, and J3, J11 and J12
-  along its bottom edge: all reached with the cap off.
+  along its bottom edge: all reached with the cap off. **J4–J8 are keyed like
+  the General Driver's H5** (§12): a stock lead only goes in one way round, and
+  that way is right only if the header's bevelled corner is at pin 1.
 - **Both levers** stand up in the pod's pocket, their tips 2 mm under its
   rim, the deck's top: a fall on the back or a side lands on the rim. Reach
   in from above to throw them.
@@ -649,10 +681,11 @@ the main switch and the E-stop side by side in the **switch pod**
   STOP side, thrown, its tip stands 3 mm off the end wall, so nothing can
   get behind it to push it back IN. Anything that reaches it in the pocket
   can only push it OUT.
-- The board's wiring is power lite's ([README](../pcb/power-lite/README.md)).
-  The sim current budget is in
-  [wiring.md](wiring.md#current-measured-budget-issue-77); the bench figure and
-  the inlet are open (#77; [bom.md §3](bom.md#3-power)).
+- The board's wiring is power lite's ([README](../pcb/power-lite/README.md),
+  [harness.md](../pcb/power-lite/harness.md)); its leads to the servos, the
+  General Driver and the switches are §12. The sim current budget is in
+  [wiring.md](wiring.md#current-measured-budget-issue-77); the bench current
+  figure, with a watt meter on the pack lead, is still owed (#77).
 
 **The room the CAD keeps for wires** (Tom, 2026-11-04: buffers for the wires,
 not zero-margin fits). Each lead is a swept envelope in the checks
@@ -858,36 +891,185 @@ letter faces out and reads upright with the arm hanging.
 ## 12. Cabling
 
 **The harness is drawn in [wiring-general-driver.svg](wiring-general-driver.svg)**
-(power lite and its four servo branches, #77): the leg IDs are as assembled
-but the neck and arm IDs (13–17) are still a proposal
-([servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)), the
-per-hop lead lengths are measured from the CAD
-([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)), and the
-current budget is a sim figure
-([wiring.md](wiring.md#current-measured-budget-issue-77)) with the bench
-number still owed.
+(power lite and its four servo branches, #77); every connector, pin and check
+is in power lite's [harness.md](../pcb/power-lite/harness.md). Power lite is
+in the bay behind the pelvis (§9c); the General Driver and the Pi are in the
+bay in front of it (§9a, §9b). Every servo plugs into power lite, not into the
+General Driver.
 
-**What the CAD provides for it:**
+What is settled and what is not:
 
-- **Yaw servos:** a slit in the pelvis's ceiling over each connector trench.
-  The leads plug in from above through it, run flat under the pack between its
-  pads to the gap in front of it, then up over the front ribs and through the
-  top windows in the front inner wall into the board-stack bay, to the General
-  Driver's bus edge. The deck has no leg-bus slots.
-- **Power bay:** windows at the battery layer's ends in the aft inner wall
-  carry leads to power lite, the pack's lead through the +y one.
-- **Roll servos:** their ports face rearward through the carrier's rear-wall
-  window.
-- **Boards:** the General Driver's bus edge faces up, and the upper branch
-  (neck, shoulders) and the camera's ribbon (from the Pi's top edge) leave up
-  through the deck opening between the boards.
+- The leg IDs are as assembled; the neck and arm IDs (13–17) are still a
+  proposal until the neck and arms are fitted
+  ([servo-map.md §2.1](servo-map.md#21-the-robot-the-map-as-assembled)).
+- The per-hop lead lengths are measured from the CAD
+  ([wiring.md](wiring.md#per-hop-lead-lengths-from-the-v6-cad-arms1)). Its first
+  hops (General Driver port to the front wall, and so on) were measured for the
+  General Driver's ports; **the hops from J4–J7 are not measured** **(check on
+  first fit, #207)**.
+- The current budget is a sim figure
+  ([wiring.md](wiring.md#current-measured-budget-issue-77)); the bench number
+  with a watt meter on the pack lead is still owed.
+
+### 12a. Which lead goes where
+
+Do these with the **pack out, the fuses out and the main switch off**. The
+leads are made as in power lite's
+[assembly guide](../pcb/power-lite/assembly.md#make-the-leads).
+
+| from | to | lead | length |
+|---|---|---|---|
+| pack XT60 | **J1**, the XT60 on the board's +y edge | the pack's own lead, no extension | the pack's own |
+| pack balance plug | the balance lead's male end in the park (§9c), then **J2** | JST-XH 4-pin extension | about 100 mm ([bom.md](bom.md#3-power)) |
+| **J3** | the General Driver's **H1** (power inlet) | XHP-2 to XHP-2, 22 AWG, pin 1 to pin 1 | as short as the torso allows **(check on first fit, #207)** |
+| **J4** | servo **10**, the right hip yaw: the right leg's chain, 10, 52, 6, 7, 8, 11 | stock servo lead | 150 mm |
+| **J5** | servo **13**, the neck: the right upper chain, 13, 14, 15 | stock servo lead | 150 mm |
+| **J6** | servo **9**, the left hip yaw: the left leg's chain, 9, 51, 2, 3, 4, 12 | stock servo lead | 150 mm |
+| **J7** | servo **16**, the left shoulder: the left upper chain, 16, 17 | stock servo lead | 150 mm |
+| **J8** | the General Driver's **H5**, the servo data line | stock servo lead | 150 mm |
+| **J11** | the E-stop's lugs 2 (common) and 3 (§9c) | PHR-2, 24–26 AWG | about 80 mm |
+| **J12** | the General Driver's P3, H3 and H2 (below) | PHR-8, 24–26 AWG, pins 2, 3, 5 and 6 only | not set **(check on first fit, #207)** |
+| **W1, W2, W3–W5, W6/W7** | the BMS and the main switch (§9c) | soldered | §9c |
+
+The servos' own leads are 150 mm. Where a hop needs more, use an extension
+lead; the only hop the CAD finds too long is shoulder to elbow (below). The
+first hop from J4–J7 to the servo it feeds is **(check on first fit, #207)**:
+if 150 mm will not do, an extension goes between the board and the servo, not
+a longer chain.
+
+**Beyond J4–J7, each chain is a daisy chain of stock leads**, case to case: each
+servo has two paralleled ports. A branch's first lead carries the whole chain's
+current ([wiring.md](wiring.md#servo-bus)).
+
+**J4–J8 orientation (read this before plugging in a servo).**
+
+- **A header turned the wrong way round puts the data wire on ground.** The
+  General Driver's H5 has its D (data) pin at its bevelled corner, and a stock
+  lead joins the two housings' bevelled corners. So on J4–J8 the **bevelled
+  corner must be at pin 1**, the square pad: the header's lower end, on the side
+  toward the middle of the board, as the silkscreen outline shows
+  ([harness.md](../pcb/power-lite/harness.md#j4j8-servo-branches-and-the-data-line)).
+- **The first board built had all five turned 180° the other way** (#342). With
+  a stock lead from H5 to J8 the whole bus read as shorted to ground (`scan`
+  found nothing), and the servos on J4 and J6 ran with no proper ground. The
+  board files are fixed (#344); a board made from them is right. **A board built
+  before that has to have J4–J8 desoldered and turned** (the rework is in power
+  lite's [assembly guide](../pcb/power-lite/assembly.md#rework-j4j8-seated-with-the-bevel-at-pin-3)).
+  Do not swap the contacts in the leads instead: that leaves non-standard leads.
+- **Meter it, with no servo connected:** check P4, the steps in
+  [bringup.md §4.1](../pcb/power-lite/bringup.md#41-p4-the-servo-headers-before-any-servo).
+  Look at each header's bevel first, then check pin 1 of J4–J7 to J8's pin 1
+  (0 Ω) and to ground and SERVO+ (open), then a stock lead from H5.
+  Whether the fitted board has passed this is **(check on first fit, #207)**.
+
+### 12b. In order
+
+1. **The servo leads first, before the cap.** The legs' leads run from each
+   yaw servo along the pelvis, under where the pack goes, to power lite's J4
+   or J6; the neck and shoulder leads to J5 and J7. Plug the servo end, lay each
+   lead, and leave the board end free until the board is in (§9c).
+   - **Leg leads:** a slit in the pelvis's ceiling over each yaw servo's
+     connector trench. The lead plugs in from above through it and runs flat
+     under the pack between its pads.
+   - **To power lite:** windows at the battery layer's ends in the aft inner
+     wall pass them to the bay behind it (the pack's lead takes the +y one).
+     Which window each lead takes, and its length, is **(check on first fit,
+     #207)**: the CAD's hop table stops at the General Driver.
+   - **Roll servos:** their ports face rearward through the carrier's
+     rear-wall window.
+2. **Power lite's end of each servo lead:** plug it into J4 to J7 as the table
+   says, **after** the P4 meter check (§12a). Each stock lead's housing
+   goes on one way.
+3. **J8 to the General Driver's H5:** one stock lead, from J8 to H5 (the
+   General Driver's bus edge faces up). Only data matters on it: J8's middle
+   pin is not connected on purpose. H6 stays empty.
+4. **J3 to the General Driver's H1.** Before the first plug-in, meter H1:
+   it is silkscreened "− +", and **pin 1 must be +** (harness check P3, through
+   to the AO4407). Plug the XHP-2 lead pin 1 to pin 1.
+   - **The General Driver's slide switch SW1 must be on**, or the Pi gets no
+     power.
+   - **This lead also lets the INA219 read the pack.** Without it the INA219
+     reads under 6 V, which the firmware takes as no reading, and the pack
+     guard falls back to the servos' own voltage reading.
+   - **Nothing else feeds the Pi.** Do not plug a USB-C supply into it.
+   - **F2** (3 A) is in this lead's path: a short on it can blow it. Keep
+     spares.
+5. **J12 to the General Driver.** Pin 2 `SERVO_EN` to P3 pin 4 (IO16), pin 3
+   GND to P3 pin 3, pin 5 `RAIL_V` to H3 pin 4 (GPIO34), pin 6 `ESTOP_N` to H2
+   pin 1 (IO4). The figure in
+   [harness.md](../pcb/power-lite/harness.md#j12-control-to-the-esp32) draws where
+   each lands. P3 and H2 take 2.54 mm Dupont housings; H3 takes a PHR-6 with one
+   contact in position 4. **The landing pins are drawn on Waveshare's photo and
+   not yet checked on the General Driver in hand (check on first fit, #207).**
+   An unplugged J12 reads as an E-stop, so the rail never closes.
+6. **The E-stop and the main switch** (§9c): J11's PHR-2 lead to the E-stop,
+   and the main switch's disconnect. Check with the meter that the E-stop's two
+   wires read 0 Ω in RUN (lever IN, toward the main switch) and open in STOP.
+7. **The pack's lead** into J1, last, and its balance plug onto the balance
+   lead's male end in the park (§10). The pack goes in after the board is
+   checked, not before.
+
+### 12c. Before first power
+
+Checks, with the fuses out and the pack out. The step-by-step procedure, with
+the expected readings, is power lite's
+[bringup.md](../pcb/power-lite/bringup.md) and the README's
+[bench check with the ESP32](../pcb/power-lite/README.md#the-bench-check-with-the-esp32);
+do not redo it from here.
+
+1. **Polarity and orientation** (harness.md, "Checks before the first
+   connection"):
+   - **P1**: the pack's XT60 is female, with + on the housing's straight side.
+     A reversed J1 reverses the whole board.
+   - **P2**: meter the pack's balance plug from the pin-1 side: 0, about 3.7,
+     7.4 and 11.1 V.
+   - **P3**: the General Driver's H1 pin 1 is +.
+   - **P4**: J4–J8 are keyed as H5 (above).
+2. **Fuses:** a **15 A** blade in F1 (the upper holder, the servo rail) and a
+   **3 A** blade in F2 (the lower one, the logic and the Pi). Fit them last,
+   when the checks pass.
+3. **The BMS** is wired by voltage (§9c), and its P+ pad is empty.
+4. **The switches:** the E-stop at STOP and the main switch off when the pack
+   goes in. **Switch off in the other order too**: E-stop to STOP first, so
+   K1 drops the servo rail, **then** the main switch. The main switch has no DC
+   rating for breaking a load; it should break only the logic's current.
+5. **K1** (the relay) closes only when the E-stop is at RUN **and** the
+   ESP32 drives `SERVO_EN` high; until then the rail is off. Pressing the
+   E-stop opens it without the firmware. The firmware's arming and its stuck-rail
+   check are in the README's "The firmware"; the robot runs its own image
+   (`make firmware POWER_LITE=1`), not the default.
+6. **What has not been done on this robot.** Power lite's bring-up Part 2 (the
+   board on a lab supply, no pack) and the ESP32 bench check passed on the
+   bench ([2026-11-20](design-v6/2026-11-20-power-lite-board-bench.md),
+   [2026-11-21](design-v6/2026-11-21-power-lite-esp32-bench.md)). Parts 3 and 4
+   (the pack on the board; the relay closing onto the real servos, ten times,
+   with the BMS not tripping) wait on the pack-protection decision and on the
+   servos; the relay's closing inrush is a simulation figure, 176–341 A for
+   52–132 µs. **(check on first fit, #207)**
+7. **After the first power-up with servos:** a full `scan`, and read every
+   servo's status and voltage before any torque. Then read `stat`'s "last
+   reset" with the pack and no USB: the ESP32 reset each time K1 closed with
+   no USB attached, on the board with the swapped headers, and whether it still
+   does is **(check on first fit, #342)**.
+
+### 12d. What the CAD provides
+
+- **Boards:** the General Driver's bus edge faces up, and the camera's ribbon
+  (from the Pi's top edge) leaves up through the deck opening between the
+  boards.
 - **Neck:** the leads leave the plugs through the neck floor's window, toward
-  +Y, and rise through the deck aperture beside the tube.
+  +Y, and rise through the deck aperture beside the tube. How the neck's and
+  shoulders' leads get from J5 and J7 to it, behind the Pi stack, is
+  **(check on first fit, #207)**.
 - **Shoulder to elbow:** the lead rises out of the notch in the pod's inboard
   wall, runs aft inside the girdle and leaves through the slot in the aft
   tie's web beside the pod (square, 11 × 11 mm; the plug passes), then
   goes round the pod's aft lug and down the back of the upper arm's web to
-  the window above the elbow servo's case (#198).
+  the window above the elbow servo's case (#198). **The stock 150 mm lead is
+  too short for it: it is 312 mm of route plus a 23 mm fold loop, so buy
+  about 380 mm leads and trim on the bench** (wiring.md). The drawing
+  [wiring-general-driver.svg](wiring-general-driver.svg) still says about
+  200 mm; wiring.md is the newer figure.
 
 **Rules:**
 
@@ -954,6 +1136,7 @@ assembled robot, **before the first walk**. Do the knees and hip yaws too.
 | item | where |
 |---|---|
 | ID map, harness, lead lengths, current budget | #77 |
+| power lite on the robot: the J4–J8 rework on the built board (#342); the first hops from J4–J7 and the J3 and J12 leads' lengths; the legs' and the upper branches' routes to the aft bay; J12's landing pins on the General Driver; bring-up Parts 3 and 4; the pack's protection | §9c, §12; #207, #342 |
 | room for the pack's plug and 12 AWG lead at power lite's J1 (17.4 mm to the skin) | §9c; power lite, PR #209 |
 | the BMS's pads and part-free edge margin (its PCB, 56.8 × 44.8 mm, and its 4.0 mm height are measured; `BMS_*`) | §9c; #213 |
 | the balance lead's male end and the park's fit (`BAL_MALE`, from JST's B4B-XH-A) | §9c; #213 |
