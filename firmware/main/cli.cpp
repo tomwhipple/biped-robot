@@ -4664,7 +4664,9 @@ static bool benchLoopRefuses(Sink out, const char* line, const char* cmd) {
     say(out, "%s: refused -- the bench loop is playing (%s) on this task and this would stall it: ", cmd,
         s_track_on ? "a track" : "a pose stream");
     out(why);
-    out("; `track stop` / let it finish first\r\n");
+    // A pose stream outlives its move while `balance` or the trim holds: say how to end that too.
+    out(s_track_on ? "; `track stop` / let it finish first\r\n"
+                   : "; let the pose finish, or `balance off` / `trim off` to end a hold\r\n");
     return true;
 }
 

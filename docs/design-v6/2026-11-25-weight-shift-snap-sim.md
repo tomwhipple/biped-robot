@@ -250,6 +250,8 @@ dispatches any line, tether or Wi-Fi.
 - While the bench loop plays (`s_traj_active || s_track_on || s_trace_on`), `benchLoopRefuses` (`cli.cpp`, new) refuses a
   line that can block the task for more than about 10 ms, half a 20 ms tick. The reply is
   `<cmd>: refused -- the bench loop is playing (a track | a pose stream) on this task and this would stall it: <why>`.
+- A pose stream stays "playing" after its move while `balance` or the trim holds, until the next command. So the
+  refusal also says how to end a hold: `balance off` / `trim off`.
 - The rule is `wcli::benchLoopRefusal` (`firmware/components/wcli/policy.cpp`). It is a pure function of the line, so it
   is host-tested. It is default deny: a command word it does not name is refused while the loop plays.
 - Never refused: the loop's own commands (every `track` form), the stop, disarm and safety paths, and the commands that
