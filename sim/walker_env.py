@@ -40,6 +40,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import paths  # noqa: E402
 import supply_sag  # noqa: E402  (#6: the bus sag kernel, shared with env_mjx)
+import servo_thermal as thermal_kernel  # noqa: E402  (#6: servo temperature + over-temperature cutoff, shared with env_mjx)
 import re
 import numpy as np
 import mujoco
@@ -1075,6 +1076,8 @@ class BimoWalkerEnv(gym.Env):
         supply_voltage: float = 7.4,   # V; stall torque + no-load speed scale ~V/12
         supply_sag_ohm=None,           # supply sag V = V0 - R*I_bus per substep (#6; sim/supply_sag.py):
         # R ohms fixed, or "LO:HI" drawn per episode; None = off (a fixed supply_voltage)
+        servo_thermal=None,            # servo temperature + the 70 degC cutoff (#6; sim/servo_thermal.py):
+        # the start temperature degC, fixed or "LO:HI" drawn per episode per servo; None = off
         servo_kp: float | tuple = 12.0,  # sts3215 PD gain, N*m/rad (see fit
         # note); a sequence gives one per actuator
         servo_kd: float | tuple = 0.25,  # sts3215 PD damping, N*m*s/rad
@@ -1981,6 +1984,17 @@ class BimoWalkerEnv(gym.Env):
         # each servo's (K_CU, stall current at 12 V) by its physical type (supply_sag.servo_elec)
         self._sag_elec = (supply_sag.servo_elec(self._servo_names, self.servo_types)
                           if self.supply_sag_ohm is not None else None)
+        # servo temperature (#6, sim/servo_thermal.py): per servo the temperature (degC; None =
+        # off), the latched over-temperature cutoff, the tick's summed substep heat, and the
+        # episode's tallies for thermal_report()
+        self.servo_thermal = thermal_kernel.parse_thermal(servo_thermal)
+        if self.servo_thermal is not None and self._servo is None:
+            raise ValueError("servo_thermal needs actuator_model='sts3215' (the PD torque model)")
+        self._th_t = None
+        self._th_off = None
+        self._th_consts = (thermal_kernel.thermal_consts(self._servo_names, self.servo_types,
+                                                         self.supply_voltage)
+                           if self.servo_thermal is not None else None)
         if self.roll_series_k is not None and self._servo is None:
             raise ValueError("roll_series_k needs actuator_model='sts3215' (the PD torque model)")
         if self.roll_play_deg is not None and self._servo is None:
@@ -2880,6 +2894,32 @@ class BimoWalkerEnv(gym.Env):
         self._cmd_next = 10 ** 9
         self._traj_on = 0.0
 
+    def _th_start(self, temp):
+        """servo_thermal: start every servo at `temp` (degC, per servo), none cut off, and zero the
+        episode's tallies (thermal_report). reset() and gate_common's servo_temp term call it."""
+        self._th_t = np.array(temp, dtype=np.float64)
+        self._th_off = self._th_t >= thermal_kernel.T_CUTOFF
+        self._th_q = np.zeros(self._n_servo)
+        self._th_t0 = self._th_t.copy()
+        self._th_peak = self._th_t.copy()
+        self._th_psum = np.zeros(self._n_servo)
+        self._th_n = 0
+        self._th_trip_t = np.where(self._th_off, 0.0, np.inf)
+
+    def thermal_report(self):
+        """servo_thermal on: per servo name, this episode's mean heat (W), start / end / peak
+        temperature (degC), when it cut off (s, None = never) and the minutes a servo held at this
+        mean heat would take from the idle equilibrium to the cutoff (None = never). None when off."""
+        if self._th_t is None:
+            return None
+        p = self._th_psum / max(self._th_n, 1)
+        mins = thermal_kernel.minutes_to_cutoff(p, self._th_consts[2], self._th_consts[3])
+        return {n: dict(heat_w=float(p[i]), t_start=float(self._th_t0[i]),
+                        t_end=float(self._th_t[i]), t_peak=float(self._th_peak[i]),
+                        cutoff_s=(None if np.isinf(self._th_trip_t[i]) else float(self._th_trip_t[i])),
+                        min_to_cutoff=(None if np.isinf(mins[i]) else float(mins[i])))
+                for i, n in enumerate(self._servo_names)}
+
     def set_torque_enabled(self, on: bool):
         """Release / re-engage servo torque, both actuator models.
 
@@ -3215,6 +3255,13 @@ class BimoWalkerEnv(gym.Env):
             self._sag_s = 1.0
             self._sag_s_run = 1.0
             self._sag_i = 0.0
+        self._th_t = None
+        if self.servo_thermal is not None:
+            # servo temperature: the start per servo, uniform in its range (a fixed value draws
+            # nothing), after every other draw (the sag's too) so they keep their streams
+            lo, hi = self.servo_thermal
+            self._th_start(np.full(self._n_servo, lo) if lo == hi
+                           else self.np_random.uniform(lo, hi, self._n_servo))
         self._dq_qhist_seed()
         if self.obs_hist_len > 1:
             self._obs_hist = []
@@ -3425,6 +3472,10 @@ class BimoWalkerEnv(gym.Env):
                                      0.0), self._servo_tau)
                 if not self._torque_on:      # released servos: limp, no hold
                     self._servo_tau = np.zeros(self._n_servo)
+                if self._th_t is not None:
+                    # over temperature: a cut-off servo is limp (and draws nothing); the rest heat
+                    self._servo_tau = np.where(self._th_off, 0.0, self._servo_tau)
+                    self._th_q = self._th_q + thermal_kernel.heat(self._servo_tau, self._th_consts)
                 if self._sag_r is not None:
                     # this substep's bus current sets the next substep's supply (supply_sag)
                     self._sag_s, self._sag_i = supply_sag.sag_step(
@@ -3442,6 +3493,17 @@ class BimoWalkerEnv(gym.Env):
                 self._rp_off = np.where(rp, np.clip(shaft - self.data.qpos[self._sqpos],
                                                     -self._rp_h, self._rp_h), 0.0)
         self._last_target = target
+        if self._th_t is not None:
+            # servo temperature: one tick at the substeps' mean heat; the cutoff latches
+            p = self._th_q / self.n_substeps
+            self._th_t, self._th_off = thermal_kernel.thermal_step(
+                self._th_t, self._th_off, p, self.control_dt, self._th_consts)
+            self._th_q = np.zeros(self._n_servo)
+            self._th_psum = self._th_psum + p
+            self._th_n += 1
+            self._th_peak = np.maximum(self._th_peak, self._th_t)
+            self._th_trip_t = np.where(self._th_off & np.isinf(self._th_trip_t),
+                                       self._th_n * self.control_dt, self._th_trip_t)
         if self._rp_h is not None:
             # what the encoders read is the shaft (q obs, the dq history); its offset rate
             # joins the link's velocity in the dq obs

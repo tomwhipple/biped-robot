@@ -515,6 +515,15 @@ def make_parser():
                         "fixed ('0.44', the 2026-11-03 bench supply) or 'LO:HI' drawn per "
                         "episode. Off by default (sim/supply_sag.py; both envs). config.json "
                         "records it; the CPU referee inherits it")
+    p.add_argument("--servo-thermal", default=None,
+                   help="servo TEMPERATURE and the 70 degC over-temperature cutoff (#6): per servo a "
+                        "first-order thermal node heated by K_CU tau^2 (tau_th 8 / 14 min, Rth 16 / 30 "
+                        "K/W for the STS3215 / STS3250, fitted on the flight records' register 63); a "
+                        "servo at 70 degC goes limp for the rest of the episode. The value is the start "
+                        "temperature, degC: fixed ('29', a robot at its idle equilibrium) or 'LO:HI' "
+                        "drawn per episode per servo (e.g. '29:69', a robot that has been working). Off "
+                        "by default (sim/servo_thermal.py; both envs). config.json records it; the CPU "
+                        "referee inherits it")
     p.add_argument("--supply-voltage", type=float, default=None,
                    help="servo bus volts the envelope scales with (default 11.1; the robot's "
                         "servos read ~12.0 V on the board, flight 2026-11-03)")
@@ -1066,6 +1075,11 @@ def build_env_kw(args):
         sg = _sag.parse_sag(args.supply_sag_ohm)
         if sg is not None:
             env_kw["supply_sag_ohm"] = list(sg)
+    if getattr(args, "servo_thermal", None):
+        import servo_thermal as _th   # jax-free, shared with both envs
+        th = _th.parse_thermal(args.servo_thermal)
+        if th is not None:
+            env_kw["servo_thermal"] = list(th)
     for flag, key in (("contact_mu", "contact_mu_range"), ("contact_torsion", "contact_torsion_range")):
         if getattr(args, flag, None) is not None:
             v = [float(x) for x in getattr(args, flag).split(",")]

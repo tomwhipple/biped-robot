@@ -153,6 +153,23 @@ def overload_summary(reports):
                       first_trip_s=min((r["trip_t"] for r in rs if r["trip_t"] is not None),
                                        default=None))
     return out
+def thermal_summary(reports):
+    """Per joint across a scenario's seeds, under servo_thermal (#6): the largest mean heat (W),
+    the largest temperature rise over the episode and the peak (degC), in how many seeds it cut off
+    over temperature, and the fewest minutes to the cutoff a servo held at its episode's mean heat
+    would take from the idle equilibrium (None = never: its steady temperature stays below)."""
+    out = {}
+    for j in reports[0]:
+        rs = [r[j] for r in reports]
+        mins = [r["min_to_cutoff"] for r in rs if r["min_to_cutoff"] is not None]
+        out[j] = dict(heat_w=round(max(r["heat_w"] for r in rs), 3),
+                      rise_c=round(max(r["t_end"] - r["t_start"] for r in rs), 2),
+                      t_peak=round(max(r["t_peak"] for r in rs), 1),
+                      cut_off=f"{sum(r['cutoff_s'] is not None for r in rs)}/{len(rs)}",
+                      min_to_cutoff=(round(min(mins), 1) if mins else None))
+    return out
+
+
 TRACE_RUN_ROOT = None   # run_dir; makes res["trace"] a run-relative path
 
 
@@ -2382,6 +2399,9 @@ def run_one(env, act, factory, seed, record, N, mass):
     res.update(fell=drv.fell, shared=shared, frames=drv.frames)
     if meter is not None:
         res["overload"] = meter.report()
+    if getattr(env, "_th_t", None) is not None:
+        # servo_thermal on (the run's config, or a grade term): the episode's heat and temperatures
+        res["thermal"] = env.thermal_report()
     # ---- trace capture ----------------------------------------------------
     # Additive & read-only: the rollout, evaluate() inputs, and the
     # scorecard pipeline are untouched. Enabled per `--trace <dir>` in main.
@@ -2692,6 +2712,8 @@ def main():
             metrics=metrics, shared=sh)
         if "overload" in results[0]:
             scorecard[name]["overload"] = overload_summary([r["overload"] for r in results])
+        if "thermal" in results[0]:
+            scorecard[name]["thermal"] = thermal_summary([r["thermal"] for r in results])
 
         head = _headline(name, metrics)          # across-seed mean
         wob = sh["wobble_rms"]["mean"]
