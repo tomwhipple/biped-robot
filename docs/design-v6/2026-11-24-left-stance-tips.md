@@ -6,6 +6,30 @@ stance in the normal-timing steering runs of the 2026-11-16 evening session
 cause unknown"). The robot is down (left hip broke at 20:13 that night). The question was: from the data already
 recorded, find the cause or narrow it, and give the next session a hypothesis and a test.*
 
+## 2026-11-25: follow-up
+
+The flight records were re-read for A (trim drift) against B (a push in double support), in
+[2026-11-25-left-stance-tips-a-vs-b.md](2026-11-25-left-stance-tips-a-vs-b.md) (`tip_causes.py`).
+
+**The trigger is in double support.** Every tip (12 / 12) followed a roll snap of 3.1-4.4 deg in the weight shift
+before the lift-off:
+- the roll joints fall behind the shift's fastest part and catch up with a load spike;
+- that leaves a preload between the feet at the lift-off;
+- that state predicts the swing-back on all 365 normal-timing left stances (R² 0.46), and T and the stance count add
+  nothing to it.
+
+**It is not a growing preload.** The snap is on or off per step: 50 % of second left stances, 60 % of late ones.
+
+**What prevents it.** The snap needs the shift to start within 0.5 s of the touchdown. With `--td-pause 0.3` (the
+3.47 s recipe, or T 4 at 4.3 s) it happened in 1 of 257 left stances, with no tips. That, not the short settle, is what
+protected the fast timing.
+
+**T is not the trigger** (T up to 7 deg did not tip without a snap). On snap steps a higher T may make a tip likelier
+(weak, 12 events).
+
+**The first robot test is now** `--td-pause 0.3` against the control, read per step by the snap share. The frozen-trim
+test below moves to third.
+
 ## Result
 
 **Cause not found; narrowed.** What the data does establish:

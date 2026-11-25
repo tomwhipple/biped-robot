@@ -866,6 +866,14 @@ under-travelled with and without the pause (right legs 15 / 30 / 33 mm, left leg
 of fore-aft drift, no tips): sidesteps under-travel on the robot with and without `--td-pause`, cause unknown. The plan and the
 uploaded frames are identical in placement with the pause (tests, and the frames of a robot run decoded against the plan).
 
+**The kick and the late left-stance tips** ([2026-11-25 record](../../docs/design-v6/2026-11-25-left-stance-tips-a-vs-b.md),
+`tip_causes.py`):
+- Without the pause, the shift onto the left foot snaps (≥ 2.5 deg) on about half the left stances from the 2nd on.
+- Every one of the 12 tips of 11-16 followed a snap.
+- With the shift starting 0.5 s or more after the touchdown it snapped on 1 of 257 left stances (11-13 and 11-16), with
+  no tips.
+- Until a robot A/B confirms it, steer with `--td-pause 0.3`.
+
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
 
 The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving
