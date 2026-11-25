@@ -4149,3 +4149,127 @@ turn). For L2 the guard is tighter: compass within 1 probe and turn within 10 % 
 - **If L1 holds the margin but fails the cost guard while L2 meets both**, L2 is the term.
 - **If no arm moves g\* on ≥ 2 of 3 seeds**, the record's levers are spent. The next step is the record's untested guess, a
   longer stand in training (it needs code), and it is stated as a guess.
+
+### Night of 2026-11-24 (evaluated 2026-11-25)
+
+**#263 x1.5 margin line, night 1 of 3. The loop-gain DR moves the margin a long way, and the stand pull does not. L1
+(`--loop-gain-range 1.0,1.6`) has g\* 2.0 on all four seeds (M1: 1.5 – 1.7) and is clean at x1.5 on D and C. L2 (1.0,1.3) has
+g\* 1.75 – 2.0 and walks. Neither passes its cost guard at loop gain 1.0: L1 never sidesteps right, does not WALK and turns
+less, and L2 loses 2 – 5 compass probes and 8 – 32 % of its turn on two of three seeds. A new probe changes the reading,
+though: walking under the gain. At gain 1.5, M1 falls on all 56 walking and direction episodes on each of its three seeds,
+L2 falls on 38 – 49, and L1 on 0 – 6.** Tonight is night 2. L1's margin is kept, and the arms try to keep side R. Stride
+only; get-up stays parked. Nothing here needs Tom: the robot is still down (#297).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (d4c01c9 → 2b086c3 as main moved; origin was verified before
+every job). L2 s3 (seed 17) was capped at 202M of 300M. L3 s3 (seed 17) fitted 90M (< 50 %) and stayed queued. It goes to
+`queue/held/` today (`WHY-1125-shome-s3-held.txt`), because L3 is closed. **No fixer runs.** Collection ran 05:54 – 06:09, with
+no STALE REFEREE.
+
+**Merged / branched.** Nothing by me except this record and `experiments/policy/x15-margin/grade_gain.py` (below). Main gained:
+- `--servo-thermal` (#350): opt-in. The nightly run advises using it as a grade term, not a training arm.
+- The #259 Round 7 record (#354): the weight-shift snap is a ~115 ms control-loop stall. No plant term or default changed.
+- The #297 tip re-read (#352).
+- Power-lite docs.
+
+None of these changes a default or grade.py, so every comparison stands. #259's latest item names no plant or grade change, so
+there is no new grading plant.
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on D (sag), A, B (play) and C (play + inset sole), plus `COMPASS=only` on
+D. The ladder ran at x1.6 / 1.75 / 2.0 on D (`experiments/policy/x15-margin/run.sh`, 264 episodes). Outputs are in
+`/tmp/plan1125/`. M1's rows are the 11-22/11-23 grades (`/tmp/plan1123/`, same grade code). A compass probe is held at >= 6/8.
+**New: the walking probes under the loop gain.** These are the six dir probes plus `walk 0.3 -> stop`, at out_gain 1.3 and 1.5:
+the x1.5 probe's own law, applied while walking (`grade_gain.py`, plant D, 56 episodes per student per gain). I added this
+probe after reading the results, so no pre-committed criterion uses it. It is reported, and it shapes tonight's pre-commit.
+
+| student (seed) | compass held /18 (seed-holds), D | M1 same seed | fwd / back / side L / side R (m), turn L / R (deg), D, gain 1.0 | walk dx2.5 (m) | x1.5 falls D / B / C | g\* D (M1) | walk+dir falls /56 at gain 1.3 / 1.5 | turn L / R at gain 1.3 |
+|---|---|---|---|---|---|---|---|---|
+| L1 prec101_…_vref_lg16 (14) | 11 (91) | 16 | +0.50 −0.61 +0.32 **−0.04**, +74 −38 | **0.26** | 0 / 0 / 0 | **2.0** (1.5) | 0 / 3 | +102 −65 |
+| L1 _s1 (15) | 9 (72) | 18 | +0.53 −0.53 +0.30 **−0.05**, +54 −92 | **0.26** | 0 / 0 / 0 | **2.0** (1.7) | 0 / 6 | +101 −118 |
+| L1 _s2 (16) | 9 (72) | 18 | +0.47 −0.48 +0.29 **−0.08**, +71 −82 | **0.25** | 0 / 0 / 0 | **2.0** (1.5) | 0 / 0 | +108 −65 |
+| L1 _s3 (17, extra) | 6 (47) | 13 | +0.29 −0.60 +0.07 **−0.04**, +55 −59 | **0.20** | 0 / 0 / 0 | 2.0 (1.6) | 0 / 3 | +105 −104 |
+| L2 prec102_…_vref_lg13 (14) | 17 (140) | 16 | +0.76 −0.56 +0.42 −0.39, +100 −93 | 0.35 | 0 / 2 / 2 | 1.75 (1.5) | 10 / 45 | +138 −101 |
+| L2 _s1 (15) | 15 (120) | 18 | +0.61 −0.68 +0.29 −0.40, +86 −111 | 0.35 | 0 / 8 / 8 | 2.0 (1.7) | 3 / 49 | +112 −124 |
+| L2 _s2 (16) | 13 (105) | 18 | +0.57 −0.73 +0.40 −0.10, +88 −97 | 0.30 | 0 / 3 / 1 | 2.0 (1.5) | 9 / 38 | +134 −112 |
+| L2 _s3 (17, 202M, extra) | 15 (117) | 13 | +0.71 −0.74 +0.44 −0.38, +83 −97 | 0.34 | 0 / 0 / 0 | 1.75 (1.6) | 1 / 46 | +104 −110 |
+| L3 prec103_…_vref_shome (14) | 18 (142) | 16 | +0.60 −0.69 +0.51 −0.50, +119 −106 | 0.33 | **8** / 1 / 0 | 1.5 (1.5) | 33 / 56 | +165 −41 |
+| L3 _s1 (15) | 14 (115) | 18 | +0.61 −0.89 +0.49 −0.50, +130 −120 | 0.36 | **8** / 0 / 1 | 1.5 (1.7) | 40 / 56 | +116 −54 |
+| L3 _s2 (16) | 17 (134) | 18 | +0.62 −0.80 +0.47 −0.44, +124 −131 | 0.38 | 0 / 1 / 1 | 1.75 (1.5) | 47 / 56 | +54 −51 |
+| M1 prec97_…_vref (14 / 15 / 16, control) | 16 / 18 / 18 | – | as 11-22 | 0.45 / 0.38 / 0.38 | 4/3/3, 0/8/8, 8/7/8 | 1.5 / 1.7 / 1.5 | **49 / 56, 45 / 56, 27 / 56** | +102 −43, +187 −21, +85 −49 |
+
+The ladder, falls at x1.6 / 1.75 / 2.0: L1 0/0/7, 0/0/8, 0/0/8, 0/1/8; L2 0/7/8, 0/0/8, 0/1/8, 0/8/8; L3 8/8/8, 8/8/8, 0/7/8.
+No student falls on a dir probe at gain 1.0, and stand_10s is 8/8 on every card.
+
+**The pre-committed test** (11-24):
+- **L1: the margin hypothesis holds, and the cost guard fails.** g\* is 2.0 on 3 of 3 counted seeds (the bar was >= 1.75 on 2 of
+  3). x1.5 is 0/8 on D and on C on 3 of 3. But:
+  - compass is 11, 9 and 9 (the guard needs >= 16 on 2 of 3);
+  - **dir side R is lost on every seed**: dy −0.04 to −0.08 m against an ideal of −0.60. Compass R, BR and FR are 0/8 on all
+    four seeds, at gain 1.0, 1.3 and 1.5 alike;
+  - it does not WALK (dx2.5 0.25 – 0.26 m);
+  - turn L is +54 to +74°.
+  **Not held.**
+- **L2: the margin hypothesis holds, and its tight cost guard fails.** g\* is 1.75, 2.0 and 2.0, and x1.5 is 0/8 on D on 3 of 3.
+  It walks on all four seeds and keeps all six directions (side R −0.10 on seed 16). But compass against M1 is +1, −3 and −5,
+  and the guard was within 1. Turn against M1 is −13 / −27 %, −32 / −8 % and −20 / −9 %, and the guard was within 10 %. On the
+  general guard (compass >= 16 and turn >= 90°) only seed 14 passes. **Not held.**
+- **L3: g\* moved on 1 of 3** (1.5, 1.5, 1.75). It holds the most compass probes (18 / 14 / 17), but two seeds fall 8/8 at x1.5.
+  **Closed.**
+- The clause "no arm moves g\* → the levers are spent" does not apply: the loop-gain DR moves g\* with the dose.
+- Distil gap (card seed-passes of 160, teacher → student): L1 +2, +1, +1, +1; L2 +1, −4, +6, +2; L3 −9, +3, 0. The distil is not
+  the limit.
+- Weight shift was not re-read. It is a ranking aid only (rule 2), and none of these arms targets it.
+
+**What the walking-under-gain probe shows (a reading added after the result; it uses the same law as x1.5).**
+- The gain-1.0 compass and dir probes reward a policy for a stroke sized for gain 1.0.
+- M1, the recipe the volume line kept, holds 16 – 18 compass probes at gain 1.0. Under gain 1.3 it falls on 27 – 49 of 56
+  walking episodes, and under 1.5 on all of them.
+- L1's smaller turn and its non-WALK at gain 1.0 come back under the gain: at 1.3 it turns +101 to +108° on turn L, walks
+  dx2.5 0.33 – 0.37 m and falls on 0 of 56; at 1.5 it falls on 0 – 6 of 56.
+- The cost of the gain DR at gain 1.0 is mostly the stroke rescaling, not lost ability. **The exception is side R, which L1 loses
+  at every gain.**
+- The robot's 1.5x was measured on a stand (11-02, before the fast-servo config, power lite and the #297 stall finding). Whether
+  it holds while walking is unmeasured.
+- It can be estimated by day from the 11-16 flight records (commanded vs achieved goal amplitude while stepping), with no robot
+  time. That is open work, not a question for Tom.
+
+**Decision (rule 0 and rule 4, mine).** The margin line has run 1 night, and tonight is night 2. The loop-gain DR is the lever.
+L1's dose gives the margin that survives walking at 1.5x, and its one hard loss is side R. Three arms, each against L1's recipe
+and each changing one thing, aim to keep side R at L1's margin:
+- **D1 `--loop-gain-range 1.0,1.45`** (prec104, parent M1): a dose between L2, which keeps side R and fails at 1.5x walking, and
+  L1, which is the reverse.
+- **W2 L1 warm-started from the L2 teacher at the same seed** (prec105, parent L1, `--init-from prec102_…_lg13{,_s1,_s2,_s3}`):
+  the start already sidesteps right and has half the gain DR.
+- **W1 L1 warm-started from the M1 teacher at the same seed** (prec106, parent L1, `--init-from prec97_…_vref{,_s1,_s2,_s3}`):
+  the start has the full compass at gain 1, with no gain DR.
+- W1 and W2 train 600M from prec86 in total, against L1's 300M. That is a confound of the warm start, and it is stated here.
+- M1 and L1 / L2 are the controls, with four graded seeds each. No control trains tonight.
+- `fallback.job` is now L2 (seed 23). The M1 one is `fallback.job.prec97-20261125`.
+
+**Tonight (2026-11-25; queued, BRANCH=main, 300M + distil each, interleaved D1 → W2 → W1 per seed, seeds 14 – 16 counted, 17
+extra):**
+
+| arm | runs | parent | variable | hypothesis |
+|---|---|---|---|---|
+| D1 | prec104_walk_sagdr_vol_i86_vref_lg145 (+ _s1, _s2; _s3) | M1 / L1 | `--loop-gain-range 1.0,1.45` | keeps side R, with walk+dir falls at gain 1.5 near L1's |
+| W2 | prec105_walk_sagdr_vol_i86_vref_lg16_il2 (+ …) | L1 | `--init-from` L2's teacher, same seed | L1's margin, and side R from the start |
+| W1 | prec106_walk_sagdr_vol_i86_vref_lg16_im1 (+ …) | L1 | `--init-from` M1's teacher, same seed | as W2, from a start with no gain DR |
+
+12 pairs; about 10.5 fit, so the last seed-17 extras may stay queued (not counted). Pre-flight passed 24/24.
+
+**Pre-committed** (plant D; grade.py + the ladder + `grade_gain.py` at 1.3 and 1.5). An arm holds if, in >= 2 of seeds 14 – 16,
+its student meets all of these:
+- (a) dir side R dy <= −0.25 m with 0 falls, at gain 1.0;
+- (b) <= 8/56 falls on walk + dir at gain 1.5;
+- (c) WALKS at gain 1.0 and 1.3;
+- (d) x1.5 stand <= 2/8;
+- (e) turn L / R >= 90° at gain 1.3;
+- (f) compass >= 14 at gain 1.0.
+
+(f) is two below the volume line's 16 because the gain-1.0 compass favours un-margined strokes (above). Under (a) – (f), L1
+fails (a), (c) and (f), L2 fails (b), and M1 fails (b), (d) and (e).
+- **If an arm holds:** it is the recipe's margin term. Next night it gets the stand band (`--cmd-stand-band 0.0005`), and a
+  deploy candidate is cut from it, with a C-plant check and the gain probes.
+- **If two hold:** the one with fewer falls at gain 1.5 wins.
+- **If none holds:** night 3 tests a stated cause of the side-R loss. The guess is the asymmetric foot-off sag (L 6.4 vs
+  R 2.9°): stepping right loads the left stance, which sags more, and the gain amplifies it. By day I will check that guess
+  with L1 graded on a mirrored sag before using the night on it.
