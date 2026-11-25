@@ -37,15 +37,16 @@ def test_branches_cover_the_map_once_and_match_the_ports():
 
 
 def test_branches_match_servo_map_doc():
-    """docs/servo-map.md 2.1's table: port A/B, leg/upper branch -> J4-J7"""
+    """docs/servo-map.md 2.1's table: power lite's branch header (J4-J7, side, leg/upper) per servo
+    (the table's port column became the power lite header with #353, 2026-11-25)"""
     text = open(os.path.join(ROOT, "docs", "servo-map.md")).read()
-    rows = re.findall(r"^\| (\d+) \| `(\w+)`[^|]*\| ([AB]), (leg|upper) branch \|", text, re.M)
+    rows = re.findall(r"^\| (\d+) \| `(\w+)`[^|]*\| (J[4-7]), (right|left) (leg|upper) \|", text, re.M)
     assert len(rows) == 17
-    jx = {("A", "leg"): "J4 R leg", ("A", "upper"): "J5 R upper",
-          ("B", "leg"): "J6 L leg", ("B", "upper"): "J7 L upper"}
-    for sid, name, port, branch in rows:
+    jx = {("J4", "right", "leg"): "J4 R leg", ("J5", "right", "upper"): "J5 R upper",
+          ("J6", "left", "leg"): "J6 L leg", ("J7", "left", "upper"): "J7 L upper"}
+    for sid, name, hdr, side, branch in rows:
         assert CB.NAME_TO_ID[name] == int(sid)
-        assert int(sid) in CB.BRANCHES[jx[(port, branch)]], (sid, name)
+        assert int(sid) in CB.BRANCHES[jx[(hdr, side, branch)]], (sid, name)
 
 
 def test_branch_sums_follow_the_map():
