@@ -872,6 +872,15 @@ uploaded frames are identical in placement with the pause (tests, and the frames
 - Every one of the 12 tips of 11-16 followed a snap.
 - With the shift starting 0.5 s or more after the touchdown it snapped on 1 of 257 left stances (11-13 and 11-16), with
   no tips.
+- **The snap is a stall of the control loop** ([the sim record](../../docs/design-v6/2026-11-25-weight-shift-snap-sim.md),
+  `snap_replay.py`):
+  - The host's per-step `track steps` (the stop rule's poll) and `imu` (`heading_step()`) block the loop for about
+    115 ms, 0.2-0.5 s after each touchdown.
+  - When that falls on the shift's fast part, the joints fall behind and then catch up with a jump: 179 / 183 snaps
+    with the stall there, against 24 / 197 without.
+  - The pause moves the shift off the stall.
+  - Replayed open loop, the stiff `grade` plant snaps on the same steps (r 0.93), and not at all with the stall
+    filled in.
 - Until a robot A/B confirms it, steer with `--td-pause 0.3`.
 
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
