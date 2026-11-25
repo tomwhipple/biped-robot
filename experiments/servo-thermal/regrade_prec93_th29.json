@@ -1,0 +1,370 @@
+{
+ "run": "robot_legs_prec93_march_both_sagdr_dw_s3",
+ "start": 29.0,
+ "scenarios": {
+  "march_10s": {
+   "successes": 0,
+   "n": 4,
+   "episode_seconds": 11.0,
+   "thermal": {
+    "L_hip_yaw": {
+     "heat_w": 0.101,
+     "rise_c": 0.04,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_roll": {
+     "heat_w": 1.274,
+     "rise_c": 0.5,
+     "t_peak": 29.5,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_pitch": {
+     "heat_w": 0.134,
+     "rise_c": 0.05,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_knee": {
+     "heat_w": 0.031,
+     "rise_c": 0.01,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle": {
+     "heat_w": 0.335,
+     "rise_c": 0.12,
+     "t_peak": 29.1,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle_roll": {
+     "heat_w": 1.258,
+     "rise_c": 0.46,
+     "t_peak": 29.5,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_yaw": {
+     "heat_w": 0.387,
+     "rise_c": 0.14,
+     "t_peak": 29.1,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_roll": {
+     "heat_w": 0.441,
+     "rise_c": 0.17,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_pitch": {
+     "heat_w": 0.424,
+     "rise_c": 0.15,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_knee": {
+     "heat_w": 1.047,
+     "rise_c": 0.38,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle": {
+     "heat_w": 0.81,
+     "rise_c": 0.29,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle_roll": {
+     "heat_w": 0.605,
+     "rise_c": 0.22,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    }
+   }
+  },
+  "line_1m": {
+   "successes": 1,
+   "n": 4,
+   "episode_seconds": 14.0,
+   "thermal": {
+    "L_hip_yaw": {
+     "heat_w": 0.527,
+     "rise_c": 0.23,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_roll": {
+     "heat_w": 0.736,
+     "rise_c": 0.33,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_pitch": {
+     "heat_w": 0.816,
+     "rise_c": 0.37,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_knee": {
+     "heat_w": 0.522,
+     "rise_c": 0.24,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle": {
+     "heat_w": 2.192,
+     "rise_c": 0.73,
+     "t_peak": 29.7,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle_roll": {
+     "heat_w": 0.886,
+     "rise_c": 0.41,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_yaw": {
+     "heat_w": 0.398,
+     "rise_c": 0.18,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_roll": {
+     "heat_w": 0.381,
+     "rise_c": 0.19,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_pitch": {
+     "heat_w": 0.687,
+     "rise_c": 0.31,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_knee": {
+     "heat_w": 0.47,
+     "rise_c": 0.2,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle": {
+     "heat_w": 1.32,
+     "rise_c": 0.61,
+     "t_peak": 29.6,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle_roll": {
+     "heat_w": 0.824,
+     "rise_c": 0.38,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    }
+   }
+  },
+  "speed_ladder": {
+   "successes": 0,
+   "n": 4,
+   "episode_seconds": 22.0,
+   "thermal": {
+    "L_hip_yaw": {
+     "heat_w": 0.658,
+     "rise_c": 0.31,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_roll": {
+     "heat_w": 0.823,
+     "rise_c": 0.45,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_pitch": {
+     "heat_w": 0.996,
+     "rise_c": 0.46,
+     "t_peak": 29.5,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_knee": {
+     "heat_w": 0.891,
+     "rise_c": 0.41,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle": {
+     "heat_w": 1.879,
+     "rise_c": 0.87,
+     "t_peak": 29.9,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle_roll": {
+     "heat_w": 1.278,
+     "rise_c": 0.59,
+     "t_peak": 29.6,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_yaw": {
+     "heat_w": 0.451,
+     "rise_c": 0.25,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_roll": {
+     "heat_w": 0.485,
+     "rise_c": 0.31,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_pitch": {
+     "heat_w": 0.819,
+     "rise_c": 0.38,
+     "t_peak": 29.4,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_knee": {
+     "heat_w": 0.72,
+     "rise_c": 0.33,
+     "t_peak": 29.3,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle": {
+     "heat_w": 1.534,
+     "rise_c": 0.8,
+     "t_peak": 29.8,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle_roll": {
+     "heat_w": 1.07,
+     "rise_c": 0.51,
+     "t_peak": 29.5,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    }
+   }
+  },
+  "stand_10s": {
+   "successes": 4,
+   "n": 4,
+   "episode_seconds": 11.0,
+   "thermal": {
+    "L_hip_yaw": {
+     "heat_w": 0.007,
+     "rise_c": 0.0,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_roll": {
+     "heat_w": 0.08,
+     "rise_c": 0.03,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_hip_pitch": {
+     "heat_w": 0.018,
+     "rise_c": 0.01,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_knee": {
+     "heat_w": 0.021,
+     "rise_c": 0.01,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle": {
+     "heat_w": 0.09,
+     "rise_c": 0.03,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "L_ankle_roll": {
+     "heat_w": 0.481,
+     "rise_c": 0.17,
+     "t_peak": 29.2,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_yaw": {
+     "heat_w": 0.014,
+     "rise_c": 0.0,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_roll": {
+     "heat_w": 0.02,
+     "rise_c": 0.01,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_hip_pitch": {
+     "heat_w": 0.031,
+     "rise_c": 0.01,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_knee": {
+     "heat_w": 0.012,
+     "rise_c": 0.0,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle": {
+     "heat_w": 0.086,
+     "rise_c": 0.03,
+     "t_peak": 29.0,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    },
+    "R_ankle_roll": {
+     "heat_w": 0.307,
+     "rise_c": 0.11,
+     "t_peak": 29.1,
+     "cut_off": "0/4",
+     "min_to_cutoff": null
+    }
+   }
+  }
+ }
+}
