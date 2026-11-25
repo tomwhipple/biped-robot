@@ -194,3 +194,88 @@ joints catch up with a load spike, and the body rolls.
       robot run has it);
     - that `footoff_sag.py`'s fits saw few stalls;
     - that a policy run's host polls the same commands.
+
+## 2026-11-25: the stall's cause and fix
+
+*Code reading and host tests only (night run, no hardware; nothing flashed). Branch `fw/cli-no-stall-297`. Line numbers
+are `origin/main` at 303f52c4 unless marked "new".*
+
+**Cause (verified in the code).** The track player is not in the firmware's control task. It runs on the task that
+executes the CLI.
+- `ctrl_task.cpp:1095` (core 1, priority `configMAX_PRIORITIES - 2`) runs only the armed policy loop.
+- The bench pose stream runs in `cli::poseTick` (`cli.cpp`, new 3895): the track player (`trackTick`, new 3954), the stance
+  trim and `balance`, at 50 Hz.
+- `poseTick` is called from `houseTask` (`link_task.cpp:194`). That loop first drains the CLI queue (`link_task.cpp:147-155`):
+  every tether line and every Wi-Fi line (`wcliExecute` -> `cli::execute`) runs to completion before the next tick.
+- So task priorities and core pinning play no part. A command blocks the loop for as long as it runs, on the same task.
+- The plain `imu` command (`cli.cpp:4927-4987`) read the part 51 times: `dev->read(s)` once, then 50 more
+  (`kN = 50`, `cli.cpp:4979`) to print `read ... ms mean of 50`. Each read is an I2C burst plus a fusion update. The
+  250 Hz IMU sampler, at a higher priority, takes the same I2C lock in between. That makes the ~115 ms. It also ran the
+  shared fusion filter from a second task, alongside the sampler.
+
+**Why `track steps` and the other commands show up (inferred from the host's command order and the counts; not
+re-checked against the record).**
+- `track steps` is not slow: it formats at most 17 lines from RAM.
+- `track_host.py` sends it immediately before `imu`: the stop rule's `scan(r.cmd("track steps"))`, then
+  `heading_step()`, which sends `imu`.
+- Its reply comes back within a tick or two of the `imu` stall starting, so the "within 2 ticks of a gap" test counts it
+  (545 / 559).
+- The 14 without a stall would be the steps where the stop rule tripped: `heading_step()` is skipped then, so no `imu`
+  follows.
+- `track` (568 / 6855) and `track add` (507 / 5355) are the commands just before and just after that pair, once per
+  step. 568 and 507 are about the step count, which fits one adjacency per step. They do not cause stalls of their own.
+- A check against the record: the nearest `imu` event to each `track` / `track add` / `track steps` gap.
+
+**Also in the policy path (from the code).** Armed, the policy runs in `ctrl_task` on core 1 and reads the IMU through
+`takeImu()`. A host's `imu` poll does not stall that loop. It did still race the sampler's fusion. The Round 7 caveat "that
+includes a policy run" does not hold for the tick.
+
+**The fix (new firmware; leave the PR open for the next flash).**
+1. Plain `imu` prints the sampler's latest sample (`peekImu`), the one the loop uses, and reads only the ID registers.
+   `up`, `gyro`, `bias`, `mount`, `levelled`, `quat` and `projgrav` keep their formats (`track_host.yaw_of_imu`,
+   `robot_io.imu`, `board_bridge`). The last line `read ... mean of 50` becomes `sample <n> ms old ...`. No host tool
+   parses it (`git grep`).
+2. The 50-read timing is now `imu time` (allowed over Wi-Fi). `imu time`, `imu raw <n>` (n > 1), `imu ae` and `imu bias` are refused
+   while the bench loop plays a pose, a track or a trace tail (`benchLoopBusy`). Each of them blocks for 0.1-2 s.
+3. `track steps` formats its whole reply first and hands it to the sink once. That takes the Wi-Fi CLI lock once
+   instead of 17 times. The text is the same.
+4. `wifi_cli.cpp`: the wcli task held its lock (`g_mu`) across `lwip_sendto` of up to 8 chunks (`wifi_cli.cpp:82`, `:130`).
+   Housekeeping's prints take that lock, including inside the loop's own iteration (`wcliAsyncOutput`, `wcliHouseTick`).
+   The task now copies the datagrams under the lock and sends them after it is released.
+
+**Not fixed: the design that made this possible.** Any other command that blocks still stalls the walking loop, because
+the CLI and the loop share one task. Examples are a bus read while a track plays, `cal`, and NVS writes. The general fix is
+to run `poseTick` from its own task, or to give the bench loop an allowlist of fast commands. That is a larger change with
+its own risk, and it is not made here.
+
+**Tests (host).**
+- `tests/test_cli_no_stall.py` checks the source for:
+  - that the CLI and the loop share the task;
+  - that plain `imu` does no read, loop or delay;
+  - that the blocking `imu` forms come after the bench-loop gate;
+  - that `track steps` prints once;
+  - that the socket sends are outside the lock;
+  - that the reply still parses with the host tools.
+- On the old source, 4 of these 6 fail. `cli.cpp` builds only under ESP-IDF, so a SIL timing test cannot reach it.
+- `firmware/host/test_wcli.cpp` allows `imu time` over Wi-Fi.
+- `make firmware` and `make firmware POWER_LITE=1` build.
+
+**The host arm, for the old firmware: `track_host.py --polls-in-ss`.** It is opt-in and off by default.
+- The per-step `track steps` and `imu` wait for a planned single support: 60 ms after its lift-off to 300 ms before its
+  touchdown, with the lift gate not holding.
+- If no window comes within 3 s, the poll is sent anyway and counted as `forced` in the summary row (`polls_in_ss`).
+- The cost: the stop rule acts up to one double support later.
+- On the old firmware the stall still happens, but now in single support, in the raise. Watch the swing foot and the TS
+  lean there.
+- Tests: `tests/test_polls_in_ss.py`.
+
+**Robot sequence (#297), mildest first; one change per run.**
+1. Old firmware (as flashed), no `--td-pause`: control against `--polls-in-ss`, alternated.
+   - Predicted: control snaps on about 55 % of left stances (k ≥ 2), as before.
+   - Predicted: `--polls-in-ss` on about 0 %, with no tick gap > 80 ms in a double support. The sim's `fill` gives
+     0 %, and the pause gave 1 of 257 on the robot. The ~115 ms gaps move into the single supports.
+   - This settles the mechanism without a flash.
+2. Then the new firmware, no flag, no pause (today's defaults).
+   - Predicted: no tick gap > 80 ms anywhere in the walk.
+   - Predicted: the snap share falls to about 0 % without `--td-pause`.
+   - `imu time` still answers on the bench and is refused while a track plays.

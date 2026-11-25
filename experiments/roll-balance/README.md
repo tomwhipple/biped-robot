@@ -883,6 +883,44 @@ uploaded frames are identical in placement with the pause (tests, and the frames
     filled in.
 - Until a robot A/B confirms it, steer with `--td-pause 0.3`.
 
+## The control-loop stall: `--polls-in-ss` (host, default off) and the firmware fix (#297, 2026-11-25)
+
+[The cause and the fix](../../docs/design-v6/2026-11-25-weight-shift-snap-sim.md#2026-11-25-the-stalls-cause-and-fix):
+- The firmware runs the track player on the task that executes the CLI.
+- The plain `imu` read the IMU 51 times to time the read: a ~115 ms stall at every step.
+- `track steps`, `track` and `track add` show up only as the `imu`'s neighbours in the host's per-step order.
+- Branch `fw/cli-no-stall-297` fixes the firmware: `imu` returns the sampler's latest sample, and the timing moves to
+  `imu time`.
+
+**`--polls-in-ss`** (default off):
+- The per-step `track steps` (the stop rule) and `imu` (the heading hold) are sent only inside a planned single support:
+  60 ms after its lift-off to 300 ms before its touchdown, and not while the lift gate holds.
+- If no window comes within 3 s, the poll is sent anyway and counted. The run prints `polls in single support: ...`,
+  and the summary row has `polls_in_ss`.
+- The cost: the stop rule acts up to one double support later.
+- On the old firmware the stall still happens, now in single support. Watch the raise.
+
+**On the robot, mildest first, one change per run** (after the hip repair; forward 8 at 40 mm, T 4, no `--td-pause`):
+
+```
+F="--T 4 --ahead 1 --swing-tilt 3 --live"; W="--dir fwd --steps 8 --stride-mm 40"
+# 1. old firmware (as flashed): control vs the host flag, alternated C P C P C P
+python experiments/roll-balance/track_host.py $F $W                 --note "stall C fwd"
+python experiments/roll-balance/track_host.py $F $W --polls-in-ss   --note "stall P polls-in-ss fwd"
+# 2. then flash fw/cli-no-stall-297 and run today's defaults: no flag, no pause
+python experiments/roll-balance/track_host.py $F $W                 --note "stall fw-fix fwd"
+```
+
+Predictions, read from the flight record (`tip_causes.py`, and the tick gaps against the CLI events):
+- **1 C:** a ~115 ms gap 0.2-0.5 s after every touchdown. The snap (≥ 2.5 deg) on about 55 % of left stances
+  from the 2nd on.
+- **1 P:** no gap > 80 ms in a double support; the gaps sit in the single supports. The snap at about 0 %, as with
+  `--td-pause 0.3`.
+- **2:** no gap > 80 ms anywhere. The snap at about 0 % with no pause and no flag.
+- If 1 P still snaps, the stall was not the cause. Stop and re-read the record before flashing.
+- After the flash, check on the bench: `imu` answers with `sample <n> ms old`, and `imu time` prints the read time
+  (refused while a track plays).
+
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
 
 The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving
