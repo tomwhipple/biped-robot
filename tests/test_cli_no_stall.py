@@ -99,3 +99,39 @@ def test_the_reply_still_has_every_line_the_host_tools_parse():
     num = r"[-+]?\d*\.?\d+"
     assert re.search(rf"^up\s+({num})\s+({num})\s+({num})", STATUS_REPLY, re.M)        # experiments/stepper/robot_io
     assert re.search(rf"^gyro\s+({num})\s+({num})\s+({num})", STATUS_REPLY, re.M)
+
+
+# ---- every CLI line, not only `imu` (2026-11-25, second pass): while the bench loop plays, a line that can block the
+# housekeeping task for more than ~10 ms is refused before it is dispatched; the rule is wcli::benchLoopRefusal
+# (firmware/components/wcli/policy.cpp, host-tested in firmware/host/test_wcli.cpp testBenchLoopGate).
+
+POLICY = open(os.path.join(ROOT, "firmware", "components", "wcli", "policy.cpp")).read()
+EXEC = _body(CLI, "void execute(const char* line, Sink out, bool remote) {")
+
+
+def test_every_line_passes_the_bench_loop_gate_before_it_is_dispatched():
+    gate = EXEC.index("if (benchLoopRefuses(out, line, c)) return;")
+    first = min(EXEC.index(s) for s in ('#if BIMO_POWER_LITE\n    if (!strcmp(c, "rail"))',
+                                        'if (!strcmp(c, "help")'))
+    assert gate < first, "a command is dispatched before the bench-loop gate"
+    refuses = _body(CLI, "static bool benchLoopRefuses(Sink out, const char* line, const char* cmd) {")
+    assert "s_traj_active" in refuses and "s_track_on" in refuses and "s_trace_on" in refuses
+    assert "wcli::benchLoopRefusal(line)" in refuses
+
+
+def test_every_command_word_was_judged_for_the_bench_loop():
+    """Default deny covers a new command, but each one dispatched today is named in the rule (the audit)."""
+    rule = POLICY[POLICY.index("const char* benchLoopRefusal(const char* line) {"):]
+    rule = rule[:rule.index("\n}\n")]
+    words = set(re.findall(r'!strcmp\(c, "([^"]+)"\)', EXEC))
+    assert {"track", "imu", "cal", "scan", "release", "bench"} <= words
+    missing = sorted(w for w in words if f'"{w}"' not in rule)
+    assert not missing, f"not judged for the bench loop: {missing}"
+
+
+def test_the_stop_paths_and_the_walk_polls_are_never_refused():
+    rule = POLICY[POLICY.index("const char* benchLoopRefusal(const char* line) {"):]
+    head = rule[:rule.index('if (is(c, "help")')]           # everything allowed is decided above the refusals
+    for w in ("track", "release", "bench", "fall", "flail", "home"):
+        assert f'"{w}"' in head, w
+    assert 'is(c, "track")) return nullptr;' in rule      # every `track` form, add/stop/halt/steps included

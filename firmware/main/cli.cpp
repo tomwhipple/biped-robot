@@ -4652,6 +4652,22 @@ static bool benchLoopBusy(Sink out, const char* what) {
     return true;
 }
 
+// The same rule for every CLI line (#297): while the bench loop plays, a line
+// that can block this task for more than ~10 ms (half a 20 ms tick) is refused
+// with the reason; the loop's own commands, the stop / disarm / safety paths
+// and the takeovers run (wcli::benchLoopRefusal has the list, the record the
+// audit). `cmdImu` keeps its own gate too.
+static bool benchLoopRefuses(Sink out, const char* line, const char* cmd) {
+    if (!s_traj_active && !s_track_on && !s_trace_on) return false;
+    const char* why = wcli::benchLoopRefusal(line);
+    if (!why) return false;
+    say(out, "%s: refused -- the bench loop is playing (%s) on this task and this would stall it: ", cmd,
+        s_track_on ? "a track" : "a pose stream");
+    out(why);
+    out("; `track stop` / let it finish first\r\n");
+    return true;
+}
+
 void cmdImu(Sink out, int argc, char** argv) {
     imu::Qmi8658Imu* dev = robot::onboardImu();
 
@@ -5443,6 +5459,7 @@ void execute(const char* line, Sink out, bool remote) {
     const int argc = split(buf, argv, 40);
     if (argc == 0) return;
     const char* c = argv[0];
+    if (benchLoopRefuses(out, line, c)) return;
     // A deliberate bench move takes over a flail/soft-stop hold: the autohome
     // must not start under the operator's own motion (flailTickImpl).
     if (!strcmp(c, "pose") || !strcmp(c, "move") || !strcmp(c, "balance") ||

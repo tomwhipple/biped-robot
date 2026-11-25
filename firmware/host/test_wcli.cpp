@@ -890,6 +890,45 @@ void testRedact() {
 }  // namespace
 
 // NOLINTNEXTLINE(bugprone-exception-escape): a failed check aborts; nothing here throws on purpose
+// The bench-loop gate (#297): while the bench loop plays on the housekeeping
+// task, a CLI line that can block that task for more than ~10 ms is refused;
+// the loop's own commands and every stop / disarm / safety path run.
+void testBenchLoopGate() {
+    static const char* const kRuns[] = {
+        // the loop's own commands, and what track_host.py sends mid-walk
+        "track", "track add 0123", "track steps", "track stop", "track halt",
+        "track clear", "imu", "imu raw", "imu raw 1",
+        // stop / disarm / safety: never refused
+        "release", "release 3", "bench", "fall", "fall on", "fall clear", "flail",
+        "flail on", "home", "rail", "rail off", "rail panic", "stream stop",
+        "sweep stop", "balance off", "trim off", "trim",
+        // takeovers, RAM settings, status, one-servo reads
+        "pose 2048 2048", "balance", "liftgate", "liftgate set 3 20 150 3000",
+        "heading", "stat", "ntp", "shape 8", "limit", "standclock", "obsfreeze none",
+        "reg 3 56", "pos 3", "ping 3", "torque", "move 3 2048", "stream status", "imu ring", "imu avg on", "imu gscale",
+        "imu mount", "imu bias online", "imu bias online off", "batt", "rec",
+        "rec status", "obsdump off", "wifi", "wcli", "", "   "};
+    for (const char* line : kRuns) {
+        const char* why = wcli::benchLoopRefusal(line);
+        if (why) fprintf(stderr, "  benchLoopRefusal(\"%s\") = \"%s\", want run\n", line, why);
+        CHECK(why == nullptr);
+    }
+    static const char* const kRefused[] = {
+        "imu time", "imu raw 50", "imu ae", "imu bias", "imu bias online save",
+        "imu scan", "imu reinit", "imu forget", "imu gscale 1 1 1", "imu mount 1 0 0 0",
+        "help", "?", "scan", "ping", "trace", "cal", "cal show", "gains", "gains 3",
+        "servocfg", "volt", "run", "nettime", "bno", "sread 3", "stepresp 3 2048",
+        "id 1 2", "middle 3", "regw 3 41 0", "stream 3", "stream dump",
+        "sweep", "balance log", "batt reset", "rec 10.0.0.2", "rec on", "rec off",
+        "rec idle 5", "obsdump on", "wifi ssid psk",
+        "wcli key clear", "rail on", "frobnicate"};
+    for (const char* line : kRefused) {
+        const char* why = wcli::benchLoopRefusal(line);
+        if (!why) fprintf(stderr, "  benchLoopRefusal(\"%s\") = run, want refused\n", line);
+        CHECK(why != nullptr && why[0] != 0);
+    }
+}
+
 int main() {
     testSha256();
     testHmacRfc4231();
@@ -908,5 +947,6 @@ int main() {
     testKeyChangeDropsSession();
     testPolicy();
     testRedact();
+    testBenchLoopGate();
     return testutil::report("wcli");
 }

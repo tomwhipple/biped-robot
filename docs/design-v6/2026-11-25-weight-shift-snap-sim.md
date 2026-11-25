@@ -244,10 +244,105 @@ includes a policy run" does not hold for the tick.
    Housekeeping's prints take that lock, including inside the loop's own iteration (`wcliAsyncOutput`, `wcliHouseTick`).
    The task now copies the datagrams under the lock and sends them after it is released.
 
-**Not fixed: the design that made this possible.** Any other command that blocks still stalls the walking loop, because
-the CLI and the loop share one task. Examples are a bus read while a track plays, `cal`, and NVS writes. The general fix is
-to run `poseTick` from its own task, or to give the bench loop an allowlist of fast commands. That is a larger change with
-its own risk, and it is not made here.
+**Every other CLI line: the bench-loop allowlist (second pass, same night).** Any other command that blocks would still
+stall the walking loop, because the CLI and the loop share one task. So `cli::execute` now asks one rule before it
+dispatches any line, tether or Wi-Fi.
+- While the bench loop plays (`s_traj_active || s_track_on || s_trace_on`), `benchLoopRefuses` (`cli.cpp`, new) refuses a
+  line that can block the task for more than about 10 ms, half a 20 ms tick. The reply is
+  `<cmd>: refused -- the bench loop is playing (a track | a pose stream) on this task and this would stall it: <why>`.
+- The rule is `wcli::benchLoopRefusal` (`firmware/components/wcli/policy.cpp`). It is a pure function of the line, so it
+  is host-tested. It is default deny: a command word it does not name is refused while the loop plays.
+- Never refused: the loop's own commands (every `track` form), the stop, disarm and safety paths, and the commands that
+  take the stream over. `cmdImu` keeps its own gate from the first pass.
+- Not changed: track_host.py. Every command it sends during a walk is fast: `track`, `track add`, `track steps`, `imu`,
+  `track stop`, `track halt`. Before the walk it sends `liftgate set` and the play line; after it, `trim` and `imu`.
+  `board_bridge.py` polls `imu raw 1`. `stepper/robot_io.py` sends `cal show` at start-up and then `imu`, `pos <id>`,
+  `pose`, `torque`, `release`, `home` and `fall`. Of those, only `cal show` is now refused, and only while a stream plays.
+
+The audit. Estimates from code reading. The bus runs at 1 Mbaud. One register read or ping is about 0.3 ms, and a servo
+that does not answer costs the 3 ms reply timeout (`scsbus/bus.h:53`). An EEPROM write waits `kEepromCommitMs` = 2 s
+(`cli.cpp:79`). An NVS write can erase a flash sector, which takes tens of ms. The tether is 115200 baud with a 512 B TX
+buffer (`app_main.cpp:185`), so a reply longer than 512 B blocks at about 87 us per byte beyond that. A Wi-Fi reply goes
+into a 6.4 KB ring (`wcli.h` `kRing`). It waits only when the client's window is full, for up to `kStallMs` = 2 s.
+
+| command (form) | what blocks | estimated block | now, while the loop plays |
+|---|---|---|---|
+| `track` (status, `add`, `steps`, `stop`, `halt`, `clear`, `rest`, `play`) | RAM; `steps` formats ≤ 17 lines once | < 1 ms of work | runs (the loop's own) |
+| `imu` (plain) | the sampler's sample, plus the ID registers | ~1 ms | runs (track_host, robot_io) |
+| `imu raw` / `imu raw 1` | one I2C burst | ~2 ms | runs (board_bridge) |
+| `imu ring`, `imu avg`, `imu gscale`, `imu mount` (print forms), `imu bias online [on\|off]` | RAM | < 1 ms | runs |
+| `release [id]`, `bench`, `fall ...`, `flail ...` | one broadcast write, or a RAM latch | < 1 ms | runs (stop / disarm / safety) |
+| `rail`, `rail off`, `rail clear`, `rail panic` | a RAM request; `panic` aborts on purpose | < 1 ms | runs (safety) |
+| `home` | torque on, 17 position reads, one write; power-lite: rail polls 20 + 10 + 5 ms | measured 102-122 ms (30 / 30) | runs (the recovery path; never blocked) |
+| `pose`, `balance` (not `log`) | take the stream over; `pose` refuses itself while a track plays; `pose ... S<L\|R>` samples the roll 5 x 6 ms | `pose`: measured 68-119 ms (p10-p90, 341 / 346), at the handover | runs (a takeover, not a stall of a walk) |
+| `torque [id]`, `move <id>`, `pos <id>`, `reg`, `ping <id>` | 1-2 bus transactions | ≤ 3-6 ms | runs |
+| `stream stop`, `stream status`, `sweep stop` | RAM | < 1 ms | runs |
+| `trim ...`, `liftgate ...`, `heading ...`, `stat`, `ntp`, `shape`, `limit`, `standclock`, `obsfreeze` | RAM settings and status | < 1 ms of work | runs |
+| `batt`, `batt pack on\|off`, `rec`, `rec status`, `wifi`, `wcli`, `obsdump off` | RAM | < 1 ms | runs |
+| `imu time` | 51 IMU reads | ~115 ms | refused (first pass) |
+| `imu raw <n>` (n > 1), `imu ae`, `imu bias` (calibration) | 100 ms between samples; seconds of sampling | 0.1-2 s | refused (first pass) |
+| `imu scan` | probes 127 I2C addresses | tens of ms or more | refused |
+| `imu reinit` | I2C bus recovery and a re-init of the part | tens of ms (not measured) | refused |
+| `imu forget`, `imu gscale <x y z>`, `imu mount <w x y z>`, `imu bias online save` | NVS write or erase | tens of ms | refused |
+| `scan` | pings IDs 0-253; 3 ms per missing ID | ~0.7 s | refused |
+| `ping` (no id) | every fitted servo; 3 ms per missing one | 5-51 ms | refused |
+| `cal`, `cal show` | 17-line print (~0.9 KB); other forms read every servo or write NVS | ~30 ms on the tether; more | refused |
+| `gains`, `gains <id>` | P/D reads of every servo, plus a 17-line print; the write form waits for EEPROM | ≥ 10 ms; 2 s | refused |
+| `servocfg` | response registers of every servo | ≥ 10 ms | refused |
+| `volt` | the INA219, plus a voltage read of every servo | ~6 ms; ~50 ms with servos missing | refused |
+| `run` | arming re-reads every servo's gains | ≥ 10 ms | refused (arming mid-stream is not a stop path) |
+| `id`, `middle`, `regw` | an EEPROM write and its commit wait | 2 s | refused |
+| `sread`, `stepresp` | servo identification runs | tens of ms to s | refused |
+| `nettime` | n policy forward passes per backend | hundreds of ms | refused |
+| `bno` | 5-25 ms polls of the BNO085 | ≥ 25 ms | refused |
+| `help`, `?` | ~4.4 KB of text | ~340 ms on the tether | refused |
+| `trace` | up to 400 lines (~8 KB) | ~0.7 s on the tether | refused |
+| `balance log` | up to 600 lines | ~2 s on the tether | refused |
+| `stream` (start, `dump`), `sweep` (start) | a task start, the whole log; a roll sweep | > 10 ms | refused |
+| `batt reset` | waits 60 ms for the control task | 60 ms | refused |
+| `rec on\|off\|idle\|<ip>` | saves the recorder config to NVS (tether, benched) | tens of ms | refused |
+| `obsdump on\|once`, `wifi <ssid> <psk>`, `wifi clear`, `wcli key ...`, `wcli drop` | a CSV line per tick; NVS writes | tens of ms | refused |
+| `rail on` | waits for the rail (20 + 10 + 5 ms polls) | ≥ 35 ms | refused (the rail is up while anything moves) |
+| any other word | (default deny) | - | refused |
+
+**What the flight records show.** All 109 records in `hw_sessions/` (10-30 to 11-21) were scanned: 111,170 CLI lines, of
+which 3,695 came over the tether. A line counts as sent "while playing" when the tick before it was a bench-pose tick
+with the trajectory flag set. That flag is a proxy, not checked against the track logs. It counts as stalled when a
+tick gap > 50 ms falls within 2 ticks of it. Gaps over 30 ms are a quarter of all tick pairs while playing, so 30 ms is
+noise; 50 ms is 0.9 %.
+
+| sent while playing | n | stalled | stalled gap, median / max |
+|---|---|---|---|
+| `imu` | 5514 | 100 % | 107 / 148 ms |
+| `track steps` | 2754 | 86 % | 126 / 148 ms |
+| `pose` | 346 | 99 % | 79 / 141 ms |
+| `home` | 30 | 100 % | 112 / 122 ms |
+| `trim` | 76 | 76 % (15 over 80 ms) | 76 / 120 ms |
+| `pos <id>` | 1321 | 3.9 % | 111 / 124 ms |
+| `track` | 39133 | 1.2 % (chance) | 56 / 140 ms |
+| `track add`, `track stop`, `track halt`, `fall`, `stat`, `release` | 26523 | 0 | - |
+
+- `imu` and `track steps` are the first pass's stall. `track steps` stalls as `imu`'s neighbour.
+- `trim` is RAM only in the code (`trim T` sets a float). Its stalls are most likely its neighbours: track_host's
+  wrap-up sends `track steps`, `track`, `trim`, `imu`. That is inferred, not checked.
+- `home` and `pose` stall by themselves. They stay allowed; see below.
+- Idle, with no stream playing, these stalled nearly every time: `track play`, `balance set`, `run`, `stepresp`, `gains`,
+  `sread`, `scan`, `rail on`, `servocfg`, `sweep`. All but the first two are refused now. `cal show` stalled 40 % of
+  the time.
+
+**Still open after the allowlist (findings, not fixed).**
+- Tether output. An allowed reply longer than the 512 B UART buffer still blocks on the tether. A full `track steps`
+  (~1.1 KB) costs about 50 ms there, and the status prints of `flail` and `trim` cost about 10 ms. The walks run over
+  Wi-Fi, so this does not touch them. The cheap fix is a 2-4 KB tether TX buffer (`app_main.cpp:185`). It costs RAM and
+  is not made here.
+- Wi-Fi output. When the client's window is full, `wifiSay` and `endCommand` wait up to 2 s. That happens with a lagging
+  laptop or a bad link, and it can stall the loop on any command, allowed or not. A command rule cannot fix it. The fix
+  would be to drop, not wait, while the bench loop plays.
+- `home` (~110 ms) and `pose` (~80 ms) block for well over 10 ms. They are allowed on purpose: one is the recovery
+  path, and the other takes the stream over. While `pose` runs, the old stream holds its last goals for ~80 ms. The
+  retired stepper (`stepper/robot_io.py`) walked with pose after pose, so this matters if it comes back. Where `pose`
+  spends the 80 ms was not looked into.
+- The structural fix is still to run `poseTick` on its own task. It is not made here.
 
 **Tests (host; the firmware ones are on PR #355).**
 - `tests/test_cli_no_stall.py` checks the source for:
@@ -258,8 +353,13 @@ its own risk, and it is not made here.
   - that the socket sends are outside the lock;
   - that the reply still parses with the host tools.
 - On the old source, 4 of these 6 fail. `cli.cpp` builds only under ESP-IDF, so a SIL timing test cannot reach it.
-- `firmware/host/test_wcli.cpp` (PR #355) allows `imu time` over Wi-Fi.
-- On PR #355, `make firmware` and `make firmware POWER_LITE=1` build.
+- `firmware/host/test_wcli.cpp` allows `imu time` over Wi-Fi. Its `testBenchLoopGate` checks 57 lines that must run
+  and 43 that must be refused while the loop plays.
+- The second pass adds three source checks to `tests/test_cli_no_stall.py`:
+  - every line passes the gate before it is dispatched;
+  - every command word `execute` dispatches is named in the rule;
+  - the stop paths and the walk's polls are decided before any refusal.
+- `make firmware` and `make firmware POWER_LITE=1` build.
 
 **The host arm, for the old firmware: `track_host.py --polls-in-ss`.** It is opt-in and off by default.
 - The per-step `track steps` and `imu` wait for a planned single support: 60 ms after its lift-off to 300 ms before its
