@@ -434,6 +434,21 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-25 card: night 35 -- x1.5 margin line night 1: loop-gain DR moves the margin (L1 g* 2.0, L2 1.75-2.0), the stand
+# pull does not; under gain 1.5 while walking M1 falls 56/56, L1 0-6/56, but L1 never sidesteps right.
+fig_1125 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec101_walk_sagdr_vol_i86_vref_lg16_s1_s128r24', ['sidestep_R'],
+                 'robot_legs_prec101_walk_sagdr_vol_i86_vref_lg16_s1_s128r24_sidestep_R',
+                 'L1 seed 15, trained with the loop gain randomised over 1.0-1.6: it stands to 2x the gain and walks under 1.5x, '
+                 'but asked to step right it does not move (all four seeds)'),
+    video_figure('robot_legs_prec102_walk_sagdr_vol_i86_vref_lg13_s128r24', ['sidestep_R'],
+                 'robot_legs_prec102_walk_sagdr_vol_i86_vref_lg13_s128r24_sidestep_R',
+                 'L2 seed 14, randomised over 1.0-1.3: it steps right, and stands to 1.75x, but falls on 45 of 56 walking '
+                 'episodes at 1.5x'),
+    video_figure('robot_legs_prec97_walk_sagdr_vol_i86_vref_s128r24', ['sidestep_R'],
+                 'robot_legs_prec97_walk_sagdr_vol_i86_vref_s128r24_sidestep_R',
+                 'control: the parent M1 at seed 14, with no gain randomisation: it falls on every walking episode at 1.5x'),
+] if f)
 # 2026-11-24 card: night 34 -- #263 night 3: the turn reference (T) 0 of 3 and the command slew (S) 1 of 3; the volume line
 # pauses on M1; tonight night 1 of the x1.5 margin line (loop-gain DR, stand pull).
 fig_1124 = "\\n    ".join(f for f in [
@@ -1282,6 +1297,27 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·25 · night 35: randomising the loop gain buys the margin; the cost is the step to the right</span></p>
+    <p><b>Last night started the margin line</b> on the foot-placement walk (M1), three arms of three seeds plus an extra. The first two
+    randomise the policy's loop gain in training, over 1.0-1.6 (L1) and 1.0-1.3 (L2). The third pulls the stand toward home (L3).
+    <b>The randomised gain moves the margin a long way</b>: L1 stands up to 2x the gain on all four seeds and L2 to 1.75-2x,
+    where M1 manages 1.5-1.7x. The pull toward home does not (1.5, 1.5 and 1.75x).
+    <b>No arm meets its full bar</b>, because at the modelled gain the margin costs movement. L1 turns less, does not pass the walk
+    check and <b>never sidesteps right</b>. L2 holds 2-5 fewer compass headings and turns 8-32 % less on two seeds of three.</p>
+    <p><b>A new test changes how that cost reads.</b> The 1.5x test was applied only while standing. Applied while walking, M1 falls
+    on all 56 walking episodes on each of its three seeds, L2 on 38-49 and L1 on 0-6. At 1.3x, L1 turns and walks normally.
+    Most of the cost is the stride being sized for the higher gain. The exception is the step to the right, which L1 does not
+    take at any gain.</p>
+    <p><b>Tonight</b> (night 2 of 3) keeps L1's margin and tries to win back the step to the right, with three arms. The first
+    randomises the gain over 1.0-1.45. The second and third train L1's setting starting from the L2 policy and from the M1 policy
+    at the same seed, both of which still step right. Every policy will also be graded walking under 1.3x and 1.5x. This is
+    simulation only; the robot is still down. Whether the robot's 1.5x (measured on a stand, 11-02) also applies while walking
+    is not measured yet. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1125}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·24 · night 34: neither the turning reference nor the command ramp passes; the next nights go to the margin</span></p>
     <p><b>Last night tested two remaining causes on the foot-placement arm (M1)</b>, three seeds each plus extras. The first was a
