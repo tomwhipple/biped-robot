@@ -729,6 +729,7 @@ void testPolicy() {
         {"rec on", false, Verdict::kAllow},          // RAM-only over Wi-Fi (cli.cpp)
         {"imu", false, Verdict::kAllow},
         {"imu raw 5", false, Verdict::kAllow},
+        {"imu time", false, Verdict::kAllow},
         {"imu gscale", false, Verdict::kAllow},
         {"imu mount", false, Verdict::kAllow},
         {"gains", false, Verdict::kAllow},

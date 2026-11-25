@@ -138,8 +138,10 @@ Decision classify(const char* line, bool armed) {
                       "envelope clamp (a bench experiment tool)");
     }
     if (is(c, "imu")) {
+        // `time`: the 50-read timing (refused by the firmware while the bench
+        // loop plays: it runs on that loop's task, #297)
         static const char* const kImuRead[] = {"scan", "raw", "ring", "avg",
-                                               "ae", "reinit", nullptr};
+                                               "ae", "reinit", "time", nullptr};
         if (argc == 1 || oneOf(sub, kImuRead)) return allow();
         if (is(sub, "gscale")) {
             if (argc < 5) return allow();

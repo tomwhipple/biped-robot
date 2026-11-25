@@ -3715,18 +3715,30 @@ void cmdTrack(Sink out, int argc, char** argv) {
         return;
     }
     if (!strcmp(sub, "steps")) {
+        // The whole reply is formatted first and handed to the sink ONCE: one
+        // take of the Wi-Fi CLI's lock instead of 17, each of which could wait
+        // behind the wcli task's sends (#297). Same text as before.
+        static char buf[kTrackStepLog * 96 + 96];   // housekeeping only
+        size_t used = 0;
         const uint32_t n = s_track_nsteps < kTrackStepLog ? s_track_nsteps : kTrackStepLog;
-        say(out, "track steps: the last %lu of %lu single supports (deg)\r\n", static_cast<unsigned long>(n),
-            static_cast<unsigned long>(s_track_nsteps));
+        auto put = [&](int w) {   // snprintf's count -> bytes actually in buf (a truncation stops there)
+            if (w <= 0) return;
+            const size_t room = sizeof buf - used;   // the terminator's byte included
+            used += static_cast<size_t>(w) < room ? static_cast<size_t>(w) : room - 1;
+        };
+        put(snprintf(buf, sizeof buf, "track steps: the last %lu of %lu single supports (deg)\r\n",
+                     static_cast<unsigned long>(n), static_cast<unsigned long>(s_track_nsteps)));
         for (uint32_t k = s_track_nsteps - n; k < s_track_nsteps; ++k) {
             const balance::StepReport& r = s_track_log[k % kTrackStepLog];
             char gbuf[16];
-            say(out, "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s%s\r\n", static_cast<unsigned long>(k + 1),
+            put(snprintf(buf + used, sizeof buf - used,
+                "TS %lu %c in %.1f out %.1f e %+.1f T %+.1f hike %+.1f %s%s%s\r\n", static_cast<unsigned long>(k + 1),
                 r.stance, static_cast<double>(r.lean_in * 57.29578f), static_cast<double>(r.lean_out * 57.29578f),
                 static_cast<double>(r.e_mid * 57.29578f), static_cast<double>(r.t_mid * 57.29578f),
                 static_cast<double>(r.hike_mid * 57.29578f), r.aborted ? "ABORT" : "ok", r.reverted ? " Tback" : "",
-                gSuffix(gbuf, sizeof gbuf, s_track_g[k % kTrackStepLog]));
+                gSuffix(gbuf, sizeof gbuf, s_track_g[k % kTrackStepLog])));
         }
+        out(buf);
         return;
     }
     if (!strcmp(sub, "play")) {
@@ -4629,6 +4641,17 @@ void cmdStream(Sink out, int argc, char** argv) {
         s_scfg.mode, s_scfg.lead_ms, s_scfg.acc);
 }
 
+// True (and says why) while the bench pose stream -- a `pose`, `balance`,
+// `track play`, or a trace tail -- is running. Those run in cli::poseTick on
+// the housekeeping task, the same task that executes every CLI line, so a
+// command that blocks there blocks the loop for as long as it runs (#297).
+static bool benchLoopBusy(Sink out, const char* what) {
+    if (!s_traj_active && !s_track_on && !s_trace_on) return false;
+    say(out, "imu %s: refused -- the bench loop is playing (%s) on this task, and this would stall it; "
+             "`track stop` / let it finish first\r\n", what, s_track_on ? "a track" : "a pose stream");
+    return true;
+}
+
 void cmdImu(Sink out, int argc, char** argv) {
     imu::Qmi8658Imu* dev = robot::onboardImu();
 
@@ -4724,6 +4747,33 @@ void cmdImu(Sink out, int argc, char** argv) {
         out("  envelope (mrad/s per 50 ms):");
         for (int i = 0; i < r.nbins; ++i) say(out, " %d", static_cast<int>(r.env[i] * 1000.0f + 0.5f));
         out("\r\n");
+        return;
+    }
+    // The diagnostics below block for tens of ms to seconds. They run on the
+    // housekeeping task, which also runs the bench pose stream and the track
+    // player (cli::poseTick): while that plays, any of them stalls the loop
+    // (#297). Refused then, with the reason. `imu raw 1` is one read (~2 ms;
+    // tools/board_bridge.py polls it) and stays allowed; `imu raw <n>` waits
+    // 100 ms between samples.
+    const bool raw_many = argc >= 3 && !strcmp(argv[1], "raw") && atoi(argv[2]) > 1;
+    if (argc >= 2 && (!strcmp(argv[1], "time") || raw_many || !strcmp(argv[1], "ae") ||
+                      (!strcmp(argv[1], "bias") && !(argc >= 3 && !strcmp(argv[2], "online"))))) {
+        if (benchLoopBusy(out, argv[1])) return;
+    }
+    if (argc >= 2 && !strcmp(argv[1], "time")) {
+        // What a read costs the tick. firmware-design section 4 budgeted
+        // ~1.0 ms for the BNO085's SH-2 reports and never got to check it,
+        // because no IMU was ever fitted. This one is fitted. (The plain
+        // `imu` printed this line until 2026-11-25; #297.)
+        const int64_t t0 = esp_timer_get_time();
+        constexpr int kN = 50;
+        for (int i = 0; i < kN; ++i) {
+            imu::Sample tmp{};
+            dev->read(tmp);
+        }
+        const int64_t t1 = esp_timer_get_time();
+        say(out, "read     %.3f ms mean of %d (I2C burst + fusion), 20 ms tick\r\n",
+            static_cast<double>(t1 - t0) / (kN * 1000.0), kN);
         return;
     }
     if (argc >= 2 && !strcmp(argv[1], "raw")) {
@@ -4924,7 +4974,14 @@ void cmdImu(Sink out, int argc, char** argv) {
         return;
     }
 
-    // Default: status.
+    // Default: status. Every number here is the IMU sampler's latest sample
+    // (imu_sampler.h), the one the bench loop and the policy use: this path
+    // reads nothing from the part but its ID registers. Until 2026-11-25 it
+    // ran dev->read() 51 times back to back to time the read, on the
+    // housekeeping task -- the task that also runs the bench pose stream and
+    // the track player (link_task.cpp houseTask, cli::poseTick). That held
+    // the walking loop for ~115 ms at every per-step `imu` poll (#297, #259
+    // Round 7). The timing is now `imu time`, refused while that loop plays.
     imu::Qmi8658Imu::Probe p;
     dev->probe(p);
     say(out, "driver   %s\r\n", dev->name());
@@ -4932,13 +4989,18 @@ void cmdImu(Sink out, int argc, char** argv) {
         p.who_am_i, p.revision, p.addr_found);
 
     imu::Sample s{};
-    dev->read(s);
-    say(out, "up       % .4f % .4f % .4f   (body z, yaw stripped = sim framezaxis at yaw 0)\r\n",
-        static_cast<double>(s.up[0]), static_cast<double>(s.up[1]),
-        static_cast<double>(s.up[2]));
-    say(out, "gyro     % .4f % .4f % .4f rad/s\r\n",
-        static_cast<double>(s.gyro[0]), static_cast<double>(s.gyro[1]),
-        static_cast<double>(s.gyro[2]));
+    uint32_t age_ms = 0;
+    const bool have = robot::peekImu(s, &age_ms) && s.valid;
+    if (!have) {
+        out("up       (no sample from the IMU sampler yet)\r\n");
+    } else {
+        say(out, "up       % .4f % .4f % .4f   (body z, yaw stripped = sim framezaxis at yaw 0)\r\n",
+            static_cast<double>(s.up[0]), static_cast<double>(s.up[1]),
+            static_cast<double>(s.up[2]));
+        say(out, "gyro     % .4f % .4f % .4f rad/s\r\n",
+            static_cast<double>(s.gyro[0]), static_cast<double>(s.gyro[1]),
+            static_cast<double>(s.gyro[2]));
+    }
     float b[3];
     dev->bias(b);
     say(out, "bias     % .5f % .5f % .5f rad/s%s\r\n",
@@ -4961,29 +5023,20 @@ void cmdImu(Sink out, int argc, char** argv) {
     // projgrav is what the accelerometer sees in the BODY frame; `up` is its
     // transpose-partner. For a forward lean projgrav.x must go NEGATIVE and
     // up.x POSITIVE -- if they do not have opposite signs, the mount is wrong.
-    float q[4];
-    dev->fusion().quat(q);
-    float pg[3];
-    imu::projectedGravityFromQuaternion(q[0], q[1], q[2], q[3], pg);
-    say(out, "quat     % .4f % .4f % .4f % .4f\r\n",
-        static_cast<double>(q[0]), static_cast<double>(q[1]),
-        static_cast<double>(q[2]), static_cast<double>(q[3]));
-    say(out, "projgrav % .4f % .4f % .4f   (world +z in BODY frame)\r\n",
-        static_cast<double>(pg[0]), static_cast<double>(pg[1]),
-        static_cast<double>(pg[2]));
-
-    // Measure what this actually costs the tick. firmware-design section 4
-    // budgeted ~1.0 ms for the BNO085's SH-2 reports and never got to check
-    // it, because no IMU was ever fitted. This one is fitted.
-    const int64_t t0 = esp_timer_get_time();
-    constexpr int kN = 50;
-    for (int i = 0; i < kN; ++i) {
-        imu::Sample tmp{};
-        dev->read(tmp);
+    // From the same sample as `up`, so the two always agree.
+    if (have) {
+        const float* q = s.quat;
+        float pg[3];
+        imu::projectedGravityFromQuaternion(q[0], q[1], q[2], q[3], pg);
+        say(out, "quat     % .4f % .4f % .4f % .4f\r\n",
+            static_cast<double>(q[0]), static_cast<double>(q[1]),
+            static_cast<double>(q[2]), static_cast<double>(q[3]));
+        say(out, "projgrav % .4f % .4f % .4f   (world +z in BODY frame)\r\n",
+            static_cast<double>(pg[0]), static_cast<double>(pg[1]),
+            static_cast<double>(pg[2]));
     }
-    const int64_t t1 = esp_timer_get_time();
-    say(out, "read     %.3f ms mean of %d (I2C burst + fusion), 20 ms tick\r\n",
-        static_cast<double>(t1 - t0) / (kN * 1000.0), kN);
+    say(out, "sample   %lu ms old (the sampler's, %d ms period); `imu time` times the read\r\n",
+        static_cast<unsigned long>(age_ms), robot::kImuPeriodMs);
 }
 
 // -- ntp -------------------------------------------------------------------
@@ -5309,7 +5362,7 @@ void banner(Sink out) {
     out("  run | bench          hand the bus to / take it back from the loop\r\n");
     out("  flail [on|off]       armed-loop flail guard: limits, holds since boot\r\n");
     out("  heading [on|off|k x] IMU heading hold while walking (on at boot)\r\n");
-    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget]\r\n");
+    out("  imu [scan|raw [n]|ring [ms]|avg [on|off]|gscale [x y z]|reinit|bias|mount|forget|time]\r\n");
     out("  imu bias online [on|off|save]  the gyro bias learned at stand-still (on at boot; save = NVS)\r\n");
     out("  wifi [<ssid> <psk>|clear]   UDP link status / credentials (NVS)\r\n");
     out("  wcli [key <64 hex>|key clear|drop]   Wi-Fi CLI status / key (NVS, tether)\r\n");
