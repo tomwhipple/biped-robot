@@ -292,7 +292,7 @@ Referee scores are gates, not proof.
    - These are system-identification probes, scripted `pose` streams (the one-leg lifts, the sway probe #260); a step in place and a stride are policy milestones (#261), not scripted gaits.
    - Record each step as a margin, clearance and slip number, against the sim's.
 6. Then the scripted get-up.
-7. Measure the bus current here ([wiring.md](wiring.md#current-the-open-constraint)).
+7. Measure the bus current here ([wiring.md](wiring.md#current-measured-budget-issue-77)).
 
 **Policy stages**, once a policy is trained on the measured plant:
 

@@ -23,7 +23,7 @@ Where the documents disagree:
   - The wiki says "DC 7-13V" and that the XH port "directly powers the serial bus servo and motor".
   - The rev 1.2 silkscreen says "DC 9-12.6V", which would exclude 2S.
   - This is unresolved. A 3S pack is inside both ranges.
-- **Bus current.** The wiki FAQ limits bus-servo current to "5A for long-term operation", which is "up to 5 servos (ensuring that these 5 servos are not stalled simultaneously)". The robot runs 17. That is open; see [wiring.md](../../wiring.md#current-the-open-constraint).
+- **Bus current.** The wiki FAQ limits bus-servo current to "5A for long-term operation", which is "up to 5 servos (ensuring that these 5 servos are not stalled simultaneously)". The robot runs 17, but not through this board: since power lite (#207) the servos are powered from power lite's J4–J7, and the General Driver's H5 carries only the data line; see [wiring.md](../../wiring.md#current-measured-budget-issue-77).
 - **QMI8658C output registers.** The datasheet's Motion-on-Demand text cites output registers 0x25–0x3D, while its dQ/dV register map puts them at 0x49–0x56. Trust the silicon, not the sheet (`imu ae` on the CLI).
 
 The connector → net → GPIO map derived from the schematic is in

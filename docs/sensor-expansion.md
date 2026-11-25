@@ -130,7 +130,7 @@ Wi-Fi option gets it for free. The UART tether's beacon is the 31 B frame only.
 ## 5. The constraints that bind
 
 1. **The observation contract.** Tier 1 sensors invalidate trained policies and need a sim model that includes their noise. Tier 3 sensors that feed `cmd` cost nothing on that side.
-2. **Input current.** The whole servo bus crosses the 3 A XH contact and a path that Waveshare rates at 5 A continuous ([wiring.md](wiring.md#current-the-open-constraint)). A 5 V sensor load rides the board's buck and the INA219 shunt instead, so small sensors are not the problem.
+2. **Input current.** Since power lite (#207) the servo bus no longer crosses the General Driver's 3 A XH inlet: the inlet carries only the logic and the Pi, through power lite's F2 (3 A) ([wiring.md](wiring.md#current-measured-budget-issue-77)). A 5 V sensor load rides the board's buck and the INA219 shunt instead, so small sensors are not the problem.
 3. **Volume and mass.** The torso has the Pi bay and the head, and no reserved sensor volume beyond them. Mass above the deck moves the CoM, and the plant and the policy are downstream of that.
 4. **Tick time and the I²C bus.** Anything read inside the tick, or on the IMU's bus, spends the loop's slack.
 5. **Pins and connectors.** The most abundant resource on the board.
