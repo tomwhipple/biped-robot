@@ -8,6 +8,9 @@ and `walk 0.3 -> stop`, so a student is also graded walking under the gain. Ever
     SHAPE_HZ=8 GRADE_XML=bimo_biped_v6legs_meas_sole.xml GRADE_PLANT_TERMS="sag_L=6.4,sag_R=2.9" \
     JAX_PLATFORMS=cpu CUDA_VISIBLE_DEVICES= WORKERS=12 python experiments/policy/x15-margin/grade_gain.py 8 out.json runs
 
+Walking, the robot's servo path reads G ~ 1.0 against this plant and its body path is unmeasured; grade these probes at
+1.25 (bar) and 1.5 (margin): docs/design-v6/2026-11-26-walking-loop-gain.md (walk_gain.py).
+
 First use (ledger "Night of 2026-11-24"): at G=1.5, M1 (prec97) fell 56/56 on all three seeds, L2 (lg13) 38-49/56,
 L1 (lg16) 0-6/56.
 """
