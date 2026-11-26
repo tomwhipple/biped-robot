@@ -889,7 +889,7 @@ uploaded frames are identical in placement with the pause (tests, and the frames
 - The firmware runs the track player on the task that executes the CLI.
 - The plain `imu` read the IMU 51 times to time the read: a ~115 ms stall at every step.
 - `track steps`, `track` and `track add` show up only as the `imu`'s neighbours in the host's per-step order.
-- Branch `fw/cli-no-stall-297` fixes the firmware: `imu` returns the sampler's latest sample, and the timing moves to
+- PR #355 (branch `fw/cli-no-stall-297`; not merged, not yet flashed) fixes the firmware: `imu` returns the sampler's latest sample, and the timing moves to
   `imu time`.
 
 **`--polls-in-ss`** (default off):
@@ -907,7 +907,7 @@ F="--T 4 --ahead 1 --swing-tilt 3 --live"; W="--dir fwd --steps 8 --stride-mm 40
 # 1. old firmware (as flashed): control vs the host flag, alternated C P C P C P
 python experiments/roll-balance/track_host.py $F $W                 --note "stall C fwd"
 python experiments/roll-balance/track_host.py $F $W --polls-in-ss   --note "stall P polls-in-ss fwd"
-# 2. then flash fw/cli-no-stall-297 and run today's defaults: no flag, no pause
+# 2. then flash PR #355 (fw/cli-no-stall-297) and run today's defaults: no flag, no pause
 python experiments/roll-balance/track_host.py $F $W                 --note "stall fw-fix fwd"
 ```
 
@@ -918,7 +918,7 @@ Predictions, read from the flight record (`tip_causes.py`, and the tick gaps aga
   `--td-pause 0.3`.
 - **2:** no gap > 80 ms anywhere. The snap at about 0 % with no pause and no flag.
 - If 1 P still snaps, the stall was not the cause. Stop and re-read the record before flashing.
-- After the flash, check on the bench: `imu` answers with `sample <n> ms old`, and `imu time` prints the read time
+- After the flash of PR #355, check on the bench: `imu` answers with `sample <n> ms old`, and `imu time` prints the read time
   (refused while a track plays).
 
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)

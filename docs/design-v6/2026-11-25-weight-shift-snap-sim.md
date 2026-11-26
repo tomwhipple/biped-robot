@@ -197,7 +197,8 @@ joints catch up with a load spike, and the body rolls.
 
 ## 2026-11-25: the stall's cause and fix
 
-*Code reading and host tests only (night run, no hardware; nothing flashed). Branch `fw/cli-no-stall-297`. Line numbers
+*Code reading and host tests only (night run, no hardware; nothing flashed). The firmware fix is on PR #355 (branch `fw/cli-no-stall-297`), not on `main` and not yet flashed; the
+host flag `--polls-in-ss` is on `main`. Line numbers
 are `origin/main` at 303f52c4 unless marked "new".*
 
 **Cause (verified in the code).** The track player is not in the firmware's control task. It runs on the task that
@@ -230,7 +231,7 @@ re-checked against the record).**
 `takeImu()`. A host's `imu` poll does not stall that loop. It did still race the sampler's fusion. The Round 7 caveat "that
 includes a policy run" does not hold for the tick.
 
-**The fix (new firmware; leave the PR open for the next flash).**
+**The fix (on PR #355, not on `main`, not yet flashed; the items below describe what that branch does).**
 1. Plain `imu` prints the sampler's latest sample (`peekImu`), the one the loop uses, and reads only the ID registers.
    `up`, `gyro`, `bias`, `mount`, `levelled`, `quat` and `projgrav` keep their formats (`track_host.yaw_of_imu`,
    `robot_io.imu`, `board_bridge`). The last line `read ... mean of 50` becomes `sample <n> ms old ...`. No host tool
@@ -248,7 +249,7 @@ the CLI and the loop share one task. Examples are a bus read while a track plays
 to run `poseTick` from its own task, or to give the bench loop an allowlist of fast commands. That is a larger change with
 its own risk, and it is not made here.
 
-**Tests (host).**
+**Tests (host; the firmware ones are on PR #355).**
 - `tests/test_cli_no_stall.py` checks the source for:
   - that the CLI and the loop share the task;
   - that plain `imu` does no read, loop or delay;
@@ -257,8 +258,8 @@ its own risk, and it is not made here.
   - that the socket sends are outside the lock;
   - that the reply still parses with the host tools.
 - On the old source, 4 of these 6 fail. `cli.cpp` builds only under ESP-IDF, so a SIL timing test cannot reach it.
-- `firmware/host/test_wcli.cpp` allows `imu time` over Wi-Fi.
-- `make firmware` and `make firmware POWER_LITE=1` build.
+- `firmware/host/test_wcli.cpp` (PR #355) allows `imu time` over Wi-Fi.
+- On PR #355, `make firmware` and `make firmware POWER_LITE=1` build.
 
 **The host arm, for the old firmware: `track_host.py --polls-in-ss`.** It is opt-in and off by default.
 - The per-step `track steps` and `imu` wait for a planned single support: 60 ms after its lift-off to 300 ms before its
@@ -275,7 +276,7 @@ its own risk, and it is not made here.
    - Predicted: `--polls-in-ss` on about 0 %, with no tick gap > 80 ms in a double support. The sim's `fill` gives
      0 %, and the pause gave 1 of 257 on the robot. The ~115 ms gaps move into the single supports.
    - This settles the mechanism without a flash.
-2. Then the new firmware, no flag, no pause (today's defaults).
+2. Then the new firmware (PR #355, after Tom flashes it), no flag, no pause (today's defaults).
    - Predicted: no tick gap > 80 ms anywhere in the walk.
    - Predicted: the snap share falls to about 0 % without `--td-pause`.
    - `imu time` still answers on the bench and is refused while a track plays.
