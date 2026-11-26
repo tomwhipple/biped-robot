@@ -5,7 +5,16 @@
 # The hook diffs the pushed refs and runs only the gates the change can
 # affect. Inert files -- anything under docs/, *.md, images, PDFs, HTML
 # reports, .github/ and .claude/ -- are read by no gate, so they trigger
-# none: a push of only those runs nothing.
+# none: a push of only those runs nothing. The exception: an inert file that a
+# test reads is NOT inert (2026-11-25: PR #353 changed the port column of
+# docs/servo-map.md, tests/test_current_budget_ports.py parses it, the docs-only
+# push skipped the gates and main went red). A file counts as read when a
+# tests/*.py at the pushed sha names its basename (git grep -F); a generic
+# basename -- README.md, index.md, NOTES.md, or one that more than one tracked
+# file carries -- must also be named together with its parent directory (a
+# root-level generic file: its quoted name). Such a file turns the Python gates
+# on and the hook says which test reads it. Any other doc stays inert, so
+# Tom's rule (2026-10-08) holds: updating an .md file does not trigger the gates.
 # The C/C++ gates ([1], [4]-[9]) run only when the push changes C/C++: a
 # source or header anywhere, anything else under firmware/, or the root
 # .clang-tidy (Tom, 2026-10-06: "the C++ checks should only fire when there
@@ -14,7 +23,8 @@
 # python/sil tests"); the suites read sim/, cad/, tools/, link/, firmware/
 # and experiments/, so any non-inert file triggers them. Without C/C++
 # changes [1] just builds the SIL suite's library. PREPUSH_ALL=1 forces
-# every gate, and so does a push the hook cannot diff (run by hand, a remote
+# every gate (PREPUSH_CLASSIFY_ONLY=1 stops after printing the ON/SKIP lines,
+# for tests/test_prepush_classify.py), and so does a push the hook cannot diff (run by hand, a remote
 # tip it does not have, no merge base with origin/main).
 #
 # Per Tom (2026-09-16): "disable all CI on this project and make it run as a
@@ -92,6 +102,25 @@ is_inert() {
   esac
   return 1
 }
+# doc_readers <sha> <file> <tree>: the tests/*.py at <sha> that read the inert
+# <file> (<tree> = the tracked paths at <sha>), one per line; empty = none.
+doc_readers() {
+  _base="${2##*/}"
+  case "$2" in */*) _dir="${2%/*}"; _dir="${_dir##*/}" ;; *) _dir="" ;; esac
+  _generic=""
+  case "$_base" in README.md|index.md|NOTES.md) _generic=1 ;; esac
+  if [ -z "$_generic" ] && [ "$(printf '%s\n' "$3" | awk -v b="$_base" \
+       '{ n = split($0, a, "/"); if (a[n] == b) c++ } END { print c + 0 }')" -gt 1 ]; then
+    _generic=1
+  fi
+  if [ -z "$_generic" ]; then
+    git grep -l -F -e "$_base" "$1" -- 'tests/*.py' 2>/dev/null
+  elif [ -n "$_dir" ]; then
+    git grep -l --all-match -F -e "$_base" -e "$_dir" "$1" -- 'tests/*.py' 2>/dev/null
+  else
+    git grep -l -F -e "\"$_base\"" "$1" -- 'tests/*.py' 2>/dev/null
+  fi | sed 's/^[^:]*://' | head -3
+}
 is_cpp() {
   case "$1" in
     *.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.hxx|*.ino|firmware/*|.clang-tidy) return 0 ;;
@@ -127,15 +156,22 @@ else
       force="cannot diff $lsha against the remote"
       continue
     fi
+    tree="$(git ls-tree -r --name-only "$lsha" 2>/dev/null)"
     live="$(printf '%s\n' "$names" |
       while IFS= read -r f; do
-        if [ -n "$f" ] && ! is_inert "$f"; then printf '%s\n' "$f"; fi
+        [ -n "$f" ] || continue
+        if ! is_inert "$f"; then printf '%s\n' "$f"; continue; fi
+        readers="$(doc_readers "$lsha" "$f" "$tree" | tr '\n' ' ')"
+        if [ -n "$readers" ]; then
+          echo "pre-push: $f is read by $readers-- Python gates needed" >&2
+          printf '%s\n' "$f"
+        fi
       done)"
     [ -n "$live" ] || continue
     py_files="$py_files$live
 "
     hits="$(printf '%s\n' "$live" |
-      while IFS= read -r f; do if is_cpp "$f"; then printf '%s\n' "$f"; fi; done)"
+      while IFS= read -r f; do if ! is_inert "$f" && is_cpp "$f"; then printf '%s\n' "$f"; fi; done)"
     if [ -n "$hits" ]; then
       cpp_files="$cpp_files$hits
 "
@@ -171,6 +207,8 @@ if [ -n "$py" ]; then
 else
   echo "Python gates: SKIP -- this push changes only docs/, *.md, images, PDFs, HTML, .github/ or .claude/ (PREPUSH_ALL=1 forces them)"
 fi
+
+[ "${PREPUSH_CLASSIFY_ONLY:-0}" = "0" ] || exit 0
 
 echo "== pre-push: making sure everything compiles, links and passes =="
 
