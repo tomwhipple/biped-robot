@@ -434,6 +434,19 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-26 card: night 36 -- x1.5 margin line night 2: D1 (dose 1.45), W2 (L1 warm from L2), W1 (L1 warm from M1) all lose
+# the sidestep right; L2 (1.3) is the margin recipe at the G 1.25 bar; tonight the mirror loss on L2 and L1.
+fig_1126 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec104_walk_sagdr_vol_i86_vref_lg145_s128r24', ['sidestep_R'],
+                 'robot_legs_prec104_walk_sagdr_vol_i86_vref_lg145_s128r24_sidestep_R',
+                 'D1 seed 14, gain randomised over 1.0-1.45: the one seed of nine that still steps right'),
+    video_figure('robot_legs_prec105_walk_sagdr_vol_i86_vref_lg16_il2_s128r24', ['sidestep_R'],
+                 'robot_legs_prec105_walk_sagdr_vol_i86_vref_lg16_il2_s128r24_sidestep_R',
+                 'W2 seed 14: L1 started from the L2 policy, which steps right; after training under 1.0-1.6 it no longer does'),
+    video_figure('robot_legs_prec106_walk_sagdr_vol_i86_vref_lg16_im1_s1_s128r24', ['sidestep_R'],
+                 'robot_legs_prec106_walk_sagdr_vol_i86_vref_lg16_im1_s1_s128r24_sidestep_R',
+                 'W1 seed 15: L1 started from M1, the cleanest under the gain while walking (1-2 falls of 56 at 1.5x), short of the right-step bar'),
+] if f)
 # 2026-11-25 card: night 35 -- x1.5 margin line night 1: loop-gain DR moves the margin (L1 g* 2.0, L2 1.75-2.0), the stand
 # pull does not; under gain 1.5 while walking M1 falls 56/56, L1 0-6/56, but L1 never sidesteps right.
 fig_1125 = "\\n    ".join(f for f in [
@@ -1297,6 +1310,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·26 · night 36: the step to the right does not survive a gain range above 1.3; tonight a symmetry term</span></p>
+    <p><b>Last night tried to keep L1's margin and win back the step to the right</b>, with three arms of three seeds plus an extra.
+    The first used a smaller gain range (1.0-1.45). The second and third trained L1's range starting from the L2 and M1 policies, both of
+    which step right. <b>None passes.</b> All three still stand at 1.5x on every plant and every seed. But only one seed of nine
+    steps right, and none holds more than 12 of the 18 compass headings. The warm starts show that a gain range above about 1.3
+    does not just fail to learn the step to the right: it <b>trains it away</b>, even from a policy that had it.</p>
+    <p><b>A day measurement moves the bar.</b> Replaying 293 robot walks shows that, while walking, the robot's joints answer the
+    policy like the simulation does (gain about 1.0). The 1.5x came from a stand. Walking probes are now graded at 1.25x as the bar
+    and 1.5x as the margin. Every arm and L2 (range 1.0-1.3) are clean at 1.25x, so <b>L2 becomes the margin recipe</b>, and
+    the range stops growing.</p>
+    <p><b>Tonight</b> (night 3, the line's last unless this works) tests why the right step is the one that dies. The policy family
+    has always led sidesteps with the left foot. Two arms add a mirror-symmetry loss, one on L2 (the candidate) and one on L1 (the
+    test of the cause). This is simulation only; the robot is still down. Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1126}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·25 · night 35: randomising the loop gain buys the margin; the cost is the step to the right</span></p>
     <p><b>Last night started the margin line</b> on the foot-placement walk (M1), three arms of three seeds plus an extra. The first two
