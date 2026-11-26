@@ -4273,3 +4273,117 @@ fails (a), (c) and (f), L2 fails (b), and M1 fails (b), (d) and (e).
 - **If none holds:** night 3 tests a stated cause of the side-R loss. The guess is the asymmetric foot-off sag (L 6.4 vs
   R 2.9°): stepping right loads the left stance, which sags more, and the gain amplifies it. By day I will check that guess
   with L1 graded on a mirrored sag before using the night on it.
+
+### Night of 2026-11-25 (evaluated 2026-11-26)
+
+**#263 x1.5 margin line, night 2 of 3. None of the three arms holds. All three lose the sidestep right: dir side R reaches
+<= −0.25 m on 1 of 9 counted seeds. That includes W2, which started from L2's teachers, and those teachers sidestep right. So a
+loop-gain DR of 1.45 or more does not just fail to learn side R from prec86; it unlearns it.** All three keep the x1.5 stand
+(0/8 on plants D, A, B and C, every seed). W1 is the cleanest under the gain while walking (1 – 2 of 56 falls at G 1.5). Nobody
+reaches the compass bar (best 12). Tonight is night 3, the line's last unless its stated cause holds: the mirror loss on L2 and on
+L1. Stride only; get-up stays parked. Nothing here needs Tom: the robot is still down (#297; the firmware fix is PR #355, not
+flashed).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (66d8627 → b05aa88 as main moved; origin verified before every
+job). D1 s3 (seed 17) was capped at 219M of 300M. W1 s3 (seed 17) fitted 100M (< 50 %) and stayed queued. It goes to
+`queue/held/` today (`WHY-1126-prec106-s3-held.txt`) because W1 is closed. **No fixer runs.** The collector was still refereeing
+the last teacher card (W2 seed 14) at 08:50. Every student card exists, and the grading below does not use the teacher cards.
+
+**Merged / branched.** Nothing by me except this record. Main gained the day's #137 checks (`2026-11-26-x15-line-checks.md`:
+not the sag; the loss is in L1's teachers; the left-lead habit), `walk_gain.py` and its record (walking, the robot's joint path
+reads G ≈ 1.0 against plant D; bar 1.25, margin 1.5), `track_host --id-wiggle`/`--polls-in-ss` (#297, #259) and pre-push test
+fixes. None of these changes a default, train_mjx or grade.py, so every comparison stands. #259's latest item names no new
+plant or grade change.
+
+**Grading.** grade.py on main, 8 seeds, SHAPE_HZ=8, on plants D (sag), A, B (play) and C (play + inset sole), plus
+`COMPASS=only` on D, `grade_gain.py` at G 1.25, 1.3 and 1.5 on D, and the stand ladder at x1.6 / 1.75 / 2.0 on D. g\* is
+defined as on 11-24: the first ladder gain with >= 4/8 falls, and 2.0 if none falls at 1.75. Outputs are in `/tmp/plan1126/`,
+with the table script `tab.py`. Controls (L1, L2, M1) are the 11-24 grades (`/tmp/plan1125/`, same grade code).
+
+| student (seed) | fwd / back / side L / **side R** (m), turn L / R (°), G 1.0 | WALKS (dx2.5, G 1.0) | compass held /18 (seed-holds) | x1.5 D/A/B/C | g\* | walk+dir falls /56 at G 1.25 / 1.3 / 1.5 | side R dy at G 1.25 | turn L / R at G 1.3 |
+|---|---|---|---|---|---|---|---|---|
+| D1 prec104_lg145 (14) | +0.58 −0.56 +0.32 **−0.34**, +81 −99 | yes (0.30) | 12 (96) | 0/0/0/0 | 1.75 | 0 / 0 / 10 | −0.40 | +128 −114 |
+| D1 _s1 (15) | +0.56 −0.51 +0.32 **−0.06**, +79 −96 | no (0.29) | 8 (67) | 0/0/0/0 | 2.0 | 0 / 0 / 12 | −0.04 | +118 −107 |
+| D1 _s2 (16) | +0.50 −0.51 +0.35 **−0.09**, +71 −96 | no (0.26) | 11 (86) | 0/0/0/0 | 1.75 | 0 / 3 / 20 | −0.10 | +100 −102 |
+| D1 _s3 (17, 219M, extra) | +0.47 −0.52 +0.04 **−0.12**, +85 −92 | no (0.24) | 6 (51) | 0/0/0/0 | 2.0 | 6 / 8 / 8 | −0.27 | +125 −99 |
+| W2 prec105_lg16_il2 (14) | +0.53 −0.56 +0.32 **−0.05**, +86 −64 | no (0.25) | 8 (66) | 0/0/0/0 | 2.0 | 7 / 7 / 4 | −0.05 | +120 −107 |
+| W2 _s1 (15) | +0.41 −0.58 +0.24 **−0.11**, +62 −96 | no (0.25) | 10 (82) | 0/0/0/0 | 2.0 | 0 / 0 / 2 | −0.13 | +111 −98 |
+| W2 _s2 (16) | +0.07 −0.69 +0.29 **−0.05**, +73 −46 | no (0.12) | 3 (27) | 0/0/0/0 | 2.0 | 8 / 6 / 11 | −0.06 | +111 −58 |
+| W2 _s3 (17, extra) | +0.24 −0.51 +0.33 **−0.04**, +70 −41 | no (0.20) | 8 (63) | 0/0/0/0 | 2.0 | 3 / 6 / 7 | −0.02 | +106 −62 |
+| W1 prec106_lg16_im1 (14) | +0.46 −0.54 +0.32 **−0.05**, +71 −98 | no (0.23) | 6 (50) | 0/0/0/0 | 2.0 | 0 / 0 / 2 | −0.02 | +109 −92 |
+| W1 _s1 (15) | +0.47 −0.50 +0.23 **−0.22**, +69 −104 | no (0.29) | 9 (69) | 0/0/0/0 | 1.75 | 2 / 2 / 1 | −0.33 | +101 −116 |
+| W1 _s2 (16) | +0.46 −0.59 +0.31 **−0.12**, +74 −68 | no (0.24) | 9 (77) | 0/0/0/0 | 2.0 | 0 / 0 / 2 | −0.16 | +116 −95 |
+| L1 prec101_lg16 (14 / 15 / 16, control) | side R −0.04 / −0.05 / −0.08 | no | 11 / 9 / 9 | 0/0/0/0 | 2.0 ×3 | – / 0, 0, 0 / 3, 6, 0 | −0.03 / −0.04 / −0.04 | +102 −65, +101 −118, +108 −65 |
+| L2 prec102_lg13 (14 / 15 / 16, control) | side R −0.39 / −0.40 / −0.10 | yes ×3 | 17 / 15 / 13 | 0/2/2, 0/8/8, 0/3/1 (D/B/C) | 1.75 / 2.0 / 2.0 | 0, 0, 2 / 10, 3, 9 / 45, 49, 38 | −0.41 / −0.42 / −0.13 | +138 −101, +112 −124, +134 −112 |
+
+No student falls on a dir probe at G 1.0, and stand_10s is 8/8 on every card. Distil gap (card seed-passes of 160, teacher →
+student): D1 +5, 0, −3, +1; W2 (s14 teacher card pending), 0, 0, +1; W1 −1, +2, +4. The distil is not the limit.
+
+**The pre-committed test** (11-25; plant D; an arm holds if >= 2 of seeds 14 – 16 meet all of (a) – (f)):
+
+| | (a) side R <= −0.25, 0 falls | (b) <= 8/56 at G 1.5 | (c) WALKS at G 1.0 and 1.3 | (d) x1.5 <= 2/8 | (e) turn >= 90° at G 1.3 | (f) compass >= 14 |
+|---|---|---|---|---|---|---|
+| D1 (dose 1.45) | 1 of 3 | 0 of 3 | 1 of 3 | 3 of 3 | 3 of 3 | 0 of 3 |
+| W2 (L1 warm from L2) | 0 of 3 | 2 of 3 | 0 of 3 | 3 of 3 | 2 of 3 | 0 of 3 |
+| W1 (L1 warm from M1) | 0 of 3 | 3 of 3 | 0 of 3 | 3 of 3 | 3 of 3 | 0 of 3 |
+
+**None holds.** The pre-committed branch is "night 3 tests a stated cause of the side-R loss". The cause guessed on 11-25 (the
+asymmetric foot-off sag) was ruled out by day: mirroring, removing or symmetrising the sag moves L1's side R by <= 0.05 m
+(`2026-11-26-x15-line-checks.md` §1). The day's §4 names the remaining cause.
+
+**What the night adds.**
+- **The gain DR unlearns the sidestep right, it does not just miss it.** W2's teachers started from L2's, which step right at
+  −0.39 / −0.40 / −0.10, and end at −0.05 / −0.11 / −0.05. W1 starts from M1 (−0.45 / −0.41 / −0.45) and ends at −0.05 /
+  −0.22 / −0.12. Under a gain DR up to 1.6, both lose it in 300M steps.
+- **The dose threshold sits between 1.3 and 1.45.** D1 (1.45) keeps side R on 1 of 4 seeds, L2 (1.3) on 3 of 4. D1 also
+  falls more while walking under G 1.5 (10 – 20 of 56) than L1 (0 – 6), so it is not a useful midpoint.
+- **Every arm is clean at G 1.25,** the bar the day's measurement supports. D1 0 / 0 / 0, W1 0 / 2 / 0, W2 7 / 0 / 8, where W2
+  falls on `back` only. The G 1.5 differences are about margin, not the bar.
+- **Every arm costs compass at G 1.0:** 3 – 12 held, against L2's 13 – 17 and M1's 16 – 18.
+
+**Decision (rule 0 and rule 4, mine).** The margin line has run two nights (11-24, 11-25) and tonight is its third. It has shown:
+- the loop-gain DR moves the x1.5 stand margin (g\* 1.75 – 2.0 on every dose, against M1's 1.5 – 1.7);
+- any dose of 1.45 or more costs the sidestep right on most seeds, even from a start that has it;
+- the robot's measured walking gain (joint path ≈ 1.0, bar 1.25) does not need more than L2's 1.3.
+
+So I stop raising the dose. **L2 (`--loop-gain-range 1.0,1.3`) is the line's margin recipe from today:** clean at G 1.25 on
+4/4 seeds, side R on 3/4, x1.5 0/8 on D on 4/4. Its open costs are side R on some seeds and compass at G 1.0. Tonight is the
+one more night rule 4 allows, testing the stated cause from §4 of the day's checks: the lineage's left-lead sidestep habit,
+which the gain DR exposes. Its fix is a symmetry term.
+- **X2 = L2 + `--w-mirror-loss 1.0`** (prec107). This is the candidate arm: it should keep side R on every seed and win back
+  compass.
+- **X1 = L1 + `--w-mirror-loss 1.0`** (prec108). This is the falsifier: if the habit is the cause, the mirror loss restores side
+  R even at dose 1.6.
+- Both add `--num-evals 12`, which changes only the evaluation count; pre-flight refuses a mirror-loss job at 16 or more evals
+  (fixer history on prec28 and prec71).
+- Only two arms, because the night tests one stated cause. Seeds 17 – 19 are extra replicates (not counted). The mirror loss
+  has a mixed record: it held on prec20 and prec33, and prec71's march went one-sided.
+- From today walking probes are graded at G 1.25 as the bar and G 1.5 as the margin (the day's `walk_gain.py` record). This is
+  pre-committed below, before tonight's results, unlike the 11-25 bar.
+- `fallback.job` stays L2 (seed 23): it is the line's recipe.
+
+**Tonight (2026-11-26; queued, BRANCH=main, 300M + distil each, interleaved X2 → X1 per seed; seeds 14 – 16 counted, 17 – 19
+extra):**
+
+| arm | runs | parent | variable | hypothesis |
+|---|---|---|---|---|
+| X2 | prec107_walk_sagdr_vol_i86_vref_lg13_mir (+ _s1, _s2; _s3 – _s5) | L2 | `--w-mirror-loss 1.0` (+ `--num-evals 12`) | side R on every seed, compass back toward M1, G 1.25 still clean |
+| X1 | prec108_walk_sagdr_vol_i86_vref_lg16_mir (+ …) | L1 | `--w-mirror-loss 1.0` (+ `--num-evals 12`) | the habit is the cause: side R comes back at L1's margin |
+
+12 pairs; about 10.5 fit, so the last extras may stay queued. Pre-flight passed 24/24.
+
+**Pre-committed** (plant D; grade.py, `COMPASS=only`, `grade_gain.py` at 1.25 and 1.5, the stand ladder). An arm holds if, in
+>= 2 of seeds 14 – 16, its student meets all of these:
+- (a) side R <= −0.25 m and side L >= +0.25 m, 0 falls, at G 1.0;
+- (b) <= 4/56 walk + dir falls at G 1.25;
+- (c) WALKS at G 1.0;
+- (d) x1.5 stand <= 2/8 and g\* >= 1.75;
+- (e) turn L / R >= 90° at G 1.25;
+- (f) compass >= 14.
+
+Report G 1.5 falls beside them as the margin. **Kill**, for either arm: side R >= −0.10 on 2 or more counted seeds.
+- **If X2 holds:** it is the recipe. Next night it gets the stand band (`--cmd-stand-band 0.0005`) and a deploy candidate is cut,
+  with the C-plant check and the gain probes, ready for when the robot is back (#297).
+- **If only X1 holds:** the mirror loss is the fix. Next night it goes on L2's dose, which is X2's recipe, at more seeds.
+- **If neither holds:** the margin line is parked at L2, with its side-R seed variance as a known cost. The next night goes to the
+  milestone order (#261 march, then stride) on L2's recipe, not to more margin variables.
