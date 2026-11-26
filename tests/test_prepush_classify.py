@@ -22,9 +22,15 @@ LONE_README = "zz_nobody_mentions/READ" + "ME.md"
 TD_README = "READ" + "ME.md"          # test_td_pause reads the root one
 
 
+# Run from inside the pre-push hook, git exports GIT_DIR (and friends) pointing at the
+# pushing worktree; inherited, they would make every command below act on that worktree
+# (commit, reset --hard) instead of the throwaway clone. Strip them all.
+ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def git(cwd, *args):
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True,
-                          text=True).stdout.strip()
+                          text=True, env=ENV).stdout.strip()
 
 
 @pytest.fixture(scope="module")
@@ -34,11 +40,13 @@ def clone(tmp_path_factory):
     git(d, "checkout", "-q", "--detach", git(ROOT, "rev-parse", "HEAD"))
     git(d, "config", "user.email", "t@example.com")
     git(d, "config", "user.name", "t")
+    assert os.path.realpath(git(d, "rev-parse", "--show-toplevel")) == os.path.realpath(d)
     return d
 
 
 def classify(clone, path):
     """Commit a one-line edit of <path> on top of HEAD; return the hook's ON/SKIP output."""
+    assert os.path.realpath(git(clone, "rev-parse", "--show-toplevel")) == os.path.realpath(clone)
     base = git(clone, "rev-parse", "HEAD")
     full = os.path.join(clone, path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
@@ -50,7 +58,7 @@ def classify(clone, path):
     try:
         p = subprocess.run(["sh", HOOK], cwd=clone, capture_output=True, text=True,
                            input=f"refs/heads/x {sha} refs/heads/x {base}\n",
-                           env={**os.environ, "PREPUSH_CLASSIFY_ONLY": "1", "PREPUSH_ALL": "0"})
+                           env={**ENV, "PREPUSH_CLASSIFY_ONLY": "1", "PREPUSH_ALL": "0"})
     finally:
         git(clone, "reset", "-q", "--hard", base)
     assert p.returncode == 0, p.stderr
