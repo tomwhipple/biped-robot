@@ -133,6 +133,24 @@ is why the raw robot readings above are larger than the G they match.
 - **The selftest applies the law to the written goals** (after the shaper), whereas grade applies it to the actions
   (before the shaper). Both are a gain above ~0.3 Hz.
 
+## Next
+
+**The body path on the robot.** `track_host.py --id-wiggle 1.0:roll` adds a known 1° multisine (1.07-2.87 Hz) to the
+hip- and ankle-roll goals in every double support. `wiggle_gain.py robot` reads the torso's response against it.
+
+The sim check (`experiments/policy/x15-margin/wiggle_gain_simcheck.md`) puts that excitation on the 11-12..16 walks
+with the robot's own body motion as the noise. It reads a known G = 1.0 / 1.25 / 1.5 as:
+
+| channel | reading at G 1.0 / 1.25 / 1.5 | coherence |
+|---|---|---|
+| torso roll | 1.03 / 1.31 / 1.59 | 0.40-0.58 (the walks' double supports: 0.14) |
+| yaw rate (yaw channel) | 1.02 / 1.40 / 1.75 | 0.50-0.69 |
+| pitch (pitch channel) | 0.94 / 1.24 / 1.57 | 0.13-0.27 |
+
+Six 8-step walks separate 1.0, 1.25 and 1.5 in roll. 0.5° does not. The robot command and the predictions are in
+[experiments/roll-balance/README.md](../../experiments/roll-balance/README.md#the-body-paths-loop-gain---id-wiggle-amp_degchannel-host-only-default-off-259-137):
+a later, optional run after the #297 sequence.
+
 ## Reproduce
 
 ```bash

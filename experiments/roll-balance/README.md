@@ -921,6 +921,69 @@ Predictions, read from the flight record (`tip_causes.py`, and the tick gaps aga
 - After the flash of PR #355, check on the bench: `imu` answers with `sample <n> ms old`, and `imu time` prints the read time
   (refused while a track plays).
 
+## The body path's loop gain: `--id-wiggle AMP_DEG[:CHANNEL]` (host only, default off; #259, #137)
+
+What it is for: the walks read the robot's joints at G = 1.00 against the x1.5 grade plant, but not its body: the
+torso's roll / pitch / yaw against the goals is buried under the robot's own motion
+([the record](../../docs/design-v6/2026-11-26-walking-loop-gain.md)). A small known excitation in the goals pins it.
+
+**`--id-wiggle 1.0:roll`** (default off: the frames are byte for byte today's):
+- A zero-mean multisine, lines 1.07 / 1.63 / 2.29 / 2.87 Hz, phases from `--id-seed` (default 1), on one joint channel's
+  goal ticks. It goes into the `track add` frames, so the firmware plays it like the gait (no firmware change).
+- Only in the double supports: from the step end frame (0.1 s after a touchdown) to 0.4 s before the lift gate frame,
+  raised-cosine ramps of 0.25 s in and out. Single supports, rest frames and the gate frames are untouched.
+- Each double support uses the full amplitude: the played goal offset (Catmull-Rom between frames) stays within
+  AMP_DEG, its ticks sum to 0 per double support. AMP_DEG above 1.0 is refused, and so are `--cmd` and `--model sway`.
+- Channels: `roll` (default) = hip roll and ankle roll together, both legs: the legs lean and the pelvis rolls on them,
+  which the planted feet take up in the servos and soles. `yaw` = both hip yaws together. `pitch` = hip pitch against
+  ankle pitch: the pelvis fore-aft.
+- The run's log carries all of it (`id_wiggle` in its first row and in the summary: seed, lines, phases, windows and
+  the ticks added at every keyframe). The dry run prints one `id wiggle:` line.
+
+The sim check (`experiments/policy/x15-margin/wiggle_gain.py simcheck`, `wiggle_gain_simcheck.md`):
+- Setup: the excitation on 47 recorded track walks' goals (361 double supports). The stand-in robot is the real
+  robot's record plus the plant's response to the excitation at a known G, so the noise is the robot's own.
+- At 1.0 deg it reads G = 1.0 / 1.25 / 1.5 as:
+  - torso roll: 1.03 / 1.31 / 1.59, coherence 0.40-0.58;
+  - yaw rate: 1.02 / 1.40 / 1.75, coherence 0.50-0.69;
+  - pitch: 0.94 / 1.24 / 1.57, coherence 0.13-0.27.
+- The track walks' own double supports gave 0.14 in roll and under 0.1 in pitch and yaw.
+- The readings run above G, as in `walk_gain.py`'s selftest: the servos' deadband makes the sub-degree response
+  superlinear. Read them through that table.
+- Session size: 54 double supports (six 8-step walks) separate 1.0, 1.25 and 1.5 in roll (5-95 % of the reading:
+  0.96-1.10 / 1.23-1.37 / 1.49-1.67). In yaw, 18 (two walks) are enough.
+- 0.5 deg does not separate them in roll (coherence 0.12).
+- The `robot` command's own path (aligning the logged excitation to the written goals, from a start 0.4 s off) reads
+  the same: 1.32 in roll at G 1.25 on 12 of the walks.
+- Gate: in the plant the excitation's own roll rate at the gate frame is under 2.3 deg/s (the gate holds above 15).
+  The torso roll is ±1 deg at most.
+
+**On the robot** (a later, optional run, after the #297 sequence above: on the fixed firmware, or with
+`--polls-in-ss` on the old one, so no stall interrupts a double support). The same walk as above, 6 runs in roll
+(9 double supports each), then 2 in yaw, a new seed each:
+
+```
+F="--T 4 --ahead 1 --swing-tilt 3 --live"; W="--dir fwd --steps 8 --stride-mm 40"
+for s in 1 2 3 4 5 6; do
+  python experiments/roll-balance/track_host.py $F $W --id-wiggle 1.0:roll --id-seed $s --note "id-wiggle roll s$s"
+done
+for s in 7 8; do
+  python experiments/roll-balance/track_host.py $F $W --id-wiggle 1.0:yaw --id-seed $s --note "id-wiggle yaw s$s"
+done
+# read (CPU, JAX_PLATFORMS=cpu): the roll runs' logs together, then the yaw runs'
+python experiments/policy/x15-margin/wiggle_gain.py robot --log experiments/roll-balance/results/track_<stamp>.jsonl --log ...
+```
+
+Predictions:
+- The walks look like today's. The lift gate holds no more often than without the flag.
+- The `robot` reading in torso roll and roll rate maps to G through the table above:
+  - about 1.0: the body answers the goals as the plant's does (G about 1);
+  - about 1.3: like the plant at 1.25;
+  - about 1.6: like the plant at 1.5.
+- Each run's line reports the alignment's correlation and fitted amplitude near 1. If not, the written goals do
+  not carry the logged excitation (a stall, a refused line): stop and look at the record.
+- A run that ends early (stop rule, gate timeout) still counts, up to where it ended.
+
 ## A quick single support: explicit phase times (`--ss-s`, `--shift-s`, `--raise-s`, `--move-s`, `--lower-s`, `--allow-under`; host only)
 
 The step is `[td-pause] + shift + settle + single support`. Today's T-based `dwell.SCHEDULE` stays the default; giving

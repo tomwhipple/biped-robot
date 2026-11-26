@@ -22,6 +22,7 @@ the host treats as a stop, not a fall. Each TS line of a gated step ends with ` 
 
     python track_host.py --T 4 --dir march --steps 6              # dry run: what would be sent
     python track_host.py --T 4 --dir march --steps 6 --live       # on the robot (Stage C only)
+    python track_host.py --T 4 --dir march --steps 6 --id-wiggle 1.0:roll   # + the identification excitation (#259)
 """
 from __future__ import annotations
 
@@ -71,6 +72,199 @@ def lines_for(frames):
         chunk = frames[i:i + PER_LINE]
         out.append((chunk[-1][0], "track add " + " ".join(h for _, h, _ in chunk)))
     return out
+
+
+# --id-wiggle (#259, #137): a small, known, zero-mean multisine on the goals of one joint channel, in the double supports
+# only, for identifying the body path's loop gain while walking (experiments/policy/x15-margin/wiggle_gain.py; record
+# docs/design-v6/2026-11-26-walking-loop-gain.md). It is added to the frames' goal ticks, so the firmware plays it as it
+# plays the gait (Catmull-Rom between the 10 Hz keyframes); nothing changes on the robot. Off: the frames are untouched.
+# The channels: per joint the sign of the offset (joint convention, rad) for +1 of the signal, with both feet down:
+#   roll   hip roll and ankle roll together, both legs: the legs lean one way and the pelvis rolls on them. The feet are
+#          planted, so the servos and the soles take it up: the roll chain's compliance, where the stands' 1.25-1.5 came
+#          from (the plant's torso rolls ~0.6 deg per deg at 0.5-3 Hz; + = the right side down).
+#   pitch  hip pitch and ankle pitch opposite: the pelvis fore-aft (+1 deg = ~3.5 mm forward), the torso level.
+#   yaw    both hip yaws together: the pelvis turns over the planted feet.
+# (The pelvis sideways and level -- hip and ankle roll opposite -- moves the torso's roll too little to read: the
+# simcheck's coherence 0.03 at 1 deg, against 0.40 for `roll`.)
+WIGGLE_JOINTS = {"roll": {"L_hip_roll": -1, "L_ankle_roll": -1, "R_hip_roll": -1, "R_ankle_roll": -1},
+                 "pitch": {"L_hip_pitch": 1, "L_ankle": -1, "R_hip_pitch": 1, "R_ankle": -1},
+                 "yaw": {"L_hip_yaw": 1, "R_hip_yaw": 1}}
+WIGGLE_MAX_DEG = 1.0         # refused above: the excitation must stay small next to the gait (the record's +-0.5-1 deg)
+# Hz: the 1-3 Hz band where the stands read 1.25-1.5 (10 Hz keyframes carry it). Unequal spacing: no shifted copy of the
+# sum looks like itself (the alignment); no common period with the 4 s steps: every double support gets a new piece.
+WIGGLE_FREQS = (1.07, 1.63, 2.29, 2.87)
+WIGGLE_RAMP_S = 0.25         # raised-cosine ramp in and out: the offset and its rate are 0 at both ends of a window
+WIGGLE_PRE_S = 0.0           # s after a step end frame (both feet down, 0.1 s past the touchdown) the window opens
+WIGGLE_POST_S = 0.4          # s before the lift gate frame it closes: the body is quiet again when the gate looks
+TICKS_PER_DEG = 4096 / 360.0
+
+
+def parse_wiggle(txt):
+    """'AMP_DEG[:CHANNEL]' -> (amp_deg, channel). Refuses an amplitude outside (0, WIGGLE_MAX_DEG] or an unknown
+    channel (ValueError)."""
+    amp_s, _, ch = str(txt).partition(":")
+    ch = ch.strip() or "roll"
+    try:
+        amp = float(amp_s)
+    except ValueError:
+        raise ValueError(f"--id-wiggle wants AMP_DEG[:CHANNEL], got {txt!r}") from None
+    if not (0.0 < amp <= WIGGLE_MAX_DEG + 1e-9):
+        raise ValueError(f"--id-wiggle amplitude {amp:g} deg: want > 0 and <= {WIGGLE_MAX_DEG:g} deg")
+    if ch not in WIGGLE_JOINTS:
+        raise ValueError(f"--id-wiggle channel {ch!r}: want one of {', '.join(WIGGLE_JOINTS)}")
+    return amp, ch
+
+
+def wiggle_spec(amp_deg, channel="roll", seed=1, freqs=WIGGLE_FREQS, ramp_s=WIGGLE_RAMP_S, pre_s=WIGGLE_PRE_S,
+                post_s=WIGGLE_POST_S):
+    """The excitation's definition (all of it goes into the run's log): the multisine's phases come from the seed."""
+    import numpy as np
+    if not (0.0 < amp_deg <= WIGGLE_MAX_DEG + 1e-9):
+        raise ValueError(f"--id-wiggle amplitude {amp_deg:g} deg: want > 0 and <= {WIGGLE_MAX_DEG:g} deg")
+    ph = np.random.default_rng(int(seed)).uniform(0.0, 2 * math.pi, len(freqs))
+    return dict(amp_deg=float(amp_deg), channel=channel, joints=dict(WIGGLE_JOINTS[channel]), seed=int(seed),
+                freqs_hz=[float(f) for f in freqs], phases_rad=[round(float(p), 6) for p in ph], ramp_s=float(ramp_s),
+                pre_s=float(pre_s), post_s=float(post_s))
+
+
+def catmull_play(t_ms, v, tick_ms=20.0):
+    """What the firmware's track player makes of keyframe values v at times t_ms (gaitplay/track.cpp: Catmull-Rom on
+    the values between the bracketing frames, the outer neighbours clamped at the ends) -> (ticks' times, values)."""
+    import numpy as np
+    t = np.asarray(t_ms, float)
+    v = np.asarray(v, float)
+    tt = np.arange(t[0], t[-1] + 1e-9, tick_ms)
+    i = np.clip(np.searchsorted(t, tt, side="right") - 1, 0, len(t) - 2)
+    p0, p1, p2 = v[np.maximum(i - 1, 0)], v[i], v[i + 1]
+    p3 = v[np.minimum(i + 2, len(v) - 1)]
+    u = (tt - t[i]) / np.maximum(t[i + 1] - t[i], 1e-9)
+    out = 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u ** 2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u ** 3)
+    return tt, out
+
+
+def wiggle_windows(sw, frames, spec):
+    """The double supports the excitation may use, track ms [(a, b)]: from the step end frame after a touchdown (the
+    walk's first: from the first frame) to `post_s` before the last frame at or before the next lift-off (the lift
+    gate's frame), opened `pre_s` late. Only the double supports before a lift-off: the last one ends the track."""
+    kf = [tm for tm, _, kind in frames if kind == "kf"]
+    ends = [1e3 * (te - sw.t_first) for te in sw.step_ends]
+    out = []
+    for k, p_ in enumerate(sw.phases):
+        lo = 1e3 * (p_["t0"] - sw.t_first)
+        gate = max([tm for tm in kf if tm <= lo + 1e-6], default=None)
+        start = kf[0] if k == 0 else next((e for e in ends if e >= 1e3 * (sw.phases[k - 1]["t1"] - sw.t_first) - 1e-6),
+                                         None)
+        if gate is None or start is None:
+            continue
+        a, b = start + 1e3 * spec["pre_s"], gate - 1e3 * spec["post_s"]
+        if b - a >= 2e3 * spec["ramp_s"] + 100.0:        # room for both ramps and a frame at full amplitude
+            out.append((a, b))
+    return out
+
+
+def wiggle_signal(t_ms, windows, spec):
+    """The excitation before scaling at times t_ms (track ms; numpy array): inside a window (a, b) the multisine
+    sum_k cos(2 pi f_k t + phi_k) less its envelope-weighted mean over the window's samples, times a raised-cosine
+    envelope (0 -> 1 over ramp_s, 1 -> 0 over the last ramp_s); 0 outside every window. Each window's samples sum to 0."""
+    import numpy as np
+    t = np.asarray(t_ms, float)
+    out = np.zeros(len(t))
+    ts = t / 1e3
+    s = sum(np.cos(2 * math.pi * f * ts + p) for f, p in zip(spec["freqs_hz"], spec["phases_rad"]))
+    r = 1e3 * spec["ramp_s"]
+    for a, b in windows:
+        m = (t >= a - 1e-6) & (t <= b + 1e-6)
+        if not m.any():
+            continue
+        x = t[m]
+        w = np.ones(len(x))
+        up, dn = x < a + r, x > b - r
+        w[up] = 0.5 * (1 - np.cos(math.pi * (x[up] - a) / r))
+        w[dn] = 0.5 * (1 - np.cos(math.pi * (b - x[dn]) / r))
+        c = float(np.sum(w * s[m]) / max(np.sum(w), 1e-12))
+        out[m] = w * (s[m] - c)
+    return out
+
+
+def _zero_sum(n, x, cap):
+    """Make the integer ticks n (the rounding of x) sum to 0: one tick off the samples whose rounding went furthest in
+    the direction of the excess (largest remainder), within +-cap."""
+    import numpy as np
+    d = int(n.sum())
+    sg = int(np.sign(d))
+    for i in np.argsort(-sg * (n - x)):
+        if d == 0:
+            break
+        if n[i] != 0 and abs(n[i] - sg) <= cap:
+            n[i] -= sg
+            d -= sg
+    return n
+
+
+def wiggle_ticks(t_ms, windows, spec):
+    """The excitation per keyframe in encoder ticks (int; 1 tick = 360/4096 deg), for keyframe times t_ms: each window's
+    signal scaled as far as the cap allows -- the firmware's playback of the sent ticks (Catmull-Rom between the frames)
+    stays within floor(amp_deg x 4096 / 360) ticks everywhere -- rounded, and made to sum to exactly 0 over the window.
+    -> (ticks, [scale deg per signal unit, per window])."""
+    import numpy as np
+    t = np.asarray(t_ms, float)
+    raw = wiggle_signal(t, windows, spec)
+    cap = int(math.floor(spec["amp_deg"] * TICKS_PER_DEG + 1e-9))
+    n = np.zeros(len(t), int)
+    scales = []
+    for a, b in windows:
+        m = (t >= a - 1e-6) & (t <= b + 1e-6)
+        _, play = catmull_play(t, np.where(m, raw, 0.0))
+        pk = float(np.max(np.abs(play))) if len(play) else 0.0
+        if pk <= 0.0:
+            scales.append(0.0)
+            continue
+        target = float(cap)
+        while True:
+            x = raw[m] * target / pk
+            nw = _zero_sum(np.clip(np.round(x), -cap, cap).astype(int), x, cap)
+            _, pl_ = catmull_play(t, _scatter(len(t), m, nw))
+            if np.max(np.abs(pl_)) <= cap + 1e-9 or target <= 1.0:
+                break
+            target -= 0.25
+        n[m] = nw
+        scales.append(target / pk / TICKS_PER_DEG)
+    return n, scales
+
+
+def _scatter(size, m, v):
+    import numpy as np
+    out = np.zeros(size)
+    out[m] = v
+    return out
+
+
+def apply_wiggle(sw, frames, spec, cal=None):
+    """The frames with the excitation added to the channel's joints' goal ticks (kf frames inside a window only; the
+    rest frames and every other field untouched) and the excitation's log: the spec, the windows, the scale and per
+    keyframe with an offset [t_ms, ticks] (the offset in deg is ticks x 360 / 4096, times the joint's sign)."""
+    kf_i = [i for i, f in enumerate(frames) if f[2] == "kf"]
+    t = [frames[i][0] for i in kf_i]
+    win = wiggle_windows(sw, frames, spec)
+    n, scales = wiggle_ticks(t, win, spec)
+    c = cal or G.CAL
+    out = list(frames)
+    rows = []
+    for i, nk in zip(kf_i, n):
+        if not nk:
+            continue
+        tm, hx, kind = frames[i]
+        body = list(hx[6:])
+        for name, sg in spec["joints"].items():
+            j = G.LEG.index(name)
+            v = int(hx[6 + 3 * j: 9 + 3 * j], 16) + sg * c[name][1] * int(nk)
+            body[3 * j: 3 * j + 3] = f"{max(0, min(4095, v)):03x}"
+        out[i] = (tm, hx[:6] + "".join(body), kind)
+        rows.append([int(tm), int(nk)])
+    log = dict(spec, windows_ms=[[round(a, 1), round(b, 1)] for a, b in win], scale_deg=[round(x, 6) for x in scales],
+               ticks_per_deg=TICKS_PER_DEG, frames=rows,
+               excited_s=round(sum(b - a for a, b in win) / 1e3, 2))
+    return out, log
 
 
 # Per-step commands (dx mm forward, dy mm left, dyaw deg heading change): the --dir presets are the fixed ones in
@@ -210,7 +404,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
          k_ds=None, ankle_steps=None, cmd=None, seq=None, drop=None, swing_tilt=0.0, lift_gate=False,
          step_cmds=None, ankle_side=None, first_boost=0.0, drift_side=None, td_pause=0.0, settle=None,
          lower_frac=None, land_early=0.0, ss_s=None, shift_s=None, raise_s=None, move_s=None, lower_s=None, pre_hike=None,
-         pre_hike_frac=1.0, moving_lift=None):
+         pre_hike_frac=1.0, moving_lift=None, id_wiggle=None):
     """ankle_side (L, R) / first_boost: the by-step ankle feed-forward (ankle_extra; with ankle_steps the learner's values
     stay as given and the extra is added in the plan only); a step_cmds command's "aff_x" is its extra (cmd_walk.py
     decides it from the step's absolute index). drift_side (L, R): the heading drift of a sideL / sideR step
@@ -223,7 +417,9 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
     step_cmds: one command per step, used as given (cmd_walk.py, the --cmd mode: no closing step is inserted at a
     reversal -- the walk decides that itself); a command's "tilt" is that step's swing tilt (swing_tilt is then the
     default of the steps without one), "yaw_free" leaves the heading trim off that step.
-    moving_lift (dwell, s): the lift-off this long before the shift ends, no settle (dwell.Dwell); None / 0 = today's frames."""
+    moving_lift (dwell, s): the lift-off this long before the shift ends, no settle (dwell.Dwell); None / 0 = today's frames.
+    id_wiggle (dwell): a wiggle_spec(): the identification excitation added to the frames' goals in the double
+    supports (apply_wiggle; the plan's "wiggle" is its log); None = the frames untouched."""
     gkw = {}
     tilt_arg = swing_tilt
     if amp[1] is None:
@@ -294,6 +490,11 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
         raise ValueError("--step / --seq / --stride-mm need the dwell model")
     sw, fr = G.gait(T_step, n_steps, first=first, cal=cal, kL=amp[0], kR=amp[1], model=model,
                     lift_gate=lift_gate and model == "dwell", **dkw, **gkw)
+    wlog = None
+    if id_wiggle:
+        if model != "dwell":
+            raise ValueError("--id-wiggle needs the dwell model")
+        fr, wlog = apply_wiggle(sw, fr, id_wiggle, cal)
     if pre_hike is not None and any(pre_hike):
         seeds = tuple(0.0 if h_ else v_ for v_, h_ in zip(seeds, pre_hike))        # the plan carries the hike: T there is 0
     pre = [f"trim T L {seeds[0]:g}", f"trim T R {seeds[1]:g}", "track clear"]
@@ -303,6 +504,7 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
         dpsi = [PRESET_DPSI.get(direction, 0.0)] * n_steps
     return dict(sway=sw, frames=fr, pre=pre, adds=lines_for(fr), play=f"track play {int(lead_ms)}",
                 duration_s=fr[-1][0] / 1e3, cal=cal, amp=amp, model=model, cmds=cmds, dpsi=dpsi,
+                **({"wiggle": wlog} if wlog is not None else {}),
                 args=dict(T_step=T_step, n_steps=n_steps, direction=direction, seeds=seeds, lead_ms=lead_ms, cal=cal,
                           first=first, amp=amp, model=model, ds=ds, h=h, pelvis_x=pelvis_x, ankle_ff=tuple(ankle_ff),
                           k_ds=tuple(k_ds) if k_ds else None,
@@ -314,7 +516,8 @@ def plan(T_step, n_steps, direction, seeds=ROBOT_SEED, lead_ms=2500, cal=None, f
                           td_pause=td_pause, settle=settle, lower_frac=lower_frac, land_early=land_early,
                           ss_s=ss_s, shift_s=shift_s, raise_s=raise_s, move_s=move_s, lower_s=lower_s,
                           pre_hike=tuple(pre_hike) if pre_hike is not None else None, pre_hike_frac=pre_hike_frac,
-                          **({"moving_lift": moving_lift} if moving_lift else {})))
+                          **({"moving_lift": moving_lift} if moving_lift else {}),
+                          **({"id_wiggle": id_wiggle} if id_wiggle else {})))
 
 
 def sil_step_kw(cmd=None, seq=None, first="R", yaw_trim=YAW_TRIM):
@@ -934,6 +1137,12 @@ def dry(pl, a):
           f"{(1e3 / (G.KF_S * 1e3) / PER_LINE) * a.ms_per_line / 10:.0f} % of the link at that rate")
     print(f"queue: at most ~{int(ahead_ms / (G.KF_S * 1e3)) + 2 * PER_LINE} of 128 frames held "
           f"({ahead_ms / 1e3:.1f} s ahead)")
+    wl = pl.get("wiggle")
+    if wl is not None:
+        print(f"id wiggle: {wl['amp_deg']:g} deg on {wl['channel']} ({', '.join(f'{n} {v:+d}' for n, v in wl['joints'].items())}), "
+              f"lines {', '.join(f'{f:g}' for f in wl['freqs_hz'])} Hz, seed {wl['seed']}; {len(wl['windows_ms'])} double "
+              f"supports, {wl['excited_s']:g} s excited ({len(wl['frames'])} keyframes moved, ramps {wl['ramp_s']:g} s, "
+              f"ends {wl['post_s']:g} s before each lift gate frame); logged in the run's summary row (id_wiggle)")
     n_gate = sum(1 for f in pl["frames"] if f[2] == "kf" and int(f[1][5], 16) & 8)
     print(f"lift gate: {n_gate} gate frames (the last frame before each lift-off)" if n_gate
           else "lift gate: no gate frames (--lift-gate off, or the sway model)")
@@ -979,6 +1188,8 @@ def live(pl, a):
     if not report_precheck(pl):
         print("REFUSED: the plan puts the pelvis under the static requirement -- nothing sent")
         return
+    if pl.get("wiggle") is not None:
+        log(dict(id_wiggle=pl["wiggle"]))           # the excitation as planned (the summary row repeats it)
     r = robot_io.Robot(host=a.host, log=log)
     steps, sent, t_line = [], 0, []
     adds = pl["adds"]
@@ -1253,7 +1464,8 @@ def live(pl, a):
                  steps=steps, line_s=t_line, heading_change_deg=d_head, ankle_learn=ankle,
                  heading=(hold.log if hold is not None else None),
                  cmd_walk=(dict(reason=cw.reason, steps=cw.log) if cw is not None else None),
-                 polls_in_ss=gate.stats))
+                 polls_in_ss=gate.stats,
+                 **({"id_wiggle": pl["wiggle"]} if pl.get("wiggle") is not None else {})))
         r.close()
         print(f"log: {log_path}")
 
@@ -1541,6 +1753,15 @@ def main(argv=None):
                     help="send `liftgate set` first: deg, deg/s, ms, ms (firmware defaults 3,15,150,3000)")
     ap.add_argument("--allow-over", action="store_true",
                     help="let the pre-check pass a shift past k_static + 0.05 (an --amp A/B on the outward side)")
+    ap.add_argument("--id-wiggle", default=None, metavar="AMP_DEG[:CHANNEL]",
+                    help="dwell: identification excitation (#259, #137): a known zero-mean multisine (lines "
+                         + ", ".join(f"{f:g}" for f in WIGGLE_FREQS) + " Hz) of at most AMP_DEG (<= "
+                         + f"{WIGGLE_MAX_DEG:g}) on one joint channel's goals, in the double supports only (from the step "
+                         "end frame to 0.4 s before each lift gate frame, raised-cosine ramps in and out). CHANNEL roll "
+                         "(default: hip + ankle rolls together), pitch (hip vs ankle pitch) or yaw (both hip yaws). Logged "
+                         "in the summary row; read with experiments/policy/x15-margin/wiggle_gain.py robot. Default off: "
+                         "the frames as before")
+    ap.add_argument("--id-seed", type=int, default=1, help="--id-wiggle: the seed of the multisine's phases (default 1)")
     ap.add_argument("--host", default="192.168.2.90")
     ap.add_argument("--log")
     a = ap.parse_args(argv)
@@ -1635,6 +1856,17 @@ def main(argv=None):
                                  ss_s=a.ss_s, shift_s=a.shift_s, raise_s=a.raise_s, move_s=a.move_s, lower_s=a.lower_s,
                                  lower_frac=a.lower_frac, **({"moving_lift": a.moving_lift} if a.moving_lift else {})) \
         if a.model == "dwell" else a.T
+    wig = None
+    if a.id_wiggle is not None:
+        try:
+            if a.cmd:
+                raise ValueError("--id-wiggle does not combine with --cmd (the steps are decided as the walk goes)")
+            if a.model != "dwell":
+                raise ValueError("--id-wiggle needs --model dwell")
+            wig = wiggle_spec(*parse_wiggle(a.id_wiggle), seed=a.id_seed)
+        except ValueError as e:
+            print(f"REFUSED: {e}")
+            return 2
     if a.cmd:
         return main_cmd(a, seeds, amp, aff, by_step)
     learn = None
@@ -1673,7 +1905,7 @@ def main(argv=None):
                                                                       for k, lr in learn.by.items()))
     kw_cmd = dict(cmd=cmd, seq=seq, drop=(a.drop_mm / 1e3 if a.drop_mm is not None else None), swing_tilt=a.swing_tilt,
                   lift_gate=a.lift_gate == "on", **{k: v for k, v in by_step.items() if v is not None},
-                  **timing_kw(a))
+                  **timing_kw(a), **({"id_wiggle": wig} if wig is not None else {}))
     if not a.live:
         try:
             pd = plan(a.T, a.steps, a.dir, seeds, a.lead, first=a.first, amp=amp, model=a.model, ds=a.ds, h=a.h,
