@@ -69,24 +69,47 @@ bool keyLoad(uint8_t key[wcli::kKeyLen]) {
     return ok;
 }
 
+// The wcli task's Tx. Datagrams the server makes under g_mu are only COPIED
+// here; flushOut() hands them to lwIP after the lock is released. Until
+// 2026-11-25 lwip_sendto ran inside g_mu, so a housekeeping print (wifiSay,
+// wcliAsyncOutput, wcliHouseTick -- all under g_mu, the last two inside the
+// bench loop's iteration) could wait behind up to 8 socket sends (#297).
 struct NetTx : wcli::Tx {
+    static constexpr int kSlots = 10;   // pump()'s 8 + onDatagram's one reply
     int sock = -1;
+    struct Slot {
+        sockaddr_in to;
+        size_t n;
+        uint8_t buf[wcli::kMaxDatagram];
+    };
+    Slot slots[kSlots] = {};
+    int queued = 0;
     void send(const wcli::Peer& to, const uint8_t* buf, size_t n) override {
-        if (sock < 0) return;
-        sockaddr_in a = {};
-        a.sin_family = AF_INET;
-        a.sin_addr.s_addr = lwip_htonl(to.ip);
-        a.sin_port = lwip_htons(to.port);
-        // Best effort: a full TX queue drops the datagram, and the client's
-        // POLL/RESEND recovers it from the ring.
-        lwip_sendto(sock, buf, n, 0, reinterpret_cast<sockaddr*>(&a), sizeof a);
+        // Best effort, as the socket was: no slot (or an oversize datagram)
+        // drops it, and the client's POLL/RESEND recovers it from the ring.
+        if (sock < 0 || queued >= kSlots || n > wcli::kMaxDatagram) return;
+        Slot& s = slots[queued++];
+        s.to = {};
+        s.to.sin_family = AF_INET;
+        s.to.sin_addr.s_addr = lwip_htonl(to.ip);
+        s.to.sin_port = lwip_htons(to.port);
+        memcpy(s.buf, buf, n);
+        s.n = n;
     }
     bool submit(uint32_t seq, const char* line) override {
         return submitWifiCliLine(line, seq);
     }
+    // Outside g_mu, from the wcli task only.
+    void flushOut() {
+        for (int i = 0; i < queued; ++i) {
+            Slot& s = slots[i];
+            lwip_sendto(sock, s.buf, s.n, 0, reinterpret_cast<sockaddr*>(&s.to), sizeof s.to);
+        }
+        queued = 0;
+    }
     virtual ~NetTx() = default;
 };
-NetTx g_tx;   // the wcli task's (sock is its socket)
+NetTx g_tx;   // the wcli task's (sock is its socket); ~4.6 KB, static
 
 void wcliTask(void*) {
     int sock = -1;
@@ -129,6 +152,7 @@ void wcliTask(void*) {
         }
         g_srv.pump(g_tx, 8);
         unlock();
+        g_tx.flushOut();   // the sends, with the lock free for housekeeping
     }
 }
 

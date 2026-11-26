@@ -141,6 +141,22 @@ Decision classify(const char* line, bool armed);
 // Returns its length; cap >= 160 always fits.
 size_t formatRefusal(const Decision& d, const char* line, char* out, size_t cap);
 
+// -- the bench-loop gate (#297) ----------------------------------------------
+//
+// The bench pose stream, `balance` and the gait-track player run in
+// cli::poseTick on the housekeeping task -- the task that also executes every
+// CLI line, tether or Wi-Fi, to completion. While that loop plays, a line that
+// blocks the task freezes the walk for as long as it runs. nullptr = the line
+// may run while the loop plays: it returns within ~10 ms (half a 20 ms tick),
+// or it is one of the loop's own commands (`track ...`), a stop / disarm /
+// safety path (`release`, `bench`, `fall`, `flail`, `rail off|panic`, `home`,
+// `balance off`, `trim off`, `stream stop`, `sweep stop`), or a motion command
+// that ends the playing stream rather than stalling it (`pose`, `balance`).
+// Otherwise the reason it would stall the loop (static text). Default DENY:
+// a command word not named here is refused while the loop plays. The audit
+// behind each entry: docs/design-v6/2026-11-25-weight-shift-snap-sim.md.
+const char* benchLoopRefusal(const char* line);
+
 // A CLI line as it may be LOGGED -- the flight recorder ships every line
 // over UDP in clear: `wcli key <hex>` keeps only "wcli key <redacted>" and
 // `wifi <ssid> <psk>` drops the PSK. Everything else is copied as is.

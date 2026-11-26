@@ -6,6 +6,7 @@
 // other word is refused as unknown. So a command added to cli.cpp later is
 // tether-only until it is added here on purpose.
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "wcli/wcli.h"
@@ -138,8 +139,10 @@ Decision classify(const char* line, bool armed) {
                       "envelope clamp (a bench experiment tool)");
     }
     if (is(c, "imu")) {
+        // `time`: the 50-read timing (refused by the firmware while the bench
+        // loop plays: it runs on that loop's task, #297)
         static const char* const kImuRead[] = {"scan", "raw", "ring", "avg",
-                                               "ae", "reinit", nullptr};
+                                               "ae", "reinit", "time", nullptr};
         if (argc == 1 || oneOf(sub, kImuRead)) return allow();
         if (is(sub, "gscale")) {
             if (argc < 5) return allow();
@@ -216,6 +219,106 @@ Decision classify(const char* line, bool armed) {
                       "`run`), never a Wi-Fi CLI line");
     }
     return Decision{Verdict::kRefuseUnknown, "not on the Wi-Fi allowlist"};
+}
+
+const char* benchLoopRefusal(const char* line) {
+    Tokens t;
+    tokenize(line, t);
+    if (t.argc == 0) return nullptr;
+    const char* c = t.argv[0];
+    const int argc = t.argc;
+    const char* sub = argc >= 2 ? t.argv[1] : "";
+
+    // The loop's own commands: status, add, steps, stop, halt -- RAM only.
+    if (is(c, "track")) return nullptr;
+    // Stop / disarm / safety: never refused. One bus write at most
+    // (`release`: a broadcast torque-off), or a RAM latch.
+    static const char* const kSafety[] = {"release", "bench", "fall", "flail",
+                                          "home", nullptr};
+    if (oneOf(c, kSafety)) return nullptr;
+    if ((is(c, "stream") || is(c, "sweep")) && is(sub, "stop")) return nullptr;
+    if (is(c, "stream") && argc == 2 && is(sub, "status")) return nullptr;
+    if (is(c, "rail")) {
+        if (argc == 1 || is(sub, "off") || is(sub, "panic") || is(sub, "clear")) return nullptr;
+        return "`rail on` waits for the rail to come up (20+10+5 ms polls)";
+    }
+    // Take the bench loop over (`pose` refuses itself while a track plays).
+    if (is(c, "balance") && is(sub, "log")) {
+        return "`balance log` prints the whole balance log (one line per 40 ms sample)";
+    }
+    if (is(c, "pose") || is(c, "balance")) return nullptr;
+    // `trim off` / `balance off` fade; every `trim` form is RAM.
+    // RAM settings and status prints with no bus, I2C or NVS: well under 1 ms
+    // of work, the print queued (Wi-Fi ring 6.4 KB; tether 512 B buffer).
+    static const char* const kRam[] = {"trim", "liftgate", "heading", "stat", "ntp",
+                                       "shape", "limit", "standclock", "obsfreeze",
+                                       nullptr};
+    if (oneOf(c, kRam)) return nullptr;
+    // One or two bus transactions: <= 3 ms each (the bus's reply timeout).
+    // `torque` is one (broadcast) write; `move` a torque check and one write.
+    if (is(c, "reg") || is(c, "pos") || is(c, "torque") || is(c, "move")) return nullptr;
+    if (is(c, "ping")) {
+        if (argc >= 2) return nullptr;
+        return "`ping` with no id pings every fitted servo (3 ms per missing one)";
+    }
+    if (is(c, "imu")) {
+        if (argc == 1) return nullptr;                     // the sampler's latest sample
+        if (is(sub, "ring") || is(sub, "avg")) return nullptr;
+        if (is(sub, "raw")) {
+            if (argc == 2 || atoi(t.argv[2]) <= 1) return nullptr;   // one read, ~2 ms
+            return "`imu raw <n>` waits 100 ms between samples";
+        }
+        if (is(sub, "gscale")) {
+            if (argc < 5) return nullptr;
+            return "`imu gscale <x> <y> <z>` writes NVS (flash erase: tens of ms)";
+        }
+        if (is(sub, "mount")) {
+            if (argc < 6) return nullptr;
+            return "`imu mount <w> <x> <y> <z>` writes NVS (flash erase: tens of ms)";
+        }
+        if (is(sub, "bias")) {
+            if (argc >= 3 && is(t.argv[2], "online") && !(argc >= 4 && is(t.argv[3], "save"))) return nullptr;
+            return "`imu bias` calibrates for seconds / writes NVS";
+        }
+        if (is(sub, "time")) return "`imu time` reads the IMU 50 times (~115 ms)";
+        if (is(sub, "ae")) return "`imu ae` reads the IMU for seconds";
+        if (is(sub, "scan")) return "`imu scan` probes all 127 I2C addresses";
+        if (is(sub, "reinit")) return "`imu reinit` recovers and re-inits the I2C bus";
+        if (is(sub, "forget")) return "`imu forget` erases NVS";
+        return "unknown `imu` form";
+    }
+    if (is(c, "batt")) {
+        if (argc == 1 || is(sub, "pack")) return nullptr;
+        return "`batt reset` waits 60 ms for the control task";
+    }
+    if (is(c, "rec")) {
+        if (argc == 1 || is(sub, "status")) return nullptr;
+        return "`rec on|off|idle|<ip>` saves the recorder's config to NVS (from the tether, benched)";
+    }
+    if (is(c, "obsdump")) {
+        if (is(sub, "off")) return nullptr;
+        return "`obsdump` prints a CSV line every tick on this task";
+    }
+    if (is(c, "wifi") || is(c, "wcli")) {
+        if (argc == 1) return nullptr;
+        return "it writes NVS (flash erase: tens of ms)";
+    }
+
+    if (is(c, "help") || is(c, "?")) return "the help text is ~4.4 KB (~340 ms on the 115200-baud tether)";
+    if (is(c, "scan")) return "`scan` pings IDs 0-253 (3 ms per missing one: ~0.8 s)";
+    if (is(c, "trace")) return "the trace dump prints up to 400 lines (~8 KB)";
+    if (is(c, "cal")) return "`cal` prints 17 joints (~0.9 KB: ~30 ms on the tether), reads every servo or writes NVS";
+    if (is(c, "gains")) return "`gains` reads P/D of every servo (or writes EEPROM: 2 s)";
+    if (is(c, "servocfg")) return "`servocfg` reads/writes the response registers of every servo";
+    if (is(c, "volt")) return "`volt` reads the INA219 and every servo's voltage";
+    if (is(c, "run")) return "arming re-reads every servo's gains and settles";
+    if (is(c, "nettime")) return "`nettime` runs the policy forward pass n times";
+    if (is(c, "bno")) return "`bno` waits on the BNO085 (5-25 ms polls)";
+    if (is(c, "sread") || is(c, "stepresp")) return "a servo identification run (tens of ms to seconds)";
+    if (is(c, "id") || is(c, "middle") || is(c, "regw")) return "it writes servo EEPROM (2 s commit wait)";
+    if (is(c, "stream")) return "`stream` starts a servo stream task / dumps its whole log";
+    if (is(c, "sweep")) return "`sweep` starts a roll identification sweep on this task";
+    return "not known to return within 10 ms";
 }
 
 void redactForLog(const char* line, char* out, size_t cap) {
