@@ -90,3 +90,33 @@ Travel at G = 1.25 (ideal side ±0.60 m, turn ±115°):
 - Against the 11-25 pre-commitment with the gain bar moved from 1.5 to 1.25: L2 seeds 14 and 15 meet the side R, falls,
   x1.5 stand (g* 1.75 / 2.0) and compass (17 / 15) bars; seed 16 fails side R (-0.13 here, -0.10 at gain 1.0) and
   compass (13). Turn at 1.3 was not re-graded here. Whether to move the bar is the planner's call.
+
+## 4. Why L1 drops the sidestep right
+
+No bug, and nothing left/right-specific in the loop-gain DR. Checked: one gain per episode on all 12 channels
+(`env_mjx.py` out-gain law), the EMA reset on both reset paths, mirrored hip-roll ranges and action map, symmetric
+volume command sampling and vy reward, and the vref reference (+vy and the mirrored -vy agree to 3e-14°). M1 and L1
+configs differ only in `loop_gain_range`.
+
+- **The parent could do it.** `prec86_walk_sagdr`, the init of every M1/L1/L2 seed, sidesteps right at -0.53 to -0.66 m
+  on four seeds. L1 lost side R in training. The four L1 seeds fine-tune the same parent, so 4/4 is close to one result.
+- **The gain makes lateral stepping dangerous both ways.** M1 teachers at G 1.3 fall 11-15/16 on side R and 14-16/16 on
+  side L under the training-max, mirrored and no sag; 16/16 both ways at 1.6.
+- **What L1 does on side R:** no foot lifts (peak 0.5-1.0 cm). It holds a brace: left hip roll goal +12 to +15° (sd
+  < 1°), stance 43-66 mm wider, the left foot out, CoM 15-23 mm toward the right foot. On side L it lifts only the left
+  foot (four lifts, 1.5 cm). Walking forward it still lifts the right foot.
+- **The lineage has a left-lead habit:** in sidesteps the right foot lifts 0.7-1.5 cm lower than the left in prec16
+  (before the sag DR), prec86, M1 and L2. L2 seed 14 also lifts only the left foot and still reaches -0.61 by sliding
+  the right foot out.
+
+**Best fit:** the gain amplifies only fast action (a step), not a held posture. Under 1.0-1.6, L1 cuts lateral stepping
+overall (side L also drops to +0.16-0.28). Left travel survives with left-foot lifts alone; right travel needs the right
+foot to lead, the lineage's weak side, so L1 holds the brace instead.
+
+**Proposed night-3 arm, if W1/W2 lose side R (the planner's call):** L1 + `--w-mirror-loss 1.0 --num-evals 12`
+(preflight refuses a mirror-loss job at 16+ evals). Pass on ≥ 2 of seeds 14-16, teacher and student, plant D: side R
+≤ -0.25 and side L ≥ +0.25 at gain 1.0, ≥ 2 right-foot lifts > 1 cm on side R, g* ≥ 1.75, x1.5 0/8, walk + dir falls at
+G 1.25 ≤ 4/56. Kill: side R ≥ -0.10 on 2+ seeds. The mirror loss has a mixed record (held on prec20/prec33; prec71's
+march went right-only). An optional falsifier, not a candidate: L1 with the training sag mirrored; predicted not to
+flip, since the habit predates the sag DR. For reading W1/W2/D1: count right/left foot lifts on side L and side R, and
+look for the brace (left hip roll goal > +10° held, sd < 1°).
