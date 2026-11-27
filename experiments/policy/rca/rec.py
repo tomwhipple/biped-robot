@@ -4,7 +4,23 @@ import os, sys
 import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MAIN = "/home/claw/code/robot"           # recordings + runs live in the main checkout
+
+
+def _main():
+    """Where the gitignored recordings (hw_sessions/) and runs (sim/runs/) live. ROBOT_MAIN wins; else
+    this checkout if it holds hw_sessions/; else mira's main checkout, so its worktrees find the
+    recordings there; else this checkout (a machine without them: callers skip or fail on the path,
+    not on a user's home directory that does not exist)."""
+    env = os.environ.get("ROBOT_MAIN")
+    if env:
+        return env
+    if os.path.isdir(os.path.join(ROOT, "hw_sessions")):
+        return ROOT
+    mira = "/home/claw/code/robot"
+    return mira if os.path.isdir(mira) else ROOT
+
+
+MAIN = _main()
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import flight_reader as FR  # noqa: E402
 

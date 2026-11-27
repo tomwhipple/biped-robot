@@ -40,6 +40,9 @@ def slew_run(tmp_path, monkeypatch):
     """The deployed run (tracked inputs) with cmd_slew in its config.json, as grade finds it."""
     if not os.path.exists(os.path.join(DEPLOYED, "params.pkl")):
         pytest.skip("no deployed run inputs")
+    import jitter as J
+    if not os.path.exists(J.STAND2):
+        pytest.skip(f"stand2 flight recording (gitignored hw_sessions/) not on this machine: {J.STAND2}")
     name = "slew_probe_run"
     d = tmp_path / name
     d.mkdir()
