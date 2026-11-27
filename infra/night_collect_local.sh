@@ -28,6 +28,11 @@ LOG=${COLLECT_LOG:-$REPO/sim/runs/night_collect.log}
 # core; the box has 32 (2026-11-11: 31 runs serially took until 10:00, so the
 # planner could not start before then).
 JOBS=${COLLECT_JOBS:-6}
+# A referee that runs past this is killed (exit 124) and goes to the fixer like any other
+# failure. 2026-11-26: one teacher referee (prec105_..._il2, --render) spun at 100 % CPU for
+# 26 h, held the collect lock, and the next morning's collector exited without collecting.
+# A normal referee + render is ~3.5 min.
+REFEREE_TIMEOUT_S=${REFEREE_TIMEOUT_S:-3600}
 
 # MuJoCo's renderer needs an OpenGL context. Under cron there is no DISPLAY,
 # so the default GLFW/X11 backend dies with "an OpenGL platform library has
@@ -123,14 +128,15 @@ collect_one() {   # $1 = state file, $2 = OUT name
 
   # Python referee WITH the movie. --render is opt-in and forgetting it is the
   # exact failure this script exists to prevent, so it is not optional here.
-  referee() { ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$PY" \
+  referee() { ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu timeout -k 60 "$REFEREE_TIMEOUT_S" "$PY" \
       eval_precision.py --run-name "$OUT" --render ); }
   if referee; then
     echo "SCORECARD: sim/runs/$OUT/scorecard.md   [python policy]"
   elif fix "referee-$OUT" "$RLOG" 45 <<EOF && referee; then
 The morning referee failed for $OUT: in $REPO/sim/mjx,
 \`JAX_PLATFORMS=cpu $PY eval_precision.py --run-name $OUT --render\` exited
-non-zero (its output is at the end of $RLOG). The run dir is
+non-zero (its output is at the end of $RLOG; exit 124 = it ran past
+REFEREE_TIMEOUT_S=$REFEREE_TIMEOUT_S s and was killed: look for a hang, not a crash). The run dir is
 $REPO/sim/runs/$OUT. Fix the cause in the referee or the code (a bug: fix it
 on main with tests; a run that is genuinely broken: say so). The collector
 re-runs this exact command once after you exit.
@@ -142,7 +148,7 @@ EOF
 
   # SIL referee: standing column, never fatal (a broken sil build must not lose
   # the night's collection).
-  ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu "$PY" \
+  ( cd "$REPO/sim/mjx" && JAX_PLATFORMS=cpu timeout -k 60 "$REFEREE_TIMEOUT_S" "$PY" \
       eval_precision.py --run-name "$OUT" --sil ) \
     && echo "SCORECARD: sim/runs/$OUT/scorecard_sil.md   [SIL]" \
     || echo "(no SIL number for $OUT -- build firmware/host sil and rerun)"
