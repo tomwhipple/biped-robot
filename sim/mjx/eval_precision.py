@@ -57,6 +57,36 @@ DEFAULT_XML = paths.v6_plant("bimo_biped_v6ar.xml")   # the trainer's default pl
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SIL_DIR = os.path.join(ROOT, "sim", "sil")
 
+MESA_EGL_VENDOR = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
+
+
+def prefer_mesa_egl(environ=os.environ, vendor_file=MESA_EGL_VENDOR):
+    """Point an EGL referee at Mesa (mira's Ryzen iGPU), off the shared NVIDIA GPU.
+
+    The referee is a CPU referee: only its --render touches a GPU. On NVIDIA EGL it
+    competes with training and with whatever ollama loads (11-27 09:00: a
+    qwen2.5vl load took 11.6 of 12.3 GB while six referees rendered in parallel,
+    and one died with SIGSEGV inside libnvidia-eglcore; the collector called that a
+    referee failure). Mesa renders on the iGPU at ~18 ms per 640x480 frame, and
+    llvmpipe takes over if there is no iGPU. Applies only under MUJOCO_GL=egl when
+    the caller has not chosen a vendor; BIMO_REFEREE_EGL=nvidia keeps the old
+    path. Must run before mujoco (libEGL) is imported. Returns True if it set it.
+    """
+    if environ.get("MUJOCO_GL") != "egl":
+        return False
+    if environ.get("BIMO_REFEREE_EGL", "mesa") != "mesa":
+        return False
+    if environ.get("__EGL_VENDOR_LIBRARY_FILENAMES"):
+        return False
+    if not os.path.exists(vendor_file):
+        return False
+    environ["__EGL_VENDOR_LIBRARY_FILENAMES"] = vendor_file
+    return True
+
+
+if __name__ == "__main__":
+    prefer_mesa_egl()
+
 import jax
 from brax.training.acme import running_statistics
 from video_annot import caption
