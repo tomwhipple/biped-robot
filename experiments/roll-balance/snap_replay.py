@@ -41,6 +41,11 @@ Per single support n (k >= 2 on its side; a tip_causes.py row):
           D). The stall moves with the shift.
   Drt     the shift D later with the record's ticks (and so its stall) kept at their real time up to the lift-off:
           the --td-pause counterfactual (on the robot the stall stays 0.2-0.5 s after the touchdown with the pause).
+  ss      the --polls-in-ss arm on the old firmware: every stall filled as in `fill`, then a stall of SS_STALL_S in
+          every single support, SS_STALL_AFTER_S after its lift-off (the goals held through it).
+  cF, cFfill   the trim's correction (goal - nominal) scaled by F everywhere, as recorded / with the stalls filled.
+          On a right stance the double support carries the fade of the previous left stance's large correction
+          (2026-11-27 record); c0 takes it out.
   In both D variants the previous stance's trim correction (goal - nominal) and the trim's state keep their real time
   over the double support (the fade starts at the touchdown, as on the robot's --td-pause runs). Only the goals
   change; the plant replays them.
@@ -78,6 +83,7 @@ PLAY = "grade+play_L_hip=6,play_R_hip=8,play_L_ankle=3,play_R_ankle=0"
 PLANTS = {"grade": "grade", "play_fit": PLAY, "sag": "grade+sag_L=6.4,sag_R=2.9",
           "sag_fric": "grade+sag_L=5.4,sag_R=2.9,fric_hroll=0.10,fric_aroll=0.10"}
 PLACE_S, PLACE_TD_S, HOLD_S, END_S = 2.5, 0.4, 1.0, 0.3
+SS_STALL_AFTER_S, SS_STALL_S = 0.06, 0.115     # variant 'ss': --polls-in-ss's earliest poll, the stall's median length
 ROLLS = ("L_hip_roll", "L_ankle_roll", "R_hip_roll", "R_ankle_roll")
 CHAIN_KEYS = ("x_dead50", "x_tau50", "x_dead15", "x_tau15", "x_db50", "x_db15")
 BAL = slice(1, 7)          # the record's balance block: state, side, ref, err, integral, u
@@ -188,13 +194,42 @@ def fill_gaps(a, max_dt=0.05, dt=0.04):
     return np.concatenate(parts)
 
 
+def scale_correction(a, f):
+    """A copy of `a` with the trim's correction (goal - nominal, every joint) scaled by f everywhere."""
+    b = a.copy()
+    for n in TC.LEG:
+        cg, cn = TC.col(n, "goal"), TC.col(n, "nominal")
+        b[:, cg] = a[:, cn] + f * (a[:, cg] - a[:, cn])
+    return b
+
+
+def stall_in_ss(a, after_s=SS_STALL_AFTER_S, length_s=SS_STALL_S):
+    """The --polls-in-ss arm on the old firmware: fill_gaps(a) (no stall in any double support), then a stall of
+    length_s in every single support, after_s after its lift-off (the rows there are dropped, so the replay holds the
+    goal through it and the goal jumps after it, as at a recorded stall)."""
+    b = fill_gaps(a)
+    t = b[:, 0]
+    drop = np.zeros(len(b), bool)
+    for i0, _, _ in ST.chains(b[:, 1]):
+        drop |= (t > t[i0] + after_s) & (t < t[i0] + after_s + length_s)
+    return b[~drop]
+
+
 def variant(a, i_td, i_lift, v):
     """The goals a step is replayed under: '0' as recorded; '<D>' the shift D s later with everything after the
     touchdown moved (delay_shift); '<D>rt' the shift D s later with the stall at its real time (delay_shift_rt);
-    'fill' as recorded with the stalls filled (fill_gaps)."""
+    'fill' as recorded with the stalls filled (fill_gaps); 'ss' the stalls moved from the double supports into the
+    single supports (stall_in_ss); 'c<F>' / 'c<F>fill' the trim's correction scaled by F (scale_correction), as
+    recorded / with the stalls filled."""
     v = str(v)
     if v == "fill":
         return fill_gaps(a)
+    if v == "ss":
+        return stall_in_ss(a)
+    if v.startswith("c"):
+        fill = v.endswith("fill")
+        b = scale_correction(a, float(v[1:-4] if fill else v[1:]))
+        return fill_gaps(b) if fill else b
     if v.endswith("rt"):
         return delay_shift_rt(a, i_td, i_lift, float(v[:-2]))[0]
     d = float(v)
@@ -366,7 +401,11 @@ def job(args):
             if sim is None:
                 continue
             c, fell = splice(b, zero, dir_, sim), sim[5]
-        r = rows_for(c, zero, dir_, st, n)
+        try:
+            r = rows_for(c, zero, dir_, st, n)
+        except ValueError as ex:     # the sim fell before this step's lift-off: nothing of the step to read
+            print(f"{st} n {n} {label} {delay}: skipped ({ex})", file=sys.stderr)
+            continue
         if r is None:
             continue
         tb = c[:, 0]

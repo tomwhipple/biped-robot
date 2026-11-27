@@ -121,3 +121,41 @@ def test_variant_names():
     assert len(S.variant(a, 10, 80, "0.3")) == len(a) + 15
     assert len(S.variant(a, 10, 80, "0.3rt")) == len(a) + 15
     assert S.vkey("0.0") == "0" and S.vkey("0.30") == "0.3" and S.vkey("fill") == "fill"
+
+
+def test_scale_correction_scales_goal_minus_nominal_only():
+    a = _arr(5)
+    cg, cn = TC.col("L_hip_roll", "goal"), TC.col("L_hip_roll", "nominal")
+    a[:, cn] = 2000
+    a[:, cg] = 2000 + np.array([0, 10, 20, 30, 40])
+    b = S.scale_correction(a, 0.5)
+    np.testing.assert_array_equal(b[:, cg], 2000 + np.array([0, 5, 10, 15, 20]))
+    np.testing.assert_array_equal(b[:, cn], a[:, cn])
+    assert a[4, cg] == 2040                                   # the input is not modified
+
+
+def test_stall_in_ss_moves_the_stall_into_the_single_support():
+    a = _arr(151)                                             # 0 .. 3 s at 50 Hz
+    t = a[:, 0]
+    a[:, 1] = np.where((t >= 1.0) & (t < 2.0), 5, 0)          # one single support: CLOSED from 1.0 s
+    a[t >= 2.0, 1] = 7                                        # touchdown (FADE) at 2.0 s
+    a = np.delete(a, np.where((t > 0.3) & (t < 0.42))[0], 0)  # a 140 ms stall in the double support before it
+    b = S.stall_in_ss(a)
+    tb = b[:, 0]
+    gaps = np.diff(tb)
+    assert gaps[tb[:-1] < 1.0].max() <= 0.05                  # the double support's stall is filled
+    big = np.where(gaps > 0.08)[0]
+    assert len(big) == 1 and tb[big[0]] == pytest.approx(1.06) and gaps[big[0]] == pytest.approx(0.12)   # 0.115 s at 50 Hz ticks
+    assert np.all(np.diff(tb) > 0)
+
+
+def test_variant_names_c_and_ss():
+    a = _arr(101)
+    a[:, 1] = np.where(a[:, 0] < 0.2, 6, 0)
+    a[80:, 1] = 5
+    cg, cn = TC.col("R_hip_roll", "goal"), TC.col("R_hip_roll", "nominal")
+    a[:, cg] = a[:, cn] + 8
+    np.testing.assert_array_equal(S.variant(a, 10, 80, "c0")[:, cg], a[:, cn])
+    np.testing.assert_array_equal(S.variant(a, 10, 80, "c0.5fill")[:, cg], a[:, cn] + 4)
+    assert len(S.variant(a, 10, 80, "ss")) < len(a)
+    assert S.vkey("c0.5") == "c0.5" and S.vkey("ss") == "ss"

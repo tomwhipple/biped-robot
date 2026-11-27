@@ -917,6 +917,10 @@ Predictions, read from the flight record (`tip_causes.py`, and the tick gaps aga
 - **1 P:** no gap > 80 ms in a double support; the gaps sit in the single supports. The snap at about 0 %, as with
   `--td-pause 0.3`.
 - **2:** no gap > 80 ms anywhere. The snap at about 0 % with no pause and no flag.
+- **Right stances** ([2026-11-27 record](../../docs/design-v6/2026-11-27-right-stance-snaps.md), `stall_split.py`):
+  1 C about 25 %, 1 P and 2 about 3 %. The stall lands on the right shift's fast part as often as on the left, but the
+  right rolls half as much with it, right at the 2.5 deg line, so read the right side in degrees per step
+  (`stall_split.py robot` on the `tip_causes.py table` CSV): C's stall steps about 2.6 deg, the rest and P about 1.7.
 - If 1 P still snaps, the stall was not the cause. Stop and re-read the record before flashing.
 - After the flash of PR #355, check on the bench: `imu` answers with `sample <n> ms old`, and `imu time` prints the read time
   (refused while a track plays).
