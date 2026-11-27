@@ -434,6 +434,19 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-27 card: night 37 -- x1.5 margin line night 3: the mirror loss restores the step to the right on 11/11 seeds (X2 L2+mirror,
+# X1 L1+mirror); neither meets the bar (WALKS / g* / compass); line parked at X2; tonight the stand band on X2 + X2 replicates.
+fig_1127 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec107_walk_sagdr_vol_i86_vref_lg13_mir_s128r24', ['sidestep_R'],
+                 'robot_legs_prec107_walk_sagdr_vol_i86_vref_lg13_mir_s128r24_sidestep_R',
+                 'X2 seed 14 (L2 + mirror loss): steps right again, the recipe from today'),
+    video_figure('robot_legs_prec108_walk_sagdr_vol_i86_vref_lg16_mir_s1_s128r24', ['sidestep_R'],
+                 'robot_legs_prec108_walk_sagdr_vol_i86_vref_lg16_mir_s1_s128r24_sidestep_R',
+                 'X1 seed 15 (L1 + mirror loss): steps right and keeps L1\'s margin (0 falls of 56 walking at 1.5x)'),
+    video_figure('robot_legs_prec101_walk_sagdr_vol_i86_vref_lg16_s1_s128r24', ['sidestep_R'],
+                 'robot_legs_prec101_walk_sagdr_vol_i86_vref_lg16_s1_s128r24_sidestep_R',
+                 'the control, L1 seed 15 without the mirror loss: braces and does not step right'),
+] if f)
 # 2026-11-26 card: night 36 -- x1.5 margin line night 2: D1 (dose 1.45), W2 (L1 warm from L2), W1 (L1 warm from M1) all lose
 # the sidestep right; L2 (1.3) is the margin recipe at the G 1.25 bar; tonight the mirror loss on L2 and L1.
 fig_1126 = "\\n    ".join(f for f in [
@@ -1310,6 +1323,24 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·27 · night 37: a symmetry term brings back the step to the right; the margin line is parked</span></p>
+    <p><b>Last night tested why the step to the right kept dying.</b> The policies have always led sidesteps with the left foot. Two
+    arms added a mirror-symmetry loss: X2 on L2 (gain range 1.0-1.3) and X1 on L1 (1.0-1.6). <b>It worked on every seed:</b>
+    all 11 students step right again, 0.29-0.47 m in 4 s, where L1 and last night's arms managed 0.04-0.11 m.</p>
+    <p><b>Neither arm passes the whole bar, though.</b> X2 keeps all six directions and 14-17 compass headings. It misses the
+    walk-start test by 1 cm on two seeds, and on two seeds its stand margin drops to 1.6x. X1 keeps L1's margin (0 falls of
+    56 walking at 1.25x, 0-8 at 1.5x), but it starts walking too slowly at 1.0x and holds only 12-14 headings. After three nights
+    the margin line is parked. The recipe is now <b>X2 = L2 + the mirror loss</b>, because a lost direction rules a policy out
+    and margin above the 1.5x bar does not.</p>
+    <p><b>Tonight</b> adds the stand band (a stiller stand at zero command) to X2 at the same seeds, with six more X2 seeds to
+    widen the pool of candidates for when the robot is back. This is simulation only; the robot is still down. Two harness
+    faults were fixed this morning: a 26-hour referee hang that blocked the collection, and a grader path bug.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1127}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·26 · night 36: the step to the right does not survive a gain range above 1.3; tonight a symmetry term</span></p>
     <p><b>Last night tried to keep L1's margin and win back the step to the right</b>, with three arms of three seeds plus an extra.
