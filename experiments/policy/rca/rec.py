@@ -14,9 +14,14 @@ def _main():
     env = os.environ.get("ROBOT_MAIN")
     if env:
         return env
+    # mira's main checkout first: a worktree on mira can hold a stray hw_sessions/ (a tool's
+    # recording landed in it), and taking that one hid every recording and every main-checkout
+    # run from grade.py (2026-11-27: all probes fell 8/8 with nan in the planner worktree)
+    mira = "/home/claw/code/robot"
+    if os.path.isdir(os.path.join(mira, "hw_sessions")):
+        return mira
     if os.path.isdir(os.path.join(ROOT, "hw_sessions")):
         return ROOT
-    mira = "/home/claw/code/robot"
     return mira if os.path.isdir(mira) else ROOT
 
 
