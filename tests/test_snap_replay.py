@@ -159,3 +159,30 @@ def test_variant_names_c_and_ss():
     np.testing.assert_array_equal(S.variant(a, 10, 80, "c0.5fill")[:, cg], a[:, cn] + 4)
     assert len(S.variant(a, 10, 80, "ss")) < len(a)
     assert S.vkey("c0.5") == "c0.5" and S.vkey("ss") == "ss"
+
+
+def test_scale_correction_on_named_joints_only():
+    a = _arr(5)
+    for n in ("L_hip_roll", "R_hip_roll"):
+        a[:, TC.col(n, "nominal")] = 2000
+        a[:, TC.col(n, "goal")] = 2000 + np.array([0, 10, 20, 30, 40])
+    b = S.variant(a, 1, 3, "c0.5@L_hip_roll")
+    np.testing.assert_array_equal(b[:, TC.col("L_hip_roll", "goal")], 2000 + np.array([0, 5, 10, 15, 20]))
+    np.testing.assert_array_equal(b[:, TC.col("R_hip_roll", "goal")], a[:, TC.col("R_hip_roll", "goal")])
+    both = S.variant(a, 1, 3, "c0@L_hip_roll+R_hip_roll")
+    np.testing.assert_array_equal(both[:, TC.col("R_hip_roll", "goal")], 2000)
+    assert S.vkey("c0.5@L_hip_roll") == "c0.5@L_hip_roll"
+    with pytest.raises(ValueError):
+        S.variant(a, 1, 3, "c0.5@L_hip")
+
+
+def test_series_compliance_terms():
+    spec, st = S.split_chain("grade+x_ser_L_hip=22,x_dead50=40")
+    assert spec == "grade" and st == {"x_ser_L_hip": 22.0, "x_dead50": 40.0}
+    names = ["L_hip_yaw", "L_hip_roll", "L_ankle_roll", "R_hip_roll", "R_ankle_roll"]
+    np.testing.assert_allclose(S.series_compliance(names, {"x_ser_L_hip": 22.0}), [0, 1 / 22, 0, 0, 0])
+    np.testing.assert_allclose(S.series_compliance(names, {"x_ser_L_hip": 20.0, "x_ser_R_ank": 40.0}),
+                               [0, 0.05, 0, 0, 0.025])
+    assert S.series_compliance(names, {"x_dead50": 40.0}) is None
+    with pytest.raises(ValueError):
+        S.series_compliance(names, {"x_ser_R_hip": 0.0})

@@ -778,6 +778,35 @@ hardware data.
   - For #297 the arm that settles the mechanism on the robot is no pause with those two host commands moved out of
     the double support.
 
+## Round 8 (2026-11-27): the left hip under the trim, one term for both signatures?
+
+Record: [docs/design-v6/2026-11-27-left-hip-trim-compliance.md](../../../docs/design-v6/2026-11-27-left-hip-trim-compliance.md),
+after [the right-stance snaps record](../../../docs/design-v6/2026-11-27-right-stance-snaps.md). Tools:
+`../../roll-balance/snap_replay.py` (new opt-in `c<F>@<joint>` variant and `x_ser_{L,R}_{hip,ank}` springs) and
+`../../roll-balance/trim_compliance.py`. No new hardware data.
+
+- **No single plant term gives both signatures.** The right-stance roll rising with the previous left hike (robot
+  +0.48 deg per deg) and the absence of false left tips cannot both be met.
+- **Left hip only.** Any spring on the right hip, or on both, kills the left stall response (0-1.3 % left snaps).
+- **A low trim authority on the left hip is the candidate.** Either a series spring of k 11-22 N m/rad (`grade`'s
+  hip-roll servo is 44) or the correction reaching the joint at 0.25-0.5 of its size.
+  - It keeps the left as `grade` has it: increment +1.96 to +2.17 (robot +1.97), 48-52 % snaps, r 0.93, 0 false
+    tips.
+  - It moves the left-stance lean toward the robot's (`grade` 1.33 deg, k 11 3.01, robot 3.69): item 1.
+  - It brings the right stall steps within 0.2-0.3 deg on both session sets (held out: replication).
+  - It takes the slope only to about 0.
+- **Only the foot-off sag gets the slope** (+0.27 to +0.32). It does so where it halves the left stall response
+  and tips on 36-245 clean steps.
+- **Why (inferred).** The replicated part of the robot's slope rides on the trim's answer to the lean at the left
+  touchdown: +0.61 / +0.76 deg per deg of hike − T L, against +0.37 / +0.04 for the learned T L. That is a
+  closed-loop coupling. Open loop, a plant can show it only by leaning more under more trim, which is what makes the
+  sag's false tips.
+- **Which form of give, and how much, is not identifiable here.** The frozen-trim arm of #297 (ki 0, T L held at
+  5.2 and 6.8) measures it. The left touchdown error moves about −1 deg per deg of T L on `grade` and about 0 on a
+  low-authority left hip, 4-6 SE apart at the planned walk counts. The left hip carried the old 35 %-infill yoke,
+  which broke on 11-16 (#326), so re-measure after the repair.
+- No plant term, training default or grading default changed.
+
 ## What is still unmeasured
 
 1. **The R foot's height on a stride.** On 2026-11-10 the foot comes off tilted from about +0.42 s

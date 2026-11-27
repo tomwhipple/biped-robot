@@ -46,6 +46,8 @@ Per single support n (k >= 2 on its side; a tip_causes.py row):
   cF, cFfill   the trim's correction (goal - nominal) scaled by F everywhere, as recorded / with the stalls filled.
           On a right stance the double support carries the fade of the previous left stance's large correction
           (2026-11-27 record); c0 takes it out.
+  cF@J[+J2], cFfill@J   the same on the named LEG joints only (e.g. c0.5@L_hip_roll: the left hip roll's trim
+          reaches the joint at half its size, the right's in full; the trim writes only the hip rolls).
   In both D variants the previous stance's trim correction (goal - nominal) and the trim's state keep their real time
   over the double support (the fade starts at the touchdown, as on the robot's --td-pause runs). Only the goals
   change; the plant replays them.
@@ -54,6 +56,11 @@ Study terms (CPU replay only, none is a plant default; on top of footoff_sag.spl
   x_dead50=<ms>, x_tau50=<ms>    the hip rolls' (STS3250) dead time and first-order lag in grade's TypedServo
   x_dead15=<ms>, x_tau15=<ms>    the same for the STS3215s (every other joint, the ankle rolls included)
   x_db50=<deg>, x_db15=<deg>     set-point hysteresis (TypedServo db) on those servos
+  x_ser_L_hip=<k>, x_ser_R_hip=, x_ser_L_ank=, x_ser_R_ank=<N m/rad>   a spring in series with that one roll servo,
+          beyond its encoder (walker_env's live roll series spring, set per joint): a torque-proportional angle loss
+          tau / k (gear, horn, printed part); the encoder reads the shaft. Not with the sag (it replaces the spring).
+          grade's hip-roll servo is kp 44 N m/rad, so k 44 halves the hip roll's stiffness (2026-11-27 compliance
+          record).
 Results: results/snap_replay/<name>.csv (one row per single support, plant and variant; not committed).
 """
 from __future__ import annotations
@@ -86,6 +93,8 @@ PLACE_S, PLACE_TD_S, HOLD_S, END_S = 2.5, 0.4, 1.0, 0.3
 SS_STALL_AFTER_S, SS_STALL_S = 0.06, 0.115     # variant 'ss': --polls-in-ss's earliest poll, the stall's median length
 ROLLS = ("L_hip_roll", "L_ankle_roll", "R_hip_roll", "R_ankle_roll")
 CHAIN_KEYS = ("x_dead50", "x_tau50", "x_dead15", "x_tau15", "x_db50", "x_db15")
+SER_KEYS = {"x_ser_L_hip": "L_hip_roll", "x_ser_R_hip": "R_hip_roll", "x_ser_L_ank": "L_ankle_roll",
+            "x_ser_R_ank": "R_ankle_roll"}
 BAL = slice(1, 7)          # the record's balance block: state, side, ref, err, integral, u
 
 
@@ -194,10 +203,11 @@ def fill_gaps(a, max_dt=0.05, dt=0.04):
     return np.concatenate(parts)
 
 
-def scale_correction(a, f):
-    """A copy of `a` with the trim's correction (goal - nominal, every joint) scaled by f everywhere."""
+def scale_correction(a, f, joints=None):
+    """A copy of `a` with the trim's correction (goal - nominal) scaled by f everywhere, on every LEG joint or on
+    `joints` (names) only."""
     b = a.copy()
-    for n in TC.LEG:
+    for n in (TC.LEG if joints is None else joints):
         cg, cn = TC.col(n, "goal"), TC.col(n, "nominal")
         b[:, cg] = a[:, cn] + f * (a[:, cg] - a[:, cn])
     return b
@@ -227,8 +237,15 @@ def variant(a, i_td, i_lift, v):
     if v == "ss":
         return stall_in_ss(a)
     if v.startswith("c"):
+        v, _, js = v.partition("@")
+        joints = None
+        if js:
+            joints = js.split("+")
+            bad = [j for j in joints if j not in TC.LEG]
+            if bad:
+                raise ValueError(f"variant c..@: unknown joints {bad}")
         fill = v.endswith("fill")
-        b = scale_correction(a, float(v[1:-4] if fill else v[1:]))
+        b = scale_correction(a, float(v[1:-4] if fill else v[1:]), joints)
         return fill_gaps(b) if fill else b
     if v.endswith("rt"):
         return delay_shift_rt(a, i_td, i_lift, float(v[:-2]))[0]
@@ -260,16 +277,39 @@ def split_chain(spec):
     keep, study = [], {}
     for tok in terms.split(","):
         k, _, v = tok.partition("=")
-        if k.strip() in CHAIN_KEYS:
+        if k.strip() in CHAIN_KEYS or k.strip() in SER_KEYS:
             study[k.strip()] = float(v)
         elif tok.strip():
             keep.append(tok.strip())
     return name + (("+" + ",".join(keep)) if keep else ""), study
 
 
+def series_compliance(names, study):
+    """Per servo (names): the x_ser_* springs' compliance 1 / k (rad / N m), 0 where there is none; None if no
+    x_ser_* term is set."""
+    ks = {SER_KEYS[k]: float(v) for k, v in study.items() if k in SER_KEYS}
+    if not ks:
+        return None
+    if any(k <= 0 for k in ks.values()):
+        raise ValueError("x_ser_*: k must be > 0 (N m/rad)")
+    return np.array([1.0 / ks[n] if n in ks else 0.0 for n in names])
+
+
 def apply_chain(env, study):
     if not study:
         return
+    c = series_compliance(env._servo_names, study)
+    if c is not None:
+        if getattr(env, "_fs_theta", None) is not None:
+            raise ValueError("x_ser_* with the foot-off sag: the env takes one beyond-encoder spring")
+        # walker_env's quasi-static roll series spring, live (no reset follows): the link sees the PD in series with
+        # k; the encoder reads link + tau / k
+        env._ser_c = c
+        env._ser_defl = np.zeros(env._n_servo)
+        env._ser_dq = np.zeros(env._n_servo)
+        study = {k: v for k, v in study.items() if k not in SER_KEYS}
+        if not study:
+            return
     import simh
     sv = env._gate_chain.sv
     is50 = simh.IS3250

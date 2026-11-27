@@ -195,6 +195,9 @@ On the same 380 normal early-start left stances (k ≥ 2; robot 12 tips):
 - **For #297:** the right-stance predictions above join the left's (C ~55 % left / ~25 % right; P and step 2 ~0-3 %
   on both). The right side alone is a weak test at 9 stances per arm; read its degrees.
 - **For grading and training:** nothing changes.
+- **Follow-up:** [the left hip trim record](2026-11-27-left-hip-trim-compliance.md) tests the inferred left-side
+  term. No single term gives both items. A low trim authority on the left hip keeps the left and fixes the right
+  level, but not the slope, whose replicated part is the trim's closed-loop answer to the lean.
 
 ## Data and method
 
