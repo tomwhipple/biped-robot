@@ -4571,7 +4571,7 @@ plant A (B against X2 at the same seed).
   47 / 29 / 35 / 53 at the same seeds (mean 30 vs 42), with 0 falls at G 1.25 on 5 of 6. Two of the five candidates are B students.
   Tonight's arm B′ tests it at fresh seeds.
 - **Plant E (the left spring) takes away left-going motion.** On every X2 and B student, side L falls from +0.34 – +0.50 m (D) to
-  −0.01 – +0.47, mostly +0.1 – +0.3, and turn L from 68 – 94° to 42 – 81°. x1.5 on E falls 4 – 8 of 8 on 6 of 15 students that hold
+  −0.01 – +0.47, mostly +0.1 – +0.3, and turn L from 68 – 94° to 42 – 81°. x1.5 on E falls 4 – 8 of 8 on 5 of 15 students that hold
   0 – 2 on D. Right-going motion is barely touched (side R −0.09 to −0.47 on E). A soft left stance chain is what the plant adds, so the
   likely cause is that the policies lean on left-stance roll stiffness to push off to the left. The sag DR (D) does not train for it,
   because the sag is a release at lift-off, not a compliance under load.
