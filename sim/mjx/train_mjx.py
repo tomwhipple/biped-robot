@@ -850,7 +850,10 @@ def make_parser():
     p.add_argument("--roll-series-k", default=None,
                    help="a spring in series with the hip / ankle roll servos BEYOND the "
                         "encoder, N m/rad: 'hip=LO:HI,ankle=LO:HI', k drawn per episode "
-                        "per role (one value = fixed; a role left out is rigid). The "
+                        "per role (one value = fixed; a role left out is rigid); per side "
+                        "with L_hip=, R_hip=, L_ankle=, R_ankle= keys (each side its own "
+                        "draw; the flight records' fit: 'L_hip=10.3,R_hip=19.5,L_ankle=11.3,"
+                        "R_ankle=16.5', docs/design-v6/2026-11-28-gear-compliance.md). The "
                         "encoders (q, dq obs) read the servo shaft, the link yields tau/k "
                         "more (hw 2026-11-10 clamp: 9.4 deg tilt, encoders 1.5 / 0.5 deg; "
                         "experiments/policy/weight-transfer-gate Round 3). config.json "

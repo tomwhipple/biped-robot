@@ -489,13 +489,20 @@ def parse_dq_obs_window(spec):
 
 
 ROLL_SERIES_ROLES = ("hip", "ankle")
+# per-side roles (2026-11-28, #6 gear compliance): the flight records put the left stance chain's
+# give at about twice the right's (docs/design-v6/2026-11-28-gear-compliance.md)
+ROLL_SERIES_SIDE_ROLES = ("L_hip", "R_hip", "L_ankle", "R_ankle")
 
 
 def parse_roll_series_k(spec):
     """roll_series_k -> {"hip": (lo, hi), "ankle": (lo, hi)} N m/rad (a role left out is
     rigid), or None when off. Accepts None / "" / {}, the CLI string "hip=LO:HI,ankle=LO:HI"
     (a single value = no DR) or the dict config.json stores ({"hip": [lo, hi], ...} or
-    numbers). Shared by env_mjx and the CPU env so both read a config.json the same way."""
+    numbers). Shared by env_mjx and the CPU env so both read a config.json the same way.
+    Per side: a key "L_hip", "R_hip", "L_ankle" or "R_ankle" sets that one joint's k and
+    overrides its role's on that side. With any side key the result is per side
+    ({"L_hip": ..., "R_hip": ...}, a role key filling both of its sides unless a side key
+    overrides it), and every side draws its own k (roll_series_role_names)."""
     if spec is None or spec == "" or spec == {}:
         return None
     if isinstance(spec, str):
@@ -511,15 +518,31 @@ def parse_roll_series_k(spec):
         spec = d
     out = {}
     for k, v in dict(spec).items():
-        if k not in ROLL_SERIES_ROLES:
-            raise ValueError(f"roll_series_k: role {k!r} not in {ROLL_SERIES_ROLES}")
+        if k not in ROLL_SERIES_ROLES + ROLL_SERIES_SIDE_ROLES:
+            raise ValueError(f"roll_series_k: role {k!r} not in "
+                             f"{ROLL_SERIES_ROLES + ROLL_SERIES_SIDE_ROLES}")
         v = [float(v)] if isinstance(v, (int, float, np.integer, np.floating)) else [float(x) for x in v]
         if len(v) == 1:
             v = v * 2
         if len(v) != 2 or not (0.0 < v[0] <= v[1] < float("inf")):
             raise ValueError(f"roll_series_k {k}={v}: need 0 < lo <= hi (N m/rad)")
         out[k] = (v[0], v[1])
+    if any(k in ROLL_SERIES_SIDE_ROLES for k in out):
+        side = {}
+        for r in ROLL_SERIES_SIDE_ROLES:
+            if r in out:
+                side[r] = out[r]
+            elif r[2:] in out:
+                side[r] = out[r[2:]]
+        out = side
     return out or None
+
+
+def roll_series_role_names(spec):
+    """The roles a parsed roll_series_k draws one k for: ROLL_SERIES_ROLES (L and R share it)
+    or, when the spec is per side, ROLL_SERIES_SIDE_ROLES."""
+    return (ROLL_SERIES_SIDE_ROLES if spec and any(k in ROLL_SERIES_SIDE_ROLES for k in spec)
+            else ROLL_SERIES_ROLES)
 
 
 ROLL_PLAY_MAX_DEG = 30.0
@@ -702,10 +725,16 @@ def parse_trim_T(spec):
     return tuple(out)
 
 
-def roll_series_roles(servo_names):
-    """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise."""
-    return np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
+def roll_series_roles(servo_names, per_side=False):
+    """per servo: index into ROLL_SERIES_ROLES (hip_roll -> 0, ankle_roll -> 1), -1 otherwise;
+    per_side: into ROLL_SERIES_SIDE_ROLES (L_hip_roll -> 0, R_hip_roll -> 1, L_ankle_roll -> 2,
+    R_ankle_roll -> 3)."""
+    role = np.array([0 if n.endswith("hip_roll") else 1 if n.endswith("ankle_roll") else -1
                      for n in servo_names], dtype=np.int64)
+    if per_side:
+        side = np.array([0 if n[:2] == "L_" else 1 for n in servo_names], dtype=np.int64)
+        role = np.where(role >= 0, 2 * role + side, -1)
+    return role
 
 
 def march_unload_term(com, stance_w, swing_w, foot_clear, tgt_clear, on, xp=np):
@@ -1181,8 +1210,9 @@ class BimoWalkerEnv(gym.Env):
         # uniform(roll_lash_deg, max)
         roll_series_k=None,            # a spring (N m/rad) in series with the hip /
         # ankle roll servos, BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)}
-        # or "hip=LO:HI,ankle=LO:HI", per-episode draw per role (parse_roll_series_k).
-        # None = rigid (bit-exact). Mirror of env_mjx roll_series_k.
+        # or "hip=LO:HI,ankle=LO:HI", per-episode draw per role (parse_roll_series_k); per side
+        # with "L_hip=", "R_hip=", "L_ankle=", "R_ankle=" keys. None = rigid (bit-exact). Mirror
+        # of env_mjx roll_series_k.
         roll_play_deg=None,            # FREE PLAY (deg peak to peak) inside the hip / ankle
         # roll servos BEYOND the encoder: the shaft is position-controlled and is what the
         # encoder reads, the link floats inside +/-play/2 of it (roll_play_substep). "LO:HI"
@@ -1838,7 +1868,9 @@ class BimoWalkerEnv(gym.Env):
                                     for n in self._servo_names], dtype=np.float64)
         # roll series spring (roll_series_k): per-servo compliance 1/k (0 = rigid), drawn at
         # reset; the shaft-link deflection tau/k the encoders add. None when off.
-        self._ser_role = roll_series_roles(self._servo_names)
+        self._ser_roles = roll_series_role_names(self.roll_series_k)
+        self._ser_role = roll_series_roles(self._servo_names,
+                                           self._ser_roles is ROLL_SERIES_SIDE_ROLES)
         self._ser_c = self._ser_defl = self._ser_dq = None
         if self.roll_series_k is not None:
             self._ser_c = np.zeros(len(self._servo_names))
@@ -3204,10 +3236,15 @@ class BimoWalkerEnv(gym.Env):
             # drawn last, so every other draw keeps its stream
             self._dq_win = lo if lo == hi else int(self.np_random.integers(lo, hi + 1))
         if self._ser_c is not None:
-            # roll series spring: k per role (L and R share it), uniform in k; a fixed k
-            # draws nothing. After every other draw, so they keep their streams.
-            c = np.zeros(len(ROLL_SERIES_ROLES))
-            for r, role in enumerate(ROLL_SERIES_ROLES):
+            # roll series spring: k per role (L and R share it; per side, each side its own),
+            # uniform in k; a fixed k draws nothing. After every other draw, so they keep their
+            # streams.
+            # (the roles from the spec as it is now: a harness may set roll_series_k after init)
+            self._ser_roles = roll_series_role_names(self.roll_series_k)
+            self._ser_role = roll_series_roles(self._servo_names,
+                                               self._ser_roles is ROLL_SERIES_SIDE_ROLES)
+            c = np.zeros(len(self._ser_roles))
+            for r, role in enumerate(self._ser_roles):
                 if role in self.roll_series_k:
                     lo, hi = self.roll_series_k[role]
                     c[r] = 1.0 / (lo if lo == hi else float(self.np_random.uniform(lo, hi)))
