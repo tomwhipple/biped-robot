@@ -434,6 +434,16 @@ fig_1007b = "\n    ".join(f for f in [
                  'robot_walk_c0_mac_line_pursuit',
                  'the control: the same flags, no lift reference'),
 ] if f)
+# 2026-11-28 card: night 38 -- deploy-readiness of X2: the stand band does not hold; 5 deploy candidates (B seed 14 wins);
+# the new left-spring plant (E, #358) takes away the step and turn to the left; tonight X2 trained on that spring + the band at new seeds.
+fig_1128 = "\\n    ".join(f for f in [
+    video_figure('robot_legs_prec109_walk_sagdr_vol_i86_vref_lg13_mir_band_s128r24', ['sidestep_L'],
+                 'robot_legs_prec109_walk_sagdr_vol_i86_vref_lg13_mir_band_s128r24_sidestep_L',
+                 'B seed 14 (X2 + stand band): today\'s deploy candidate, 15 falls of 56 walking at 1.5x'),
+    video_figure('robot_legs_prec107_walk_sagdr_vol_i86_vref_lg13_mir_s7_s128r24', ['sidestep_R'],
+                 'robot_legs_prec107_walk_sagdr_vol_i86_vref_lg13_mir_s7_s128r24_sidestep_R',
+                 'X2 seed 21: the one X2 seed of 11 that does not step right'),
+] if f)
 # 2026-11-27 card: night 37 -- x1.5 margin line night 3: the mirror loss restores the step to the right on 11/11 seeds (X2 L2+mirror,
 # X1 L1+mirror); neither meets the bar (WALKS / g* / compass); line parked at X2; tonight the stand band on X2 + X2 replicates.
 fig_1127 = "\\n    ".join(f for f in [
@@ -1323,6 +1333,23 @@ code {{ font-family:var(--mono); font-size:.88em; background:var(--panel2); padd
 <div class="wrap">
   <p class="eyebrow">MuJoCo · PPO → MJX/GPU · training log · updated 2026·08·24</p>
 
+  <div class="card accent">
+    <p style="margin:0 0 6px"><span class="tag">update · 2026·11·28 · night 38: five deploy candidates; a softer left leg in the grader takes away the step to the left</span></p>
+    <p><b>Last night tested a stiller stand (the stand band) on the X2 recipe, plus five more X2 seeds.</b> The band does not
+    make the stand stiller: the jitter goes up on 4 of 6 paired seeds, so it stays out of the recipe. It did fall less often
+    walking at 1.5x gain (mean 30 of 56 against X2's 42), which was not the question, so tonight tests that on fresh seeds.</p>
+    <p><b>Five students now pass the whole deploy-candidate bar</b> (all six directions, the margin probes, the stride, the
+    compass and the walk start). By the pre-committed tie-break the candidate is <b>B seed 14</b>. Nothing is flashed: the robot
+    is still down.</p>
+    <p><b>A new grading plant</b> came in overnight (PR #358). It models the left leg's roll chain as about twice as soft as
+    the right, as the flight records show. On it, every X2 and B student steps left only 0.1-0.3 m (0.34-0.50 m on the sag
+    plant) and turns left less. <b>Tonight</b> trains X2 on that left spring instead of the foot-off sag (3 counted seeds and 3 extras),
+    plus the band at 3 new seeds and 2 extras. Simulation only.
+    Ledger: docs/design-v6/getup-campaign-2026-10.md.</p>
+    <div class="vidgrid">
+    {fig_1128}
+    </div>
+  </div>
   <div class="card accent">
     <p style="margin:0 0 6px"><span class="tag">update · 2026·11·27 · night 37: a symmetry term brings back the step to the right; the margin line is parked</span></p>
     <p><b>Last night tested why the step to the right kept dying.</b> The policies have always led sidesteps with the left foot. Two
