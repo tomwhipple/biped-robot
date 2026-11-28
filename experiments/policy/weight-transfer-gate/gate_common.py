@@ -37,6 +37,10 @@ Probe terms (opt-in, `terms=`; none of them is a default anywhere):
               servo angle, not the link (set_series_view: the quasi-static form; walker_env cannot
               take an extra joint inside the leg chain). The bare-plant joints replay uses a real
               sprung joint (add_series_joint)
+  ser_L_hip=, ser_R_hip=, ser_L_ankle=, ser_R_ankle=<k>   the same for one side's joint,
+              overriding ser_hip / ser_ankle there (the flight records' per-side fit:
+              ser_L_hip=10.3,ser_R_hip=19.5,ser_L_ankle=11.3,ser_R_ankle=16.5;
+              docs/design-v6/2026-11-28-gear-compliance.md)
   play_hip=<deg>, play_ankle=<deg>   free play (peak to peak) inside each hip roll / ankle roll
               servo BEYOND its encoder: walker_env roll_play_deg (the shaft is position-controlled
               and is what the encoder reads; the link floats inside +/-play/2 of it), fixed values,
@@ -254,11 +258,17 @@ def apply_terms(env, terms):
         env._gate_zoff_La = float(terms["zoff_La"])
         if env._zero_off is not None:
             env._zero_off[env._servo_names.index("L_ankle_roll")] = math.radians(float(terms["zoff_La"]))
-    if "roll_k" in terms or "ser_hip" in terms or "ser_ankle" in terms:
+    if any(k in terms for k in ("roll_k", "ser_hip", "ser_ankle", "ser_L_hip", "ser_R_hip",
+                                "ser_L_ankle", "ser_R_ankle")):
         s = _role_vec(env, lambda n: float(terms.get("roll_k", 1.0)) if "roll" in n else 1.0)
         kp_abs = float(env._servo[0]) * nom["kp"] * s          # the servo's own stiffness, N m/rad
-        ks = _role_vec(env, lambda n: float(terms.get("ser_hip", np.inf)) if n.endswith("hip_roll") else
-                       float(terms.get("ser_ankle", np.inf)) if n.endswith("ankle_roll") else np.inf)
+
+        def _ser_k(n):     # ser_<side>_<role> wins over ser_<role> on that side
+            for r in ("hip", "ankle"):
+                if n.endswith(r + "_roll"):
+                    return float(terms.get(f"ser_{n[0]}_{r}", terms.get("ser_" + r, np.inf)))
+            return np.inf
+        ks = _role_vec(env, _ser_k)
         x = np.where(np.isfinite(ks), ks / (kp_abs + np.where(np.isfinite(ks), ks, 0.0)), 1.0)
         env._kp_prof = nom["kp"] * s * x
         env._kd_prof = nom["kd"] * s * x

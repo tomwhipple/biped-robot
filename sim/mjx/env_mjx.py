@@ -737,7 +737,8 @@ class BimoMJXEnv:
         roll_lash_deg_max: float | None = None,  # per-episode draw uniform(lo, max)
         roll_series_k=None,   # a spring (N m/rad) in series with the hip / ankle roll
         # servos BEYOND the encoder: {"hip": (lo, hi), "ankle": (lo, hi)} or
-        # "hip=LO:HI,ankle=LO:HI", per-episode draw per role; None = rigid
+        # "hip=LO:HI,ankle=LO:HI", per-episode draw per role (per side with "L_hip=",
+        # "R_hip=", "L_ankle=", "R_ankle=" keys); None = rigid
         # (walker_env.parse_roll_series_k; walker_env mirror)
         roll_play_deg=None,   # FREE PLAY (deg peak to peak) inside the hip / ankle roll
         # servos BEYOND the encoder: the shaft is position-controlled and is what the encoder
@@ -1594,16 +1595,19 @@ class BimoMJXEnv:
         self._roll_mask = jp.asarray(np.array(
             [n[2:] in ("hip_roll", "ankle_roll") for n in self._servo_names],
             dtype=np.float32))
-        from walker_env import parse_roll_series_k, roll_series_roles, ROLL_SERIES_ROLES
+        from walker_env import (parse_roll_series_k, roll_series_roles, roll_series_role_names,
+                                ROLL_SERIES_SIDE_ROLES)
         self.roll_series_k = parse_roll_series_k(roll_series_k)
         self._ser_on = self.roll_series_k is not None
         if self._ser_on:
-            # per role (hip, ankle) k bounds; a role left out is rigid (compliance 0)
-            rk = [self.roll_series_k.get(r) for r in ROLL_SERIES_ROLES]
+            # per role (hip, ankle; or per side: L_hip, R_hip, L_ankle, R_ankle) k bounds; a role
+            # left out is rigid (compliance 0)
+            roles = roll_series_role_names(self.roll_series_k)
+            rk = [self.roll_series_k.get(r) for r in roles]
             self._ser_klo = jp.asarray([k[0] if k else 1.0 for k in rk], dtype=jp.float32)
             self._ser_khi = jp.asarray([k[1] if k else 1.0 for k in rk], dtype=jp.float32)
             self._ser_rmask = jp.asarray([1.0 if k else 0.0 for k in rk], dtype=jp.float32)
-            role = roll_series_roles(self._servo_names)
+            role = roll_series_roles(self._servo_names, roles is ROLL_SERIES_SIDE_ROLES)
             self._ser_role = jp.asarray(np.maximum(role, 0), dtype=jp.int32)
             self._ser_smask = jp.asarray((role >= 0).astype(np.float32))
         from walker_env import parse_roll_play_deg, roll_play_bounds
@@ -2628,8 +2632,9 @@ class BimoMJXEnv:
         return jp.tile(data.qvel[3:6][None, :], (3, 1))
 
     def _draw_ser(self, rng: jax.Array):
-        """Per-episode roll series compliance 1/k (k uniform per role, L and R share it;
-        fold_in 6262 so the other draws keep their streams) and a zero deflection.
+        """Per-episode roll series compliance 1/k (k uniform per role, L and R share it; a
+        per-side spec draws one per side; fold_in 6262 so the other draws keep their streams)
+        and a zero deflection.
         (0,) arrays when the feature is off."""
         if not self._ser_on:
             z = jp.zeros((0,), dtype=jp.float32)

@@ -358,3 +358,109 @@ def test_same_physics_as_the_gate_common_stand_in():
     _, qb = _walker_roll(b, steps=40)
     assert np.abs(qa[-1] - qa[0]).max() > 1e-3          # it moves
     np.testing.assert_allclose(qa, qb, atol=1e-9)
+
+
+# -- per side (2026-11-28, #6 gear compliance) -------------------------------------
+# The flight records (docs/design-v6/2026-11-28-gear-compliance.md, experiments/gear-compliance)
+# put the left stance chain's single-support give beyond the encoders at about twice the right's:
+# a spring-only fit per side gives hip 10.3 / 19.5 and ankle 11.3 / 16.5 N m/rad (L / R).
+SIDES = "L_hip=10.3,R_hip=19.5,L_ankle=11.3,R_ankle=16.5"
+SIDE_K = {"L_hip_roll": 10.3, "R_hip_roll": 19.5, "L_ankle_roll": 11.3, "R_ankle_roll": 16.5}
+
+
+def test_per_side_parser():
+    P = W.parse_roll_series_k
+    assert P(SIDES) == {"L_hip": (10.3, 10.3), "R_hip": (19.5, 19.5),
+                        "L_ankle": (11.3, 11.3), "R_ankle": (16.5, 16.5)}
+    # a role key fills both of its sides unless a side key overrides it; a role left out is rigid
+    assert P("hip=8:16,L_hip=10") == {"L_hip": (10.0, 10.0), "R_hip": (8.0, 16.0)}
+    assert P({"L_hip": [10, 12], "ankle": 17.75}) == {"L_hip": (10.0, 12.0), "L_ankle": (17.75, 17.75),
+                                                      "R_ankle": (17.75, 17.75)}
+    assert W.roll_series_role_names(P(SIDES)) == W.ROLL_SERIES_SIDE_ROLES
+    assert W.roll_series_role_names(P(FIT)) == W.ROLL_SERIES_ROLES      # the shared path as before
+    for bad in ("L_knee=10", "L_hip=0", "R_hip=16:8", "M_hip=3"):
+        with pytest.raises(ValueError):
+            P(bad)
+    kw = _kw("--roll-series-k", SIDES)
+    assert kw["roll_series_k"] == {"L_hip": [10.3, 10.3], "R_hip": [19.5, 19.5],
+                                   "L_ankle": [11.3, 11.3], "R_ankle": [16.5, 16.5]}
+    assert P(kw["roll_series_k"]) == P(SIDES)                             # config.json round trip
+    names = ["L_hip_yaw", "L_hip_roll", "L_ankle_roll", "R_hip_roll", "R_ankle_roll", "R_knee"]
+    np.testing.assert_array_equal(W.roll_series_roles(names), [-1, 0, 1, 0, 1, -1])
+    np.testing.assert_array_equal(W.roll_series_roles(names, True), [-1, 0, 2, 1, 3, -1])
+
+
+def test_walker_per_side_k_and_draws():
+    e = _walker(roll_series_k=SIDES, dq_obs_window=2)
+    _walker_roll(e, steps=6)
+    for i, n in enumerate(e._servo_names):
+        assert e._ser_c[i] == pytest.approx(1.0 / SIDE_K[n] if n in SIDE_K else 0.0)
+    np.testing.assert_allclose(e._ser_defl, e._servo_tau * e._ser_c)
+    # per side, each side draws its own k inside its range
+    e = _walker(roll_series_k="L_hip=8:12,R_hip=16:24,ankle=12:25")
+    ks = []
+    for s in range(12):
+        e.reset(seed=s)
+        k = {n: 1.0 / e._ser_c[i] for i, n in enumerate(e._servo_names) if n in SIDE_K}
+        assert 8.0 <= k["L_hip_roll"] <= 12.0 and 16.0 <= k["R_hip_roll"] <= 24.0
+        assert 12.0 <= k["L_ankle_roll"] <= 25.0 and 12.0 <= k["R_ankle_roll"] <= 25.0
+        ks.append(k)
+    assert len({round(k["L_ankle_roll"] - k["R_ankle_roll"], 6) for k in ks}) > 6     # independent
+    # per side at one value each = the shared spring when the values agree (same physics)
+    a = _walker(roll_series_k="L_hip=11,R_hip=11,L_ankle=17.75,R_ankle=17.75")
+    b = _walker(roll_series_k=FIT)
+    _, qa = _walker_roll(a, steps=20)
+    _, qb = _walker_roll(b, steps=20)
+    np.testing.assert_array_equal(qa, qb)
+
+
+def test_mjx_per_side_k_and_draws():
+    import jax
+    from env_mjx import BimoMJXEnv
+    env = BimoMJXEnv(**dict(_kw(), roll_series_k=SIDES))
+    st, obs, q = _mjx_roll(env, steps=4)
+    names = env._servo_names
+    c = np.asarray(st.ser_c)
+    for i, n in enumerate(names):
+        assert c[i] == pytest.approx(1.0 / SIDE_K[n] if n in SIDE_K else 0.0, rel=1e-6)
+    env2 = BimoMJXEnv(**dict(_kw(), roll_series_k="L_hip=8:12,R_hip=16:24,ankle=12:25"))
+    sts = jax.jit(jax.vmap(env2.reset))(jax.random.split(jax.random.PRNGKey(0), 16))
+    k = 1.0 / np.asarray(sts.ser_c)[:, [names.index(n) for n in
+                                        ("L_hip_roll", "R_hip_roll", "L_ankle_roll", "R_ankle_roll")]]
+    assert k[:, 0].min() >= 8.0 - 1e-4 and k[:, 0].max() <= 12.0 + 1e-4
+    assert k[:, 1].min() >= 16.0 - 1e-4 and k[:, 1].max() <= 24.0 + 1e-4
+    assert k[:, 2].min() >= 12.0 - 1e-4 and k[:, 3].max() <= 25.0 + 1e-4
+    assert len(set(np.round(k[:, 2] - k[:, 3], 4))) > 8                     # independent draws
+
+
+def test_cpu_mjx_parity_airborne_per_side():
+    """R15 airborne arithmetic (as test_cpu_mjx_parity_airborne) with the per-side springs."""
+    import subprocess
+    code = (
+        "import sys; sys.path.insert(0, %r); import parity_test as P\n"
+        "c, g, s = P.envs_for(P.rob_kw(roll_series_k=%r, dq_obs_window=2),"
+        " solver_tol=P.ARITH_TOL)\n"
+        "ok = P.run_block('R15 per side quick', 20, P.air_acts(c), P.hoist, P.AIR_GATES, (c, g, s))\n"
+        "ok = ok and float(abs(c._ser_defl).max()) > 1e-4\n"
+        "sys.exit(0 if ok else 1)\n") % (os.path.join(SIM, "mjx"), SIDES)
+    env = dict(os.environ, JAX_PLATFORMS="cpu", MUJOCO_GL="disabled")
+    p = subprocess.run([sys.executable, "-c", code], cwd=os.path.join(SIM, "mjx"), env=env,
+                       capture_output=True, text=True, timeout=900)
+    assert p.returncode == 0, p.stdout[-2000:] + p.stderr[-2000:]
+
+
+def test_per_side_grade_terms_same_physics_as_the_flag():
+    """gate_common's ser_L_hip / ser_R_hip / ser_L_ankle / ser_R_ankle terms (grade.py
+    GRADE_ROLL_SERIES=L_hip=..., or GRADE_PLANT_TERMS) and the per-side flag move the plant the same."""
+    sys.path.insert(0, os.path.join(HERE, "..", "experiments", "policy", "weight-transfer-gate"))
+    import gate_common as GC
+    pin = dict(backlash_deg=0.0, backlash_deg_max=None, roll_lash_deg=0.0, roll_lash_deg_max=None)
+    a = _walker(roll_series_k=SIDES, **pin)
+    b = _walker(**pin)
+    b.reset(seed=3)
+    GC.apply_terms(b, dict(ser_hip=99.0, ser_L_hip=10.3, ser_R_hip=19.5, ser_L_ankle=11.3,
+                           ser_R_ankle=16.5))
+    _, qa = _walker_roll(a, steps=40)
+    _, qb = _walker_roll(b, steps=40)
+    assert np.abs(qa[-1] - qa[0]).max() > 1e-3
+    np.testing.assert_allclose(qa, qb, atol=1e-9)
