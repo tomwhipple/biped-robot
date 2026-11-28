@@ -4508,3 +4508,103 @@ size the candidate pool. That way a student is ready when the robot is back (#35
   - stride1 0.6 refit 0 falls on D and C;
   - walk dx2.5 >= 0.30 m at G 1.0 or at G 1.25.
   If two qualify, the one with fewer falls at G 1.5 wins.
+
+### Night of 2026-11-27 (evaluated 2026-11-28)
+
+**Deploy-readiness of X2, night 1. The stand band (B) does NOT hold: its stand goal jitter is at or below X2's on 1 of 3 paired
+seeds (15), and seed 15 also falls 5/8 at x1.5 on D. The recipe stays X2. The R replicates: X2 WALKS on 1 of seeds 20–22 (5 of 11
+X2 seeds overall), so WALKS stays X2's weak column; its margin cost (g\* 1.6) shows on 0 of seeds 20–22 (6 of 11 overall), and seed
+21 loses the sidestep right at G 1.0 (−0.10 m; 10 of 11 X2 seeds keep it). Five students meet the pre-committed deploy-candidate
+bar; by its tie-break (fewest falls at G 1.5) the candidate is B seed 14, `robot_legs_prec109_walk_sagdr_vol_i86_vref_lg13_mir_band_s128r24`
+(15/56 at G 1.5).** A new grading plant from PR #358 (E, the left-side roll spring) shows that every X2 and B student loses
+left-going motion there. Tonight tests training on that spring. Nothing here needs Tom: the robot is still down (#297, PR #355
+open, not flashed).
+
+**The runner.** 11 teacher + distil pairs, all exit 0, on main (ea0ea76 → 400fe76 as #358 merged at 02:10; origin verified before
+every job). B s5 (seed 19) was capped at 173M of 300M. X2 s11 (seed 25) fitted 69M (< 50 %) and stayed queued; it is moved to the
+end of tonight (`queue/held/WHY-1127220023-prec107-s11-moved-to-end.txt`). **No fixer runs** overnight (yesterday's daytime fixer
+runs on the EGL render crash are recorded on 11-27; the referee now renders on Mesa, PR #357, and the collection ran clean).
+
+**Merged / branched.** Nothing by me. Main gained PR #358 (#6 gear compliance from the flight records): per-side
+`--roll-series-k` keys and grade terms (`GRADE_ROLL_SERIES=L_hip=10.3,L_ankle=11.3`). It changes no default. Its record says the
+left stance chain gives about twice as much as the right, and that in Round 8's replay of the 11-16 walks only the left pair
+(L hip 10.3, L ankle 11.3 N m/rad, right rigid) keeps both sides' snaps. All of it was measured on the original left yoke (broken
+11-16), so the values need re-measuring on the repaired robot. **I add it as grading plant E.** Rule 2 still applies: no #259 gate
+has passed, so it is a ranking aid.
+
+**Grading.** grade.py on main (400fe76), 8 seeds, SHAPE_HZ=8, on plants A, B, C, D (as on 11-27) and **E** =
+`GRADE_ROLL_SERIES=L_hip=10.3,L_ankle=11.3` (no sag term), plus `COMPASS=only`, `grade_gain.py` at G 1.25 / 1.5 and the stand ladder
+on D. X2 seeds 14–19 come from `/tmp/plan1127/`; tonight's E grade re-ran X2 seeds 14, 15, 16 and 18 as controls. Outputs, with
+`tab.py` and `cand.py`, are in `/tmp/plan1128/`.
+
+| student (seed) | fwd / back / side L / side R (m), turn L / R (°), D, G 1.0 | WALKS (dx2.5) | compass | x1.5 D/A/B/C | ladder 1.6/1.75/2.0 → g\* | G 1.25 / 1.5 falls /56 | stand jitter (A) | side L, turn L on **E** | x1.5 / stride1 0.6 on E |
+|---|---|---|---|---|---|---|---|---|---|
+| B band (14) | +0.58 −0.55 +0.39 −0.35, +88 −89 | no (0.29) | 17 | 0/0/0/0 | 3/8/8 → 1.6 | 0 / **15** | 0.0569 (X2 0.0465) | +0.23, +42 | 2 / 0 |
+| B _s1 (15) | +0.68 −0.73 +0.50 −0.49, +76 −110 | yes (0.32) | 15 | **5**/5/4/0 | 8/8/8 → 1.6 | 0 / 40 | 0.0492 (X2 0.0625) | +0.47, +52 | 6 / 7 |
+| B _s2 (16) | +0.58 −0.75 +0.42 −0.45, +68 −87 | yes (0.31) | 16 | 0/0/0/0 | 1/8/8 → 1.6 | 0 / 36 | 0.0605 (X2 0.0463) | +0.20, +59 | 2 / 0 |
+| B _s3 (17, extra) | +0.53 −0.63 +0.48 −0.39, +94 −92 | no (0.29) | 14 | 2/2/8/8 | 8/8/8 → 1.6 | 0 / 28 | 0.0587 (X2 0.0439) | +0.21, +60 | 7 / 0 |
+| B _s4 (18, extra) | +0.69 −0.60 +0.42 −0.47, +72 −111 | yes (0.32) | 15 | 0/0/8/8 | 8/8/8 → 1.6 | 5 (back) / 41 | 0.0624 (X2 0.0701) | +0.17, +53 | 8 / 0 |
+| B _s5 (19, 173M, extra) | +0.36 −0.67 +0.34 −0.31, +86 −93 | yes (0.31) | 12 | 0/0/0/0 | 0/8/8 → 1.75 | 0 / 21 | 0.0574 (X2 0.0469) | +0.24, +81 | 0 / 4 |
+| R X2 _s6 (20) | +0.65 −0.61 +0.38 −0.40, +91 −96 | yes (0.33) | 15 | 0/0/0/0 | 0/8/8 → 1.75 | 3 (back) / 45 | 0.0488 | +0.25, +75 | 0 / 2 |
+| R X2 _s7 (21) | +0.53 −0.66 +0.34 **−0.10**, +79 −95 | no (0.26) | 14 | 0/0/0/0 | 0/8/8 → 1.75 | 0 / 39 | 0.0490 | −0.01, +59 | 0 / 8 |
+| R X2 _s8 (22) | +0.50 −0.63 +0.36 −0.35, +87 −87 | no (0.28) | 14 | 0/0/0/0 | 0/8/8 → 1.75 | 0 / 22 | 0.0465 | +0.11, +70 | 0 / 0 |
+| R X2 _s9 (23, extra) | +0.60 −0.77 +0.43 −0.50, +76 −105 | yes (0.31) | 15 | 0/0/0/0 | 8/8/8 → 1.6 | 0 / 33 | 0.0514 | +0.26, +73 | 0 / 0 |
+| R X2 _s10 (24, extra) | +0.53 −0.68 +0.41 −0.38, +85 −98 | no (0.27) | 15 | 0/0/0/0 | 5/8/8 → 1.6 | 0 / 33 | 0.0465 | +0.30, +75 | 0 / 6 |
+| *X2 controls on E (14 / 15 / 16 / 18)* | | | | | | | | +0.13 / +0.20 / +0.31 / +0.08; +68 / +54 / +67 / +63 | 7 / 5 / 0 / 4; 7 / 0 / 0 / 0 |
+
+No student falls on a dir probe at G 1.0 on D or E. stand is 0 falls on every grade. The `stand jitter` column is `goal_rms_mean` on
+plant A (B against X2 at the same seed).
+
+**The pre-committed tests** (11-26 / 11-27):
+- **B holds** if, on >= 2 of seeds 14–16, stand_10s 8/8, jitter <= X2, and no cost. Jitter: seed 14 worse, 15 better, 16 worse
+  (1 of 3; extras: 1 of 3 better). Seed 15 also breaks the no-cost x1.5 <= 2/8 rule (5/8). **B does not hold. The recipe stays X2.**
+- **R:** X2 WALKS on 1 of seeds 20–22 → not held (overall 5 of 11 X2 seeds). The g\* 1.6 cost on 0 of 3 → not held (overall 6 of 11).
+- **Deploy candidates** (all six directions at G 1.0 and 1.25, <= 2/56 at G 1.25, x1.5 <= 2/8 on D and C, compass >= 14, stride1 0.6
+  refit 0 on D and C, walk dx >= 0.30 at G 1.0 or 1.25): **X2 seed 18 (s4), X2 seed 22 (s8), X2 seed 23 (s9), B seed 14, B seed 16
+  (s2)**. G 1.5 falls: 35, 22, 33, **15**, 36. **The candidate is B seed 14.** It was not cut to a deploy branch: the robot is down
+  and the planner does not touch the deployed policy. It is named here for when #355 is flashed and Tom calls a session.
+  On E it holds side L +0.23 and turn L +42°, x1.5 2/8. X2 seed 23 is the strongest on E (side L +0.26, 0 falls).
+
+**What the night shows.**
+- The stand band does not make the zero-command stand stiller in this plant's measure: jitter goes up on 4 of 6 paired seeds.
+  Not pre-committed, and seen post hoc: **B has fewer walk + dir falls at G 1.5**: 15 / 40 / 36 / 28 / 41 / 21 against X2's 48 / 42 /
+  47 / 29 / 35 / 53 at the same seeds (mean 30 vs 42), with 0 falls at G 1.25 on 5 of 6. Two of the five candidates are B students.
+  Tonight's arm B′ tests it at fresh seeds.
+- **Plant E (the left spring) takes away left-going motion.** On every X2 and B student, side L falls from +0.34 – +0.50 m (D) to
+  −0.01 – +0.47, mostly +0.1 – +0.3, and turn L from 68 – 94° to 42 – 81°. x1.5 on E falls 4 – 8 of 8 on 6 of 15 students that hold
+  0 – 2 on D. Right-going motion is barely touched (side R −0.09 to −0.47 on E). A soft left stance chain is what the plant adds, so the
+  likely cause is that the policies lean on left-stance roll stiffness to push off to the left. The sag DR (D) does not train for it,
+  because the sag is a release at lift-off, not a compliance under load.
+
+**Decision (rule 0, mine).**
+- The margin line stays parked (11-27). The deploy-readiness line had its first night. B is out of the recipe, as pre-committed.
+- **Arm S (new line, night 1): X2 with the roll-chain model swapped**, `--footoff-sag L=3.2:9.6,R=1.45:4.35` → `--roll-series-k
+  L_hip=8:14,L_ankle=8:20` (right rigid). The two flags are exclusive in the envs, so this is one variable: which model of the
+  roll chain the policy trains on. The DR brackets the flight-record fit (hip 10.3, CI 8.9–12.3; ankle 11.3, CI 8.4–28.7, clipped at 20)
+  and does not sit on E's exact values. Seeds 14–16 are counted, paired with graded X2 students; seeds 17–19 are extras.
+- **Arm B′: the stand band at seeds 20–22** (counted), paired with today's R students; seeds 23–24 are extras. It tests the post-hoc
+  G 1.5 observation.
+- X2 seed 25 (s11) runs last as an extra for the candidate pool. 12 pairs, interleaved S → B′.
+- `fallback.job` stays X2 (seed 31).
+
+**Tonight (2026-11-28; queued, BRANCH=main, 300M + distil each; pre-flight passed 24/24):**
+
+| arm | runs | parent | variable | hypothesis |
+|---|---|---|---|---|
+| S | `prec110_walk_lser_vol_i86_vref_lg13_mir` (+ _s1, _s2; _s3–_s5 extra), seeds 14–16 (17–19) | X2, same seed | `--footoff-sag …` → `--roll-series-k L_hip=8:14,L_ankle=8:20` | side L / turn L come back on E at no cost on D |
+| B′ | `prec109_…_mir_band_s6`–`_s8` (seeds 20–22; _s9, _s10 extra) | X2 (R), same seed | `--cmd-stand-band 0.0005` | fewer walk + dir falls at G 1.5, no cost at G 1.25 or in directions |
+| (extra) | `prec107_…_mir_s11` (seed 25) | X2 | none | candidate pool |
+
+**Pre-committed** (grade.py as today on A–E, compass, gain 1.25/1.5, ladder on D):
+- **S holds** if, on >= 2 of seeds 14–16, against X2 at the same seed:
+  - on E: side L dy >= +0.25 and turn L >= 60°, 0 dir falls, and x1.5 <= 2/8;
+  - on D (no cost): all six directions with 0 falls and |side| >= 0.25 at G 1.0 and 1.25; x1.5 <= 2/8; walk + dir falls at G 1.25
+    <= X2 + 2; compass >= X2 − 2.
+  If S holds, the left spring becomes the recipe's roll-chain model, D stays a grading plant, and the values get re-measured when the
+  robot is back (they come from the broken yoke). **Kill:** S loses a direction on D (|side| < 0.25 or a dir fall at G 1.0) on >= 2
+  counted seeds. Then the spring cannot replace the sag. The next step would be a plant that has both, which needs the env's
+  exclusivity lifted (daytime work).
+- **B′ holds** (the band joins the recipe as a margin term) if, on >= 2 of seeds 20–22, against R at the same seed (G 1.5: 45 / 39 /
+  22), its G 1.5 falls are <= X2 − 8, G 1.25 falls <= X2's, and it keeps all six directions at G 1.0 (seed 21's control has lost side R,
+  so for seed 21 the direction rule is B′'s alone).
+- The deploy-candidate rule is unchanged; tonight's students join the pool.
