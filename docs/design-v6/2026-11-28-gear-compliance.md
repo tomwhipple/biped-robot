@@ -6,6 +6,11 @@ nothing on the robot was touched (it is down since 11-16). Tool: [`experiments/g
 per-side keys for the existing `--roll-series-k`. With the keys unused the default path is bit-identical, and so is the
 shared spring.*
 
+**In short:** the gears themselves show nothing. Beyond the encoders the left stance side gives about twice as much as
+the right. Replaying the 11-16 walks (Round 8's harness) keeps only the left side's springs: hip 10.3 and ankle
+11.3 N m/rad, with the right side rigid. That plant brings both sides' weight-shift snaps to the robot's level, and
+`--roll-series-k L_hip=10.3,L_ankle=11.3` now expresses it.
+
 ## Result
 
 **The gear train's own compliance cannot be measured from these records, and nothing in them calls for modelling it.
@@ -66,10 +71,10 @@ correction reaching the joint. Every spring on the right hip, or on both hips, k
 - **The records support a softer left side, at Round 8's stiffness.** The left stance gives 1.8× the right, in every
   paired session. Its spring-only hip k is 10.3 (8.9-12.3), the soft end of Round 8's range and the value it called
   best (k 11: left lean 3.01° against the robot's 3.69°).
-- **They do not support a rigid right side.** The right stance gives 2.3° (lumped k 19.5). Round 8 never ran the
-  pair the records give (L ≈ 10, R ≈ 19.5). Its "both hips" rows put the same k on both sides (22, 11). So the
-  records do not rule out its finding that the right hip must stay stiff for the left stall response. They only
-  say the right stance chain is not rigid. The 11-10 clamp stills (right foot clamped,
+- **On their own they do not support a rigid right side.** The right stance gives 2.3° (lumped k 19.5). Round 8
+  never ran the pair the records give (L ≈ 10, R ≈ 19.5): its "both hips" rows put the same k on both sides (22,
+  11). The replay below runs it. The right side's give does not survive there as a spring, which keeps Round 8's
+  finding that the right hip must stay stiff for the left stall response. The 11-10 clamp stills (right foot clamped,
   [the clamp record](../../experiments/policy/weight-transfer-gate/2026-11-10-robot/README.md) §4) put most of the
   right side's unseen give between foot and shank: 4.1° there against 1.4° at thigh to torso. So the right
   side's give may sit at the ankle and spare the hip. The flight records cannot tell which.
@@ -77,6 +82,35 @@ correction reaching the joint. Every spring on the right hip, or on both hips, k
   the joint" fits a spring beyond the hip-roll encoder, and the left's give that the ankle torque does not explain
   (lumped k 10.3) sits where that would put it. The records cannot tell a hip spring from a left foot or ankle that
   gives at a constant torque.
+
+**Round 8's replay with these springs** settles the right side's question, at least for the open-loop replay
+([`round8_replay.md`](../../experiments/gear-compliance/round8_replay.md); the 11-16 evening walks, Round 8's
+harness and scores):
+
+| plant (`grade` + series springs, N m/rad) | L snaps (robot 53 %) | L increment (+1.97) | L r | L false tips | L lean (3.69°) | R snaps (29 %) | R short | R slope on the hike (+0.48) |
+|---|---|---|---|---|---|---|---|---|
+| `grade` | 48 % | +1.96 | 0.93 | 0 | 1.33 | 9.5 % | +0.61 | −0.35 |
+| the records' fit, both sides (L hip 10.3, ankle 11.3; R hip 19.5, ankle 16.5) | 0.3 % | +0.36 | 0.56 | 1 | 3.04 | 6.5 % | +0.41 | −0.05 |
+| both hips only (L 10.3, R 19.5) | 0 % | +0.71 | 0.85 | 0 | 3.23 | 0 % | +1.39 | −0.03 |
+| left hip only (10.3) | 47 % | +2.12 | 0.93 | 0 | 3.16 | 8.9 % | +0.34 | +0.03 |
+| **left hip and left ankle (10.3, 11.3), right rigid** | **42 %** | **+1.83** | **0.91** | 1 | **2.69** | **35 %** | **−0.18** | +0.01 |
+| the left pair and the right ankle (16.5) | 78 % | +1.39 | 0.85 | 1 | 2.68 | 43 % | −0.40 | −0.05 |
+
+- **The left side's measured pair is the best plant of the set.** It keeps the left stall response (42 % snaps,
+  r 0.91, one false tip in 380) and moves the left-stance lean toward the robot's: 2.69° against 3.69°, where
+  `grade` has 1.33°. It also brings the right stances to the robot's level: 35 % snaps against 29 %, 0.18° over
+  the robot on the stall steps. Round 8's left hip spring alone got the right side to 11 %. The left ankle spring
+  is what adds that.
+- **Any spring on the right side breaks the left.** With the right hip at 19.5 the left snaps vanish, as Round 8
+  found at 22 and 11. With the right ankle at 16.5 they rise to 78 %, against the robot's 53 %. So the right
+  stance's quasi-static 2.3° does not behave as a roll spring beyond the encoders while walking. It is somewhere
+  the replay's goals do not load the same way: the foot or sole, a play taken up at the stand, or the
+  double-support baseline (inferred). The clamp stills point the same way: the right side's give was at foot to
+  shank.
+- **The slope on the hike stays unexplained** (+0.01 against the robot's +0.48), as in Round 8: closed loop.
+
+So the records and the replay together support a softer **left** side, at the hip and the ankle, with the right
+side stiff in the replay. The per-side keys can express that; the shared spring cannot.
 
 ## The sim term
 
@@ -87,9 +121,10 @@ overrides its role's range on that side. With any side key, every side draws its
 
     --roll-series-k L_hip=10.3,R_hip=19.5,L_ankle=11.3,R_ankle=16.5
 
-and the CIs as a DR range: `L_hip=8.9:12.3,R_hip=18.3:20.7,L_ankle=8.4:28.7,R_ankle=13.6:21.5`. Grading:
-`GRADE_ROLL_SERIES=L_hip=10.3,R_hip=19.5,L_ankle=11.3,R_ankle=16.5` (or `GRADE_PLANT_TERMS=ser_L_hip=10.3,...`). The
-gate's `ser_<side>_<role>` terms override `ser_hip` / `ser_ankle` on that side.
+and the CIs as a DR range: `L_hip=8.9:12.3,R_hip=18.3:20.7,L_ankle=8.4:28.7,R_ankle=13.6:21.5`. The plant
+that the replay above supports is the left side only, `--roll-series-k L_hip=10.3,L_ankle=11.3` (a role left out is
+rigid). Grading: `GRADE_ROLL_SERIES=L_hip=10.3,L_ankle=11.3` (or `GRADE_PLANT_TERMS=ser_L_hip=10.3,ser_L_ankle=11.3`).
+The gate's `ser_<side>_<role>` terms override `ser_hip` / `ser_ankle` on that side.
 
 **Checks:** `tests/test_roll_series.py`, five new tests:
 - the parser and the config.json round trip;
@@ -106,11 +141,11 @@ steps in both envs, float64 and float32, on the default plant and on the shared 
 - **No A/B night on these values yet:** they describe the left yoke that broke. The first session on the repaired
   robot re-measures them for free. A one-foot hold of a few seconds per side, with the flight recorder on, is
   enough: re-run `body` (Reproduce, below).
-- **Meanwhile, a candidate can be graded on the records' plant:** `GRADE_ROLL_SERIES=L_hip=10.3,R_hip=19.5,L_ankle=11.3,R_ankle=16.5`.
-- **If a night is spent on it,** the one-variable arm is B = A with the CIs as the per-side DR range above, against
-  A's shared `hip=10:25,ankle=16:40`.
-- **For Round 8's open question,** the L 10 / R 19.5 hip pair is worth one `snap_replay.py` run: does R at 19.5
-  keep the left stall response?
+- **Meanwhile, a candidate can be graded on the left-side plant:** `GRADE_ROLL_SERIES=L_hip=10.3,L_ankle=11.3`.
+- **If a night is spent on it,** the one-variable arm is B = A with `--roll-series-k L_hip=8.9:12.3,L_ankle=8.4:28.7`
+  (the left CIs, the right rigid), against A's shared `hip=10:25,ankle=16:40`.
+- **For #259,** the left pair is a better replay plant than Round 8's left hip spring, on both sides' levels. It
+  does not explain the right-stance slope.
 
 ## Method
 
